@@ -31,7 +31,6 @@
  * }
  * ```
  */
-
 /** Meta configuration for a component's stories */
 module Meta = {
   type t<'args> = {
@@ -130,7 +129,8 @@ module Decorators = {
         justifyContent: "center",
         minHeight: "100vh",
         padding: "2rem",
-      }}>
+      }}
+    >
       {storyFn()}
     </div>
   }
@@ -147,7 +147,8 @@ module Decorators = {
         backgroundColor: "#0a0a0f",
         minHeight: "100vh",
         padding: "2rem",
-      }}>
+      }}
+    >
       {storyFn()}
     </div>
   }
@@ -190,7 +191,7 @@ module ArgsAdapter = {
     switch fallback {
     | Some(fb) => make(mappings, ~fallback=fb)
     | None => {
-        get: _ => Obj.magic(()),
+        get: _ => Obj.magic(),
         options: [],
       }
     }
@@ -279,4 +280,3 @@ module Browser = {
   @module("@storybook/test")
   external waitForAsync: (unit => promise<unit>) => promise<unit> = "waitFor"
 }
-

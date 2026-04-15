@@ -114,7 +114,7 @@ Returns true if other is an inclusive descendant of node, and false otherwise.
 */
   @get
   external textContent: T.t => Null.t<string> = "textContent"
-/**
+  /**
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/parentElement)
 */
   @get

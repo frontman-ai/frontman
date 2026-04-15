@@ -47,10 +47,9 @@ let _vueComponentName = (element: WebAPI.DOMAPI.element): option<string> => {
 
 // ── Astro: read annotation displayName from window.__frontman_annotations__ ─
 
-let _astroComponentName = (
-  element: WebAPI.DOMAPI.element,
-  ~window: WebAPI.DOMAPI.window,
-): option<string> => {
+let _astroComponentName = (element: WebAPI.DOMAPI.element, ~window: WebAPI.DOMAPI.window): option<
+  string,
+> => {
   switch FrontmanBindings.AstroAnnotations.getAnnotationsApi(window) {
   | Some(api) =>
     switch api.get(element)->Nullable.toOption {

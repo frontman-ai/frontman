@@ -60,7 +60,5 @@ external snapdom: WebAPI.DOMAPI.element => promise<captureResult> = "snapdom"
 
 // With options variant
 @module("@zumer/snapdom")
-external snapdomWithOptions: (
-  WebAPI.DOMAPI.element,
-  captureOptions,
-) => promise<captureResult> = "snapdom"
+external snapdomWithOptions: (WebAPI.DOMAPI.element, captureOptions) => promise<captureResult> =
+  "snapdom"

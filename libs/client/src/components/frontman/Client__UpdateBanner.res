@@ -7,7 +7,6 @@
  * the Phoenix server endpoint.  The "Update" button sends a prompt
  * to the LLM asking it to perform the upgrade.
  */
-
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module RuntimeConfig = Client__RuntimeConfig
 
@@ -31,10 +30,7 @@ let make = () => {
         let runtimeConfig = RuntimeConfig.read()
         switch RuntimeConfig.frameworkUpdateTarget(runtimeConfig.framework) {
         | NpmPackage(npmPackage) =>
-          Client__State.Actions.checkForUpdate(
-            ~installedVersion=serverInfo.version,
-            ~npmPackage,
-          )
+          Client__State.Actions.checkForUpdate(~installedVersion=serverInfo.version, ~npmPackage)
         | WordPressPlugin => ()
         }
       | _ => ()
@@ -57,8 +53,7 @@ let make = () => {
         projectRootHint ++
         ` Find which package.json contains ${npmPackage} as a dependency,` ++
         ` detect the package manager from the lock file` ++
-        ` (yarn.lock, package-lock.json, pnpm-lock.yaml, or bun.lock),` ++
-        ` and run the appropriate update command from that package's directory.`
+        ` (yarn.lock, package-lock.json, pnpm-lock.yaml, or bun.lock),` ++ ` and run the appropriate update command from that package's directory.`
       let content = [Client__State.UserContentPart.Text({text: text})]
       let sendMessage = (sessionId: string) => {
         Client__State.Actions.addUserMessage(~sessionId, ~content)
@@ -88,7 +83,8 @@ let make = () => {
   switch (updateBannerDismissed, updateInfo) {
   | (false, Some({npmPackage, installedVersion, latestVersion})) =>
     <div
-      className="flex items-center gap-3 mx-4 mt-3 px-4 py-3 bg-amber-950/40 border border-amber-700/40 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
+      className="flex items-center gap-3 mx-4 mt-3 px-4 py-3 bg-amber-950/40 border border-amber-700/40 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200"
+    >
       // Update icon
       <div className="flex-shrink-0">
         <svg
@@ -96,7 +92,8 @@ let make = () => {
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth="2"
-          stroke="currentColor">
+          stroke="currentColor"
+        >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -116,20 +113,23 @@ let make = () => {
       <button
         type_="button"
         onClick={_ => handleUpdateClick()}
-        className="flex-shrink-0 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-800/30 hover:bg-amber-800/50 px-2.5 py-1 rounded transition-colors">
+        className="flex-shrink-0 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-800/30 hover:bg-amber-800/50 px-2.5 py-1 rounded transition-colors"
+      >
         {React.string("Update")}
       </button>
       // Dismiss button
       <button
         type_="button"
         onClick={_ => handleDismiss()}
-        className="flex-shrink-0 text-amber-500/50 hover:text-amber-400/80 transition-colors">
+        className="flex-shrink-0 text-amber-500/50 hover:text-amber-400/80 transition-colors"
+      >
         <svg
           className="w-3.5 h-3.5"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth="2"
-          stroke="currentColor">
+          stroke="currentColor"
+        >
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>

@@ -49,8 +49,7 @@ let make = (~onFlush: (~taskId: string, ~text: string, ~timestamp: string) => un
     buffer.contents->Dict.set(taskId, updatedEntry)
     switch rafId.contents {
     | Some(_) => () // Already scheduled
-    | None =>
-      rafId := Some(WebAPI.Global.requestAnimationFrame(_ => flush()))
+    | None => rafId := Some(WebAPI.Global.requestAnimationFrame(_ => flush()))
     }
   }
 

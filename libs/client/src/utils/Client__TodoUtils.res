@@ -3,7 +3,6 @@
  * 
  * Helpers for identifying TODO tools and extracting TODO data from tool results.
  */
-
 module Message = Client__State__Types.Message
 
 // TODO item type for display
@@ -42,7 +41,7 @@ let extractTodosFromToolResult = (resultJson: JSON.t): option<array<todoItem>> =
   | Some(obj) =>
     // Look for a "todos" or "items" array field
     let todosField = obj->Dict.get("todos")->Option.orElse(obj->Dict.get("items"))
-    
+
     switch todosField {
     | Some(todosJson) =>
       switch JSON.Decode.array(todosJson) {
@@ -50,35 +49,45 @@ let extractTodosFromToolResult = (resultJson: JSON.t): option<array<todoItem>> =
         let items = arr->Array.filterMap(item => {
           switch JSON.Decode.object(item) {
           | Some(itemObj) =>
-            let id = itemObj->Dict.get("id")
+            let id =
+              itemObj
+              ->Dict.get("id")
               ->Option.flatMap(JSON.Decode.string)
               ->Option.getOr(WebAPI.Global.crypto->WebAPI.Crypto.randomUUID)
-            
-            let content = itemObj->Dict.get("content")
+
+            let content =
+              itemObj
+              ->Dict.get("content")
               ->Option.orElse(itemObj->Dict.get("text"))
               ->Option.orElse(itemObj->Dict.get("description"))
               ->Option.orElse(itemObj->Dict.get("title"))
               ->Option.flatMap(JSON.Decode.string)
-            
-            let status = itemObj->Dict.get("status")
+
+            let status =
+              itemObj
+              ->Dict.get("status")
               ->Option.flatMap(JSON.Decode.string)
               ->Option.mapOr(#pending, parseStatus)
-            
+
             switch content {
-            | Some(c) => Some({ id, content: c, status })
+            | Some(c) => Some({id, content: c, status})
             | None => None
             }
           | None => None
           }
         })
-        
-        if Array.length(items) > 0 { Some(items) } else { None }
-        
+
+        if Array.length(items) > 0 {
+          Some(items)
+        } else {
+          None
+        }
+
       | None => None
       }
     | None => None
     }
-    
+
   | None =>
     // Maybe it's directly an array
     switch JSON.Decode.array(resultJson) {
@@ -86,33 +95,42 @@ let extractTodosFromToolResult = (resultJson: JSON.t): option<array<todoItem>> =
       let items = arr->Array.filterMap(item => {
         switch JSON.Decode.object(item) {
         | Some(itemObj) =>
-          let id = itemObj->Dict.get("id")
+          let id =
+            itemObj
+            ->Dict.get("id")
             ->Option.flatMap(JSON.Decode.string)
             ->Option.getOr(WebAPI.Global.crypto->WebAPI.Crypto.randomUUID)
-          
-          let content = itemObj->Dict.get("content")
+
+          let content =
+            itemObj
+            ->Dict.get("content")
             ->Option.orElse(itemObj->Dict.get("text"))
             ->Option.flatMap(JSON.Decode.string)
-          
-          let status = itemObj->Dict.get("status")
+
+          let status =
+            itemObj
+            ->Dict.get("status")
             ->Option.flatMap(JSON.Decode.string)
             ->Option.mapOr(#pending, parseStatus)
-          
+
           switch content {
-          | Some(c) => Some({ id, content: c, status })
+          | Some(c) => Some({id, content: c, status})
           | None => None
           }
         | None => None
         }
       })
-      
-      if Array.length(items) > 0 { Some(items) } else { None }
-      
+
+      if Array.length(items) > 0 {
+        Some(items)
+      } else {
+        None
+      }
+
     | None => None
     }
   }
 }
-
 
 /**
  * Calculate summary stats for a TODO list
@@ -126,15 +144,15 @@ type todoStats = {
 }
 
 let calculateStats = (todos: array<todoItem>): todoStats => {
-  let initial = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0 }
-  
+  let initial = {total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0}
+
   todos->Array.reduce(initial, (acc, todo) => {
-    let base = { ...acc, total: acc.total + 1 }
+    let base = {...acc, total: acc.total + 1}
     switch todo.status {
-    | #pending => { ...base, pending: base.pending + 1 }
-    | #in_progress => { ...base, inProgress: base.inProgress + 1 }
-    | #completed => { ...base, completed: base.completed + 1 }
-    | #cancelled => { ...base, cancelled: base.cancelled + 1 }
+    | #pending => {...base, pending: base.pending + 1}
+    | #in_progress => {...base, inProgress: base.inProgress + 1}
+    | #completed => {...base, completed: base.completed + 1}
+    | #cancelled => {...base, cancelled: base.cancelled + 1}
     }
   })
 }
@@ -169,7 +187,7 @@ let extractTodosFromInput = (inputJson: JSON.t): option<array<todoItem>> => {
   | Some(obj) =>
     // Look for "todos" array in input
     let todosField = obj->Dict.get("todos")
-    
+
     switch todosField {
     | Some(todosJson) =>
       switch JSON.Decode.array(todosJson) {
@@ -177,27 +195,37 @@ let extractTodosFromInput = (inputJson: JSON.t): option<array<todoItem>> => {
         let items = arr->Array.filterMap(item => {
           switch JSON.Decode.object(item) {
           | Some(itemObj) =>
-            let id = itemObj->Dict.get("id")
+            let id =
+              itemObj
+              ->Dict.get("id")
               ->Option.flatMap(JSON.Decode.string)
               ->Option.getOr(WebAPI.Global.crypto->WebAPI.Crypto.randomUUID)
-            
-            let content = itemObj->Dict.get("content")
+
+            let content =
+              itemObj
+              ->Dict.get("content")
               ->Option.flatMap(JSON.Decode.string)
-            
-            let status = itemObj->Dict.get("status")
+
+            let status =
+              itemObj
+              ->Dict.get("status")
               ->Option.flatMap(JSON.Decode.string)
               ->Option.mapOr(#pending, parseStatus)
-            
+
             switch content {
-            | Some(c) => Some({ id, content: c, status })
+            | Some(c) => Some({id, content: c, status})
             | None => None
             }
           | None => None
           }
         })
-        
-        if Array.length(items) > 0 { Some(items) } else { None }
-        
+
+        if Array.length(items) > 0 {
+          Some(items)
+        } else {
+          None
+        }
+
       | None => None
       }
     | None => None
@@ -210,13 +238,10 @@ let extractTodosFromInput = (inputJson: JSON.t): option<array<todoItem>> => {
  * Extract todos from either input or result
  * Tries input first (for todo_write), then result
  */
-let extractTodos = (
-  ~input: option<JSON.t>,
-  ~result: option<JSON.t>,
-): array<todoItem> => {
+let extractTodos = (~input: option<JSON.t>, ~result: option<JSON.t>): array<todoItem> => {
   // Try input first (for todo_write)
   let fromInput = input->Option.flatMap(extractTodosFromInput)
-  
+
   switch fromInput {
   | Some(todos) => todos
   | None =>
@@ -224,4 +249,3 @@ let extractTodos = (
     result->Option.flatMap(extractTodosFromToolResult)->Option.getOr([])
   }
 }
-

@@ -23,7 +23,11 @@ external importMetaUrl: string = "url"
 @module("node:url")
 external fileURLToPath: string => string = "fileURLToPath"
 
-let schemasDir = FrontmanBindings.Path.join([FrontmanBindings.Path.dirname(fileURLToPath(importMetaUrl)), "..", "schemas"])
+let schemasDir = FrontmanBindings.Path.join([
+  FrontmanBindings.Path.dirname(fileURLToPath(importMetaUrl)),
+  "..",
+  "schemas",
+])
 
 let entries: array<schemaEntry> = [
   // Relay
@@ -98,8 +102,9 @@ let main = async () => {
   }
 
   Console.log(
-    `Exported ${totalExported.contents->Int.toString} schemas to ${schemasDir}` ++
-    if skipped.contents > 0 {
+    `Exported ${totalExported.contents->Int.toString} schemas to ${schemasDir}` ++ if (
+      skipped.contents > 0
+    ) {
       ` (${skipped.contents->Int.toString} skipped)`
     } else {
       ""

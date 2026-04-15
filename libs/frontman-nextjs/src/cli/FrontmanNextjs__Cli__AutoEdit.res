@@ -134,11 +134,10 @@ let fetchChatCompletion: (
 `)
 
 // Call a single model
-let callModel = async (
-  ~model: string,
-  ~systemPrompt: string,
-  ~userMessage: string,
-): result<string, string> => {
+let callModel = async (~model: string, ~systemPrompt: string, ~userMessage: string): result<
+  string,
+  string,
+> => {
   await fetchChatCompletion(
     ~url=apiBaseUrl,
     ~apiKey,
@@ -200,11 +199,10 @@ let validateOutput = (~content: string, ~fileType: fileType): bool => {
 }
 
 // Call LLM with model fallback chain
-let callLLM = async (
-  ~existingContent: string,
-  ~fileType: fileType,
-  ~host: string,
-): result<string, string> => {
+let callLLM = async (~existingContent: string, ~fileType: fileType, ~host: string): result<
+  string,
+  string,
+> => {
   let systemPrompt = buildSystemPrompt(~fileType, ~host)
   let userMessage = buildUserMessage(~existingContent)
 
@@ -252,9 +250,7 @@ let promptUserForAutoEdit = async (~fileNames: array<string>): bool => {
         `  ${Style.warn}  ${Style.bold(fileName)} exists but doesn't have Frontman configured.`,
       )
     | _ =>
-      Console.log(
-        `  ${Style.warn}  The following files exist but don't have Frontman configured:`,
-      )
+      Console.log(`  ${Style.warn}  The following files exist but don't have Frontman configured:`)
       fileNames->Array.forEach(fileName => {
         Console.log(`     ${Style.purple("•")} ${Style.bold(fileName)}`)
       })
@@ -300,7 +296,8 @@ let autoEditFile = async (
   switch fileSize > maxFileSizeBytes {
   | true =>
     AutoEditFailed(
-      `${fileName} is too large (${(fileSize / 1000)->Int.toString}KB) for auto-edit — max ${(maxFileSizeBytes / 1000)->Int.toString}KB`,
+      `${fileName} is too large (${(fileSize / 1000)
+          ->Int.toString}KB) for auto-edit — max ${(maxFileSizeBytes / 1000)->Int.toString}KB`,
     )
   | false =>
     Console.log("")

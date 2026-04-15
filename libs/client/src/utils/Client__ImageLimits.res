@@ -46,7 +46,10 @@ let constrainDataUrl = async (dataUrl: string, limits: limits): string => {
       switch w <= maxDim && h <= maxDim {
       | true => dataUrl
       | false =>
-        let scale = Math.min(maxDim->Int.toFloat /. w->Int.toFloat, maxDim->Int.toFloat /. h->Int.toFloat)
+        let scale = Math.min(
+          maxDim->Int.toFloat /. w->Int.toFloat,
+          maxDim->Int.toFloat /. h->Int.toFloat,
+        )
         let nw = Math.round(w->Int.toFloat *. scale)->Float.toInt
         let nh = Math.round(h->Int.toFloat *. scale)->Float.toInt
         let canvas = WebAPI.Global.document->WebAPI.Document.createCanvasElement
@@ -60,7 +63,10 @@ let constrainDataUrl = async (dataUrl: string, limits: limits): string => {
           ~dw=nw->Int.toFloat,
           ~dh=nh->Int.toFloat,
         )
-        canvas->WebAPI.HTMLCanvasElement.toDataURL(~type_="image/jpeg", ~quality=limits.quality->Obj.magic)
+        canvas->WebAPI.HTMLCanvasElement.toDataURL(
+          ~type_="image/jpeg",
+          ~quality=limits.quality->Obj.magic,
+        )
       }
     }
   }

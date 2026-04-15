@@ -92,7 +92,11 @@ describe("JsonRpc Response", _t => {
 
 describe("JsonRpc RpcError", _t => {
   test("error codes have correct integer values", t => {
-    let error = JsonRpc.RpcError.make(~code=JsonRpc.ErrorCode.parseError, ~message="test", ~data=None)
+    let error = JsonRpc.RpcError.make(
+      ~code=JsonRpc.ErrorCode.parseError,
+      ~message="test",
+      ~data=None,
+    )
     let json = error->S.reverseConvertToJsonOrThrow(JsonRpc.RpcError.schema)
     let obj = json->JSON.Decode.object->Option.getOrThrow
 

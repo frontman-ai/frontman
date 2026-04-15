@@ -83,9 +83,8 @@ let getElementSourceLocation = (
 
       // Phase 2: Find the first non-node_modules annotation.
       // This is the "selected component" - the one the user actually cares about.
-      let firstSourceIdx = ancestors->Array.findIndex(((ann, _)) =>
-        !Client__SourcePath.isNodeModulesPath(ann.file)
-      )
+      let firstSourceIdx =
+        ancestors->Array.findIndex(((ann, _)) => !Client__SourcePath.isNodeModulesPath(ann.file))
 
       switch firstSourceIdx {
       | -1 =>

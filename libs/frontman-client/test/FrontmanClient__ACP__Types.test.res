@@ -89,7 +89,10 @@ module Fixtures = {
         (
           "content",
           JSON.Encode.object(
-            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
+            Dict.fromArray([
+              ("type", JSON.Encode.string("text")),
+              ("text", JSON.Encode.string(text)),
+            ]),
           ),
         ),
         ("timestamp", JSON.Encode.string(timestamp)),
@@ -104,7 +107,10 @@ module Fixtures = {
         (
           "content",
           JSON.Encode.object(
-            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
+            Dict.fromArray([
+              ("type", JSON.Encode.string("text")),
+              ("text", JSON.Encode.string(text)),
+            ]),
           ),
         ),
         ("timestamp", JSON.Encode.string(timestamp)),
@@ -115,7 +121,10 @@ module Fixtures = {
 
 describe("sessionUpdate schema parsing", () => {
   test("agent_message_chunk with text content and timestamp", t => {
-    let json = Fixtures.makeAgentMessageChunk(~text="Hello from the agent", ~timestamp="2024-01-15T10:00:30Z")
+    let json = Fixtures.makeAgentMessageChunk(
+      ~text="Hello from the agent",
+      ~timestamp="2024-01-15T10:00:30Z",
+    )
     let parsed = json->S.parseOrThrow(Types.sessionUpdateSchema)
 
     switch parsed {
@@ -127,7 +136,10 @@ describe("sessionUpdate schema parsing", () => {
   })
 
   test("user_message_chunk with text content and timestamp", t => {
-    let json = Fixtures.makeUserMessageChunk(~text="Hello from the user", ~timestamp="2024-01-15T10:00:00Z")
+    let json = Fixtures.makeUserMessageChunk(
+      ~text="Hello from the user",
+      ~timestamp="2024-01-15T10:00:00Z",
+    )
     let parsed = json->S.parseOrThrow(Types.sessionUpdateSchema)
 
     switch parsed {
@@ -145,7 +157,10 @@ describe("sessionUpdate schema parsing", () => {
         (
           "content",
           JSON.Encode.object(
-            Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string("hello"))]),
+            Dict.fromArray([
+              ("type", JSON.Encode.string("text")),
+              ("text", JSON.Encode.string("hello")),
+            ]),
           ),
         ),
       ]),
@@ -163,10 +178,8 @@ describe("sessionUpdate schema parsing", () => {
     | Ok(Types.Unknown({sessionUpdate})) =>
       // Falls to Unknown — message silently dropped by handleSessionUpdate
       t->expect(sessionUpdate)->Expect.toBe("agent_message_chunk")
-    | Ok(_) =>
-      t->expect("unexpected variant")->Expect.toBe("should not happen")
-    | Error(_) =>
-      // Sury fully rejected — also acceptable
+    | Ok(_) => t->expect("unexpected variant")->Expect.toBe("should not happen")
+    | Error(_) => // Sury fully rejected — also acceptable
       ()
     }
   })

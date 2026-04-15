@@ -25,7 +25,9 @@ let maxOutputBytes = 30000
 
 @schema
 type input = {
-  @s.describe("JavaScript code to evaluate. Can be an expression (e.g. `1+2`) or statements (e.g. `let x = 1; x`).")
+  @s.describe(
+    "JavaScript code to evaluate. Can be an expression (e.g. `1+2`) or statements (e.g. `let x = 1; x`)."
+  )
   expression: string,
   @s.describe("Maximum execution time in milliseconds. Defaults to 5000.")
   timeout: option<int>,
@@ -51,7 +53,13 @@ type output = {
 // Execute JS in the given window context, capturing console output.
 // Returns {success, result, error, logs}.
 // Accepts a serializer function to avoid coupling to smartSerialize at the JS level.
-let executeInWindow: (('a, int) => string, WebAPI.DOMAPI.window, string, int, int) => promise<output> = %raw(`
+let executeInWindow: (
+  ('a, int) => string,
+  WebAPI.DOMAPI.window,
+  string,
+  int,
+  int,
+) => promise<output> = %raw(`
   function executeInWindow(serialize, win, expression, timeoutMs, maxBytes) {
     var logs = [];
     var origLog = win.console.log;
@@ -136,10 +144,16 @@ let executeInWindow: (('a, int) => string, WebAPI.DOMAPI.window, string, int, in
 // Tool result convention: Ok means the tool executed and produced a response for the
 // AI agent. Error means the tool framework itself failed. The `success` field inside
 // the output distinguishes execution success from JS-level errors.
-let execute = async (input: input, ~taskId as _: string, ~toolCallId as _: string): toolResult<output> => {
+let execute = async (input: input, ~taskId as _: string, ~toolCallId as _: string): toolResult<
+  output,
+> => {
   await Client__Tool__ElementResolver.withPreviewDoc(
-    ~onUnavailable=async () =>
-      Ok({success: false, result: None, error: Some("Preview frame not available"), logs: []}),
+    ~onUnavailable=async () => Ok({
+      success: false,
+      result: None,
+      error: Some("Preview frame not available"),
+      logs: [],
+    }),
     async ({win, doc: _}) => {
       let timeout = input.timeout->Option.getOr(5000)
       let output = await executeInWindow(

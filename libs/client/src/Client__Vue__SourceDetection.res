@@ -47,14 +47,12 @@ module VueComponent = {
     | None =>
       switch ct.name {
       | Some(n) => Some(n)
-      | None =>
-        ct.__file->Option.map(Client__SourcePath.extractFilename)
+      | None => ct.__file->Option.map(Client__SourcePath.extractFilename)
       }
     }
   }
 
-  let getFile = (instance: vueComponentInstance): option<string> =>
-    instance.componentType.__file
+  let getFile = (instance: vueComponentInstance): option<string> => instance.componentType.__file
 
   // Returns the template start line, defaulting to 1 when the Vite
   // plugin hasn't injected __frontman_templateLine.
@@ -82,9 +80,10 @@ external isArray: 'a => bool = "isArray"
 // ── Pure ReScript helpers ──────────────────────────────────────────────
 
 // Walk up the DOM from startElement to find the nearest Vue component instance.
-let findVueInstance = (
-  startElement: WebAPI.DOMAPI.element,
-): option<(WebAPI.DOMAPI.element, vueComponentInstance)> => {
+let findVueInstance = (startElement: WebAPI.DOMAPI.element): option<(
+  WebAPI.DOMAPI.element,
+  vueComponentInstance,
+)> => {
   let el = ref(Some(startElement))
   let depth = ref(0)
   let result = ref(None)
@@ -114,7 +113,9 @@ let serializeProps = (rawProps: Nullable.t<Dict.t<JSON.t>>): option<Dict.t<JSON.
 
     // Dict.keysToArray uses Object.keys() — own enumerable props only,
     // no hasOwnProperty check needed (unlike for..in).
-    props->Dict.keysToArray->Array.forEach(key => {
+    props
+    ->Dict.keysToArray
+    ->Array.forEach(key => {
       // Skip Vue internal props (prefixed with __)
       switch key->String.startsWith("__") {
       | true => ()
@@ -216,9 +217,9 @@ let makeSourceLocation = (
 // 1. Walk up DOM from the clicked element to find the nearest __vueParentComponent
 // 2. If it's a node_modules component, keep walking parents to find a source-project one
 // 3. Build a parent chain by walking instance.parent and detecting file transitions
-let getElementSourceLocation = (
-  ~element: WebAPI.DOMAPI.element,
-): option<Client__Types.SourceLocation.t> => {
+let getElementSourceLocation = (~element: WebAPI.DOMAPI.element): option<
+  Client__Types.SourceLocation.t,
+> => {
   switch findVueInstance(element) {
   | None => None
   | Some((foundEl, instance)) =>
@@ -268,8 +269,7 @@ let getElementSourceLocation = (
         let parentInst = currentParent.contents->Option.getOrThrow
         switch VueComponent.getFile(parentInst) {
         | Some(parentFile)
-          if parentFile != lastFile.contents &&
-            !Client__SourcePath.isNodeModulesPath(parentFile) =>
+          if parentFile != lastFile.contents && !Client__SourcePath.isNodeModulesPath(parentFile) =>
           parentBoundaries->Array.push(parentInst)
           lastFile := parentFile
         | _ => ()
@@ -295,11 +295,7 @@ let getElementSourceLocation = (
         })
       })
 
-      makeSourceLocation(
-        selectedInstance.contents,
-        selectedEl.contents,
-        ~parent=parentChain,
-      )
+      makeSourceLocation(selectedInstance.contents, selectedEl.contents, ~parent=parentChain)
     }
   }
 }

@@ -135,11 +135,12 @@ describe("serializeProps", () => {
     // Create an object whose JSON.stringify output exceeds 500 chars
     let entries = Array.make(~length=50, ("k", JSON.String("a-long-padding-value-here")))
     // Give unique keys so they all appear in the stringified output
-    let uniqueEntries =
-      entries->Array.mapWithIndex((entry, i) => {
+    let uniqueEntries = entries->Array.mapWithIndex(
+      (entry, i) => {
         let (_, v) = entry
         (`key_${Int.toString(i)}`, v)
-      })
+      },
+    )
     let obj = JSON.Object(Dict.fromArray(uniqueEntries))
     let props = Dict.fromArray([("settings", obj)])
     let result = Vue.serializeProps(Nullable.make(props))
@@ -182,12 +183,7 @@ describe("makeSourceLocation", () => {
   })
 
   test("builds source location for a valid component", t => {
-    let instance = makeTestInstance(
-      ~file="/src/App.vue",
-      ~scriptName="App",
-      ~templateLine=5,
-      (),
-    )
+    let instance = makeTestInstance(~file="/src/App.vue", ~scriptName="App", ~templateLine=5, ())
     let el = makeTestElement("DIV")
     let result = Vue.makeSourceLocation(instance, el, ~parent=None)
     t->expect(result->Option.isSome)->Expect.toBe(true)
@@ -219,8 +215,7 @@ describe("makeSourceLocation", () => {
     }
     let instance = makeTestInstance(~file="/src/Page.vue", ~scriptName="Page", ())
     let el = makeTestElement("SECTION")
-    let loc =
-      Vue.makeSourceLocation(instance, el, ~parent=Some(parentLoc))->Option.getOrThrow
+    let loc = Vue.makeSourceLocation(instance, el, ~parent=Some(parentLoc))->Option.getOrThrow
     t->expect(loc.parent->Option.isSome)->Expect.toBe(true)
     let parent = loc.parent->Option.getOrThrow
     t->expect(parent.file)->Expect.toBe("/src/Layout.vue")

@@ -65,8 +65,8 @@ let toForwardSlashes = (path: string): string => path->String.replaceAll("\\", "
 let fileToRoute = (filePath: string): string => {
   filePath
   ->toForwardSlashes
-  ->String.replaceRegExp(%re("/\.(astro|md|mdx|html)$/"), "")
-  ->String.replaceRegExp(%re("/\/index$/"), "")
+  ->String.replaceRegExp(/\.(astro|md|mdx|html)$/, "")
+  ->String.replaceRegExp(/\/index$/, "")
   ->(p => p == "" ? "/" : p)
 }
 
@@ -100,61 +100,56 @@ let rec findPages = async (
   try {
     let entries = await Fs.Promises.readdir(fullPath)
 
-    let pagesArrays =
-      await entries
-      ->Array.map(async entry => {
-        let entryPath = Path.join([fullPath, entry])
-        let stats = await Fs.Promises.lstat(entryPath)
+    let pagesArrays = await entries
+    ->Array.map(async entry => {
+      let entryPath = Path.join([fullPath, entry])
+      let stats = await Fs.Promises.lstat(entryPath)
 
-        // Skip symlinks to avoid following links outside the project
-        if Fs.isSymbolicLink(stats) {
+      // Skip symlinks to avoid following links outside the project
+      if Fs.isSymbolicLink(stats) {
+        []
+      } else if Fs.isDirectory(stats) {
+        // Skip special directories
+        if entry->String.startsWith("_") || entry == "api" || entry == "components" {
           []
-        } else if Fs.isDirectory(stats) {
-          // Skip special directories
-          if entry->String.startsWith("_") || entry == "api" || entry == "components" {
-            []
-          } else {
-            await findPages(baseDir, Path.join([currentPath, entry]), ~projectRoot, ~sourceRoot)
-          }
-        } else if (
-          entry->String.endsWith(".astro") ||
-          entry->String.endsWith(".md") ||
-          entry->String.endsWith(".mdx") ||
-          entry->String.endsWith(".html")
-        ) {
-          let filePath = Path.join([currentPath, entry])
-          let routePath = fileToRoute(filePath)
-          let filePathNoExt = filePath->String.replaceRegExp(%re("/\.(astro|md|mdx|html)$/"), "")
-          // Normalize separators for cross-platform segment splitting
-          let segments = filePathNoExt->toForwardSlashes->String.split("/")
-          let hasDynamic = segments->Array.some(isDynamicSegment)
-          let dynType = getMostSignificantDynamicType(segments)
-          // Make path relative to sourceRoot so the agent can pass it
-          // directly to read_file, grep, etc.
-          let relativeToSourceRoot = PathContext.toRelativePath(
-            ~sourceRoot,
-            ~absolutePath=entryPath,
-          )
-          [
-            {
-              path: routePath,
-              file: relativeToSourceRoot,
-              isDynamic: hasDynamic,
-              dynamicType: dynType,
-            },
-          ]
         } else {
-          []
+          await findPages(baseDir, Path.join([currentPath, entry]), ~projectRoot, ~sourceRoot)
         }
-      })
-      ->Promise.all
+      } else if (
+        entry->String.endsWith(".astro") ||
+        entry->String.endsWith(".md") ||
+        entry->String.endsWith(".mdx") ||
+        entry->String.endsWith(".html")
+      ) {
+        let filePath = Path.join([currentPath, entry])
+        let routePath = fileToRoute(filePath)
+        let filePathNoExt = filePath->String.replaceRegExp(/\.(astro|md|mdx|html)$/, "")
+        // Normalize separators for cross-platform segment splitting
+        let segments = filePathNoExt->toForwardSlashes->String.split("/")
+        let hasDynamic = segments->Array.some(isDynamicSegment)
+        let dynType = getMostSignificantDynamicType(segments)
+        // Make path relative to sourceRoot so the agent can pass it
+        // directly to read_file, grep, etc.
+        let relativeToSourceRoot = PathContext.toRelativePath(~sourceRoot, ~absolutePath=entryPath)
+        [
+          {
+            path: routePath,
+            file: relativeToSourceRoot,
+            isDynamic: hasDynamic,
+            dynamicType: dynType,
+          },
+        ]
+      } else {
+        []
+      }
+    })
+    ->Promise.all
 
     pagesArrays->Array.flat
   } catch {
   | exn =>
     // Only swallow "directory not found" (ENOENT) — let other errors propagate
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("")
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("")
     if msg->String.includes("ENOENT") {
       []
     } else {
@@ -186,8 +181,7 @@ let execute = async (ctx: Tool.serverExecutionContext, _input: input): Tool.tool
     Ok(allPages)
   } catch {
   | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
     Error(`Failed to find pages: ${msg}`)
   }
 }

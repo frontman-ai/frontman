@@ -6,9 +6,8 @@
  * - Min/max width constraints
  * - localStorage persistence of user preference
  */
-
-// Constants
-let defaultWidth = 384 // w-96 equivalent
+let // Constants
+defaultWidth = 384 // w-96 equivalent
 let minWidth = 280
 let maxWidth = 600
 let storageKey = "frontman:chatbox-width"
@@ -125,4 +124,3 @@ let use = () => {
 
   (state.width, state.isResizing, handleMouseDown)
 }
-

@@ -23,6 +23,7 @@ describe("FrontmanClient Sentry", () => {
     | Some(tk) => tk.reset()
     | None => ()
     }
+
     // Reset initialized flag and reinitialize with testkit transport
     Sentry.initialized.contents = false
     switch transport.contents {
@@ -154,16 +155,15 @@ describe("FrontmanClient Sentry", () => {
             t->expect(reports->Array.length)->Expect.toBe(1)
 
             switch reports->Array.get(0) {
-            | Some(report) => {
-                switch report.tags {
-                | Some(tags) => {
-                    t->expect(tags->Dict.get("frontman.protocol"))->Expect.toBe(Some("MCP"))
-                    t
-                    ->expect(tags->Dict.get("frontman.operation"))
-                    ->Expect.toBe(Some("tools/call"))
-                  }
-                | None => t->expect(false)->Expect.toBe(true)
+            | Some(report) =>
+              switch report.tags {
+              | Some(tags) => {
+                  t->expect(tags->Dict.get("frontman.protocol"))->Expect.toBe(Some("MCP"))
+                  t
+                  ->expect(tags->Dict.get("frontman.operation"))
+                  ->Expect.toBe(Some("tools/call"))
                 }
+              | None => t->expect(false)->Expect.toBe(true)
               }
             | None => t->expect(false)->Expect.toBe(true)
             }
@@ -300,9 +300,7 @@ describe("FrontmanClient Sentry", () => {
                 stacktrace: Some({
                   frames: Some([
                     {
-                      filename: Some(
-                        "/node_modules/@frontman-ai/nextjs/dist/instrumentation.js",
-                      ),
+                      filename: Some("/node_modules/@frontman-ai/nextjs/dist/instrumentation.js"),
                     },
                   ]),
                 }),

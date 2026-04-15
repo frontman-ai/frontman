@@ -1,7 +1,13 @@
 %%raw("import '@radix-ui/themes/styles.css'")
 %%raw("import './index.css'")
 
-FrontmanLogs.Logs.setLogLevel(if Client__Env.isDev { Debug } else { Error })
+FrontmanLogs.Logs.setLogLevel(
+  if Client__Env.isDev {
+    Debug
+  } else {
+    Error
+  },
+)
 FrontmanLogs.Logs.addHandler(FrontmanLogs.Logs.Console.handler)
 FrontmanLogs.Logs.addHandler(FrontmanAiFrontmanClient.FrontmanClient__Sentry__LogHandler.handler)
 
@@ -54,7 +60,8 @@ WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoade
           clientName={config.clientName}
           endpoint={config.endpoint}
           tokenUrl={config.tokenUrl}
-          loginUrl={config.loginUrl}>
+          loginUrl={config.loginUrl}
+        >
           <Client__App apiBaseUrl={config.apiBaseUrl} />
         </Client__FrontmanProvider.Provider>
       </React.StrictMode>,

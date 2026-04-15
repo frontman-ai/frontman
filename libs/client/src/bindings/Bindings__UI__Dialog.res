@@ -34,7 +34,8 @@ module DialogTrigger = {
 
 module DialogPortal = {
   @module("@/components/ui/dialog") @react.component
-  external make: (~className: string=?, ~children: React.element=?) => React.element = "DialogPortal"
+  external make: (~className: string=?, ~children: React.element=?) => React.element =
+    "DialogPortal"
 }
 
 module DialogClose = {
@@ -50,7 +51,8 @@ module DialogClose = {
 
 module DialogOverlay = {
   @module("@/components/ui/dialog") @react.component
-  external make: (~className: string=?, ~children: React.element=?) => React.element = "DialogOverlay"
+  external make: (~className: string=?, ~children: React.element=?) => React.element =
+    "DialogOverlay"
 }
 
 module DialogContent = {
@@ -66,12 +68,14 @@ module DialogContent = {
 
 module DialogHeader = {
   @module("@/components/ui/dialog") @react.component
-  external make: (~className: string=?, ~children: React.element=?) => React.element = "DialogHeader"
+  external make: (~className: string=?, ~children: React.element=?) => React.element =
+    "DialogHeader"
 }
 
 module DialogFooter = {
   @module("@/components/ui/dialog") @react.component
-  external make: (~className: string=?, ~children: React.element=?) => React.element = "DialogFooter"
+  external make: (~className: string=?, ~children: React.element=?) => React.element =
+    "DialogFooter"
 }
 
 module DialogTitle = {
@@ -81,5 +85,6 @@ module DialogTitle = {
 
 module DialogDescription = {
   @module("@/components/ui/dialog") @react.component
-  external make: (~className: string=?, ~children: React.element=?) => React.element = "DialogDescription"
+  external make: (~className: string=?, ~children: React.element=?) => React.element =
+    "DialogDescription"
 }

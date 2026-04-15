@@ -44,16 +44,13 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
     // Query by level=Error and by error-related patterns separately,
     // then deduplicate since an Error-level log mentioning "error" appears in both
     let recentLogs = LogCapture.getLogs(~since=beforeTimestamp, ~level=Error)
-    let errorLogs =
-      LogCapture.getLogs(~since=beforeTimestamp, ~pattern="error|Error|failed|Failed")
+    let errorLogs = LogCapture.getLogs(~since=beforeTimestamp, ~pattern="error|Error|failed|Failed")
 
     let seen = Set.make()
     recentLogs->Array.forEach(entry => seen->Set.add(entry.timestamp ++ "|" ++ entry.message))
     let allErrors = Array.concat(
       recentLogs,
-      errorLogs->Array.filter(entry =>
-        !(seen->Set.has(entry.timestamp ++ "|" ++ entry.message))
-      ),
+      errorLogs->Array.filter(entry => !(seen->Set.has(entry.timestamp ++ "|" ++ entry.message))),
     )
 
     switch allErrors->Array.length > 0 {

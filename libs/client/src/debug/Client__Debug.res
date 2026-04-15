@@ -1,3 +1,4 @@
+// Type for the debug object we'll attach to window
 /**
  * Client__Debug - Window debug utilities for state capture
  * 
@@ -9,8 +10,6 @@
  *   window.__frontmanDebug.captureState() // Copies JSON to clipboard
  *   window.__frontmanDebug.getSnapshot()  // Returns snapshot object
  */
-
-// Type for the debug object we'll attach to window
 type debugObject = {
   captureState: unit => promise<unit>,
   getSnapshot: unit => Client__StateSnapshot.t,
@@ -48,7 +47,7 @@ let copyToClipboard: string => promise<unit> = %raw(`
 // Capture state and copy to clipboard
 let captureState = async () => {
   let jsonString = getSnapshotJson()
-  
+
   // Try to copy to clipboard
   try {
     await copyToClipboard(jsonString)
@@ -59,7 +58,7 @@ let captureState = async () => {
     Console.warn("[Frontman Debug] Could not copy to clipboard. Here's the JSON:")
     Console.log(jsonString)
   }
-  
+
   // Also log the snapshot object for inspection
   let snapshot = getSnapshot()
   Console.log2("[Frontman Debug] Snapshot object:", snapshot)
@@ -101,4 +100,3 @@ let _ = {
     init()
   }
 }
-

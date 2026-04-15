@@ -13,7 +13,8 @@ module Config = FrontmanAstro__Config
 module Middleware = FrontmanAstro__Middleware
 module ViteAdapter = FrontmanAstro__ViteAdapter
 
-@module("node:module") external createRequire: string => {"resolve": string => string} = "createRequire"
+@module("node:module")
+external createRequire: string => {"resolve": string => string} = "createRequire"
 @val @scope(("import", "meta")) external importMetaUrl2: string = "url"
 
 @schema
@@ -31,9 +32,7 @@ let parseMajorVersion = (version: string) =>
   ->String.split(".")
   ->Array.get(0)
   ->Option.flatMap(s => Int.fromString(s))
-  ->Option.getOrThrow(
-    ~message=`[Frontman] Failed to parse Astro major version from "${version}"`,
-  )
+  ->Option.getOrThrow(~message=`[Frontman] Failed to parse Astro major version from "${version}"`)
 
 let getAstroMajorVersion = () => getAstroVersion()->parseMajorVersion
 
@@ -55,7 +54,8 @@ external annotationCaptureScript: string = "annotationCaptureScript"
 // the format Astro's markdown processor expects for rehype plugin entries.
 @module("./rehype-content-file.mjs")
 external rehypeContentFile: {..} => Bindings.rehypePlugin = "rehypeContentFile"
-external asRehypePlugin: (({..} => Bindings.rehypePlugin, {..})) => Bindings.rehypePlugin = "%identity"
+external asRehypePlugin: (({..} => Bindings.rehypePlugin, {..})) => Bindings.rehypePlugin =
+  "%identity"
 
 // SVG icon for the toolbar — Frontman "F" glyph from favicon.svg (no background)
 // Uses currentColor so it adapts to Astro's toolbar theming.

@@ -19,4 +19,6 @@ let warn = yellow("⚠")
 let bullet = purple("▸")
 
 // Decorative
-let divider = purple("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+let divider = purple(
+  "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+)

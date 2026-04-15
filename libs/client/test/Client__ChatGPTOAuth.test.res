@@ -67,8 +67,7 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
 
     // State should remain ShowingCode with the original deviceAuthId
     switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTShowingCode({deviceAuthId}) =>
-      t->expect(deviceAuthId)->Expect.toBe("device-123")
+    | Types.ChatGPTShowingCode({deviceAuthId}) => t->expect(deviceAuthId)->Expect.toBe("device-123")
     | _ => t->expect("ChatGPTShowingCode")->Expect.toBe("got different status")
     }
   })
@@ -82,8 +81,7 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
     )
 
     switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTError(msg) =>
-      t->expect(msg)->Expect.toBe("Authorization was declined.")
+    | Types.ChatGPTError(msg) => t->expect(msg)->Expect.toBe("Authorization was declined.")
     | _ => t->expect("ChatGPTError")->Expect.toBe("got different status")
     }
   })
@@ -98,8 +96,7 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
 
     // State should remain ShowingCode — stale error rejected
     switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTShowingCode({deviceAuthId}) =>
-      t->expect(deviceAuthId)->Expect.toBe("device-123")
+    | Types.ChatGPTShowingCode({deviceAuthId}) => t->expect(deviceAuthId)->Expect.toBe("device-123")
     | _ => t->expect("ChatGPTShowingCode")->Expect.toBe("got different status")
     }
   })
@@ -115,8 +112,7 @@ describe("ChatGPT OAuth - Stale Poll Rejection", () => {
     )
 
     switch nextState.chatgptOAuthStatus {
-    | Types.ChatGPTError(msg) =>
-      t->expect(msg)->Expect.toBe("Failed to initiate authentication")
+    | Types.ChatGPTError(msg) => t->expect(msg)->Expect.toBe("Failed to initiate authentication")
     | _ => t->expect("ChatGPTError")->Expect.toBe("got different status")
     }
   })

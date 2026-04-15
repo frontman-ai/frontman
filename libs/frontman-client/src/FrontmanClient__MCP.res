@@ -139,7 +139,8 @@ let handleToolsCall = async (
     | S.Error(e) =>
       sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${e.message}`)
     | exn =>
-      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
       Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
       sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
     }

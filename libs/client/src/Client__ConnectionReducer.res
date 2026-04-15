@@ -122,7 +122,7 @@ type effect =
       signal: WebAPI.EventAPI.abortSignal,
       initialAuthBehavior: Client__FtueState.authBehavior,
     })
-  | ConnectRelay(Relay.t)
+  | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
   | DisconnectRelay(Relay.t)
   | DisconnectACP(ACP.connection)
   | AbortConnections(WebAPI.EventAPI.abortController)
@@ -278,7 +278,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
           signal: abortController.signal,
           initialAuthBehavior: state.initialAuthBehavior,
         }),
-        ConnectRelay(relay),
+        ConnectRelay(relay, abortController.signal),
         LogInfo("Initializing connections..."),
       ],
     )
@@ -303,10 +303,15 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [],
     )
 
-  | ({relay: RelayDisconnected, relayInstance: Some(relay)}, RelayConnectStart) => (
-      {...state, relay: RelayConnecting},
-      [ConnectRelay(relay)],
-    )
+  | (
+      {relay: RelayDisconnected, relayInstance: Some(relay), abortController: Some(controller)},
+      RelayConnectStart,
+    ) => ({...state, relay: RelayConnecting}, [ConnectRelay(relay, controller.signal)])
+
+  | (
+      {relay: RelayDisconnected, relayInstance: Some(_), abortController: None},
+      RelayConnectStart,
+    ) => (state, [LogError("Cannot connect relay: no abort controller")])
 
   | ({relay: RelayConnecting}, RelayConnectSuccess) => (
       {...state, relay: RelayConnected},
@@ -587,9 +592,9 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       }
     }
     connect()->ignore
-  | ConnectRelay(relay) =>
+  | ConnectRelay(relay, signal) =>
     let connect = async () => {
-      let result = await Relay.connect(relay)
+      let result = await Relay.connect(relay, ~signal)
       switch result {
       | Ok() =>
         dispatch(RelayConnectSuccess)
@@ -601,9 +606,13 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
               ->Array.length
               ->Int.toString} relay tools available`,
           )
-        | _ => ()
+        | Disconnected | Error(_) => ()
         }
-      | Error(err) => dispatch(RelayConnectError(err))
+      | Error(err) =>
+        switch signal.aborted {
+        | true => Log.info("Relay connection aborted (cleanup)")
+        | false => dispatch(RelayConnectError(err))
+        }
       }
     }
     connect()->ignore

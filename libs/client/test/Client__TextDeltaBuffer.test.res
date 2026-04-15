@@ -7,9 +7,11 @@ type flushEntry = {taskId: string, text: string, timestamp: string}
 describe("TextDeltaBuffer", () => {
   test("flush synchronously dispatches all pending entries", t => {
     let flushed: ref<array<flushEntry>> = ref([])
-    let buffer = Buffer.make(~onFlush=(~taskId, ~text, ~timestamp) => {
-      flushed.contents = flushed.contents->Array.concat([{taskId, text, timestamp}])
-    })
+    let buffer = Buffer.make(
+      ~onFlush=(~taskId, ~text, ~timestamp) => {
+        flushed.contents = flushed.contents->Array.concat([{taskId, text, timestamp}])
+      },
+    )
     buffer.add(~taskId="task-1", ~text="Hello ", ~timestamp="2024-01-15T10:00:00Z")
     buffer.add(~taskId="task-1", ~text="world", ~timestamp="2024-01-15T10:00:00Z")
     buffer.add(~taskId="task-2", ~text="Other", ~timestamp="2024-01-15T11:00:00Z")
@@ -33,9 +35,11 @@ describe("TextDeltaBuffer", () => {
 
   test("flush after flush is a no-op", t => {
     let callCount = ref(0)
-    let buffer = Buffer.make(~onFlush=(~taskId as _, ~text as _, ~timestamp as _) => {
-      callCount := callCount.contents + 1
-    })
+    let buffer = Buffer.make(
+      ~onFlush=(~taskId as _, ~text as _, ~timestamp as _) => {
+        callCount := callCount.contents + 1
+      },
+    )
     buffer.add(~taskId="task-1", ~text="Hello", ~timestamp="2024-01-15T10:00:00Z")
     buffer.flush()
     t->expect(callCount.contents)->Expect.toBe(1)
@@ -46,9 +50,11 @@ describe("TextDeltaBuffer", () => {
 
   test("reset discards pending entries without dispatching", t => {
     let callCount = ref(0)
-    let buffer = Buffer.make(~onFlush=(~taskId as _, ~text as _, ~timestamp as _) => {
-      callCount := callCount.contents + 1
-    })
+    let buffer = Buffer.make(
+      ~onFlush=(~taskId as _, ~text as _, ~timestamp as _) => {
+        callCount := callCount.contents + 1
+      },
+    )
     buffer.add(~taskId="task-1", ~text="Hello", ~timestamp="2024-01-15T10:00:00Z")
     buffer.reset()
     buffer.flush()

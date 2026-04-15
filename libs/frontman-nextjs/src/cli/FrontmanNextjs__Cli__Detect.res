@@ -183,10 +183,10 @@ let detectPackageManager = async (projectDir: string): packageManager => {
 }
 
 // Pattern to detect @frontman-ai/nextjs import
-let frontmanImportPattern = %re("/@frontman-ai\/nextjs/")
+let frontmanImportPattern = /@frontman-ai\/nextjs/
 
 // Pattern to extract host from createMiddleware config
-let hostPattern = %re("/host:\s*['\"]([^'\"]+)['\"]/")
+let hostPattern = /host:\s*['\"]([^'\"]+)['\"]/
 
 // Analyze an existing file for Frontman configuration
 let analyzeFile = async (filePath: string): existingFile => {

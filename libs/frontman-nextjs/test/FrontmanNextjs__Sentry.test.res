@@ -23,6 +23,7 @@ describe("FrontmanNextjs Sentry", () => {
     | Some(tk) => tk.reset()
     | None => ()
     }
+
     // Reset initialized flag and reinitialize with testkit transport
     Sentry.initialized.contents = false
     switch transport.contents {
@@ -299,241 +300,245 @@ describe("FrontmanNextjs Sentry", () => {
   })
 
   describe("beforeSend filtering", () => {
-    describe("hasFrontmanFrames", () => {
-      test(
-        "returns true for events with no exception (e.g. captureMessage)",
-        t => {
-          let event: SentryTypes.sentryEvent = {exception_: None}
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
-        },
-      )
+    describe(
+      "hasFrontmanFrames",
+      () => {
+        test(
+          "returns true for events with no exception (e.g. captureMessage)",
+          t => {
+            let event: SentryTypes.sentryEvent = {exception_: None}
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
+          },
+        )
 
-      test(
-        "returns true for exception with no values",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({values: None}),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
-        },
-      )
+        test(
+          "returns true for exception with no values",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({values: None}),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
+          },
+        )
 
-      test(
-        "returns true for exception with empty values array",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({values: Some([])}),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
-        },
-      )
+        test(
+          "returns true for exception with empty values array",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({values: Some([])}),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
+          },
+        )
 
-      test(
-        "returns true for exception with no stacktrace",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([{stacktrace: None}]),
-            }),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
-        },
-      )
+        test(
+          "returns true for exception with no stacktrace",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([{stacktrace: None}]),
+              }),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
+          },
+        )
 
-      test(
-        "returns true for exception with empty frames array",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([
-                {
-                  stacktrace: Some({frames: Some([])}),
-                },
-              ]),
-            }),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
-        },
-      )
+        test(
+          "returns true for exception with empty frames array",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([
+                  {
+                    stacktrace: Some({frames: Some([])}),
+                  },
+                ]),
+              }),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
+          },
+        )
 
-      test(
-        "returns true when a frame contains frontman in filename",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([
-                {
-                  stacktrace: Some({
-                    frames: Some([
-                      {filename: Some("/node_modules/.pnpm/next/dist/server.js")},
-                      {
-                        filename: Some(
-                          "/node_modules/.pnpm/@frontman-ai+nextjs/dist/instrumentation.js",
-                        ),
-                      },
-                    ]),
-                  }),
-                },
-              ]),
-            }),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
-        },
-      )
+        test(
+          "returns true when a frame contains frontman in filename",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([
+                  {
+                    stacktrace: Some({
+                      frames: Some([
+                        {filename: Some("/node_modules/.pnpm/next/dist/server.js")},
+                        {
+                          filename: Some(
+                            "/node_modules/.pnpm/@frontman-ai+nextjs/dist/instrumentation.js",
+                          ),
+                        },
+                      ]),
+                    }),
+                  },
+                ]),
+              }),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
+          },
+        )
 
-      test(
-        "returns true when a frame contains FrontmanNextjs in filename",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([
-                {
-                  stacktrace: Some({
-                    frames: Some([
-                      {
-                        filename: Some(
-                          "/libs/frontman-nextjs/src/FrontmanNextjs__Middleware.res.mjs",
-                        ),
-                      },
-                    ]),
-                  }),
-                },
-              ]),
-            }),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
-        },
-      )
+        test(
+          "returns true when a frame contains FrontmanNextjs in filename",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([
+                  {
+                    stacktrace: Some({
+                      frames: Some([
+                        {
+                          filename: Some(
+                            "/libs/frontman-nextjs/src/FrontmanNextjs__Middleware.res.mjs",
+                          ),
+                        },
+                      ]),
+                    }),
+                  },
+                ]),
+              }),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
+          },
+        )
 
-      test(
-        "returns false when all frames are third-party (Next.js/Turbopack)",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([
-                {
-                  stacktrace: Some({
-                    frames: Some([
-                      {
-                        filename: Some(
-                          "/my-website/.next/dev/server/chunks/ssr/b142f_next_dist.js",
-                        ),
-                      },
-                      {
-                        filename: Some(
-                          "/my-website/.next/dev/server/chunks/5fae1__pnpm_164ddc1c._.js",
-                        ),
-                      },
-                      {filename: Some("node:internal/deps/undici/undici")},
-                      {filename: Some("node:internal/process/task_queues")},
-                    ]),
-                  }),
-                },
-              ]),
-            }),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(false)
-        },
-      )
+        test(
+          "returns false when all frames are third-party (Next.js/Turbopack)",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([
+                  {
+                    stacktrace: Some({
+                      frames: Some([
+                        {
+                          filename: Some(
+                            "/my-website/.next/dev/server/chunks/ssr/b142f_next_dist.js",
+                          ),
+                        },
+                        {
+                          filename: Some(
+                            "/my-website/.next/dev/server/chunks/5fae1__pnpm_164ddc1c._.js",
+                          ),
+                        },
+                        {filename: Some("node:internal/deps/undici/undici")},
+                        {filename: Some("node:internal/process/task_queues")},
+                      ]),
+                    }),
+                  },
+                ]),
+              }),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(false)
+          },
+        )
 
-      test(
-        "returns false when all frames have no filename",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([
-                {
-                  stacktrace: Some({
-                    frames: Some([{filename: None}, {filename: None}]),
-                  }),
-                },
-              ]),
-            }),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(false)
-        },
-      )
+        test(
+          "returns false when all frames have no filename",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([
+                  {
+                    stacktrace: Some({
+                      frames: Some([{filename: None}, {filename: None}]),
+                    }),
+                  },
+                ]),
+              }),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(false)
+          },
+        )
 
-      test(
-        "is case-insensitive for filename matching",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([
-                {
-                  stacktrace: Some({
-                    frames: Some([
-                      {filename: Some("/path/to/FRONTMAN-NEXTJS/dist/index.js")},
-                    ]),
-                  }),
-                },
-              ]),
-            }),
-          }
-          t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
-        },
-      )
-    })
+        test(
+          "is case-insensitive for filename matching",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([
+                  {
+                    stacktrace: Some({
+                      frames: Some([{filename: Some("/path/to/FRONTMAN-NEXTJS/dist/index.js")}]),
+                    }),
+                  },
+                ]),
+              }),
+            }
+            t->expect(SentryFilter.hasFrontmanFrames(event))->Expect.toBe(true)
+          },
+        )
+      },
+    )
 
-    describe("beforeSend", () => {
-      test(
-        "keeps events with Frontman frames",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([
-                {
-                  stacktrace: Some({
-                    frames: Some([
-                      {
-                        filename: Some(
-                          "/node_modules/@frontman-ai/nextjs/dist/instrumentation.js",
-                        ),
-                      },
-                    ]),
-                  }),
-                },
-              ]),
-            }),
-          }
-          let hint: SentryTypes.eventHint = {}
-          let result = SentryFilter.beforeSend(event, hint)
-          t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(true)
-        },
-      )
+    describe(
+      "beforeSend",
+      () => {
+        test(
+          "keeps events with Frontman frames",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([
+                  {
+                    stacktrace: Some({
+                      frames: Some([
+                        {
+                          filename: Some(
+                            "/node_modules/@frontman-ai/nextjs/dist/instrumentation.js",
+                          ),
+                        },
+                      ]),
+                    }),
+                  },
+                ]),
+              }),
+            }
+            let hint: SentryTypes.eventHint = {}
+            let result = SentryFilter.beforeSend(event, hint)
+            t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(true)
+          },
+        )
 
-      test(
-        "drops events with only third-party frames",
-        t => {
-          let event: SentryTypes.sentryEvent = {
-            exception_: Some({
-              values: Some([
-                {
-                  stacktrace: Some({
-                    frames: Some([
-                      {filename: Some("/next/dist/server/chunks/ssr/dedupeFetch.js")},
-                      {filename: Some("node:internal/deps/undici/undici")},
-                    ]),
-                  }),
-                },
-              ]),
-            }),
-          }
-          let hint: SentryTypes.eventHint = {}
-          let result = SentryFilter.beforeSend(event, hint)
-          t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(false)
-        },
-      )
+        test(
+          "drops events with only third-party frames",
+          t => {
+            let event: SentryTypes.sentryEvent = {
+              exception_: Some({
+                values: Some([
+                  {
+                    stacktrace: Some({
+                      frames: Some([
+                        {filename: Some("/next/dist/server/chunks/ssr/dedupeFetch.js")},
+                        {filename: Some("node:internal/deps/undici/undici")},
+                      ]),
+                    }),
+                  },
+                ]),
+              }),
+            }
+            let hint: SentryTypes.eventHint = {}
+            let result = SentryFilter.beforeSend(event, hint)
+            t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(false)
+          },
+        )
 
-      test(
-        "keeps captureMessage events (no exception)",
-        t => {
-          let event: SentryTypes.sentryEvent = {exception_: None}
-          let hint: SentryTypes.eventHint = {}
-          let result = SentryFilter.beforeSend(event, hint)
-          t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(true)
-        },
-      )
-    })
+        test(
+          "keeps captureMessage events (no exception)",
+          t => {
+            let event: SentryTypes.sentryEvent = {exception_: None}
+            let hint: SentryTypes.eventHint = {}
+            let result = SentryFilter.beforeSend(event, hint)
+            t->expect(result->Nullable.toOption->Option.isSome)->Expect.toBe(true)
+          },
+        )
+      },
+    )
   })
 })

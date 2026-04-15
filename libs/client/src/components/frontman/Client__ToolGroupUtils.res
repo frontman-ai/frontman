@@ -13,7 +13,6 @@
  * - Error states are NOT grouped → Failures should be visible
  * - Single items are NOT grouped → No grouping overhead for singles
  */
-
 module Message = Client__State__Types.Message
 module Types = Client__ToolGroupTypes
 module ToolLabels = Client__ToolLabels
@@ -75,7 +74,7 @@ let isGroupableTool = (toolName: string): bool => {
   String.includes(name, "definition") ||
   String.includes(name, "symbol") ||
   // Lint reading (not fixing)
-  (String.includes(name, "lint") && String.includes(name, "read")) ||
+  String.includes(name, "lint") && String.includes(name, "read") ||
   // Browser exploration (not actions)
   isBrowserExploration(name)
 }
@@ -103,8 +102,8 @@ let breaksGrouping = (toolName: string): bool => {
   isBrowserAction(name) ||
   // Task/agent spawning
   String.includes(name, "task") ||
-  // Fix operations (lint fix, etc.)
-  (String.includes(name, "fix") && !String.includes(name, "prefix"))
+  (// Fix operations (lint fix, etc.)
+  String.includes(name, "fix") && !String.includes(name, "prefix"))
 }
 
 /**
@@ -155,29 +154,30 @@ let extractTodoStatsFromInput = (input: option<JSON.t>): (int, int, int, int, in
       | Some(todosJson) =>
         switch JSON.Decode.array(todosJson) {
         | Some(arr) =>
-          let (created, completed, started, cancelled) = arr->Array.reduce(
-            (0, 0, 0, 0),
-            ((c, comp, s, can), item) => {
-              switch JSON.Decode.object(item) {
-              | Some(itemObj) =>
-                let status = itemObj
-                  ->Dict.get("status")
-                  ->Option.flatMap(JSON.Decode.string)
-                  ->Option.getOr("")
-                  ->String.toLowerCase
+          let (created, completed, started, cancelled) = arr->Array.reduce((0, 0, 0, 0), (
+            (c, comp, s, can),
+            item,
+          ) => {
+            switch JSON.Decode.object(item) {
+            | Some(itemObj) =>
+              let status =
+                itemObj
+                ->Dict.get("status")
+                ->Option.flatMap(JSON.Decode.string)
+                ->Option.getOr("")
+                ->String.toLowerCase
 
-                // Count by status
-                switch status {
-                | "completed" | "complete" | "done" => (c, comp + 1, s, can)
-                | "in_progress" | "in-progress" | "started" | "running" => (c, comp, s + 1, can)
-                | "cancelled" | "canceled" | "removed" => (c, comp, s, can + 1)
-                | "pending" => (c + 1, comp, s, can) // New pending = created
-                | _ => (c, comp, s, can)
-                }
-              | None => (c, comp, s, can)
+              // Count by status
+              switch status {
+              | "completed" | "complete" | "done" => (c, comp + 1, s, can)
+              | "in_progress" | "in-progress" | "started" | "running" => (c, comp, s + 1, can)
+              | "cancelled" | "canceled" | "removed" => (c, comp, s, can + 1)
+              | "pending" => (c + 1, comp, s, can) // New pending = created
+              | _ => (c, comp, s, can)
               }
-            },
-          )
+            | None => (c, comp, s, can)
+            }
+          })
           (Array.length(arr), created, completed, started, cancelled)
         | None => (0, 0, 0, 0, 0)
         }
@@ -230,26 +230,39 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
     }
 
     // Browser snapshots/screenshots
-    let browserSnapshots = if String.includes(name, "snapshot") || String.includes(name, "screenshot") {
+    let browserSnapshots = if (
+      String.includes(name, "snapshot") || String.includes(name, "screenshot")
+    ) {
       acc.browserSnapshots + 1
     } else {
       acc.browserSnapshots
     }
 
     // Todo operations
-    let (todos, todosNewlyCreated, todosNewlyCompleted, todosNewlyStarted, todosNewlyCancelled) =
-      if TodoUtils.isTodoTool(tool.toolName) {
-        let (total, created, completed, started, cancelled) = extractTodoStatsFromInput(tool.input)
-        (
-          acc.todos + total,
-          acc.todosNewlyCreated + created,
-          acc.todosNewlyCompleted + completed,
-          acc.todosNewlyStarted + started,
-          acc.todosNewlyCancelled + cancelled,
-        )
-      } else {
-        (acc.todos, acc.todosNewlyCreated, acc.todosNewlyCompleted, acc.todosNewlyStarted, acc.todosNewlyCancelled)
-      }
+    let (
+      todos,
+      todosNewlyCreated,
+      todosNewlyCompleted,
+      todosNewlyStarted,
+      todosNewlyCancelled,
+    ) = if TodoUtils.isTodoTool(tool.toolName) {
+      let (total, created, completed, started, cancelled) = extractTodoStatsFromInput(tool.input)
+      (
+        acc.todos + total,
+        acc.todosNewlyCreated + created,
+        acc.todosNewlyCompleted + completed,
+        acc.todosNewlyStarted + started,
+        acc.todosNewlyCancelled + cancelled,
+      )
+    } else {
+      (
+        acc.todos,
+        acc.todosNewlyCreated,
+        acc.todosNewlyCompleted,
+        acc.todosNewlyStarted,
+        acc.todosNewlyCancelled,
+      )
+    }
 
     {
       files,
@@ -296,7 +309,9 @@ let generateTodoLabel = (summary: Types.toolsSummary): option<string> => {
 
   // Created todos
   let parts = if summary.todosNewlyCreated > 0 {
-    let label = `created ${Int.toString(summary.todosNewlyCreated)} to-do${summary.todosNewlyCreated == 1 ? "" : "s"}`
+    let label = `created ${Int.toString(
+        summary.todosNewlyCreated,
+      )} to-do${summary.todosNewlyCreated == 1 ? "" : "s"}`
     Array.concat(parts, [label])
   } else {
     parts
@@ -400,7 +415,9 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
 
   // 6. Browser snapshots
   let labels = if summary.browserSnapshots > 0 {
-    let label = `${Int.toString(summary.browserSnapshots)} snapshot${summary.browserSnapshots == 1 ? "" : "s"}`
+    let label = `${Int.toString(summary.browserSnapshots)} snapshot${summary.browserSnapshots == 1
+        ? ""
+        : "s"}`
     Array.concat(labels, [label])
   } else {
     labels
@@ -466,13 +483,17 @@ let groupToolCalls = (
     let group = currentGroup.contents
 
     // Check if group is entirely todo tools - use minGroupSize=2 for those
-    let isTodoOnlyGroup = Array.length(group) > 0 && 
-      group->Array.every(tc => TodoUtils.isTodoTool(tc.toolName))
-    
+    let isTodoOnlyGroup =
+      Array.length(group) > 0 && group->Array.every(tc => TodoUtils.isTodoTool(tc.toolName))
+
     // For subagent and explored groups: minGroupSize=1
     // For todo-only groups: minGroupSize=2
-    let effectiveMinSize = if isTodoOnlyGroup { 2 } else { minGroupSize }
-    
+    let effectiveMinSize = if isTodoOnlyGroup {
+      2
+    } else {
+      minGroupSize
+    }
+
     if Array.length(group) >= effectiveMinSize {
       // Create a proper group
       let summary = calculateSummary(group)
@@ -507,17 +528,14 @@ let groupToolCalls = (
     // Error states are NEVER grouped - failures should be visible
     if hasError(tc) {
       false
+    } // Check if it breaks grouping first (mutations)
+    else if breaksGrouping(tc.toolName) {
+      false
+    } // Check if it's a groupable tool
+    else if isGroupableTool(tc.toolName) {
+      true
     } else {
-      // Check if it breaks grouping first (mutations)
-      if breaksGrouping(tc.toolName) {
-        false
-      }
-      // Check if it's a groupable tool
-      else if isGroupableTool(tc.toolName) {
-        true
-      } else {
-        false
-      }
+      false
     }
   }
 
@@ -581,10 +599,7 @@ let groupToolCalls = (
  * Check if a sequence of messages should potentially be grouped
  * This is useful for determining if grouping UI is relevant
  */
-let shouldGroupMessages = (
-  messages: array<Message.t>,
-  ~minConsecutive: int=2,
-): bool => {
+let shouldGroupMessages = (messages: array<Message.t>, ~minConsecutive: int=2): bool => {
   let consecutiveGroupable = ref(0)
   let maxConsecutive = ref(0)
 

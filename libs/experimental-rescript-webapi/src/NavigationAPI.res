@@ -46,8 +46,7 @@ type rec navigation = {
 Represents a single navigation history entry.
 [See NavigationHistoryEntry on MDN](https://developer.mozilla.org/docs/Web/API/NavigationHistoryEntry)
 */
-@editor.completeFrom(NavigationHistoryEntry)
-and navigationHistoryEntry = {
+@editor.completeFrom(NavigationHistoryEntry) and navigationHistoryEntry = {
   ...eventTarget,
   /**
     Returns the key of the history entry.
@@ -80,8 +79,7 @@ and navigationHistoryEntry = {
 Represents an ongoing navigation.
 [See NavigationTransition on MDN](https://developer.mozilla.org/docs/Web/API/NavigationTransition)
 */
-@editor.completeFrom(NavigationTransition)
-and navigationTransition = {
+@editor.completeFrom(NavigationTransition) and navigationTransition = {
   /**
     Returns the type of the navigation.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/NavigationTransition/navigationType)
@@ -125,4 +123,3 @@ type navigationReloadOptions = {
 }
 
 type navigationUpdateCurrentEntryOptions = {mutable state: JSON.t}
-

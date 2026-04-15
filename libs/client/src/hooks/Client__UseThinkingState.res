@@ -4,7 +4,6 @@
  * Encapsulates the logic for showing/hiding the thinking indicator
  * based on message state, streaming state, and connection status.
  */
-
 module Message = Client__State__Types.Message
 
 type thinkingState = {
@@ -91,14 +90,14 @@ let use = (
     !isLastMessageStreaming(lastMessage) &&
     // We're in a state that expects a response
     isAwaitingResponse(lastMessage)
-  
+
   let thinkingContext = if showThinking {
     getThinkingContext(lastMessage)
   } else {
     None
   }
-  
-  { showThinking, thinkingContext }
+
+  {showThinking, thinkingContext}
 }
 
 /**
@@ -111,14 +110,19 @@ let useWithMessageId = (
   ~hasActiveACPSession: bool,
   ~sessionInitialized: bool,
 ): (thinkingState, string) => {
-  let state = use(~messages, ~isStreaming, ~isAgentRunning, ~hasActiveACPSession, ~sessionInitialized)
-  
+  let state = use(
+    ~messages,
+    ~isStreaming,
+    ~isAgentRunning,
+    ~hasActiveACPSession,
+    ~sessionInitialized,
+  )
+
   // Generate a stable ID based on last message
   let messageId = switch messages->Array.get(Array.length(messages) - 1) {
   | Some(msg) => Message.getId(msg) ++ "-thinking"
   | None => "initial-thinking"
   }
-  
+
   (state, messageId)
 }
-

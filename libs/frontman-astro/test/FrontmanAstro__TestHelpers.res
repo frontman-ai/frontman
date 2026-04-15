@@ -28,14 +28,9 @@ let makeMiddleware = (~registry: ToolRegistry.t, ~config=defaultConfig) =>
 // POST /frontman/tools/call with a JSON body and return the full SSE response text.
 let callTool = async (middleware, ~name: string, ~arguments: JSON.t): string => {
   let body = JSON.Encode.object(
-    Dict.fromArray([
-      ("name", JSON.Encode.string(name)),
-      ("arguments", arguments),
-    ]),
+    Dict.fromArray([("name", JSON.Encode.string(name)), ("arguments", arguments)]),
   )
-  let headers = WebAPI.HeadersInit.fromDict(
-    Dict.fromArray([("Content-Type", "application/json")]),
-  )
+  let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
   let req = WebAPI.Request.fromURL(
     "http://localhost/frontman/tools/call",
     ~init={

@@ -32,11 +32,17 @@ When multiple elements match, use the index parameter (0-based) to select which 
 
 @schema
 type input = {
-  @s.describe("CSS selector to target the element (preferred — from get_interactive_elements or user context)")
+  @s.describe(
+    "CSS selector to target the element (preferred — from get_interactive_elements or user context)"
+  )
   selector: option<string>,
-  @s.describe("ARIA role of the target element (e.g. 'button', 'link', 'textbox'). Must be used together with 'name'.")
+  @s.describe(
+    "ARIA role of the target element (e.g. 'button', 'link', 'textbox'). Must be used together with 'name'."
+  )
   role: option<string>,
-  @s.describe("Accessible name of the target element (e.g. 'Submit Order'). Must be used together with 'role'.")
+  @s.describe(
+    "Accessible name of the target element (e.g. 'Submit Order'). Must be used together with 'role'."
+  )
   name: option<string>,
   @s.describe("Visible text content to match (finds the innermost element containing this text)")
   text: option<string>,
@@ -110,11 +116,7 @@ type resolution =
 
 // Resolve the target element using the first applicable strategy:
 // 1. CSS selector / XPath  2. role + name  3. text content
-let resolveTarget = (
-  ~doc: WebAPI.DOMAPI.document,
-  ~input: input,
-  ~index: int,
-): resolution =>
+let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): resolution =>
   switch input.selector {
   | Some(selector) =>
     let (element, matchCount) = Client__Tool__ElementResolver.resolveBySelector(
@@ -152,16 +154,19 @@ let resolveTarget = (
     }
   }
 
-let errorResult = (error: string, ~matchCount: option<int>=?): result<output, _> =>
-  Ok({
-    success: false,
-    interactedElement: None,
-    action: None,
-    matchCount,
-    error: Some(error),
-  })
+let errorResult = (error: string, ~matchCount: option<int>=?): result<output, _> => Ok({
+  success: false,
+  interactedElement: None,
+  action: None,
+  matchCount,
+  error: Some(error),
+})
 
-let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
+let execute = async (
+  input: input,
+  ~taskId as _taskId: string,
+  ~toolCallId as _toolCallId: string,
+): toolResult<output> => {
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))
 
@@ -175,7 +180,9 @@ let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _t
           errorResult("No element found matching the given criteria", ~matchCount=0)
         | Resolved({element: None, matchCount}) =>
           errorResult(
-            `Index ${Int.toString(index)} out of range. Found ${Int.toString(matchCount)} element(s) matching the given criteria`,
+            `Index ${Int.toString(index)} out of range. Found ${Int.toString(
+                matchCount,
+              )} element(s) matching the given criteria`,
             ~matchCount,
           )
         | Resolved({element: Some(el), matchCount}) =>
@@ -189,8 +196,7 @@ let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _t
           })
         }
       } catch {
-      | exn =>
-        errorResult(Client__Tool__ElementResolver.exnMessage(exn))
+      | exn => errorResult(Client__Tool__ElementResolver.exnMessage(exn))
       }
     },
   )

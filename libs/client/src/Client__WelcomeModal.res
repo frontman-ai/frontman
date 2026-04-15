@@ -21,16 +21,18 @@ let make = (~loginUrl: string) => {
     let intervalId = ref(None)
 
     let id = WebAPI.Global.setInterval2(~handler=() => {
-      setCountdown(prev => {
-        let next = prev - 1
-        switch next <= 0 {
-        | true =>
-          intervalId.contents->Option.forEach(WebAPI.Global.clearInterval)
-          WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(loginUrl)
-        | false => ()
-        }
-        next
-      })
+      setCountdown(
+        prev => {
+          let next = prev - 1
+          switch next <= 0 {
+          | true =>
+            intervalId.contents->Option.forEach(WebAPI.Global.clearInterval)
+            WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(loginUrl)
+          | false => ()
+          }
+          next
+        },
+      )
     }, ~timeout=1000)
 
     intervalId := Some(id)
@@ -40,8 +42,8 @@ let make = (~loginUrl: string) => {
 
   <Dialog.Dialog open_={true} onOpenChange={_ => ()}>
     <Dialog.DialogContent
-      className="sm:max-w-md max-w-md p-0 border-zinc-700 bg-zinc-900"
-      showCloseButton={false}>
+      className="sm:max-w-md max-w-md p-0 border-zinc-700 bg-zinc-900" showCloseButton={false}
+    >
       <div className="px-8 py-10 text-center">
         // Frontman logo / icon
         <div className="mx-auto mb-6">
@@ -62,21 +64,27 @@ let make = (~loginUrl: string) => {
               className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-1000 ease-linear"
               style={{
                 width: `${Int.toString(
-                  Float.toInt(
-                    Int.toFloat(redirectDelaySec - countdown) /. Int.toFloat(redirectDelaySec) *. 100.0,
-                  ),
-                )}%`,
+                    Float.toInt(
+                      Int.toFloat(redirectDelaySec - countdown) /.
+                      Int.toFloat(redirectDelaySec) *. 100.0,
+                    ),
+                  )}%`,
               }}
             />
           </div>
           <p className="text-xs text-zinc-500">
-            {React.string(`Redirecting to sign in in ${Int.toString(Int.fromFloat(Math.max(Int.toFloat(countdown), 0.0)))}s...`)}
+            {React.string(
+              `Redirecting to sign in in ${Int.toString(
+                  Int.fromFloat(Math.max(Int.toFloat(countdown), 0.0)),
+                )}s...`,
+            )}
           </p>
           <Button.Button
             variant=#secondary
             className="mt-2"
             onClick={_ =>
-              WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(loginUrl)}>
+              WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(loginUrl)}
+          >
             {React.string("Sign in now")}
           </Button.Button>
         </div>

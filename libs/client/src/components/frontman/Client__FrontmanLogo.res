@@ -5,11 +5,10 @@
  * The logo features two isometric panels - one dark with colorful code lines,
  * and one white with the "F" letter.
  */
-
 @react.component
 let make = (~size: int=32, ~className: string="") => {
   let sizeStr = Int.toString(size)
-  
+
   <svg
     width={sizeStr}
     height={sizeStr}

@@ -76,7 +76,8 @@ let rec findRoutes = async (baseDir: string, currentPath: string, ~projectRoot: 
         entry == "route.ts"
       ) {
         let routePath = fileToRoute(currentPath)
-        let hasDynamic = currentPath->toForwardSlashes->String.split("/")->Array.some(isDynamicSegment)
+        let hasDynamic =
+          currentPath->toForwardSlashes->String.split("/")->Array.some(isDynamicSegment)
         [
           {
             path: routePath,

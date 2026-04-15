@@ -7,7 +7,6 @@
  * Number badge top-left: click to deselect.
  * Tree nav control top-right: ↑/↓ to walk to parent/first-child.
  */
-
 module Annotation = Client__Annotation__Types
 module RadixUI__Icons = Bindings__RadixUI__Icons
 
@@ -16,7 +15,7 @@ let getParentEl = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element
   element.parentElement
   ->Null.toOption
   ->Option.flatMap(pe => {
-    switch (pe->Obj.magic : WebAPI.DOMAPI.element).tagName->String.toLowerCase {
+    switch (pe->Obj.magic: WebAPI.DOMAPI.element).tagName->String.toLowerCase {
     | "body" | "html" => None
     | _ => Some(pe->Obj.magic)
     }

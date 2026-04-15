@@ -108,7 +108,9 @@ module ManualInstructions = {
   ${bar}
   ${bar}     ${d("export const config = {")}
   ${bar}     ${d("  runtime: 'nodejs',")}
-  ${bar}     ${d("  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],")}
+  ${bar}     ${d(
+        "  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],",
+      )}
   ${bar}     ${d("};")}
   ${bar}
   ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
@@ -144,7 +146,9 @@ module ManualInstructions = {
   ${bar}
   ${bar}     ${d("export const config = {")}
   ${bar}     ${d("  runtime: 'nodejs',")}
-  ${bar}     ${d("  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],")}
+  ${bar}     ${d(
+        "  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],",
+      )}
   ${bar}     ${d("};")}
   ${bar}
   ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
@@ -166,7 +170,9 @@ module ManualInstructions = {
   ${bar}     ${d("const { NodeSDK } = await import('@opentelemetry/sdk-node');")}
   ${bar}     ${d("const { setup } = await import('@frontman-ai/nextjs/Instrumentation');")}
   ${bar}     ${d("const [logProcessor, spanProcessor] = setup();")}
-  ${bar}     ${d("new NodeSDK({ logRecordProcessors: [logProcessor], spanProcessors: [spanProcessor] }).start();")}
+  ${bar}     ${d(
+        "new NodeSDK({ logRecordProcessors: [logProcessor], spanProcessors: [spanProcessor] }).start();",
+      )}
   ${bar}
   ${bar}  ${s("2.")} If you ${b("already")} have OpenTelemetry, add the Frontman processors:
   ${bar}
@@ -306,23 +312,28 @@ For full documentation, see: https://frontman.sh/docs/nextjs
 
 // Success messages
 module SuccessMessages = {
-  let fileCreated = (fileName: string) =>
-    `  ${Style.check} Created ${Style.bold(fileName)}`
+  let fileCreated = (fileName: string) => `  ${Style.check} Created ${Style.bold(fileName)}`
 
   let fileSkipped = (fileName: string) =>
     `  ${Style.purple("–")} Skipped ${Style.bold(fileName)} ${Style.dim("(already configured)")}`
 
   let hostUpdated = (fileName: string, oldHost: string, newHost: string) =>
-    `  ${Style.check} Updated ${Style.bold(fileName)} ${Style.dim(`(host: '${oldHost}' -> '${newHost}')`)}`
+    `  ${Style.check} Updated ${Style.bold(fileName)} ${Style.dim(
+        `(host: '${oldHost}' -> '${newHost}')`,
+      )}`
 
   let fileAutoEdited = (fileName: string) =>
-    `  ${Style.check} Auto-edited ${Style.bold(fileName)} ${Style.dim("(Frontman integrated via AI)")}`
+    `  ${Style.check} Auto-edited ${Style.bold(fileName)} ${Style.dim(
+        "(Frontman integrated via AI)",
+      )}`
 
   let autoEditFailed = (fileName: string, error: string) =>
     `  ${Style.warn}  Auto-edit failed for ${Style.bold(fileName)}: ${Style.dim(error)}`
 
   let manualEditRequired = (fileName: string) =>
-    `  ${Style.warn}  ${Style.bold(fileName)} requires manual setup ${Style.dim("(see details below)")}`
+    `  ${Style.warn}  ${Style.bold(fileName)} requires manual setup ${Style.dim(
+        "(see details below)",
+      )}`
 
   let installComplete = (~devCommand: string) => {
     let p = Style.purple
@@ -336,18 +347,23 @@ module SuccessMessages = {
     ${p("1.")} Start your dev server   ${d(devCommand)}
     ${p("2.")} Open your browser to    ${d("http://localhost:3000/frontman")}
 
-  ${p("┌───────────────────────────────────────────────┐")}
+  ${p(
+        "┌───────────────────────────────────────────────┐",
+      )}
   ${p("│                                               │")}
   ${p("│   Questions? Comments? Need support?          │")}
   ${p("│                                               │")}
   ${p("│       Join us on Discord:                     │")}
   ${p("│       https://discord.gg/xk8uXJSvhC           │")}
   ${p("│                                               │")}
-  ${p("└───────────────────────────────────────────────┘")}
+  ${p(
+        "└───────────────────────────────────────────────┘",
+      )}
 `
   }
 
-  let dryRunHeader =
-    `  ${Style.warn}  ${Style.yellowBold("DRY RUN MODE")} ${Style.dim("— No files will be created")}
+  let dryRunHeader = `  ${Style.warn}  ${Style.yellowBold("DRY RUN MODE")} ${Style.dim(
+      "— No files will be created",
+    )}
 `
 }

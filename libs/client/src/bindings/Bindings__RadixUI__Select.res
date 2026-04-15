@@ -74,10 +74,7 @@ module Icon = {
 
 module Portal = {
   @module("@radix-ui/react-select") @react.component
-  external make: (
-    ~container: Dom.element=?,
-    ~children: React.element=?,
-  ) => React.element = "Portal"
+  external make: (~container: Dom.element=?, ~children: React.element=?) => React.element = "Portal"
 }
 
 module Content = {
@@ -181,9 +178,6 @@ module ScrollDownButton = {
 
 module Separator = {
   @module("@radix-ui/react-select") @react.component
-  external make: (
-    ~asChild: bool=?,
-    ~className: string=?,
-    ~style: {..}=?,
-  ) => React.element = "Separator"
+  external make: (~asChild: bool=?, ~className: string=?, ~style: {..}=?) => React.element =
+    "Separator"
 }

@@ -5,7 +5,13 @@ module SmartSerialize = Client__Tool__SmartSerialize
 // ── Helpers ──────────────────────────────────────────────────────────
 
 // Create a fake DOM element (duck-typed to match the nodeType + tagName check)
-let makeElement: (string, ~id: string=?, ~className: string=?, ~textContent: string=?, unit) => 'a = %raw(`
+let makeElement: (
+  string,
+  ~id: string=?,
+  ~className: string=?,
+  ~textContent: string=?,
+  unit,
+) => 'a = %raw(`
   function(tag, id, className, textContent) {
     return {
       nodeType: 1,
@@ -135,7 +141,9 @@ describe("SmartSerialize - DOM elements", () => {
     let result = SmartSerialize.serialize(el, 10000)
     let parsed = JSON.parseOrThrow(result)
     let obj = JSON.Decode.object(parsed)->Option.getOrThrow
-    t->expect(obj->Dict.get("__type")->Option.flatMap(JSON.Decode.string))->Expect.toEqual(Some("Element"))
+    t
+    ->expect(obj->Dict.get("__type")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("Element"))
     t->expect(obj->Dict.get("tag")->Option.flatMap(JSON.Decode.string))->Expect.toEqual(Some("DIV"))
     t->expect(obj->Dict.get("id")->Option.flatMap(JSON.Decode.string))->Expect.toEqual(Some("main"))
   })
@@ -145,7 +153,9 @@ describe("SmartSerialize - DOM elements", () => {
     let result = SmartSerialize.serialize(el, 10000)
     let parsed = JSON.parseOrThrow(result)
     let obj = JSON.Decode.object(parsed)->Option.getOrThrow
-    t->expect(obj->Dict.get("className")->Option.flatMap(JSON.Decode.string))->Expect.toEqual(Some("btn btn-primary"))
+    t
+    ->expect(obj->Dict.get("className")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("btn btn-primary"))
   })
 
   test("truncates textContent to 80 chars", t => {
@@ -184,7 +194,9 @@ describe("SmartSerialize - Map and Set", () => {
     let result = SmartSerialize.serialize(makeMap(), 10000)
     let parsed = JSON.parseOrThrow(result)
     let obj = JSON.Decode.object(parsed)->Option.getOrThrow
-    t->expect(obj->Dict.get("__type")->Option.flatMap(JSON.Decode.string))->Expect.toEqual(Some("Map"))
+    t
+    ->expect(obj->Dict.get("__type")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("Map"))
     let entries = obj->Dict.get("entries")->Option.flatMap(JSON.Decode.array)->Option.getOrThrow
     t->expect(Array.length(entries))->Expect.toBe(2)
   })
@@ -193,7 +205,9 @@ describe("SmartSerialize - Map and Set", () => {
     let result = SmartSerialize.serialize(makeSet(), 10000)
     let parsed = JSON.parseOrThrow(result)
     let obj = JSON.Decode.object(parsed)->Option.getOrThrow
-    t->expect(obj->Dict.get("__type")->Option.flatMap(JSON.Decode.string))->Expect.toEqual(Some("Set"))
+    t
+    ->expect(obj->Dict.get("__type")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("Set"))
     let values = obj->Dict.get("values")->Option.flatMap(JSON.Decode.array)->Option.getOrThrow
     t->expect(Array.length(values))->Expect.toBe(3)
   })

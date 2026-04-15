@@ -4,7 +4,6 @@
  * Generates context-aware labels like "Reading...", "Read", etc.
  * based on tool name and current state.
  */
-
 /**
  * Convert snake_case tool name to Title Case for display
  * e.g., "get_routes" -> "Get Routes", "write_file" -> "Write File"
@@ -37,13 +36,27 @@ let extractTargetFromInput = (input: option<JSON.t>): option<string> => {
     | None => None
     | Some(dict) =>
       // Check common field names in order of priority
-      let fields = ["target_file", "file_path", "path", "target_directory", "file", "query", "command", "pattern", "url", "target", "selector"]
+      let fields = [
+        "target_file",
+        "file_path",
+        "path",
+        "target_directory",
+        "file",
+        "query",
+        "command",
+        "pattern",
+        "url",
+        "target",
+        "selector",
+      ]
 
       fields->Array.reduce(None, (acc, field) => {
         switch acc {
         | Some(_) => acc // Already found one
         | None =>
-          dict->Dict.get(field)->Option.flatMap(value => {
+          dict
+          ->Dict.get(field)
+          ->Option.flatMap(value => {
             switch JSON.Decode.string(value) {
             | Some(str) if String.length(str) > 0 =>
               // Truncate long strings

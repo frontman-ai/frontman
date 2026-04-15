@@ -55,7 +55,7 @@ let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.FetchAPI.reques
   let init: WebAPI.FetchAPI.requestInit = {
     method,
     headers: WebAPI.HeadersInit.fromDict(headersDict),
-    body: ?body->Option.map(b => WebAPI.BodyInit.fromTypedArray(b)),
+    body: ?(body->Option.map(b => WebAPI.BodyInit.fromTypedArray(b))),
   }
   switch body {
   | Some(_) => init->Obj.magic->Dict.set("duplex", "half")
@@ -145,6 +145,7 @@ let adaptToConnect = (middleware: webMiddleware, ~basePath: string): NodeHttp.co
       handleRequest()
       ->Promise.catch(error => {
         Console.error2("[Frontman] Middleware error:", error)
+
         // Only send error response if headers haven't been sent yet
         // (writeWebResponse may have already started streaming)
         if !(res->NodeHttp.headersSent) {

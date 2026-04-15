@@ -36,10 +36,9 @@ let hasFrontmanFrames = (event: Sentry__Types.sentryEvent): bool =>
 // beforeSend filter: drop events that don't originate from Frontman code.
 // This prevents third-party errors caught by Sentry's global handlers from
 // polluting our project.
-let beforeSend = (
-  event: Sentry__Types.sentryEvent,
-  _hint: Sentry__Types.eventHint,
-): Nullable.t<Sentry__Types.sentryEvent> =>
+let beforeSend = (event: Sentry__Types.sentryEvent, _hint: Sentry__Types.eventHint): Nullable.t<
+  Sentry__Types.sentryEvent,
+> =>
   if hasFrontmanFrames(event) {
     Nullable.make(event)
   } else {

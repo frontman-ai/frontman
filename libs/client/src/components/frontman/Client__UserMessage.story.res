@@ -100,9 +100,7 @@ let singleAnnotationWithComment: Story.t<args> = {
   args: {text: ""},
   render: _args =>
     <Client__UserMessage
-      content=[]
-      annotations=[Samples.buttonAnnotation]
-      messageId="story-msg-4"
+      content=[] annotations=[Samples.buttonAnnotation] messageId="story-msg-4"
     />,
 }
 

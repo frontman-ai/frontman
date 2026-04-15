@@ -13,7 +13,6 @@
  * - If user manually toggles, their preference is preserved
  * - Shows "Exploring..." while isLastToolGroup && isAgentRunning
  */
-
 module Icons = Client__ToolIcons
 module Types = Client__ToolGroupTypes
 module Utils = Client__ToolGroupUtils
@@ -22,7 +21,12 @@ module ToolCallBlock = Client__ToolCallBlock
 // Nested tool group for displaying "Explored" groups within subagent groups
 module NestedToolGroup = {
   @react.component
-  let make = (~group: Types.toolGroup, ~messageId: string, ~isLastNestedGroup: bool=false, ~isParentOpen: bool=false) => {
+  let make = (
+    ~group: Types.toolGroup,
+    ~messageId: string,
+    ~isLastNestedGroup: bool=false,
+    ~isParentOpen: bool=false,
+  ) => {
     let isLoading = group.toolCalls->Array.some(tc => {
       switch tc.state {
       | Client__State__Types.Message.InputStreaming
@@ -30,20 +34,20 @@ module NestedToolGroup = {
       | _ => false
       }
     })
-    
+
     // Nested group is "open" if it's the last nested group AND parent group is still open
     // This prevents flickering - the nested group stays "Exploring..." while parent is open
     let isOpen = isLastNestedGroup && isParentOpen
-    
+
     // Track if user has manually toggled expansion
     let hasUserToggled = React.useRef(false)
-    
+
     // Track previous isLastNestedGroup state for auto-collapse detection
     let prevIsLastNestedGroup = React.useRef(isLastNestedGroup)
-    
+
     // Auto-expand if this is the last nested group (always expand last group)
     let (isExpanded, setIsExpanded) = React.useState(() => isLastNestedGroup)
-    
+
     // Auto-expand when becoming the last nested group
     // Auto-collapse when no longer the last nested group (unless user manually toggled)
     React.useEffect2(() => {
@@ -57,28 +61,33 @@ module NestedToolGroup = {
       prevIsLastNestedGroup.current = isLastNestedGroup
       None
     }, (isLastNestedGroup, hasUserToggled.current))
-    
+
     let summaryLabels = Utils.generateSummaryLabels(group.summary)
     let toolCount = Array.length(group.toolCalls)
     let displayPrefix = Utils.getGroupPrefix(group, ~isOpen)
-    
+
     let handleToggle = _ => {
       hasUserToggled.current = true
       setIsExpanded(prev => !prev)
     }
-    
+
     // Show shimmer when parent is open (not just when loading)
     let showShimmer = isLoading || isOpen
-    let prefixColorClass = if showShimmer { "shimmer-text" } else { "text-zinc-400" }
-    
+    let prefixColorClass = if showShimmer {
+      "shimmer-text"
+    } else {
+      "text-zinc-400"
+    }
+
     <div className="my-0.5">
       <div
         className="group flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer 
                    bg-[#8051CD]/10 hover:bg-[#8051CD]/15 transition-colors duration-150"
-        onClick={handleToggle}>
+        onClick={handleToggle}
+      >
         <button
-          type_="button"
-          className="flex items-center justify-center w-3 h-3 shrink-0 text-zinc-400">
+          type_="button" className="flex items-center justify-center w-3 h-3 shrink-0 text-zinc-400"
+        >
           <Icons.ChevronDownIcon size=8 className={isExpanded ? "rotate-180" : "-rotate-90"} />
         </button>
         <span className={`text-[10px] shrink-0 ${prefixColorClass}`}>
@@ -100,9 +109,11 @@ module NestedToolGroup = {
       </div>
       <div
         className={`frontman-collapse-transition
-                    ${isExpanded ? "opacity-100 mt-0.5" : "max-h-0 opacity-0 overflow-hidden"}`}>
+                    ${isExpanded ? "opacity-100 mt-0.5" : "max-h-0 opacity-0 overflow-hidden"}`}
+      >
         <div className="pl-3 border-l border-[#8051CD]/30 space-y-0.5">
-          {group.toolCalls->Array.mapWithIndex((tc, i) => {
+          {group.toolCalls
+          ->Array.mapWithIndex((tc, i) => {
             <ToolCallBlock
               key={tc.id}
               toolName={tc.toolName}
@@ -115,7 +126,8 @@ module NestedToolGroup = {
               compact=true
               messageId={`${messageId}-${Int.toString(i)}`}
             />
-          })->React.array}
+          })
+          ->React.array}
         </div>
       </div>
     </div>
@@ -123,7 +135,14 @@ module NestedToolGroup = {
 }
 
 @react.component
-let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGroup: bool=false, ~isLastItem: bool=false, ~isAgentRunning: bool=false, ~messageId: string) => {
+let make = (
+  ~group: Types.toolGroup,
+  ~defaultExpanded: bool=false,
+  ~isLastToolGroup: bool=false,
+  ~isLastItem: bool=false,
+  ~isAgentRunning: bool=false,
+  ~messageId: string,
+) => {
   // Check if any tool in the group is still loading
   let isLoading = group.toolCalls->Array.some(tc => {
     switch tc.state {
@@ -132,7 +151,7 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
     | _ => false
     }
   })
-  
+
   // Group is "open" if it's the last tool group, the last item, and agent is still running
   // Must be last item because if there are items after (like assistant messages),
   // no more tools can be added to this group
@@ -140,19 +159,19 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
 
   // Track if user has manually toggled expansion
   let hasUserToggled = React.useRef(false)
-  
+
   // Track previous isLastToolGroup state for auto-collapse detection
   let prevIsLastToolGroup = React.useRef(isLastToolGroup)
-  
+
   // Ref for the scrollable container to auto-scroll
   let scrollContainerRef = React.useRef(Nullable.null)
-  
+
   // Track tool count for auto-scroll detection
   let prevToolCount = React.useRef(Array.length(group.toolCalls))
-  
+
   // Auto-expand if this is the last tool group (always expand last group)
   let (isExpanded, setIsExpanded) = React.useState(() => defaultExpanded || isLastToolGroup)
-  
+
   // Auto-expand when becoming the last tool group
   // Auto-collapse when no longer the last tool group (unless user manually toggled)
   React.useEffect2(() => {
@@ -166,14 +185,14 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
     prevIsLastToolGroup.current = isLastToolGroup
     None
   }, (isLastToolGroup, hasUserToggled.current))
-  
+
   // Raw JS helper for smooth scrolling to bottom
   let scrollToBottom: Dom.element => unit = %raw(`
     function(element) {
       element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
     }
   `)
-  
+
   // Auto-scroll to bottom when new tools are added to the last group
   React.useEffect2(() => {
     let currentCount = Array.length(group.toolCalls)
@@ -224,9 +243,15 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
   // Show shimmer effect when group is loading OR open (last group with agent running)
   let showShimmer = isLoading || isOpen
   let prefixColorClass = if isSubagent {
-    if showShimmer { "shimmer-text" } else { "text-indigo-400" }
+    if showShimmer {
+      "shimmer-text"
+    } else {
+      "text-indigo-400"
+    }
+  } else if showShimmer {
+    "shimmer-text"
   } else {
-    if showShimmer { "shimmer-text" } else { "text-zinc-400" }
+    "text-zinc-400"
   }
 
   <div className="my-1.5 mx-3 animate-in fade-in duration-100">
@@ -234,12 +259,14 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
     <div
       className={`group flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer 
                   transition-colors duration-150 ${headerBgClass}`}
-      onClick={handleToggle}>
+      onClick={handleToggle}
+    >
       // Expand/Collapse Chevron (left side)
       <button
         type_="button"
         className="flex items-center justify-center w-4 h-4 shrink-0
-                   text-zinc-400 transition-transform duration-200">
+                   text-zinc-400 transition-transform duration-200"
+      >
         <Icons.ChevronDownIcon size=10 className={isExpanded ? "rotate-180" : "-rotate-90"} />
       </button>
       // Subagent icon (for subagent groups)
@@ -249,7 +276,8 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2">
+            strokeWidth="2"
+          >
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
             <circle cx="9" cy="7" r="4" />
             <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -282,8 +310,7 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
         ->React.array}
       </div>
       // Tool count badge
-      <span
-        className="text-[10px] text-zinc-400 bg-[#8051CD]/20 px-1.5 py-0.5 rounded shrink-0">
+      <span className="text-[10px] text-zinc-400 bg-[#8051CD]/20 px-1.5 py-0.5 rounded shrink-0">
         {React.string(Int.toString(toolCount))}
       </span>
     </div>
@@ -294,7 +321,11 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
         // Apply grouping to subagent tool calls
         // Pass ~groupSubagents=false so tool calls are grouped by type (read vs write)
         // instead of all being lumped together as a single subagent group
-        let groupedItems = Utils.groupToolCalls(group.toolCalls, ~minGroupSize=1, ~groupSubagents=false)
+        let groupedItems = Utils.groupToolCalls(
+          group.toolCalls,
+          ~minGroupSize=1,
+          ~groupSubagents=false,
+        )
         let groupedItemsCount = Array.length(groupedItems)
         // Find the index of the last ToolGroup (not just last item)
         let lastNestedGroupIndex = groupedItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
@@ -305,7 +336,8 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
         })
         // Check if last nested group is also the last item (no items after it)
         let isLastNestedGroupAlsoLastItem = lastNestedGroupIndex == groupedItemsCount - 1
-        groupedItems->Array.mapWithIndex((item, i) => {
+        groupedItems
+        ->Array.mapWithIndex((item, i) => {
           let key = `${messageId}-${Int.toString(i)}`
           let isLastNestedGroup = i == lastNestedGroupIndex && isLastNestedGroupAlsoLastItem
           switch item {
@@ -325,12 +357,20 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
           | Types.ToolGroup(nestedGroup) =>
             // Render nested group (e.g., "Explored 3 files" within subagent)
             // Pass isParentOpen so nested groups know if parent subagent is still active
-            <NestedToolGroup key={nestedGroup.id} group={nestedGroup} messageId={key} isLastNestedGroup isParentOpen={isOpen} />
+            <NestedToolGroup
+              key={nestedGroup.id}
+              group={nestedGroup}
+              messageId={key}
+              isLastNestedGroup
+              isParentOpen={isOpen}
+            />
           }
-        })->React.array
+        })
+        ->React.array
       } else {
         // Regular groups - render tool calls directly
-        group.toolCalls->Array.mapWithIndex((tc, i) => {
+        group.toolCalls
+        ->Array.mapWithIndex((tc, i) => {
           <ToolCallBlock
             key={tc.id}
             toolName={tc.toolName}
@@ -343,15 +383,18 @@ let make = (~group: Types.toolGroup, ~defaultExpanded: bool=false, ~isLastToolGr
             compact=true
             messageId={`${messageId}-${Int.toString(i)}`}
           />
-        })->React.array
+        })
+        ->React.array
       }
-      
+
       <div
         className={`frontman-collapse-transition
-                    ${isExpanded ? "opacity-100 mt-1" : "max-h-0 opacity-0 overflow-hidden"}`}>
-        <div 
+                    ${isExpanded ? "opacity-100 mt-1" : "max-h-0 opacity-0 overflow-hidden"}`}
+      >
+        <div
           ref={ReactDOM.Ref.domRef(scrollContainerRef)}
-          className={`pl-4 border-l-2 space-y-0.5 max-h-[150px] overflow-y-auto scroll-smooth ${borderLineClass}`}>
+          className={`pl-4 border-l-2 space-y-0.5 max-h-[150px] overflow-y-auto scroll-smooth ${borderLineClass}`}
+        >
           {renderContent}
         </div>
       </div>

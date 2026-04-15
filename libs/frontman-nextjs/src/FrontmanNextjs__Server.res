@@ -75,8 +75,5 @@ let handleResolveSourceLocation = async (
   server: t,
   req: WebAPI.FetchAPI.request,
 ): WebAPI.FetchAPI.response => {
-  await CoreRequestHandlers.handleResolveSourceLocation(
-    ~sourceRoot=server.config.sourceRoot,
-    req,
-  )
+  await CoreRequestHandlers.handleResolveSourceLocation(~sourceRoot=server.config.sourceRoot, req)
 }

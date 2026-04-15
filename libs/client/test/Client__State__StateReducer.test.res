@@ -107,7 +107,10 @@ describe("Client State Reducer", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text: " world", timestamp: "2024-01-15T10:00:00Z"})})
+    let action = Reducer.TaskAction({
+      target: ForTask(taskId),
+      action: TextDeltaReceived({text: " world", timestamp: "2024-01-15T10:00:00Z"}),
+    })
     let (nextState, _effects) = Reducer.next(state, action)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
@@ -122,7 +125,9 @@ describe("Client State Reducer", () => {
   test("TurnCompleted transitions to Completed variant", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
-        Reducer.Message.Assistant(Streaming({id: "assistant-1", textBuffer: "Hello world", createdAt: 0.0})),
+        Reducer.Message.Assistant(
+          Streaming({id: "assistant-1", textBuffer: "Hello world", createdAt: 0.0}),
+        ),
       ],
     )
 
@@ -160,9 +165,21 @@ describe("Client State Reducer", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (state, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: StreamingStarted}))
-    let (state, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"})}))
-    let (state, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: StreamingStarted}),
+    )
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask(taskId),
+        action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
+    )
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+    )
 
     let messages = TestHelpers.getMessages(state)
     t->expect(messages->Array.length)->Expect.toBe(2)
@@ -247,7 +264,10 @@ describe("Client State Reducer", () => {
     }
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({target: ForTask(taskId), action: ToolCallReceived({toolCall: toolCall})})
+    let action = Reducer.TaskAction({
+      target: ForTask(taskId),
+      action: ToolCallReceived({toolCall: toolCall}),
+    })
     let (nextState, _effects) = Reducer.next(state, action)
 
     let messages = TestHelpers.getMessages(nextState)
@@ -279,12 +299,16 @@ describe("Client State Reducer - TurnCompleted Content Conversion", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+    let (nextState, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+    )
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | Reducer.Message.Assistant(Completed({content, _})) => t->expect(content->Array.length)->Expect.toBe(0)
+    | Reducer.Message.Assistant(Completed({content, _})) =>
+      t->expect(content->Array.length)->Expect.toBe(0)
     | _ =>
       t
       ->expect("Expected Completed message with empty content")
@@ -306,7 +330,10 @@ describe("Client State Reducer - TurnCompleted Content Conversion", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+    let (nextState, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+    )
 
     let messages = TestHelpers.getMessages(nextState)
     switch messages->Array.get(0) {
@@ -337,7 +364,10 @@ describe("Client State Reducer - TurnCompleted Content Conversion", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+    let (nextState, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+    )
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
@@ -368,7 +398,10 @@ describe("Client State Reducer - Streaming Flow", () => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
     // 1. Start streaming (ID is now generated internally)
-    let (state, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: StreamingStarted}))
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: StreamingStarted}),
+    )
 
     // Get the generated message ID
     let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
@@ -378,11 +411,26 @@ describe("Client State Reducer - Streaming Flow", () => {
     }
 
     // 2. Receive text deltas
-    let (state, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"})}))
-    let (state, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text: " world", timestamp: "2024-01-15T10:00:00Z"})}))
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask(taskId),
+        action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
+    )
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask(taskId),
+        action: TextDeltaReceived({text: " world", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
+    )
 
     // 3. Complete message
-    let (state, _) = Reducer.next(state, TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+    )
 
     // Verify: Message ID stayed stable throughout (check second message, first is user)
     let messages = TestHelpers.getMessages(state)
@@ -466,7 +514,10 @@ describe("Client State Reducer - Tool Lifecycle", () => {
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let result = JSON.parseOrThrow("{\"content\": \"file contents\"}")
-    let action = Reducer.TaskAction({target: ForTask(taskId), action: ToolResultReceived({id: "call-1", result: result})})
+    let action = Reducer.TaskAction({
+      target: ForTask(taskId),
+      action: ToolResultReceived({id: "call-1", result}),
+    })
     let (nextState, _) = Reducer.next(state, action)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
@@ -560,7 +611,10 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       spawningToolName: None,
     }
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({target: ForTask(taskId), action: ToolCallReceived({toolCall: toolCall})})
+    let action = Reducer.TaskAction({
+      target: ForTask(taskId),
+      action: ToolCallReceived({toolCall: toolCall}),
+    })
     let (nextState, _) = Reducer.next(state, action)
 
     let messages = TestHelpers.getMessages(nextState)
@@ -625,7 +679,10 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let taskIdInState = TestHelpers.getCurrentTaskId(state1)
 
     switch (effects1->Array.get(0), taskIdInState) {
-    | (Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})), Some(stateTaskId)) =>
+    | (
+        Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})),
+        Some(stateTaskId),
+      ) =>
       t->expect(effectTaskId)->Expect.toBe(stateTaskId)
     | _ => t->expect("Effect and state should both have task ID")->Expect.toBe("Missing task IDs")
     }
@@ -1035,7 +1092,9 @@ describe("Client State Reducer - Session Loading Actions", () => {
     let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
     t->expect(Task.getTitle(task1))->Expect.toEqual(Some("Existing Task"))
     let task1Messages = Task.getMessages(task1)
-    t->expect(task1Messages->Array.some(msg => Reducer.Message.getId(msg) == "user-1"))->Expect.toBe(true)
+    t
+    ->expect(task1Messages->Array.some(msg => Reducer.Message.getId(msg) == "user-1"))
+    ->Expect.toBe(true)
 
     // New task should be added
     let task2 = nextState.tasks->Dict.get("session-2")->Option.getOrThrow
@@ -1124,7 +1183,8 @@ describe("Client State Reducer - Session Loading Actions", () => {
     let messages = Task.getMessages(updatedTask)
     t->expect(messages->Array.some(msg => Reducer.Message.getId(msg) == "msg-1"))->Expect.toBe(true)
 
-    let message = messages->Array.find(msg => Reducer.Message.getId(msg) == "msg-1")->Option.getOrThrow
+    let message =
+      messages->Array.find(msg => Reducer.Message.getId(msg) == "msg-1")->Option.getOrThrow
     switch message {
     | User({id, content, _}) => {
         t->expect(id)->Expect.toBe("msg-1")
@@ -1140,8 +1200,11 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
 describe("Client State Reducer - UpdateTaskTitle safety", () => {
   test("UpdateTaskTitle updates title for existing task", t => {
-    let (state) = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
-    let (nextState, _) = Reducer.next(state, UpdateTaskTitle({taskId: "task-1", title: "New Title"}))
+    let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
+    let (nextState, _) = Reducer.next(
+      state,
+      UpdateTaskTitle({taskId: "task-1", title: "New Title"}),
+    )
 
     let task = nextState.tasks->Dict.get("task-1")->Option.getOrThrow
     t->expect(Task.getTitle(task))->Expect.toEqual(Some("New Title"))
@@ -1149,7 +1212,7 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
 
   test("UpdateTaskTitle on deleted task does not throw", t => {
     // Start with a task
-    let (state) = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
+    let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
 
     // Delete the task
     let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
@@ -1167,7 +1230,7 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
   })
 
   test("UpdateTaskTitle on non-existent task is a no-op", t => {
-    let (state) = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
+    let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
 
     // Update title for a task that doesn't exist
     let (nextState, _) = Reducer.next(
@@ -1233,7 +1296,9 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect(annotations->Array.length)->Expect.toBe(2)
       t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
       t->expect((annotations->Array.getUnsafe(0)).tagName)->Expect.toBe("button")
-      t->expect((annotations->Array.getUnsafe(0)).comment)->Expect.toEqual(Some("This button is broken"))
+      t
+      ->expect((annotations->Array.getUnsafe(0)).comment)
+      ->Expect.toEqual(Some("This button is broken"))
       t->expect((annotations->Array.getUnsafe(1)).id)->Expect.toBe("ann-2")
     | _ => JsExn.throw("Expected User message")
     }
@@ -1274,8 +1339,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
     let messages = Reducer.Selectors.messages(nextState)
     switch messages->Array.get(0)->Option.getOrThrow {
-    | Reducer.Message.User({annotations, _}) =>
-      t->expect(annotations->Array.length)->Expect.toBe(0)
+    | Reducer.Message.User({annotations, _}) => t->expect(annotations->Array.length)->Expect.toBe(0)
     | _ => JsExn.throw("Expected User message")
     }
   })
@@ -1292,11 +1356,12 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (_nextState, effects) = Reducer.next(state, action)
 
     // Find the TaskEffect wrapping SendMessage
-    let sendEffect = effects->Array.find(eff =>
-      switch eff {
-      | Reducer.TaskEffect({effect: SendMessage(_)}) => true
-      | _ => false
-      }
+    let sendEffect = effects->Array.find(
+      eff =>
+        switch eff {
+        | Reducer.TaskEffect({effect: SendMessage(_)}) => true
+        | _ => false
+        },
     )
 
     switch sendEffect {

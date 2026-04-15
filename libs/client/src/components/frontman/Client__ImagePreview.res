@@ -8,7 +8,6 @@
  * - Double-click to reset zoom
  * - Click overlay or press Escape to close
  */
-
 let minScale = 0.5
 let maxScale = 8.0
 let zoomStep = 1.3
@@ -53,7 +52,9 @@ let make = (~src: string, ~onClose: unit => unit) => {
     }
     let doc = WebAPI.Global.document
     WebAPI.Document.addEventListener(doc, Custom("keydown"), handleKeyDown->Obj.magic)
-    Some(() => WebAPI.Document.removeEventListener(doc, Custom("keydown"), handleKeyDown->Obj.magic))
+    Some(
+      () => WebAPI.Document.removeEventListener(doc, Custom("keydown"), handleKeyDown->Obj.magic),
+    )
   })
 
   // Mouse wheel zoom
@@ -108,7 +109,9 @@ let make = (~src: string, ~onClose: unit => unit) => {
     resetTransform()
   }
 
-  let transform = `scale(${Float.toString(scale)}) translate(${Float.toString(translateX /. scale)}px, ${Float.toString(translateY /. scale)}px)`
+  let transform = `scale(${Float.toString(scale)}) translate(${Float.toString(
+      translateX /. scale,
+    )}px, ${Float.toString(translateY /. scale)}px)`
 
   let zoomPercent = Math.round(scale *. 100.0)->Float.toInt
 
@@ -154,8 +157,7 @@ let make = (~src: string, ~onClose: unit => unit) => {
       <button
         type_="button"
         ariaLabel="Zoom out"
-        onClick={_ =>
-          setScale(prev => applyZoom(prev /. zoomStep))}
+        onClick={_ => setScale(prev => applyZoom(prev /. zoomStep))}
         className="w-8 h-8 rounded-full flex items-center justify-center
                    text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors"
       >
@@ -181,8 +183,7 @@ let make = (~src: string, ~onClose: unit => unit) => {
       <button
         type_="button"
         ariaLabel="Zoom in"
-        onClick={_ =>
-          setScale(prev => applyZoom(prev *. zoomStep))}
+        onClick={_ => setScale(prev => applyZoom(prev *. zoomStep))}
         className="w-8 h-8 rounded-full flex items-center justify-center
                    text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors"
       >

@@ -51,8 +51,7 @@ let removeTrailingSlash = s =>
 
 // Escape regex metacharacters in a string so it can be safely interpolated
 // into a dynamically-built RegExp.
-let _escapeRegex = s =>
-  s->String.replaceRegExp(%re("/[.*+?^${}()|[\\]\\\\]/g"), "\\$&")
+let _escapeRegex = s => s->String.replaceRegExp(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")
 
 // Returns true if pathname contains one or more trailing /<basePath> segments.
 // Pure predicate — does not mutate the path.

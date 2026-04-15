@@ -17,7 +17,7 @@ type fileResult =
   | AutoEdited(string)
 
 // Pattern to match and replace host in existing file
-let hostPattern = %re("/host:\s*['\"]([^'\"]+)['\"]/")
+let hostPattern = /host:\s*['\"]([^'\"]+)['\"]/
 
 // Escape special replacement patterns ($1, $&, etc.) in a string used as
 // the replacement argument to String.replaceRegExp
@@ -46,9 +46,9 @@ let writeFile = async (path: string, content: string): result<unit, string> => {
   try {
     await Fs.Promises.writeFile(path, content)
     Ok()
-} catch {
-| _ => Error(`Failed to write ${path}`)
-}
+  } catch {
+  | _ => Error(`Failed to write ${path}`)
+  }
 }
 
 // Info about a file that needs auto-editing (collected before prompting)

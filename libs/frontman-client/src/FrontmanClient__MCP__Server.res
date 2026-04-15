@@ -173,7 +173,9 @@ let resolveWriteFileImageRef = (
     | (Some(String(imageRef)), Some(resolve)) =>
       switch resolve(imageRef, ~taskId) {
       | None =>
-        Error(`Image not found for URI: ${imageRef}. Available images may have expired or the URI is incorrect.`)
+        Error(
+          `Image not found for URI: ${imageRef}. Available images may have expired or the URI is incorrect.`,
+        )
       | Some({base64}) =>
         let newArgs = args->Dict.copy
         newArgs->Dict.delete("image_ref")
@@ -218,10 +220,13 @@ let executeTool = async (
       switch resolvedArgs {
       | Error(msg) => Completed(toolError(server, msg))
       | Ok(finalArgs) =>
-        let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs, ~onProgress?)
+        let result = await server.relay->Relay.executeTool(
+          ~name,
+          ~arguments=?finalArgs,
+          ~onProgress?,
+        )
         switch result {
-        | Ok(toolResult) =>
-          Completed({...toolResult, _meta: server->currentMeta})
+        | Ok(toolResult) => Completed({...toolResult, _meta: server->currentMeta})
         | Error(msg) => Completed(toolError(server, msg))
         }
       }

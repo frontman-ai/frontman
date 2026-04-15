@@ -76,7 +76,8 @@ let make = (
         <DropdownMenu.DropdownMenuContent align="start" sideOffset=4 className="min-w-[180px]">
           // Responsive option
           <DropdownMenu.DropdownMenuItem
-            onSelect={_ => Client__State.Actions.setDeviceMode(~deviceMode=Client__DeviceMode.Responsive)}
+            onSelect={_ =>
+              Client__State.Actions.setDeviceMode(~deviceMode=Client__DeviceMode.Responsive)}
           >
             <div className="flex items-center gap-2">
               <RadixUI__Icons.DesktopIcon className="size-3.5 text-gray-500" />
@@ -105,7 +106,7 @@ let make = (
                     )}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <span>{React.string(preset.name)}</span>
+                    <span> {React.string(preset.name)} </span>
                     <span className="text-gray-400 ml-2">
                       {React.string(`${Int.toString(preset.width)}x${Int.toString(preset.height)}`)}
                     </span>

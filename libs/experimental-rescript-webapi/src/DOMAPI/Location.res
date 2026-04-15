@@ -21,7 +21,6 @@ Reloads the current page.
 @send
 external reload: location => unit = "reload"
 
-
 /**
 Returns the Location object's URL.
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Location/href)

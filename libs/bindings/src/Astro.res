@@ -19,9 +19,7 @@ type devToolbarConfig = {enabled: bool}
 type rehypePlugin
 
 // Astro config (subset we care about)
-type markdownConfig = {
-  rehypePlugins: array<rehypePlugin>,
-}
+type markdownConfig = {rehypePlugins: array<rehypePlugin>}
 
 type astroConfig = {
   root: string,
@@ -96,7 +94,7 @@ type serverSetupHookContext = {
 
 // Route types from astro:routes:resolved hook (Astro v5+)
 type routeType = [#page | #endpoint | #redirect | #fallback]
-type routeOrigin = [#internal | #\"external" | #project]
+type routeOrigin = [#internal | #"external" | #project]
 
 type integrationResolvedRoute = {
   pattern: string,
@@ -142,9 +140,7 @@ type notificationOptions = {
 }
 
 // Toolbar placement options
-type placementOptions = {
-  placement: [#"bottom-left" | #"bottom-center" | #"bottom-right"],
-}
+type placementOptions = {placement: [#"bottom-left" | #"bottom-center" | #"bottom-right"]}
 
 // Client-side app event helpers
 @send

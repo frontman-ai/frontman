@@ -24,7 +24,9 @@ Examples:
 type input = {
   @s.describe("The text to search for (case-insensitive substring match)")
   query: string,
-  @s.describe("CSS selector or XPath to scope the search to a subtree. Defaults to the entire page.")
+  @s.describe(
+    "CSS selector or XPath to scope the search to a subtree. Defaults to the entire page."
+  )
   selector: option<string>,
   @s.describe("Maximum number of results to return. Defaults to 25.")
   maxResults: option<int>,
@@ -65,11 +67,21 @@ type output = {
 let defaultMaxResults = 25
 let defaultContextChars = 80
 
-let errorResult = (~error: string): result<output, _> =>
-  Ok({success: false, matches: None, totalCount: None, truncated: None, error: Some(error)})
+let errorResult = (~error: string): result<output, _> => Ok({
+  success: false,
+  matches: None,
+  totalCount: None,
+  truncated: None,
+  error: Some(error),
+})
 
-let successResult = (~matches, ~totalCount, ~truncated): result<output, _> =>
-  Ok({success: true, matches: Some(matches), totalCount: Some(totalCount), truncated: Some(truncated), error: None})
+let successResult = (~matches, ~totalCount, ~truncated): result<output, _> => Ok({
+  success: true,
+  matches: Some(matches),
+  totalCount: Some(totalCount),
+  truncated: Some(truncated),
+  error: None,
+})
 
 // Build a context snippet around the first occurrence of `query` in `text`.
 // Wraps the matched portion in >> << markers.
@@ -103,7 +115,11 @@ let buildContextSnippet = (~text: string, ~query: string, ~contextChars: int): s
   }
 }
 
-let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
+let execute = async (
+  input: input,
+  ~taskId as _taskId: string,
+  ~toolCallId as _toolCallId: string,
+): toolResult<output> => {
   switch input.query->String.trim {
   | "" => errorResult(~error="Query string cannot be empty")
   | _ =>

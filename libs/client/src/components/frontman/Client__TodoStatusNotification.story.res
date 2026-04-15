@@ -3,7 +3,6 @@
  *
  * Demonstrates the inline notifications for todo status.
  */
-
 open Bindings__Storybook
 module Todo = Client__State__Types.Todo
 
@@ -32,7 +31,9 @@ let inProgress: Story.t<args> = {
   name: "In Progress Todo",
   render: _ => {
     <div style={{width: "400px", padding: "20px", backgroundColor: "#18181b"}}>
-      <Client__TodoStatusNotification content="Analyzing codebase structure" status=Todo.InProgress />
+      <Client__TodoStatusNotification
+        content="Analyzing codebase structure" status=Todo.InProgress
+      />
     </div>
   },
 }
@@ -54,7 +55,9 @@ let sequence: Story.t<args> = {
     <div style={{width: "400px", padding: "20px", backgroundColor: "#18181b"}}>
       <div style={{display: "flex", flexDirection: "column", gap: "4px"}}>
         <Client__TodoStatusNotification content="Analyze project structure" status=Todo.Completed />
-        <Client__TodoStatusNotification content="Implement component from specs" status=Todo.InProgress />
+        <Client__TodoStatusNotification
+          content="Implement component from specs" status=Todo.InProgress
+        />
         <Client__TodoStatusNotification content="Write tests" status=Todo.Pending />
       </div>
     </div>

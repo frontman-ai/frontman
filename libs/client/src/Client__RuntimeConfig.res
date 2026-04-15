@@ -67,18 +67,18 @@ let read = (): t => {
   `)
   let json = getRuntime()->Nullable.toOption->Option.getOrThrow
   let config = S.parseOrThrow(json, parsedSchema)
-    {
-      framework: frameworkIdFromString(config.framework),
-      basePath: switch config.basePath {
-      | Some("") | None => "frontman"
-      | Some(bp) => bp
-      },
-      wpNonce: config.wpNonce,
-      openrouterKeyValue: config.openrouterKeyValue,
-      anthropicKeyValue: config.anthropicKeyValue,
-      projectRoot: config.projectRoot,
-      sourceRoot: config.sourceRoot,
-    }
+  {
+    framework: frameworkIdFromString(config.framework),
+    basePath: switch config.basePath {
+    | Some("") | None => "frontman"
+    | Some(bp) => bp
+    },
+    wpNonce: config.wpNonce,
+    openrouterKeyValue: config.openrouterKeyValue,
+    anthropicKeyValue: config.anthropicKeyValue,
+    projectRoot: config.projectRoot,
+    sourceRoot: config.sourceRoot,
+  }
 }
 
 // Check if an OpenRouter API key is available from the project environment

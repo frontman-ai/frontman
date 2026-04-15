@@ -9,10 +9,14 @@ afterEach(_t => {
 
 describe("Client__RuntimeConfig", _t => {
   test("read works without wpNonce for non-WordPress integrations", t => {
-    _setRuntime(JSON.Encode.object(Dict.fromArray([
-      ("framework", JSON.Encode.string("nextjs")),
-      ("basePath", JSON.Encode.string("frontman")),
-    ])))
+    _setRuntime(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("nextjs")),
+          ("basePath", JSON.Encode.string("frontman")),
+        ]),
+      ),
+    )
 
     let config = Client__RuntimeConfig.read()
 
@@ -22,11 +26,15 @@ describe("Client__RuntimeConfig", _t => {
   })
 
   test("read preserves wpNonce for WordPress integrations", t => {
-    _setRuntime(JSON.Encode.object(Dict.fromArray([
-      ("framework", JSON.Encode.string("wordpress")),
-      ("basePath", JSON.Encode.string("frontman")),
-      ("wpNonce", JSON.Encode.string("nonce-123")),
-    ])))
+    _setRuntime(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("wordpress")),
+          ("basePath", JSON.Encode.string("frontman")),
+          ("wpNonce", JSON.Encode.string("nonce-123")),
+        ]),
+      ),
+    )
 
     let config = Client__RuntimeConfig.read()
 
@@ -45,9 +53,15 @@ describe("Client__RuntimeConfig", _t => {
       sourceRoot: None,
     })
 
-    t->expect(meta)->Expect.toEqual(JSON.Encode.object(Dict.fromArray([
-      ("framework", JSON.Encode.string("wordpress")),
-      ("basePath", JSON.Encode.string("frontman")),
-    ])))
+    t
+    ->expect(meta)
+    ->Expect.toEqual(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("wordpress")),
+          ("basePath", JSON.Encode.string("frontman")),
+        ]),
+      ),
+    )
   })
 })

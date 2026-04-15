@@ -31,15 +31,17 @@ let makeTestAnnotation = (
   comment: None,
   selector: Ok(selector),
   screenshot: Ok(screenshot),
-  sourceLocation: Ok(Some({
-    componentName,
-    tagName,
-    file,
-    line,
-    column,
-    parent: None,
-    componentProps: None,
-  })),
+  sourceLocation: Ok(
+    Some({
+      componentName,
+      tagName,
+      file,
+      line,
+      column,
+      parent: None,
+      componentProps: None,
+    }),
+  ),
   tagName,
   cssClasses,
   boundingBox,
@@ -109,267 +111,308 @@ let makeNewTaskWithAnnotations = (annotations: array<Annotation.t>): Types.Task.
 
 describe("Client__State__Types", () => {
   describe("annotationToContentBlocks", () => {
-    test("strips file:// prefix from file path in _meta", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-        ~componentName="TestComponent",
-        ~selector="div.test",
-      )
+    test(
+      "strips file:// prefix from file path in _meta",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+          ~componentName="TestComponent",
+          ~selector="div.test",
+        )
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
 
-      // Should produce at least 1 block (resource with annotation metadata)
-      t->expect(blocks->Array.length >= 1)->Expect.toBe(true)
+        // Should produce at least 1 block (resource with annotation metadata)
+        t->expect(blocks->Array.length >= 1)->Expect.toBe(true)
 
-      let meta = getMeta(blocks->Array.getUnsafe(0))
+        let meta = getMeta(blocks->Array.getUnsafe(0))
 
-      // The file should be an absolute path, not a file:// URI
-      t->expect(getMetaString(meta, "file"))->Expect.toBe("/home/user/project/src/Component.tsx")
-    })
+        // The file should be an absolute path, not a file:// URI
+        t->expect(getMetaString(meta, "file"))->Expect.toBe("/home/user/project/src/Component.tsx")
+      },
+    )
 
-    test("annotation _meta contains all required fields", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-        ~componentName="TestComponent",
-        ~selector="div.test",
-      )
+    test(
+      "annotation _meta contains all required fields",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+          ~componentName="TestComponent",
+          ~selector="div.test",
+        )
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-      let meta = getMeta(blocks->Array.getUnsafe(0))
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let meta = getMeta(blocks->Array.getUnsafe(0))
 
-      t->expect(getMetaBool(meta, "annotation"))->Expect.toBe(true)
-      t->expect(getMetaFloat(meta, "annotation_index"))->Expect.toBe(0.0)
-      t->expect(getMetaString(meta, "annotation_id"))->Expect.toBe("test-annotation-id")
-      t->expect(getMetaString(meta, "tag_name"))->Expect.toBe("div")
-      t->expect(getMetaString(meta, "component_name"))->Expect.toBe("TestComponent")
-      t->expect(getMetaFloat(meta, "line"))->Expect.toBe(42.0)
-      t->expect(getMetaFloat(meta, "column"))->Expect.toBe(5.0)
-    })
+        t->expect(getMetaBool(meta, "annotation"))->Expect.toBe(true)
+        t->expect(getMetaFloat(meta, "annotation_index"))->Expect.toBe(0.0)
+        t->expect(getMetaString(meta, "annotation_id"))->Expect.toBe("test-annotation-id")
+        t->expect(getMetaString(meta, "tag_name"))->Expect.toBe("div")
+        t->expect(getMetaString(meta, "component_name"))->Expect.toBe("TestComponent")
+        t->expect(getMetaFloat(meta, "line"))->Expect.toBe(42.0)
+        t->expect(getMetaFloat(meta, "column"))->Expect.toBe(5.0)
+      },
+    )
 
-    test("handles Windows-style file:// URIs", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///C:/Users/dev/project/src/Component.tsx",
-        ~line=10,
-        ~column=1,
-        ~componentName="TestComponent",
-        ~selector="div.test",
-      )
+    test(
+      "handles Windows-style file:// URIs",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///C:/Users/dev/project/src/Component.tsx",
+          ~line=10,
+          ~column=1,
+          ~componentName="TestComponent",
+          ~selector="div.test",
+        )
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-      let meta = getMeta(blocks->Array.getUnsafe(0))
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let meta = getMeta(blocks->Array.getUnsafe(0))
 
-      // Windows paths should have the drive letter preserved
-      t->expect(getMetaString(meta, "file"))->Expect.toBe("C:/Users/dev/project/src/Component.tsx")
-    })
-
-    test("uri in text resource uses cleaned file path", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-        ~componentName="TestComponent",
-        ~selector="div.test",
-      )
-
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-      let block = blocks->Array.getUnsafe(0)
-      let embeddedResource = getEmbeddedResource(block)
-
-      switch embeddedResource.resource {
-      | TextResourceContents(textResource) =>
-        // The URI should use file:// with cleaned path and line:col
+        // Windows paths should have the drive letter preserved
         t
-        ->expect(textResource.uri)
-        ->Expect.toBe("file:///home/user/project/src/Component.tsx:42:5")
-      | _ => JsExn.throw("Expected TextResourceContents")
-      }
-    })
+        ->expect(getMetaString(meta, "file"))
+        ->Expect.toBe("C:/Users/dev/project/src/Component.tsx")
+      },
+    )
 
-    test("includes screenshot blob when annotation has screenshot", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-        ~screenshot="data:image/jpeg;base64,/9j/4AAQ",
-      )
+    test(
+      "uri in text resource uses cleaned file path",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+          ~componentName="TestComponent",
+          ~selector="div.test",
+        )
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let block = blocks->Array.getUnsafe(0)
+        let embeddedResource = getEmbeddedResource(block)
 
-      // Should produce 2 blocks: resource + screenshot
-      t->expect(blocks->Array.length)->Expect.toBe(2)
+        switch embeddedResource.resource {
+        | TextResourceContents(textResource) =>
+          // The URI should use file:// with cleaned path and line:col
+          t
+          ->expect(textResource.uri)
+          ->Expect.toBe("file:///home/user/project/src/Component.tsx:42:5")
+        | _ => JsExn.throw("Expected TextResourceContents")
+        }
+      },
+    )
 
-      // Second block should be screenshot blob
-      let screenshotBlock = blocks->Array.getUnsafe(1)
-      let screenshotResource = getEmbeddedResource(screenshotBlock)
-      let screenshotMeta = screenshotResource._meta->Option.getOrThrow
+    test(
+      "includes screenshot blob when annotation has screenshot",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+          ~screenshot="data:image/jpeg;base64,/9j/4AAQ",
+        )
 
-      t->expect(getMetaBool(screenshotMeta, "annotation_screenshot"))->Expect.toBe(true)
-      t->expect(getMetaString(screenshotMeta, "annotation_id"))->Expect.toBe("test-annotation-id")
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
 
-      switch screenshotResource.resource {
-      | BlobResourceContents(blobResource) =>
-        t->expect(blobResource.mimeType)->Expect.toEqual(Some("image/jpeg"))
-        t->expect(blobResource.blob)->Expect.toBe("/9j/4AAQ")
-      | _ => JsExn.throw("Expected BlobResourceContents")
-      }
-    })
+        // Should produce 2 blocks: resource + screenshot
+        t->expect(blocks->Array.length)->Expect.toBe(2)
 
-    test("produces 1 block when annotation has no screenshot", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-      )
+        // Second block should be screenshot blob
+        let screenshotBlock = blocks->Array.getUnsafe(1)
+        let screenshotResource = getEmbeddedResource(screenshotBlock)
+        let screenshotMeta = screenshotResource._meta->Option.getOrThrow
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-      t->expect(blocks->Array.length)->Expect.toBe(1)
-    })
+        t->expect(getMetaBool(screenshotMeta, "annotation_screenshot"))->Expect.toBe(true)
+        t->expect(getMetaString(screenshotMeta, "annotation_id"))->Expect.toBe("test-annotation-id")
 
-    test("fallback to selector when no source location", t => {
-      let annotation: Annotation.t = {
-        id: "test-no-source",
-        element: makeMockElement(),
-        comment: None,
-        selector: Ok(Some("div.my-class")),
-        screenshot: Ok(None),
-        sourceLocation: Ok(None),
-        tagName: "div",
-        cssClasses: None,
-        boundingBox: None,
-        nearbyText: None,
-        position: {xPercent: 50.0, yAbsolute: 100.0},
-        timestamp: 0.0,
-        enrichmentStatus: Enriched,
-      }
+        switch screenshotResource.resource {
+        | BlobResourceContents(blobResource) =>
+          t->expect(blobResource.mimeType)->Expect.toEqual(Some("image/jpeg"))
+          t->expect(blobResource.blob)->Expect.toBe("/9j/4AAQ")
+        | _ => JsExn.throw("Expected BlobResourceContents")
+        }
+      },
+    )
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-      let block = blocks->Array.getUnsafe(0)
-      let embeddedResource = getEmbeddedResource(block)
+    test(
+      "produces 1 block when annotation has no screenshot",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+        )
 
-      switch embeddedResource.resource {
-      | TextResourceContents(textResource) =>
-        t->expect(textResource.uri)->Expect.toBe("selector://div.my-class")
-      | _ => JsExn.throw("Expected TextResourceContents")
-      }
-    })
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        t->expect(blocks->Array.length)->Expect.toBe(1)
+      },
+    )
 
-    test("includes css_classes and nearby_text in _meta when present", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-        ~cssClasses="btn btn-primary",
-        ~nearbyText="Click me",
-      )
+    test(
+      "fallback to selector when no source location",
+      t => {
+        let annotation: Annotation.t = {
+          id: "test-no-source",
+          element: makeMockElement(),
+          comment: None,
+          selector: Ok(Some("div.my-class")),
+          screenshot: Ok(None),
+          sourceLocation: Ok(None),
+          tagName: "div",
+          cssClasses: None,
+          boundingBox: None,
+          nearbyText: None,
+          position: {xPercent: 50.0, yAbsolute: 100.0},
+          timestamp: 0.0,
+          enrichmentStatus: Enriched,
+        }
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-      let meta = getMeta(blocks->Array.getUnsafe(0))
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let block = blocks->Array.getUnsafe(0)
+        let embeddedResource = getEmbeddedResource(block)
 
-      t->expect(getMetaString(meta, "css_classes"))->Expect.toBe("btn btn-primary")
-      t->expect(getMetaString(meta, "nearby_text"))->Expect.toBe("Click me")
-    })
+        switch embeddedResource.resource {
+        | TextResourceContents(textResource) =>
+          t->expect(textResource.uri)->Expect.toBe("selector://div.my-class")
+        | _ => JsExn.throw("Expected TextResourceContents")
+        }
+      },
+    )
 
-    test("includes bounding_box in _meta when present", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-        ~boundingBox={x: 10.5, y: 20.0, width: 200.0, height: 50.0},
-      )
+    test(
+      "includes css_classes and nearby_text in _meta when present",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+          ~cssClasses="btn btn-primary",
+          ~nearbyText="Click me",
+        )
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-      let meta = getMeta(blocks->Array.getUnsafe(0))
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let meta = getMeta(blocks->Array.getUnsafe(0))
 
-      let bb = getMetaObject(meta, "bounding_box")
-      t
-      ->expect(bb->Dict.get("x")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
-      ->Expect.toBe(10.5)
-      t
-      ->expect(bb->Dict.get("y")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
-      ->Expect.toBe(20.0)
-      t
-      ->expect(bb->Dict.get("width")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
-      ->Expect.toBe(200.0)
-      t
-      ->expect(bb->Dict.get("height")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
-      ->Expect.toBe(50.0)
-    })
+        t->expect(getMetaString(meta, "css_classes"))->Expect.toBe("btn btn-primary")
+        t->expect(getMetaString(meta, "nearby_text"))->Expect.toBe("Click me")
+      },
+    )
 
-    test("omits bounding_box from _meta when not present", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-      )
+    test(
+      "includes bounding_box in _meta when present",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+          ~boundingBox={x: 10.5, y: 20.0, width: 200.0, height: 50.0},
+        )
 
-      let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-      let meta = getMeta(blocks->Array.getUnsafe(0))
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let meta = getMeta(blocks->Array.getUnsafe(0))
 
-      let metaObj = meta->JSON.Decode.object->Option.getOrThrow
-      t->expect(metaObj->Dict.get("bounding_box")->Option.isNone)->Expect.toBe(true)
-    })
+        let bb = getMetaObject(meta, "bounding_box")
+        t
+        ->expect(bb->Dict.get("x")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
+        ->Expect.toBe(10.5)
+        t
+        ->expect(bb->Dict.get("y")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
+        ->Expect.toBe(20.0)
+        t
+        ->expect(bb->Dict.get("width")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
+        ->Expect.toBe(200.0)
+        t
+        ->expect(bb->Dict.get("height")->Option.flatMap(JSON.Decode.float)->Option.getOrThrow)
+        ->Expect.toBe(50.0)
+      },
+    )
+
+    test(
+      "omits bounding_box from _meta when not present",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+        )
+
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let meta = getMeta(blocks->Array.getUnsafe(0))
+
+        let metaObj = meta->JSON.Decode.object->Option.getOrThrow
+        t->expect(metaObj->Dict.get("bounding_box")->Option.isNone)->Expect.toBe(true)
+      },
+    )
   })
 
   describe("taskToContentBlocks", () => {
-    test("returns empty array for Unloaded task", t => {
-      let task = Types.Task.Unloaded({
-        id: "test",
-        title: "test",
-        createdAt: 0.0,
-        updatedAt: 0.0,
-      })
+    test(
+      "returns empty array for Unloaded task",
+      t => {
+        let task = Types.Task.Unloaded({
+          id: "test",
+          title: "test",
+          createdAt: 0.0,
+          updatedAt: 0.0,
+        })
 
-      let blocks = Types.taskToContentBlocks(task)
-      t->expect(blocks->Array.length)->Expect.toBe(0)
-    })
+        let blocks = Types.taskToContentBlocks(task)
+        t->expect(blocks->Array.length)->Expect.toBe(0)
+      },
+    )
 
-    test("returns annotation blocks for New task with annotations", t => {
-      let annotation = makeTestAnnotation(
-        ~file="file:///home/user/project/src/Component.tsx",
-        ~line=42,
-        ~column=5,
-        ~screenshot="data:image/jpeg;base64,/9j/4AAQ",
-      )
+    test(
+      "returns annotation blocks for New task with annotations",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="file:///home/user/project/src/Component.tsx",
+          ~line=42,
+          ~column=5,
+          ~screenshot="data:image/jpeg;base64,/9j/4AAQ",
+        )
 
-      let task = makeNewTaskWithAnnotations([annotation])
+        let task = makeNewTaskWithAnnotations([annotation])
 
-      let blocks = Types.taskToContentBlocks(task)
-      // 1 current_page block + 1 annotation with screenshot (2 blocks) = 3 blocks
-      t->expect(blocks->Array.length)->Expect.toBe(3)
-    })
+        let blocks = Types.taskToContentBlocks(task)
+        // 1 current_page block + 1 annotation with screenshot (2 blocks) = 3 blocks
+        t->expect(blocks->Array.length)->Expect.toBe(3)
+      },
+    )
 
-    test("returns blocks for multiple annotations", t => {
-      let ann1 = makeTestAnnotation(
-        ~file="file:///home/user/project/src/A.tsx",
-        ~line=1,
-        ~column=1,
-      )
-      let ann2 = makeTestAnnotation(
-        ~file="file:///home/user/project/src/B.tsx",
-        ~line=2,
-        ~column=2,
-        ~screenshot="data:image/png;base64,iVBORw0K",
-      )
+    test(
+      "returns blocks for multiple annotations",
+      t => {
+        let ann1 = makeTestAnnotation(
+          ~file="file:///home/user/project/src/A.tsx",
+          ~line=1,
+          ~column=1,
+        )
+        let ann2 = makeTestAnnotation(
+          ~file="file:///home/user/project/src/B.tsx",
+          ~line=2,
+          ~column=2,
+          ~screenshot="data:image/png;base64,iVBORw0K",
+        )
 
-      let task = makeNewTaskWithAnnotations([ann1, ann2])
+        let task = makeNewTaskWithAnnotations([ann1, ann2])
 
-      let blocks = Types.taskToContentBlocks(task)
-      // 1 current_page block + ann1: 1 block (no screenshot) + ann2: 2 blocks (with screenshot) = 4 total
-      t->expect(blocks->Array.length)->Expect.toBe(4)
+        let blocks = Types.taskToContentBlocks(task)
+        // 1 current_page block + ann1: 1 block (no screenshot) + ann2: 2 blocks (with screenshot) = 4 total
+        t->expect(blocks->Array.length)->Expect.toBe(4)
 
-      // blocks[0] is current_page; annotation blocks start at index 1
-      // Verify first annotation has index 0
-      let meta0 = getMeta(blocks->Array.getUnsafe(1))
-      t->expect(getMetaFloat(meta0, "annotation_index"))->Expect.toBe(0.0)
+        // blocks[0] is current_page; annotation blocks start at index 1
+        // Verify first annotation has index 0
+        let meta0 = getMeta(blocks->Array.getUnsafe(1))
+        t->expect(getMetaFloat(meta0, "annotation_index"))->Expect.toBe(0.0)
 
-      // Verify second annotation has index 1
-      let meta1 = getMeta(blocks->Array.getUnsafe(2))
-      t->expect(getMetaFloat(meta1, "annotation_index"))->Expect.toBe(1.0)
-    })
+        // Verify second annotation has index 1
+        let meta1 = getMeta(blocks->Array.getUnsafe(2))
+        t->expect(getMetaFloat(meta1, "annotation_index"))->Expect.toBe(1.0)
+      },
+    )
   })
 })
 
@@ -393,7 +436,11 @@ describe("MessageAnnotation.fromAnnotation", () => {
       ~boundingBox={x: 10.0, y: 20.0, width: 100.0, height: 50.0},
     )
     // Add a comment and screenshot to the annotation
-    let annotation = {...annotation, comment: Some("This is broken"), screenshot: Ok(Some("data:image/jpeg;base64,abc123"))}
+    let annotation = {
+      ...annotation,
+      comment: Some("This is broken"),
+      screenshot: Ok(Some("data:image/jpeg;base64,abc123")),
+    }
 
     let snapshot = MessageAnnotation.fromAnnotation(annotation)
 
@@ -487,15 +534,17 @@ describe("messageAnnotationsToContentBlocks", () => {
         cssClasses: Some("submit"),
         comment: Some("Fix this"),
         screenshot: Ok(None),
-        sourceLocation: Ok(Some({
-          componentName: Some("Form"),
-          tagName: "button",
-          file: "/src/Form.tsx",
-          line: 42,
-          column: 5,
-          parent: None,
-          componentProps: None,
-        })),
+        sourceLocation: Ok(
+          Some({
+            componentName: Some("Form"),
+            tagName: "button",
+            file: "/src/Form.tsx",
+            line: 42,
+            column: 5,
+            parent: None,
+            componentProps: None,
+          }),
+        ),
         boundingBox: None,
         nearbyText: Some("Submit"),
       },

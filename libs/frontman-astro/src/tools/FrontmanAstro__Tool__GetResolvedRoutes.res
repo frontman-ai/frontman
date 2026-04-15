@@ -58,7 +58,9 @@ let toRouteEntry = (route: Bindings.integrationResolvedRoute): routeEntry => {
   isPrerendered: route.isPrerendered,
 }
 
-let make = (~getRoutes: unit => array<Bindings.integrationResolvedRoute>): module(Tool.ServerTool) => {
+let make = (
+  ~getRoutes: unit => array<Bindings.integrationResolvedRoute>,
+): module(Tool.ServerTool) => {
   module(
     {
       let name = name

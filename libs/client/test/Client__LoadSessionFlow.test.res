@@ -25,7 +25,9 @@ describe("Load Session Then Stream", () => {
     let (connAfterLoad, _) = Conn.reduce(connState, SessionCreateSuccess(Mock.session(taskId)))
 
     // Session should be active (this is where the bug is - currently stays NoSession)
-    t->expect(Conn.Selectors.getSession(connAfterLoad)->Option.map(s => s.sessionId))->Expect.toBe(Some(taskId))
+    t
+    ->expect(Conn.Selectors.getSession(connAfterLoad)->Option.map(s => s.sessionId))
+    ->Expect.toBe(Some(taskId))
 
     // 2. State: create a loaded task directly (simulates task creation via AddUserMessage)
     let loadedTask = Task.makeLoaded(
@@ -44,8 +46,17 @@ describe("Load Session Then Stream", () => {
     }
 
     // 3. Streaming arrives and routes to task
-    let (stateAfterStream, _) = State.next(appState, TaskAction({target: ForTask(taskId), action: StreamingStarted}))
-    let (finalState, _) = State.next(stateAfterStream, TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"})}))
+    let (stateAfterStream, _) = State.next(
+      appState,
+      TaskAction({target: ForTask(taskId), action: StreamingStarted}),
+    )
+    let (finalState, _) = State.next(
+      stateAfterStream,
+      TaskAction({
+        target: ForTask(taskId),
+        action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
+    )
 
     let task = finalState.tasks->Dict.get(taskId)->Option.getOrThrow
     let messages = Task.getLoadedData(task)->Option.mapOr([], d => d.messages)

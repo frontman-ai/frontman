@@ -5,7 +5,11 @@ module Log = FrontmanLogs.Logs.Make({
 // Typed externals for event casting and missing DOM APIs
 external asKeyboardEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.keyboardEvent = "%identity"
 external asMouseEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.mouseEvent = "%identity"
-external elementFromPoint: (WebAPI.DOMAPI.document, ~x: int, ~y: int) => Nullable.t<WebAPI.DOMAPI.element> = "elementFromPoint"
+external elementFromPoint: (
+  WebAPI.DOMAPI.document,
+  ~x: int,
+  ~y: int,
+) => Nullable.t<WebAPI.DOMAPI.element> = "elementFromPoint"
 
 // Find meaningful elements within a drag rectangle
 // Returns elements whose bounding rect overlaps the selection rect
@@ -14,8 +18,9 @@ let _findElementsInRect: (
   float, // x
   float, // y
   float, // width
-  float, // height
-) => array<WebAPI.DOMAPI.element> = %raw(`
+  float,
+) => // height
+array<WebAPI.DOMAPI.element> = %raw(`
   function(doc, rx, ry, rw, rh) {
     var meaningfulTags = new Set([
       "A","ABBR","ADDRESS","ARTICLE","ASIDE","AUDIO","B","BLOCKQUOTE",
@@ -76,7 +81,9 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   // Track whether a drag gesture occurred so the click handler can skip it
   let wasDragging = React.useRef(false)
   // Stash elements to dispatch after setDragState updater completes (React purity)
-  let pendingDragDispatch: React.ref<option<array<Client__Task__Reducer.annotationElement>>> = React.useRef(None)
+  let pendingDragDispatch: React.ref<
+    option<array<Client__Task__Reducer.annotationElement>>,
+  > = React.useRef(None)
 
   let activePopupAnnotationId = Client__State.useSelector(
     Client__State.Selectors.activePopupAnnotationId,
@@ -165,8 +172,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                 let w = Math.abs(currentX -. startX)
                 let h = Math.abs(currentY -. startY)
 
-                let viewportWidth =
-                  doc.documentElement.clientWidth->Int.toFloat
+                let viewportWidth = doc.documentElement.clientWidth->Int.toFloat
 
                 switch w > 10.0 && h > 10.0 {
                 | true =>
@@ -176,19 +182,24 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
 
                   switch Array.length(foundElements) > 0 {
                   | true =>
-                    let elements: array<Client__Task__Reducer.annotationElement> = foundElements->Array.map(el => {
-                      let rect = WebAPI.Element.getBoundingClientRect(el)
-                      let centerX = rect.left +. rect.width /. 2.0
-                      let position: Client__Annotation__Types.position = {
-                        xPercent: centerX /. viewportWidth *. 100.0,
-                        yAbsolute: rect.top +. rect.height /. 2.0,
-                      }
-                      {
-                        Client__Task__Reducer.element: el,
-                        position,
-                        tagName: el.tagName,
-                      }
-                    })
+                    let elements: array<
+                      Client__Task__Reducer.annotationElement,
+                    > = foundElements->Array.map(
+                      el => {
+                        let rect = WebAPI.Element.getBoundingClientRect(el)
+                        let centerX = rect.left +. rect.width /. 2.0
+                        let position: Client__Annotation__Types.position = {
+                          xPercent: centerX /. viewportWidth *. 100.0,
+                          yAbsolute: rect.top +. rect.height /. 2.0,
+                        }
+                        {
+                          Client__Task__Reducer.element: el,
+                          position,
+                          tagName: el.tagName,
+                        }
+                      },
+                    )
+
                     // Stash for dispatch after updater returns (React purity)
                     pendingDragDispatch.current = Some(elements)
                   | false => ()
@@ -196,25 +207,28 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                 | false =>
                   // Cmd+Shift+Click (no drag): add single element directly
                   wasDragging.current = true
-                  let elementAtPoint = doc->elementFromPoint(
-                    ~x=startX->Float.toInt,
-                    ~y=startY->Float.toInt,
+                  let elementAtPoint =
+                    doc->elementFromPoint(~x=startX->Float.toInt, ~y=startY->Float.toInt)
+                  elementAtPoint
+                  ->Nullable.toOption
+                  ->Option.forEach(
+                    el => {
+                      let rect = WebAPI.Element.getBoundingClientRect(el)
+                      let centerX = rect.left +. rect.width /. 2.0
+                      let position: Client__Annotation__Types.position = {
+                        xPercent: centerX /. viewportWidth *. 100.0,
+                        yAbsolute: rect.top +. rect.height /. 2.0,
+                      }
+                      let entry: Client__Task__Reducer.annotationElement = {
+                        element: el,
+                        position,
+                        tagName: el.tagName,
+                      }
+
+                      // Stash for dispatch after updater returns (React purity)
+                      pendingDragDispatch.current = Some([entry])
+                    },
                   )
-                  elementAtPoint->Nullable.toOption->Option.forEach(el => {
-                    let rect = WebAPI.Element.getBoundingClientRect(el)
-                    let centerX = rect.left +. rect.width /. 2.0
-                    let position: Client__Annotation__Types.position = {
-                      xPercent: centerX /. viewportWidth *. 100.0,
-                      yAbsolute: rect.top +. rect.height /. 2.0,
-                    }
-                    let entry: Client__Task__Reducer.annotationElement = {
-                      element: el,
-                      position,
-                      tagName: el.tagName,
-                    }
-                    // Stash for dispatch after updater returns (React purity)
-                    pendingDragDispatch.current = Some([entry])
-                  })
                 }
                 Idle
               }
@@ -231,15 +245,47 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           }
         }
 
-        WebAPI.Document.addEventListener(doc, Custom("mousedown"), onMouseDown, ~options={capture: true})
-        WebAPI.Document.addEventListener(doc, Custom("mousemove"), onMouseMove, ~options={capture: true})
-        WebAPI.Document.addEventListener(doc, Custom("mouseup"), onMouseUp, ~options={capture: true})
+        WebAPI.Document.addEventListener(
+          doc,
+          Custom("mousedown"),
+          onMouseDown,
+          ~options={capture: true},
+        )
+        WebAPI.Document.addEventListener(
+          doc,
+          Custom("mousemove"),
+          onMouseMove,
+          ~options={capture: true},
+        )
+        WebAPI.Document.addEventListener(
+          doc,
+          Custom("mouseup"),
+          onMouseUp,
+          ~options={capture: true},
+        )
 
-        Some(() => {
-          WebAPI.Document.removeEventListener(doc, Custom("mousedown"), onMouseDown, ~options={capture: true})
-          WebAPI.Document.removeEventListener(doc, Custom("mousemove"), onMouseMove, ~options={capture: true})
-          WebAPI.Document.removeEventListener(doc, Custom("mouseup"), onMouseUp, ~options={capture: true})
-        })
+        Some(
+          () => {
+            WebAPI.Document.removeEventListener(
+              doc,
+              Custom("mousedown"),
+              onMouseDown,
+              ~options={capture: true},
+            )
+            WebAPI.Document.removeEventListener(
+              doc,
+              Custom("mousemove"),
+              onMouseMove,
+              ~options={capture: true},
+            )
+            WebAPI.Document.removeEventListener(
+              doc,
+              Custom("mouseup"),
+              onMouseUp,
+              ~options={capture: true},
+            )
+          },
+        )
       }
     | _ => None
     }
@@ -325,9 +371,11 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         doc
         ->WebAPI.Document.querySelector("[data-frontman-cursor]")
         ->Null.toOption
-        ->Option.forEach(el => {
-          el->WebAPI.Element.remove
-        })
+        ->Option.forEach(
+          el => {
+            el->WebAPI.Element.remove
+          },
+        )
       })
     }
 
@@ -337,9 +385,11 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           doc
           ->WebAPI.Document.querySelector("[data-frontman-cursor]")
           ->Null.toOption
-          ->Option.forEach(el => {
-            el->WebAPI.Element.remove
-          })
+          ->Option.forEach(
+            el => {
+              el->WebAPI.Element.remove
+            },
+          )
         })
       },
     )
@@ -427,8 +477,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         scrollTimestamp={scrollTimestamp}
         mutationTimestamp={mutationTimestamp}
         onCommentChange={comment =>
-          Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)
-        }
+          Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)}
         onClose={() => Client__State.Actions.closeAnnotationPopup()}
       />
     | None => React.null

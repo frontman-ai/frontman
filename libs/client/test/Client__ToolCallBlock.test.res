@@ -30,7 +30,6 @@ describe("isInlineTool", _t => {
     t->expect(ToolCallBlock.isInlineTool("get_logs"))->Expect.toBe(false)
     t->expect(ToolCallBlock.isInlineTool("consoleLog"))->Expect.toBe(false)
   })
-
 })
 
 describe("isFileTool", _t => {

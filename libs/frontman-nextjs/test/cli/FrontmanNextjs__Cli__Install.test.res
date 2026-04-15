@@ -50,18 +50,21 @@ let fixtureNames = [
 ]
 
 let setupFixtures = async () => {
-  let _ = await fixtureNames->Array.map(async name => {
+  let _ = await fixtureNames
+  ->Array.map(async name => {
     let dir = fixture(name)
     switch nextVersionForFixture(name) {
     | Some(version) => await setupMockNextVersion(dir, version)
     | None => ()
     }
+
     // Create src/ directory for the with-src fixture
     if name->String.includes("with-src") {
       let srcDir = Path.join([dir, "src"])
       let _ = await Fs.Promises.mkdir(srcDir, {recursive: true})
     }
-  })->Promise.all
+  })
+  ->Promise.all
 }
 
 // Helper to create a temp copy of a fixture for testing
@@ -124,266 +127,328 @@ beforeAllAsync(async () => {
 
 describe("Project Detection", _t => {
   describe("Next.js Version Detection", _t => {
-    testAsync("detects Next.js 15 project", async t => {
-      let dir = fixture("nextjs15-clean")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects Next.js 15 project",
+      async t => {
+        let dir = fixture("nextjs15-clean")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        t->expect(info.nextVersion.major)->Expect.toBe(15)
-        t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+        switch result {
+        | Ok(info) =>
+          t->expect(info.nextVersion.major)->Expect.toBe(15)
+          t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+        }
+      },
+    )
 
-    testAsync("detects Next.js 16 project", async t => {
-      let dir = fixture("nextjs16-clean")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects Next.js 16 project",
+      async t => {
+        let dir = fixture("nextjs16-clean")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        t->expect(info.nextVersion.major)->Expect.toBe(16)
-        t->expect(info.nextVersion.raw)->Expect.toBe("16.0.0")
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+        switch result {
+        | Ok(info) =>
+          t->expect(info.nextVersion.major)->Expect.toBe(16)
+          t->expect(info.nextVersion.raw)->Expect.toBe("16.0.0")
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+        }
+      },
+    )
 
-    testAsync("detects Next.js in devDependencies", async t => {
-      let dir = fixture("nextjs15-devdep")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects Next.js in devDependencies",
+      async t => {
+        let dir = fixture("nextjs15-devdep")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        t->expect(info.nextVersion.major)->Expect.toBe(15)
-        t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+        switch result {
+        | Ok(info) =>
+          t->expect(info.nextVersion.major)->Expect.toBe(15)
+          t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+        }
+      },
+    )
 
-    testAsync("fails for non-Next.js project", async t => {
-      let dir = fixture("not-nextjs")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "fails for non-Next.js project",
+      async t => {
+        let dir = fixture("not-nextjs")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Error(msg) =>
-        t->expect(msg->String.includes("not listed as a dependency"))->Expect.toBe(true)
-      | Ok(_) => t->expect("should")->Expect.toBe("fail for non-nextjs project")
-      }
-    })
+        switch result {
+        | Error(msg) =>
+          t->expect(msg->String.includes("not listed as a dependency"))->Expect.toBe(true)
+        | Ok(_) => t->expect("should")->Expect.toBe("fail for non-nextjs project")
+        }
+      },
+    )
 
-    testAsync("fails with specific error when next is declared but not installed", async t => {
-      // Use an isolated temp dir so createRequire can't walk up and find next
-      // in the monorepo's node_modules
-      let timestamp = Date.now()->Float.toString
-      let isolatedDir = Path.join([Os.tmpdir(), `frontman-not-installed-${timestamp}`])
-      let _ = await Fs.Promises.mkdir(isolatedDir, {recursive: true})
-      let content = `{"name":"test","version":"1.0.0","dependencies":{"next":"^15.0.0"}}`
-      await Fs.Promises.writeFile(Path.join([isolatedDir, "package.json"]), content)
+    testAsync(
+      "fails with specific error when next is declared but not installed",
+      async t => {
+        // Use an isolated temp dir so createRequire can't walk up and find next
+        // in the monorepo's node_modules
+        let timestamp = Date.now()->Float.toString
+        let isolatedDir = Path.join([Os.tmpdir(), `frontman-not-installed-${timestamp}`])
+        let _ = await Fs.Promises.mkdir(isolatedDir, {recursive: true})
+        let content = `{"name":"test","version":"1.0.0","dependencies":{"next":"^15.0.0"}}`
+        await Fs.Promises.writeFile(Path.join([isolatedDir, "package.json"]), content)
 
-      let result = await Detect.detect(isolatedDir)
+        let result = await Detect.detect(isolatedDir)
 
-      switch result {
-      | Error(msg) =>
-        // Should mention it could not resolve next/package.json
-        t->expect(msg->String.includes("Could not resolve"))->Expect.toBe(true)
-      | Ok(_) => t->expect("should")->Expect.toBe("fail when next is not installed")
-      }
+        switch result {
+        | Error(msg) =>
+          // Should mention it could not resolve next/package.json
+          t->expect(msg->String.includes("Could not resolve"))->Expect.toBe(true)
+        | Ok(_) => t->expect("should")->Expect.toBe("fail when next is not installed")
+        }
 
-      await cleanupTempFixture(isolatedDir)
-    })
+        await cleanupTempFixture(isolatedDir)
+      },
+    )
   })
 
   describe("resolveFrom", _t => {
-    testAsync("resolves a module that exists", async t => {
-      let dir = fixture("nextjs15-clean")
-      // After setupFixtures, node_modules/next/package.json exists
-      switch Detect.resolveFrom(dir, "next/package.json") {
-      | Ok(path) => t->expect(path->String.includes("next"))->Expect.toBe(true)
-      | Error(msg) => t->expect(msg)->Expect.toBe("should resolve successfully")
-      }
-    })
+    testAsync(
+      "resolves a module that exists",
+      async t => {
+        let dir = fixture("nextjs15-clean")
+        // After setupFixtures, node_modules/next/package.json exists
+        switch Detect.resolveFrom(dir, "next/package.json") {
+        | Ok(path) => t->expect(path->String.includes("next"))->Expect.toBe(true)
+        | Error(msg) => t->expect(msg)->Expect.toBe("should resolve successfully")
+        }
+      },
+    )
 
-    testAsync("returns Error with message for missing module", async t => {
-      let dir = fixture("not-nextjs")
-      switch Detect.resolveFrom(dir, "nonexistent-package-xyz/package.json") {
-      | Error(msg) =>
-        // Should contain the module name and a meaningful error
-        t->expect(msg->String.includes("nonexistent-package-xyz"))->Expect.toBe(true)
-        t->expect(msg->String.length > 0)->Expect.toBe(true)
-      | Ok(_) => t->expect("should")->Expect.toBe("fail for missing module")
-      }
-    })
+    testAsync(
+      "returns Error with message for missing module",
+      async t => {
+        let dir = fixture("not-nextjs")
+        switch Detect.resolveFrom(dir, "nonexistent-package-xyz/package.json") {
+        | Error(msg) =>
+          // Should contain the module name and a meaningful error
+          t->expect(msg->String.includes("nonexistent-package-xyz"))->Expect.toBe(true)
+          t->expect(msg->String.length > 0)->Expect.toBe(true)
+        | Ok(_) => t->expect("should")->Expect.toBe("fail for missing module")
+        }
+      },
+    )
   })
 
   describe("hasNextDependency", _t => {
-    testAsync("returns true when next is in dependencies", async t => {
-      let dir = fixture("nextjs15-clean")
-      let result = await Detect.hasNextDependency(dir)
-      t->expect(result)->Expect.toBe(true)
-    })
+    testAsync(
+      "returns true when next is in dependencies",
+      async t => {
+        let dir = fixture("nextjs15-clean")
+        let result = await Detect.hasNextDependency(dir)
+        t->expect(result)->Expect.toBe(true)
+      },
+    )
 
-    testAsync("returns true when next is in devDependencies", async t => {
-      let dir = fixture("nextjs15-devdep")
-      let result = await Detect.hasNextDependency(dir)
-      t->expect(result)->Expect.toBe(true)
-    })
+    testAsync(
+      "returns true when next is in devDependencies",
+      async t => {
+        let dir = fixture("nextjs15-devdep")
+        let result = await Detect.hasNextDependency(dir)
+        t->expect(result)->Expect.toBe(true)
+      },
+    )
 
-    testAsync("returns false when next is not a dependency", async t => {
-      let dir = fixture("not-nextjs")
-      let result = await Detect.hasNextDependency(dir)
-      t->expect(result)->Expect.toBe(false)
-    })
+    testAsync(
+      "returns false when next is not a dependency",
+      async t => {
+        let dir = fixture("not-nextjs")
+        let result = await Detect.hasNextDependency(dir)
+        t->expect(result)->Expect.toBe(false)
+      },
+    )
 
-    testAsync("returns false when package.json does not exist", async t => {
-      let dir = Path.join([Os.tmpdir(), "nonexistent-dir-for-test"])
-      let result = await Detect.hasNextDependency(dir)
-      t->expect(result)->Expect.toBe(false)
-    })
+    testAsync(
+      "returns false when package.json does not exist",
+      async t => {
+        let dir = Path.join([Os.tmpdir(), "nonexistent-dir-for-test"])
+        let result = await Detect.hasNextDependency(dir)
+        t->expect(result)->Expect.toBe(false)
+      },
+    )
   })
 
   describe("detectNextVersion", _t => {
-    testAsync("returns Ok with version when next is installed", async t => {
-      let dir = fixture("nextjs15-clean")
-      let result = await Detect.detectNextVersion(dir)
+    testAsync(
+      "returns Ok with version when next is installed",
+      async t => {
+        let dir = fixture("nextjs15-clean")
+        let result = await Detect.detectNextVersion(dir)
 
-      switch result {
-      | Ok(version) =>
-        t->expect(version.major)->Expect.toBe(15)
-        t->expect(version.minor)->Expect.toBe(0)
-        t->expect(version.raw)->Expect.toBe("15.0.0")
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+        switch result {
+        | Ok(version) =>
+          t->expect(version.major)->Expect.toBe(15)
+          t->expect(version.minor)->Expect.toBe(0)
+          t->expect(version.raw)->Expect.toBe("15.0.0")
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+        }
+      },
+    )
 
-    testAsync("returns Error when next is not a dependency", async t => {
-      let dir = fixture("not-nextjs")
-      let result = await Detect.detectNextVersion(dir)
+    testAsync(
+      "returns Error when next is not a dependency",
+      async t => {
+        let dir = fixture("not-nextjs")
+        let result = await Detect.detectNextVersion(dir)
 
-      switch result {
-      | Error(msg) =>
-        t->expect(msg->String.includes("not listed as a dependency"))->Expect.toBe(true)
-      | Ok(_) => t->expect("should")->Expect.toBe("return Error")
-      }
-    })
+        switch result {
+        | Error(msg) =>
+          t->expect(msg->String.includes("not listed as a dependency"))->Expect.toBe(true)
+        | Ok(_) => t->expect("should")->Expect.toBe("return Error")
+        }
+      },
+    )
 
-    testAsync("returns Error when next is declared but not installed", async t => {
-      // Use an isolated temp dir so createRequire can't walk up and find next
-      // in the monorepo's node_modules
-      let timestamp = Date.now()->Float.toString
-      let isolatedDir = Path.join([Os.tmpdir(), `frontman-detect-version-${timestamp}`])
-      let _ = await Fs.Promises.mkdir(isolatedDir, {recursive: true})
-      let content = `{"name":"test","version":"1.0.0","dependencies":{"next":"^15.0.0"}}`
-      await Fs.Promises.writeFile(Path.join([isolatedDir, "package.json"]), content)
+    testAsync(
+      "returns Error when next is declared but not installed",
+      async t => {
+        // Use an isolated temp dir so createRequire can't walk up and find next
+        // in the monorepo's node_modules
+        let timestamp = Date.now()->Float.toString
+        let isolatedDir = Path.join([Os.tmpdir(), `frontman-detect-version-${timestamp}`])
+        let _ = await Fs.Promises.mkdir(isolatedDir, {recursive: true})
+        let content = `{"name":"test","version":"1.0.0","dependencies":{"next":"^15.0.0"}}`
+        await Fs.Promises.writeFile(Path.join([isolatedDir, "package.json"]), content)
 
-      let result = await Detect.detectNextVersion(isolatedDir)
+        let result = await Detect.detectNextVersion(isolatedDir)
 
-      switch result {
-      | Error(msg) =>
-        t->expect(msg->String.includes("Could not resolve"))->Expect.toBe(true)
-      | Ok(_) => t->expect("should")->Expect.toBe("return Error for uninstalled dep")
-      }
+        switch result {
+        | Error(msg) => t->expect(msg->String.includes("Could not resolve"))->Expect.toBe(true)
+        | Ok(_) => t->expect("should")->Expect.toBe("return Error for uninstalled dep")
+        }
 
-      await cleanupTempFixture(isolatedDir)
-    })
+        await cleanupTempFixture(isolatedDir)
+      },
+    )
   })
 
   describe("Existing File Detection", _t => {
-    testAsync("detects existing middleware.ts without Frontman", async t => {
-      let dir = fixture("nextjs15-with-middleware")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects existing middleware.ts without Frontman",
+      async t => {
+        let dir = fixture("nextjs15-with-middleware")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        switch info.middleware {
-        | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
-        | _ => t->expect("middleware")->Expect.toBe("NeedsManualEdit")
+        switch result {
+        | Ok(info) =>
+          switch info.middleware {
+          | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
+          | _ => t->expect("middleware")->Expect.toBe("NeedsManualEdit")
+          }
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+      },
+    )
 
-    testAsync("detects existing middleware.ts with Frontman and extracts host", async t => {
-      let dir = fixture("nextjs15-with-frontman")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects existing middleware.ts with Frontman and extracts host",
+      async t => {
+        let dir = fixture("nextjs15-with-frontman")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        switch info.middleware {
-        | HasFrontman({host}) => t->expect(host)->Expect.toBe("old-server.company.com")
-        | _ => t->expect("middleware")->Expect.toBe("HasFrontman")
+        switch result {
+        | Ok(info) =>
+          switch info.middleware {
+          | HasFrontman({host}) => t->expect(host)->Expect.toBe("old-server.company.com")
+          | _ => t->expect("middleware")->Expect.toBe("HasFrontman")
+          }
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+      },
+    )
 
-    testAsync("detects existing proxy.ts without Frontman", async t => {
-      let dir = fixture("nextjs16-with-proxy")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects existing proxy.ts without Frontman",
+      async t => {
+        let dir = fixture("nextjs16-with-proxy")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        switch info.proxy {
-        | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
-        | _ => t->expect("proxy")->Expect.toBe("NeedsManualEdit")
+        switch result {
+        | Ok(info) =>
+          switch info.proxy {
+          | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
+          | _ => t->expect("proxy")->Expect.toBe("NeedsManualEdit")
+          }
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+      },
+    )
 
-    testAsync("detects existing proxy.ts with Frontman and extracts host", async t => {
-      let dir = fixture("nextjs16-with-frontman")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects existing proxy.ts with Frontman and extracts host",
+      async t => {
+        let dir = fixture("nextjs16-with-frontman")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        switch info.proxy {
-        | HasFrontman({host}) => t->expect(host)->Expect.toBe("old-server.company.com")
-        | _ => t->expect("proxy")->Expect.toBe("HasFrontman")
+        switch result {
+        | Ok(info) =>
+          switch info.proxy {
+          | HasFrontman({host}) => t->expect(host)->Expect.toBe("old-server.company.com")
+          | _ => t->expect("proxy")->Expect.toBe("HasFrontman")
+          }
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+      },
+    )
 
-    testAsync("detects existing instrumentation.ts without Frontman", async t => {
-      let dir = fixture("nextjs15-with-instrumentation")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects existing instrumentation.ts without Frontman",
+      async t => {
+        let dir = fixture("nextjs15-with-instrumentation")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        switch info.instrumentation {
-        | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
-        | _ => t->expect("instrumentation")->Expect.toBe("NeedsManualEdit")
+        switch result {
+        | Ok(info) =>
+          switch info.instrumentation {
+          | NeedsManualEdit => t->expect(true)->Expect.toBe(true)
+          | _ => t->expect("instrumentation")->Expect.toBe("NeedsManualEdit")
+          }
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+      },
+    )
 
-    testAsync("detects src/ directory", async t => {
-      let dir = fixture("nextjs15-with-src")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "detects src/ directory",
+      async t => {
+        let dir = fixture("nextjs15-with-src")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) => t->expect(info.hasSrcDir)->Expect.toBe(true)
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+        switch result {
+        | Ok(info) => t->expect(info.hasSrcDir)->Expect.toBe(true)
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+        }
+      },
+    )
   })
 
   describe("Package Manager Detection", _t => {
     // We use npm by default for fixtures without lock files
-    testAsync("defaults to npm when no lock file present", async t => {
-      let dir = fixture("nextjs15-clean")
-      let result = await Detect.detect(dir)
+    testAsync(
+      "defaults to npm when no lock file present",
+      async t => {
+        let dir = fixture("nextjs15-clean")
+        let result = await Detect.detect(dir)
 
-      switch result {
-      | Ok(info) =>
-        switch info.packageManager {
-        | Npm => t->expect(true)->Expect.toBe(true)
-        | _ => t->expect("npm")->Expect.toBe("default package manager")
+        switch result {
+        | Ok(info) =>
+          switch info.packageManager {
+          | Npm => t->expect(true)->Expect.toBe(true)
+          | _ => t->expect("npm")->Expect.toBe("default package manager")
+          }
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
-      | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
-      }
-    })
+      },
+    )
   })
 })
 
@@ -533,7 +598,8 @@ describe("Existing Files Without Frontman", _t => {
     switch result {
     | Install.PartialSuccess({manualStepsRequired}) =>
       // Should have manual steps for middleware
-      let hasMiddlewareStep = manualStepsRequired->Array.some(s => s->String.includes("middleware.ts"))
+      let hasMiddlewareStep =
+        manualStepsRequired->Array.some(s => s->String.includes("middleware.ts"))
       t->expect(hasMiddlewareStep)->Expect.toBe(true)
     | Install.Success => t->expect("should")->Expect.toBe("require manual steps")
     | Install.Failure(_) => t->expect("should")->Expect.toBe("partial success, not failure")

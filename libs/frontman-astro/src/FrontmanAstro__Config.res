@@ -76,7 +76,7 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
     let raw =
       config.basePath
       ->Option.getOr("frontman")
-      ->String.replaceRegExp(%re("/^\/+|\/+$/g"), "")
+      ->String.replaceRegExp(/^\/+|\/+$/g, "")
     switch raw {
     | "" => "frontman"
     | normalized => normalized
@@ -87,17 +87,16 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
   let isLightTheme = config.isLightTheme->Option.getOr(false)
 
   let clientUrl = {
-    let baseUrl =
-      config.clientUrl->Option.getOr(
-        Bindings.Process.env
-        ->Dict.get("FRONTMAN_CLIENT_URL")
-        ->Option.getOr(
-          switch isDev {
-          | true => Hosts.devClientJs
-          | false => Hosts.clientJs
-          },
-        ),
-      )
+    let baseUrl = config.clientUrl->Option.getOr(
+      Bindings.Process.env
+      ->Dict.get("FRONTMAN_CLIENT_URL")
+      ->Option.getOr(
+        switch isDev {
+        | true => Hosts.devClientJs
+        | false => Hosts.clientJs
+        },
+      ),
+    )
     // Ensure clientUrl always has the required query params the client reads from import.meta.url
     let url = WebAPI.URL.make(~url=baseUrl)
     switch url.searchParams->WebAPI.URLSearchParams.has(~name="clientName") {

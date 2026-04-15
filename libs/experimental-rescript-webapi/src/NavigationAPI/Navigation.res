@@ -12,7 +12,8 @@ Navigates forwards by one entry in the navigation history.
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Navigation/forward)
 */
 @send
-external forward: (navigation, ~options: navigationNavigateOptions=?) => navigationResult = "forward"
+external forward: (navigation, ~options: navigationNavigateOptions=?) => navigationResult =
+  "forward"
 
 /**
 Returns an array of NavigationHistoryEntry objects representing all existing history entries.
@@ -41,8 +42,11 @@ Navigates to a specific NavigationHistoryEntry identified by key.
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Navigation/traverseTo)
 */
 @send
-external traverseTo: (navigation, string, ~options: navigationNavigateOptions=?) => navigationResult =
-  "traverseTo"
+external traverseTo: (
+  navigation,
+  string,
+  ~options: navigationNavigateOptions=?,
+) => navigationResult = "traverseTo"
 
 /**
 Updates the state of the currentEntry.
@@ -53,4 +57,3 @@ external updateCurrentEntry: (navigation, navigationUpdateCurrentEntryOptions) =
   "updateCurrentEntry"
 
 include EventTarget.Impl({type t = navigation})
-

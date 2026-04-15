@@ -407,88 +407,121 @@ describe("AutoEdit LLM Integration", _t => {
   })
 
   describe("Validation", _t => {
-    test("rejects output without Frontman import", t => {
-      let invalidContent = "export function middleware() { return null; }"
-      let isValid = AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Middleware)
-      t->expect(isValid)->Expect.toBe(false)
-    })
+    test(
+      "rejects output without Frontman import",
+      t => {
+        let invalidContent = "export function middleware() { return null; }"
+        let isValid = AutoEdit.validateOutput(
+          ~content=invalidContent,
+          ~fileType=AutoEdit.Middleware,
+        )
+        t->expect(isValid)->Expect.toBe(false)
+      },
+    )
 
-    test("accepts valid middleware output", t => {
-      let validContent = `import { createMiddleware } from '@frontman-ai/nextjs';
+    test(
+      "accepts valid middleware output",
+      t => {
+        let validContent = `import { createMiddleware } from '@frontman-ai/nextjs';
 const frontman = createMiddleware({ host: 'test.host' });
 export function middleware(req) { const r = await frontman(req); }
 export const config = { matcher: ['/frontman/:path*'] };`
-      let isValid = AutoEdit.validateOutput(~content=validContent, ~fileType=AutoEdit.Middleware)
-      t->expect(isValid)->Expect.toBe(true)
-    })
+        let isValid = AutoEdit.validateOutput(~content=validContent, ~fileType=AutoEdit.Middleware)
+        t->expect(isValid)->Expect.toBe(true)
+      },
+    )
 
-    test("rejects middleware output without matcher", t => {
-      let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
+    test(
+      "rejects middleware output without matcher",
+      t => {
+        let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
 const frontman = createMiddleware({ host: 'test.host' });
 export function middleware(req) { const r = await frontman(req); }`
-      let isValid = AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Middleware)
-      t->expect(isValid)->Expect.toBe(false)
-    })
+        let isValid = AutoEdit.validateOutput(
+          ~content=invalidContent,
+          ~fileType=AutoEdit.Middleware,
+        )
+        t->expect(isValid)->Expect.toBe(false)
+      },
+    )
 
-    test("accepts valid proxy output", t => {
-      let validContent = `import { createMiddleware } from '@frontman-ai/nextjs';
+    test(
+      "accepts valid proxy output",
+      t => {
+        let validContent = `import { createMiddleware } from '@frontman-ai/nextjs';
 const frontman = createMiddleware({ host: 'test.host' });
 export function proxy(req) {
   if (req.nextUrl.pathname.startsWith('/frontman')) { return frontman(req); }
 }
 export const config = { matcher: ['/frontman/:path*'] };`
-      let isValid = AutoEdit.validateOutput(~content=validContent, ~fileType=AutoEdit.Proxy)
-      t->expect(isValid)->Expect.toBe(true)
-    })
+        let isValid = AutoEdit.validateOutput(~content=validContent, ~fileType=AutoEdit.Proxy)
+        t->expect(isValid)->Expect.toBe(true)
+      },
+    )
 
-    test("rejects proxy output without /frontman path check", t => {
-      let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
+    test(
+      "rejects proxy output without /frontman path check",
+      t => {
+        let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
 const frontman = createMiddleware({ host: 'test.host' });
 export function proxy(req) { return frontman(req); }
 export const config = { matcher: ['/dashboard/:path*'] };`
-      let isValid = AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Proxy)
-      t->expect(isValid)->Expect.toBe(false)
-    })
+        let isValid = AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Proxy)
+        t->expect(isValid)->Expect.toBe(false)
+      },
+    )
 
-    test("rejects proxy output without matcher", t => {
-      let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
+    test(
+      "rejects proxy output without matcher",
+      t => {
+        let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
 const frontman = createMiddleware({ host: 'test.host' });
 export function proxy(req) {
   if (req.nextUrl.pathname.startsWith('/frontman')) { return frontman(req); }
 }`
-      let isValid = AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Proxy)
-      t->expect(isValid)->Expect.toBe(false)
-    })
+        let isValid = AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Proxy)
+        t->expect(isValid)->Expect.toBe(false)
+      },
+    )
 
-    test("accepts valid instrumentation output", t => {
-      let validContent = `import { setup } from '@frontman-ai/nextjs/Instrumentation';
+    test(
+      "accepts valid instrumentation output",
+      t => {
+        let validContent = `import { setup } from '@frontman-ai/nextjs/Instrumentation';
 export async function register() { const [l, s] = setup(); }`
-      let isValid = AutoEdit.validateOutput(
-        ~content=validContent,
-        ~fileType=AutoEdit.Instrumentation,
-      )
-      t->expect(isValid)->Expect.toBe(true)
-    })
+        let isValid = AutoEdit.validateOutput(
+          ~content=validContent,
+          ~fileType=AutoEdit.Instrumentation,
+        )
+        t->expect(isValid)->Expect.toBe(true)
+      },
+    )
 
-    test("rejects instrumentation output without correct import path", t => {
-      let invalidContent = `import { setup } from '@frontman-ai/nextjs';
+    test(
+      "rejects instrumentation output without correct import path",
+      t => {
+        let invalidContent = `import { setup } from '@frontman-ai/nextjs';
 export async function register() { const [l, s] = setup(); }`
-      let isValid = AutoEdit.validateOutput(
-        ~content=invalidContent,
-        ~fileType=AutoEdit.Instrumentation,
-      )
-      t->expect(isValid)->Expect.toBe(false)
-    })
+        let isValid = AutoEdit.validateOutput(
+          ~content=invalidContent,
+          ~fileType=AutoEdit.Instrumentation,
+        )
+        t->expect(isValid)->Expect.toBe(false)
+      },
+    )
 
-    test("rejects instrumentation output without setup call", t => {
-      let invalidContent = `import { something } from '@frontman-ai/nextjs/Instrumentation';
+    test(
+      "rejects instrumentation output without setup call",
+      t => {
+        let invalidContent = `import { something } from '@frontman-ai/nextjs/Instrumentation';
 export async function register() { something(); }`
-      let isValid = AutoEdit.validateOutput(
-        ~content=invalidContent,
-        ~fileType=AutoEdit.Instrumentation,
-      )
-      t->expect(isValid)->Expect.toBe(false)
-    })
+        let isValid = AutoEdit.validateOutput(
+          ~content=invalidContent,
+          ~fileType=AutoEdit.Instrumentation,
+        )
+        t->expect(isValid)->Expect.toBe(false)
+      },
+    )
   })
 
   describe("Timeout handling", _t => {
@@ -569,22 +602,31 @@ export async function register() { something(); }`
   })
 
   describe("Markdown fence stripping", _t => {
-    test("strips markdown fences from LLM output", t => {
-      let wrapped = "```typescript\nconst x = 1;\n```"
-      let stripped = AutoEdit.stripMarkdownFences(wrapped)
-      t->expect(stripped)->Expect.toBe("const x = 1;")
-    })
+    test(
+      "strips markdown fences from LLM output",
+      t => {
+        let wrapped = "```typescript\nconst x = 1;\n```"
+        let stripped = AutoEdit.stripMarkdownFences(wrapped)
+        t->expect(stripped)->Expect.toBe("const x = 1;")
+      },
+    )
 
-    test("leaves content without fences unchanged", t => {
-      let plain = "const x = 1;\nconst y = 2;"
-      let result = AutoEdit.stripMarkdownFences(plain)
-      t->expect(result)->Expect.toBe(plain)
-    })
+    test(
+      "leaves content without fences unchanged",
+      t => {
+        let plain = "const x = 1;\nconst y = 2;"
+        let result = AutoEdit.stripMarkdownFences(plain)
+        t->expect(result)->Expect.toBe(plain)
+      },
+    )
 
-    test("handles fences with language tag", t => {
-      let wrapped = "```ts\nconst x = 1;\nconst y = 2;\n```"
-      let stripped = AutoEdit.stripMarkdownFences(wrapped)
-      t->expect(stripped)->Expect.toBe("const x = 1;\nconst y = 2;")
-    })
+    test(
+      "handles fences with language tag",
+      t => {
+        let wrapped = "```ts\nconst x = 1;\nconst y = 2;\n```"
+        let stripped = AutoEdit.stripMarkdownFences(wrapped)
+        t->expect(stripped)->Expect.toBe("const x = 1;\nconst y = 2;")
+      },
+    )
   })
 })

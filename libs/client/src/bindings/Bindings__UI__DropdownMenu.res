@@ -58,8 +58,6 @@ module DropdownMenuSeparator = {
 
 module DropdownMenuLabel = {
   @module("@/components/ui/dropdown-menu") @react.component
-  external make: (
-    ~className: string=?,
-    ~children: React.element=?,
-  ) => React.element = "DropdownMenuLabel"
+  external make: (~className: string=?, ~children: React.element=?) => React.element =
+    "DropdownMenuLabel"
 }

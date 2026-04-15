@@ -49,7 +49,10 @@ let presets: array<devicePreset> = [
 // ============================================================================
 
 // Get the effective dimensions accounting for orientation
-let getEffectiveDimensions = (deviceMode: deviceMode, orientation: orientation): option<(int, int)> =>
+let getEffectiveDimensions = (deviceMode: deviceMode, orientation: orientation): option<(
+  int,
+  int,
+)> =>
   switch deviceMode {
   | Responsive => None
   | CustomSize({width, height}) =>
@@ -161,8 +164,14 @@ let storageKeyOrientation = "frontman:device-orientation"
 
 let persist = (deviceMode: deviceMode, orientation: orientation): unit => {
   try {
-    FrontmanBindings.LocalStorage.setItem(storageKeyDeviceMode, JSON.stringify(deviceModeToJson(deviceMode)))
-    FrontmanBindings.LocalStorage.setItem(storageKeyOrientation, JSON.stringify(orientationToJson(orientation)))
+    FrontmanBindings.LocalStorage.setItem(
+      storageKeyDeviceMode,
+      JSON.stringify(deviceModeToJson(deviceMode)),
+    )
+    FrontmanBindings.LocalStorage.setItem(
+      storageKeyOrientation,
+      JSON.stringify(orientationToJson(orientation)),
+    )
   } catch {
   | _ => ()
   }

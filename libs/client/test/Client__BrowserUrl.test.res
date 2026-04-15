@@ -117,6 +117,8 @@ describe("removeTrailingSlash", () => {
   })
 
   test("removes trailing slash from full URL", t => {
-    t->expect(BrowserUrl.removeTrailingSlash("http://localhost:3000/en/"))->Expect.toBe("http://localhost:3000/en")
+    t
+    ->expect(BrowserUrl.removeTrailingSlash("http://localhost:3000/en/"))
+    ->Expect.toBe("http://localhost:3000/en")
   })
 })

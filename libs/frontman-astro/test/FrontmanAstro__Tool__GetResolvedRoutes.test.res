@@ -113,7 +113,7 @@ module Fixtures = {
     pattern: "/sitemap.xml",
     entrypoint: "node_modules/@astrojs/sitemap/dist/endpoint.js",
     type_: #endpoint,
-    origin: #\"external",
+    origin: #"external",
     params: [],
     pathname: Some("/sitemap.xml"),
     isPrerendered: true,
@@ -158,34 +158,42 @@ let makeMiddleware = (~routes) =>
 
 describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
   describe("routes the v4 filesystem scanner misses", _t => {
-    testAsync("includes API endpoints (v4 excludes api/ directory)", async t => {
-      let middleware = makeMiddleware(~routes=[Fixtures.apiHealth, Fixtures.apiUserById])
+    testAsync(
+      "includes API endpoints (v4 excludes api/ directory)",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.apiHealth, Fixtures.apiUserById])
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      t->expect(sseBody->String.includes("/api/health"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("/api/users/[id]"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("endpoint"))->Expect.toBe(true)
-    })
+        t->expect(sseBody->String.includes("/api/health"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/api/users/[id]"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("endpoint"))->Expect.toBe(true)
+      },
+    )
 
-    testAsync("includes config-defined redirects (no file on disk)", async t => {
-      let middleware = makeMiddleware(~routes=[Fixtures.redirectOldBlog, Fixtures.redirectDynamic])
+    testAsync(
+      "includes config-defined redirects (no file on disk)",
+      async t => {
+        let middleware = makeMiddleware(
+          ~routes=[Fixtures.redirectOldBlog, Fixtures.redirectDynamic],
+        )
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      t->expect(sseBody->String.includes("/old-blog"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("redirect"))->Expect.toBe(true)
-      // Dynamic redirect should report its param
-      t->expect(sseBody->String.includes("/posts/[slug]"))->Expect.toBe(true)
-    })
+        t->expect(sseBody->String.includes("/old-blog"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("redirect"))->Expect.toBe(true)
+        // Dynamic redirect should report its param
+        t->expect(sseBody->String.includes("/posts/[slug]"))->Expect.toBe(true)
+      },
+    )
 
     testAsync(
       "includes integration-injected routes (external origin, e.g. @astrojs/sitemap)",
@@ -203,19 +211,22 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
       },
     )
 
-    testAsync("includes internal/fallback routes (Astro built-ins)", async t => {
-      let middleware = makeMiddleware(~routes=[Fixtures.imageEndpoint, Fixtures.fallback404])
+    testAsync(
+      "includes internal/fallback routes (Astro built-ins)",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.imageEndpoint, Fixtures.fallback404])
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      t->expect(sseBody->String.includes("/_image"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("internal"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("fallback"))->Expect.toBe(true)
-    })
+        t->expect(sseBody->String.includes("/_image"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("internal"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("fallback"))->Expect.toBe(true)
+      },
+    )
   })
 
   describe("route metadata from hook data", _t => {
@@ -223,137 +234,164 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     // field, then the MCP envelope is JSON.stringify'd again. So JSON keys/values
     // with quotes appear escaped: "isDynamic":true → \"isDynamic\":true
 
-    testAsync("populates params from hook data", async t => {
-      let middleware = makeMiddleware(~routes=[Fixtures.blogPost, Fixtures.docsSection])
+    testAsync(
+      "populates params from hook data",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.blogPost, Fixtures.docsSection])
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      t->expect(sseBody->String.includes(`\\\"slug\\\"`))->Expect.toBe(true)
-      t->expect(sseBody->String.includes(`\\\"path\\\"`))->Expect.toBe(true)
-    })
+        t->expect(sseBody->String.includes(`\\\"slug\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"path\\\"`))->Expect.toBe(true)
+      },
+    )
 
-    testAsync("reports multiple params for multi-param routes", async t => {
-      let middleware = makeMiddleware(~routes=[Fixtures.i18nBlogPost])
+    testAsync(
+      "reports multiple params for multi-param routes",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.i18nBlogPost])
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      t->expect(sseBody->String.includes(`\\\"lang\\\"`))->Expect.toBe(true)
-      t->expect(sseBody->String.includes(`\\\"slug\\\"`))->Expect.toBe(true)
-    })
+        t->expect(sseBody->String.includes(`\\\"lang\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"slug\\\"`))->Expect.toBe(true)
+      },
+    )
 
-    testAsync("marks routes with params as dynamic", async t => {
-      let middleware = makeMiddleware(~routes=[Fixtures.homePage, Fixtures.blogPost])
+    testAsync(
+      "marks routes with params as dynamic",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.homePage, Fixtures.blogPost])
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      t->expect(sseBody->String.includes(`\\\"isDynamic\\\":true`))->Expect.toBe(true)
-      t->expect(sseBody->String.includes(`\\\"isDynamic\\\":false`))->Expect.toBe(true)
-    })
+        t->expect(sseBody->String.includes(`\\\"isDynamic\\\":true`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"isDynamic\\\":false`))->Expect.toBe(true)
+      },
+    )
 
-    testAsync("includes prerender status", async t => {
-      let middleware = makeMiddleware(~routes=[Fixtures.homePage, Fixtures.aboutPage])
+    testAsync(
+      "includes prerender status",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.homePage, Fixtures.aboutPage])
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      // homePage is SSR (false), aboutPage is prerendered (true)
-      t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":true`))->Expect.toBe(true)
-      t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":false`))->Expect.toBe(true)
-    })
+        // homePage is SSR (false), aboutPage is prerendered (true)
+        t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":true`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":false`))->Expect.toBe(true)
+      },
+    )
 
-    testAsync("includes route type and origin", async t => {
-      let middleware = makeMiddleware(
-        ~routes=[Fixtures.homePage, Fixtures.apiHealth, Fixtures.sitemapXml],
-      )
+    testAsync(
+      "includes route type and origin",
+      async t => {
+        let middleware = makeMiddleware(
+          ~routes=[Fixtures.homePage, Fixtures.apiHealth, Fixtures.sitemapXml],
+        )
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      t->expect(sseBody->String.includes("page"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("endpoint"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("project"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("external"))->Expect.toBe(true)
-    })
+        t->expect(sseBody->String.includes("page"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("endpoint"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("project"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("external"))->Expect.toBe(true)
+      },
+    )
   })
 
   describe("edge cases", _t => {
-    testAsync("returns empty array when no routes resolved", async t => {
-      let middleware = makeMiddleware(~routes=[])
+    testAsync(
+      "returns empty array when no routes resolved",
+      async t => {
+        let middleware = makeMiddleware(~routes=[])
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      t->expect(sseBody->String.includes("[]"))->Expect.toBe(true)
-    })
+        t->expect(sseBody->String.includes("[]"))->Expect.toBe(true)
+      },
+    )
 
-    testAsync("handles full route mix without errors", async t => {
-      let middleware = makeMiddleware(
-        ~routes=[
-          Fixtures.homePage,
-          Fixtures.aboutPage,
-          Fixtures.blogPost,
-          Fixtures.docsSection,
-          Fixtures.apiHealth,
-          Fixtures.apiUserById,
-          Fixtures.redirectOldBlog,
-          Fixtures.redirectDynamic,
-          Fixtures.sitemapXml,
-          Fixtures.imageEndpoint,
-          Fixtures.fallback404,
-          Fixtures.i18nBlogPost,
-        ],
-      )
+    testAsync(
+      "handles full route mix without errors",
+      async t => {
+        let middleware = makeMiddleware(
+          ~routes=[
+            Fixtures.homePage,
+            Fixtures.aboutPage,
+            Fixtures.blogPost,
+            Fixtures.docsSection,
+            Fixtures.apiHealth,
+            Fixtures.apiUserById,
+            Fixtures.redirectOldBlog,
+            Fixtures.redirectDynamic,
+            Fixtures.sitemapXml,
+            Fixtures.imageEndpoint,
+            Fixtures.fallback404,
+            Fixtures.i18nBlogPost,
+          ],
+        )
 
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_client_pages",
-        ~arguments=JSON.Encode.object(Dict.fromArray([])),
-      )
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
 
-      // All 12 routes should be present
-      t->expect(sseBody->String.includes("/blog/[slug]"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("/docs/[...path]"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("/api/health"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("/old-blog"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("/sitemap.xml"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("/_image"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("/404"))->Expect.toBe(true)
-      t->expect(sseBody->String.includes("/[lang]/blog/[slug]"))->Expect.toBe(true)
-    })
+        // All 12 routes should be present
+        t->expect(sseBody->String.includes("/blog/[slug]"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/docs/[...path]"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/api/health"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/old-blog"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/sitemap.xml"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/_image"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/404"))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/[lang]/blog/[slug]"))->Expect.toBe(true)
+      },
+    )
   })
 
   describe("tool listing", _t => {
-    testAsync("get_client_pages is listed in the tools endpoint", async t => {
-      let middleware = makeMiddleware(~routes=[])
-      let body = await Helpers.getEndpoint(middleware, ~path="tools")
-      t->expect(body->String.includes("get_client_pages"))->Expect.toBe(true)
-    })
+    testAsync(
+      "get_client_pages is listed in the tools endpoint",
+      async t => {
+        let middleware = makeMiddleware(~routes=[])
+        let body = await Helpers.getEndpoint(middleware, ~path="tools")
+        t->expect(body->String.includes("get_client_pages"))->Expect.toBe(true)
+      },
+    )
 
-    testAsync("tool description mentions resolved routes", async t => {
-      let middleware = makeMiddleware(~routes=[])
-      let body = await Helpers.getEndpoint(middleware, ~path="tools")
-      t->expect(body->String.includes("resolved"))->Expect.toBe(true)
-    })
+    testAsync(
+      "tool description mentions resolved routes",
+      async t => {
+        let middleware = makeMiddleware(~routes=[])
+        let body = await Helpers.getEndpoint(middleware, ~path="tools")
+        t->expect(body->String.includes("resolved"))->Expect.toBe(true)
+      },
+    )
   })
 })

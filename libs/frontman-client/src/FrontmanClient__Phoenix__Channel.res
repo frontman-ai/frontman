@@ -8,12 +8,12 @@ type channelEvent = [
   | #agent_completed
   | #agent_error
   | #send_message
-  // ACP events
-  | #"acp:message"
-  // MCP events (all MCP JSON-RPC goes through mcp:message)
-  | #"mcp:message"
-  // Session management (non-ACP)
-  | #list_sessions
+  | // ACP events
+  #"acp:message"
+  | // MCP events (all MCP JSON-RPC goes through mcp:message)
+  #"mcp:message"
+  | // Session management (non-ACP)
+  #list_sessions
   | #delete_session
   | #title_updated
   | #config_options_updated

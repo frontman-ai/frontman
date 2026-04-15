@@ -11,7 +11,10 @@ module Task = Client__State__Types.Task
 
 // Helper to create a state with multiple loaded tasks
 module TestSetup = {
-  let createStateWithLoadedTasks = (~taskIds: array<string>, ~isAgentRunning=false): StateReducer.state => {
+  let createStateWithLoadedTasks = (
+    ~taskIds: array<string>,
+    ~isAgentRunning=false,
+  ): StateReducer.state => {
     let tasks = Dict.make()
     taskIds->Array.forEach(id => {
       let task = Task.makeLoaded(
@@ -55,7 +58,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Create state with two loaded tasks (isAgentRunning=true to accept streaming events)
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
+    let state = TestSetup.createStateWithLoadedTasks(
+      ~taskIds=[taskAId, taskBId],
+      ~isAgentRunning=true,
+    )
 
     // Switch current task to B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -79,7 +85,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Two tasks, A has a streaming message
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
+    let state = TestSetup.createStateWithLoadedTasks(
+      ~taskIds=[taskAId, taskBId],
+      ~isAgentRunning=true,
+    )
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -96,7 +105,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Act: Receive text delta for Task A
     let (finalState, _) = StateReducer.next(
       stateWithMessage,
-      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Hello from Task A", timestamp: "2024-01-15T10:00:00Z"})}),
+      TaskAction({
+        target: ForTask(taskAId),
+        action: TextDeltaReceived({text: "Hello from Task A", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
     )
 
     // Assert: Text should be in Task A's message, not Task B
@@ -116,7 +128,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Two tasks
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
+    let state = TestSetup.createStateWithLoadedTasks(
+      ~taskIds=[taskAId, taskBId],
+      ~isAgentRunning=true,
+    )
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -164,17 +179,47 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskAId = "task-a"
     let taskBId = "task-b"
     let taskCId = "task-c"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId, taskCId], ~isAgentRunning=true)
+    let state = TestSetup.createStateWithLoadedTasks(
+      ~taskIds=[taskAId, taskBId, taskCId],
+      ~isAgentRunning=true,
+    )
 
     // Act: Start streaming in all three tasks
-    let (state1, _) = StateReducer.next(state, TaskAction({target: ForTask(taskAId), action: StreamingStarted}))
-    let (state2, _) = StateReducer.next(state1, TaskAction({target: ForTask(taskBId), action: StreamingStarted}))
-    let (state3, _) = StateReducer.next(state2, TaskAction({target: ForTask(taskCId), action: StreamingStarted}))
+    let (state1, _) = StateReducer.next(
+      state,
+      TaskAction({target: ForTask(taskAId), action: StreamingStarted}),
+    )
+    let (state2, _) = StateReducer.next(
+      state1,
+      TaskAction({target: ForTask(taskBId), action: StreamingStarted}),
+    )
+    let (state3, _) = StateReducer.next(
+      state2,
+      TaskAction({target: ForTask(taskCId), action: StreamingStarted}),
+    )
 
     // Send text deltas to each task
-    let (state4, _) = StateReducer.next(state3, TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "A", timestamp: "2024-01-15T10:00:00Z"})}))
-    let (state5, _) = StateReducer.next(state4, TaskAction({target: ForTask(taskBId), action: TextDeltaReceived({text: "B", timestamp: "2024-01-15T10:00:00Z"})}))
-    let (finalState, _) = StateReducer.next(state5, TaskAction({target: ForTask(taskCId), action: TextDeltaReceived({text: "C", timestamp: "2024-01-15T10:00:00Z"})}))
+    let (state4, _) = StateReducer.next(
+      state3,
+      TaskAction({
+        target: ForTask(taskAId),
+        action: TextDeltaReceived({text: "A", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
+    )
+    let (state5, _) = StateReducer.next(
+      state4,
+      TaskAction({
+        target: ForTask(taskBId),
+        action: TextDeltaReceived({text: "B", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
+    )
+    let (finalState, _) = StateReducer.next(
+      state5,
+      TaskAction({
+        target: ForTask(taskCId),
+        action: TextDeltaReceived({text: "C", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
+    )
 
     // Assert: Each task has its own message with correct content
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
@@ -201,7 +246,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Task A with streaming message, Task B is current
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
+    let state = TestSetup.createStateWithLoadedTasks(
+      ~taskIds=[taskAId, taskBId],
+      ~isAgentRunning=true,
+    )
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -213,24 +261,30 @@ describe("Concurrent Tasks Event Routing", () => {
     )
     let (stateWithText, _) = StateReducer.next(
       stateWithStream,
-      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Complete message", timestamp: "2024-01-15T10:00:00Z"})}),
+      TaskAction({
+        target: ForTask(taskAId),
+        action: TextDeltaReceived({text: "Complete message", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
     )
 
     // Act: Complete the message in Task A
-    let (finalState, _) = StateReducer.next(stateWithText, TaskAction({target: ForTask(taskAId), action: TurnCompleted}))
+    let (finalState, _) = StateReducer.next(
+      stateWithText,
+      TaskAction({target: ForTask(taskAId), action: TurnCompleted}),
+    )
 
     // Assert: Message in Task A should be completed
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
     // Find the completed message (there should be exactly one)
-    let completedMessages =
-      getTaskMessages(taskA)->Array.filter(msg =>
+    let completedMessages = getTaskMessages(taskA)->Array.filter(
+      msg =>
         switch msg {
         | Assistant(Completed(_)) => true
         | _ => false
-        }
-      )
+        },
+    )
 
     t->expect(Array.length(completedMessages))->Expect.toBe(1)
     switch completedMessages[0] {
@@ -251,7 +305,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Task A with tool call, Task B is current
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
+    let state = TestSetup.createStateWithLoadedTasks(
+      ~taskIds=[taskAId, taskBId],
+      ~isAgentRunning=true,
+    )
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
@@ -278,7 +335,10 @@ describe("Concurrent Tasks Event Routing", () => {
     let resultJson = JSON.parseOrThrow(`{"content": "file contents"}`)
     let (finalState, _) = StateReducer.next(
       stateWithTool,
-      TaskAction({target: ForTask(taskAId), action: ToolResultReceived({id: "tool-1", result: resultJson})}),
+      TaskAction({
+        target: ForTask(taskAId),
+        action: ToolResultReceived({id: "tool-1", result: resultJson}),
+      }),
     )
 
     // Assert: Tool result should be in Task A
@@ -299,13 +359,22 @@ describe("Concurrent Tasks Event Routing", () => {
     // Setup: Start with Task A
     let taskAId = "task-a"
     let taskBId = "task-b"
-    let state = TestSetup.createStateWithLoadedTasks(~taskIds=[taskAId, taskBId], ~isAgentRunning=true)
+    let state = TestSetup.createStateWithLoadedTasks(
+      ~taskIds=[taskAId, taskBId],
+      ~isAgentRunning=true,
+    )
 
     // Start streaming in Task A
-    let (stateWithStream, _) = StateReducer.next(state, TaskAction({target: ForTask(taskAId), action: StreamingStarted}))
+    let (stateWithStream, _) = StateReducer.next(
+      state,
+      TaskAction({target: ForTask(taskAId), action: StreamingStarted}),
+    )
     let (stateWithText1, _) = StateReducer.next(
       stateWithStream,
-      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Part 1. ", timestamp: "2024-01-15T10:00:00Z"})}),
+      TaskAction({
+        target: ForTask(taskAId),
+        action: TextDeltaReceived({text: "Part 1. ", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
     )
 
     // Switch to Task B mid-stream
@@ -315,7 +384,10 @@ describe("Concurrent Tasks Event Routing", () => {
     // Continue receiving text for Task A
     let (finalState, _) = StateReducer.next(
       stateWithB,
-      TaskAction({target: ForTask(taskAId), action: TextDeltaReceived({text: "Part 2.", timestamp: "2024-01-15T10:00:00Z"})}),
+      TaskAction({
+        target: ForTask(taskAId),
+        action: TextDeltaReceived({text: "Part 2.", timestamp: "2024-01-15T10:00:00Z"}),
+      }),
     )
 
     // Assert: All text should be in Task A, Task B should be empty

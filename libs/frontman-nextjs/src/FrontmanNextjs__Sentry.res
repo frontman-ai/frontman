@@ -42,21 +42,23 @@ let isEnabled = () => initialized.contents && Bindings.isInitialized()
 
 let captureError = (error: exn, ~operation: option<string>=?, ~extra: option<Dict.t<JSON.t>>=?) => {
   if isEnabled() {
-    Some(Bindings.withScope(scope => {
-      scope->Bindings.scopeSetTag("frontman.library", "frontman-nextjs")
+    Some(
+      Bindings.withScope(scope => {
+        scope->Bindings.scopeSetTag("frontman.library", "frontman-nextjs")
 
-      switch operation {
-      | Some(op) => scope->Bindings.scopeSetTag("frontman.operation", op)
-      | None => ()
-      }
+        switch operation {
+        | Some(op) => scope->Bindings.scopeSetTag("frontman.operation", op)
+        | None => ()
+        }
 
-      switch extra {
-      | Some(data) => scope->Bindings.scopeSetContext("frontman", data)
-      | None => ()
-      }
+        switch extra {
+        | Some(data) => scope->Bindings.scopeSetContext("frontman", data)
+        | None => ()
+        }
 
-      Bindings.captureException(error)
-    }))
+        Bindings.captureException(error)
+      }),
+    )
   } else {
     None
   }
@@ -68,16 +70,18 @@ let captureMessage = (
   ~operation: option<string>=?,
 ) => {
   if isEnabled() {
-    Some(Bindings.withScope(scope => {
-      scope->Bindings.scopeSetTag("frontman.library", "frontman-nextjs")
+    Some(
+      Bindings.withScope(scope => {
+        scope->Bindings.scopeSetTag("frontman.library", "frontman-nextjs")
 
-      switch operation {
-      | Some(op) => scope->Bindings.scopeSetTag("frontman.operation", op)
-      | None => ()
-      }
+        switch operation {
+        | Some(op) => scope->Bindings.scopeSetTag("frontman.operation", op)
+        | None => ()
+        }
 
-      Bindings.captureMessage(message, ~level)
-    }))
+        Bindings.captureMessage(message, ~level)
+      }),
+    )
   } else {
     None
   }

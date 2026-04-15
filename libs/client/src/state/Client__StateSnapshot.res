@@ -7,9 +7,8 @@ S.enableJson()
  * 
  * Uses Sury for type-safe serialization/deserialization.
  */
-
-// Re-export plan entry types from frontman-client (they already have Sury schemas)
-module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module // Re-export plan entry types from frontman-client (they already have Sury schemas)
+ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 // ============================================================================
 // Schema Helpers
@@ -61,10 +60,7 @@ module AnnotationMode = {
     | @as("off") Off
     | @as("selecting") Selecting
 
-  let schema = S.union([
-    S.literal(Off),
-    S.literal(Selecting),
-  ])
+  let schema = S.union([S.literal(Off), S.literal(Selecting)])
 }
 
 module BoundingBox = {
@@ -271,7 +267,12 @@ module SnapshotAnnotation = {
 
 module Message = {
   type t =
-    | User({id: string, content: array<UserContentPart.t>, annotations: array<SnapshotAnnotation.t>, createdAt: float})
+    | User({
+        id: string,
+        content: array<UserContentPart.t>,
+        annotations: array<SnapshotAnnotation.t>,
+        createdAt: float,
+      })
     | Assistant(AssistantMessage.t)
     | ToolCall(ToolCall.t)
     | Error({id: string, error: string, createdAt: float})
@@ -340,7 +341,16 @@ module Task = {
       s.field("previewUrl", S.string),
     )
   })->S.transform(_ => {
-    parser: ((id, title, messages, createdAt, maybeUpdatedAt, annotationMode, annotations, previewUrl)) => {
+    parser: ((
+      id,
+      title,
+      messages,
+      createdAt,
+      maybeUpdatedAt,
+      annotationMode,
+      annotations,
+      previewUrl,
+    )) => {
       id,
       title,
       messages,
@@ -498,7 +508,12 @@ let convertMessage = (msg: Client__State__Types.Message.t): Message.t => {
     })
   | Assistant(assistantMsg) => Assistant(convertAssistantMessage(assistantMsg))
   | ToolCall(tc) => ToolCall(convertToolCall(tc))
-  | Error(err) => Error({id: Client__Message.ErrorMessage.id(err), error: Client__Message.ErrorMessage.error(err), createdAt: Client__Message.ErrorMessage.createdAt(err)})
+  | Error(err) =>
+    Error({
+      id: Client__Message.ErrorMessage.id(err),
+      error: Client__Message.ErrorMessage.error(err),
+      createdAt: Client__Message.ErrorMessage.createdAt(err),
+    })
   }
 }
 
@@ -507,23 +522,29 @@ let convertTask = (task: Client__State__Types.Task.t, ~defaultUrl: string): Task
 
   // Only persisted tasks should be converted (not New tasks)
   // Use getOrThrow since this is called from state.tasks dict which only has persisted tasks
-  let id = Task.getId(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no ID")
-  let title = Task.getTitle(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no title")
-  let createdAt = Task.getCreatedAt(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no createdAt")
-  let updatedAt = Task.getUpdatedAt(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no updatedAt")
+  let id =
+    Task.getId(task)->Option.getOrThrow(~message="[convertTask] Cannot convert New task - no ID")
+  let title =
+    Task.getTitle(task)->Option.getOrThrow(
+      ~message="[convertTask] Cannot convert New task - no title",
+    )
+  let createdAt =
+    Task.getCreatedAt(task)->Option.getOrThrow(
+      ~message="[convertTask] Cannot convert New task - no createdAt",
+    )
+  let updatedAt =
+    Task.getUpdatedAt(task)->Option.getOrThrow(
+      ~message="[convertTask] Cannot convert New task - no updatedAt",
+    )
 
   // Get loaded data if available
   let loadedData = Task.getLoadedData(task)
 
   // Messages are already maintained in sorted order
-  let messages =
-    loadedData
-    ->Option.mapOr([], data => data.messages->Array.map(convertMessage))
+  let messages = loadedData->Option.mapOr([], data => data.messages->Array.map(convertMessage))
 
-  let annotationMode = loadedData->Option.mapOr(
-    Client__Annotation__Types.Off,
-    d => d.annotationMode,
-  )
+  let annotationMode =
+    loadedData->Option.mapOr(Client__Annotation__Types.Off, d => d.annotationMode)
   let annotations = loadedData->Option.mapOr([], d => d.annotations)
 
   {
@@ -573,8 +594,7 @@ let obj = (pairs: array<(string, JSON.t)>): JSON.t => {
 
 let userContentPartToJson = (part: UserContentPart.t): JSON.t => {
   switch part {
-  | Text({text}) =>
-    obj([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))])
+  | Text({text}) => obj([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))])
   | Image({image, mediaType, name}) =>
     obj([
       ("type", JSON.Encode.string("image")),
@@ -582,15 +602,13 @@ let userContentPartToJson = (part: UserContentPart.t): JSON.t => {
       ("mediaType", mediaType->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
       ("name", name->Option.mapOr(JSON.Encode.null, JSON.Encode.string)),
     ])
-  | File({file}) =>
-    obj([("type", JSON.Encode.string("file")), ("file", JSON.Encode.string(file))])
+  | File({file}) => obj([("type", JSON.Encode.string("file")), ("file", JSON.Encode.string(file))])
   }
 }
 
 let assistantContentPartToJson = (part: AssistantContentPart.t): JSON.t => {
   switch part {
-  | Text({text}) =>
-    obj([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))])
+  | Text({text}) => obj([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))])
   | ToolCall({toolCallId, toolName, input}) =>
     obj([
       ("type", JSON.Encode.string("tool_call")),

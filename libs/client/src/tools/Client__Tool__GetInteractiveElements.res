@@ -42,7 +42,9 @@ type interactiveElement = {
   tag: string,
   @s.describe("CSS selector for targeting this element (absent if selector generation failed)")
   selector: option<string>,
-  @s.describe("How this element was detected as interactive: 'semantic', 'cursor_pointer', or 'tabindex'")
+  @s.describe(
+    "How this element was detected as interactive: 'semantic', 'cursor_pointer', or 'tabindex'"
+  )
   detectionMethod: string,
   @s.describe("Truncated visible text content of the element")
   visibleText: option<string>,
@@ -64,16 +66,19 @@ type output = {
   error: option<string>,
 }
 
-let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
+let execute = async (
+  input: input,
+  ~taskId as _taskId: string,
+  ~toolCallId as _toolCallId: string,
+): toolResult<output> => {
   Client__Tool__ElementResolver.withPreviewDoc(
-    ~onUnavailable=() =>
-      Ok({
-        success: false,
-        elements: None,
-        totalCount: None,
-        truncated: None,
-        error: Some("Preview frame not available"),
-      }),
+    ~onUnavailable=() => Ok({
+      success: false,
+      elements: None,
+      totalCount: None,
+      truncated: None,
+      error: Some("Preview frame not available"),
+    }),
     ({doc, win}) => {
       try {
         let resolved = Client__Tool__ElementResolver.collectInteractiveElements(

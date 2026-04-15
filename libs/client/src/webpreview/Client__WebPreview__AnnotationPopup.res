@@ -8,7 +8,6 @@
  * - Escape closes the popup (annotation remains, no comment)
  * - Clicking another element auto-closes this popup (handled by parent)
  */
-
 module Annotation = Client__Annotation__Types
 module RadixUI__Icons = Bindings__RadixUI__Icons
 
@@ -21,9 +20,7 @@ let make = (
   ~onCommentChange: string => unit,
   ~onClose: unit => unit,
 ) => {
-  let (comment, setComment) = React.useState(() =>
-    annotation.comment->Option.getOr("")
-  )
+  let (comment, setComment) = React.useState(() => annotation.comment->Option.getOr(""))
   let inputRef = React.useRef(Nullable.null)
   let (rect, setRect) = React.useState(() => None)
 
@@ -37,7 +34,7 @@ let make = (
   // Auto-focus the input once it renders (rect must be Some for the input to exist)
   React.useEffect(() => {
     switch (rect, inputRef.current->Nullable.toOption) {
-    | (Some(_), Some(input)) => (input->Obj.magic)["focus"](.)
+    | (Some(_), Some(input)) => (input->Obj.magic)["focus"]()
     | _ => ()
     }
     None

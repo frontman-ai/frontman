@@ -34,8 +34,7 @@ let writeToStderr: string => unit = %raw(`
   function(message) { process.stderr.write(message + "\n"); }
 `)
 
-let makeMiddleware = () =>
-  Helpers.makeMiddleware(~registry=ToolRegistry.make())
+let makeMiddleware = () => Helpers.makeMiddleware(~registry=ToolRegistry.make())
 
 describe("get_logs via HTTP middleware (integration)", _t => {
   testAsync(
@@ -50,9 +49,7 @@ describe("get_logs via HTTP middleware (integration)", _t => {
       let sseBody = await Helpers.callTool(
         middleware,
         ~name="get_logs",
-        ~arguments=JSON.Encode.object(
-          Dict.fromArray([("level", JSON.Encode.string("build"))]),
-        ),
+        ~arguments=JSON.Encode.object(Dict.fromArray([("level", JSON.Encode.string("build"))])),
       )
 
       // SSE body should contain an event with the log entry in the data payload
@@ -60,23 +57,24 @@ describe("get_logs via HTTP middleware (integration)", _t => {
     },
   )
 
-  testAsync("get_logs with level:build returns nothing when stderr was not initialized", async t => {
-    // Skip initialize() — stderr is not patched, writes go nowhere
-    resetLogCapture()
+  testAsync(
+    "get_logs with level:build returns nothing when stderr was not initialized",
+    async t => {
+      // Skip initialize() — stderr is not patched, writes go nowhere
+      resetLogCapture()
 
-    writeToStderr(`18:16:48 [ERROR] Unable to locate "some-other-icon" icon!`)
+      writeToStderr(`18:16:48 [ERROR] Unable to locate "some-other-icon" icon!`)
 
-    let middleware = makeMiddleware()
-    let sseBody = await Helpers.callTool(
-      middleware,
-      ~name="get_logs",
-      ~arguments=JSON.Encode.object(
-        Dict.fromArray([("level", JSON.Encode.string("build"))]),
-      ),
-    )
+      let middleware = makeMiddleware()
+      let sseBody = await Helpers.callTool(
+        middleware,
+        ~name="get_logs",
+        ~arguments=JSON.Encode.object(Dict.fromArray([("level", JSON.Encode.string("build"))])),
+      )
 
-    t->expect(sseBody->String.includes("some-other-icon"))->Expect.toBe(false)
-  })
+      t->expect(sseBody->String.includes("some-other-icon"))->Expect.toBe(false)
+    },
+  )
 
   testAsync("get_logs is listed in the tools endpoint", async t => {
     let middleware = makeMiddleware()

@@ -22,8 +22,7 @@ let run = (~component, ~stacktrace as _, ~level, message, _ctx, error) => {
           // captureException preserves stack traces for Sentry grouping.
           // JsExn.t and exn are the same runtime representation in JS.
           Bindings.captureException((Obj.magic(jsExn): exn))->ignore
-        | None =>
-          Bindings.captureMessage(message, ~level=#error)->ignore
+        | None => Bindings.captureMessage(message, ~level=#error)->ignore
         }
       })
     }

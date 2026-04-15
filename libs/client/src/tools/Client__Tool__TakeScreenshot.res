@@ -14,7 +14,9 @@ let description = "Take a screenshot of the current web preview page. By default
 type input = {
   @s.describe("Optional CSS selector to screenshot a specific element instead of the page")
   selector: option<string>,
-  @s.describe("When true, captures the entire scrollable page instead of just the visible viewport. Defaults to false.")
+  @s.describe(
+    "When true, captures the entire scrollable page instead of just the visible viewport. Defaults to false."
+  )
   fullPage: option<bool>,
 }
 
@@ -86,12 +88,18 @@ let _cropCanvasToViewport = (
   }
 }
 
-let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _toolCallId: string): toolResult<output> => {
+let execute = async (
+  input: input,
+  ~taskId as _taskId: string,
+  ~toolCallId as _toolCallId: string,
+): toolResult<output> => {
   let fullPage = input.fullPage->Option.getOr(false)
 
   await Client__Tool__ElementResolver.withPreviewDoc(
-    ~onUnavailable=async () =>
-      Ok({screenshot: None, error: Some("Preview frame document not available")}),
+    ~onUnavailable=async () => Ok({
+      screenshot: None,
+      error: Some("Preview frame document not available"),
+    }),
     async ({doc, win}) => {
       // Get the element to screenshot
       let elementResult = switch input.selector {
@@ -109,8 +117,7 @@ let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _t
 
       // For viewport-only capture (no selector, not fullPage), gather scroll + dimensions
       let viewportCrop = switch (fullPage, input.selector) {
-      | (false, None) =>
-        Some((win.innerWidth, win.innerHeight, win.scrollX, win.scrollY))
+      | (false, None) => Some((win.innerWidth, win.innerHeight, win.scrollX, win.scrollY))
       | _ => None
       }
 
@@ -121,15 +128,16 @@ let execute = async (input: input, ~taskId as _taskId: string, ~toolCallId as _t
         if rect.width <= 0.0 || rect.height <= 0.0 {
           Ok({
             screenshot: None,
-            error: Some(
-              "Target element has zero dimensions (may be hidden or not rendered)",
-            ),
+            error: Some("Target element has zero dimensions (may be hidden or not rendered)"),
           })
         } else {
           try {
             let state = StateStore.getState(Client__State__Store.store)
-            let provider = state.selectedModelValue
-              ->Option.flatMap(FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId)
+            let provider =
+              state.selectedModelValue
+              ->Option.flatMap(
+                FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId,
+              )
               ->Option.map(FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.provider)
             let limits = Client__ImageLimits.forProvider(provider)
             let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)

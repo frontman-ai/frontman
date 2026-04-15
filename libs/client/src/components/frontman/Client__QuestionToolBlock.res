@@ -6,7 +6,6 @@
  * - Answered: per-question summary with check/skip icons
  * - Cancelled/error: red-tinted card
  */
-
 // Display-only types for parsing the tool result JSON.
 // The server sends this format in tool_call_update completed notifications.
 S.enableJson()
@@ -38,7 +37,8 @@ module Card = {
         "overflow-hidden animate-in fade-in duration-100",
         compact ? "rounded-lg my-1 mx-2 px-3 py-2" : "rounded-xl my-2 mx-3 px-4 py-3",
         borderClass,
-      ]->Array.join(" ")}>
+      ]->Array.join(" ")}
+    >
       {children}
     </div>
   }
@@ -62,9 +62,7 @@ module HeaderRow = {
 
 // Schema for parsing tool input (the questions the agent is asking)
 @schema
-type toolInputDisplay = {
-  questions: array<Client__Question__Types.questionItem>,
-}
+type toolInputDisplay = {questions: array<Client__Question__Types.questionItem>}
 
 // Render question headers from tool input (for pending/unanswered states)
 module QuestionList = {
@@ -84,9 +82,7 @@ module QuestionList = {
       <div className="mt-1.5 flex flex-col gap-0.5">
         {questions
         ->Array.mapWithIndex((q, i) =>
-          <div
-            key={Int.toString(i)}
-            className="flex items-start gap-1.5 ml-5">
+          <div key={Int.toString(i)} className="flex items-start gap-1.5 ml-5">
             <span className="text-zinc-500 mt-px shrink-0">
               <Bindings__RadixUI__Icons.QuestionMarkCircledIcon className="size-3" />
             </span>
@@ -153,10 +149,7 @@ let make = (
               | false => fullAnswer
               }
               let tooltip = `${a.question} — ${fullAnswer}`
-              <div
-                key={Int.toString(i)}
-                title={tooltip}
-                className="flex items-start gap-1.5 ml-5">
+              <div key={Int.toString(i)} title={tooltip} className="flex items-start gap-1.5 ml-5">
                 {switch isAnswered {
                 | true =>
                   <span className="text-teal-400 mt-px shrink-0">
@@ -181,7 +174,8 @@ let make = (
                       | true => "text-zinc-300"
                       | false => "text-zinc-500 italic"
                       },
-                    ]->Array.join(" ")}>
+                    ]->Array.join(" ")}
+                  >
                     {React.string(answerText)}
                   </span>
                 </div>
