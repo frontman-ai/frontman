@@ -81,7 +81,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   response, including `pending_authentication_token` for email verification.
   """
   @spec authenticate_with_code(String.t()) ::
-          {:ok, User.t(), {:ok, map()} | :none} | {:error, term()}
+          {:ok, User.t(), {String.t(), {:ok, map()} | :none}} | {:error, term()}
   def authenticate_with_code(code) do
     with {:ok, auth_response} <- authenticate_with_code_raw(code) do
       resolve_user_from_auth(auth_response)
@@ -96,7 +96,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   the pending authentication token to complete the flow.
   """
   @spec authenticate_with_email_verification(String.t(), String.t()) ::
-          {:ok, User.t(), {:ok, map()} | :none} | {:error, term()}
+          {:ok, User.t(), {String.t(), {:ok, map()} | :none}} | {:error, term()}
   def authenticate_with_email_verification(code, pending_authentication_token) do
     body = %{
       client_id: workos_client_id(),
@@ -202,7 +202,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   defp resolve_user_from_auth(auth_response) do
     with {:ok, profile} <- extract_profile(auth_response) do
       case find_or_create_user_from_oauth(profile) do
-        {:ok, user} -> {:ok, user, auth_response[:oauth_tokens]}
+        {:ok, user} -> {:ok, user, {profile.provider, auth_response[:oauth_tokens]}}
         {:error, _} = error -> error
       end
     end

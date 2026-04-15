@@ -26,8 +26,8 @@ defmodule FrontmanServerWeb.OAuthController do
     require Logger
 
     case Accounts.authenticate_with_oauth(code) do
-      {:ok, user, oauth_tokens} ->
-        maybe_store_github_token(user, oauth_tokens)
+      {:ok, user, {provider, oauth_tokens}} ->
+        maybe_store_github_token(user, provider, oauth_tokens)
 
         conn
         |> put_flash(:info, "Welcome!")
@@ -91,8 +91,8 @@ defmodule FrontmanServerWeb.OAuthController do
       |> redirect(to: ~p"/users/log-in")
     else
       case Accounts.authenticate_with_email_verification(code, token) do
-        {:ok, user, oauth_tokens} ->
-          maybe_store_github_token(user, oauth_tokens)
+        {:ok, user, {provider, oauth_tokens}} ->
+          maybe_store_github_token(user, provider, oauth_tokens)
 
           conn
           |> delete_session(:pending_auth_token)
@@ -151,7 +151,7 @@ defmodule FrontmanServerWeb.OAuthController do
     |> redirect(to: ~p"/users/settings")
   end
 
-  defp maybe_store_github_token(user, {:ok, tokens}) do
+  defp maybe_store_github_token(user, "github", {:ok, tokens}) do
     require Logger
     scope = Accounts.Scope.for_user(user)
 
@@ -177,7 +177,7 @@ defmodule FrontmanServerWeb.OAuthController do
     end
   end
 
-  defp maybe_store_github_token(_user, _no_tokens), do: :ok
+  defp maybe_store_github_token(_user, _provider, _tokens), do: :ok
 
   defp generate_state_token do
     :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)

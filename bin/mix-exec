@@ -43,7 +43,7 @@ if [ -n "$BRANCH" ]; then
     if podman container inspect "$CONTAINER" &>/dev/null 2>&1; then
         CONTAINER_CWD="/workspaces/frontman/${APP_DIR}"
         exec podman exec -w "$CONTAINER_CWD" "$CONTAINER" \
-            bash -lc "eval \"\$(mise activate bash)\" && mix ${args[*]}"
+            bash -lc 'eval "$(mise activate bash)" && mix "$@"' -- "${args[@]}"
     fi
 fi
 

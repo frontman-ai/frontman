@@ -708,7 +708,8 @@ defmodule FrontmanServer.Providers do
 
     case Req.post("https://github.com/login/oauth/access_token",
            json: body,
-           headers: [{"accept", "application/json"}]
+           headers: [{"accept", "application/json"}],
+           receive_timeout: 15_000
          ) do
       {:ok, %Req.Response{status: 200, body: %{"access_token" => access_token} = resp}} ->
         {:ok,
