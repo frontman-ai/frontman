@@ -30,11 +30,6 @@ if config_env() in [:dev, :test] do
   config :frontman_server, api_key_config
 end
 
-# WorkOS configuration for OAuth (GitHub, Google)
-config :workos, WorkOS.Client,
-  api_key: env!("WORKOS_API_KEY", :string, nil),
-  client_id: env!("WORKOS_CLIENT_ID", :string, nil)
-
 # OpenTelemetry configuration
 # Arize export enabled if both ARIZE_API_KEY and ARIZE_SPACE_ID are set
 # Optional in all environments - when not set, tracing export is disabled
@@ -111,6 +106,14 @@ if config_env() in [:dev, :test] do
 end
 
 if config_env() == :prod do
+  config :workos, WorkOS.Client,
+    api_key: env!("WORKOS_API_KEY", :string!),
+    client_id: env!("WORKOS_CLIENT_ID", :string!)
+
+  config :frontman_server, :github_oauth,
+    client_id: env!("GITHUB_OAUTH_CLIENT_ID", :string!),
+    client_secret: env!("GITHUB_OAUTH_CLIENT_SECRET", :string!)
+
   config :frontman_server,
     discord_new_users_webhook_url: env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string!)
 

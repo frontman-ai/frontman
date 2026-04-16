@@ -66,9 +66,9 @@ defmodule FrontmanServer.Providers.OAuthTokenTest do
       assert "can't be blank" in errors_on(changeset).expires_at
     end
 
-    test "validates provider length" do
+    test "validates provider inclusion" do
       attrs = %{
-        provider: String.duplicate("a", 65),
+        provider: "unknown_provider",
         access_token: "access_123",
         refresh_token: "refresh_456",
         expires_at: DateTime.utc_now()
@@ -76,7 +76,7 @@ defmodule FrontmanServer.Providers.OAuthTokenTest do
 
       changeset = OAuthToken.changeset(%OAuthToken{}, attrs)
       refute changeset.valid?
-      assert "should be at most 64 character(s)" in errors_on(changeset).provider
+      assert "is invalid" in errors_on(changeset).provider
     end
 
     test "does not accept user_id from attrs (security)" do

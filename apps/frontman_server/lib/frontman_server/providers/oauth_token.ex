@@ -16,6 +16,8 @@ defmodule FrontmanServer.Providers.OAuthToken do
 
   alias FrontmanServer.Accounts.User
 
+  @type t :: %__MODULE__{}
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "oauth_tokens" do
@@ -30,6 +32,8 @@ defmodule FrontmanServer.Providers.OAuthToken do
     timestamps(type: :utc_datetime)
   end
 
+  @supported_providers ~w(github anthropic chatgpt)
+
   @doc """
   Changeset for storing OAuth tokens.
   Does not accept user_id - it must be set explicitly via the struct to prevent
@@ -39,9 +43,34 @@ defmodule FrontmanServer.Providers.OAuthToken do
     oauth_token
     |> cast(attrs, [:provider, :access_token, :refresh_token, :expires_at, :metadata])
     |> validate_required([:provider, :access_token, :refresh_token, :expires_at])
-    |> validate_length(:provider, min: 1, max: 64)
+    |> validate_inclusion(:provider, @supported_providers)
+    |> validate_length(:access_token, min: 1)
+    |> validate_length(:refresh_token, min: 1)
     |> unique_constraint([:user_id, :provider], name: :oauth_tokens_user_id_provider_index)
   end
+
+  @doc """
+  Changeset for GitHub OAuth tokens.
+
+  GitHub OAuth App tokens may not have refresh_token or expires_at.
+  Normalizes unix timestamp expires_at to DateTime.
+  """
+  def github_changeset(oauth_token, attrs) do
+    attrs = normalize_expires_at(attrs)
+
+    oauth_token
+    |> cast(attrs, [:access_token, :refresh_token, :expires_at, :metadata])
+    |> put_change(:provider, "github")
+    |> validate_required([:provider, :access_token])
+    |> validate_length(:access_token, min: 1)
+    |> unique_constraint([:user_id, :provider], name: :oauth_tokens_user_id_provider_index)
+  end
+
+  defp normalize_expires_at(%{expires_at: ts} = attrs) when is_integer(ts) do
+    %{attrs | expires_at: DateTime.from_unix!(ts) |> DateTime.truncate(:second)}
+  end
+
+  defp normalize_expires_at(attrs), do: attrs
 
   @doc """
   Query helpers.
@@ -56,7 +85,11 @@ defmodule FrontmanServer.Providers.OAuthToken do
 
   @doc """
   Returns true if the token is expired.
+
+  A nil expires_at means the token never expires (e.g. GitHub OAuth App tokens).
   """
+  def expired?(%__MODULE__{expires_at: nil}), do: false
+
   def expired?(%__MODULE__{expires_at: expires_at}) do
     DateTime.compare(expires_at, DateTime.utc_now()) == :lt
   end

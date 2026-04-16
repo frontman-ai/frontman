@@ -107,6 +107,10 @@ config :phoenix_live_view,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
 
+# WorkOS and GitHub OAuth — not required in dev
+config :workos, WorkOS.Client, api_key: nil, client_id: nil
+config :frontman_server, :github_oauth, client_id: nil, client_secret: nil
+
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 

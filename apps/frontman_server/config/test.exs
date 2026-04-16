@@ -40,6 +40,10 @@ config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
 config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
 config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser, enabled: true
 
+# WorkOS and GitHub OAuth — not required in test
+config :workos, WorkOS.Client, api_key: nil, client_id: nil
+config :frontman_server, :github_oauth, client_id: nil, client_secret: nil
+
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 

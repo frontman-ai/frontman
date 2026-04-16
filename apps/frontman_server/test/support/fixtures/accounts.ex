@@ -106,10 +106,10 @@ defmodule FrontmanServer.Test.Fixtures.Accounts do
   end
 
   def identity_fixture(user, attrs \\ %{}) do
-    attrs = valid_identity_attributes(attrs) |> Map.put(:user_id, user.id)
+    attrs = valid_identity_attributes(attrs)
 
     {:ok, identity} =
-      %Accounts.UserIdentity{}
+      %Accounts.UserIdentity{user_id: user.id}
       |> Accounts.UserIdentity.changeset(attrs)
       |> FrontmanServer.Repo.insert()
 
