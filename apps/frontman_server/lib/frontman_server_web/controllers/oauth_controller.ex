@@ -172,6 +172,12 @@ defmodule FrontmanServerWeb.OAuthController do
     end
   end
 
+  defp store_provider_token(_user, %{provider: provider}) do
+    Logger.warning(
+      "OAuth tokens received for provider #{provider} — storage not implemented, skipping"
+    )
+  end
+
   defp generate_state_token do
     :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
   end
