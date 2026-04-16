@@ -55,6 +55,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> cast(attrs, [:task_id, :type, :data, :sequence])
     |> validate_required([:task_id, :type, :data, :sequence])
     |> strip_null_bytes(:data)
+    |> validate_json_encodable(:data)
     |> validate_inclusion(:type, Interaction.known_type_strings())
     |> foreign_key_constraint(:task_id)
     |> unique_constraint([:task_id, :data],

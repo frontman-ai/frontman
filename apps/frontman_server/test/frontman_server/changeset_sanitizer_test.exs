@@ -71,4 +71,40 @@ defmodule FrontmanServer.ChangesetSanitizerTest do
       assert result["nothing"] == nil
     end
   end
+
+  describe "validate_json_encodable/2" do
+    test "passes for a JSON-safe map" do
+      cs = changeset(%{data: %{"key" => "value", "num" => 42}}) |> validate_json_encodable(:data)
+      assert cs.valid?
+    end
+
+    test "fails for a map containing raw binary data" do
+      # PNG header bytes — not valid UTF-8
+      cs =
+        changeset(%{data: %{"content" => <<137, 80, 78, 71, 13, 10, 26, 10>>}})
+        |> validate_json_encodable(:data)
+
+      refute cs.valid?
+      assert {"contains data that is not JSON-encodable", []} in errors_on(cs, :data)
+    end
+
+    test "no-ops when field has no change" do
+      cs = changeset(%{}) |> validate_json_encodable(:data)
+      assert cs.valid?
+    end
+
+    test "passes for nested maps with valid data" do
+      cs =
+        changeset(%{data: %{"nested" => %{"list" => [1, "two", true]}}})
+        |> validate_json_encodable(:data)
+
+      assert cs.valid?
+    end
+  end
+
+  defp errors_on(changeset, field) do
+    for {msg, opts} <- Keyword.get_values(changeset.errors, field) do
+      {msg, opts}
+    end
+  end
 end

@@ -296,8 +296,26 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp handle_backend_outcome({:returned, {:ok, value}}, scope, tool_call, task_id) do
-    Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), value, false)
-    {:ok, encode_result(value)}
+    case Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), value, false) do
+      {:ok, _interaction, _executor_status} ->
+        {:ok, encode_result(value)}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        reason =
+          "Tool result not JSON-serializable: #{inspect(changeset.errors)}. Tool: #{tool_call.name}"
+
+        Logger.error("ToolExecutor: #{reason}")
+        report_tool_sentry("tool_persist_error", tool_call, task_id, reason)
+        Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason, true)
+        {:error, reason}
+
+      {:error, reason} ->
+        Logger.error(
+          "ToolExecutor: Failed to persist tool result for #{tool_call.name}: #{inspect(reason)}"
+        )
+
+        {:error, inspect(reason)}
+    end
   end
 
   defp handle_backend_outcome({:returned, {:error, reason}}, scope, tool_call, task_id) do
