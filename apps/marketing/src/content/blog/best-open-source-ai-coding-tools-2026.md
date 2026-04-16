@@ -192,7 +192,7 @@ BYOK means you connect your own API keys to Claude, OpenAI, OpenRouter, or other
 | Kilo Code | Full | Any LLM provider |
 | Goose | Full | Any LLM provider |
 | Continue | Full | Any LLM provider |
-| Frontman | Full | Any LLM provider via OpenRouter |
+| Frontman | Full | Claude, OpenAI, OpenRouter, any OpenAI-compatible API |
 | bolt.diy | Full | 19+ providers |
 | OpenHands | Full | Any LLM provider |
 | Tabby | Local models | Self-hosted, no cloud API |
