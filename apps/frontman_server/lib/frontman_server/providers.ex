@@ -485,9 +485,8 @@ defmodule FrontmanServer.Providers do
   Dispatches to the correct provider's refresh_token implementation.
   Returns `{:ok, new_access_token}` or `{:error, reason}`.
   """
-  # GitHub OAuth App tokens don't expire — "none" refresh_token signals this.
-  # Return the existing access_token directly.
-  def refresh_oauth_token(_scope, %OAuthToken{provider: "github", refresh_token: "none"} = token) do
+  # GitHub OAuth App tokens don't expire and have no refresh_token.
+  def refresh_oauth_token(_scope, %OAuthToken{provider: "github", refresh_token: nil} = token) do
     {:ok, token.access_token}
   end
 
@@ -498,7 +497,7 @@ defmodule FrontmanServer.Providers do
         expires_at =
           case new_tokens[:expires_in] do
             seconds when is_integer(seconds) -> OAuthToken.calculate_expires_at(seconds)
-            _ -> OAuthToken.calculate_expires_at(28_800)
+            _ -> nil
           end
 
         metadata = if is_map(token.metadata), do: token.metadata, else: %{}
@@ -715,11 +714,11 @@ defmodule FrontmanServer.Providers do
       refresh_token: refresh_token
     }
 
-    case Req.post("https://github.com/login/oauth/access_token",
-           json: body,
-           headers: [{"accept", "application/json"}],
-           receive_timeout: 15_000
-         ) do
+    opts =
+      [json: body, headers: [{"accept", "application/json"}], receive_timeout: 15_000] ++
+        github_req_options()
+
+    case Req.post("https://github.com/login/oauth/access_token", opts) do
       {:ok, %Req.Response{status: 200, body: %{"access_token" => access_token} = resp}} ->
         {:ok,
          %{
@@ -737,6 +736,10 @@ defmodule FrontmanServer.Providers do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp github_req_options do
+    Application.get_env(:frontman_server, :github_oauth_req_options, [])
   end
 
   defp github_client_id do
