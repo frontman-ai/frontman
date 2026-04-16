@@ -66,13 +66,31 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
   end
 
   @impl true
-  def stop(_ref), do: {:error, :not_implemented}
+  def stop(ref, opts \\ []) when is_binary(ref) do
+    case msb(["stop", ref], opts, []) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
 
   @impl true
-  def start(_ref), do: {:error, :not_implemented}
+  def start(ref, opts \\ []) when is_binary(ref) do
+    case msb(["start", ref], opts, []) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
 
   @impl true
-  def destroy(_ref), do: {:error, :not_implemented}
+  def destroy(ref, opts \\ []) when is_binary(ref) do
+    # Stop first (tolerate "already stopped" errors), then remove.
+    _ = msb(["stop", ref], opts, [])
+
+    case msb(["remove", ref], opts, []) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
 
   # --- Internal ---
 

@@ -173,4 +173,73 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
       assert {:error, {:cmd_failed, 1, _}} = Microsandbox.metrics("sb-abc123", microsandbox())
     end
   end
+
+  describe "stop/1" do
+    test "returns :ok on success" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["stop", "sb-abc123"], _opts ->
+        {"Sandbox sb-abc123 stopped\n", 0}
+      end)
+
+      assert :ok = Microsandbox.stop("sb-abc123", microsandbox())
+    end
+
+    test "returns error on failure" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["stop", "sb-abc123"], _opts ->
+        {"Error: not running\n", 1}
+      end)
+
+      assert {:error, {:cmd_failed, 1, _}} = Microsandbox.stop("sb-abc123", microsandbox())
+    end
+  end
+
+  describe "start/1" do
+    test "returns :ok on success" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["start", "sb-abc123"], _opts ->
+        {"Sandbox sb-abc123 started\n", 0}
+      end)
+
+      assert :ok = Microsandbox.start("sb-abc123", microsandbox())
+    end
+  end
+
+  describe "destroy/1" do
+    test "returns :ok when stop + remove both succeed" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["stop", "sb-abc123"], _opts ->
+        {"Stopped\n", 0}
+      end)
+      |> expect(:run, fn "msb", ["remove", "sb-abc123"], _opts ->
+        {"Removed\n", 0}
+      end)
+
+      assert :ok = Microsandbox.destroy("sb-abc123", microsandbox())
+    end
+
+    test "returns :ok when stop fails (already stopped) but remove succeeds" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["stop", "sb-abc123"], _opts ->
+        {"Error: not running\n", 1}
+      end)
+      |> expect(:run, fn "msb", ["remove", "sb-abc123"], _opts ->
+        {"Removed\n", 0}
+      end)
+
+      assert :ok = Microsandbox.destroy("sb-abc123", microsandbox())
+    end
+
+    test "returns error when remove fails" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["stop", "sb-abc123"], _opts ->
+        {"Stopped\n", 0}
+      end)
+      |> expect(:run, fn "msb", ["remove", "sb-abc123"], _opts ->
+        {"Error: sandbox not found\n", 1}
+      end)
+
+      assert {:error, {:cmd_failed, 1, _}} = Microsandbox.destroy("sb-abc123", microsandbox())
+    end
+  end
 end
