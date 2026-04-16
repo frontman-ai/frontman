@@ -35,13 +35,15 @@ defmodule FrontmanServer.ProvidersTest do
     end
   end
 
-  describe "resolve_api_key" do
+  describe "prepare_api_key resolves user key" do
     test "returns user key when present" do
       user = user_fixture()
       scope = Scope.for_user(user)
       {:ok, _} = Providers.upsert_api_key(scope, "openrouter", "sk-user-123")
 
-      assert {:user_key, "sk-user-123"} = Providers.resolve_api_key(scope, "openrouter")
+      assert {:ok, resolved} = Providers.prepare_api_key(scope, "openrouter:some-model")
+      assert resolved.api_key == "sk-user-123"
+      assert resolved.key_source == :user_key
     end
   end
 end

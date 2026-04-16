@@ -9,7 +9,10 @@ defmodule FrontmanServerWeb.OAuthController do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.WorkOS.AuthError
+  alias FrontmanServer.Providers
   alias FrontmanServerWeb.UserAuth
+
+  require Logger
 
   import FrontmanServerWeb.UserAuth, only: [require_sudo_mode: 2]
 
@@ -22,10 +25,10 @@ defmodule FrontmanServerWeb.OAuthController do
   end
 
   def callback(conn, %{"code" => code}) do
-    require Logger
-
     case Accounts.authenticate_with_oauth(code) do
-      {:ok, user} ->
+      {:ok, user, oauth_tokens} ->
+        store_provider_token(user, oauth_tokens)
+
         conn
         |> put_flash(:info, "Welcome!")
         |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
@@ -88,7 +91,9 @@ defmodule FrontmanServerWeb.OAuthController do
       |> redirect(to: ~p"/users/log-in")
     else
       case Accounts.authenticate_with_email_verification(code, token) do
-        {:ok, user} ->
+        {:ok, user, oauth_tokens} ->
+          store_provider_token(user, oauth_tokens)
+
           conn
           |> delete_session(:pending_auth_token)
           |> delete_session(:pending_auth_email)
@@ -144,6 +149,33 @@ defmodule FrontmanServerWeb.OAuthController do
     conn
     |> put_flash(:info, "#{provider_display_name(provider)} disconnected.")
     |> redirect(to: ~p"/users/settings")
+  end
+
+  defp store_provider_token(_user, nil), do: :ok
+
+  defp store_provider_token(user, %{provider: "github"} = tokens) do
+    scope = Accounts.Scope.for_user(user)
+
+    case Providers.save_oauth_connection(
+           scope,
+           "github",
+           tokens.access_token,
+           tokens.refresh_token,
+           tokens.expires_at,
+           %{"scopes" => tokens.scopes || []}
+         ) do
+      {:ok, _token} ->
+        Logger.debug("Stored GitHub OAuth token for user #{user.id}")
+
+      {:error, reason} ->
+        Logger.error("Failed to store GitHub OAuth token: #{inspect(reason)}")
+    end
+  end
+
+  defp store_provider_token(_user, %{provider: provider}) do
+    Logger.warning(
+      "OAuth tokens received for provider #{provider} — storage not implemented, skipping"
+    )
   end
 
   defp generate_state_token do

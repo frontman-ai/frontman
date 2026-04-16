@@ -1,0 +1,52 @@
+#!/bin/bash
+# mix-exec — Run mix commands locally or inside the containerized worktree.
+#
+# If a running worktree container exists for the current branch, routes
+# the command through it (with mise activated). Otherwise falls back to
+# running mix directly on the host.
+#
+# The first argument is the umbrella app directory (e.g. apps/frontman_server).
+# Remaining arguments are passed to mix. File paths prefixed with the app
+# directory are stripped so they resolve correctly from within the app.
+#
+# Usage:
+#   ./bin/mix-exec apps/frontman_server format --check-formatted apps/frontman_server/lib/foo.ex
+#   ./bin/mix-exec apps/swarm_ai credo --strict apps/swarm_ai/lib/bar.ex
+
+set -euo pipefail
+
+if [ $# -lt 2 ]; then
+    echo "Usage: ./bin/mix-exec <app_dir> <mix_subcommand> [args...]"
+    exit 1
+fi
+
+APP_DIR="$1"
+shift
+
+# Strip the app_dir prefix from any file path arguments so they resolve
+# correctly when mix runs from inside the app directory.
+args=()
+for arg in "$@"; do
+    args+=("${arg#"${APP_DIR}/"}")
+done
+
+BRANCH=$(git branch --show-current 2>/dev/null || true)
+
+if [ -n "$BRANCH" ]; then
+    if command -v md5sum >/dev/null 2>&1; then
+        HASH=$(echo -n "$BRANCH" | md5sum | cut -c1-4)
+    else
+        HASH=$(echo -n "$BRANCH" | md5 | cut -c1-4)
+    fi
+    CONTAINER="worktree-${HASH}-dev"
+
+    if podman container inspect "$CONTAINER" &>/dev/null 2>&1; then
+        CONTAINER_CWD="/workspaces/frontman/${APP_DIR}"
+        exec podman exec -w "$CONTAINER_CWD" "$CONTAINER" \
+            bash -lc 'eval "$(mise activate bash)" && mix "$@"' -- "${args[@]}"
+    fi
+fi
+
+# Fallback: run mix directly on the host
+cd "$APP_DIR"
+exec mix "${args[@]}"

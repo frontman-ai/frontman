@@ -7,6 +7,7 @@ defmodule FrontmanServer.Projects do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Projects.Project
+  alias FrontmanServer.Providers
   alias FrontmanServer.Repo
 
   @doc """
@@ -47,6 +48,14 @@ defmodule FrontmanServer.Projects do
     %Project{}
     |> Project.repo_changeset(user.id, attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Returns the user's valid GitHub OAuth access token, refreshing if expired.
+  """
+  @spec github_token(Scope.t()) :: {:ok, String.t()} | {:error, term()}
+  def github_token(%Scope{} = scope) do
+    Providers.get_valid_oauth_token(scope, "github")
   end
 
   @doc """

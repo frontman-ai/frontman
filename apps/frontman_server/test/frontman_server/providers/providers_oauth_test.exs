@@ -151,7 +151,7 @@ defmodule FrontmanServer.Providers.ProvidersOAuthTest do
     # which is out of scope for unit tests - integration tests would cover this
   end
 
-  describe "resolve_api_key/2 with OAuth" do
+  describe "prepare_api_key/3 with OAuth" do
     test "returns oauth_token with transformation opts when available for anthropic" do
       user = user_fixture()
       scope = %Scope{user: user}
@@ -162,12 +162,12 @@ defmodule FrontmanServer.Providers.ProvidersOAuthTest do
 
       # Even with env_api_keys in scope, OAuth should take priority
       scope = Scope.with_env_api_keys(scope, %{"anthropic" => "env_key"})
-      result = Providers.resolve_api_key(scope, "anthropic")
+      assert {:ok, resolved} = Providers.prepare_api_key(scope, "anthropic:claude-sonnet")
 
-      # OAuth returns 3-tuple with transformation options for Claude Code
-      assert {:oauth_token, "oauth_access", opts} = result
-      assert Keyword.get(opts, :requires_mcp_prefix) == true
-      assert Keyword.get(opts, :identity_override) =~ "Claude Code"
+      assert resolved.api_key == "oauth_access"
+      assert resolved.key_source == :oauth_token
+      assert resolved.requires_mcp_prefix == true
+      assert resolved.identity_override =~ "Claude Code"
     end
 
     test "falls back to user_key when no OAuth token" do
@@ -177,20 +177,22 @@ defmodule FrontmanServer.Providers.ProvidersOAuthTest do
       # Save a user API key
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_api_key")
 
-      result = Providers.resolve_api_key(scope, "anthropic")
+      assert {:ok, resolved} = Providers.prepare_api_key(scope, "anthropic:claude-sonnet")
 
-      assert {:user_key, "user_api_key"} = result
+      assert resolved.api_key == "user_api_key"
+      assert resolved.key_source == :user_key
     end
 
-    test "OAuth only applies to anthropic provider" do
+    test "OAuth only applies to supported providers" do
       user = user_fixture()
       scope = %Scope{user: user}
 
       # OAuth is not supported for openrouter, so should use other resolution
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "env_key"})
-      result = Providers.resolve_api_key(scope, "openrouter")
+      assert {:ok, resolved} = Providers.prepare_api_key(scope, "openrouter:some-model")
 
-      assert {:env_key, "env_key"} = result
+      assert resolved.api_key == "env_key"
+      assert resolved.key_source == :env_key
     end
   end
 end

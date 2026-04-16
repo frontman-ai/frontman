@@ -10,24 +10,20 @@ pre-commit:
       run: npx rescript format --check {staged_files}
 
     elixir-format-server:
-      root: "apps/frontman_server/"
       glob: "apps/frontman_server/**/*.{ex,exs}"
-      run: mix format --check-formatted {staged_files}
+      run: bin/mix-exec apps/frontman_server format --check-formatted {staged_files}
 
     elixir-format-swarm:
-      root: "apps/swarm_ai/"
       glob: "apps/swarm_ai/**/*.{ex,exs}"
-      run: mix format --check-formatted {staged_files}
+      run: bin/mix-exec apps/swarm_ai format --check-formatted {staged_files}
 
     elixir-credo-server:
-      root: "apps/frontman_server/"
       glob: "apps/frontman_server/**/*.{ex,exs}"
-      run: mix credo --strict {staged_files}
+      run: bin/mix-exec apps/frontman_server credo --strict {staged_files}
 
     elixir-credo-swarm:
-      root: "apps/swarm_ai/"
       glob: "apps/swarm_ai/**/*.{ex,exs}"
-      run: mix credo --strict {staged_files}
+      run: bin/mix-exec apps/swarm_ai credo --strict {staged_files}
 
 pre-push:
   commands:
