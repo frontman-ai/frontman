@@ -62,6 +62,43 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
       assert {:ok, "test-sandbox"} = Microsandbox.create(spec, microsandbox())
     end
 
+    test "cleans up devcontainer temp file after msb returns" do
+      env_spec = valid_env_spec()
+      test_pid = self()
+
+      MockCommandRunner
+      |> expect(:run, fn "msb", args, _opts ->
+        config_idx = Enum.find_index(args, &(&1 == "--config"))
+        config_path = Enum.at(args, config_idx + 1)
+        assert File.exists?(config_path), "temp file should exist during msb call"
+        send(test_pid, {:config_path, config_path})
+        {"Sandbox test-sandbox is running\n", 0}
+      end)
+
+      assert {:ok, "test-sandbox"} = Microsandbox.create(env_spec, microsandbox())
+
+      assert_receive {:config_path, config_path}
+      refute File.exists?(config_path), "temp file should be cleaned up after create returns"
+    end
+
+    test "cleans up devcontainer temp file even when msb fails" do
+      env_spec = valid_env_spec()
+      test_pid = self()
+
+      MockCommandRunner
+      |> expect(:run, fn "msb", args, _opts ->
+        config_idx = Enum.find_index(args, &(&1 == "--config"))
+        config_path = Enum.at(args, config_idx + 1)
+        send(test_pid, {:config_path, config_path})
+        {"Error: image not found\n", 1}
+      end)
+
+      assert {:error, _} = Microsandbox.create(env_spec, microsandbox())
+
+      assert_receive {:config_path, config_path}
+      refute File.exists?(config_path), "temp file should be cleaned up even on failure"
+    end
+
     test "returns error when msb run fails" do
       env_spec = valid_env_spec()
 
@@ -87,13 +124,13 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
                Microsandbox.exec("sb-abc123", "echo", ["hello"], microsandbox())
     end
 
-    test "returns exec_result with non-zero exit code (command ran but failed)" do
+    test "returns {:ok, exec_result} with non-zero exit code when command fails inside sandbox" do
       MockCommandRunner
       |> expect(:run, fn "msb", _args, _opts ->
-        {"test failed\n", 0}
+        {"test failed\n", 1}
       end)
 
-      assert {:ok, %{exit_code: 0, stdout: "test failed\n"}} =
+      assert {:ok, %{exit_code: 1, stdout: "test failed\n", stderr: ""}} =
                Microsandbox.exec("sb-abc123", "mix", ["test"], microsandbox())
     end
 
@@ -113,13 +150,13 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
                )
     end
 
-    test "returns error when msb exec fails" do
+    test "returns non-zero exit code from inner command as {:ok, exec_result}" do
       MockCommandRunner
       |> expect(:run, fn "msb", _args, _opts ->
         {"Error: sandbox not found\n", 1}
       end)
 
-      assert {:error, {:cmd_failed, 1, _}} =
+      assert {:ok, %{exit_code: 1, stdout: "Error: sandbox not found\n", stderr: ""}} =
                Microsandbox.exec("sb-abc123", "false", [], microsandbox())
     end
   end
@@ -271,14 +308,68 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
       expected_b64 = Base.encode64(content)
 
       MockCommandRunner
-      |> expect(:run, fn "msb", ["exec", "sb-abc123", "--", "bash", "-c", command], _opts ->
-        assert String.contains?(command, expected_b64)
-        assert String.contains?(command, "/app/hello.txt")
+      |> expect(:run, fn "msb",
+                         ["exec", "sb-abc123", "--", "bash", "-c", _cmd, "_", encoded, path_arg],
+                         _opts ->
+        assert encoded == expected_b64
+        assert path_arg == "/app/hello.txt"
         {"", 0}
       end)
 
       assert :ok =
                Microsandbox.write_file("sb-abc123", "/app/hello.txt", content, microsandbox())
+    end
+
+    test "path is passed as positional arg, never interpolated in shell command" do
+      malicious_path = "/tmp/foo; rm -rf /"
+      content = "safe"
+
+      MockCommandRunner
+      |> expect(:run, fn "msb",
+                         [
+                           "exec",
+                           "sb-abc123",
+                           "--",
+                           "bash",
+                           "-c",
+                           command,
+                           "_",
+                           _encoded,
+                           path_arg
+                         ],
+                         _opts ->
+        # Shell template must NOT contain the path
+        refute String.contains?(command, malicious_path)
+        # Path arrives as a separate argv element
+        assert path_arg == malicious_path
+        {"", 0}
+      end)
+
+      assert :ok =
+               Microsandbox.write_file("sb-abc123", malicious_path, content, microsandbox())
+    end
+
+    test "shell metacharacters in path cannot be interpreted" do
+      paths = [
+        "/tmp/$(whoami)/file",
+        "/tmp/`id`/file",
+        "/tmp/foo | cat /etc/shadow",
+        "/tmp/foo\nrm -rf /"
+      ]
+
+      for path <- paths do
+        MockCommandRunner
+        |> expect(:run, fn "msb",
+                           ["exec", _ref, "--", "bash", "-c", cmd, "_", _encoded, path_arg],
+                           _opts ->
+          refute String.contains?(cmd, path)
+          assert path_arg == path
+          {"", 0}
+        end)
+
+        assert :ok =
+                 Microsandbox.write_file("sb-abc123", path, "x", microsandbox())
+      end
     end
 
     test "returns error on failure" do

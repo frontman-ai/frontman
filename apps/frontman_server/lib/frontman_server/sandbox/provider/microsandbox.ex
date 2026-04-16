@@ -19,15 +19,22 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
 
   @impl true
   def create(%FrontmanServer.Sandbox.EnvironmentSpec{} = spec, opts \\ []) do
+    {dc_flags, dc_temp_path} = devcontainer_flags(spec.devcontainer)
+
     args =
       ["run", "--name", spec.name, "--image", spec.image] ++
         env_flags(spec.env) ++
-        devcontainer_flags(spec.devcontainer)
+        dc_flags
 
-    case msb(args, opts, timeout: @create_timeout_ms) do
-      {:ok, _output} -> {:ok, spec.name}
-      {:error, _} = error -> error
-    end
+    result =
+      case msb(args, opts, timeout: @create_timeout_ms) do
+        {:ok, _output} -> {:ok, spec.name}
+        {:error, _} = error -> error
+      end
+
+    if dc_temp_path, do: File.rm(dc_temp_path)
+
+    result
   end
 
   @impl true
@@ -42,8 +49,8 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
       {:ok, output} ->
         {:ok, %{exit_code: 0, stdout: output, stderr: ""}}
 
-      {:error, _} = error ->
-        error
+      {:error, {:cmd_failed, code, output}} ->
+        {:ok, %{exit_code: code, stdout: output, stderr: ""}}
     end
   end
 
@@ -100,7 +107,7 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
       when is_binary(ref) and is_binary(path) do
     case exec(ref, "cat", [path], opts) do
       {:ok, %{exit_code: 0, stdout: content}} -> {:ok, content}
-      {:error, _} = error -> error
+      {:ok, %{exit_code: code, stdout: output}} -> {:error, {:cmd_failed, code, output}}
     end
   end
 
@@ -114,11 +121,15 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
   def write_file(ref, path, content, opts \\ [])
       when is_binary(ref) and is_binary(path) and is_binary(content) do
     encoded = Base.encode64(content)
-    command = "echo '#{encoded}' | base64 -d > #{path}"
 
-    case exec(ref, "bash", ["-c", command], opts) do
+    case exec(
+           ref,
+           "bash",
+           ["-c", ~S(printf '%s' "$1" | base64 -d > "$2"), "_", encoded, path],
+           opts
+         ) do
       {:ok, %{exit_code: 0}} -> :ok
-      {:error, _} = error -> error
+      {:ok, %{exit_code: code, stdout: output}} -> {:error, {:cmd_failed, code, output}}
     end
   end
 
@@ -144,7 +155,7 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
     Enum.flat_map(env, fn {k, v} -> ["--env", "#{k}=#{v}"] end)
   end
 
-  defp devcontainer_flags(dc) when map_size(dc) == 0, do: []
+  defp devcontainer_flags(dc) when map_size(dc) == 0, do: {[], nil}
 
   defp devcontainer_flags(dc) do
     path =
@@ -154,7 +165,7 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
       )
 
     File.write!(path, Jason.encode!(dc))
-    ["--config", path]
+    {["--config", path], path}
   end
 
   defp default_runner do
