@@ -92,6 +92,36 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
     end
   end
 
+  # --- Microsandbox-specific file operations (not Provider callbacks) ---
+
+  @doc "Read a file from inside the sandbox VM via `cat`."
+  @spec read_file(String.t(), String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
+  def read_file(ref, path, opts \\ [])
+      when is_binary(ref) and is_binary(path) do
+    case exec(ref, "cat", [path], opts) do
+      {:ok, %{exit_code: 0, stdout: content}} -> {:ok, content}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
+  Write a file inside the sandbox VM via base64 decode.
+
+  Content is base64-encoded and piped through `base64 -d` to avoid
+  shell escaping issues.
+  """
+  @spec write_file(String.t(), String.t(), String.t(), keyword()) :: :ok | {:error, term()}
+  def write_file(ref, path, content, opts \\ [])
+      when is_binary(ref) and is_binary(path) and is_binary(content) do
+    encoded = Base.encode64(content)
+    command = "echo '#{encoded}' | base64 -d > #{path}"
+
+    case exec(ref, "bash", ["-c", command], opts) do
+      {:ok, %{exit_code: 0}} -> :ok
+      {:error, _} = error -> error
+    end
+  end
+
   # --- Internal ---
 
   defp msb(args, caller_opts, internal_opts) do

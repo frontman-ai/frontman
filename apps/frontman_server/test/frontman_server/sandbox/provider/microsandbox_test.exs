@@ -242,4 +242,53 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
       assert {:error, {:cmd_failed, 1, _}} = Microsandbox.destroy("sb-abc123", microsandbox())
     end
   end
+
+  describe "read_file/2" do
+    test "returns {:ok, content} by executing cat inside the sandbox" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["exec", "sb-abc123", "--", "cat", "/app/README.md"], _opts ->
+        {"# Hello\n", 0}
+      end)
+
+      assert {:ok, "# Hello\n"} =
+               Microsandbox.read_file("sb-abc123", "/app/README.md", microsandbox())
+    end
+
+    test "returns error when file not found" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", _args, _opts ->
+        {"cat: /app/nope.txt: No such file or directory\n", 1}
+      end)
+
+      assert {:error, {:cmd_failed, 1, _}} =
+               Microsandbox.read_file("sb-abc123", "/app/nope.txt", microsandbox())
+    end
+  end
+
+  describe "write_file/3" do
+    test "returns :ok by writing base64-decoded content inside the sandbox" do
+      content = "hello world"
+      expected_b64 = Base.encode64(content)
+
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["exec", "sb-abc123", "--", "bash", "-c", command], _opts ->
+        assert String.contains?(command, expected_b64)
+        assert String.contains?(command, "/app/hello.txt")
+        {"", 0}
+      end)
+
+      assert :ok =
+               Microsandbox.write_file("sb-abc123", "/app/hello.txt", content, microsandbox())
+    end
+
+    test "returns error on failure" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", _args, _opts ->
+        {"Error: permission denied\n", 1}
+      end)
+
+      assert {:error, {:cmd_failed, 1, _}} =
+               Microsandbox.write_file("sb-abc123", "/etc/passwd", "nope", microsandbox())
+    end
+  end
 end
