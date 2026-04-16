@@ -31,10 +31,39 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
   end
 
   @impl true
-  def exec(_ref, _command, _args, _opts), do: {:error, :not_implemented}
+  def exec(ref, command, args, opts)
+      when is_binary(ref) and is_binary(command) and is_list(args) do
+    {caller_opts, exec_opts} = extract_caller_opts(opts)
+    timeout = Keyword.get(exec_opts, :timeout_ms, @default_timeout_ms)
+
+    msb_args = ["exec", ref, "--" | [command | args]]
+
+    case msb(msb_args, caller_opts, timeout: timeout) do
+      {:ok, output} ->
+        {:ok, %{exit_code: 0, stdout: output, stderr: ""}}
+
+      {:error, _} = error ->
+        error
+    end
+  end
 
   @impl true
-  def metrics(_ref), do: {:error, :not_implemented}
+  def metrics(ref, opts \\ []) when is_binary(ref) do
+    with {:ok, output} <- msb(["list", "--json"], opts, []),
+         {:ok, entries} when is_list(entries) <- Jason.decode(output),
+         entry when not is_nil(entry) <- Enum.find(entries, &(&1["name"] == ref)) do
+      {:ok,
+       %{
+         status: Map.get(entry, "status", "unknown"),
+         cpu_percent: Map.get(entry, "cpu_percent", 0.0),
+         memory_bytes: Map.get(entry, "memory_bytes", 0)
+       }}
+    else
+      nil -> {:error, :not_found}
+      {:error, _} = error -> error
+      _ -> {:error, :invalid_json}
+    end
+  end
 
   @impl true
   def stop(_ref), do: {:error, :not_implemented}
@@ -55,6 +84,10 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
       {output, 0} -> {:ok, output}
       {output, code} -> {:error, {:cmd_failed, code, output}}
     end
+  end
+
+  defp extract_caller_opts(opts) do
+    Keyword.split(opts, [:command_runner])
   end
 
   defp env_flags(env) when map_size(env) == 0, do: []

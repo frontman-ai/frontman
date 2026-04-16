@@ -74,4 +74,103 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
                Microsandbox.create(env_spec, microsandbox())
     end
   end
+
+  describe "exec/4" do
+    test "returns {:ok, exec_result} on success" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", args, _opts ->
+        assert args == ["exec", "sb-abc123", "--", "echo", "hello"]
+        {"hello\n", 0}
+      end)
+
+      assert {:ok, %{exit_code: 0, stdout: "hello\n", stderr: ""}} =
+               Microsandbox.exec("sb-abc123", "echo", ["hello"], microsandbox())
+    end
+
+    test "returns exec_result with non-zero exit code (command ran but failed)" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", _args, _opts ->
+        {"test failed\n", 0}
+      end)
+
+      assert {:ok, %{exit_code: 0, stdout: "test failed\n"}} =
+               Microsandbox.exec("sb-abc123", "mix", ["test"], microsandbox())
+    end
+
+    test "passes timeout_ms from opts" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", _args, opts ->
+        assert Keyword.get(opts, :timeout) == 300_000
+        {"", 0}
+      end)
+
+      assert {:ok, _} =
+               Microsandbox.exec(
+                 "sb-abc123",
+                 "mix",
+                 ["test"],
+                 microsandbox(timeout_ms: 300_000)
+               )
+    end
+
+    test "returns error when msb exec fails" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", _args, _opts ->
+        {"Error: sandbox not found\n", 1}
+      end)
+
+      assert {:error, {:cmd_failed, 1, _}} =
+               Microsandbox.exec("sb-abc123", "false", [], microsandbox())
+    end
+  end
+
+  describe "metrics/1" do
+    test "returns {:ok, sandbox_metrics} on success" do
+      json_output =
+        Jason.encode!([
+          %{
+            "name" => "sb-abc123",
+            "status" => "running",
+            "cpu_percent" => 12.5,
+            "memory_bytes" => 268_435_456
+          },
+          %{
+            "name" => "other-sandbox",
+            "status" => "stopped",
+            "cpu_percent" => 0.0,
+            "memory_bytes" => 0
+          }
+        ])
+
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["list", "--json"], _opts ->
+        {json_output, 0}
+      end)
+
+      assert {:ok, metrics} = Microsandbox.metrics("sb-abc123", microsandbox())
+      assert metrics.status == "running"
+      assert metrics.cpu_percent == 12.5
+      assert metrics.memory_bytes == 268_435_456
+    end
+
+    test "returns error when sandbox not found in list" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["list", "--json"], _opts ->
+        {Jason.encode!([
+           %{"name" => "other", "status" => "running", "cpu_percent" => 0.0, "memory_bytes" => 0}
+         ]), 0}
+      end)
+
+      assert {:error, :not_found} = Microsandbox.metrics("sb-abc123", microsandbox())
+    end
+
+    test "returns error when msb list fails" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", _args, _opts ->
+        {"Error: daemon unreachable\n", 1}
+      end)
+
+      assert {:error, {:cmd_failed, 1, _}} = Microsandbox.metrics("sb-abc123", microsandbox())
+    end
+  end
 end
