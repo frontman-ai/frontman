@@ -387,7 +387,14 @@ defmodule FrontmanServer.Providers do
   Use this for user-initiated OAuth connections (e.g. completing an OAuth flow).
   For internal token refreshes, use `upsert_oauth_token/6` directly.
   """
-  @spec save_oauth_connection(Scope.t(), String.t(), String.t(), String.t(), DateTime.t(), map()) ::
+  @spec save_oauth_connection(
+          Scope.t(),
+          String.t(),
+          String.t(),
+          String.t() | nil,
+          DateTime.t() | nil,
+          map()
+        ) ::
           {:ok, OAuthToken.t()} | {:error, term()}
   def save_oauth_connection(
         %Scope{user: %User{}} = scope,
