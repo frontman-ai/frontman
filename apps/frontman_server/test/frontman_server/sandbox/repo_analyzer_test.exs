@@ -3,7 +3,7 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzerTest do
 
   import Mox
 
-  alias FrontmanServer.Sandbox.{EnvironmentSpec, RepoAnalyzer}
+  alias FrontmanServer.Sandbox.RepoAnalyzer
 
   setup :verify_on_exit!
 
@@ -36,24 +36,21 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzerTest do
       stub_tree([".devcontainer/devcontainer.json", "README.md"])
       stub_file(".devcontainer/devcontainer.json", @devcontainer_json)
 
-      assert {:ok,
-              %EnvironmentSpec{
-                contents: %{"image" => "mcr.microsoft.com/devcontainers/base:ubuntu"}
-              }} = analyze()
+      assert {:ok, %{"image" => "mcr.microsoft.com/devcontainers/base:ubuntu"}} = analyze()
     end
 
     test "finds .devcontainer.json at root" do
       stub_tree([".devcontainer.json", "README.md"])
       stub_file(".devcontainer.json", @devcontainer_json)
 
-      assert {:ok, %EnvironmentSpec{}} = analyze()
+      assert {:ok, %{}} = analyze()
     end
 
     test "finds devcontainer.json at root" do
       stub_tree(["src/main.ex", "devcontainer.json"])
       stub_file("devcontainer.json", @devcontainer_json)
 
-      assert {:ok, %EnvironmentSpec{}} = analyze()
+      assert {:ok, %{}} = analyze()
     end
   end
 
@@ -62,7 +59,7 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzerTest do
       stub_tree([".devcontainer/devcontainer.json", ".devcontainer.json"])
       stub_file(".devcontainer/devcontainer.json", @devcontainer_json)
 
-      assert {:ok, %EnvironmentSpec{}} = analyze()
+      assert {:ok, %{}} = analyze()
     end
   end
 
@@ -80,11 +77,11 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzerTest do
       assert {:error, :invalid_json} = analyze()
     end
 
-    test "empty devcontainer map returns :empty_devcontainer" do
+    test "empty devcontainer map is accepted" do
       stub_tree([".devcontainer/devcontainer.json"])
       stub_file(".devcontainer/devcontainer.json", "{}")
 
-      assert {:error, :empty_devcontainer} = analyze()
+      assert {:ok, %{}} = analyze()
     end
 
     test "401 from get_tree returns :unauthorized" do
