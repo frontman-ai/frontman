@@ -652,7 +652,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         | false =>
           switch err {
           | ACP.AuthRequired({loginUrl}) =>
-            let currentUrl = WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href
+            let currentUrl = Client__HostNavigation.currentUrl()
             let returnTo = encodeURIComponent(currentUrl)
             let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
 
@@ -670,7 +670,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
             | Client__FtueState.ShowWelcomeModal =>
               dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
             | Client__FtueState.RedirectToLogin =>
-              WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(fullUrl)
+              Client__HostNavigation.assign(~url=fullUrl)
             }
           | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
           }

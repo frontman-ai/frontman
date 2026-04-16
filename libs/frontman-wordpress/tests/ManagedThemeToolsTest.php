@@ -277,6 +277,7 @@ class Frontman_Managed_Theme_Tools_Test_Runner {
 		$this->test_status_reports_token_mismatch_as_orphaned();
 		$this->test_create_managed_theme_rejects_non_block_theme();
 		$this->test_create_managed_theme_rejects_existing_child_theme();
+		$this->test_create_managed_theme_bootstraps_filesystem_api();
 		$this->test_create_managed_theme();
 		$this->test_activate_managed_theme_requires_confirmation();
 		$this->test_write_managed_theme_file_tracks_owned_files();
@@ -519,6 +520,48 @@ class Frontman_Managed_Theme_Tools_Test_Runner {
 			);
 		} finally {
 			$GLOBALS['frontman_test_active_theme'] = $previous;
+		}
+	}
+
+	private function test_create_managed_theme_bootstraps_filesystem_api(): void {
+		$missing_filesystem_constants = ! defined( 'FS_CHMOD_FILE' ) || ! defined( 'FS_CHMOD_DIR' );
+		$this->write_fixture(
+			'wp-admin/includes/file.php',
+			"<?php\n" .
+			"\$GLOBALS['frontman_test_file_api_loaded'] = true;\n" .
+			"if ( ! defined( 'FS_CHMOD_DIR' ) ) {\n" .
+			"\tdefine( 'FS_CHMOD_DIR', 0755 );\n" .
+			"}\n" .
+			"if ( ! defined( 'FS_CHMOD_FILE' ) ) {\n" .
+			"\tdefine( 'FS_CHMOD_FILE', 0644 );\n" .
+			"}\n"
+		);
+
+		$root = get_theme_root() . '/frontman-managed-parent-theme';
+
+		try {
+			$created = $this->tool->create_theme( [] );
+			$this->assert_true( true === $created['created'], 'Managed theme creation succeeds even when the runtime starts without the filesystem chmod constants' );
+
+			if ( $missing_filesystem_constants ) {
+				$this->assert_true( true === ( $GLOBALS['frontman_test_file_api_loaded'] ?? false ), 'Managed theme creation loads the WordPress file API before writing files' );
+				$this->assert_true( defined( 'FS_CHMOD_FILE' ), 'Managed theme creation bootstraps the WordPress file chmod constant' );
+			}
+		} finally {
+			unset( $GLOBALS['frontman_test_options']['frontman_managed_theme'] );
+			unset( $GLOBALS['frontman_test_file_api_loaded'] );
+
+			if ( file_exists( $root . '/frontman-managed.json' ) ) {
+				unlink( $root . '/frontman-managed.json' );
+			}
+
+			if ( file_exists( $root . '/style.css' ) ) {
+				unlink( $root . '/style.css' );
+			}
+
+			if ( is_dir( $root ) ) {
+				rmdir( $root );
+			}
 		}
 	}
 

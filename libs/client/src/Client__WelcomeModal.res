@@ -27,7 +27,7 @@ let make = (~loginUrl: string) => {
           switch next <= 0 {
           | true =>
             intervalId.contents->Option.forEach(WebAPI.Global.clearInterval)
-            WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(loginUrl)
+            Client__HostNavigation.assign(~url=loginUrl)
           | false => ()
           }
           next
@@ -82,8 +82,7 @@ let make = (~loginUrl: string) => {
           <Button.Button
             variant=#secondary
             className="mt-2"
-            onClick={_ =>
-              WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.assign(loginUrl)}
+            onClick={_ => Client__HostNavigation.assign(~url=loginUrl)}
           >
             {React.string("Sign in now")}
           </Button.Button>

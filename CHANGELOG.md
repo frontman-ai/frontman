@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Align E2E to a first-class `MIX_ENV=e2e` environment, remove `E2E=true` dev-branch config toggles, and standardize strict boolean env parsing across runtime and E2E setup.
 - Update `req_llm` to latest upstream commit and preserve OpenAI Responses metadata (`response_id`, phased assistant output) across stream conversion, persistence, and interaction replay so follow-up turns keep reasoning continuity.
 
+### Fixed
+
+- Bootstrap the WordPress file API before managed-theme writes so `wp_create_managed_theme` works in runtimes like WordPress Playground where `FS_CHMOD_FILE` is not pre-defined.
+
 ## [0.15.0] - 2026-04-08
 
 

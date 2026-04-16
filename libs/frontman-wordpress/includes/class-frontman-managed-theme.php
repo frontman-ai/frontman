@@ -702,9 +702,30 @@ class Frontman_Managed_Theme {
 	}
 
 	/**
+	 * Load the WordPress file API and chmod constants when available.
+	 */
+	private static function bootstrap_filesystem_api(): void {
+		$file_api_path = ABSPATH . 'wp-admin/includes/file.php';
+
+		if ( ( ! function_exists( 'wp_tempnam' ) || ! defined( 'FS_CHMOD_FILE' ) || ! defined( 'FS_CHMOD_DIR' ) ) && file_exists( $file_api_path ) ) {
+			require_once $file_api_path;
+		}
+
+		if ( ! defined( 'FS_CHMOD_DIR' ) ) {
+			define( 'FS_CHMOD_DIR', 0755 );
+		}
+
+		if ( ! defined( 'FS_CHMOD_FILE' ) ) {
+			define( 'FS_CHMOD_FILE', 0644 );
+		}
+	}
+
+	/**
 	 * Get a filesystem adapter suitable for local plugin-managed files.
 	 */
 	private static function filesystem() {
+		self::bootstrap_filesystem_api();
+
 		if ( ! class_exists( 'WP_Filesystem_Direct' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
 			require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-direct.php';
@@ -721,11 +742,13 @@ class Frontman_Managed_Theme {
 	 * @return string|false
 	 */
 	private static function temp_file_path( string $path, string $directory ) {
+		self::bootstrap_filesystem_api();
+
 		if ( ! function_exists( 'wp_tempnam' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/file.php';
+			throw new Frontman_Tool_Error( 'WordPress filesystem helpers are unavailable for temporary file creation.' );
 		}
 
-		return call_user_func( 'wp_tempnam', basename( $path ), $directory );
+		return wp_tempnam( basename( $path ), $directory );
 	}
 
 	/**

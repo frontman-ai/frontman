@@ -250,15 +250,10 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                               // Navigate to server-side logout with return_to so user is redirected
                               // back here after re-authenticating
                               let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
-                              let currentUrl =
-                                WebAPI.Global.window
-                                ->WebAPI.Window.location
-                                ->WebAPI.Location.href
+                              let currentUrl = Client__HostNavigation.currentUrl()
                               let returnTo = encodeURIComponent(currentUrl)
-                              WebAPI.Global.window
-                              ->WebAPI.Window.location
-                              ->WebAPI.Location.assign(
-                                `${apiBaseUrl}/users/log-out?return_to=${returnTo}`,
+                              Client__HostNavigation.assign(
+                                ~url=`${apiBaseUrl}/users/log-out?return_to=${returnTo}`,
                               )
                             }}
                           >
