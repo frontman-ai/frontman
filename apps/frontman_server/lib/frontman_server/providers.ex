@@ -45,6 +45,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the default model.
   """
+  @spec default_model() :: String.t()
   def default_model, do: @default_model
 
   @doc """
@@ -101,10 +102,15 @@ defmodule FrontmanServer.Providers do
   end
 
   defp prepare_server_key(scope, provider, key, model, opts) do
-    if opts[:skip_quota] || has_remaining_usage?(scope, provider) do
-      {:ok, ResolvedKey.new(provider, key, :server_key, model)}
-    else
-      {:error, :usage_limit_exceeded}
+    case opts[:skip_quota] do
+      true ->
+        {:ok, ResolvedKey.new(provider, key, :server_key, model)}
+
+      _ ->
+        case has_remaining_usage?(scope, provider) do
+          true -> {:ok, ResolvedKey.new(provider, key, :server_key, model)}
+          false -> {:error, :usage_limit_exceeded}
+        end
     end
   end
 
@@ -148,6 +154,7 @@ defmodule FrontmanServer.Providers do
   On success, broadcasts a config change notification so subscribers
   (e.g. the tasks channel) can push updated config options to the client.
   """
+  @spec upsert_api_key(Scope.t(), String.t(), String.t()) :: {:ok, ApiKey.t()} | {:error, term()}
   def upsert_api_key(%Scope{user: %User{} = user} = scope, provider, key) do
     provider = String.downcase(provider)
     # Build struct with user_id set explicitly (not via changeset for security)
@@ -171,6 +178,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Fetches a user API key for a provider.
   """
+  @spec get_api_key(Scope.t(), String.t()) :: ApiKey.t() | nil
   def get_api_key(%Scope{user: %User{} = user}, provider) do
     ApiKey
     |> ApiKey.for_user_and_provider(user.id, provider)
@@ -180,6 +188,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the user's API key value for a provider, if present.
   """
+  @spec get_api_key_value(Scope.t(), String.t()) :: String.t() | nil
   def get_api_key_value(%Scope{} = scope, provider) do
     case get_api_key(scope, provider) do
       %ApiKey{key: key} -> key
@@ -190,6 +199,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns true if the user has a stored API key for the provider.
   """
+  @spec has_api_key?(Scope.t(), String.t()) :: boolean()
   def has_api_key?(%Scope{} = scope, provider) do
     case get_api_key(scope, provider) do
       %ApiKey{} -> true
@@ -202,6 +212,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the server key usage limit from config.
   """
+  @spec usage_limit() :: non_neg_integer()
   def usage_limit do
     Application.get_env(:frontman_server, :user_key_usage_limit, 10)
   end
@@ -209,6 +220,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the user key usage record if it exists.
   """
+  @spec get_usage(Scope.t(), String.t()) :: UserKeyUsage.t() | nil
   def get_usage(%Scope{user: %User{} = user}, provider) do
     Repo.get_by(UserKeyUsage, user_id: user.id, provider: provider)
   end
@@ -216,6 +228,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the remaining server-key requests for the user and provider.
   """
+  @spec get_usage_remaining(Scope.t(), String.t()) :: non_neg_integer()
   def get_usage_remaining(%Scope{} = scope, provider) do
     case get_usage(scope, provider) do
       %UserKeyUsage{count: count} -> max(usage_limit() - count, 0)
@@ -226,6 +239,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns true if the user has remaining server-key requests.
   """
+  @spec has_remaining_usage?(Scope.t(), String.t()) :: boolean()
   def has_remaining_usage?(%Scope{} = scope, provider) do
     get_usage_remaining(scope, provider) > 0
   end
@@ -233,6 +247,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns usage details for the user's server key usage.
   """
+  @spec get_usage_status(Scope.t(), String.t()) :: map()
   def get_usage_status(%Scope{} = scope, provider) do
     limit = usage_limit()
     used = usage_count(get_usage(scope, provider))
@@ -257,6 +272,7 @@ defmodule FrontmanServer.Providers do
   in a check-then-act pattern where two concurrent requests could both find nil
   and both attempt to insert.
   """
+  @spec increment_usage(Scope.t(), String.t()) :: {:ok, UserKeyUsage.t()} | {:error, term()}
   def increment_usage(%Scope{user: %User{} = user}, provider) do
     now = DateTime.utc_now(:second)
     usage = %UserKeyUsage{user_id: user.id}
@@ -271,22 +287,16 @@ defmodule FrontmanServer.Providers do
 
   ## API Key Resolution
 
-  @doc """
-  Resolves which API key to use for a provider.
+  # Resolves which API key to use for a provider.
+  #
+  # Resolution order:
+  # 1. OAuth token (for supported providers)
+  # 2. User's saved key
+  # 3. Env key from scope.env_api_keys (e.g., OPENROUTER_API_KEY from project)
+  # 4. Server env key (fallback)
+  defp resolve_api_key(scope, provider)
 
-  Resolution order:
-  1. OAuth token (for supported providers)
-  2. User's saved key
-  3. Env key from `scope.env_api_keys` (e.g., OPENROUTER_API_KEY from project)
-  4. Server env key (fallback)
-
-  ## Parameters
-    - scope: The user scope (or nil). env_api_keys are read from `scope.env_api_keys`.
-    - provider: The provider name (e.g., "openrouter")
-  """
-  def resolve_api_key(scope, provider)
-
-  def resolve_api_key(%Scope{} = scope, provider) when is_binary(provider) do
+  defp resolve_api_key(%Scope{} = scope, provider) when is_binary(provider) do
     case maybe_resolve_oauth_token(scope, provider) do
       {:oauth_token, _, _} = result ->
         result
@@ -302,7 +312,7 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  def resolve_api_key(nil, provider) when is_binary(provider) do
+  defp resolve_api_key(nil, provider) when is_binary(provider) do
     resolve_env_or_server_key(provider, %{})
   end
 
@@ -364,6 +374,7 @@ defmodule FrontmanServer.Providers do
 
   Delegates to `Registry.get_server_api_key/1`.
   """
+  @spec get_server_api_key(String.t()) :: String.t() | nil
   def get_server_api_key(provider) when is_binary(provider) do
     Registry.get_server_api_key(provider)
   end
@@ -376,6 +387,8 @@ defmodule FrontmanServer.Providers do
   Use this for user-initiated OAuth connections (e.g. completing an OAuth flow).
   For internal token refreshes, use `upsert_oauth_token/6` directly.
   """
+  @spec save_oauth_connection(Scope.t(), String.t(), String.t(), String.t(), DateTime.t(), map()) ::
+          {:ok, OAuthToken.t()} | {:error, term()}
   def save_oauth_connection(
         %Scope{user: %User{}} = scope,
         provider,
@@ -402,6 +415,14 @@ defmodule FrontmanServer.Providers do
 
   Accepts an optional `metadata` map for provider-specific data (e.g., `account_id`).
   """
+  @spec upsert_oauth_token(
+          Scope.t(),
+          String.t(),
+          String.t(),
+          String.t() | nil,
+          DateTime.t() | nil,
+          map()
+        ) :: {:ok, OAuthToken.t()} | {:error, term()}
   def upsert_oauth_token(
         %Scope{user: %User{} = user},
         provider,
@@ -443,6 +464,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Fetches an OAuth token for a provider (may be expired).
   """
+  @spec get_oauth_token(Scope.t(), String.t()) :: OAuthToken.t() | nil
   def get_oauth_token(%Scope{user: %User{} = user}, provider) do
     OAuthToken
     |> OAuthToken.for_user_and_provider(user.id, provider)
@@ -465,6 +487,7 @@ defmodule FrontmanServer.Providers do
 
   Returns `{:ok, access_token}` or `{:error, reason}`.
   """
+  @spec get_valid_oauth_token(Scope.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   def get_valid_oauth_token(%Scope{} = scope, provider) do
     case get_oauth_token(scope, provider) do
       nil ->
@@ -485,6 +508,7 @@ defmodule FrontmanServer.Providers do
   Dispatches to the correct provider's refresh_token implementation.
   Returns `{:ok, new_access_token}` or `{:error, reason}`.
   """
+  @spec refresh_oauth_token(Scope.t(), OAuthToken.t()) :: {:ok, String.t()} | {:error, term()}
   # GitHub OAuth App tokens don't expire and have no refresh_token.
   def refresh_oauth_token(_scope, %OAuthToken{provider: "github", refresh_token: nil} = token) do
     {:ok, token.access_token}
@@ -492,72 +516,50 @@ defmodule FrontmanServer.Providers do
 
   # GitHub App tokens expire and have real refresh_tokens.
   def refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "github"} = token) do
-    case refresh_github_token(token.refresh_token) do
-      {:ok, new_tokens} ->
-        expires_at =
-          case new_tokens[:expires_in] do
-            seconds when is_integer(seconds) -> OAuthToken.calculate_expires_at(seconds)
-            _ -> nil
-          end
-
-        metadata = if is_map(token.metadata), do: token.metadata, else: %{}
-
-        case upsert_oauth_token(
-               scope,
-               "github",
-               new_tokens.access_token,
-               new_tokens.refresh_token || token.refresh_token,
-               expires_at,
-               metadata
-             ) do
-          {:ok, _} -> {:ok, new_tokens.access_token}
-          {:error, reason} -> {:error, {:failed_to_store_refreshed_token, reason}}
-        end
-
-      {:error, reason} ->
-        {:error, {:refresh_failed, reason}}
+    expires_at_fn = fn new_tokens ->
+      case new_tokens[:expires_in] do
+        seconds when is_integer(seconds) -> OAuthToken.calculate_expires_at(seconds)
+        _ -> nil
+      end
     end
+
+    do_refresh(scope, token, &refresh_github_token/1, expires_at_fn)
   end
 
   def refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "chatgpt"} = token) do
-    case ChatGPTOAuth.refresh_token(token.refresh_token) do
-      {:ok, new_tokens} ->
-        expires_in = new_tokens.expires_in || 3600
-        expires_at = OAuthToken.calculate_expires_at(expires_in)
-
-        # Preserve existing metadata (account_id) when refreshing.
-        # Metadata should always be a map (schema default is %{}), but guard against
-        # nil from pre-migration rows that were never backfilled.
-        metadata = if is_map(token.metadata), do: token.metadata, else: %{}
-
-        case upsert_oauth_token(
-               scope,
-               "chatgpt",
-               new_tokens.access_token,
-               new_tokens.refresh_token || token.refresh_token,
-               expires_at,
-               metadata
-             ) do
-          {:ok, _} -> {:ok, new_tokens.access_token}
-          {:error, reason} -> {:error, {:failed_to_store_refreshed_token, reason}}
-        end
-
-      {:error, reason} ->
-        {:error, {:refresh_failed, reason}}
+    expires_at_fn = fn new_tokens ->
+      expires_in = new_tokens.expires_in || 3600
+      OAuthToken.calculate_expires_at(expires_in)
     end
+
+    do_refresh(scope, token, &ChatGPTOAuth.refresh_token/1, expires_at_fn)
   end
 
   def refresh_oauth_token(%Scope{} = scope, %OAuthToken{} = token) do
-    case AnthropicOAuth.refresh_token(token.refresh_token) do
+    expires_at_fn = fn new_tokens ->
+      AnthropicOAuth.calculate_expires_at(new_tokens.expires_in)
+    end
+
+    do_refresh(scope, token, &AnthropicOAuth.refresh_token/1, expires_at_fn)
+  end
+
+  # Shared refresh-then-store flow for all OAuth providers.
+  defp do_refresh(scope, token, refresh_fn, expires_at_fn) do
+    case refresh_fn.(token.refresh_token) do
       {:ok, new_tokens} ->
-        expires_at = AnthropicOAuth.calculate_expires_at(new_tokens.expires_in)
+        expires_at = expires_at_fn.(new_tokens)
+
+        # Preserve existing metadata (account_id etc.) when refreshing.
+        # Guard against nil from pre-migration rows that were never backfilled.
+        metadata = if is_map(token.metadata), do: token.metadata, else: %{}
 
         case upsert_oauth_token(
                scope,
                token.provider,
                new_tokens.access_token,
-               new_tokens.refresh_token,
-               expires_at
+               new_tokens[:refresh_token] || token.refresh_token,
+               expires_at,
+               metadata
              ) do
           {:ok, _} -> {:ok, new_tokens.access_token}
           {:error, reason} -> {:error, {:failed_to_store_refreshed_token, reason}}
@@ -574,6 +576,7 @@ defmodule FrontmanServer.Providers do
   On success, broadcasts a config change notification so subscribers
   can push updated config options to the client.
   """
+  @spec delete_oauth_token(Scope.t(), String.t()) :: :ok | {:error, :not_found}
   def delete_oauth_token(%Scope{user: %User{} = user}, provider) do
     query = OAuthToken.for_user_and_provider(OAuthToken, user.id, provider)
 
@@ -672,8 +675,8 @@ defmodule FrontmanServer.Providers do
   Resolves which providers a user can access and at what tier.
 
   Returns a list of `{provider_id, tier}` tuples sorted by provider
-  priority.  Iterates all catalog providers and classifies each using
-  `resolve_api_key/2`.
+  priority.  Iterates all catalog providers and classifies each by
+  key availability.
 
   ## Parameters
 
