@@ -414,14 +414,15 @@ defmodule FrontmanServer.Providers do
     # Build struct with user_id set explicitly (not via changeset for security)
     oauth_token = %OAuthToken{user_id: user.id}
 
-    changeset =
-      OAuthToken.changeset(oauth_token, %{
-        provider: provider,
-        access_token: access_token,
-        refresh_token: refresh_token,
-        expires_at: expires_at,
-        metadata: metadata
-      })
+    attrs = %{
+      provider: provider,
+      access_token: access_token,
+      refresh_token: refresh_token,
+      expires_at: expires_at,
+      metadata: metadata
+    }
+
+    changeset = changeset_for_provider(oauth_token, provider, attrs)
 
     Repo.insert(
       changeset,
@@ -429,6 +430,14 @@ defmodule FrontmanServer.Providers do
         {:replace, [:access_token, :refresh_token, :expires_at, :metadata, :updated_at]},
       conflict_target: [:user_id, :provider]
     )
+  end
+
+  defp changeset_for_provider(oauth_token, "github", attrs) do
+    OAuthToken.github_changeset(oauth_token, attrs)
+  end
+
+  defp changeset_for_provider(oauth_token, _provider, attrs) do
+    OAuthToken.changeset(oauth_token, attrs)
   end
 
   @doc """

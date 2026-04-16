@@ -12,6 +12,8 @@ defmodule FrontmanServerWeb.OAuthController do
   alias FrontmanServer.Providers
   alias FrontmanServerWeb.UserAuth
 
+  require Logger
+
   import FrontmanServerWeb.UserAuth, only: [require_sudo_mode: 2]
 
   plug(:require_sudo_mode when action in [:link_request, :link_callback, :unlink])
@@ -23,11 +25,9 @@ defmodule FrontmanServerWeb.OAuthController do
   end
 
   def callback(conn, %{"code" => code}) do
-    require Logger
-
     case Accounts.authenticate_with_oauth(code) do
-      {:ok, user, {provider, oauth_tokens}} ->
-        maybe_store_github_token(user, provider, oauth_tokens)
+      {:ok, user, oauth_tokens} ->
+        store_provider_token(user, oauth_tokens)
 
         conn
         |> put_flash(:info, "Welcome!")
@@ -91,8 +91,8 @@ defmodule FrontmanServerWeb.OAuthController do
       |> redirect(to: ~p"/users/log-in")
     else
       case Accounts.authenticate_with_email_verification(code, token) do
-        {:ok, user, {provider, oauth_tokens}} ->
-          maybe_store_github_token(user, provider, oauth_tokens)
+        {:ok, user, oauth_tokens} ->
+          store_provider_token(user, oauth_tokens)
 
           conn
           |> delete_session(:pending_auth_token)
@@ -151,22 +151,17 @@ defmodule FrontmanServerWeb.OAuthController do
     |> redirect(to: ~p"/users/settings")
   end
 
-  defp maybe_store_github_token(user, "github", {:ok, tokens}) do
-    require Logger
-    scope = Accounts.Scope.for_user(user)
+  defp store_provider_token(_user, nil), do: :ok
 
-    expires_at =
-      case tokens.expires_at do
-        ts when is_integer(ts) -> DateTime.from_unix!(ts) |> DateTime.truncate(:second)
-        _ -> DateTime.utc_now() |> DateTime.add(28_800, :second) |> DateTime.truncate(:second)
-      end
+  defp store_provider_token(user, %{provider: "github"} = tokens) do
+    scope = Accounts.Scope.for_user(user)
 
     case Providers.save_oauth_connection(
            scope,
            "github",
            tokens.access_token,
-           tokens.refresh_token || "none",
-           expires_at,
+           tokens.refresh_token,
+           tokens.expires_at,
            %{"scopes" => tokens.scopes || []}
          ) do
       {:ok, _token} ->
@@ -176,8 +171,6 @@ defmodule FrontmanServerWeb.OAuthController do
         Logger.error("Failed to store GitHub OAuth token: #{inspect(reason)}")
     end
   end
-
-  defp maybe_store_github_token(_user, _provider, _tokens), do: :ok
 
   defp generate_state_token do
     :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)

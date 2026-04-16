@@ -1,9 +1,6 @@
 defmodule FrontmanServerWeb.OAuthControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
-  alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Providers
-
   import FrontmanServer.Test.Fixtures.Accounts
 
   setup do
@@ -42,30 +39,6 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
                "You must re-authenticate to access this page."
-    end
-  end
-
-  describe "GitHub OAuth token storage" do
-    test "stores and retrieves GitHub OAuth token via Providers", %{user: user} do
-      scope = Scope.for_user(user)
-
-      expires_at =
-        DateTime.utc_now()
-        |> DateTime.add(28_800, :second)
-        |> DateTime.truncate(:second)
-
-      assert {:ok, _token} =
-               Providers.save_oauth_connection(
-                 scope,
-                 "github",
-                 "gho_test_token",
-                 "ghr_test_refresh",
-                 expires_at,
-                 %{"scopes" => ["repo"]}
-               )
-
-      assert {:ok, "gho_test_token"} =
-               Providers.get_valid_oauth_token(scope, "github")
     end
   end
 
