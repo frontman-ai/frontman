@@ -1365,9 +1365,10 @@ let next = (state: state, action) => {
     }
 
   | ClearCurrentTask =>
+    let previewUrl = Selectors.previewUrl(state)
     {
       ...state,
-      currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
+      currentTask: Task.New(Task.makeNew(~previewUrl)),
     }->StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>

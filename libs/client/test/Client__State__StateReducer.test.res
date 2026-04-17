@@ -770,6 +770,19 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
+  test("ClearCurrentTask preserves current preview URL", t => {
+    let previewUrl = "http://localhost:3000/products/42?tab=details"
+    let state = TestHelpers.makeStateWithTask(~previewUrl)
+
+    let (nextState, _effects) = Reducer.next(state, ClearCurrentTask)
+
+    t->expect(Reducer.Selectors.previewUrl(nextState))->Expect.toBe(previewUrl)
+    switch nextState.currentTask {
+    | Task.New(_) => t->expect(true)->Expect.toBe(true)
+    | Task.Selected(_) => t->expect(false)->Expect.toBe(true)
+    }
+  })
+
   test("DeleteTask switches to New when deleting only task", t => {
     let task1 = Task.makeLoaded(
       ~id="task-1",
