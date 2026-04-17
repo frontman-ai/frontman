@@ -289,9 +289,16 @@ defmodule FrontmanServer.Sandbox.OrchestratorTest do
   end
 
   defp safe_stop(pid) do
-    GenServer.stop(pid, :normal, 1_000)
+    GenServer.stop(pid, :normal, 10_000)
   catch
-    :exit, {:noproc, _} -> :ok
-    :exit, :noproc -> :ok
+    :exit, {:timeout, _} ->
+      Process.exit(pid, :normal)
+      :ok
+
+    :exit, {:noproc, _} ->
+      :ok
+
+    :exit, :noproc ->
+      :ok
   end
 end

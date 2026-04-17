@@ -115,9 +115,6 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
         else
           {:error, {:cmd_failed, code, output}}
         end
-
-      {:error, _reason} = error ->
-        error
     end
   end
 
