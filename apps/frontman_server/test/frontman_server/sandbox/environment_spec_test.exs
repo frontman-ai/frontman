@@ -84,4 +84,55 @@ defmodule FrontmanServer.Sandbox.EnvironmentSpecTest do
                )
     end
   end
+
+  describe "from_map/1" do
+    test "rebuilds spec from persisted map with string keys" do
+      assert {:ok, spec} =
+               EnvironmentSpec.from_map(%{
+                 "name" => "issue-123",
+                 "image" => "ubuntu:24.04",
+                 "devcontainer" => %{"postCreateCommand" => "echo ready"},
+                 "env" => %{"FOO" => "bar"}
+               })
+
+      assert spec.name == "issue-123"
+      assert spec.image == "ubuntu:24.04"
+      assert spec.devcontainer == %{"postCreateCommand" => "echo ready"}
+      assert spec.env == %{"FOO" => "bar"}
+    end
+
+    test "rebuilds spec from persisted map with atom keys" do
+      assert {:ok, spec} =
+               EnvironmentSpec.from_map(%{
+                 name: "issue-123",
+                 image: "ubuntu:24.04",
+                 devcontainer: %{},
+                 env: %{}
+               })
+
+      assert spec.name == "issue-123"
+      assert spec.image == "ubuntu:24.04"
+      assert spec.devcontainer == %{}
+      assert spec.env == %{}
+    end
+  end
+
+  describe "to_map/1" do
+    test "serializes a spec for DB persistence" do
+      {:ok, spec} =
+        EnvironmentSpec.new(
+          name: "issue-123",
+          image: "ubuntu:24.04",
+          devcontainer: %{"forwardPorts" => [3000]},
+          env: %{"FOO" => "bar"}
+        )
+
+      assert EnvironmentSpec.to_map(spec) == %{
+               "name" => "issue-123",
+               "image" => "ubuntu:24.04",
+               "devcontainer" => %{"forwardPorts" => [3000]},
+               "env" => %{"FOO" => "bar"}
+             }
+    end
+  end
 end

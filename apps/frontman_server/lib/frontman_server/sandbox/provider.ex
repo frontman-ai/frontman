@@ -30,9 +30,10 @@ defmodule FrontmanServer.Sandbox.Provider do
         }
 
   @type sandbox_metrics :: %{
-          status: String.t(),
-          cpu_percent: float(),
-          memory_bytes: integer()
+          required(:running) => boolean(),
+          optional(:status) => String.t(),
+          optional(:cpu_percent) => float(),
+          optional(:memory_bytes) => integer()
         }
 
   @type env_spec :: FrontmanServer.Sandbox.EnvironmentSpec.t()
@@ -60,9 +61,9 @@ defmodule FrontmanServer.Sandbox.Provider do
   @doc """
   Poll sandbox health and resource usage.
 
-  Returns running status and resource metrics. Does NOT return vm_ip —
-  the Orchestrator discovers that via `exec(ref, "hostname", ["-I"], [])`
-  after creation.
+  `running` is the source of truth for Orchestrator state transitions.
+  Providers may include additional telemetry (status/cpu/memory) for
+  observability and debugging.
   """
   @callback metrics(provider_ref()) :: {:ok, sandbox_metrics()} | {:error, term()}
 
