@@ -304,7 +304,7 @@ const frontman = createMiddleware({
   host: 'api.frontman.sh',
 });
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const response = await frontman(req);
   if (response) return response;
   return NextResponse.next();
