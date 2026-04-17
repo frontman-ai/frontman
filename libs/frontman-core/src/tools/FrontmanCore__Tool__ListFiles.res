@@ -5,6 +5,7 @@ module Fs = FrontmanBindings.Fs
 module ChildProcess = FrontmanCore__ChildProcess
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
+module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.listFiles
 let visibleToAgent = true
@@ -100,6 +101,8 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
           }
         })
         ->Promise.all
+
+        ToolPathHints.recordListAnchor(~sourceRoot=ctx.sourceRoot, ~path=relativePath)
 
         Ok(entriesWithStats)
       }

@@ -26,6 +26,17 @@ Core server functionality shared across framework adapters, providing a composab
 - `SearchFiles` - File glob pattern matching
 - `LoadAgentInstructions` - Load agent configuration files
 
+## Tool-Call Path Guardrails
+
+Frontman Core applies path-recovery guardrails across `list_tree`, `search_files`, and `read_file` to reduce deterministic tool failures:
+
+- **Discovery before read**: `read_file` now blocks guessed missing paths and returns recovery guidance.
+- **Zero-result guardrail**: when `search_files` returns `totalResults = 0`, immediate guessed `read_file` retries for matching candidates are blocked.
+- **ENOENT recovery**: path-climb strategy finds the nearest existing parent, shows recovery context, and suggests discovered candidates.
+- **No semantic guessing**: responses prioritize discovered paths over inferred folder/name guesses.
+- **Structured search errors**: `search_files` backend failures include command, cwd, exit code, stderr, and target path.
+- **Path hints cache**: per-source-root anchors from successful discovery/read calls are reused for later recovery hints.
+
 ## Development
 
 Build the library:
