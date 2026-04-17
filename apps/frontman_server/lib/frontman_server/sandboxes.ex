@@ -12,6 +12,7 @@ defmodule FrontmanServer.Sandboxes do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Projects
   alias FrontmanServer.Repo
+  alias FrontmanServer.Sandbox.EnvironmentSpec
   alias FrontmanServer.Sandbox.Orchestrator
   alias FrontmanServer.Sandboxes.Sandbox
   alias FrontmanServer.Tasks.TaskSchema
@@ -23,11 +24,12 @@ defmodule FrontmanServer.Sandboxes do
   The caller is responsible for wiring the result into any downstream state.
   """
   @spec provision_for_task(Scope.t(), TaskSchema.t(), map()) ::
-          {:ok, Sandbox.t()} | {:error, :not_found | Ecto.Changeset.t()}
+          {:ok, Sandbox.t()} | {:error, :not_found | Ecto.Changeset.t() | term()}
   def provision_for_task(%Scope{} = scope, %TaskSchema{} = task, env_spec) do
-    with {:ok, _project} <- Projects.get_project(scope, task.project_id) do
+    with {:ok, _project} <- Projects.get_project(scope, task.project_id),
+         {:ok, persisted_env_spec} <- normalize_env_spec(env_spec) do
       %Sandbox{}
-      |> Sandbox.create_changeset(task.id, task.project_id, %{env_spec: env_spec})
+      |> Sandbox.create_changeset(task.id, task.project_id, %{env_spec: persisted_env_spec})
       |> Repo.insert()
     end
   end
@@ -162,7 +164,10 @@ defmodule FrontmanServer.Sandboxes do
           {:ok, map()} | {:error, term()}
   def exec_in_sandbox(%Scope{} = scope, sandbox_id, command, args, opts \\ []) do
     with {:ok, _sandbox} <- get_sandbox(scope, sandbox_id) do
-      Orchestrator.exec(sandbox_id, command, args, opts)
+      case Orchestrator.exec(sandbox_id, command, args, opts) do
+        {:error, :not_found} -> {:error, :orchestrator_not_running}
+        result -> result
+      end
     end
   end
 
@@ -170,7 +175,10 @@ defmodule FrontmanServer.Sandboxes do
   @spec stop_sandbox(Scope.t(), Ecto.UUID.t()) :: :ok | {:error, term()}
   def stop_sandbox(%Scope{} = scope, sandbox_id) do
     with {:ok, _sandbox} <- get_sandbox(scope, sandbox_id) do
-      Orchestrator.stop(sandbox_id)
+      case Orchestrator.stop(sandbox_id) do
+        {:error, :not_found} -> {:error, :orchestrator_not_running}
+        result -> result
+      end
     end
   end
 
@@ -178,7 +186,10 @@ defmodule FrontmanServer.Sandboxes do
   @spec destroy_sandbox(Scope.t(), Ecto.UUID.t()) :: :ok | {:error, term()}
   def destroy_sandbox(%Scope{} = scope, sandbox_id) do
     with {:ok, _sandbox} <- get_sandbox(scope, sandbox_id) do
-      Orchestrator.destroy(sandbox_id)
+      case Orchestrator.destroy(sandbox_id) do
+        {:error, :not_found} -> {:error, :orchestrator_not_running}
+        result -> result
+      end
     end
   end
 
@@ -205,7 +216,12 @@ defmodule FrontmanServer.Sandboxes do
     orchestrator_opts =
       Keyword.merge(
         [sandbox_id: sandbox.id],
-        Keyword.take(opts, [:provider, :heartbeat_interval_ms, :provision_timeout_ms])
+        Keyword.take(opts, [
+          :provider,
+          :heartbeat_interval_ms,
+          :provision_timeout_ms,
+          :task_supervisor
+        ])
       )
 
     case DynamicSupervisor.start_child(
@@ -227,4 +243,13 @@ defmodule FrontmanServer.Sandboxes do
         {:error, reason}
     end
   end
+
+  defp normalize_env_spec(env_spec) when is_map(env_spec) do
+    case EnvironmentSpec.from_map(env_spec) do
+      {:ok, spec} -> {:ok, EnvironmentSpec.to_map(spec)}
+      {:error, reason} -> {:error, {:invalid_env_spec, reason}}
+    end
+  end
+
+  defp normalize_env_spec(env_spec), do: {:ok, env_spec}
 end

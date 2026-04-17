@@ -56,9 +56,42 @@ defmodule FrontmanServer.Sandbox.EnvironmentSpec do
     end
   end
 
+  @spec from_map(map()) :: {:ok, t()} | {:error, term()}
+  def from_map(map) when is_map(map) do
+    opts =
+      [
+        {:name, fetch_field(map, :name)},
+        {:image, fetch_field(map, :image)},
+        {:devcontainer, fetch_field(map, :devcontainer)},
+        {:env, fetch_field(map, :env) || %{}}
+      ]
+      |> Enum.reject(fn {_, value} -> is_nil(value) end)
+
+    new(opts)
+  end
+
+  def from_map(_), do: {:error, :invalid_env_spec}
+
+  @spec to_map(t()) :: map()
+  def to_map(%__MODULE__{} = spec) do
+    %{
+      "name" => spec.name,
+      "image" => spec.image,
+      "devcontainer" => spec.devcontainer,
+      "env" => spec.env
+    }
+  end
+
   defp validate_name(%__MODULE__{name: name}) when byte_size(name) == 0 do
     {:error, %NimbleOptions.ValidationError{key: :name, message: "must be a non-empty string"}}
   end
 
   defp validate_name(%__MODULE__{}), do: :ok
+
+  defp fetch_field(map, field) do
+    case Map.fetch(map, field) do
+      {:ok, value} -> value
+      :error -> Map.get(map, Atom.to_string(field))
+    end
+  end
 end

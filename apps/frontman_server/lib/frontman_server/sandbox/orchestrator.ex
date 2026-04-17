@@ -16,10 +16,13 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   require Logger
 
   alias FrontmanServer.Repo
+  alias FrontmanServer.Sandbox.EnvironmentSpec
   alias FrontmanServer.Sandbox.SandboxSchema
 
   @default_heartbeat_interval_ms 30_000
   @default_provision_timeout_ms 300_000
+  @default_exec_call_timeout_ms 120_000
+  @exec_call_timeout_buffer_ms 5_000
 
   defstruct [
     :sandbox_id,
@@ -28,7 +31,10 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
     :heartbeat_ref,
     :provision_timer_ref,
     :provider,
-    :heartbeat_interval_ms
+    :heartbeat_interval_ms,
+    :provision_timeout_ms,
+    :environment_spec,
+    :task_supervisor
   ]
 
   # --- Client API ---
@@ -45,22 +51,36 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   @spec exec(String.t(), String.t(), [String.t()], keyword()) ::
           {:ok, map()} | {:error, term()}
   def exec(sandbox_id, command, args, opts \\ []) do
-    GenServer.call(via(sandbox_id), {:exec, command, args, opts}, 120_000)
+    call_timeout = exec_call_timeout(opts)
+
+    case safe_call(sandbox_id, {:exec, command, args, opts}, call_timeout) do
+      {:ok, result} -> result
+      {:error, :not_found} -> {:error, :not_found}
+    end
   end
 
   @spec stop(String.t()) :: :ok | {:error, term()}
   def stop(sandbox_id) do
-    GenServer.call(via(sandbox_id), :stop)
+    case safe_call(sandbox_id, :stop) do
+      {:ok, result} -> result
+      {:error, :not_found} -> {:error, :not_found}
+    end
   end
 
   @spec destroy(String.t()) :: :ok | {:error, term()}
   def destroy(sandbox_id) do
-    GenServer.call(via(sandbox_id), :destroy)
+    case safe_call(sandbox_id, :destroy) do
+      {:ok, result} -> result
+      {:error, :not_found} -> {:error, :not_found}
+    end
   end
 
   @spec status(String.t()) :: {:ok, atom()} | {:error, :not_found}
   def status(sandbox_id) do
-    GenServer.call(via(sandbox_id), :status)
+    case safe_call(sandbox_id, :status) do
+      {:ok, result} -> result
+      {:error, :not_found} -> {:error, :not_found}
+    end
   end
 
   defp via(sandbox_id) do
@@ -73,6 +93,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   def init(opts) do
     sandbox_id = Keyword.fetch!(opts, :sandbox_id)
     provider = Keyword.get(opts, :provider, default_provider())
+    task_supervisor = Keyword.get(opts, :task_supervisor, FrontmanServer.Sandbox.TaskSupervisor)
 
     heartbeat_interval_ms =
       Keyword.get(opts, :heartbeat_interval_ms, @default_heartbeat_interval_ms)
@@ -86,21 +107,39 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
       sandbox_id: sandbox_id,
       provider: provider,
       status: :provisioning,
-      heartbeat_interval_ms: heartbeat_interval_ms
+      heartbeat_interval_ms: heartbeat_interval_ms,
+      provision_timeout_ms: provision_timeout_ms,
+      task_supervisor: task_supervisor
     }
 
-    case provider.create(sandbox.env_spec) do
+    case EnvironmentSpec.from_map(sandbox.env_spec) do
+      {:ok, environment_spec} ->
+        {:ok, %{state | environment_spec: environment_spec}, {:continue, :provision}}
+
+      {:error, reason} ->
+        Logger.error("[Orchestrator] invalid env_spec for #{sandbox_id}: #{inspect(reason)}")
+
+        update_db_status(sandbox_id, :error)
+        {:stop, :normal}
+    end
+  end
+
+  @impl true
+  def handle_continue(:provision, state) do
+    case state.provider.create(state.environment_spec) do
       {:ok, provider_ref} ->
+        sandbox = Repo.get!(SandboxSchema, state.sandbox_id)
+
         sandbox
         |> SandboxSchema.set_provider_ref_changeset(provider_ref)
         |> Repo.update!()
 
         provision_timer_ref =
-          Process.send_after(self(), :provision_timeout, provision_timeout_ms)
+          Process.send_after(self(), :provision_timeout, state.provision_timeout_ms)
 
-        heartbeat_ref = schedule_heartbeat(heartbeat_interval_ms)
+        heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
 
-        {:ok,
+        {:noreply,
          %{
            state
            | provider_ref: provider_ref,
@@ -110,23 +149,27 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
 
       {:error, reason} ->
         Logger.error(
-          "[Orchestrator] provider.create failed for #{sandbox_id}: #{inspect(reason)}"
+          "[Orchestrator] provider.create failed for #{state.sandbox_id}: #{inspect(reason)}"
         )
 
-        update_db_status(sandbox_id, :error)
-        {:stop, :normal}
+        update_db_status(state.sandbox_id, :error)
+        {:stop, :normal, state}
     end
   end
 
   @impl true
   def handle_call({:exec, command, args, opts}, from, %{status: :running} = state) do
-    Task.Supervisor.start_child(FrontmanServer.Sandbox.TaskSupervisor, fn ->
-      result = state.provider.exec(state.provider_ref, command, args, opts)
-      GenServer.reply(from, result)
-    end)
+    case start_exec_task(state.task_supervisor, fn ->
+           result = state.provider.exec(state.provider_ref, command, args, opts)
+           GenServer.reply(from, result)
+         end) do
+      {:ok, _pid} ->
+        touch_last_active(state.sandbox_id)
+        {:noreply, state}
 
-    touch_last_active(state.sandbox_id)
-    {:noreply, state}
+      {:error, reason} ->
+        {:reply, {:error, {:task_start_failed, reason}}, state}
+    end
   end
 
   def handle_call({:exec, _, _, _}, _from, %{status: :provisioning} = state) do
@@ -260,5 +303,31 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
       :sandbox_provider,
       FrontmanServer.Sandbox.Provider.Microsandbox
     )
+  end
+
+  defp exec_call_timeout(opts) do
+    case Keyword.get(opts, :timeout_ms, @default_exec_call_timeout_ms) do
+      :infinity ->
+        :infinity
+
+      timeout_ms when is_integer(timeout_ms) and timeout_ms > 0 ->
+        timeout_ms + @exec_call_timeout_buffer_ms
+
+      _ ->
+        @default_exec_call_timeout_ms
+    end
+  end
+
+  defp safe_call(sandbox_id, message, timeout \\ 5_000) do
+    {:ok, GenServer.call(via(sandbox_id), message, timeout)}
+  catch
+    :exit, {:noproc, _} -> {:error, :not_found}
+    :exit, :noproc -> {:error, :not_found}
+  end
+
+  defp start_exec_task(task_supervisor, fun) do
+    Task.Supervisor.start_child(task_supervisor, fun)
+  catch
+    :exit, reason -> {:error, reason}
   end
 end

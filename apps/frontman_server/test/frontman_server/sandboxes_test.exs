@@ -28,6 +28,14 @@ defmodule FrontmanServer.SandboxesTest do
       assert errors_on(changeset).env_spec
     end
 
+    test "returns {:error, {:invalid_env_spec, _}} when env_spec map is malformed", %{
+      scope: scope,
+      task: task
+    } do
+      assert {:error, {:invalid_env_spec, _reason}} =
+               Sandboxes.provision_for_task(scope, task, %{"runtime" => "node20"})
+    end
+
     test "returns {:error, :not_found} when task belongs to another user", %{task: task} do
       other_scope = user_scope_fixture()
 

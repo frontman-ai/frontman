@@ -11,7 +11,16 @@ defmodule FrontmanServer.Test.Fixtures.Sandboxes do
   alias FrontmanServer.Tasks.TaskSchema
 
   def valid_env_spec do
-    %{"runtime" => "node20", "package_manager" => "pnpm", "port" => 3000}
+    %{
+      "name" => "test-sandbox",
+      "image" => "ubuntu:24.04",
+      "devcontainer" => %{
+        "runtime" => "node20",
+        "packageManager" => "pnpm",
+        "forwardPorts" => [3000]
+      },
+      "env" => %{}
+    }
   end
 
   def task_with_project_fixture(scope) do
