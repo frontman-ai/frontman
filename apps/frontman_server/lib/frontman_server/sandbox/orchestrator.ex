@@ -328,6 +328,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
     :exit, {:noproc, _} -> {:error, :not_found}
     :exit, :noproc -> {:error, :not_found}
     :exit, {:timeout, _} -> {:error, :timeout}
+    :exit, {:normal, _} -> {:error, :server_terminated}
   end
 
   defp start_exec_task(task_supervisor, fun) do
