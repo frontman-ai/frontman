@@ -5,6 +5,7 @@ module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext
+module PathStringUtils = FrontmanAiFrontmanCore.FrontmanCore__PathStringUtils
 
 let name = "get_client_pages"
 let visibleToAgent = true
@@ -56,15 +57,11 @@ let isDynamicSegment = (segment: string): bool => {
   analyzeDynamicSegment(segment) != Static
 }
 
-// Normalize path separators to forward slashes for cross-platform route conversion
-// Route paths are URL paths and always use forward slashes
-let toForwardSlashes = (path: string): string => path->String.replaceAll("\\", "/")
-
 // Convert file path to route path
 // Normalizes separators first since Path.join uses \ on Windows but routes need /
 let fileToRoute = (filePath: string): string => {
   filePath
-  ->toForwardSlashes
+  ->PathStringUtils.toForwardSlashes
   ->String.replaceRegExp(/\.(astro|md|mdx|html)$/, "")
   ->String.replaceRegExp(/\/index$/, "")
   ->(p => p == "" ? "/" : p)
@@ -125,7 +122,10 @@ let rec findPages = async (
         let routePath = fileToRoute(filePath)
         let filePathNoExt = filePath->String.replaceRegExp(/\.(astro|md|mdx|html)$/, "")
         // Normalize separators for cross-platform segment splitting
-        let segments = filePathNoExt->toForwardSlashes->String.split("/")
+        let segments =
+          filePathNoExt
+          ->PathStringUtils.toForwardSlashes
+          ->String.split("/")
         let hasDynamic = segments->Array.some(isDynamicSegment)
         let dynType = getMostSignificantDynamicType(segments)
         // Make path relative to sourceRoot so the agent can pass it

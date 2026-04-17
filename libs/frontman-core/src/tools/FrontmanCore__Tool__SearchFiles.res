@@ -6,6 +6,7 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 module PathRecovery = FrontmanCore__PathRecovery
 module ToolPathHints = FrontmanCore__ToolPathHints
+module FilenamePattern = FrontmanCore__FilenamePattern
 
 let name = Tool.ToolNames.searchFiles
 let visibleToAgent = true
@@ -84,29 +85,8 @@ let buildRipgrepArgs = (~searchPath: string): array<string> => {
   args
 }
 
-// Check if a filename matches a pattern (case-insensitive, glob-like)
-let matchesPattern = (fileName: string, ~patternLower: string): bool => {
-  let fileNameLower = fileName->String.toLowerCase
-
-  switch patternLower {
-  | "" => true
-  | p if p->String.includes("*") => {
-      let parts = p->String.split("*")
-      let partsLength = Array.length(parts)
-
-      parts->Array.reduceWithIndex(true, (matches, part, idx) =>
-        switch (matches, part) {
-        | (false, _) => false
-        | (_, "") => true
-        | _ if idx === 0 => fileNameLower->String.startsWith(part)
-        | _ if idx === partsLength - 1 => fileNameLower->String.endsWith(part)
-        | _ => fileNameLower->String.includes(part)
-        }
-      )
-    }
-  | p => fileNameLower->String.includes(p)
-  }
-}
+let matchesPattern = (fileName: string, ~patternLower: string): bool =>
+  FilenamePattern.matchesPattern(~pattern=patternLower, ~text=fileName)
 
 // Filter file paths by pattern and paginate results.
 // Shared by both the ripgrep and git ls-files code paths.

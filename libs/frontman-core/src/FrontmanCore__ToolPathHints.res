@@ -6,6 +6,8 @@
 
 module Path = FrontmanBindings.Path
 module PathContext = FrontmanCore__PathContext
+module FilenamePattern = FrontmanCore__FilenamePattern
+module PathStringUtils = FrontmanCore__PathStringUtils
 
 type zeroSearch = {
   pattern: string,
@@ -37,8 +39,6 @@ let emptyState = (): state => {
   zeroSearches: [],
 }
 
-let normalizeSlashes = (path: string): string => path->String.replaceAll("\\", "/")
-
 let stripLeadingDotSlash = (path: string): string => {
   path->String.replaceRegExp(/^\.\//, "")
 }
@@ -48,7 +48,7 @@ let stripLeadingSlash = (path: string): string => {
 }
 
 let normalizePath = (path: string): string => {
-  let normalized = path->normalizeSlashes->stripLeadingDotSlash->stripLeadingSlash
+  let normalized = path->PathStringUtils.toForwardSlashes->stripLeadingDotSlash->stripLeadingSlash
 
   switch normalized {
   | "" => "."
@@ -105,31 +105,6 @@ let normalizeFileRelativeToSearchRoot = (
 
       normalizeRelativeToRoot(~sourceRoot, ~path=prefixedPath)
     }
-  }
-}
-
-// Same matching rules as search_files: case-insensitive + wildcard support.
-let patternMatchesFileName = (~pattern: string, ~fileName: string): bool => {
-  let patternLower = pattern->String.toLowerCase
-  let fileNameLower = fileName->String.toLowerCase
-
-  switch patternLower {
-  | "" => true
-  | p if p->String.includes("*") => {
-      let parts = p->String.split("*")
-      let partsLength = Array.length(parts)
-
-      parts->Array.reduceWithIndex(true, (matches, part, idx) =>
-        switch (matches, part) {
-        | (false, _) => false
-        | (_, "") => true
-        | _ if idx == 0 => fileNameLower->String.startsWith(part)
-        | _ if idx == partsLength - 1 => fileNameLower->String.endsWith(part)
-        | _ => fileNameLower->String.includes(part)
-        }
-      )
-    }
-  | p => fileNameLower->String.includes(p)
   }
 }
 
@@ -254,7 +229,7 @@ let findBlockingZeroSearch = (~sourceRoot: string, ~requestedRelativePath: strin
 
     state.zeroSearches->Array.find(z => {
       isFreshZeroSearch(~nowMs, z) &&
-      patternMatchesFileName(~pattern=z.pattern, ~fileName) &&
+      FilenamePattern.matchesPattern(~pattern=z.pattern, ~text=fileName) &&
       pathIsUnderSearchRoot(~requestedPath, ~searchRoot=z.searchRoot)
     })
   }
