@@ -2,7 +2,7 @@
 # Create a containerized worktree: git worktree + Podman pod + postgres + dev container.
 # Called by: make wt-new
 #
-# Required env: BRANCH, DEV_IMAGE, MD5CMD
+# Required env: BRANCH, DEV_IMAGE, MD5CMD, WORKTREE_BASE_BRANCH (optional)
 # MD5CMD is the platform-specific md5 pipeline (e.g. "md5sum | cut -c1-4")
 #
 # Networking: pods use pasta (rootless-friendly) with host-published ports.
@@ -18,6 +18,7 @@ CYAN='\033[36m'; GREEN='\033[32m'; YELLOW='\033[33m'; RESET='\033[0m'
 
 BRANCH="${BRANCH:?BRANCH is required}"
 DEV_IMAGE="${DEV_IMAGE:?DEV_IMAGE is required}"
+WORKTREE_BASE_BRANCH="${WORKTREE_BASE_BRANCH:-$(git branch --show-current)}"
 
 HASH=$(echo -n "$BRANCH" | eval "$MD5CMD")
 POD_NAME="worktree-${HASH}"
@@ -56,7 +57,11 @@ if [ -d "$WT_DIR" ]; then
 elif git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
   git worktree add "$WT_DIR" "$BRANCH"
 else
-  git worktree add "$WT_DIR" -b "$BRANCH"
+  if [ -n "$WORKTREE_BASE_BRANCH" ]; then
+    git worktree add "$WT_DIR" -b "$BRANCH" "$WORKTREE_BASE_BRANCH"
+  else
+    git worktree add "$WT_DIR" -b "$BRANCH"
+  fi
 fi
 mkdir -p "$WT_DIR/.claude/projects" "$WT_DIR/.claude/plans" "$WT_DIR/.claude/todos"
 touch "$WT_DIR/.claude/history.jsonl"

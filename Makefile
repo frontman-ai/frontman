@@ -236,7 +236,7 @@ wt: ## Dashboard — shows all worktrees, pod status, URLs, and actions
 
 wt-new: ## Create containerized worktree (BRANCH=...)
 	$(call resolve_branch,wt-new)
-	@BRANCH="$(BRANCH)" DEV_IMAGE=$(DEV_IMAGE) \
+	@BRANCH="$(BRANCH)" WORKTREE_BASE_BRANCH="$(WORKTREE_BASE_BRANCH)" DEV_IMAGE=$(DEV_IMAGE) \
 		bash ./bin/wt-pod-create
 
 wt-dev: ## Start dev servers in container (BRANCH=...)
@@ -355,13 +355,18 @@ infra-build: ## Rebuild the frontman-dev container image
 worktree-create:
 	$(call require_branch,worktree-create)
 	@WORKTREE_NAME=$$(echo "$(BRANCH)" | sed 's|^origin/||'); \
+	WORKTREE_BASE_BRANCH=$${WORKTREE_BASE_BRANCH:-$(shell git branch --show-current)}; \
 	mkdir -p .worktrees; \
 	if git show-ref --verify --quiet "refs/heads/$$WORKTREE_NAME" || \
 	   git show-ref --verify --quiet "refs/remotes/origin/$$WORKTREE_NAME" || \
 	   git show-ref --verify --quiet "refs/remotes/$(BRANCH)"; then \
 		git worktree add ".worktrees/$$WORKTREE_NAME" $(BRANCH); \
 	else \
-		git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME"; \
+		if [ -n "$$WORKTREE_BASE_BRANCH" ]; then \
+			git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME" "$$WORKTREE_BASE_BRANCH"; \
+		else \
+			git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME"; \
+		fi; \
 	fi; \
 	mkdir -p ".worktrees/$$WORKTREE_NAME/.claude/projects" ".worktrees/$$WORKTREE_NAME/.claude/plans" ".worktrees/$$WORKTREE_NAME/.claude/todos"; \
 	touch ".worktrees/$$WORKTREE_NAME/.claude/history.jsonl"; \
