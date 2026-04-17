@@ -7,6 +7,7 @@ module ListTree = FrontmanCore__Tool__ListTree
 module SearchFiles = FrontmanCore__Tool__SearchFiles
 module ReadFile = FrontmanCore__Tool__ReadFile
 module ToolPathHints = FrontmanCore__ToolPathHints
+module PathRecovery = FrontmanCore__PathRecovery
 module Fs = FrontmanBindings.Fs
 module Path = FrontmanBindings.Path
 module ChildProcess = FrontmanCore__ChildProcess
@@ -145,6 +146,46 @@ describe("Tool path guardrails", _t => {
     | Error(msg) => {
         t->expect(msg->String.includes("Zero-result guardrail"))->Expect.toBe(true)
         t->expect(msg->String.includes("ENOENT"))->Expect.toBe(false)
+      }
+    }
+
+    await cleanup(dir)
+  })
+
+  test("T5 recordSearch normalizes non-absolute files under search path", t => {
+    ToolPathHints.clear()
+
+    let sourceRoot = "/tmp/root-test"
+    let expectedFile = "libs/frontman-nextjs/src/index.ts"
+
+    ToolPathHints.recordSearch(
+      ~sourceRoot,
+      ~searchPath=Path.join([sourceRoot, "libs", "frontman-nextjs"]),
+      ~pattern="index.ts",
+      ~files=["src/index.ts"],
+      ~totalResults=1,
+    )
+
+    let anchors = ToolPathHints.getAnchors(~sourceRoot)
+    t->expect(anchors->Array.includes("."))->Expect.toBe(false)
+    t->expect(anchors->Array.includes(expectedFile->Path.dirname))->Expect.toBe(true)
+  })
+
+  testAsync("T6 read_file-style recovery stays in source root", async t => {
+    ToolPathHints.clear()
+    let dir = await makeFixture()
+
+    let outsideCandidate = await PathRecovery.recoverMissingPath(
+      ~sourceRoot=dir,
+      ~resolvedPath=dir,
+      ~entryLimit=4,
+    )
+
+    switch outsideCandidate {
+    | None => failwith("Expected recovery result")
+    | Some(recovery) => {
+        t->expect(recovery.nearestDir)->Expect.toBe(dir)
+        t->expect(recovery.nearestDirRelative)->Expect.toBe("")
       }
     }
 

@@ -43,8 +43,12 @@ let stripLeadingDotSlash = (path: string): string => {
   path->String.replaceRegExp(/^\.\//, "")
 }
 
+let stripLeadingSlash = (path: string): string => {
+  path->String.replaceRegExp(/^\//, "")
+}
+
 let normalizePath = (path: string): string => {
-  let normalized = path->normalizeSlashes->stripLeadingDotSlash
+  let normalized = path->normalizeSlashes->stripLeadingDotSlash->stripLeadingSlash
 
   switch normalized {
   | "" => "."
@@ -87,6 +91,21 @@ let normalizeRelativeToRoot = (~sourceRoot: string, ~path: string): string => {
   }
 
   relative->normalizePath
+}
+
+let normalizeFileRelativeToSearchRoot = (
+  ~sourceRoot: string,
+  ~searchPath: string,
+  ~filePath: string,
+): string => {
+  switch Path.isAbsolute(filePath) {
+  | true => normalizeRelativeToRoot(~sourceRoot, ~path=filePath)
+  | false => {
+      let prefixedPath = Path.join([searchPath, filePath])
+
+      normalizeRelativeToRoot(~sourceRoot, ~path=prefixedPath)
+    }
+  }
 }
 
 // Same matching rules as search_files: case-insensitive + wildcard support.
@@ -151,7 +170,7 @@ let recordSearch = (
   let reduced = files->Array.reduce(
     ({nextAnchors: seededAnchors, nextKnownFiles: state.knownFiles}: searchReduce),
     (acc, filePath) => {
-      let normalizedFile = normalizeRelativeToRoot(~sourceRoot, ~path=filePath)
+      let normalizedFile = normalizeFileRelativeToSearchRoot(~sourceRoot, ~searchPath, ~filePath)
       let nextKnownFiles =
         acc.nextKnownFiles->addUniqueBounded(normalizedFile, ~maxItems=maxKnownFiles)
       let anchors =

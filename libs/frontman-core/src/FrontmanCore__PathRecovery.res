@@ -13,12 +13,27 @@ type recovery = {
 
 let normalize = (path: string): string => Path.normalize(path)
 
+let isUnderSourceRoot = (~candidate: string, ~sourceRoot: string): bool => {
+  switch sourceRoot {
+  | "/" => candidate->String.startsWith("/")
+  | root => candidate == root || candidate->String.startsWith(root ++ "/")
+  }
+}
+
 let rec nearestExistingDir = async (~sourceRoot: string, ~startPath: string): option<string> => {
   let normalizedRoot = sourceRoot->normalize
   let candidate = startPath->normalize
 
   switch await FsUtils.dirExists(candidate) {
-  | true => Some(candidate)
+  | true =>
+    switch isUnderSourceRoot(~candidate, ~sourceRoot=normalizedRoot) {
+    | true => Some(candidate)
+    | false =>
+      switch await FsUtils.dirExists(normalizedRoot) {
+      | true => Some(normalizedRoot)
+      | false => None
+      }
+    }
   | false =>
     switch candidate == normalizedRoot {
     | true =>
@@ -29,7 +44,8 @@ let rec nearestExistingDir = async (~sourceRoot: string, ~startPath: string): op
     | false =>
       let parent = candidate->Path.dirname->normalize
 
-      switch parent == candidate || !(parent->String.startsWith(normalizedRoot)) {
+      switch parent == candidate ||
+        !isUnderSourceRoot(~candidate=parent, ~sourceRoot=normalizedRoot) {
       | true =>
         switch await FsUtils.dirExists(normalizedRoot) {
         | true => Some(normalizedRoot)
