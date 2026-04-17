@@ -69,12 +69,13 @@ const frontman = createMiddleware({
   projectRoot: process.cwd(),
 });
 
-export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
+export async function proxy(req: NextRequest): Promise<NextResponse> {
   if (
     req.nextUrl.pathname === '/frontman' ||
     req.nextUrl.pathname.startsWith('/frontman/')
   ) {
-    return frontman(req) ?? NextResponse.next();
+    const response = await frontman(req);
+    if (response) return response;
   }
   return NextResponse.next();
 }
