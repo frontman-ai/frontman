@@ -294,17 +294,19 @@ export default defineConfig({
 
 ## Next.js configuration
 
-Use the Next.js integration in `middleware.ts` for Next.js 15 or `proxy.ts` for Next.js 16+.
+Use the Next.js integration in `middleware.ts` for Next.js 13-15 or `proxy.ts` for Next.js 16+.
+
+### Next.js 13-15 (`middleware.ts`)
 
 ```ts
 import { createMiddleware } from '@frontman-ai/nextjs';
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
 const frontman = createMiddleware({
   host: 'api.frontman.sh',
 });
 
-export async function proxy(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const response = await frontman(req);
   if (response) return response;
   return NextResponse.next();
@@ -313,6 +315,27 @@ export async function proxy(req: NextRequest) {
 export const config = {
   matcher: ['/frontman', '/frontman/:path*'],
 };
+```
+
+### Next.js 16+ (`proxy.ts`)
+
+```ts
+import { createMiddleware } from '@frontman-ai/nextjs';
+import { type NextRequest, NextResponse } from 'next/server';
+
+const frontman = createMiddleware({
+  host: 'api.frontman.sh',
+});
+
+export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
+  if (
+    req.nextUrl.pathname === '/frontman' ||
+    req.nextUrl.pathname.startsWith('/frontman/')
+  ) {
+    return frontman(req) ?? NextResponse.next();
+  }
+  return NextResponse.next();
+}
 ```
 
 ### Next.js-specific notes
