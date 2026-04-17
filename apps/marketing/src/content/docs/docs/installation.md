@@ -16,7 +16,7 @@ Then follow the [Astro integration guide →](/docs/integrations/astro/)
 ## Next.js
 
 ```bash
-npx @frontman-ai/nextjs init
+npx @frontman-ai/nextjs install
 ```
 
 Then follow the [Next.js integration guide →](/docs/integrations/nextjs/)
@@ -24,7 +24,7 @@ Then follow the [Next.js integration guide →](/docs/integrations/nextjs/)
 ## Vite
 
 ```bash
-npm install @frontman-ai/vite
+npx @frontman-ai/vite install
 ```
 
 Then follow the [Vite integration guide →](/docs/integrations/vite/)
@@ -38,4 +38,3 @@ See the [WordPress setup guide →](/docs/integrations/wordpress/)
 ## Next steps
 
 1. **[API Keys & Providers](/docs/api-keys/)** — configure your AI model
-

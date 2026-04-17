@@ -3,6 +3,8 @@ title: Configuration Options
 description: Frontman configuration reference for Astro, Next.js, and Vite — every option, default value, environment override, and example setup.
 ---
 
+import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
+
 Frontman lets you run an AI agent against your local app without giving the Frontman server direct access to your filesystem. The browser client connects to the Frontman server for the agent loop, and your framework integration exposes local tools like file reads, file edits, screenshots, logs, and route inspection.
 
 This page documents every supported configuration option for the official **Astro**, **Next.js**, and **Vite** integrations, including defaults, examples, and environment-variable overrides.
@@ -257,18 +259,7 @@ Useful when you're embedding Frontman into internal tools that already use a lig
 
 Use the Astro integration in `astro.config.mjs` or `astro.config.ts`.
 
-```ts
-import { defineConfig } from 'astro/config';
-import frontman from '@frontman-ai/astro';
-
-export default defineConfig({
-  integrations: [
-    frontman({
-      projectRoot: import.meta.dirname,
-    }),
-  ],
-});
-```
+<CodeFromFile snippet="astro/astro.config.ts.txt" />
 
 ### Astro-specific notes
 
@@ -298,46 +289,11 @@ Use the Next.js integration in `middleware.ts` for Next.js 13-15 or `proxy.ts` f
 
 ### Next.js 13-15 (`middleware.ts`)
 
-```ts
-import { createMiddleware } from '@frontman-ai/nextjs';
-import { type NextRequest, NextResponse } from 'next/server';
-
-const frontman = createMiddleware({
-  host: 'api.frontman.sh',
-});
-
-export async function middleware(req: NextRequest) {
-  const response = await frontman(req);
-  if (response) return response;
-  return NextResponse.next();
-}
-
-export const config = {
-  matcher: ['/frontman', '/frontman/:path*'],
-};
-```
+<CodeFromFile snippet="nextjs/middleware.ts.txt" />
 
 ### Next.js 16+ (`proxy.ts`)
 
-```ts
-import { createMiddleware } from '@frontman-ai/nextjs';
-import { type NextRequest, NextResponse } from 'next/server';
-
-const frontman = createMiddleware({
-  host: 'api.frontman.sh',
-});
-
-export async function proxy(req: NextRequest): Promise<NextResponse> {
-  if (
-    req.nextUrl.pathname === '/frontman' ||
-    req.nextUrl.pathname.startsWith('/frontman/')
-  ) {
-    const response = await frontman(req);
-    if (response) return response;
-  }
-  return NextResponse.next();
-}
-```
+<CodeFromFile snippet="nextjs/proxy.ts.txt" />
 
 ### Next.js-specific notes
 
@@ -366,18 +322,7 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
 
 Use the Vite plugin inside `vite.config.ts`.
 
-```ts
-import { defineConfig } from 'vite';
-import { frontmanPlugin } from '@frontman-ai/vite';
-
-export default defineConfig({
-  plugins: [
-    frontmanPlugin({
-      host: 'api.frontman.sh',
-    }),
-  ],
-});
-```
+<CodeFromFile snippet="vite/vite.config.ts.txt" />
 
 ### Vite-specific notes
 

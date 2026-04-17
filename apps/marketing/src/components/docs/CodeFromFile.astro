@@ -1,0 +1,36 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import { Code } from 'astro:components';
+
+interface Props {
+  snippet: string;
+  lang?: string;
+}
+
+const { snippet, lang } = Astro.props;
+
+const snippetsRoot = path.resolve(process.cwd(), 'src/content/docs/snippets');
+const snippetPath = path.resolve(snippetsRoot, snippet);
+const relativeSnippetPath = path.relative(snippetsRoot, snippetPath);
+const inSnippetsRoot =
+  relativeSnippetPath !== '' &&
+  !relativeSnippetPath.startsWith('..') &&
+  !path.isAbsolute(relativeSnippetPath);
+
+if (!inSnippetsRoot) {
+  throw new Error(`Snippet path must stay inside src/content/docs/snippets: ${snippet}`);
+}
+
+const code = fs.readFileSync(snippetPath, 'utf-8').trimEnd();
+let inferredLang = path.extname(snippetPath).slice(1);
+if (inferredLang === 'txt') {
+  const nestedExtension = path.extname(snippetPath.slice(0, -4)).slice(1);
+  if (nestedExtension !== '') {
+    inferredLang = nestedExtension;
+  }
+}
+const language = lang ?? (inferredLang === '' ? 'text' : inferredLang);
+---
+
+<Code code={code} lang={language as any} />
