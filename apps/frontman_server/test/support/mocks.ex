@@ -1,3 +1,3 @@
 Mox.defmock(MockGitHubClient, for: FrontmanServer.Sandbox.GitHubClient)
 Mox.defmock(MockCommandRunner, for: FrontmanServer.Sandbox.CommandRunner)
-Mox.defmock(MockSandboxProvider, for: FrontmanServer.Sandbox.Provider)
+Mox.defmock(MockProvider, for: FrontmanServer.Sandbox.Provider)

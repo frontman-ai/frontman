@@ -185,6 +185,7 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
       end)
 
       assert {:ok, metrics} = Microsandbox.metrics("sb-abc123", microsandbox())
+      assert metrics.running
       assert metrics.status == "running"
       assert metrics.cpu_percent == 12.5
       assert metrics.memory_bytes == 268_435_456

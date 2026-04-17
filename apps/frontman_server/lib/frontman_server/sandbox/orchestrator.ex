@@ -11,12 +11,12 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   Sandbox.Registry by sandbox_id.
   """
 
-  use GenServer
+  use GenServer, restart: :temporary
 
   require Logger
 
   alias FrontmanServer.Repo
-  alias FrontmanServer.Sandboxes.Sandbox
+  alias FrontmanServer.Sandbox.SandboxSchema
 
   @default_heartbeat_interval_ms 30_000
   @default_provision_timeout_ms 300_000
@@ -72,7 +72,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   @impl true
   def init(opts) do
     sandbox_id = Keyword.fetch!(opts, :sandbox_id)
-    provider = Keyword.fetch!(opts, :provider)
+    provider = Keyword.get(opts, :provider, default_provider())
 
     heartbeat_interval_ms =
       Keyword.get(opts, :heartbeat_interval_ms, @default_heartbeat_interval_ms)
@@ -80,7 +80,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
     provision_timeout_ms =
       Keyword.get(opts, :provision_timeout_ms, @default_provision_timeout_ms)
 
-    sandbox = Repo.get!(Sandbox, sandbox_id)
+    sandbox = Repo.get!(SandboxSchema, sandbox_id)
 
     state = %__MODULE__{
       sandbox_id: sandbox_id,
@@ -92,7 +92,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
     case provider.create(sandbox.env_spec) do
       {:ok, provider_ref} ->
         sandbox
-        |> Ecto.Changeset.change(provider_ref: provider_ref)
+        |> SandboxSchema.set_provider_ref_changeset(provider_ref)
         |> Repo.update!()
 
         provision_timer_ref =
@@ -147,7 +147,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   def handle_call(:destroy, _from, state) do
     case state.provider.destroy(state.provider_ref) do
       :ok ->
-        case Repo.get(Sandbox, state.sandbox_id) do
+        case Repo.get(SandboxSchema, state.sandbox_id) do
           nil -> :ok
           sandbox -> Repo.delete(sandbox)
         end
@@ -166,13 +166,17 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   @impl true
   def handle_info(:heartbeat, %{status: :provisioning} = state) do
     case state.provider.metrics(state.provider_ref) do
-      {:ok, %{status: "running"}} ->
+      {:ok, %{running: true}} ->
         if state.provision_timer_ref, do: Process.cancel_timer(state.provision_timer_ref)
         update_db_status(state.sandbox_id, :running)
         heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
 
         {:noreply,
          %{state | status: :running, provision_timer_ref: nil, heartbeat_ref: heartbeat_ref}}
+
+      {:ok, %{running: false}} ->
+        heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
+        {:noreply, %{state | heartbeat_ref: heartbeat_ref}}
 
       _ ->
         heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
@@ -182,11 +186,11 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
 
   def handle_info(:heartbeat, %{status: :running} = state) do
     case state.provider.metrics(state.provider_ref) do
-      {:ok, %{status: "running"}} ->
+      {:ok, %{running: true}} ->
         heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
         {:noreply, %{state | heartbeat_ref: heartbeat_ref}}
 
-      {:ok, %{status: _other}} ->
+      {:ok, %{running: false}} ->
         Logger.error("[Orchestrator] VM crashed for #{state.sandbox_id}")
         update_db_status(state.sandbox_id, :error)
         {:stop, :normal, state}
@@ -226,27 +230,35 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   end
 
   defp update_db_status(sandbox_id, new_status) do
-    case Repo.get(Sandbox, sandbox_id) do
+    case Repo.get(SandboxSchema, sandbox_id) do
       nil ->
         Logger.warning("[Orchestrator] sandbox not found in DB: #{sandbox_id}")
         {:error, :not_found}
 
       sandbox ->
         sandbox
-        |> Sandbox.status_changeset(new_status)
+        |> SandboxSchema.status_changeset(new_status)
         |> Repo.update()
     end
   end
 
   defp touch_last_active(sandbox_id) do
-    case Repo.get(Sandbox, sandbox_id) do
+    case Repo.get(SandboxSchema, sandbox_id) do
       nil ->
         :ok
 
       sandbox ->
         sandbox
-        |> Ecto.Changeset.change(last_active_at: DateTime.utc_now(:second))
+        |> SandboxSchema.touch_changeset()
         |> Repo.update()
     end
+  end
+
+  defp default_provider do
+    Application.get_env(
+      :frontman_server,
+      :sandbox_provider,
+      FrontmanServer.Sandbox.Provider.Microsandbox
+    )
   end
 end

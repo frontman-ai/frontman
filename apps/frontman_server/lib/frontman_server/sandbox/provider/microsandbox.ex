@@ -58,9 +58,12 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
     with {:ok, output} <- msb(["list", "--json"], opts, []),
          {:ok, entries} when is_list(entries) <- Jason.decode(output),
          entry when not is_nil(entry) <- Enum.find(entries, &(&1["name"] == ref)) do
+      status = Map.get(entry, "status", "unknown")
+
       {:ok,
        %{
-         status: Map.get(entry, "status", "unknown"),
+         running: status == "running",
+         status: status,
          cpu_percent: Map.get(entry, "cpu_percent", 0.0),
          memory_bytes: Map.get(entry, "memory_bytes", 0)
        }}

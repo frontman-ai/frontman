@@ -51,6 +51,7 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxIntegrationTest do
 
       # Metrics
       assert {:ok, metrics} = Microsandbox.metrics(ref)
+      assert metrics.running
       assert metrics.status == "running"
 
       # Stop
