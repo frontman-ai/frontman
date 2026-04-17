@@ -1,0 +1,173 @@
+defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
+  @moduledoc """
+  CLI wrapper for the `msb` (microsandbox) command.
+
+  Translates Provider callbacks into `msb` CLI invocations via a
+  `CommandRunner` behaviour. Stateless — each function call is an
+  independent shell command. microsandbox manages VM lifecycle; this
+  module is purely a client adapter.
+  """
+
+  @behaviour FrontmanServer.Sandbox.Provider
+
+  alias FrontmanServer.Sandbox.CommandRunner
+
+  @default_timeout_ms 30_000
+  @create_timeout_ms 180_000
+
+  # --- Provider callbacks ---
+
+  @impl true
+  def create(%FrontmanServer.Sandbox.EnvironmentSpec{} = spec, opts \\ []) do
+    {dc_flags, dc_temp_path} = devcontainer_flags(spec.devcontainer)
+
+    args =
+      ["run", "--name", spec.name, "--image", spec.image] ++
+        env_flags(spec.env) ++
+        dc_flags
+
+    try do
+      case msb(args, opts, timeout: @create_timeout_ms) do
+        {:ok, _output} -> {:ok, spec.name}
+        {:error, _} = error -> error
+      end
+    after
+      if dc_temp_path, do: File.rm(dc_temp_path)
+    end
+  end
+
+  @impl true
+  def exec(ref, command, args, opts)
+      when is_binary(ref) and is_binary(command) and is_list(args) do
+    {caller_opts, exec_opts} = extract_caller_opts(opts)
+    timeout = Keyword.get(exec_opts, :timeout_ms, @default_timeout_ms)
+
+    msb_args = ["exec", ref, "--" | [command | args]]
+
+    case msb(msb_args, caller_opts, timeout: timeout) do
+      {:ok, output} ->
+        {:ok, %{exit_code: 0, stdout: output, stderr: ""}}
+
+      {:error, {:cmd_failed, code, output}} ->
+        {:ok, %{exit_code: code, stdout: output, stderr: ""}}
+    end
+  end
+
+  @impl true
+  def metrics(ref, opts \\ []) when is_binary(ref) do
+    with {:ok, output} <- msb(["list", "--json"], opts, []),
+         {:ok, entries} when is_list(entries) <- Jason.decode(output),
+         entry when not is_nil(entry) <- Enum.find(entries, &(&1["name"] == ref)) do
+      {:ok,
+       %{
+         status: Map.get(entry, "status", "unknown"),
+         cpu_percent: Map.get(entry, "cpu_percent", 0.0),
+         memory_bytes: Map.get(entry, "memory_bytes", 0)
+       }}
+    else
+      nil -> {:error, :not_found}
+      {:error, _} = error -> error
+      _ -> {:error, :invalid_json}
+    end
+  end
+
+  @impl true
+  def stop(ref, opts \\ []) when is_binary(ref) do
+    case msb(["stop", ref], opts, []) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
+
+  @impl true
+  def start(ref, opts \\ []) when is_binary(ref) do
+    case msb(["start", ref], opts, []) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
+
+  @impl true
+  def destroy(ref, opts \\ []) when is_binary(ref) do
+    # Stop first (tolerate "already stopped" errors), then remove.
+    _ = msb(["stop", ref], opts, [])
+
+    case msb(["remove", ref], opts, []) do
+      {:ok, _} -> :ok
+      {:error, _} = error -> error
+    end
+  end
+
+  # --- Microsandbox-specific file operations (not Provider callbacks) ---
+
+  @doc "Read a file from inside the sandbox VM via `cat`."
+  @spec read_file(String.t(), String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
+  def read_file(ref, path, opts \\ [])
+      when is_binary(ref) and is_binary(path) do
+    case exec(ref, "cat", [path], opts) do
+      {:ok, %{exit_code: 0, stdout: content}} -> {:ok, content}
+      {:ok, %{exit_code: code, stdout: output}} -> {:error, {:cmd_failed, code, output}}
+    end
+  end
+
+  @doc """
+  Write a file inside the sandbox VM via base64 decode.
+
+  Content is base64-encoded and piped through `base64 -d` to avoid
+  shell escaping issues.
+  """
+  @spec write_file(String.t(), String.t(), String.t(), keyword()) :: :ok | {:error, term()}
+  def write_file(ref, path, content, opts \\ [])
+      when is_binary(ref) and is_binary(path) and is_binary(content) do
+    encoded = Base.encode64(content)
+
+    case exec(
+           ref,
+           "bash",
+           ["-c", ~S(printf '%s' "$1" | base64 -d > "$2"), "_", encoded, path],
+           opts
+         ) do
+      {:ok, %{exit_code: 0}} -> :ok
+      {:ok, %{exit_code: code, stdout: output}} -> {:error, {:cmd_failed, code, output}}
+    end
+  end
+
+  # --- Internal ---
+
+  defp msb(args, caller_opts, internal_opts) do
+    timeout = Keyword.get(internal_opts, :timeout, @default_timeout_ms)
+    runner = Keyword.get(caller_opts, :command_runner, default_runner())
+
+    case runner.run("msb", args, stderr_to_stdout: true, timeout: timeout) do
+      {output, 0} -> {:ok, output}
+      {output, code} -> {:error, {:cmd_failed, code, output}}
+    end
+  end
+
+  defp extract_caller_opts(opts) do
+    Keyword.split(opts, [:command_runner])
+  end
+
+  defp env_flags(env) when map_size(env) == 0, do: []
+
+  defp env_flags(env) do
+    Enum.flat_map(env, fn {k, v} -> ["--env", "#{k}=#{v}"] end)
+  end
+
+  defp devcontainer_flags(dc) when map_size(dc) == 0, do: {[], nil}
+
+  defp devcontainer_flags(dc) do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "msb-devcontainer-#{System.unique_integer([:positive])}.json"
+      )
+
+    File.write!(path, Jason.encode!(dc))
+    {["--config", path], path}
+  end
+
+  defp default_runner do
+    Application.get_env(:frontman_server, :command_runner, CommandRunner.System)
+  end
+end

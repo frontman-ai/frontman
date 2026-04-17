@@ -3,12 +3,12 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzer do
   Entry point for environment detection.
 
   Given a GitHub repo and token, fetches the repo's devcontainer.json
-  and returns it as an EnvironmentSpec. If no devcontainer.json is
-  found, returns a structured error rather than generating one — MVP
-  scope only.
+  and returns it as a parsed map. If no devcontainer.json is found,
+  returns a structured error rather than generating one — MVP scope
+  only.
   """
 
-  alias FrontmanServer.Sandbox.{EnvironmentSpec, GitHubClient}
+  alias FrontmanServer.Sandbox.GitHubClient
 
   @devcontainer_paths [
     ".devcontainer/devcontainer.json",
@@ -17,7 +17,7 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzer do
   ]
 
   @spec analyze(String.t(), String.t(), keyword()) ::
-          {:ok, EnvironmentSpec.t()}
+          {:ok, map()}
           | {:error,
              :no_devcontainer
              | :invalid_json
@@ -41,7 +41,7 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzer do
          {:ok, path} <- find_devcontainer(tree),
          {:ok, content} <- client.get_file(owner, repo, path, token),
          {:ok, map} <- decode_json(content) do
-      EnvironmentSpec.new(map)
+      validate_devcontainer(map)
     else
       {:error, {:http_error, 401, _}} -> {:error, :unauthorized}
       {:error, {:http_error, 404, _}} -> {:error, :not_found}
@@ -62,6 +62,8 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzer do
       path -> {:ok, path}
     end
   end
+
+  defp validate_devcontainer(map) when is_map(map), do: {:ok, map}
 
   defp decode_json(content) do
     case Jason.decode(content) do
