@@ -179,6 +179,19 @@ defmodule FrontmanServer.Sandbox.OrchestratorTest do
       assert {:error, {:task_start_failed, _reason}} =
                Orchestrator.exec(sandbox.id, "echo", ["hello"])
     end
+
+    test "returns timeout instead of crashing when blocked in provision", %{sandbox: sandbox} do
+      sandbox = put_env_overrides(sandbox, %{"create_delay_ms" => "6000"})
+
+      {:ok, _pid} =
+        start_orchestrator(sandbox.id,
+          provider: IntegrationProvider,
+          heartbeat_interval_ms: 50,
+          provision_timeout_ms: 10_000
+        )
+
+      assert {:error, :timeout} = Orchestrator.status(sandbox.id)
+    end
   end
 
   describe "lifecycle commands" do

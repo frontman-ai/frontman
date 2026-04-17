@@ -23,9 +23,14 @@ defmodule FrontmanServer.SandboxesTest do
       assert sandbox.env_spec == valid_env_spec()
     end
 
-    test "returns error changeset when env_spec is missing", %{scope: scope, task: task} do
-      assert {:error, changeset} = Sandboxes.provision_for_task(scope, task, nil)
-      assert errors_on(changeset).env_spec
+    test "returns invalid_env_spec when env_spec is missing", %{scope: scope, task: task} do
+      assert {:error, {:invalid_env_spec, _reason}} =
+               Sandboxes.provision_for_task(scope, task, nil)
+    end
+
+    test "returns invalid_env_spec when env_spec is not a map", %{scope: scope, task: task} do
+      assert {:error, {:invalid_env_spec, :not_a_map}} =
+               Sandboxes.provision_for_task(scope, task, "not a map")
     end
 
     test "returns {:error, {:invalid_env_spec, _}} when env_spec map is malformed", %{

@@ -1,6 +1,7 @@
 defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureLog
   import Mox
 
   alias FrontmanServer.Sandbox.EnvironmentSpec
@@ -109,6 +110,27 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
 
       assert {:error, {:cmd_failed, 1, "Error: image not found\n"}} =
                Microsandbox.create(env_spec, microsandbox())
+    end
+
+    @tag capture_log: true
+    test "logs cleanup failure when devcontainer temp file removal fails" do
+      env_spec = valid_env_spec()
+
+      MockCommandRunner
+      |> expect(:run, fn "msb", args, _opts ->
+        config_idx = Enum.find_index(args, &(&1 == "--config"))
+        config_path = Enum.at(args, config_idx + 1)
+
+        assert :ok = File.rm(config_path)
+        {"Sandbox test-sandbox is running\n", 0}
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:ok, "test-sandbox"} = Microsandbox.create(env_spec, microsandbox())
+        end)
+
+      assert log =~ "Failed to remove devcontainer temp file"
     end
   end
 
@@ -278,6 +300,16 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
       end)
 
       assert {:error, {:cmd_failed, 1, _}} = Microsandbox.destroy("sb-abc123", microsandbox())
+    end
+
+    test "returns stop error when stop fails unexpectedly" do
+      MockCommandRunner
+      |> expect(:run, fn "msb", ["stop", "sb-abc123"], _opts ->
+        {"Error: daemon unreachable\n", 1}
+      end)
+
+      assert {:error, {:cmd_failed, 1, "Error: daemon unreachable\n"}} =
+               Microsandbox.destroy("sb-abc123", microsandbox())
     end
   end
 

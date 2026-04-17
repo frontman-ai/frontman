@@ -251,5 +251,5 @@ defmodule FrontmanServer.Sandboxes do
     end
   end
 
-  defp normalize_env_spec(env_spec), do: {:ok, env_spec}
+  defp normalize_env_spec(_env_spec), do: {:error, {:invalid_env_spec, :not_a_map}}
 end

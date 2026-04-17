@@ -10,6 +10,8 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
 
   @behaviour FrontmanServer.Sandbox.Provider
 
+  require Logger
+
   alias FrontmanServer.Sandbox.CommandRunner
 
   @default_timeout_ms 30_000
@@ -32,7 +34,17 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
         {:error, _} = error -> error
       end
     after
-      if dc_temp_path, do: File.rm(dc_temp_path)
+      if dc_temp_path do
+        case File.rm(dc_temp_path) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning(
+              "[Microsandbox] Failed to remove devcontainer temp file #{dc_temp_path}: #{inspect(reason)}"
+            )
+        end
+      end
     end
   end
 
@@ -93,12 +105,31 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
   @impl true
   def destroy(ref, opts \\ []) when is_binary(ref) do
     # Stop first (tolerate "already stopped" errors), then remove.
-    _ = msb(["stop", ref], opts, [])
+    case msb(["stop", ref], opts, []) do
+      {:ok, _} ->
+        remove(ref, opts)
 
+      {:error, {:cmd_failed, code, output}} ->
+        if stopped_output?(output) do
+          remove(ref, opts)
+        else
+          {:error, {:cmd_failed, code, output}}
+        end
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  defp remove(ref, opts) do
     case msb(["remove", ref], opts, []) do
       {:ok, _} -> :ok
       {:error, _} = error -> error
     end
+  end
+
+  defp stopped_output?(output) do
+    String.contains?(output, "not running")
   end
 
   # --- Microsandbox-specific file operations (not Provider callbacks) ---

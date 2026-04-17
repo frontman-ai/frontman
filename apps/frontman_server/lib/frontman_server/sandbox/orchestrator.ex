@@ -56,6 +56,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
     case safe_call(sandbox_id, {:exec, command, args, opts}, call_timeout) do
       {:ok, result} -> result
       {:error, :not_found} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -64,6 +65,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
     case safe_call(sandbox_id, :stop) do
       {:ok, result} -> result
       {:error, :not_found} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -72,14 +74,16 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
     case safe_call(sandbox_id, :destroy) do
       {:ok, result} -> result
       {:error, :not_found} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  @spec status(String.t()) :: {:ok, atom()} | {:error, :not_found}
+  @spec status(String.t()) :: {:ok, atom()} | {:error, :not_found | :timeout | term()}
   def status(sandbox_id) do
     case safe_call(sandbox_id, :status) do
       {:ok, result} -> result
       {:error, :not_found} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -323,6 +327,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   catch
     :exit, {:noproc, _} -> {:error, :not_found}
     :exit, :noproc -> {:error, :not_found}
+    :exit, {:timeout, _} -> {:error, :timeout}
   end
 
   defp start_exec_task(task_supervisor, fun) do
