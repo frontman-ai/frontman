@@ -3,9 +3,9 @@ defmodule FrontmanServer.Sandbox.RepoAnalyzer do
   Entry point for environment detection.
 
   Given a GitHub repo and token, fetches the repo's devcontainer.json
-  and returns it as an EnvironmentSpec. If no devcontainer.json is
-  found, returns a structured error rather than generating one — MVP
-  scope only.
+  and returns it as a parsed map. If no devcontainer.json is found,
+  returns a structured error rather than generating one — MVP scope
+  only.
   """
 
   alias FrontmanServer.Sandbox.GitHubClient

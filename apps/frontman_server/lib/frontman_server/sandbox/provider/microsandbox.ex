@@ -26,15 +26,14 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
         env_flags(spec.env) ++
         dc_flags
 
-    result =
+    try do
       case msb(args, opts, timeout: @create_timeout_ms) do
         {:ok, _output} -> {:ok, spec.name}
         {:error, _} = error -> error
       end
-
-    if dc_temp_path, do: File.rm(dc_temp_path)
-
-    result
+    after
+      if dc_temp_path, do: File.rm(dc_temp_path)
+    end
   end
 
   @impl true
