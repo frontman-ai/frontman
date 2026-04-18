@@ -78,11 +78,12 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       end
 
       assert llm_opts[:base_url] == "https://chatgpt.com/backend-api/codex"
-      assert llm_opts[:extra_headers] == [{"ChatGPT-Account-Id", "acc-789"}]
+      assert llm_opts[:req_http_options] == [headers: [{"ChatGPT-Account-Id", "acc-789"}]]
       assert llm_opts[:provider_options] == [store: false]
       assert llm_opts[:access_token] == "chatgpt-access-token"
       assert llm_opts[:auth_mode] == :oauth
       refute Keyword.has_key?(llm_opts, :api_key)
+      refute Keyword.has_key?(llm_opts, :extra_headers)
       refute Keyword.has_key?(llm_opts, :max_tokens)
     end
 
@@ -102,7 +103,8 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
 
       {_model_spec, llm_opts} = ResolvedKey.to_llm_args(key)
 
-      assert llm_opts[:extra_headers] == []
+      refute Keyword.has_key?(llm_opts, :req_http_options)
+      refute Keyword.has_key?(llm_opts, :extra_headers)
     end
   end
 

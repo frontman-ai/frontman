@@ -138,16 +138,38 @@ defmodule FrontmanServer.Providers.Codex do
 
   Applies:
     * `base_url` derived from `endpoint`
-    * `extra_headers` with optional account id
+    * `req_http_options` headers with optional account id
     * Removes `max_tokens`
     * Adds `provider_options: [store: false]`
   """
   @spec patch_llm_opts(keyword(), String.t(), String.t() | nil) :: keyword()
   def patch_llm_opts(opts, endpoint, account_id) when is_binary(endpoint) do
+    headers = extra_headers(account_id)
+
     opts
     |> Keyword.put(:base_url, base_url(endpoint))
-    |> Keyword.put(:extra_headers, extra_headers(account_id))
+    |> put_req_http_headers(headers)
+    |> Keyword.delete(:extra_headers)
     |> Keyword.delete(:max_tokens)
     |> Keyword.update(:provider_options, [store: false], &Keyword.put(&1, :store, false))
   end
+
+  defp put_req_http_headers(opts, []), do: opts
+
+  defp put_req_http_headers(opts, headers) do
+    req_http_options =
+      opts
+      |> Keyword.get(:req_http_options, [])
+      |> normalize_req_http_options()
+      |> Keyword.update(:headers, headers, fn
+        existing when is_list(existing) -> existing ++ headers
+        _ -> headers
+      end)
+
+    Keyword.put(opts, :req_http_options, req_http_options)
+  end
+
+  defp normalize_req_http_options(options) when is_list(options), do: options
+  defp normalize_req_http_options(options) when is_map(options), do: Map.to_list(options)
+  defp normalize_req_http_options(_), do: []
 end
