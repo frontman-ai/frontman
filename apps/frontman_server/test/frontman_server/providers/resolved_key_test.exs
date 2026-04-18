@@ -22,7 +22,6 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       assert llm_opts[:requires_mcp_prefix] == false
       assert llm_opts[:identity_override] == nil
       refute Keyword.has_key?(llm_opts, :base_url)
-      refute Keyword.has_key?(llm_opts, :extra_headers)
     end
   end
 
@@ -83,7 +82,6 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       assert llm_opts[:access_token] == "chatgpt-access-token"
       assert llm_opts[:auth_mode] == :oauth
       refute Keyword.has_key?(llm_opts, :api_key)
-      refute Keyword.has_key?(llm_opts, :extra_headers)
       refute Keyword.has_key?(llm_opts, :max_tokens)
     end
 
@@ -104,7 +102,6 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       {_model_spec, llm_opts} = ResolvedKey.to_llm_args(key)
 
       refute Keyword.has_key?(llm_opts, :req_http_options)
-      refute Keyword.has_key?(llm_opts, :extra_headers)
     end
   end
 

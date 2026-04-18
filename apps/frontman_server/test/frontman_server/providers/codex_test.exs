@@ -37,7 +37,6 @@ defmodule FrontmanServer.Providers.CodexTest do
       assert Keyword.get(result, :req_http_options) ==
                [headers: [{"ChatGPT-Account-Id", "acc-456"}]]
 
-      refute Keyword.has_key?(result, :extra_headers)
       refute Keyword.has_key?(result, :max_tokens)
       assert Keyword.get(result, :provider_options) == [store: false]
       assert Keyword.get(result, :api_key) == "sk-123"

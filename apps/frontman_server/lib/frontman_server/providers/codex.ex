@@ -121,17 +121,17 @@ defmodule FrontmanServer.Providers.Codex do
   end
 
   @doc """
-  Builds the extra headers list for a Codex request.
+  Builds Codex account headers for a request.
 
   Returns `[{"ChatGPT-Account-Id", id}]` when the account id is a
   non-empty binary, `[]` otherwise.
   """
-  @spec extra_headers(String.t() | nil) :: [{String.t(), String.t()}]
-  def extra_headers(account_id) when is_binary(account_id) and account_id != "" do
+  @spec account_headers(String.t() | nil) :: [{String.t(), String.t()}]
+  def account_headers(account_id) when is_binary(account_id) and account_id != "" do
     [{"ChatGPT-Account-Id", account_id}]
   end
 
-  def extra_headers(_), do: []
+  def account_headers(_), do: []
 
   @doc """
   Patches a keyword list of ReqLLM options for the Codex endpoint.
@@ -144,12 +144,11 @@ defmodule FrontmanServer.Providers.Codex do
   """
   @spec patch_llm_opts(keyword(), String.t(), String.t() | nil) :: keyword()
   def patch_llm_opts(opts, endpoint, account_id) when is_binary(endpoint) do
-    headers = extra_headers(account_id)
+    headers = account_headers(account_id)
 
     opts
     |> Keyword.put(:base_url, base_url(endpoint))
     |> put_req_http_headers(headers)
-    |> Keyword.delete(:extra_headers)
     |> Keyword.delete(:max_tokens)
     |> Keyword.update(:provider_options, [store: false], &Keyword.put(&1, :store, false))
   end
