@@ -162,14 +162,40 @@ defmodule FrontmanServer.Providers.Codex do
       |> Keyword.get(:req_http_options, [])
       |> normalize_req_http_options()
       |> Keyword.update(:headers, headers, fn
-        existing when is_list(existing) -> existing ++ headers
-        _ -> headers
+        existing when is_list(existing) ->
+          merge_headers(existing, headers)
+
+        other ->
+          raise(
+            ArgumentError,
+            "expected req_http_options[:headers] to be a list, got: #{inspect(other)}"
+          )
       end)
 
     Keyword.put(opts, :req_http_options, req_http_options)
   end
 
+  defp merge_headers(existing, headers) do
+    names_to_replace =
+      headers
+      |> Enum.map(fn {name, _value} -> String.downcase(name) end)
+
+    filtered_existing =
+      Enum.reject(existing, fn
+        {name, _value} when is_binary(name) -> String.downcase(name) in names_to_replace
+        _ -> false
+      end)
+
+    filtered_existing ++ headers
+  end
+
   defp normalize_req_http_options(options) when is_list(options), do: options
   defp normalize_req_http_options(options) when is_map(options), do: Map.to_list(options)
-  defp normalize_req_http_options(_), do: []
+
+  defp normalize_req_http_options(other) do
+    raise(
+      ArgumentError,
+      "expected req_http_options to be a keyword list or map, got: #{inspect(other)}"
+    )
+  end
 end

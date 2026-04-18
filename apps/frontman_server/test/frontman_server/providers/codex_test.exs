@@ -60,5 +60,35 @@ defmodule FrontmanServer.Providers.CodexTest do
                receive_timeout: 1_000
              ]
     end
+
+    test "replaces existing ChatGPT account header when merging" do
+      opts =
+        [
+          req_http_options: [
+            headers: [
+              {"X-Trace-Id", "trace-1"},
+              {"ChatGPT-Account-Id", "stale-account"}
+            ],
+            receive_timeout: 1_000
+          ]
+        ]
+
+      result = Codex.patch_llm_opts(opts, "https://example.com/responses", "acc-999")
+
+      assert Keyword.get(result, :req_http_options) == [
+               headers: [{"X-Trace-Id", "trace-1"}, {"ChatGPT-Account-Id", "acc-999"}],
+               receive_timeout: 1_000
+             ]
+    end
+
+    test "raises when req_http_options has an unexpected type" do
+      opts = [req_http_options: nil]
+
+      assert_raise ArgumentError,
+                   ~r/expected req_http_options to be a keyword list or map/,
+                   fn ->
+                     Codex.patch_llm_opts(opts, "https://example.com/responses", "acc-999")
+                   end
+    end
   end
 end
