@@ -62,7 +62,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
   end
 
   describe "to_llm_args/2 for Codex (ChatGPT OAuth)" do
-    test "patches base_url, headers, strips max_tokens, forces store:false" do
+    test "routes through openai_codex, patches base_url, and strips max_tokens" do
       key =
         resolved_key_fixture("openai",
           api_key: "chatgpt-access-token",
@@ -72,17 +72,22 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       {model_spec, llm_opts} = ResolvedKey.to_llm_args(key, max_tokens: 16_384)
 
       case model_spec do
-        %{id: id} -> assert id == "gpt-5.3-codex"
-        string when is_binary(string) -> assert string =~ "codex"
+        %{provider: provider, id: id} ->
+          assert provider == :openai_codex
+          assert id == "gpt-5.3-codex"
+
+        string when is_binary(string) ->
+          assert string == "openai_codex:gpt-5.3-codex"
       end
 
       assert llm_opts[:base_url] == "https://chatgpt.com/backend-api/codex"
-      assert llm_opts[:req_http_options] == [headers: [{"ChatGPT-Account-Id", "acc-789"}]]
-      assert llm_opts[:provider_options] == [store: false]
+      assert llm_opts[:chatgpt_account_id] == "acc-789"
       assert llm_opts[:access_token] == "chatgpt-access-token"
       assert llm_opts[:auth_mode] == :oauth
       refute Keyword.has_key?(llm_opts, :api_key)
       refute Keyword.has_key?(llm_opts, :max_tokens)
+      refute Keyword.has_key?(llm_opts, :provider_options)
+      refute Keyword.has_key?(llm_opts, :req_http_options)
     end
 
     test "normalizes codex-5.3 alias before resolution" do
@@ -91,8 +96,12 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       {model_spec, _llm_opts} = ResolvedKey.to_llm_args(key)
 
       case model_spec do
-        %{id: id} -> assert id == "gpt-5.3-codex"
-        string when is_binary(string) -> assert string == "openai:gpt-5.3-codex"
+        %{provider: provider, id: id} ->
+          assert provider == :openai_codex
+          assert id == "gpt-5.3-codex"
+
+        string when is_binary(string) ->
+          assert string == "openai_codex:gpt-5.3-codex"
       end
     end
 
@@ -101,7 +110,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
 
       {_model_spec, llm_opts} = ResolvedKey.to_llm_args(key)
 
-      refute Keyword.has_key?(llm_opts, :req_http_options)
+      refute Keyword.has_key?(llm_opts, :chatgpt_account_id)
     end
   end
 

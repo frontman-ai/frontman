@@ -13,11 +13,10 @@ defmodule FrontmanServer.Providers.Codex do
   Requests to this endpoint require:
 
     * The `/responses` suffix stripped to get the `base_url`
-    * An optional `ChatGPT-Account-Id` header
+    * Optional `chatgpt_account_id` passed to ReqLLM
     * `max_tokens` removed (Codex ignores it)
-    * `provider_options: [store: false]`
-    * The wire protocol forced to `"openai_responses"`
     * Model alias normalisation (`codex-5.3` → `gpt-5.3-codex`)
+    * Provider namespace normalisation (`openai:*` → `openai_codex:*`)
     * Model synthesis for entries not yet in LLMDB
 
   Used by `ResolvedKey.to_llm_args/2` to transform connection config when
@@ -32,74 +31,59 @@ defmodule FrontmanServer.Providers.Codex do
   Normalises the ChatGPT Codex model alias.
 
   The ChatGPT UI sends `"openai:codex-5.3"` but the actual LLMDB / API
-  model id is `"openai:gpt-5.3-codex"`.
+  model id is `"openai_codex:gpt-5.3-codex"`.
 
   ## Examples
 
       iex> Codex.normalize_model("openai:codex-5.3")
-      "openai:gpt-5.3-codex"
+      "openai_codex:gpt-5.3-codex"
 
       iex> Codex.normalize_model("openai:gpt-5.2-codex")
-      "openai:gpt-5.2-codex"
+      "openai_codex:gpt-5.2-codex"
   """
   @spec normalize_model(String.t()) :: String.t()
   def normalize_model("openai:codex-5.3") do
-    Logger.debug("Normalizing openai:codex-5.3 → openai:gpt-5.3-codex for Codex endpoint")
-    "openai:gpt-5.3-codex"
+    Logger.debug("Normalizing openai:codex-5.3 → openai_codex:gpt-5.3-codex")
+    "openai_codex:gpt-5.3-codex"
   end
+
+  def normalize_model("openai:" <> model_id), do: "openai_codex:" <> model_id
 
   def normalize_model(model) when is_binary(model), do: model
 
   @doc """
-  Forces the wire protocol to `"openai_responses"` on an LLMDB model struct.
-
-  The Codex endpoint only speaks the OpenAI Responses API, so we patch
-  `model.extra.wire.protocol` regardless of what LLMDB declares.
-  """
-  @spec force_responses_protocol(map()) :: map()
-  def force_responses_protocol(model) do
-    extra = model.extra || %{}
-    wire = Map.get(extra, :wire, %{})
-    patched_extra = Map.put(extra, :wire, Map.put(wire, :protocol, "openai_responses"))
-    %{model | extra: patched_extra}
-  end
-
-  @doc """
-  Builds an LLMDB-compatible model spec for a Codex model string that
-  isn't catalogued in LLMDB yet.
-
-  Clones `gpt-5.2-codex` (which *is* catalogued) and swaps the model id.
-  Falls back to the raw model string when even the base entry is missing.
+  Builds an explicit model spec for an OpenAI Codex model string that
+  is not yet catalogued in LLMDB.
   """
   @spec synthesize_model(String.t()) :: map() | String.t()
-  def synthesize_model("openai:gpt-5.3-codex") do
-    case ReqLLM.model("openai:gpt-5.2-codex") do
-      {:ok, base} ->
-        %{force_responses_protocol(base) | id: "gpt-5.3-codex", model: "gpt-5.3-codex"}
-
-      {:error, _} ->
-        "openai:gpt-5.3-codex"
-    end
+  def synthesize_model("openai_codex:" <> model_id) do
+    %{
+      provider: :openai_codex,
+      id: model_id,
+      model: model_id,
+      provider_model_id: model_id,
+      extra: %{wire: %{protocol: "openai_codex_responses"}}
+    }
   end
 
   def synthesize_model(model_string) when is_binary(model_string), do: model_string
 
   @doc """
-  Resolves a Codex model string to an LLMDB struct with the Responses
-  protocol forced, synthesising a spec when the model isn't catalogued.
+  Resolves an OpenAI Codex model string to an LLMDB struct, synthesising
+  a spec when the model isn't catalogued.
 
   This is the high-level entry point — call it instead of chaining
-  `ReqLLM.model` + `force_responses_protocol` + `synthesize_model` manually.
+  `ReqLLM.model` + `synthesize_model` manually.
 
   ## Examples
 
-      iex> Codex.resolve_model("openai:gpt-5.2-codex")
-      # => %LLMDB.Model{..., extra: %{wire: %{protocol: "openai_responses"}}}
+      iex> Codex.resolve_model("openai_codex:gpt-5.2-codex")
+      # => %LLMDB.Model{provider: :openai_codex, ...}
   """
   @spec resolve_model(String.t()) :: map() | String.t()
   def resolve_model(model_string) when is_binary(model_string) do
     case ReqLLM.model(model_string) do
-      {:ok, model} -> force_responses_protocol(model)
+      {:ok, model} -> model
       {:error, _} -> synthesize_model(model_string)
     end
   end
@@ -121,40 +105,25 @@ defmodule FrontmanServer.Providers.Codex do
   end
 
   @doc """
-  Builds Codex account headers for a request.
-
-  Returns `[{"ChatGPT-Account-Id", id}]` when the account id is a
-  non-empty binary, `[]` otherwise.
-  """
-  @spec account_headers(String.t() | nil) :: [{String.t(), String.t()}]
-  def account_headers(account_id) when is_binary(account_id) and account_id != "" do
-    [{"ChatGPT-Account-Id", account_id}]
-  end
-
-  def account_headers(_), do: []
-
-  @doc """
   Patches a keyword list of ReqLLM options for the Codex endpoint.
 
   Applies:
     * `base_url` derived from `endpoint`
-    * `req_http_options` headers with optional account id
+    * Optional `chatgpt_account_id`
     * Removes `max_tokens`
-    * Adds `provider_options: [store: false]`
   """
   @spec patch_llm_opts(keyword(), String.t(), String.t() | nil) :: keyword()
   def patch_llm_opts(opts, endpoint, account_id) when is_binary(endpoint) do
-    headers = account_headers(account_id)
-
     opts
     |> Keyword.put(:base_url, base_url(endpoint))
-    |> put_req_http_headers(headers)
     |> Keyword.delete(:max_tokens)
-    |> Keyword.update(:provider_options, [store: false], &Keyword.put(&1, :store, false))
+    |> maybe_put_chatgpt_account_id(account_id)
   end
 
-  defp put_req_http_headers(opts, []), do: opts
+  defp maybe_put_chatgpt_account_id(opts, account_id)
+       when is_binary(account_id) and account_id != "" do
+    Keyword.put(opts, :chatgpt_account_id, account_id)
+  end
 
-  defp put_req_http_headers(opts, headers),
-    do: Keyword.put(opts, :req_http_options, headers: headers)
+  defp maybe_put_chatgpt_account_id(opts, _), do: opts
 end
