@@ -82,7 +82,7 @@ defmodule FrontmanServer.Providers.ResolvedKey do
   provider-specific wiring internally:
 
     * For Codex (ChatGPT OAuth): normalizes the model alias, patches the
-      base URL and headers, forces the Responses API protocol
+      base URL and routes through the `openai_codex` provider
     * For all providers: sets `api_key` (or `auth_mode` + `access_token` for OAuth), `requires_mcp_prefix`,
       and `identity_override`
 
