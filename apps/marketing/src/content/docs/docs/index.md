@@ -47,4 +47,4 @@ Already running? Learn how to get the most out of it.
 For developers who want framework-specific detail or technical reference.
 
 - **[Integrations](/docs/integrations/astro/)** — Framework-specific guides (Astro, Next.js, Vite, WordPress)
-- **[Reference](/docs/reference/configuration/)** — Configuration options, environment variables, architecture, troubleshooting
+- **[Reference](/docs/reference/)** — Configuration options, environment variables, architecture, troubleshooting

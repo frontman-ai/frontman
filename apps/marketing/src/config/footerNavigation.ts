@@ -64,6 +64,10 @@ export const footerNavigationData: FooterData = {
 					subCategoryLink: '/how-it-works/'
 				},
 				{
+					subCategory: 'Features',
+					subCategoryLink: '/features/'
+				},
+				{
 					subCategory: 'Pricing',
 					subCategoryLink: '/pricing/'
 				},
@@ -89,6 +93,10 @@ export const footerNavigationData: FooterData = {
 			category: 'Integrations',
 			subCategories: [
 				{
+					subCategory: 'All Integrations',
+					subCategoryLink: '/integrations/'
+				},
+				{
 					subCategory: 'Next.js',
 					subCategoryLink: '/integrations/nextjs/'
 				},
@@ -105,6 +113,10 @@ export const footerNavigationData: FooterData = {
 		{
 			category: 'Compare',
 			subCategories: [
+				{
+					subCategory: 'All Comparisons',
+					subCategoryLink: '/vs/'
+				},
 				{
 					subCategory: 'Frontman vs Cursor',
 					subCategoryLink: '/vs/cursor/'
@@ -138,6 +150,10 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'Documentation',
 					subCategoryLink: '/docs/'
+				},
+				{
+					subCategory: 'Reference',
+					subCategoryLink: '/docs/reference/'
 				},
 				{
 					subCategory: 'GitHub',
