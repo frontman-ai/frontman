@@ -2,27 +2,21 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Tasks.Execution.LLMClient
+  alias ReqLLM.Error.API.{Request, Stream}
 
-  describe "ReqLLM error chunk contract" do
-    test "ReqLLM.StreamChunk.error/1 creates an :error type chunk" do
-      chunk = ReqLLM.StreamChunk.error("image exceeds the maximum allowed size")
-
-      assert chunk.type == :error
-      assert chunk.text == "image exceeds the maximum allowed size"
-      assert chunk.metadata == %{}
-    end
-
-    test "ReqLLM.StreamChunk.error/2 preserves metadata" do
-      chunk =
-        ReqLLM.StreamChunk.error("HTTP 400: Request too large", %{
+  describe "ReqLLM stream exception contract" do
+    test "ReqLLM.Error.API.Stream carries ReqLLM.Error.API.Request as cause" do
+      request_error =
+        Request.exception(
           status: 400,
-          provider: :anthropic
-        })
+          reason: "image exceeds the maximum allowed size"
+        )
 
-      assert chunk.type == :error
-      assert chunk.text == "HTTP 400: Request too large"
-      assert chunk.metadata.status == 400
-      assert chunk.metadata.provider == :anthropic
+      stream_error = Stream.exception(reason: "Stream failed", cause: request_error)
+
+      assert %Request{} = stream_error.cause
+      assert stream_error.cause.status == 400
+      assert stream_error.cause.reason == "image exceeds the maximum allowed size"
     end
   end
 
