@@ -590,7 +590,7 @@ Rollback if needed: `/opt/frontman/rollback.sh`
 **Not currently supported.** OAuth via WorkOS is the only auth method. Email/password login is a roadmap item for 2025 (track in [issue #456](https://github.com/frontman-ai/frontman/issues/456)).
 
 ### How do I add a new LLM provider?
-See [Adding LLM Providers](https://frontman.sh/docs/development/adding-llm-providers/) guide. Requires:
+See the [Models & Providers](/docs/reference/models/) reference for currently supported providers. To add a new provider in a self-hosted fork:
 1. Add provider config to `apps/frontman_server/config/config.exs`
 2. Implement API adapter in `apps/frontman_server/lib/frontman_server/providers/`
 3. Add OAuth flow if needed (WorkOS or custom)
