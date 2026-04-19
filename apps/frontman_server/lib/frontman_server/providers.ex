@@ -153,13 +153,13 @@ defmodule FrontmanServer.Providers do
   @doc """
   Resolves a possibly nil model string to a concrete provider:model value.
   """
-  @spec resolve_model_string(String.t() | nil) :: String.t()
+  @spec resolve_model_string(String.t() | nil) :: String.t() | nil
   defdelegate resolve_model_string(model), to: Model, as: :resolve_string
 
   @doc """
   Converts a resolved key into ReqLLM model + option arguments.
   """
-  @spec to_llm_args(ResolvedKey.t(), keyword()) :: {String.t(), keyword()}
+  @spec to_llm_args(ResolvedKey.t(), keyword()) :: {String.t() | map(), keyword()}
   defdelegate to_llm_args(resolved_key), to: ResolvedKey
   defdelegate to_llm_args(resolved_key, opts), to: ResolvedKey
 
