@@ -9,10 +9,39 @@ defmodule FrontmanServer.Accounts do
   The Accounts context.
   """
 
+  use Boundary,
+    deps: [FrontmanServer, FrontmanServer.Organizations],
+    exports: [Scope, User, WorkOS.AuthError]
+
   import Ecto.Query, warn: false
   alias FrontmanServer.Repo
 
-  alias FrontmanServer.Accounts.{User, UserNotifier, UserToken, WorkOS}
+  alias FrontmanServer.Accounts.{Scope, User, UserNotifier, UserToken, WorkOS}
+
+  @type scope :: Scope.t()
+
+  @doc """
+  Returns the user map from scope.
+  """
+  @spec scope_user(scope()) :: User.t()
+  def scope_user(%Scope{user: %User{} = user}), do: user
+
+  @doc """
+  Returns the user id from scope.
+  """
+  @spec scope_user_id(scope()) :: String.t()
+  def scope_user_id(scope) do
+    scope
+    |> scope_user()
+    |> Map.fetch!(:id)
+  end
+
+  @doc """
+  Returns environment API keys carried in scope.
+  """
+  @spec scope_env_api_keys(scope()) :: %{String.t() => String.t()}
+  def scope_env_api_keys(%Scope{env_api_keys: env_api_keys}) when is_map(env_api_keys),
+    do: env_api_keys
 
   ## Database getters
 
@@ -64,7 +93,24 @@ defmodule FrontmanServer.Accounts do
       ** (Ecto.NoResultsError)
 
   """
+  def get_user(id), do: Repo.get(User, id)
+
   def get_user!(id), do: Repo.get!(User, id)
+
+  @doc """
+  Builds a scope for a user and attaches environment API keys.
+  """
+  @spec scope_for_user_with_env_keys(User.t(), %{String.t() => String.t()}) :: scope()
+  def scope_for_user_with_env_keys(%User{} = user, env_api_keys) do
+    user
+    |> Scope.for_user()
+    |> Scope.with_env_api_keys(env_api_keys)
+  end
+
+  @doc """
+  Sends the welcome email for a user.
+  """
+  def deliver_welcome_email(%User{} = user), do: UserNotifier.deliver_welcome(user)
 
   ## User registration
 

@@ -18,15 +18,15 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
     max_attempts: 3,
     unique: [keys: [:user_id], period: :infinity]
 
+  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.User
-  alias FrontmanServer.Repo
 
   require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"user_id" => user_id}}) do
     if enabled?() do
-      case Repo.get(User, user_id) do
+      case Accounts.get_user(user_id) do
         %User{} = user ->
           post_to_discord(user)
 

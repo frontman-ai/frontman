@@ -23,6 +23,15 @@ defmodule FrontmanServerWeb do
   those modules here.
   """
 
+  use Boundary,
+    deps: [
+      FrontmanServer,
+      AgentClientProtocol,
+      JsonRpc,
+      ModelContextProtocol
+    ],
+    exports: [Endpoint, Telemetry]
+
   def static_paths do
     base = ~w(assets fonts images favicon.ico robots.txt)
     if Mix.env() == :prod, do: base, else: base ++ ["browser-test"]

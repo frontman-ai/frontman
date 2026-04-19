@@ -22,11 +22,12 @@ defmodule FrontmanServer.Tasks.Execution do
 
   require Logger
 
+  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Image
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
+  alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias FrontmanServer.Tools
@@ -37,7 +38,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
   Returns `:ok` if the execution was cancelled, `{:error, :not_running}` if none is running.
   """
-  @spec cancel(Scope.t(), String.t()) :: :ok | {:error, :not_running}
+  @spec cancel(Accounts.scope(), String.t()) :: :ok | {:error, :not_running}
   def cancel(%Scope{}, task_id) do
     SwarmAi.Runtime.cancel(FrontmanServer.AgentRuntime, task_id)
   end
@@ -45,7 +46,7 @@ defmodule FrontmanServer.Tasks.Execution do
   @doc """
   Returns true if an execution is currently running for the given task.
   """
-  @spec running?(Scope.t(), String.t()) :: boolean()
+  @spec running?(Accounts.scope(), String.t()) :: boolean()
   def running?(%Scope{}, task_id) do
     SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
   end
@@ -67,11 +68,11 @@ defmodule FrontmanServer.Tasks.Execution do
   - `{:error, :no_api_key}` - No API key available
   - `{:error, :usage_limit_exceeded}` - Server key quota exhausted
   """
-  @spec run(Scope.t(), Task.t(), keyword()) ::
+  @spec run(Accounts.scope(), Task.t(), keyword()) ::
           {:ok, pid() | :already_running} | {:error, :no_api_key | :usage_limit_exceeded | term()}
   def run(%Scope{} = scope, %Task{} = task, opts \\ []) do
     tools = Keyword.get(opts, :tools, [])
-    model = opts |> Keyword.get(:model) |> Model.resolve_string()
+    model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
 
     # Resolve API key at the domain layer (earliest point)
     case Providers.prepare_api_key(scope, model) do
@@ -110,7 +111,8 @@ defmodule FrontmanServer.Tasks.Execution do
   Returns `:notified` when the result was delivered to a live executor,
   `:no_executor` when no executor was waiting (e.g., server restarted).
   """
-  @spec notify_tool_result(Scope.t(), String.t(), term(), boolean()) :: :notified | :no_executor
+  @spec notify_tool_result(Accounts.scope(), String.t(), term(), boolean()) ::
+          :notified | :no_executor
   def notify_tool_result(%Scope{}, tool_call_id, result, is_error) do
     case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
@@ -199,7 +201,7 @@ defmodule FrontmanServer.Tasks.Execution do
           end
 
         max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
-        {model_spec, llm_opts} = ResolvedKey.to_llm_args(resolved_key, max_tokens: max_tokens)
+        {model_spec, llm_opts} = Providers.to_llm_args(resolved_key, max_tokens: max_tokens)
 
         RootAgent.new(
           tools: tools,
@@ -220,7 +222,7 @@ defmodule FrontmanServer.Tasks.Execution do
   # Providers that declare a max_image_dimension hard-reject images exceeding
   # that limit (e.g. Anthropic at 7680px). Others auto-resize so we skip.
   defp maybe_constrain_images(messages, provider) do
-    case Registry.max_image_dimension(provider) do
+    case Providers.max_image_dimension(provider) do
       nil -> messages
       max -> Enum.map(messages, &constrain_message_images(&1, max))
     end

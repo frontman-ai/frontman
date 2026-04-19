@@ -21,6 +21,8 @@ defmodule ModelContextProtocol do
   Use with JsonRpc for complete message handling.
   """
 
+  use Boundary, deps: [JsonRpc], exports: :all
+
   require Logger
 
   @protocol_version "DRAFT-2025-v3"

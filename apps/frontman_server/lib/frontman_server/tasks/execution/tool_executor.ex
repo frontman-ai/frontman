@@ -31,6 +31,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   require Logger
 
+  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Image
   alias FrontmanServer.Tasks
@@ -51,7 +52,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   - `:mcp_tool_defs` - List of `FrontmanServer.Tools.MCP.t()` with timeout/policy (required)
   - `:llm_opts` - Keyword list with `:api_key` and `:model` (required)
   """
-  @spec make_executor(Scope.t(), String.t(), keyword()) ::
+  @spec make_executor(Accounts.scope(), String.t(), keyword()) ::
           ([SwarmAi.ToolCall.t()] -> [ToolExecution.Sync.t() | ToolExecution.Await.t()])
   def make_executor(%Scope{} = scope, task_id, opts) do
     exec_opts = build_exec_opts(opts)
@@ -93,9 +94,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   # --- PE Callbacks (public for MFA dispatch) ---
 
   @doc false
-  @spec run_backend_tool(Scope.t(), module(), String.t(), map(), SwarmAi.ToolCall.t()) ::
+  @spec run_backend_tool(Accounts.scope(), module(), String.t(), map(), SwarmAi.ToolCall.t()) ::
           SwarmAi.ToolResult.t()
-  def run_backend_tool(scope, module, task_id, exec_opts, tool_call) do
+  def run_backend_tool(%Scope{} = scope, module, task_id, exec_opts, tool_call) do
     result = execute_backend_tool(scope, module, tool_call, task_id, exec_opts)
     result = maybe_enrich_with_images(tool_call.name, result)
 
@@ -106,8 +107,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   @doc false
-  @spec start_mcp_tool(Scope.t(), String.t(), SwarmAi.ToolCall.t()) :: :ok
-  def start_mcp_tool(scope, task_id, tool_call) do
+  @spec start_mcp_tool(Accounts.scope(), String.t(), SwarmAi.ToolCall.t()) :: :ok
+  def start_mcp_tool(%Scope{} = scope, task_id, tool_call) do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     # Register BEFORE publishing to prevent a race where the client responds
@@ -127,14 +128,14 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   @doc false
   @spec handle_timeout(
-          Scope.t(),
+          Accounts.scope(),
           String.t(),
           :error | :pause_agent,
           SwarmAi.ToolCall.t(),
           :triggered | :cancelled
         ) ::
           :ok
-  def handle_timeout(scope, task_id, :error, tool_call, :triggered) do
+  def handle_timeout(%Scope{} = scope, task_id, :error, tool_call, :triggered) do
     timeout_msg = "Tool #{tool_call.name} timed out"
     Logger.error("ToolExecutor: #{timeout_msg}")
     report_tool_timeout_sentry(tool_call, task_id)
@@ -150,7 +151,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     :ok
   end
 
-  def handle_timeout(scope, task_id, :error, tool_call, :cancelled) do
+  def handle_timeout(%Scope{} = scope, task_id, :error, tool_call, :cancelled) do
     # Sibling tool triggered :pause_agent, so cancel_remaining cancelled this one.
     # No Sentry report — this is expected cascade behaviour, not a timeout.
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
@@ -173,7 +174,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     :ok
   end
 
-  def handle_timeout(scope, task_id, :pause_agent, tool_call, :cancelled) do
+  def handle_timeout(%Scope{} = scope, task_id, :pause_agent, tool_call, :cancelled) do
     # Sibling cancelled by cancel_remaining — SwarmDispatcher never sees this tool,
     # so we must persist here to satisfy the ToolCall→ToolResult DB invariant.
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"

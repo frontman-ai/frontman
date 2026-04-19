@@ -9,6 +9,7 @@ defmodule FrontmanServer.Application do
   # for more information on OTP Applications
   @moduledoc false
 
+  use Boundary, top_level?: true, deps: [FrontmanServer, FrontmanServerWeb]
   use Application
 
   alias FrontmanServer.Observability.ConsoleHandler

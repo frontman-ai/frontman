@@ -16,6 +16,8 @@ defmodule AgentClientProtocol do
   the agent server, separate from MCP which handles tool invocation.
   """
 
+  use Boundary, deps: [JsonRpc], exports: :all
+
   @protocol_version 1
 
   # Channel event names — the single source of truth for Phoenix channel events.
