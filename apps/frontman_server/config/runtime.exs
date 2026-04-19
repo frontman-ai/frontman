@@ -171,6 +171,27 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  preview_base_host = System.get_env("PREVIEW_BASE_HOST") || "preview.frontman.sh"
+  auth_cookie_domain = System.get_env("AUTH_COOKIE_DOMAIN") || ".frontman.sh"
+  app_login_host = System.get_env("APP_LOGIN_HOST") || host
+
+  app_login_port =
+    case System.get_env("APP_LOGIN_PORT") do
+      nil -> nil
+      value -> String.to_integer(value)
+    end
+
+  config :frontman_server,
+    auth_cookie_domain: auth_cookie_domain,
+    sandbox_preview_proxy: [
+      preview_base_host: preview_base_host,
+      preview_scheme: "https",
+      app_login_host: app_login_host,
+      app_login_scheme: "https",
+      app_login_port: app_login_port,
+      upstream_host: "127.0.0.1"
+    ]
+
   config :frontman_server, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   # Allow WebSocket connections from any origin.

@@ -3,6 +3,21 @@ import Config
 # Mark environment for runtime checks
 config :frontman_server, env: :dev
 
+config :frontman_server,
+  auth_cookie_domain: System.get_env("AUTH_COOKIE_DOMAIN") || ".frontman.local",
+  sandbox_preview_proxy: [
+    preview_base_host: System.get_env("PREVIEW_BASE_HOST") || "preview.frontman.local",
+    preview_scheme: "https",
+    app_login_host:
+      System.get_env("APP_LOGIN_HOST") || (System.get_env("PHX_HOST") || "frontman.local"),
+    app_login_scheme: "https",
+    app_login_port:
+      String.to_integer(
+        System.get_env("PHX_URL_PORT") || if(System.get_env("E2E"), do: "4002", else: "4000")
+      ),
+    upstream_host: "127.0.0.1"
+  ]
+
 # Configure your database
 # For DevPod: post-create.sh updates hostname to the Docker gateway IP
 # For local dev: uses localhost

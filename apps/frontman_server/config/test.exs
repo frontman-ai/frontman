@@ -24,6 +24,17 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
   secret_key_base: "G/GaF+myr6UzSNKYFjTUkCovxv4WghMsXaq4S3O275rp8dLDSEvwkXAn5kbkvUJn",
   server: false
 
+config :frontman_server,
+  auth_cookie_domain: ".frontman.local",
+  sandbox_preview_proxy: [
+    preview_base_host: "preview.frontman.local",
+    preview_scheme: "http",
+    app_login_host: "frontman.local",
+    app_login_scheme: "http",
+    app_login_port: 4002,
+    upstream_host: "127.0.0.1"
+  ]
+
 # In test we don't send emails
 config :frontman_server, FrontmanServer.Mailer,
   adapter: Swoosh.Adapters.Test,

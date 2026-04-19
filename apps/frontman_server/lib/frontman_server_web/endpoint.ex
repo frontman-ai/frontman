@@ -8,6 +8,9 @@ defmodule FrontmanServerWeb.Endpoint do
   use Sentry.PlugCapture
   use Phoenix.Endpoint, otp_app: :frontman_server
 
+  alias FrontmanServerWeb.Plugs.SandboxPreviewProxy
+  alias Plug.Session
+
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
@@ -57,6 +60,7 @@ defmodule FrontmanServerWeb.Endpoint do
 
   plug(Plug.RequestId)
   plug(Plug.Telemetry, event_prefix: [:phoenix, :endpoint])
+  plug(:session_and_preview_proxy)
 
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
@@ -66,8 +70,23 @@ defmodule FrontmanServerWeb.Endpoint do
 
   plug(Plug.MethodOverride)
   plug(Plug.Head)
-  plug(Plug.Session, @session_options)
   plug(Sentry.PlugContext)
   plug(FrontmanServerWeb.Plugs.CORS, path_prefix: "/api")
   plug(FrontmanServerWeb.Router)
+
+  defp session_and_preview_proxy(conn, _opts) do
+    conn
+    |> Session.call(Session.init(session_options_with_domain()))
+    |> SandboxPreviewProxy.call(SandboxPreviewProxy.init([]))
+  end
+
+  defp session_options_with_domain do
+    case Application.get_env(:frontman_server, :auth_cookie_domain) do
+      domain when is_binary(domain) and byte_size(domain) > 0 ->
+        Keyword.put(@session_options, :domain, domain)
+
+      _ ->
+        @session_options
+    end
+  end
 end

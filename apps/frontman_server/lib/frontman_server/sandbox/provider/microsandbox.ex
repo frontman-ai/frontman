@@ -10,8 +10,6 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
 
   @behaviour FrontmanServer.Sandbox.Provider
 
-  require Logger
-
   alias FrontmanServer.Sandbox.CommandRunner
 
   @default_timeout_ms 30_000
@@ -21,30 +19,21 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
 
   @impl true
   def create(%FrontmanServer.Sandbox.EnvironmentSpec{} = spec, opts \\ []) do
-    {dc_flags, dc_temp_path} = devcontainer_flags(spec.devcontainer)
+    {caller_opts, create_opts} = extract_caller_opts(opts)
+
+    port_forwards =
+      Keyword.get(create_opts, :port_forwards, [])
+      |> normalize_port_forwards()
 
     args =
-      ["run", "--name", spec.name, "--image", spec.image] ++
+      ["run", "--detach", "--name", spec.name] ++
         env_flags(spec.env) ++
-        dc_flags
+        port_flags(port_forwards) ++
+        [spec.image]
 
-    try do
-      case msb(args, opts, timeout: @create_timeout_ms) do
-        {:ok, _output} -> {:ok, spec.name}
-        {:error, _} = error -> error
-      end
-    after
-      if dc_temp_path do
-        case File.rm(dc_temp_path) do
-          :ok ->
-            :ok
-
-          {:error, reason} ->
-            Logger.warning(
-              "[Microsandbox] Failed to remove devcontainer temp file #{dc_temp_path}: #{inspect(reason)}"
-            )
-        end
-      end
+    case msb(args, caller_opts, timeout: @create_timeout_ms) do
+      {:ok, _output} -> {:ok, spec.name}
+      {:error, _} = error -> error
     end
   end
 
@@ -67,7 +56,7 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
 
   @impl true
   def metrics(ref, opts \\ []) when is_binary(ref) do
-    with {:ok, output} <- msb(["list", "--json"], opts, []),
+    with {:ok, output} <- msb(["list", "--format", "json"], opts, []),
          {:ok, entries} when is_list(entries) <- Jason.decode(output),
          entry when not is_nil(entry) <- Enum.find(entries, &(&1["name"] == ref)) do
       status = Map.get(entry, "status", "unknown")
@@ -185,17 +174,23 @@ defmodule FrontmanServer.Sandbox.Provider.Microsandbox do
     Enum.flat_map(env, fn {k, v} -> ["--env", "#{k}=#{v}"] end)
   end
 
-  defp devcontainer_flags(dc) when map_size(dc) == 0, do: {[], nil}
+  defp normalize_port_forwards(port_forwards) do
+    Enum.flat_map(port_forwards, fn
+      %{host_port: host_port, guest_port: guest_port}
+      when is_integer(host_port) and is_integer(guest_port) ->
+        [%{host_port: host_port, guest_port: guest_port}]
 
-  defp devcontainer_flags(dc) do
-    path =
-      Path.join(
-        System.tmp_dir!(),
-        "msb-devcontainer-#{System.unique_integer([:positive])}.json"
-      )
+      _ ->
+        []
+    end)
+  end
 
-    File.write!(path, Jason.encode!(dc))
-    {["--config", path], path}
+  defp port_flags([]), do: []
+
+  defp port_flags(port_forwards) do
+    Enum.flat_map(port_forwards, fn %{host_port: host_port, guest_port: guest_port} ->
+      ["--port", "#{host_port}:#{guest_port}"]
+    end)
   end
 
   defp default_runner do

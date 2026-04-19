@@ -21,7 +21,7 @@ defmodule FrontmanServerWeb.UserAuth do
   # the session validity setting in UserToken.
   @max_cookie_age_in_days 14
   @remember_me_cookie "_frontman_server_web_user_remember_me"
-  @remember_me_options [
+  @remember_me_base_options [
     sign: true,
     max_age: @max_cookie_age_in_days * 24 * 60 * 60,
     same_site: "Lax"
@@ -121,7 +121,7 @@ defmodule FrontmanServerWeb.UserAuth do
 
     conn
     |> renew_session(nil)
-    |> delete_resp_cookie(@remember_me_cookie)
+    |> delete_resp_cookie(@remember_me_cookie, remember_me_delete_options())
     |> redirect(to: redirect_url)
   end
 
@@ -225,7 +225,24 @@ defmodule FrontmanServerWeb.UserAuth do
   defp write_remember_me_cookie(conn, token) do
     conn
     |> put_session(:user_remember_me, true)
-    |> put_resp_cookie(@remember_me_cookie, token, @remember_me_options)
+    |> put_resp_cookie(@remember_me_cookie, token, remember_me_options())
+  end
+
+  defp remember_me_options do
+    auth_cookie_domain = Application.get_env(:frontman_server, :auth_cookie_domain)
+
+    case auth_cookie_domain do
+      domain when is_binary(domain) and byte_size(domain) > 0 ->
+        Keyword.put(@remember_me_base_options, :domain, domain)
+
+      _ ->
+        @remember_me_base_options
+    end
+  end
+
+  defp remember_me_delete_options do
+    remember_me_options()
+    |> Keyword.delete(:sign)
   end
 
   defp put_token_in_session(conn, token) do

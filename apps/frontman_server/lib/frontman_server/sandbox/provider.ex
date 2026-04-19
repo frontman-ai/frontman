@@ -41,10 +41,13 @@ defmodule FrontmanServer.Sandbox.Provider do
   @doc """
   Create and start a VM from an environment spec.
 
+  Providers may receive provider-specific creation options. For Microsandbox,
+  this includes port forwarding metadata.
+
   Returns the provider ref string used to identify this sandbox in all
   subsequent calls. The VM should be running and reachable when this returns.
   """
-  @callback create(env_spec()) :: {:ok, provider_ref()} | {:error, term()}
+  @callback create(env_spec(), keyword()) :: {:ok, provider_ref()} | {:error, term()}
 
   @doc """
   Execute a command inside the sandbox.

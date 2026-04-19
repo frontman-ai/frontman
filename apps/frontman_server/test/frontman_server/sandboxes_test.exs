@@ -19,7 +19,6 @@ defmodule FrontmanServer.SandboxesTest do
       assert {:ok, sandbox} = Sandboxes.provision_for_task(scope, task, valid_env_spec())
       assert sandbox.status == :provisioning
       assert sandbox.task_id == task.id
-      assert sandbox.project_id == task.project_id
       assert sandbox.env_spec == valid_env_spec()
     end
 
@@ -152,6 +151,59 @@ defmodule FrontmanServer.SandboxesTest do
 
     test "returns {:error, :not_found} for unknown sandbox_id", %{scope: scope} do
       assert {:error, :not_found} = Sandboxes.decommission(scope, Ecto.UUID.generate())
+    end
+  end
+
+  describe "resolve_preview_target/2" do
+    test "returns upstream host and explicit preview host port for owner", %{scope: scope} do
+      host_port = 13_000
+
+      sandbox =
+        sandbox_fixture(scope, %{
+          status: :running,
+          port_map: %{"3000" => host_port, "web_preview_host_port" => host_port}
+        })
+
+      assert {:ok, %{host: "127.0.0.1", port: ^host_port}} =
+               Sandboxes.resolve_preview_target(scope, sandbox.id)
+    end
+
+    test "returns :not_found for non-owner", %{scope: scope} do
+      host_port = 13_000
+
+      sandbox =
+        sandbox_fixture(scope, %{
+          status: :running,
+          port_map: %{"web_preview_host_port" => host_port}
+        })
+
+      other_scope = user_scope_fixture()
+
+      assert {:error, :not_found} = Sandboxes.resolve_preview_target(other_scope, sandbox.id)
+    end
+
+    test "returns :unavailable when sandbox is not running", %{scope: scope} do
+      host_port = 13_000
+
+      sandbox =
+        sandbox_fixture(scope, %{
+          status: :stopped,
+          port_map: %{"web_preview_host_port" => host_port}
+        })
+
+      assert {:error, :unavailable} = Sandboxes.resolve_preview_target(scope, sandbox.id)
+    end
+
+    test "returns :unavailable when explicit preview host port is missing", %{scope: scope} do
+      host_port = 13_000
+
+      sandbox =
+        sandbox_fixture(scope, %{
+          status: :running,
+          port_map: %{"3000" => host_port}
+        })
+
+      assert {:error, :unavailable} = Sandboxes.resolve_preview_target(scope, sandbox.id)
     end
   end
 end

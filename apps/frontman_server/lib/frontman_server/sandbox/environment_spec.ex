@@ -1,6 +1,6 @@
 defmodule FrontmanServer.Sandbox.EnvironmentSpec do
   @moduledoc """
-  Input to Provider.create/1 — everything needed to provision a sandbox VM.
+  Input to Provider.create/2 — everything needed to provision a sandbox VM.
 
   Validated at the boundary via NimbleOptions. Ephemeral — only used at
   creation time. After that the provider ref string is sufficient for

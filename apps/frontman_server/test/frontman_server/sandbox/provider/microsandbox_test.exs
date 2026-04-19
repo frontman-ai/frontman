@@ -1,7 +1,6 @@
 defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
   use ExUnit.Case, async: true
 
-  import ExUnit.CaptureLog
   import Mox
 
   alias FrontmanServer.Sandbox.EnvironmentSpec
@@ -24,16 +23,16 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
     Keyword.put_new(opts, :command_runner, MockCommandRunner)
   end
 
-  describe "create/1" do
+  describe "create/2" do
     test "returns {:ok, name} when msb run succeeds" do
       env_spec = valid_env_spec()
 
       MockCommandRunner
       |> expect(:run, fn "msb", args, _opts ->
         assert "run" in args
+        assert "--detach" in args
         assert "--name" in args
         assert "test-sandbox" in args
-        assert "--image" in args
         assert "ubuntu:24.04" in args
         {"Sandbox test-sandbox is running\n", 0}
       end)
@@ -63,43 +62,6 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
       assert {:ok, "test-sandbox"} = Microsandbox.create(spec, microsandbox())
     end
 
-    test "cleans up devcontainer temp file after msb returns" do
-      env_spec = valid_env_spec()
-      test_pid = self()
-
-      MockCommandRunner
-      |> expect(:run, fn "msb", args, _opts ->
-        config_idx = Enum.find_index(args, &(&1 == "--config"))
-        config_path = Enum.at(args, config_idx + 1)
-        assert File.exists?(config_path), "temp file should exist during msb call"
-        send(test_pid, {:config_path, config_path})
-        {"Sandbox test-sandbox is running\n", 0}
-      end)
-
-      assert {:ok, "test-sandbox"} = Microsandbox.create(env_spec, microsandbox())
-
-      assert_receive {:config_path, config_path}
-      refute File.exists?(config_path), "temp file should be cleaned up after create returns"
-    end
-
-    test "cleans up devcontainer temp file even when msb fails" do
-      env_spec = valid_env_spec()
-      test_pid = self()
-
-      MockCommandRunner
-      |> expect(:run, fn "msb", args, _opts ->
-        config_idx = Enum.find_index(args, &(&1 == "--config"))
-        config_path = Enum.at(args, config_idx + 1)
-        send(test_pid, {:config_path, config_path})
-        {"Error: image not found\n", 1}
-      end)
-
-      assert {:error, _} = Microsandbox.create(env_spec, microsandbox())
-
-      assert_receive {:config_path, config_path}
-      refute File.exists?(config_path), "temp file should be cleaned up even on failure"
-    end
-
     test "returns error when msb run fails" do
       env_spec = valid_env_spec()
 
@@ -112,25 +74,27 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
                Microsandbox.create(env_spec, microsandbox())
     end
 
-    @tag capture_log: true
-    test "logs cleanup failure when devcontainer temp file removal fails" do
+    test "passes configured port forwards" do
       env_spec = valid_env_spec()
+      host_port = 13_000
 
       MockCommandRunner
       |> expect(:run, fn "msb", args, _opts ->
-        config_idx = Enum.find_index(args, &(&1 == "--config"))
-        config_path = Enum.at(args, config_idx + 1)
+        assert args
+               |> Enum.chunk_every(2, 1, :discard)
+               |> Enum.any?(fn
+                 ["--port", value] -> value == "#{host_port}:3000"
+                 _ -> false
+               end)
 
-        assert :ok = File.rm(config_path)
         {"Sandbox test-sandbox is running\n", 0}
       end)
 
-      log =
-        capture_log(fn ->
-          assert {:ok, "test-sandbox"} = Microsandbox.create(env_spec, microsandbox())
-        end)
-
-      assert log =~ "Failed to remove devcontainer temp file"
+      assert {:ok, "test-sandbox"} =
+               Microsandbox.create(
+                 env_spec,
+                 microsandbox(port_forwards: [%{host_port: host_port, guest_port: 3000}])
+               )
     end
   end
 
@@ -202,7 +166,7 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
         ])
 
       MockCommandRunner
-      |> expect(:run, fn "msb", ["list", "--json"], _opts ->
+      |> expect(:run, fn "msb", ["list", "--format", "json"], _opts ->
         {json_output, 0}
       end)
 
@@ -215,7 +179,7 @@ defmodule FrontmanServer.Sandbox.Provider.MicrosandboxTest do
 
     test "returns error when sandbox not found in list" do
       MockCommandRunner
-      |> expect(:run, fn "msb", ["list", "--json"], _opts ->
+      |> expect(:run, fn "msb", ["list", "--format", "json"], _opts ->
         {Jason.encode!([
            %{"name" => "other", "status" => "running", "cpu_percent" => 0.0, "memory_bytes" => 0}
          ]), 0}

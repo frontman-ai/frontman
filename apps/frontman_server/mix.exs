@@ -106,12 +106,14 @@ defmodule FrontmanServer.MixProject do
       {:sentry, "~> 12.0"},
       # WorkOS for OAuth (GitHub, Google)
       {:workos, "~> 1.1"},
+      {:gun, "~> 2.2"},
       # ==================DEV/Test=========================
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false},
       {:lazy_html, ">= 0.1.0", only: :test},
+      {:mox, "~> 1.2", only: :test},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
