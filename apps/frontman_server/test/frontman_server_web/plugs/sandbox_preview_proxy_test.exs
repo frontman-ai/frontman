@@ -8,6 +8,25 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxyTest.UpstreamStub do
     send_resp(conn, 200, "ok:#{conn.query_string}")
   end
 
+  get "/burst-stream" do
+    conn = send_chunked(conn, 200)
+    payload = String.duplicate("x", 256 * 1024)
+
+    conn =
+      Enum.reduce_while(1..3, conn, fn _index, conn ->
+        case chunk(conn, payload) do
+          {:ok, conn} ->
+            Process.sleep(100)
+            {:cont, conn}
+
+          {:error, _reason} ->
+            {:halt, conn}
+        end
+      end)
+
+    conn
+  end
+
   post "/echo" do
     {:ok, body, conn} = read_body(conn)
     send_resp(conn, 200, body)
@@ -15,6 +34,78 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxyTest.UpstreamStub do
 
   match _ do
     send_resp(conn, 404, "missing")
+  end
+end
+
+defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxyTest.FailingChunkAdapter do
+  @moduledoc false
+
+  @behaviour Plug.Conn.Adapter
+
+  alias Plug.Adapters.Test.Conn, as: TestAdapter
+
+  def wrap(%Plug.Conn{adapter: {TestAdapter, state}} = conn) do
+    %{conn | adapter: {__MODULE__, %{state: state}}}
+  end
+
+  def send_resp(%{state: state} = payload, status, headers, body) do
+    {:ok, sent_body, next_state} = TestAdapter.send_resp(state, status, headers, body)
+    {:ok, sent_body, %{payload | state: next_state}}
+  end
+
+  def send_file(%{state: state} = payload, status, headers, file, offset, length) do
+    {:ok, sent_body, next_state} =
+      TestAdapter.send_file(state, status, headers, file, offset, length)
+
+    {:ok, sent_body, %{payload | state: next_state}}
+  end
+
+  def send_chunked(%{state: state} = payload, status, headers) do
+    {:ok, sent_body, next_state} = TestAdapter.send_chunked(state, status, headers)
+    {:ok, sent_body, %{payload | state: next_state}}
+  end
+
+  def chunk(_payload, _body), do: {:error, :closed}
+
+  def read_req_body(%{state: state} = payload, options) do
+    case TestAdapter.read_req_body(state, options) do
+      {:ok, data, next_state} ->
+        {:ok, data, %{payload | state: next_state}}
+
+      {:more, data, next_state} ->
+        {:more, data, %{payload | state: next_state}}
+    end
+  end
+
+  def inform(%{state: state}, status, headers) do
+    TestAdapter.inform(state, status, headers)
+  end
+
+  def upgrade(%{state: state} = payload, protocol, options) do
+    case TestAdapter.upgrade(state, protocol, options) do
+      {:ok, next_state} -> {:ok, %{payload | state: next_state}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def push(%{state: state}, path, headers) do
+    TestAdapter.push(state, path, headers)
+  end
+
+  def get_peer_data(%{state: state}) do
+    TestAdapter.get_peer_data(state)
+  end
+
+  def get_sock_data(%{state: state}) do
+    TestAdapter.get_sock_data(state)
+  end
+
+  def get_ssl_data(%{state: state}) do
+    TestAdapter.get_ssl_data(state)
+  end
+
+  def get_http_protocol(%{state: state}) do
+    TestAdapter.get_http_protocol(state)
   end
 end
 
@@ -26,7 +117,9 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxyTest do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServerWeb.Plugs.SandboxPreviewProxyTest.FailingChunkAdapter
   alias FrontmanServerWeb.Plugs.SandboxPreviewProxyTest.UpstreamStub
+  alias Plug.Adapters.Test.Conn, as: TestConnAdapter
 
   setup %{conn: conn} do
     user = user_fixture()
@@ -176,6 +269,42 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxyTest do
     assert conn.resp_body == "upstream_unreachable"
   end
 
+  test "cancels async upstream stream when chunk relay fails", %{
+    conn: conn,
+    scope: scope,
+    user: user
+  } do
+    upstream_port = free_port()
+    start_supervised!({Bandit, plug: UpstreamStub, ip: {127, 0, 0, 1}, port: upstream_port})
+
+    sandbox =
+      sandbox_fixture(scope, %{
+        status: :running,
+        port_map: %{"3000" => upstream_port, "web_preview_host_port" => upstream_port}
+      })
+
+    leaked_before = drain_req_async_messages()
+    assert leaked_before == 0
+
+    conn =
+      conn
+      |> authenticate_as(user)
+      |> with_host("#{sandbox.id}.preview.frontman.local")
+      |> TestConnAdapter.conn("GET", "/burst-stream", nil)
+      |> with_failing_chunk_adapter()
+
+    conn = FrontmanServerWeb.Endpoint.call(conn, FrontmanServerWeb.Endpoint.init([]))
+
+    assert conn.status == 200
+
+    # Allow any post-failure async stream messages to land in mailbox.
+    Process.sleep(200)
+
+    leaked_after = drain_req_async_messages()
+
+    assert leaked_after == 0
+  end
+
   test "returns 401 for unauthenticated websocket upgrade requests", %{conn: conn, scope: scope} do
     host_port = 13_000
 
@@ -203,6 +332,28 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxyTest do
 
   defp with_host(conn, host) do
     %{conn | host: host}
+  end
+
+  defp with_failing_chunk_adapter(conn) do
+    FailingChunkAdapter.wrap(conn)
+  end
+
+  defp drain_req_async_messages(count \\ 0) do
+    receive do
+      {_ref, {:data, _data}} ->
+        drain_req_async_messages(count + 1)
+
+      {_ref, {:trailers, _trailers}} ->
+        drain_req_async_messages(count + 1)
+
+      {_ref, {:error, _reason}} ->
+        drain_req_async_messages(count + 1)
+
+      {_ref, :done} ->
+        drain_req_async_messages(count + 1)
+    after
+      0 -> count
+    end
   end
 
   defp free_port do

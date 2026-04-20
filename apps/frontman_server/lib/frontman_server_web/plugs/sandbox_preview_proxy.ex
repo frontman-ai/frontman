@@ -127,6 +127,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
           halt(conn)
 
         {:error, conn, reason} ->
+          Req.cancel_async_response(response)
+
           Logger.warning(
             "[SandboxPreviewProxy] upstream stream failed after response started: #{inspect(reason)}"
           )
