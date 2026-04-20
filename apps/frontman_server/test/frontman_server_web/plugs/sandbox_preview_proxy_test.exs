@@ -84,6 +84,17 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxyTest do
     assert conn.resp_body == "not_found"
   end
 
+  test "returns 404 for non-UUID sandbox_id on preview host", %{conn: conn, user: user} do
+    conn =
+      conn
+      |> authenticate_as(user)
+      |> with_host("admin.preview.frontman.local")
+      |> get("/proxy-ok")
+
+    assert conn.status == 404
+    assert conn.resp_body == "not_found"
+  end
+
   test "returns 404 for non-owner sandbox", %{conn: conn, scope: scope} do
     host_port = 13_000
 

@@ -421,7 +421,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
   end
 
   defp valid_sandbox_id?(sandbox_id) do
-    sandbox_id != "" and Regex.match?(~r/^[a-z0-9-]+$/, sandbox_id)
+    sandbox_id != "" and match?({:ok, _}, Ecto.UUID.cast(sandbox_id))
   end
 
   defp normalize_port(port) when is_integer(port) and port > 0, do: port
