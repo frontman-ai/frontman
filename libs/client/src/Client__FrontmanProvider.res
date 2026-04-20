@@ -433,16 +433,7 @@ module Provider = {
       dispatch(DeleteSession({taskId, onComplete}))
     }, [dispatch])
 
-    // Submit a late tool result via the ACP session channel.
-    // Extract auth redirect URL from ACP error state (encoded as "auth_required:<url>")
-    let authRedirectUrl = switch state.acp {
-    | Reducer.ACPError(msg) =>
-      switch String.startsWith(msg, "auth_required:") {
-      | true => Some(String.slice(msg, ~start=14, ~end=String.length(msg)))
-      | false => None
-      }
-    | _ => None
-    }
+    let authRedirectUrl = Reducer.Selectors.getAuthRedirectUrl(state)
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
