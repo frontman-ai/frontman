@@ -62,6 +62,16 @@ type state = {
   abortController: option<WebAPI.EventAPI.abortController>,
 }
 
+@schema
+type clientInfoMeta = {framework: option<string>}
+
+let frameworkFromClientInfoMeta = (meta: JSON.t): option<string> =>
+  try {
+    S.parseOrThrow(meta, clientInfoMetaSchema).framework
+  } catch {
+  | _ => None
+  }
+
 // Initialization payload - includes pre-created instances
 type initPayload = {
   config: initConfig,
@@ -579,13 +589,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
             let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
             let currentUrl = WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href
             let returnTo = encodeURIComponent(currentUrl)
-            let framework = config.clientInfo._meta->Option.flatMap(meta => {
-              meta
-              ->JSON.Decode.object
-              ->Option.flatMap(obj =>
-                obj->Dict.get("framework")->Option.flatMap(JSON.Decode.string)
-              )
-            })
+            let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
 
             let frameworkParam = switch framework {
             | Some(framework) => `&framework=${encodeURIComponent(framework)}`
