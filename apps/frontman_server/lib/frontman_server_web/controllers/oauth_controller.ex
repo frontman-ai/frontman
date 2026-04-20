@@ -24,7 +24,9 @@ defmodule FrontmanServerWeb.OAuthController do
   def callback(conn, %{"code" => code}) do
     require Logger
 
-    case Accounts.authenticate_with_oauth(code) do
+    signup_framework = get_session(conn, :signup_framework)
+
+    case Accounts.authenticate_with_oauth(code, signup_framework) do
       {:ok, user} ->
         conn
         |> put_flash(:info, "Welcome!")
@@ -81,13 +83,14 @@ defmodule FrontmanServerWeb.OAuthController do
 
   def verify_email(conn, %{"code" => code}) do
     token = get_session(conn, :pending_auth_token)
+    signup_framework = get_session(conn, :signup_framework)
 
     if is_nil(token) do
       conn
       |> put_flash(:error, "No pending verification. Please sign in again.")
       |> redirect(to: ~p"/users/log-in")
     else
-      case Accounts.authenticate_with_email_verification(code, token) do
+      case Accounts.authenticate_with_email_verification(code, token, signup_framework) do
         {:ok, user} ->
           conn
           |> delete_session(:pending_auth_token)

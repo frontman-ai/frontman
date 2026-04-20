@@ -24,11 +24,11 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
   require Logger
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"user_id" => user_id}}) do
+  def perform(%Oban.Job{args: %{"user_id" => user_id} = args}) do
     if enabled?() do
       case Accounts.get_user(user_id) do
         %User{} = user ->
-          post_to_discord(user)
+          post_to_discord(user, args["framework"])
 
         nil ->
           :discard
@@ -43,7 +43,7 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
     Application.get_env(:frontman_server, __MODULE__)[:enabled] == true
   end
 
-  defp post_to_discord(user) do
+  defp post_to_discord(user, framework) do
     webhook_url = Application.fetch_env!(:frontman_server, :discord_new_users_webhook_url)
 
     body = %{
@@ -53,7 +53,8 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
           color: 0x57F287,
           fields: [
             %{name: "Name", value: user.name || "—", inline: true},
-            %{name: "Email", value: user.email || "—", inline: true}
+            %{name: "Email", value: user.email || "—", inline: true},
+            %{name: "Framework", value: framework_display_name(framework), inline: true}
           ],
           timestamp: DateTime.to_iso8601(user.inserted_at)
         }
@@ -78,4 +79,13 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
   defp req_options do
     Application.get_env(:frontman_server, :notify_discord_req_options, [])
   end
+
+  defp framework_display_name("nextjs"), do: "Next.js"
+  defp framework_display_name("vite"), do: "Vite"
+  defp framework_display_name("astro"), do: "Astro"
+  defp framework_display_name("wordpress"), do: "WordPress"
+  defp framework_display_name(nil), do: "—"
+  defp framework_display_name(""), do: "—"
+  defp framework_display_name(framework) when is_binary(framework), do: framework
+  defp framework_display_name(_), do: "—"
 end

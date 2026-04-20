@@ -17,10 +17,9 @@ defmodule FrontmanServerWeb.UserSessionController do
     # Store return_to from query param (for cross-origin redirects like /frontman).
     # Validated by redirect_to_return_path/2 in UserAuth before any redirect happens.
     conn =
-      case params["return_to"] do
-        nil -> conn
-        return_to -> put_session(conn, :user_return_to, return_to)
-      end
+      conn
+      |> maybe_put_user_return_to(params["return_to"])
+      |> maybe_put_signup_framework(params["framework"])
 
     render(conn, :new, form: form)
   end
@@ -108,5 +107,37 @@ defmodule FrontmanServerWeb.UserSessionController do
     conn
     |> put_flash(:info, "Logged out successfully.")
     |> UserAuth.log_out_user(params["return_to"])
+  end
+
+  defp maybe_put_user_return_to(conn, nil), do: conn
+
+  defp maybe_put_user_return_to(conn, return_to) when is_binary(return_to) do
+    put_session(conn, :user_return_to, return_to)
+  end
+
+  defp maybe_put_user_return_to(conn, _), do: conn
+
+  defp maybe_put_signup_framework(conn, framework) when is_binary(framework) do
+    case normalize_signup_framework(framework) do
+      {:ok, normalized} -> put_session(conn, :signup_framework, normalized)
+      :error -> delete_session(conn, :signup_framework)
+    end
+  end
+
+  defp maybe_put_signup_framework(conn, _), do: delete_session(conn, :signup_framework)
+
+  defp normalize_signup_framework("Next.js"), do: {:ok, "nextjs"}
+  defp normalize_signup_framework("Vite"), do: {:ok, "vite"}
+  defp normalize_signup_framework("Astro"), do: {:ok, "astro"}
+  defp normalize_signup_framework("WordPress"), do: {:ok, "wordpress"}
+
+  defp normalize_signup_framework(framework) do
+    case framework |> String.downcase() |> String.replace(~r/[^a-z]/, "") do
+      "nextjs" -> {:ok, "nextjs"}
+      "vite" -> {:ok, "vite"}
+      "astro" -> {:ok, "astro"}
+      "wordpress" -> {:ok, "wordpress"}
+      _ -> :error
+    end
   end
 end

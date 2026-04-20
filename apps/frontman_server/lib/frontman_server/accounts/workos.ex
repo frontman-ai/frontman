@@ -74,10 +74,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
   Note: We use a raw HTTP call instead of the SDK to capture the full error
   response, including `pending_authentication_token` for email verification.
   """
-  def authenticate_with_code(code) do
+  def authenticate_with_code(code, signup_framework \\ nil) do
     with {:ok, auth_response} <- authenticate_with_code_raw(code),
          {:ok, profile} <- extract_profile(auth_response) do
-      find_or_create_user_from_oauth(profile)
+      find_or_create_user_from_oauth(profile, signup_framework)
     end
   end
 
@@ -88,7 +88,11 @@ defmodule FrontmanServer.Accounts.WorkOS do
   receives a verification code via email, which is then submitted along with
   the pending authentication token to complete the flow.
   """
-  def authenticate_with_email_verification(code, pending_authentication_token) do
+  def authenticate_with_email_verification(
+        code,
+        pending_authentication_token,
+        signup_framework \\ nil
+      ) do
     require Logger
 
     body = %{
@@ -103,7 +107,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         with {:ok, auth_response} <- parse_auth_response(response_body),
              {:ok, profile} <- extract_profile(auth_response) do
-          find_or_create_user_from_oauth(profile)
+          find_or_create_user_from_oauth(profile, signup_framework)
         end
 
       {:ok, %Req.Response{status: status, body: error_body}} ->
@@ -197,11 +201,11 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  defp find_or_create_user_from_oauth(profile) do
+  defp find_or_create_user_from_oauth(profile, signup_framework) do
     identity = get_identity_by_provider_id(profile.provider, profile.provider_id)
     existing_user = get_user_by_email(profile.provider_email)
 
-    multi = build_oauth_multi(identity, existing_user, profile)
+    multi = build_oauth_multi(identity, existing_user, profile, signup_framework)
 
     case Repo.transaction(multi) do
       {:ok, %{user: user}} -> {:ok, user}
@@ -211,10 +215,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   # Suppress Dialyzer false positive: Ecto.Multi.new/0 returns a struct with
   # opaque MapSet internals that Dialyzer flags as call_without_opaque.
-  @dialyzer {:nowarn_function, build_oauth_multi: 3}
+  @dialyzer {:nowarn_function, build_oauth_multi: 4}
 
   # Returning user with existing identity — touch timestamps, no welcome email.
-  defp build_oauth_multi(%UserIdentity{} = identity, _existing_user, _profile) do
+  defp build_oauth_multi(%UserIdentity{} = identity, _existing_user, _profile, _signup_framework) do
     now = DateTime.utc_now(:second)
 
     Multi.new()
@@ -226,7 +230,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   end
 
   # Existing user by email but no identity for this provider — link identity.
-  defp build_oauth_multi(nil, %User{} = user, profile) do
+  defp build_oauth_multi(nil, %User{} = user, profile, _signup_framework) do
     now = DateTime.utc_now(:second)
 
     Multi.new()
@@ -235,7 +239,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   end
 
   # Brand-new user — create user + identity + enqueue welcome email.
-  defp build_oauth_multi(nil, nil, profile) do
+  defp build_oauth_multi(nil, nil, profile, signup_framework) do
     Multi.new()
     |> Multi.insert(
       :user,
@@ -254,9 +258,12 @@ defmodule FrontmanServer.Accounts.WorkOS do
       SyncResendContact.new(%{user_id: user.id})
     end)
     |> Oban.insert(:notify_discord, fn %{user: user} ->
-      NotifyDiscordNewUser.new(%{user_id: user.id})
+      NotifyDiscordNewUser.new(notify_discord_args(user.id, signup_framework))
     end)
   end
+
+  defp notify_discord_args(user_id, nil), do: %{user_id: user_id}
+  defp notify_discord_args(user_id, framework), do: %{user_id: user_id, framework: framework}
 
   defp build_identity_changeset(user, profile) do
     %UserIdentity{}

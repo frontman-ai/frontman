@@ -18,6 +18,30 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert response =~ "Continue with Google"
     end
 
+    test "stores normalized signup framework in session", %{conn: conn} do
+      conn = get(conn, ~p"/users/log-in?#{%{"framework" => "Next.js"}}")
+
+      assert get_session(conn, :signup_framework) == "nextjs"
+    end
+
+    test "clears signup framework when value is invalid", %{conn: conn} do
+      conn =
+        conn
+        |> init_test_session(%{signup_framework: "nextjs"})
+        |> get(~p"/users/log-in?#{%{"framework" => "totally-unknown"}}")
+
+      refute get_session(conn, :signup_framework)
+    end
+
+    test "clears signup framework when param is missing", %{conn: conn} do
+      conn =
+        conn
+        |> init_test_session(%{signup_framework: "nextjs"})
+        |> get(~p"/users/log-in")
+
+      refute get_session(conn, :signup_framework)
+    end
+
     test "redirects to home when already logged in", %{conn: conn, user: user} do
       # The login route has redirect_if_user_is_authenticated plug,
       # so authenticated users are redirected away from the login page

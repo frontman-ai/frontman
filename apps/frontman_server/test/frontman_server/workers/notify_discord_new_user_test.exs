@@ -18,7 +18,7 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUserTest do
   end
 
   describe "perform/1" do
-    test "posts new-user embed to the configured Discord webhook" do
+    test "posts new-user embed with framework to the configured Discord webhook" do
       user = Accounts.user_fixture(%{name: "Ada Lovelace", email: "ada@example.com"})
 
       Req.Test.stub(:discord_webhook, fn conn ->
@@ -32,6 +32,25 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUserTest do
         fields = Map.new(embed["fields"], &{&1["name"], &1["value"]})
         assert fields["Name"] == "Ada Lovelace"
         assert fields["Email"] == "ada@example.com"
+        assert fields["Framework"] == "Next.js"
+
+        Req.Test.json(conn, %{ok: true})
+      end)
+
+      assert :ok = perform_job(NotifyDiscordNewUser, %{user_id: user.id, framework: "nextjs"})
+    end
+
+    test "falls back to em dash when framework is missing" do
+      user = Accounts.user_fixture(%{name: "Grace Hopper", email: "grace@example.com"})
+
+      Req.Test.stub(:discord_webhook, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        payload = Jason.decode!(body)
+
+        [embed] = payload["embeds"]
+        fields = Map.new(embed["fields"], &{&1["name"], &1["value"]})
+
+        assert fields["Framework"] == "—"
 
         Req.Test.json(conn, %{ok: true})
       end)

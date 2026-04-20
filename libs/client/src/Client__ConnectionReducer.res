@@ -579,7 +579,25 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
             let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
             let currentUrl = WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href
             let returnTo = encodeURIComponent(currentUrl)
-            let fullUrl = `${loginUrl}?return_to=${returnTo}`
+            let framework = config.clientInfo._meta->Option.flatMap(meta => {
+              meta
+              ->JSON.Decode.object
+              ->Option.flatMap(obj =>
+                obj->Dict.get("framework")->Option.flatMap(JSON.Decode.string)
+              )
+            })
+
+            let frameworkParam = switch framework {
+            | Some(framework) => `&framework=${encodeURIComponent(framework)}`
+            | None => ""
+            }
+
+            let separator = if String.includes(loginUrl, "?") {
+              "&"
+            } else {
+              "?"
+            }
+            let fullUrl = `${loginUrl}${separator}return_to=${returnTo}${frameworkParam}`
             switch initialAuthBehavior {
             | Client__FtueState.ShowWelcomeModal =>
               dispatch(ACPConnectError(`auth_required:${fullUrl}`))

@@ -351,10 +351,21 @@ defmodule FrontmanServer.Accounts do
     to: WorkOS,
     as: :get_authorization_url
 
-  defdelegate authenticate_with_oauth(code), to: WorkOS, as: :authenticate_with_code
+  def authenticate_with_oauth(code, signup_framework \\ nil) do
+    WorkOS.authenticate_with_code(code, signup_framework)
+  end
 
-  defdelegate authenticate_with_email_verification(code, pending_authentication_token),
-    to: WorkOS
+  def authenticate_with_email_verification(
+        code,
+        pending_authentication_token,
+        signup_framework \\ nil
+      ) do
+    WorkOS.authenticate_with_email_verification(
+      code,
+      pending_authentication_token,
+      signup_framework
+    )
+  end
 
   defdelegate link_oauth_provider(user, code), to: WorkOS, as: :link_provider
   defdelegate unlink_oauth_provider(user, provider), to: WorkOS, as: :unlink_provider
