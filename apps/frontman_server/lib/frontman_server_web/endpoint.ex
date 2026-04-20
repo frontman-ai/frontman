@@ -22,6 +22,9 @@ defmodule FrontmanServerWeb.Endpoint do
     secure: true
   ]
 
+  @session_opts_cache_key {__MODULE__, :session_opts}
+  @preview_proxy_opts_cache_key {__MODULE__, :preview_proxy_opts}
+
   socket("/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
@@ -76,12 +79,41 @@ defmodule FrontmanServerWeb.Endpoint do
 
   defp session_and_preview_proxy(conn, _opts) do
     conn
-    |> Session.call(Session.init(session_options_with_domain()))
-    |> SandboxPreviewProxy.call(SandboxPreviewProxy.init([]))
+    |> Session.call(session_opts())
+    |> SandboxPreviewProxy.call(preview_proxy_opts())
   end
 
-  defp session_options_with_domain do
-    case Application.get_env(:frontman_server, :auth_cookie_domain) do
+  defp session_opts do
+    auth_cookie_domain = Application.get_env(:frontman_server, :auth_cookie_domain)
+
+    cached_opts(@session_opts_cache_key, auth_cookie_domain, fn ->
+      Session.init(session_options_with_domain(auth_cookie_domain))
+    end)
+  end
+
+  defp preview_proxy_opts do
+    sandbox_preview_proxy_config =
+      Application.get_env(:frontman_server, :sandbox_preview_proxy, [])
+
+    cached_opts(@preview_proxy_opts_cache_key, sandbox_preview_proxy_config, fn ->
+      SandboxPreviewProxy.init([])
+    end)
+  end
+
+  defp cached_opts(cache_key, config_key, build_opts) when is_function(build_opts, 0) do
+    case :persistent_term.get(cache_key, :undefined) do
+      {^config_key, opts} ->
+        opts
+
+      _ ->
+        opts = build_opts.()
+        :persistent_term.put(cache_key, {config_key, opts})
+        opts
+    end
+  end
+
+  defp session_options_with_domain(auth_cookie_domain) do
+    case auth_cookie_domain do
       domain when is_binary(domain) and byte_size(domain) > 0 ->
         Keyword.put(@session_options, :domain, domain)
 

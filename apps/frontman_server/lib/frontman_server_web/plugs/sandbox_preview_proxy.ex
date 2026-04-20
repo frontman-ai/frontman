@@ -99,16 +99,17 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
 
     case Keyword.get(opts, :app_login_host) do
       host when is_binary(host) and byte_size(host) > 0 ->
-        login_uri = %URI{
-          scheme: Keyword.get(opts, :app_login_scheme, Atom.to_string(conn.scheme)),
-          host: host,
-          port: normalize_port(Keyword.get(opts, :app_login_port)),
-          path: "/users/log-in",
-          query: query
-        }
+        login_url =
+          build_absolute_url(
+            login_scheme(opts, conn.scheme),
+            host,
+            Keyword.get(opts, :app_login_port),
+            "/users/log-in",
+            query
+          )
 
         conn
-        |> redirect(external: URI.to_string(login_uri))
+        |> redirect(external: login_url)
         |> halt()
 
       _ ->
@@ -244,6 +245,9 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
 
       {:more, body, conn} ->
         read_full_body(conn, [body | chunks])
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -325,28 +329,50 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
 
   defp format_remote_ip({_, _, _, _} = ip), do: ip |> :inet.ntoa() |> to_string()
   defp format_remote_ip({_, _, _, _, _, _, _, _} = ip), do: ip |> :inet.ntoa() |> to_string()
-  defp format_remote_ip(_), do: ""
 
   defp upstream_url(conn, target) do
-    %URI{
-      scheme: "http",
-      host: target.host,
-      port: target.port,
-      path: conn.request_path,
-      query: blank_to_nil(conn.query_string)
-    }
-    |> URI.to_string()
+    build_absolute_url("http", target.host, target.port, conn.request_path, conn.query_string)
   end
 
   defp current_request_url(conn) do
-    %URI{
-      scheme: Atom.to_string(conn.scheme),
-      host: conn.host,
-      port: conn.port,
-      path: conn.request_path,
-      query: blank_to_nil(conn.query_string)
-    }
-    |> URI.to_string()
+    build_absolute_url(
+      Atom.to_string(conn.scheme),
+      conn.host,
+      conn.port,
+      conn.request_path,
+      conn.query_string
+    )
+  end
+
+  defp build_absolute_url(scheme, host, port, path, query) do
+    authority =
+      case normalize_port(port) do
+        nil -> host
+        80 when scheme == "http" -> host
+        443 when scheme == "https" -> host
+        normalized_port -> "#{host}:#{normalized_port}"
+      end
+
+    case blank_to_nil(query) do
+      nil -> "#{scheme}://#{authority}#{path}"
+      normalized_query -> "#{scheme}://#{authority}#{path}?#{normalized_query}"
+    end
+  end
+
+  defp login_scheme(opts, request_scheme) do
+    case Keyword.get(opts, :app_login_scheme) do
+      nil ->
+        Atom.to_string(request_scheme)
+
+      scheme when is_atom(scheme) ->
+        Atom.to_string(scheme)
+
+      scheme when is_binary(scheme) and byte_size(scheme) > 0 ->
+        scheme
+
+      _ ->
+        Atom.to_string(request_scheme)
+    end
   end
 
   defp strip_hop_by_hop_headers(headers) do

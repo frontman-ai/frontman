@@ -41,7 +41,7 @@ defmodule FrontmanServerWeb.SandboxPreviewSocket do
          }}
 
       {:error, reason} ->
-        {:stop, reason}
+        {:stop, reason, %__MODULE__{}}
     end
   end
 

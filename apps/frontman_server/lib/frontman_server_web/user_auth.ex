@@ -242,7 +242,7 @@ defmodule FrontmanServerWeb.UserAuth do
 
   defp remember_me_delete_options do
     remember_me_options()
-    |> Keyword.delete(:sign)
+    |> Keyword.take([:domain, :path, :secure, :http_only, :same_site])
   end
 
   defp put_token_in_session(conn, token) do
