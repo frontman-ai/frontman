@@ -7,7 +7,12 @@ defmodule FrontmanServerWeb.TestSupport.SandboxPreviewProxy.UpstreamEchoSocket d
   def init(state), do: {:ok, state}
 
   @impl true
-  def handle_in({payload, opcode: :text}, state), do: {:push, {:text, "echo:" <> payload}, state}
+  def handle_in({payload, opcode: :text}, state) do
+    case {payload, Map.get(state, :cookie)} do
+      {"cookie-header", cookie} -> {:push, {:text, "cookie:" <> (cookie || "")}, state}
+      _ -> {:push, {:text, "echo:" <> payload}, state}
+    end
+  end
 
   def handle_in({payload, opcode: :binary}, state), do: {:push, {:binary, payload}, state}
 

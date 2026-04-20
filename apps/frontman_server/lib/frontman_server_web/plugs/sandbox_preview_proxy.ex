@@ -34,6 +34,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
                         "upgrade"
                       ])
 
+  @blocked_cookie_names ["_frontman_server_key", "_frontman_server_web_user_remember_me"]
+
   @ws_forward_headers ["origin", "cookie", "user-agent", "sec-websocket-protocol"]
 
   @impl true
@@ -118,9 +120,18 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
 
   defp proxy_http(conn, target, opts) do
     with {:ok, body, conn} <- read_full_body(conn, []),
-         {:ok, response} <- request_upstream(conn, target, body, opts),
-         {:ok, conn} <- stream_upstream_response(conn, response, opts) do
-      halt(conn)
+         {:ok, response} <- request_upstream(conn, target, body, opts) do
+      case stream_upstream_response(conn, response, opts) do
+        {:ok, conn} ->
+          halt(conn)
+
+        {:error, conn, reason} ->
+          Logger.warning(
+            "[SandboxPreviewProxy] upstream stream failed after response started: #{inspect(reason)}"
+          )
+
+          halt(conn)
+      end
     else
       {:error, reason} ->
         Logger.warning("[SandboxPreviewProxy] upstream request failed: #{inspect(reason)}")
@@ -134,7 +145,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
       upstream_port: target.port,
       upstream_path: conn.request_path,
       upstream_query: conn.query_string,
-      upstream_headers: websocket_forward_headers(conn.req_headers),
+      upstream_headers: websocket_forward_headers(conn.req_headers, opts),
       connect_timeout_ms: Keyword.get(opts, :upstream_connect_timeout_ms, 5_000),
       upgrade_timeout_ms: Keyword.get(opts, :websocket_upgrade_timeout_ms, 5_000)
     }
@@ -159,7 +170,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
     Req.request(
       method: conn.method,
       url: upstream_url(conn, target),
-      headers: request_forward_headers(conn),
+      headers: request_forward_headers(conn, opts),
       body: body,
       connect_options: [timeout: Keyword.get(opts, :upstream_connect_timeout_ms, 5_000)],
       receive_timeout: Keyword.get(opts, :upstream_receive_timeout_ms, 30_000),
@@ -173,6 +184,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
       response
       |> Req.get_headers_list()
       |> strip_hop_by_hop_headers()
+      |> strip_disallowed_response_headers()
       |> Enum.reduce(conn, fn {name, value}, acc -> put_resp_header(acc, name, value) end)
       |> send_chunked(response.status)
 
@@ -188,19 +200,19 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
             case relay_chunks(conn, chunks) do
               {:ok, conn} -> receive_upstream_chunks(conn, response, timeout_ms)
               {:done, conn} -> {:ok, conn}
-              {:error, reason} -> {:error, reason}
+              {:error, conn, reason} -> {:error, conn, reason}
             end
 
           :unknown ->
             receive_upstream_chunks(conn, response, timeout_ms)
 
           {:error, reason} ->
-            {:error, reason}
+            {:error, conn, reason}
         end
     after
       timeout_ms ->
         Req.cancel_async_response(response)
-        {:error, :upstream_timeout}
+        {:error, conn, :upstream_timeout}
     end
   end
 
@@ -215,7 +227,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
       {:data, data}, {:ok, conn} ->
         case chunk(conn, data) do
           {:ok, conn} -> {:cont, {:ok, conn}}
-          {:error, reason} -> {:halt, {:error, reason}}
+          {:error, reason} -> {:halt, {:error, conn, reason}}
         end
     end)
   end
@@ -235,16 +247,69 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
     end
   end
 
-  defp request_forward_headers(conn) do
+  defp request_forward_headers(conn, opts) do
     conn.req_headers
     |> strip_hop_by_hop_headers()
+    |> scrub_cookie_headers(blocked_cookie_names(opts))
     |> Enum.reject(fn {name, _} -> String.downcase(name) == "host" end)
     |> prepend_forwarding_headers(conn)
   end
 
-  defp websocket_forward_headers(headers) do
+  defp websocket_forward_headers(headers, opts) do
     headers
     |> Enum.filter(fn {name, _value} -> String.downcase(name) in @ws_forward_headers end)
+    |> scrub_cookie_headers(blocked_cookie_names(opts))
+  end
+
+  defp blocked_cookie_names(opts) do
+    opts
+    |> Keyword.get(:blocked_cookie_names, @blocked_cookie_names)
+    |> MapSet.new()
+  end
+
+  defp scrub_cookie_headers(headers, blocked_cookie_names) do
+    headers
+    |> Enum.reduce([], fn header, acc ->
+      case scrub_header(header, blocked_cookie_names) do
+        nil -> acc
+        scrubbed_header -> [scrubbed_header | acc]
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp scrub_header({name, value}, blocked_cookie_names) do
+    case String.downcase(name) do
+      "cookie" ->
+        scrubbed_value = scrub_cookie_header(value, blocked_cookie_names)
+
+        if scrubbed_value == "" do
+          nil
+        else
+          {name, scrubbed_value}
+        end
+
+      _ ->
+        {name, value}
+    end
+  end
+
+  defp scrub_cookie_header(value, blocked_cookie_names) do
+    value
+    |> String.split(";", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(fn cookie_pair ->
+      MapSet.member?(blocked_cookie_names, cookie_name(cookie_pair))
+    end)
+    |> Enum.join("; ")
+  end
+
+  defp cookie_name(cookie_pair) do
+    cookie_pair
+    |> String.split("=", parts: 2)
+    |> List.first()
+    |> to_string()
+    |> String.trim()
   end
 
   defp prepend_forwarding_headers(headers, conn) do
@@ -302,6 +367,12 @@ defmodule FrontmanServerWeb.Plugs.SandboxPreviewProxy do
 
     Enum.reject(headers, fn {name, _value} ->
       MapSet.member?(blocked_headers, String.downcase(name))
+    end)
+  end
+
+  defp strip_disallowed_response_headers(headers) do
+    Enum.reject(headers, fn {name, _value} ->
+      String.downcase(name) == "set-cookie"
     end)
   end
 

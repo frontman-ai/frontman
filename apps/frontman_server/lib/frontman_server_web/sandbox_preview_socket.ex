@@ -124,18 +124,23 @@ defmodule FrontmanServerWeb.SandboxPreviewSocket do
   end
 
   defp connect_upstream(state, connect_timeout_ms, upgrade_timeout_ms) do
-    with {:ok, conn_pid} <-
-           :gun.open(String.to_charlist(state.upstream_host), state.upstream_port),
-         :ok <- await_connection_up(conn_pid, connect_timeout_ms),
-         stream_ref <-
-           :gun.ws_upgrade(
-             conn_pid,
-             upgrade_path(state.upstream_path, state.upstream_query),
-             state.upstream_headers
-           ),
-         :ok <- await_upgrade(conn_pid, stream_ref, upgrade_timeout_ms) do
-      {:ok, conn_pid, stream_ref}
-    else
+    case :gun.open(String.to_charlist(state.upstream_host), state.upstream_port) do
+      {:ok, conn_pid} ->
+        with :ok <- await_connection_up(conn_pid, connect_timeout_ms),
+             stream_ref <-
+               :gun.ws_upgrade(
+                 conn_pid,
+                 upgrade_path(state.upstream_path, state.upstream_query),
+                 state.upstream_headers
+               ),
+             :ok <- await_upgrade(conn_pid, stream_ref, upgrade_timeout_ms) do
+          {:ok, conn_pid, stream_ref}
+        else
+          {:error, reason} ->
+            :gun.close(conn_pid)
+            {:error, reason}
+        end
+
       {:error, reason} ->
         {:error, reason}
     end
