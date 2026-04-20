@@ -298,7 +298,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp handle_backend_outcome({:returned, {:ok, value}}, scope, tool_call, task_id) do
     case Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), value, false) do
-      {:ok, _interaction, _executor_status} ->
+      {:ok, _interaction} ->
         {:ok, encode_result(value)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
