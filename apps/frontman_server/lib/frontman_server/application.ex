@@ -49,8 +49,6 @@ defmodule FrontmanServer.Application do
       {SwarmAi.Runtime,
        name: FrontmanServer.AgentRuntime,
        event_dispatcher: {FrontmanServer.Tasks.SwarmDispatcher, :dispatch, []}},
-      # Registry for MCP tool call result routing (separate from agent execution tracking)
-      {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
       # Oban background job processing (email delivery, contact sync, etc.)
       {Oban, Application.fetch_env!(:frontman_server, Oban)},
       # Start to serve requests, typically the last entry

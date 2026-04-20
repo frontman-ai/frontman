@@ -414,28 +414,27 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a ToolResult interaction.
 
-  Routes the result to the waiting executor so the agent can continue.
+  Persists the tool result in the interaction history. Process routing
+  (delivering the result to a waiting executor) is handled separately
+  by the caller via `SwarmAi.Runtime.deliver_tool_result/5`.
+
   Duplicate tool results for the same tool_call_id are prevented by a
   unique partial index on the interactions table.
-
-  Returns `{:ok, interaction, :notified}` when a live executor received the result,
-  `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
   """
   @spec add_tool_result(Accounts.scope(), String.t(), map(), term(), boolean()) ::
-          {:ok, Interaction.ToolResult.t(), :notified | :no_executor}
+          {:ok, Interaction.ToolResult.t()}
           | {:error, :not_found | Ecto.Changeset.t()}
   def add_tool_result(
         scope,
         task_id,
-        %{id: tool_call_id, name: _} = tool_call_data,
+        %{id: _tool_call_id, name: _} = tool_call_data,
         result,
         is_error \\ false
       ) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- append_interaction(schema, interaction) do
-      executor_status = Execution.notify_tool_result(scope, tool_call_id, result, is_error)
-      {:ok, interaction, executor_status}
+      {:ok, interaction}
     end
   end
 

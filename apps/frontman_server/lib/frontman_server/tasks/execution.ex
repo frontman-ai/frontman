@@ -28,7 +28,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.ResolvedKey
-  alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Execution.{AgentStrategy, Framework, RootAgent}
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias FrontmanServer.Tools
   alias SwarmAi.Message
@@ -103,28 +103,6 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  @doc """
-  Notifies that a tool result has arrived.
-
-  Routes the result to the blocking executor via Registry metadata.
-  Called by the Tasks facade after persisting the tool result interaction.
-  Returns `:notified` when the result was delivered to a live executor,
-  `:no_executor` when no executor was waiting (e.g., server restarted).
-  """
-  @spec notify_tool_result(Accounts.scope(), String.t(), term(), boolean()) ::
-          :notified | :no_executor
-  def notify_tool_result(%Scope{}, tool_call_id, result, is_error) do
-    case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
-      [{_pid, %{caller_pid: caller}}] ->
-        encoded = encode_result_for_swarm(result)
-        send(caller, {:tool_result, tool_call_id, encoded, is_error})
-        :notified
-
-      [] ->
-        :no_executor
-    end
-  end
-
   # --- Private ---
 
   # Dialyzer warning suppressed: protocol dispatch on Agent can't be statically proven.
@@ -140,13 +118,15 @@ defmodule FrontmanServer.Tasks.Execution do
       [api_key: resolved_key.api_key, model: resolved_key.model]
       |> maybe_enable_prompt_cache(resolved_key.provider)
 
-    tool_executor =
-      ToolExecutor.make_executor(scope, task_id,
-        backend_tool_modules: backend_tool_modules,
-        mcp_tools: mcp_tools,
-        mcp_tool_defs: mcp_tool_defs,
-        llm_opts: llm_opts
-      )
+    strategy_opts = [
+      scope: scope,
+      task_id: task_id,
+      runtime: FrontmanServer.AgentRuntime,
+      backend_tool_modules: backend_tool_modules,
+      mcp_tools: mcp_tools,
+      mcp_tool_defs: mcp_tool_defs,
+      llm_opts: llm_opts
+    ]
 
     # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
     # in event handlers — the agent may complete before this line returns.
@@ -161,7 +141,7 @@ defmodule FrontmanServer.Tasks.Execution do
              scope: scope,
              interaction_id: interaction_id
            },
-           tool_executor: tool_executor
+           strategy: {AgentStrategy, strategy_opts}
          ) do
       {:ok, pid} ->
         {:ok, pid}

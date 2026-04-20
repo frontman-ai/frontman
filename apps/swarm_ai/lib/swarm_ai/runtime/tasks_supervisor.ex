@@ -12,9 +12,11 @@ defmodule SwarmAi.Runtime.TasksSupervisor do
   def init(opts) do
     registry_name = Keyword.fetch!(opts, :registry)
     task_sup_name = Keyword.fetch!(opts, :task_supervisor)
+    tool_registry_name = Keyword.fetch!(opts, :tool_registry)
 
     children = [
       {Registry, keys: :unique, name: registry_name},
+      {Registry, keys: :unique, name: tool_registry_name},
       {Task.Supervisor, name: task_sup_name}
     ]
 

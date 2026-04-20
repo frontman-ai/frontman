@@ -226,18 +226,23 @@ defmodule FrontmanServerWeb.TaskChannel do
            parsed_result,
            is_error
          ) do
-      {:ok, _interaction, :notified} ->
-        :ok
+      {:ok, _interaction} ->
+        # Deliver result to waiting executor via Swarm's internal registry
+        case SwarmAi.Runtime.deliver_tool_result(
+               FrontmanServer.AgentRuntime, task_id, tool_call_id, parsed_result, is_error) do
+          :delivered ->
+            :ok
 
-      {:ok, _interaction, :no_executor} ->
-        # No live executor (agent dead after server restart). If all pending
-        # tools are now resolved, resume the agent using scope.env_api_keys + model
-        # from the tool result's _meta (sent by the client per MCP spec).
-        {:ok, task} = Tasks.get_task(scope, task_id)
+          :no_executor ->
+            # No live executor (agent dead after server restart). If all pending
+            # tools are now resolved, resume the agent using scope.env_api_keys + model
+            # from the tool result's _meta (sent by the client per MCP spec).
+            {:ok, task} = Tasks.get_task(scope, task_id)
 
-        if Tasks.Interaction.all_pending_tools_resolved?(task.interactions) do
-          Logger.info("All pending tools resolved for #{task_id}, resuming agent")
-          maybe_resume_agent(socket, scope, task_id, meta)
+            if Tasks.Interaction.all_pending_tools_resolved?(task.interactions) do
+              Logger.info("All pending tools resolved for #{task_id}, resuming agent")
+              maybe_resume_agent(socket, scope, task_id, meta)
+            end
         end
 
       {:error, reason} ->
@@ -341,7 +346,11 @@ defmodule FrontmanServerWeb.TaskChannel do
            error_message,
            true
          ) do
-      {:ok, _interaction, _executor_status} ->
+      {:ok, _interaction} ->
+        # Deliver error to executor. Unlike success path, we don't auto-resume
+        # because MCP error responses don't carry _meta (env API keys + model).
+        SwarmAi.Runtime.deliver_tool_result(
+          FrontmanServer.AgentRuntime, task_id, tool_call.tool_call_id, error_message, true)
         :ok
 
       {:error, reason} ->
@@ -1024,7 +1033,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     pending_requests = socket.assigns[:pending_requests] || %{}
 
     for {_request_id, {:tool_call, tc}} <- pending_requests do
-      Execution.notify_tool_result(scope, tc.tool_call_id, "Client disconnected", true)
+      SwarmAi.Runtime.deliver_tool_result(
+        FrontmanServer.AgentRuntime, task_id, tc.tool_call_id, "Client disconnected", true)
     end
 
     # Cancel any running execution. Without the channel, MCP tool results

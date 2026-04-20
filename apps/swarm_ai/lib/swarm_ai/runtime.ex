@@ -136,6 +136,63 @@ defmodule SwarmAi.Runtime do
     end
   end
 
+  @doc """
+  Delivers a tool result to a waiting executor process.
+
+  Routes via the internal tool result Registry. Returns `:delivered` when
+  a live executor received the result, `:no_executor` when no process was
+  waiting (e.g. server restarted mid-execution).
+  """
+  @spec deliver_tool_result(atom(), term(), String.t(), term(), boolean()) ::
+          :delivered | :no_executor
+  def deliver_tool_result(runtime, _key, tool_call_id, result, is_error) do
+    tool_reg = tool_registry_name(runtime)
+
+    case Registry.lookup(tool_reg, {:awaiting_result, tool_call_id}) do
+      [{pid, _}] ->
+        send(pid, {:tool_result_delivered, tool_call_id, result, is_error})
+        :delivered
+
+      [] ->
+        :no_executor
+    end
+  end
+
+  @doc """
+  Registers the calling process to receive a tool result, then blocks.
+
+  Called from within `ExecutionStrategy.execute_tool/2` implementations.
+  The process is automatically unregistered when the call returns or the
+  process exits.
+
+  ## Options
+
+  - `:timeout` - Max ms to wait (default: 600_000 = 10 min safety net)
+
+  ## Returns
+
+  - `{:ok, content, is_error}` — result delivered
+  - `{:error, :timeout}` — safety-net timeout expired
+  """
+  @spec await_tool_result(atom(), String.t(), keyword()) ::
+          {:ok, term(), boolean()} | {:error, :timeout}
+  def await_tool_result(runtime, tool_call_id, opts \\ []) do
+    timeout = Keyword.get(opts, :timeout, 600_000)
+    tool_reg = tool_registry_name(runtime)
+
+    {:ok, _} = Registry.register(tool_reg, {:awaiting_result, tool_call_id}, %{})
+
+    receive do
+      {:tool_result_delivered, ^tool_call_id, content, is_error} ->
+        Registry.unregister(tool_reg, {:awaiting_result, tool_call_id})
+        {:ok, content, is_error}
+    after
+      timeout ->
+        Registry.unregister(tool_reg, {:awaiting_result, tool_call_id})
+        {:error, :timeout}
+    end
+  end
+
   # --- Private ---
 
   defp spawn_and_await_registration(runtime, task, handshake) do
@@ -399,4 +456,8 @@ defmodule SwarmAi.Runtime do
   @doc false
   @spec task_supervisor_name(atom()) :: atom()
   def task_supervisor_name(runtime), do: :"#{runtime}.TaskSupervisor"
+
+  @doc false
+  @spec tool_registry_name(atom()) :: atom()
+  def tool_registry_name(runtime), do: :"#{runtime}.ToolRegistry"
 end
