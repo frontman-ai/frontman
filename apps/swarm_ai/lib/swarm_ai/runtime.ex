@@ -150,7 +150,7 @@ defmodule SwarmAi.Runtime do
 
     case Registry.lookup(tool_reg, {:awaiting_result, tool_call_id}) do
       [{pid, _}] ->
-        send(pid, {:tool_result_delivered, tool_call_id, result, is_error})
+        send(pid, {:tool_result, tool_call_id, result, is_error})
         :delivered
 
       [] ->
@@ -183,7 +183,7 @@ defmodule SwarmAi.Runtime do
     {:ok, _} = Registry.register(tool_reg, {:awaiting_result, tool_call_id}, %{})
 
     receive do
-      {:tool_result_delivered, ^tool_call_id, content, is_error} ->
+      {:tool_result, ^tool_call_id, content, is_error} ->
         Registry.unregister(tool_reg, {:awaiting_result, tool_call_id})
         {:ok, content, is_error}
     after

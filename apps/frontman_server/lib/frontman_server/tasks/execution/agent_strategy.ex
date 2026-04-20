@@ -359,6 +359,12 @@ defmodule FrontmanServer.Tasks.Execution.AgentStrategy do
 
   @doc false
   def start_mcp_tool_mfa(state, tool_call) do
+    # Register PE's pid in the Runtime's ToolRegistry BEFORE publishing.
+    # self() here = PE's pid (start MFA runs in PE's own process).
+    # This lets deliver_tool_result route {:tool_result, ...} back to PE.
+    tool_reg = SwarmAi.Runtime.tool_registry_name(state.runtime)
+    Registry.register(tool_reg, {:awaiting_result, tool_call.id}, %{})
+
     publish_mcp_tool_call(state.scope, state.task_id, tool_call)
     :ok
   end

@@ -128,6 +128,45 @@ defmodule FrontmanServer.Tasks.Execution do
       llm_opts: llm_opts
     ]
 
+    # Initialize the AgentStrategy and build a tool_executor closure.
+    # Runtime.run/5 accepts `tool_executor:` (a closure), not `strategy:`.
+    # This bridges the new behaviour to the existing runtime interface.
+    # When Runtime is updated to accept `strategy:` natively, this
+    # adapter code can be removed.
+    {:ok, strategy_state} = AgentStrategy.init(strategy_opts)
+
+    tool_executor = fn tool_calls ->
+      Enum.map(tool_calls, fn tc ->
+        tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+
+        case Map.fetch(strategy_state.backend_module_map, tc.name) do
+          {:ok, module} ->
+            %SwarmAi.ToolExecution.Sync{
+              tool_call: tc,
+              timeout_ms: module.timeout_ms(),
+              on_timeout_policy: module.on_timeout(),
+              run: {AgentStrategy, :run_backend_tool_mfa, [strategy_state, module]},
+              on_timeout:
+                {AgentStrategy, :handle_timeout_mfa, [strategy_state, module.on_timeout()]}
+            }
+
+          :error ->
+            tool_def = find_mcp_tool_def!(tc.name, strategy_state)
+
+            %SwarmAi.ToolExecution.Await{
+              tool_call: tc,
+              timeout_ms: tool_def.timeout_ms,
+              on_timeout_policy: tool_def.on_timeout,
+              start: {AgentStrategy, :start_mcp_tool_mfa, [strategy_state]},
+              message_key: tc.id,
+              on_timeout:
+                {AgentStrategy, :handle_timeout_mfa, [strategy_state, tool_def.on_timeout]},
+              process_result: nil
+            }
+        end
+      end)
+    end
+
     # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
     # in event handlers — the agent may complete before this line returns.
     TelemetryEvents.task_start(task_id)
@@ -141,7 +180,7 @@ defmodule FrontmanServer.Tasks.Execution do
              scope: scope,
              interaction_id: interaction_id
            },
-           strategy: {AgentStrategy, strategy_opts}
+           tool_executor: tool_executor
          ) do
       {:ok, pid} ->
         {:ok, pid}
@@ -154,6 +193,12 @@ defmodule FrontmanServer.Tasks.Execution do
         TelemetryEvents.task_stop(task_id)
         error
     end
+  end
+
+  defp find_mcp_tool_def!(tool_name, strategy_state) do
+    Enum.find(strategy_state.mcp_tool_defs, &(&1.name == tool_name)) ||
+      Enum.find(strategy_state.mcp_tools, &(&1.name == tool_name)) ||
+      raise "Unknown tool: #{tool_name}. Not in backend_module_map, mcp_tool_defs, or mcp_tools."
   end
 
   defp maybe_enable_prompt_cache(opts, "anthropic"),
@@ -232,9 +277,6 @@ defmodule FrontmanServer.Tasks.Execution do
   end
 
   defp constrain_image_part(part, _max), do: part
-
-  defp encode_result_for_swarm(value) when is_binary(value), do: value
-  defp encode_result_for_swarm(value), do: Jason.encode!(value)
 
   # --- SwarmAi Message Conversion ---
 
