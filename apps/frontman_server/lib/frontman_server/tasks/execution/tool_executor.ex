@@ -259,7 +259,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         backend_tool_modules: Map.get(opts, :backend_tool_modules, []),
         mcp_tools: Map.get(opts, :mcp_tools, []),
         mcp_tool_defs: Map.get(opts, :mcp_tool_defs, []),
-        llm_opts: Map.get(opts, :llm_opts, [])
+        llm_opts: Map.get(opts, :llm_opts, []),
+        sandbox: Map.get(opts, :sandbox)
       )
 
     context_messages = Interaction.extract_markdown_messages(task.interactions)

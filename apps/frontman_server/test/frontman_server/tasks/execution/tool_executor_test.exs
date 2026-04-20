@@ -32,6 +32,42 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end
   end
 
+  # A backend tool that inspects nested executor opts for sandbox propagation.
+  defmodule SubAgentSandboxProbeTool do
+    @behaviour Backend
+
+    def name, do: "sub_agent_sandbox_probe_tool"
+    def description, do: "Inspects nested executor sandbox opts"
+    def parameter_schema, do: %{"type" => "object", "properties" => %{}}
+    def timeout_ms, do: 30_000
+    def on_timeout, do: :error
+
+    def execute(_args, context) do
+      nested_tool_call = %SwarmAi.ToolCall{
+        id: "nested_#{System.unique_integer([:positive])}",
+        name: "pause_on_timeout_tool",
+        arguments: "{}"
+      }
+
+      [execution] = context.tool_executor.([nested_tool_call])
+
+      case execution do
+        %SwarmAi.ToolExecution.Sync{
+          run:
+            {FrontmanServer.Tasks.Execution.ToolExecutor, :run_backend_tool,
+             [_scope, _module, _task_id, exec_opts]}
+        } ->
+          case Map.get(exec_opts, :sandbox) do
+            nil -> {:error, "nested executor missing sandbox"}
+            _sandbox -> {:ok, "nested executor has sandbox"}
+          end
+
+        _other ->
+          {:error, "unexpected nested execution shape"}
+      end
+    end
+  end
+
   # A backend tool that declares on_timeout: :pause_agent.
   defmodule PauseOnTimeoutTool do
     @behaviour Backend
@@ -89,6 +125,44 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       result = ToolExecutor.run_backend_tool(scope, SubAgentTool, task_id, exec_opts, tool_call)
 
       # SubAgentTool calls context.tool_executor.([]) and returns {:ok, "executor is callable"}.
+      assert %SwarmAi.ToolResult{is_error: false} = result
+    end
+
+    @tag :capture_log
+    test "sub-agent executor preserves sandbox in nested execution opts", %{
+      scope: scope,
+      task_id: task_id,
+      llm_opts: llm_opts
+    } do
+      sandbox = %{id: "sandbox-#{System.unique_integer([:positive])}"}
+
+      exec_opts = %{
+        backend_tool_modules: [SubAgentSandboxProbeTool, PauseOnTimeoutTool],
+        backend_module_map: %{
+          SubAgentSandboxProbeTool.name() => SubAgentSandboxProbeTool,
+          PauseOnTimeoutTool.name() => PauseOnTimeoutTool
+        },
+        mcp_tools: [],
+        mcp_tool_defs: [],
+        llm_opts: llm_opts,
+        sandbox: sandbox
+      }
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: SubAgentSandboxProbeTool.name(),
+        arguments: "{}"
+      }
+
+      result =
+        ToolExecutor.run_backend_tool(
+          scope,
+          SubAgentSandboxProbeTool,
+          task_id,
+          exec_opts,
+          tool_call
+        )
+
       assert %SwarmAi.ToolResult{is_error: false} = result
     end
   end

@@ -31,6 +31,8 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Workers.GenerateTitle
   alias ReqLLM.ToolCall
 
+  @execution_start_table :frontman_tasks_execution_start_locks
+
   # --- Authorization Helpers ---
 
   @spec get_task_by_id(Scope.t(), String.t()) :: {:ok, TaskSchema.t()} | {:error, :not_found}
@@ -268,7 +270,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp guard_not_running(scope, task_id) do
-    if Execution.running?(scope, task_id), do: {:error, :already_running}, else: :ok
+    if execution_active?(scope, task_id), do: {:error, :already_running}, else: :ok
   end
 
   @doc """
@@ -430,27 +432,94 @@ defmodule FrontmanServer.Tasks do
   """
   @spec maybe_start_execution(Scope.t(), String.t(), list(), keyword()) :: :ok | :already_running
   def maybe_start_execution(scope, task_id, tools, opts) do
-    if Execution.running?(scope, task_id) do
+    if execution_active?(scope, task_id) do
       :already_running
     else
-      {:ok, task} = get_task(scope, task_id)
+      case Execution.sandbox_mvp_enabled?() do
+        true ->
+          maybe_start_execution_async(scope, task_id, tools, opts)
 
-      case Execution.run(scope, task, Keyword.merge([tools: tools], opts)) do
-        {:ok, _pid_or_already_running} ->
-          :ok
-
-        {:error, reason} ->
-          # Broadcast as :execution_start_error so TaskChannel can handle it.
-          # This is NOT a swarm_event (the agent never started), so we use a
-          # separate message shape to avoid double-wrapping.
-          Phoenix.PubSub.broadcast(
-            FrontmanServer.PubSub,
-            topic(task_id),
-            {:execution_start_error, Execution.error_message(scope, reason)}
-          )
-
-          :ok
+        false ->
+          maybe_start_execution_sync(scope, task_id, tools, opts)
       end
+    end
+  end
+
+  defp maybe_start_execution_async(scope, task_id, tools, opts) do
+    case mark_execution_starting(task_id) do
+      :ok ->
+        {:ok, _pid} =
+          Elixir.Task.start(fn ->
+            try do
+              maybe_start_execution_sync(scope, task_id, tools, opts)
+            after
+              clear_execution_starting(task_id)
+            end
+          end)
+
+        :ok
+
+      :already_starting ->
+        :already_running
+    end
+  end
+
+  defp maybe_start_execution_sync(scope, task_id, tools, opts) do
+    {:ok, task} = get_task(scope, task_id)
+
+    case Execution.run(scope, task, Keyword.merge([tools: tools], opts)) do
+      {:ok, _pid_or_already_running} ->
+        :ok
+
+      {:error, reason} ->
+        # Broadcast as :execution_start_error so TaskChannel can handle it.
+        # This is NOT a swarm_event (the agent never started), so we use a
+        # separate message shape to avoid double-wrapping.
+        Phoenix.PubSub.broadcast(
+          FrontmanServer.PubSub,
+          topic(task_id),
+          {:execution_start_error, Execution.error_message(scope, reason)}
+        )
+
+        :ok
+    end
+  end
+
+  defp execution_active?(scope, task_id) do
+    Execution.running?(scope, task_id) or execution_starting?(task_id)
+  end
+
+  defp mark_execution_starting(task_id) do
+    table = ensure_execution_start_table()
+
+    case :ets.insert_new(table, {task_id}) do
+      true -> :ok
+      false -> :already_starting
+    end
+  end
+
+  defp execution_starting?(task_id) do
+    table = ensure_execution_start_table()
+    :ets.member(table, task_id)
+  end
+
+  defp clear_execution_starting(task_id) do
+    table = ensure_execution_start_table()
+    :ets.delete(table, task_id)
+    :ok
+  end
+
+  defp ensure_execution_start_table do
+    case :ets.whereis(@execution_start_table) do
+      :undefined ->
+        try do
+          :ets.new(@execution_start_table, [:named_table, :public, :set, read_concurrency: true])
+        rescue
+          ArgumentError -> @execution_start_table
+        end
+
+      table ->
+        table
     end
   end
 

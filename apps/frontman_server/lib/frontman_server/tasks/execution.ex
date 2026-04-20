@@ -408,6 +408,9 @@ defmodule FrontmanServer.Tasks.Execution do
           :error ->
             {:error, :sandbox_provisioning_failed}
 
+          :stopped ->
+            {:error, :sandbox_stopped}
+
           _status ->
             continue_waiting(scope, sandbox_id, deadline_ms, poll_interval_ms)
         end

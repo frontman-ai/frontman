@@ -13,15 +13,18 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Sandboxes, only: [valid_env_spec: 0]
 
   import FrontmanServer.Test.Fixtures.Tools,
     only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Repo
+  alias FrontmanServer.Sandbox.EnvironmentSpec
   alias FrontmanServer.Sandboxes
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution
+  alias FrontmanServer.Tasks.{Execution, TaskSchema}
   alias FrontmanServer.Tasks.{ExecutionEvent, Interaction}
   alias FrontmanServer.Test.Support.Sandbox.IntegrationProvider
   alias FrontmanServer.Tools.MCP
@@ -64,6 +67,30 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         on_timeout: :error
       }
     ]
+  end
+
+  defmodule StuckProvisionProvider do
+    @behaviour FrontmanServer.Sandbox.Provider
+
+    @impl true
+    def create(%EnvironmentSpec{} = spec, _opts) do
+      {:ok, "stuck-#{spec.name}-#{System.unique_integer([:positive])}"}
+    end
+
+    @impl true
+    def exec(_ref, _command, _args, _opts), do: {:error, :not_ready}
+
+    @impl true
+    def metrics(_ref), do: {:ok, %{running: false}}
+
+    @impl true
+    def stop(_ref), do: :ok
+
+    @impl true
+    def start(_ref), do: :ok
+
+    @impl true
+    def destroy(_ref), do: :ok
   end
 
   defp setup_sandbox(_context) do
@@ -149,7 +176,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   describe "sandbox bootstrap invariants" do
-    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_sandbox_mvp_enabled]
+    setup [:setup_sandbox, :setup_user, :setup_task, :setup_sandbox_mvp_enabled]
 
     test "creating a new sandbox preserves task_id and provider override", %{
       task_id: task_id,
@@ -171,6 +198,63 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert String.starts_with?(sandbox.provider_ref, "integration-task-")
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
+    end
+
+    test "submit_user_message returns quickly while sandbox provisioning is pending", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      agent =
+        test_agent(
+          %MockLLM{response: "hello", delay_ms: 5_000},
+          "SandboxProvisioningPendingAgent"
+        )
+
+      started_at = System.monotonic_time(:millisecond)
+
+      assert {:ok, _interaction} =
+               Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
+                 agent: agent,
+                 sandbox_provider: StuckProvisionProvider,
+                 sandbox_wait_timeout_ms: 350
+               )
+
+      elapsed_ms = System.monotonic_time(:millisecond) - started_at
+      assert elapsed_ms < 200
+
+      assert_receive {:execution_start_error, ":sandbox_provisioning_timeout"}, 1_000
+    end
+
+    test "returns sandbox_stopped immediately instead of waiting for timeout", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      task_schema = Repo.get!(TaskSchema, task_id)
+
+      env_spec =
+        valid_env_spec()
+        |> Map.put("name", "sandbox-stopped-#{System.unique_integer([:positive])}")
+
+      {:ok, sandbox} = Sandboxes.provision_for_task(scope, task_schema, env_spec)
+
+      {:ok, _pid} =
+        Task.start(fn ->
+          Process.sleep(20)
+          {:ok, _sandbox} = Sandboxes.suspend(scope, sandbox.id)
+        end)
+
+      agent = test_agent(%MockLLM{response: "hello"}, "SandboxStoppedAgent")
+      started_at = System.monotonic_time(:millisecond)
+
+      assert {:error, :sandbox_stopped} =
+               Execution.run(scope, task,
+                 agent: agent,
+                 sandbox_wait_timeout_ms: 500
+               )
+
+      elapsed_ms = System.monotonic_time(:millisecond) - started_at
+      assert elapsed_ms < 300
     end
   end
 
