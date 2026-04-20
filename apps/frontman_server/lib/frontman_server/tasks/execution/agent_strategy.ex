@@ -391,6 +391,16 @@ defmodule FrontmanServer.Tasks.Execution.AgentStrategy do
     timeout_msg = "Tool #{tool_call.name} timed out"
     Logger.error("AgentStrategy: #{timeout_msg}")
 
+    Sentry.capture_message("Tool timeout",
+      level: :error,
+      tags: %{error_type: "tool_timeout"},
+      extra: %{
+        tool_name: tool_call.name,
+        tool_call_id: tool_call.id,
+        task_id: state.task_id
+      }
+    )
+
     Tasks.add_tool_result(
       state.scope,
       state.task_id,
