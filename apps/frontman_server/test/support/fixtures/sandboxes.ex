@@ -2,12 +2,11 @@ defmodule FrontmanServer.Test.Fixtures.Sandboxes do
   @moduledoc "Test helpers for creating sandbox entities."
 
   import FrontmanServer.Test.Fixtures.Accounts, only: [user_scope_fixture: 0]
-  import FrontmanServer.Test.Fixtures.Projects
+  import FrontmanServer.Test.Fixtures.Tasks, only: [task_fixture: 1]
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Repo
   alias FrontmanServer.Sandboxes
-  alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.TaskSchema
 
   def valid_env_spec do
@@ -24,14 +23,8 @@ defmodule FrontmanServer.Test.Fixtures.Sandboxes do
   end
 
   def task_with_project_fixture(scope) do
-    project = project_fixture(scope)
-    task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id)
-
-    TaskSchema
-    |> Repo.get!(task_id)
-    |> Ecto.Changeset.change(project_id: project.id)
-    |> Repo.update!()
+    task_id = task_fixture(scope)
+    TaskSchema |> Repo.get!(task_id)
   end
 
   @doc """

@@ -17,7 +17,7 @@ import {
 } from "node:fs";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
-const FRONTMAN_SERVER = "localhost:4002";
+const FRONTMAN_SERVER = "frontman.local:4002";
 
 /**
  * Run the Frontman Next.js installer on the fixture project.

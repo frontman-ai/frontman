@@ -130,27 +130,32 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
 
   @impl true
   def handle_continue(:provision, state) do
-    case state.provider.create(state.environment_spec) do
-      {:ok, provider_ref} ->
-        sandbox = Repo.get!(SandboxSchema, state.sandbox_id)
+    with {:ok, routing} <- build_port_routing(state.environment_spec),
+         {:ok, provider_ref} <-
+           state.provider.create(state.environment_spec, port_forwards: routing.port_forwards) do
+      sandbox = Repo.get!(SandboxSchema, state.sandbox_id)
 
-        sandbox
-        |> SandboxSchema.set_provider_ref_changeset(provider_ref)
-        |> Repo.update!()
+      sandbox
+      |> Ecto.Changeset.change(
+        provider_ref: provider_ref,
+        port_map: routing.port_map,
+        preview_url: preview_url(state.sandbox_id)
+      )
+      |> Repo.update!()
 
-        provision_timer_ref =
-          Process.send_after(self(), :provision_timeout, state.provision_timeout_ms)
+      provision_timer_ref =
+        Process.send_after(self(), :provision_timeout, state.provision_timeout_ms)
 
-        heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
+      heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
 
-        {:noreply,
-         %{
-           state
-           | provider_ref: provider_ref,
-             heartbeat_ref: heartbeat_ref,
-             provision_timer_ref: provision_timer_ref
-         }}
-
+      {:noreply,
+       %{
+         state
+         | provider_ref: provider_ref,
+           heartbeat_ref: heartbeat_ref,
+           provision_timer_ref: provision_timer_ref
+       }}
+    else
       {:error, reason} ->
         Logger.error(
           "[Orchestrator] provider.create failed for #{state.sandbox_id}: #{inspect(reason)}"
@@ -307,6 +312,88 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
       :sandbox_provider,
       FrontmanServer.Sandbox.Provider.Microsandbox
     )
+  end
+
+  defp build_port_routing(environment_spec) do
+    guest_ports =
+      environment_spec.devcontainer
+      |> devcontainer_forward_ports()
+      |> default_forward_ports()
+
+    port_forwards =
+      Enum.map(guest_ports, fn guest_port ->
+        %{guest_port: guest_port, host_port: reserve_host_port()}
+      end)
+
+    case port_forwards do
+      [%{host_port: preview_host_port} | _] ->
+        port_map =
+          Enum.reduce(port_forwards, %{}, fn %{guest_port: guest_port, host_port: host_port},
+                                             acc ->
+            Map.put(acc, Integer.to_string(guest_port), host_port)
+          end)
+          |> Map.put("web_preview_host_port", preview_host_port)
+
+        {:ok, %{port_forwards: port_forwards, port_map: port_map}}
+
+      [] ->
+        {:error, :missing_forward_ports}
+    end
+  end
+
+  defp devcontainer_forward_ports(devcontainer) when is_map(devcontainer) do
+    forward_ports =
+      Map.get_lazy(devcontainer, "forwardPorts", fn ->
+        Map.get(devcontainer, :forwardPorts, [])
+      end)
+
+    case forward_ports do
+      forward_ports when is_list(forward_ports) ->
+        forward_ports
+        |> Enum.flat_map(&normalize_forward_port/1)
+        |> Enum.uniq()
+
+      _ ->
+        []
+    end
+  end
+
+  defp devcontainer_forward_ports(_), do: []
+
+  defp normalize_forward_port(port) when is_integer(port) and port > 0 and port <= 65_535,
+    do: [port]
+
+  defp normalize_forward_port(port) when is_binary(port) do
+    case Integer.parse(port) do
+      {value, ""} when value > 0 and value <= 65_535 -> [value]
+      _ -> []
+    end
+  end
+
+  defp normalize_forward_port(_), do: []
+
+  defp default_forward_ports([]), do: [3000]
+  defp default_forward_ports(ports), do: ports
+
+  defp reserve_host_port do
+    {:ok, socket} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
+    {:ok, port} = :inet.port(socket)
+    :ok = :gen_tcp.close(socket)
+    port
+  end
+
+  defp preview_url(sandbox_id) do
+    preview_config = Application.get_env(:frontman_server, :sandbox_preview_proxy, [])
+    preview_base_host = Keyword.get(preview_config, :preview_base_host)
+
+    case preview_base_host do
+      base_host when is_binary(base_host) and byte_size(base_host) > 0 ->
+        preview_scheme = Keyword.get(preview_config, :preview_scheme, "https")
+        "#{preview_scheme}://#{sandbox_id}.#{base_host}"
+
+      _ ->
+        nil
+    end
   end
 
   defp exec_call_timeout(opts) do

@@ -11,7 +11,6 @@ defmodule FrontmanServer.Sandbox.SandboxSchema do
   import Ecto.Changeset
   import Ecto.Query
 
-  alias FrontmanServer.Projects.Project
   alias FrontmanServer.Tasks.TaskSchema
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -32,7 +31,6 @@ defmodule FrontmanServer.Sandbox.SandboxSchema do
     field(:last_active_at, :utc_datetime)
 
     belongs_to(:task, TaskSchema)
-    belongs_to(:project, Project)
 
     timestamps(type: :utc_datetime)
   end
@@ -43,11 +41,10 @@ defmodule FrontmanServer.Sandbox.SandboxSchema do
   @spec create_changeset(map()) :: Ecto.Changeset.t()
   def create_changeset(attrs) do
     %__MODULE__{}
-    |> cast(attrs, [:env_spec, :task_id, :project_id])
+    |> cast(attrs, [:env_spec, :task_id])
     |> put_change(:status, :provisioning)
-    |> validate_required([:env_spec, :task_id, :project_id])
+    |> validate_required([:env_spec, :task_id])
     |> foreign_key_constraint(:task_id)
-    |> foreign_key_constraint(:project_id)
   end
 
   @doc "Changeset for status transitions."

@@ -22,7 +22,7 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
 
   let runtimeConfigScript = {
     // Get raw env vars and filter out empty strings
-    let getEnvKey = (varName) =>
+    let getEnvKey = varName =>
       FrontmanBindings.Process.env
       ->Dict.get(varName)
       ->Option.flatMap(key =>
@@ -51,6 +51,8 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
     `<script>window.__frontmanRuntime=${payload}</script>`
   }
 
+  let randomUuidPolyfillScript = `<script>(function(){var c=globalThis.crypto;if(!c||typeof c.randomUUID==="function"||typeof c.getRandomValues!=="function"){return;}var randomUUID=function(){var bytes=new Uint8Array(16);c.getRandomValues(bytes);bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;var hex=Array.from(bytes,function(b){return b.toString(16).padStart(2,"0");}).join("");return hex.slice(0,8)+"-"+hex.slice(8,12)+"-"+hex.slice(12,16)+"-"+hex.slice(16,20)+"-"+hex.slice(20);};try{c.randomUUID=randomUUID;return;}catch(_){ }try{Object.defineProperty(c,"randomUUID",{value:randomUUID,configurable:true});}catch(_){ }}());</script>`
+
   `<!DOCTYPE html>
 <html lang="en" class="${themeClass}">
 <head>
@@ -72,6 +74,7 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
     <div id="root"></div>
     ${runtimeConfigScript}
     <script>if(typeof process==="undefined"){window.process={env:{NODE_ENV:"production"}}}</script>
+    ${randomUuidPolyfillScript}
     <script type="module" src="${config.clientUrl}"></script>
 </body>
 </html>`

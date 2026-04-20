@@ -23,7 +23,6 @@ defmodule FrontmanServer.Sandboxes.Sandbox do
     field(:last_active_at, :utc_datetime)
 
     belongs_to(:task, FrontmanServer.Tasks.TaskSchema)
-    belongs_to(:project, FrontmanServer.Projects.Project)
 
     timestamps(type: :utc_datetime)
   end
@@ -33,17 +32,15 @@ defmodule FrontmanServer.Sandboxes.Sandbox do
   @doc """
   Changeset for provisioning a new sandbox.
   Status is always set to :provisioning on creation.
-  System fields (task_id, project_id) are set explicitly — never cast from
-  user input.
+  System fields are set explicitly — never cast from user input.
   """
-  @spec create_changeset(t(), Ecto.UUID.t(), Ecto.UUID.t(), map()) :: Ecto.Changeset.t()
-  def create_changeset(sandbox, task_id, project_id, attrs) do
-    %{sandbox | task_id: task_id, project_id: project_id}
+  @spec create_changeset(t(), Ecto.UUID.t(), map()) :: Ecto.Changeset.t()
+  def create_changeset(sandbox, task_id, attrs) do
+    %{sandbox | task_id: task_id}
     |> cast(attrs, [:env_spec])
     |> put_change(:status, :provisioning)
-    |> validate_required([:env_spec, :task_id, :project_id])
+    |> validate_required([:env_spec, :task_id])
     |> foreign_key_constraint(:task_id)
-    |> foreign_key_constraint(:project_id)
   end
 
   @doc """

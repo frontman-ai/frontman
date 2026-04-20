@@ -35,7 +35,7 @@ defmodule FrontmanServer.Test.Support.Sandbox.IntegrationProvider do
   end
 
   @impl true
-  def create(%EnvironmentSpec{} = spec) do
+  def create(%EnvironmentSpec{} = spec, _opts \\ []) do
     table = ensure_table()
 
     maybe_delay(spec)

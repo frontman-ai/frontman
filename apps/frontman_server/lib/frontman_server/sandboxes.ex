@@ -10,7 +10,6 @@ defmodule FrontmanServer.Sandboxes do
   require Logger
 
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Projects
   alias FrontmanServer.Repo
   alias FrontmanServer.Sandbox.EnvironmentSpec
   alias FrontmanServer.Sandbox.Orchestrator
@@ -26,10 +25,10 @@ defmodule FrontmanServer.Sandboxes do
   @spec provision_for_task(Scope.t(), TaskSchema.t(), map()) ::
           {:ok, Sandbox.t()} | {:error, :not_found | Ecto.Changeset.t() | term()}
   def provision_for_task(%Scope{} = scope, %TaskSchema{} = task, env_spec) do
-    with {:ok, _project} <- Projects.get_project(scope, task.project_id),
+    with :ok <- authorize_task(scope, task),
          {:ok, persisted_env_spec} <- normalize_env_spec(env_spec) do
       %Sandbox{}
-      |> Sandbox.create_changeset(task.id, task.project_id, %{env_spec: persisted_env_spec})
+      |> Sandbox.create_changeset(task.id, %{env_spec: persisted_env_spec})
       |> Repo.insert()
     end
   end
@@ -56,7 +55,7 @@ defmodule FrontmanServer.Sandboxes do
   @spec current_for_task(Scope.t(), TaskSchema.t()) ::
           Sandbox.t() | nil | {:error, :not_found}
   def current_for_task(%Scope{} = scope, %TaskSchema{} = task) do
-    with {:ok, _project} <- Projects.get_project(scope, task.project_id) do
+    with :ok <- authorize_task(scope, task) do
       case current_for_task(scope, task.id) do
         {:ok, sandbox} -> sandbox
         {:error, :not_found} -> nil
@@ -87,6 +86,20 @@ defmodule FrontmanServer.Sandboxes do
       |> Repo.all()
 
     {:ok, sandboxes}
+  end
+
+  @doc "Resolve the upstream preview target for an owner-visible sandbox."
+  @spec resolve_preview_target(Scope.t(), Ecto.UUID.t()) ::
+          {:ok, %{host: String.t(), port: pos_integer()}} | {:error, :not_found | :unavailable}
+  def resolve_preview_target(%Scope{} = scope, sandbox_id) when is_binary(sandbox_id) do
+    with {:ok, sandbox} <- get_sandbox(scope, sandbox_id),
+         :ok <- ensure_running(sandbox),
+         {:ok, port} <- preview_host_port(sandbox.port_map) do
+      {:ok, %{host: preview_upstream_host(), port: port}}
+    else
+      {:error, :not_found} -> {:error, :not_found}
+      {:error, :unavailable} -> {:error, :unavailable}
+    end
   end
 
   @doc """
@@ -252,4 +265,40 @@ defmodule FrontmanServer.Sandboxes do
   end
 
   defp normalize_env_spec(_env_spec), do: {:error, {:invalid_env_spec, :not_a_map}}
+
+  defp ensure_running(%Sandbox{status: :running}), do: :ok
+  defp ensure_running(%Sandbox{}), do: {:error, :unavailable}
+
+  defp preview_host_port(port_map) when is_map(port_map) do
+    case Map.get(port_map, "web_preview_host_port") do
+      nil -> {:error, :unavailable}
+      value -> parse_host_port(value)
+    end
+  end
+
+  defp preview_host_port(_), do: {:error, :unavailable}
+
+  defp parse_host_port(port) when is_integer(port) and port > 0 and port <= 65_535,
+    do: {:ok, port}
+
+  defp parse_host_port(port) when is_binary(port) do
+    case Integer.parse(port) do
+      {value, ""} when value > 0 and value <= 65_535 -> {:ok, value}
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  defp parse_host_port(_), do: {:error, :unavailable}
+
+  defp preview_upstream_host do
+    config = Application.get_env(:frontman_server, :sandbox_preview_proxy, [])
+
+    case Keyword.get(config, :upstream_host, "127.0.0.1") do
+      host when is_binary(host) and byte_size(host) > 0 -> host
+      _ -> "127.0.0.1"
+    end
+  end
+
+  defp authorize_task(%Scope{user: %{id: user_id}}, %TaskSchema{user_id: user_id}), do: :ok
+  defp authorize_task(%Scope{}, %TaskSchema{}), do: {:error, :not_found}
 end
