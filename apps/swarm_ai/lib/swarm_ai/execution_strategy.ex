@@ -44,8 +44,18 @@ defmodule SwarmAi.ExecutionStrategy do
   handling parallelism and per-tool deadlines. The strategy only decides
   how to execute the individual tool.
 
+  ## Timeout Contract
+
+  Implementations **must not** enforce their own timeouts (e.g. `receive..after`).
+  `ParallelExecutor` is the single timeout authority — it sets per-tool deadlines
+  via `Process.send_after` and terminates the task process when a deadline fires.
+  Internal timeouts create race conditions against PE's deadline mechanism (#760).
+
   For MCP tools that wait on external results, implementations should call
-  `SwarmAi.Runtime.await_tool_result/3` to block until the result arrives.
+  `SwarmAi.Runtime.await_tool_result/3` or use a bare `receive` to block
+  until the result arrives. PE will kill the process if the tool's deadline
+  expires.
+
   For backend tools, implementations call the tool module directly.
   """
   @callback execute_tool(state(), SwarmAi.ToolCall.t()) ::

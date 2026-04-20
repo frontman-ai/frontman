@@ -193,28 +193,19 @@ defmodule FrontmanServer.Tasks.Execution.AgentStrategy do
     # NOW publish — client can respond at any time, we're already registered
     publish_mcp_tool_call(state.scope, state.task_id, tool_call)
 
-    # Block until deliver_tool_result sends {:tool_result, ...} to our mailbox
-    timeout = 600_000
-
-    result =
-      receive do
-        {:tool_result, tool_call_id, content, is_error}
-        when tool_call_id == tool_call.id ->
-          Registry.unregister(tool_reg, {:awaiting_result, tool_call.id})
-          {:ok, content, is_error}
-      after
-        timeout ->
-          Registry.unregister(tool_reg, {:awaiting_result, tool_call.id})
-          {:error, :timeout}
-      end
-
-    case result do
-      {:ok, content, is_error} ->
+    # Block until deliver_tool_result sends {:tool_result, ...} to our mailbox.
+    #
+    # NO internal timeout here — ParallelExecutor owns per-tool deadlines via
+    # Process.send_after + terminate_child. Having a second timeout here creates
+    # a race condition (#760). When PE kills this process on deadline, Registry
+    # auto-unregisters {:awaiting_result, tool_call.id} because the owning
+    # process exited — no manual cleanup needed.
+    receive do
+      {:tool_result, tool_call_id, content, is_error}
+      when tool_call_id == tool_call.id ->
+        Registry.unregister(tool_reg, {:awaiting_result, tool_call.id})
         {:ok, enriched} = maybe_enrich_with_images(tool_call.name, {:ok, content})
         SwarmAi.ToolResult.make(tool_call.id, enriched, is_error)
-
-      {:error, :timeout} ->
-        SwarmAi.ToolResult.make(tool_call.id, "Tool result delivery timed out", true)
     end
   end
 

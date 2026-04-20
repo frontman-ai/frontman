@@ -60,6 +60,7 @@ defmodule SwarmAi.DefaultExecutionStrategy do
   Blocks until `deliver_tool_result/5` sends the result for this tool call.
 
   ParallelExecutor calls this once per tool in a supervised Task.
+  No internal timeout — PE's deadline terminates this process if needed (#760).
   """
   @impl SwarmAi.ExecutionStrategy
   def execute_tool(state, tool_call) do
@@ -67,9 +68,6 @@ defmodule SwarmAi.DefaultExecutionStrategy do
       case SwarmAi.Runtime.await_tool_result(state.runtime, tool_call.id) do
         {:ok, content, is_error} ->
           SwarmAi.ToolResult.make(tool_call.id, content, is_error)
-
-        {:error, :timeout} ->
-          SwarmAi.ToolResult.make(tool_call.id, "Tool result delivery timed out", true)
       end
 
     {result, state}

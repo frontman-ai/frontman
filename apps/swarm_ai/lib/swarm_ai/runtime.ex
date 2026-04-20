@@ -165,19 +165,26 @@ defmodule SwarmAi.Runtime do
   The process is automatically unregistered when the call returns or the
   process exits.
 
+  ## Timeout Ownership
+
+  Defaults to `:infinity` — `ParallelExecutor` is the single timeout
+  authority and will kill the calling process when the tool's deadline
+  fires (#760). An explicit `:timeout` option is available as an escape
+  hatch for callers outside PE's supervision (e.g. tests).
+
   ## Options
 
-  - `:timeout` - Max ms to wait (default: 600_000 = 10 min safety net)
+  - `:timeout` - Max ms to wait (default: `:infinity`)
 
   ## Returns
 
   - `{:ok, content, is_error}` — result delivered
-  - `{:error, :timeout}` — safety-net timeout expired
+  - `{:error, :timeout}` — explicit timeout expired (only when `:timeout` is set)
   """
   @spec await_tool_result(atom(), String.t(), keyword()) ::
           {:ok, term(), boolean()} | {:error, :timeout}
   def await_tool_result(runtime, tool_call_id, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, 600_000)
+    timeout = Keyword.get(opts, :timeout, :infinity)
     tool_reg = tool_registry_name(runtime)
 
     {:ok, _} = Registry.register(tool_reg, {:awaiting_result, tool_call_id}, %{})

@@ -1,6 +1,6 @@
 defmodule SwarmAi.ParallelExecutor do
   @moduledoc """
-  Runs tool executions in parallel with per-task deadlines.
+  Runs tool executions in parallel with per-tool deadlines.
 
   Accepts a list of `ToolExecution.t()` structs. PE is the sole execution
   authority — executors build descriptions, PE runs them.
@@ -8,6 +8,26 @@ defmodule SwarmAi.ParallelExecutor do
   - `Sync` executions are spawned as supervised tasks.
   - `Await` executions call their start MFA in PE's own process, then wait
     for `{:tool_result, message_key, content, is_error}` in PE's receive loop.
+
+  ## Timeout Ownership Contract (#760)
+
+  **PE is the single timeout authority.** Each `ToolExecution` struct carries a
+  `timeout_ms` value, and PE sets a `Process.send_after` deadline for each tool
+  independently. No other layer should implement its own timeout — doing so
+  creates race conditions between competing timeout mechanisms.
+
+  Strategy implementations (`ExecutionStrategy.execute_tool/2`) must block
+  without an internal timeout (e.g. bare `receive` without `after`). When a
+  deadline fires, PE terminates the task via `Task.Supervisor.terminate_child`
+  for Sync tools, or removes the awaiting entry for Await tools. Process-owned
+  resources like Registry keys are automatically cleaned up on process exit.
+
+  Timeout values flow end-to-end:
+
+      Tool definition (module.timeout_ms / MCP.timeout_ms)
+        → ToolExecution struct (timeout_ms field)
+        → PE Process.send_after deadline
+        → handle_deadline → on_timeout MFA callback
 
   ## Return values
 
