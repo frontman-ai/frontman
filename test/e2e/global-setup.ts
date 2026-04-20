@@ -19,6 +19,7 @@ const ROOT = resolve(import.meta.dirname, "../..");
 const SERVER_DIR = resolve(ROOT, "apps/frontman_server");
 const CLIENT_DIR = resolve(ROOT, "libs/client");
 
+const FRONTMAN_HOST = "frontman.local";
 const PHOENIX_PORT = 4002;
 const CLIENT_PORT = 5173;
 
@@ -120,7 +121,7 @@ export async function setup() {
 
   // ── 5. Wait for readiness ──────────────────────────────────────────────────
   await Promise.all([
-    waitForServer(`https://localhost:${PHOENIX_PORT}/users/log-in`, "Phoenix"),
+    waitForServer(`https://${FRONTMAN_HOST}:${PHOENIX_PORT}/users/log-in`, "Phoenix"),
     waitForServer(`http://localhost:${CLIENT_PORT}`, "Client Vite"),
   ]);
 

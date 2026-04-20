@@ -10,7 +10,7 @@
 
 import type { Page } from "playwright";
 
-const PHOENIX_ORIGIN = "https://localhost:4002";
+const FRONTMAN_HOST = "frontman.local";
 
 /** Elapsed time since a reference timestamp, formatted as "Xs". */
 function elapsed(since: number): string {
@@ -35,7 +35,7 @@ export async function openFrontmanUI(
   devServerPort: number,
 ): Promise<void> {
   const t0 = Date.now();
-  const frontmanUrl = `http://localhost:${devServerPort}/frontman`;
+  const frontmanUrl = `http://${FRONTMAN_HOST}:${devServerPort}/frontman`;
   console.log(`  [e2e] openFrontmanUI: port=${devServerPort}`);
 
   // Collect ALL console messages and errors for debugging
