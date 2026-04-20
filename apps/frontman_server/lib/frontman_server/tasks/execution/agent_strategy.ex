@@ -261,7 +261,7 @@ defmodule FrontmanServer.Tasks.Execution.AgentStrategy do
               start: {__MODULE__, :start_mcp_tool_mfa, [state]},
               message_key: tc.id,
               on_timeout: {__MODULE__, :handle_timeout_mfa, [state, tool_def.on_timeout]},
-              process_result: nil
+              process_result: {__MODULE__, :make_mcp_tool_result, [tc.name]}
             }
         end
       end)
@@ -367,6 +367,14 @@ defmodule FrontmanServer.Tasks.Execution.AgentStrategy do
 
     publish_mcp_tool_call(state.scope, state.task_id, tool_call)
     :ok
+  end
+
+  @doc false
+  @spec make_mcp_tool_result(String.t(), SwarmAi.ToolCall.t(), term(), boolean()) ::
+          SwarmAi.ToolResult.t()
+  def make_mcp_tool_result(tool_name, tool_call, content, is_error) do
+    {:ok, enriched} = maybe_enrich_with_images(tool_name, {:ok, content})
+    SwarmAi.ToolResult.make(tool_call.id, enriched, is_error)
   end
 
   @doc false

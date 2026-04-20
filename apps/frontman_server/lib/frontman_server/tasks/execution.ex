@@ -161,7 +161,7 @@ defmodule FrontmanServer.Tasks.Execution do
               message_key: tc.id,
               on_timeout:
                 {AgentStrategy, :handle_timeout_mfa, [strategy_state, tool_def.on_timeout]},
-              process_result: nil
+              process_result: {AgentStrategy, :make_mcp_tool_result, [tc.name]}
             }
         end
       end)
