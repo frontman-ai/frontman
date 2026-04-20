@@ -185,14 +185,32 @@ defmodule FrontmanServer.Tasks.Execution.AgentStrategy do
   defp execute_mcp_tool(state, tool_call) do
     Logger.info("AgentStrategy: Routing to MCP tool #{tool_call.name}")
 
-    # Publish tool call to client BEFORE blocking — so the client knows to execute it
+    # Register BEFORE publishing to prevent a race where the client responds
+    # before we're listening. Same pattern as start_mcp_tool_mfa.
+    tool_reg = SwarmAi.Runtime.tool_registry_name(state.runtime)
+    {:ok, _} = Registry.register(tool_reg, {:awaiting_result, tool_call.id}, %{})
+
+    # NOW publish — client can respond at any time, we're already registered
     publish_mcp_tool_call(state.scope, state.task_id, tool_call)
 
-    # Block until deliver_tool_result sends the result
-    case SwarmAi.Runtime.await_tool_result(state.runtime, tool_call.id) do
+    # Block until deliver_tool_result sends {:tool_result, ...} to our mailbox
+    timeout = 600_000
+
+    result =
+      receive do
+        {:tool_result, tool_call_id, content, is_error}
+        when tool_call_id == tool_call.id ->
+          Registry.unregister(tool_reg, {:awaiting_result, tool_call.id})
+          {:ok, content, is_error}
+      after
+        timeout ->
+          Registry.unregister(tool_reg, {:awaiting_result, tool_call.id})
+          {:error, :timeout}
+      end
+
+    case result do
       {:ok, content, is_error} ->
-        result = maybe_enrich_with_images(tool_call.name, {:ok, content})
-        {:ok, enriched} = result
+        {:ok, enriched} = maybe_enrich_with_images(tool_call.name, {:ok, content})
         SwarmAi.ToolResult.make(tool_call.id, enriched, is_error)
 
       {:error, :timeout} ->
