@@ -682,6 +682,14 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info({:interaction, %Tasks.Interaction.ToolCall{} = tool_call}, socket) do
     task_id = socket.assigns.task_id
+    last_execution_opts = socket.assigns[:last_execution_opts] || []
+
+    backend_tool_modules =
+      Keyword.get(
+        last_execution_opts,
+        :backend_tool_modules,
+        backend_tool_modules_for_execution()
+      )
 
     # Only send tool_call_create if we haven't already announced this tool call
     # via the streaming :tool_call_start event (which fires earlier during LLM streaming).
@@ -713,7 +721,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     push(socket, @acp_message, args_notification)
 
-    case Tools.execution_target(tool_call.tool_name) do
+    case Tools.execution_target(tool_call.tool_name, backend_tool_modules) do
       :backend ->
         # Backend tools are executed by ToolExecutor in the agent loop.
         # The channel just notifies the UI (already done above).

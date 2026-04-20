@@ -386,7 +386,7 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  defp maybe_put_provider_override(opts, create_opts) do
+  defp maybe_put_provider_override(create_opts, opts) do
     case Keyword.fetch(opts, :sandbox_provider) do
       {:ok, provider} -> Keyword.put(create_opts, :provider, provider)
       :error -> create_opts

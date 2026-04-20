@@ -1029,6 +1029,64 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "interaction tool routing" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "uses backend_tool_modules from last_execution_opts for routing", %{socket: socket} do
+      :sys.replace_state(socket.channel_pid, fn channel_socket ->
+        Phoenix.Socket.assign(
+          channel_socket,
+          :last_execution_opts,
+          backend_tool_modules: [FrontmanServer.Tools.Sandbox.ReadFile]
+        )
+      end)
+
+      tool_call_id = "call_backend_#{:rand.uniform(1_000_000)}"
+      tc = tool_call(tool_call_id, "read_file", %{"target_file" => "README.md"})
+
+      send(socket.channel_pid, {:interaction, tc})
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "tool_call",
+            "toolCallId" => ^tool_call_id
+          }
+        }
+      })
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "tool_call_update",
+            "toolCallId" => ^tool_call_id,
+            "status" => "pending"
+          }
+        }
+      })
+
+      refute_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "tool_call_update",
+            "toolCallId" => ^tool_call_id,
+            "status" => "in_progress"
+          }
+        }
+      })
+
+      refute_push("mcp:message", %{
+        "method" => "tools/call",
+        "params" => %{"name" => "read_file"}
+      })
+    end
+  end
+
   describe "reconnect re-executes unresolved tool calls" do
     setup %{scope: scope} do
       task_id = task_fixture(scope)

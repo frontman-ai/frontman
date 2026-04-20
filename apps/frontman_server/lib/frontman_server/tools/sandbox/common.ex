@@ -46,7 +46,7 @@ defmodule FrontmanServer.Tools.Sandbox.Common do
         {:error, "path is required"}
 
       String.starts_with?(trimmed, "/") ->
-        {:error, "path must be relative to the sandbox project root"}
+        resolve_absolute_path(trimmed)
 
       true ->
         pieces = String.split(trimmed, "/", trim: true)
@@ -64,6 +64,22 @@ defmodule FrontmanServer.Tools.Sandbox.Common do
   end
 
   def resolve_relative_path(_), do: {:error, "path is required"}
+
+  defp resolve_absolute_path(path) do
+    root = project_root() |> Path.expand()
+    absolute = Path.expand(path)
+
+    cond do
+      absolute == root ->
+        {:ok, %{absolute: absolute, relative: "."}}
+
+      String.starts_with?(absolute, root <> "/") ->
+        {:ok, %{absolute: absolute, relative: Path.relative_to(absolute, root)}}
+
+      true ->
+        {:error, "path must be inside sandbox project root"}
+    end
+  end
 
   @spec run(Context.t(), String.t(), [String.t()], keyword()) ::
           {:ok, %{exit_code: integer(), stdout: String.t(), stderr: String.t()}}

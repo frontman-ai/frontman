@@ -19,8 +19,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Sandboxes
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution
   alias FrontmanServer.Tasks.{ExecutionEvent, Interaction}
+  alias FrontmanServer.Test.Support.Sandbox.IntegrationProvider
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Workers.GenerateTitle
 
@@ -91,6 +94,32 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     {:ok, socket: socket}
   end
 
+  defp setup_sandbox_mvp_enabled(_context) do
+    original_config = Application.get_env(:frontman_server, :sandbox_mvp, [])
+
+    sandbox_mvp_config =
+      original_config
+      |> Keyword.put(:enabled, true)
+      |> Keyword.put(:wait_timeout_ms, 50)
+      |> Keyword.put(:poll_interval_ms, 10)
+
+    Application.put_env(:frontman_server, :sandbox_mvp, sandbox_mvp_config)
+    IntegrationProvider.reset!()
+
+    on_exit(fn ->
+      Application.put_env(:frontman_server, :sandbox_mvp, original_config)
+      IntegrationProvider.reset!()
+
+      DynamicSupervisor.which_children(FrontmanServer.Sandbox.DynamicSupervisor)
+      |> Enum.each(fn
+        {_, pid, _, _} when is_pid(pid) -> Process.exit(pid, :kill)
+        _ -> :ok
+      end)
+    end)
+
+    :ok
+  end
+
   # -- Cancel (low-level) ----------------------------------------------------
 
   describe "cancel_execution/2 (registry-level)" do
@@ -116,6 +145,32 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert :ok = Tasks.cancel_execution(%Scope{}, task_id)
 
       assert_receive {:DOWN, ^ref, :process, ^agent_pid, :cancelled}, 1_000
+    end
+  end
+
+  describe "sandbox bootstrap invariants" do
+    setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_sandbox_mvp_enabled]
+
+    test "creating a new sandbox preserves task_id and provider override", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      agent = test_agent(%MockLLM{response: "hello", delay_ms: 5_000}, "SandboxBootstrapAgent")
+
+      assert {:ok, _pid} =
+               Execution.run(scope, task,
+                 agent: agent,
+                 sandbox_provider: IntegrationProvider,
+                 sandbox_wait_timeout_ms: 50
+               )
+
+      assert {:ok, sandbox} = Sandboxes.current_for_task(scope, task_id)
+      assert sandbox.task_id == task_id
+      assert sandbox.status == :running
+      assert String.starts_with?(sandbox.provider_ref, "integration-task-")
+
+      assert :ok = Tasks.cancel_execution(scope, task_id)
     end
   end
 
