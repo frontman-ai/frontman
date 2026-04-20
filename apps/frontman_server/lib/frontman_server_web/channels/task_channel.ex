@@ -227,9 +227,13 @@ defmodule FrontmanServerWeb.TaskChannel do
            is_error
          ) do
       {:ok, _interaction} ->
-        # Deliver result to waiting executor via Swarm's internal registry
+        # Deliver result to waiting executor via Swarm's internal registry.
+        # Encode non-binary results (maps from MCP.parse_tool_result) to JSON strings —
+        # maybe_enrich_with_images has a `when is_binary(content)` guard that skips
+        # image extraction when content is a map.
+        encoded_result = encode_for_delivery(parsed_result)
         case SwarmAi.Runtime.deliver_tool_result(
-               FrontmanServer.AgentRuntime, task_id, tool_call_id, parsed_result, is_error) do
+               FrontmanServer.AgentRuntime, task_id, tool_call_id, encoded_result, is_error) do
           :delivered ->
             :ok
 
@@ -249,6 +253,13 @@ defmodule FrontmanServerWeb.TaskChannel do
         Logger.warning("Failed to store tool result for #{tool_call_id}: #{inspect(reason)}")
     end
   end
+
+  # Encode non-binary tool results to JSON strings before delivering to PE.
+  # MCP.parse_tool_result can return maps when tool output is valid JSON.
+  # PE's process_result MFA calls maybe_enrich_with_images which has a
+  # `when is_binary(content)` guard — maps would skip image extraction.
+  defp encode_for_delivery(value) when is_binary(value), do: value
+  defp encode_for_delivery(value), do: Jason.encode!(value)
 
   defp maybe_resume_agent(socket, scope, task_id, meta) do
     scope = Scope.with_env_api_keys(scope, Registry.extract_env_keys(meta))
