@@ -128,14 +128,43 @@ defmodule FrontmanServer.Tasks.Execution do
       llm_opts: llm_opts
     ]
 
-    # Initialize the AgentStrategy and build a tool_executor closure.
-    # Runtime.run/5 accepts `tool_executor:` (a closure), not `strategy:`.
-    # This bridges the new behaviour to the existing runtime interface.
-    # When Runtime is updated to accept `strategy:` natively, this
-    # adapter code can be removed.
     {:ok, strategy_state} = AgentStrategy.init(strategy_opts)
+    tool_executor = build_tool_executor(strategy_state)
 
-    tool_executor = fn tool_calls ->
+    # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
+    # in event handlers — the agent may complete before this line returns.
+    TelemetryEvents.task_start(task_id)
+
+    interaction_id = Keyword.get(opts, :interaction_id)
+
+    case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
+           metadata: %{
+             task_id: task_id,
+             resolved_key: resolved_key,
+             scope: scope,
+             interaction_id: interaction_id
+           },
+           tool_executor: tool_executor
+         ) do
+      {:ok, pid} ->
+        {:ok, pid}
+
+      {:error, :already_running} ->
+        TelemetryEvents.task_stop(task_id)
+        {:ok, :already_running}
+
+      error ->
+        TelemetryEvents.task_stop(task_id)
+        error
+    end
+  end
+
+  # Bridges AgentStrategy to the existing Runtime tool_executor interface.
+  # Runtime.run/5 accepts `tool_executor:` (a closure that maps tool calls
+  # to ToolExecution structs), not `strategy:` natively. When Runtime is
+  # updated to accept `strategy:` directly, this adapter can be removed.
+  defp build_tool_executor(strategy_state) do
+    fn tool_calls ->
       Enum.map(tool_calls, fn tc ->
         tc = SwarmAi.ToolCall.strip_null_arguments(tc)
 
@@ -165,33 +194,6 @@ defmodule FrontmanServer.Tasks.Execution do
             }
         end
       end)
-    end
-
-    # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
-    # in event handlers — the agent may complete before this line returns.
-    TelemetryEvents.task_start(task_id)
-
-    interaction_id = Keyword.get(opts, :interaction_id)
-
-    case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
-           metadata: %{
-             task_id: task_id,
-             resolved_key: resolved_key,
-             scope: scope,
-             interaction_id: interaction_id
-           },
-           tool_executor: tool_executor
-         ) do
-      {:ok, pid} ->
-        {:ok, pid}
-
-      {:error, :already_running} ->
-        TelemetryEvents.task_stop(task_id)
-        {:ok, :already_running}
-
-      error ->
-        TelemetryEvents.task_stop(task_id)
-        error
     end
   end
 
