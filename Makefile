@@ -236,7 +236,7 @@ wt: ## Dashboard — shows all worktrees, pod status, URLs, and actions
 
 wt-new: ## Create containerized worktree (BRANCH=...)
 	$(call resolve_branch,wt-new)
-	@BRANCH="$(BRANCH)" DEV_IMAGE=$(DEV_IMAGE) \
+	@BRANCH="$(BRANCH)" WORKTREE_BASE_BRANCH="$(WORKTREE_BASE_BRANCH)" DEV_IMAGE=$(DEV_IMAGE) \
 		bash ./bin/wt-pod-create
 
 wt-dev: ## Start dev servers in container (BRANCH=...)
@@ -355,13 +355,18 @@ infra-build: ## Rebuild the frontman-dev container image
 worktree-create:
 	$(call require_branch,worktree-create)
 	@WORKTREE_NAME=$$(echo "$(BRANCH)" | sed 's|^origin/||'); \
+	WORKTREE_BASE_BRANCH=$${WORKTREE_BASE_BRANCH:-$(shell git branch --show-current)}; \
 	mkdir -p .worktrees; \
 	if git show-ref --verify --quiet "refs/heads/$$WORKTREE_NAME" || \
 	   git show-ref --verify --quiet "refs/remotes/origin/$$WORKTREE_NAME" || \
 	   git show-ref --verify --quiet "refs/remotes/$(BRANCH)"; then \
 		git worktree add ".worktrees/$$WORKTREE_NAME" $(BRANCH); \
 	else \
-		git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME"; \
+		if [ -n "$$WORKTREE_BASE_BRANCH" ]; then \
+			git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME" "$$WORKTREE_BASE_BRANCH"; \
+		else \
+			git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME"; \
+		fi; \
 	fi; \
 	mkdir -p ".worktrees/$$WORKTREE_NAME/.claude/projects" ".worktrees/$$WORKTREE_NAME/.claude/plans" ".worktrees/$$WORKTREE_NAME/.claude/todos"; \
 	touch ".worktrees/$$WORKTREE_NAME/.claude/history.jsonl"; \
@@ -455,7 +460,7 @@ test-wordpress-core-tools: ## Run PHP tests for WordPress core tool implementati
 # Utilities
 # ============================================================================
 ## UTIL_START
-.PHONY: kill-all-processes pull-webapi debug-task pr-summary push
+.PHONY: kill-all-processes pull-webapi debug-task push
 
 kill-all-processes: ## Kill all running make dev processes
 	@ps aux | grep "[m]ake dev" | awk '{print $$2}' | xargs -r kill 2>/dev/null || true
@@ -466,38 +471,7 @@ pull-webapi: ## Pull latest experimental-rescript-webapi subtree
 debug-task: ## Debug task interactions (ARGS="list" or ARGS="show ...")
 	cd apps/frontman_server && $(MAKE) debug-task ARGS="$(ARGS)"
 
-# AGD render-summary script lives in the AGD repo
-AGD_RENDER_SUMMARY := $(HOME)/dev/agd/scripts/render-summary.py
-
-pr-summary: ## Post AGD usage summary as a comment on the current branch's PR
-	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
-	if [ "$$BRANCH" = "HEAD" ] || [ "$$BRANCH" = "main" ]; then \
-		printf "$(YELLOW)Error: must be on a feature branch (current: $$BRANCH)$(RESET)\n"; \
-		exit 1; \
-	fi; \
-	PR=$$(gh pr view --json number -q .number 2>/dev/null); \
-	if [ -z "$$PR" ]; then \
-		printf "$(YELLOW)Error: no open PR found for branch '$$BRANCH'$(RESET)\n"; \
-		exit 1; \
-	fi; \
-	BODY=$$(agd log --branch "$$BRANCH" --format json 2>/dev/null | python3 $(AGD_RENDER_SUMMARY)); \
-	if [ -z "$$BODY" ]; then \
-		printf "$(CYAN)No AGD traces found for branch '$$BRANCH'$(RESET)\n"; \
-		exit 0; \
-	fi; \
-	REPO=$$(gh repo view --json nameWithOwner -q .nameWithOwner); \
-	MARKER="<!-- agd-summary -->"; \
-	EXISTING=$$(gh api "repos/$$REPO/issues/$$PR/comments" --paginate -q ".[] | select(.body | startswith(\"$$MARKER\")) | .id" 2>/dev/null | head -1); \
-	if [ -n "$$EXISTING" ]; then \
-		echo "$$BODY" | gh api "repos/$$REPO/issues/comments/$$EXISTING" -X PATCH --field "body=@-" > /dev/null; \
-		printf "$(GREEN)Updated AGD summary on PR #$$PR$(RESET)\n"; \
-	else \
-		echo "$$BODY" | gh api "repos/$$REPO/issues/$$PR/comments" -X POST --field "body=@-" > /dev/null; \
-		printf "$(GREEN)Posted AGD summary on PR #$$PR$(RESET)\n"; \
-	fi
-
-push: ## Git push + auto-update PR summary with AGD stats
+push: ## Git push current branch
 	@git push
-	@$(MAKE) --no-print-directory pr-summary
 
 ## UTIL_END

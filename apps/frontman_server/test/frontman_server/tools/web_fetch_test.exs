@@ -320,6 +320,68 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
   end
 
+  describe "execute/2 — non-text content rejection" do
+    test "rejects image/png responses", %{context: ctx} do
+      # PNG header bytes
+      stub_resp(200, "image/png", <<137, 80, 78, 71, 13, 10, 26, 10>>)
+
+      assert {:error, msg} = execute("https://example.com/logo.png", ctx)
+      assert msg =~ "non-text"
+      assert msg =~ "image/png"
+    end
+
+    test "rejects image/jpeg responses", %{context: ctx} do
+      stub_resp(200, "image/jpeg", <<255, 216, 255, 224>>)
+
+      assert {:error, msg} = execute("https://example.com/photo.jpg", ctx)
+      assert msg =~ "non-text"
+    end
+
+    test "rejects application/octet-stream responses", %{context: ctx} do
+      stub_resp(200, "application/octet-stream", <<0, 1, 2, 3>>)
+
+      assert {:error, msg} = execute("https://example.com/file.bin", ctx)
+      assert msg =~ "non-text"
+    end
+
+    test "rejects application/pdf responses", %{context: ctx} do
+      stub_resp(200, "application/pdf", "%PDF-1.4 binary content")
+
+      assert {:error, msg} = execute("https://example.com/doc.pdf", ctx)
+      assert msg =~ "non-text"
+    end
+
+    test "allows text/html responses", %{context: ctx} do
+      stub_resp(200, "text/html", "<h1>Hello</h1>")
+
+      assert {:ok, _} = execute("https://example.com/page", ctx)
+    end
+
+    test "allows text/plain responses", %{context: ctx} do
+      stub_resp(200, "text/plain", "Hello")
+
+      assert {:ok, _} = execute("https://example.com/text", ctx)
+    end
+
+    test "allows application/json responses", %{context: ctx} do
+      stub_resp(200, "application/json", ~s({"key": "value"}))
+
+      assert {:ok, _} = execute("https://example.com/api", ctx)
+    end
+
+    test "allows application/xml responses", %{context: ctx} do
+      stub_resp(200, "application/xml", "<root>data</root>")
+
+      assert {:ok, _} = execute("https://example.com/feed.xml", ctx)
+    end
+
+    test "allows application/javascript responses", %{context: ctx} do
+      stub_resp(200, "application/javascript", "console.log('hi')")
+
+      assert {:ok, _} = execute("https://example.com/script.js", ctx)
+    end
+  end
+
   describe "execute/2 — Cloudflare retry" do
     test "retries with honest UA on Cloudflare challenge", %{context: ctx} do
       call_count = :counters.new(1, [:atomics])

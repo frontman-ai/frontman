@@ -41,9 +41,6 @@ Thumbs.db
 .claude/settings.local.json
 # thoughts/shared
 
-# AGD (agent graph database)
-.agd/
-
 # Git worktrees
 .worktrees/
 .chunkhound.json

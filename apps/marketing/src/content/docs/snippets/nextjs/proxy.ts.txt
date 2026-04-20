@@ -1,0 +1,17 @@
+import { createMiddleware } from '@frontman-ai/nextjs';
+import { type NextRequest, NextResponse } from 'next/server';
+
+const frontman = createMiddleware({
+  projectRoot: process.cwd(),
+});
+
+export async function proxy(req: NextRequest): Promise<NextResponse> {
+  const response = await frontman(req);
+  if (response) return response;
+  return NextResponse.next();
+}
+
+export const config = {
+  runtime: 'nodejs',
+  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/'],
+};

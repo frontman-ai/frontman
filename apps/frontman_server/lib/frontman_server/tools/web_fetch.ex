@@ -79,13 +79,10 @@ defmodule FrontmanServer.Tools.WebFetch do
       offset = clamp(Map.get(args, "offset", 0), 0, :infinity)
       limit = clamp(Map.get(args, "limit", 500), 1, 2000)
 
-      case fetch(url) do
-        {:ok, content_type, body} ->
-          markdown = convert_to_markdown(body, content_type)
-          paginate(markdown, url, content_type, offset, limit)
-
-        {:error, reason} ->
-          {:error, reason}
+      with {:ok, content_type, body} <- fetch(url),
+           :ok <- require_text_content(content_type) do
+        markdown = convert_to_markdown(body, content_type)
+        paginate(markdown, url, content_type, offset, limit)
       end
     end
   end
@@ -214,6 +211,23 @@ defmodule FrontmanServer.Tools.WebFetch do
     case Map.get(headers, "content-type") do
       [value | _] -> value
       nil -> "text/html"
+    end
+  end
+
+  # -- Content-type guard ------------------------------------------------------
+
+  @text_prefixes ["text/", "application/json", "application/xml", "application/javascript"]
+
+  defp require_text_content(content_type) do
+    ct = String.downcase(content_type)
+
+    case Enum.any?(@text_prefixes, &String.contains?(ct, &1)) do
+      true ->
+        :ok
+
+      false ->
+        {:error,
+         "Cannot fetch non-text content (#{content_type}). This tool only supports text-based URLs."}
     end
   end
 

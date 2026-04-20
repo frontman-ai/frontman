@@ -4,11 +4,31 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.ExecutionEvent
   alias FrontmanServer.Tasks.StreamStallTimeout
+  alias ReqLLM.Error.API.{Request, Stream}
 
   describe "classify_error/1" do
     test "LLMError passes through message, category, retryable" do
       err = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
       assert {"Rate limited", "rate_limit", true} = ExecutionEvent.classify_error(err)
+    end
+
+    test "ReqLLM request error 429 is classified as retryable rate limit" do
+      err = Request.exception(status: 429, reason: "Too many requests")
+      {msg, "rate_limit", true} = ExecutionEvent.classify_error(err)
+      assert String.contains?(msg, "Rate limited")
+    end
+
+    test "ReqLLM stream error with request cause 413 is classified as payload too large" do
+      request_error =
+        Request.exception(
+          status: 413,
+          reason: "image exceeds the maximum allowed size"
+        )
+
+      err = Stream.exception(reason: "Stream failed", cause: request_error)
+
+      {msg, "payload_too_large", false} = ExecutionEvent.classify_error(err)
+      assert String.contains?(msg, "Payload too large")
     end
 
     test "StreamStallTimeout.Error returns overload, retryable" do

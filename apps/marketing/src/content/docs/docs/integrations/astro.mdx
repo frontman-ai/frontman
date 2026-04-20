@@ -3,6 +3,8 @@ title: Astro
 description: Complete reference for the @frontman-ai/astro integration — installation, configuration options, dev server hooks, element source detection, and troubleshooting.
 ---
 
+import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
+
 ## Overview
 
 `@frontman-ai/astro` is an Astro integration that embeds the Frontman AI agent directly into your Astro dev server. It combines Astro integration lifecycle hooks with a Vite plugin chain, giving the AI access to your source files, dev server logs, and resolved route manifest.
@@ -30,20 +32,7 @@ npm install --save-dev @frontman-ai/astro
 
 Then register it in your config:
 
-```js
-import frontman from '@frontman-ai/astro';
-import path from 'node:path';
-
-const appRoot = path.resolve(import.meta.dirname);
-
-export default defineConfig({
-  integrations: [
-    frontman({
-      projectRoot: appRoot,
-    }),
-  ],
-});
-```
+<CodeFromFile snippet="astro/astro.config.ts.txt" />
 
 ## Configuration
 

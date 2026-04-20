@@ -28,6 +28,8 @@ defmodule JsonRpc do
   Domain logic should not depend on this module directly.
   """
 
+  use Boundary
+
   @jsonrpc_version "2.0"
 
   # Standard JSON-RPC 2.0 error codes

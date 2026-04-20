@@ -387,20 +387,20 @@ When making a change that should appear in the changelog, run `yarn changeset` a
 - When the release PR is merged, `release-tag.yml` automatically creates a git tag and GitHub Release
 - The marketing site reads `/CHANGELOG.md` at build time for the `/changelog` page — keep entries in [Keep a Changelog](https://keepachangelog.com/) format: `## [version] - YYYY-MM-DD`
 
-## Pull Requests & AGD Summary
+## Pull Requests
 
-After creating or updating a PR, **always run `make pr-summary`** to post an AGD usage summary as a comment on the PR. This surfaces cost, token usage, model info, cache hit rates, and tool timing data automatically.
+After creating or updating a PR, push your branch as usual.
 
 ```bash
 # After creating a PR
 gh pr create --title "..." --body "..."
-make pr-summary
+git push
 
-# Or use the combined push target (git push + auto-post summary)
+# Or use the Make target wrapper
 make push
 ```
 
-The `make push` target is the preferred workflow — it pushes and posts the summary in one shot.
+The `make push` target is a convenience wrapper around `git push`.
 
 ## Reference Docs
 - `agent_docs/elixir-style.md` — **FrontmanStyle for Elixir. Must follow when writing any Elixir code.**

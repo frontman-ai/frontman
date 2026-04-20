@@ -42,7 +42,11 @@ function validateDocsDescriptions() {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         files.push(...walkDir(full));
-      } else if (entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("_")) {
+      } else if (
+        entry.isFile() &&
+        (entry.name.endsWith(".md") || entry.name.endsWith(".mdx")) &&
+        !entry.name.startsWith("_")
+      ) {
         files.push(full);
       }
     }

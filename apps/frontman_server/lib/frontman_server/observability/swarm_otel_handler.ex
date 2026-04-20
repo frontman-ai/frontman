@@ -40,7 +40,7 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
 
   require Logger
 
-  alias FrontmanServer.Providers.Model
+  alias FrontmanServer.Providers
   alias SwarmAi.LLM.Usage
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.ToolCall
@@ -243,18 +243,18 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   @doc false
   def handle_llm_start(_event, _measurements, metadata, _config) do
     # model_ref: the original model value from metadata — either a string like "openai:gpt-4"
-    # or an LLMDB.Model struct (from Codex/resolved models). Passed to Model.display_name
-    # and Model.provider_name which handle both shapes polymorphically.
+    # or an LLMDB.Model struct (from Codex/resolved models). Passed to Providers model
+    # helpers which handle both shapes polymorphically.
     %{loop_id: loop_id, step: step, model: model_ref} = metadata
     input_messages = Map.get(metadata, :messages, [])
 
-    model_name = Model.display_name(model_ref)
+    model_name = Providers.display_model_name(model_ref)
     span_name = "chat #{model_name}"
 
     # llm.system should be the underlying LLM vendor (e.g. "anthropic"),
     # not the routing proxy (e.g. "openrouter").
-    vendor = Model.llm_vendor_name(model_ref)
-    provider = Model.provider_name(model_ref)
+    vendor = Providers.model_llm_vendor_name(model_ref)
+    provider = Providers.model_provider_name(model_ref)
 
     attributes =
       [

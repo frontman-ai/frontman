@@ -224,6 +224,49 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end
   end
 
+  describe "run_backend_tool/5 — non-JSON-serializable result" do
+    defmodule BinaryResultTool do
+      @behaviour Backend
+
+      def name, do: "binary_result_tool"
+      def description, do: "Returns raw binary that breaks JSON encoding"
+      def parameter_schema, do: %{"type" => "object", "properties" => %{}}
+      def timeout_ms, do: 30_000
+      def on_timeout, do: :error
+
+      # Simulates a tool returning raw PNG bytes
+      def execute(_args, _context), do: {:ok, %{"content" => <<137, 80, 78, 71, 13, 10, 26, 10>>}}
+    end
+
+    @tag :capture_log
+    test "converts non-JSON-serializable result to error instead of crashing", %{
+      scope: scope,
+      task_id: task_id,
+      llm_opts: llm_opts
+    } do
+      exec_opts = %{
+        backend_tool_modules: [BinaryResultTool],
+        backend_module_map: %{BinaryResultTool.name() => BinaryResultTool},
+        mcp_tools: [],
+        mcp_tool_defs: [],
+        llm_opts: llm_opts
+      }
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: BinaryResultTool.name(),
+        arguments: "{}"
+      }
+
+      result =
+        ToolExecutor.run_backend_tool(scope, BinaryResultTool, task_id, exec_opts, tool_call)
+
+      assert %SwarmAi.ToolResult{is_error: true} = result
+      assert [%SwarmAi.Message.ContentPart{type: :text, text: text}] = result.content
+      assert text =~ "JSON"
+    end
+  end
+
   describe "make_executor/3 — returns single function" do
     test "returns a function, not a tuple", %{scope: scope, task_id: task_id, llm_opts: llm_opts} do
       result =

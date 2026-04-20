@@ -3,6 +3,8 @@ title: Vite
 description: Complete reference for the @frontman-ai/vite plugin — installation, configuration, framework auto-detection, Vue SFC source mapping, SvelteKit support, and troubleshooting.
 ---
 
+import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
+
 ## Overview
 
 `@frontman-ai/vite` is a Vite plugin that embeds the Frontman AI agent in your Vite dev server. It auto-detects your framework — React, Vue, Svelte, or SolidJS — from the Vite plugin array and provides framework-appropriate runtime context to the AI.
@@ -30,16 +32,7 @@ npm install --save-dev @frontman-ai/vite
 
 Then add the plugin to your Vite config:
 
-```ts
-import { defineConfig } from 'vite';
-import { frontmanPlugin } from '@frontman-ai/vite';
-
-export default defineConfig({
-  plugins: [
-    frontmanPlugin(),
-  ],
-});
-```
+<CodeFromFile snippet="vite/vite.config.ts.txt" />
 
 ### Plugin ordering
 

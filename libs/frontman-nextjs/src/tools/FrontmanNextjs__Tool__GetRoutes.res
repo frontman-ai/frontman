@@ -3,6 +3,7 @@
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
+module PathStringUtils = FrontmanAiFrontmanCore.FrontmanCore__PathStringUtils
 
 let name = "get_routes"
 let visibleToAgent = true
@@ -25,10 +26,6 @@ type route = {
 @schema
 type output = array<route>
 
-// Normalize path separators to forward slashes for cross-platform route conversion
-// Route paths are URL paths and always use forward slashes
-let toForwardSlashes = (path: string): string => path->String.replaceAll("\\", "/")
-
 // Check if a segment is dynamic (contains [ ])
 let isDynamicSegment = (segment: string): bool => {
   segment->String.startsWith("[") && segment->String.endsWith("]")
@@ -38,7 +35,7 @@ let isDynamicSegment = (segment: string): bool => {
 // Normalizes separators first since Path.join uses \ on Windows but routes need /
 let fileToRoute = (filePath: string): string => {
   filePath
-  ->toForwardSlashes
+  ->PathStringUtils.toForwardSlashes
   ->String.replaceRegExp(/\.(tsx?|jsx?|mdx?)$/, "")
   ->String.replaceRegExp(/\/page$/, "")
   ->String.replaceRegExp(/\/route$/, "")
@@ -77,7 +74,10 @@ let rec findRoutes = async (baseDir: string, currentPath: string, ~projectRoot: 
       ) {
         let routePath = fileToRoute(currentPath)
         let hasDynamic =
-          currentPath->toForwardSlashes->String.split("/")->Array.some(isDynamicSegment)
+          currentPath
+          ->PathStringUtils.toForwardSlashes
+          ->String.split("/")
+          ->Array.some(isDynamicSegment)
         [
           {
             path: routePath,

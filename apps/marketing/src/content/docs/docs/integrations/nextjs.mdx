@@ -3,6 +3,8 @@ title: Next.js
 description: Complete reference for the @frontman-ai/nextjs integration — installation, middleware setup, App Router vs Pages Router, OpenTelemetry instrumentation, and troubleshooting.
 ---
 
+import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
+
 ## Overview
 
 `@frontman-ai/nextjs` integrates the Frontman AI agent into your Next.js dev server via the Next.js middleware system. It intercepts requests to `/frontman/*`, giving the AI access to your source files, dev server logs, route manifest, and optionally OpenTelemetry spans covering HTTP requests and route render timing.
@@ -36,24 +38,7 @@ The integration API differs depending on your Next.js version.
 
 Create or update `middleware.ts` in your project root (or `src/middleware.ts`):
 
-```ts
-import { createMiddleware } from '@frontman-ai/nextjs';
-import { type NextRequest, NextResponse } from 'next/server';
-
-const frontman = createMiddleware({
-  projectRoot: process.cwd(),
-});
-
-export async function middleware(req: NextRequest) {
-  const response = await frontman(req);
-  if (response) return response;
-  return NextResponse.next();
-}
-
-export const config = {
-  matcher: ['/frontman', '/frontman/:path*'],
-};
-```
+<CodeFromFile snippet="nextjs/middleware.ts.txt" />
 
 The `matcher` is required. Without it, Next.js runs the middleware on every request, adding unnecessary overhead across your entire application.
 
@@ -61,24 +46,7 @@ The `matcher` is required. Without it, Next.js runs the middleware on every requ
 
 Next.js 16 introduced a dedicated proxy mechanism. Create `proxy.ts` in your project root:
 
-```ts
-import { createMiddleware } from '@frontman-ai/nextjs';
-import { type NextRequest, NextResponse } from 'next/server';
-
-const frontman = createMiddleware({
-  projectRoot: process.cwd(),
-});
-
-export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
-  if (
-    req.nextUrl.pathname === '/frontman' ||
-    req.nextUrl.pathname.startsWith('/frontman/')
-  ) {
-    return frontman(req) ?? NextResponse.next();
-  }
-  return NextResponse.next();
-}
-```
+<CodeFromFile snippet="nextjs/proxy.ts.txt" />
 
 ## Configuration
 

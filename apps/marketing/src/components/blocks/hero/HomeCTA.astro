@@ -16,9 +16,58 @@ import videoPlaceholder from '../../../assets/video-placeholder.png'
 
 // YouTube video
 const youtubeVideoId = '-4GD1GYwH8Y'
+
+const webMcpScript = `
+if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext === 'function') {
+  navigator.modelContext.provideContext({
+    tools: [
+      {
+        name: 'open_docs',
+        description: 'Open Frontman documentation.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+        execute: async () => {
+          window.location.href = '/docs/'
+          return { ok: true }
+        },
+      },
+      {
+        name: 'go_to_pricing',
+        description: 'Navigate to the Frontman pricing page.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+        execute: async () => {
+          window.location.href = '/pricing/'
+          return { ok: true }
+        },
+      },
+      {
+        name: 'jump_to_install',
+        description: 'Scroll to the install section on the homepage.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+        execute: async () => {
+          document.querySelector('#install')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          return { ok: true }
+        },
+      },
+    ],
+  })
+}
+`
 ---
 
 <section id="intro" class="hero-section bg-primary-500">
+	<script is:inline set:html={webMcpScript} />
 	<div class="hero-section__bg">
 		<img src={gridNetBackground.src} alt="Decorative grid background pattern" class="hero-section__bg-image" width="1440" height="900" fetchpriority="high" />
 	</div>

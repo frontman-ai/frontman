@@ -4,6 +4,10 @@ defmodule FrontmanServer.Test.Fixtures.Accounts do
   entities via the `FrontmanServer.Accounts` context.
   """
 
+  use Boundary,
+    top_level?: true,
+    check: [in: false, out: false]
+
   import Ecto.Query
 
   alias FrontmanServer.Accounts

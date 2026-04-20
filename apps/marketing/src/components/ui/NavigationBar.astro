@@ -62,16 +62,16 @@ function isActivePath(currentPath: string): boolean {
 									{item.name}
 								</a>
 							) : (
-								<button
-									type="button"
+								<a
+									href={item.link}
 									role="menuitem"
 									aria-haspopup="true"
 									aria-expanded="false"
-									class="header__menu-link"
+									class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
 								>
 									{item.name}
 									<Icon name="chevron-down" class="header__menu-chevron" aria-hidden="true" />
-								</button>
+								</a>
 							)}
 							{item.submenu && (
 								<ul class="header__submenu">

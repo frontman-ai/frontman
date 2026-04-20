@@ -25,11 +25,10 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   require Logger
 
   alias FrontmanServer.Accounts
-  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Accounts.{Scope, User}
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.StreamCleanup
   alias FrontmanServer.Vault
   alias ReqLLM.Message.ContentPart
 
@@ -50,14 +49,15 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   @doc """
   Builds an Oban job changeset for title generation.
   """
-  @spec new_job(Scope.t(), String.t(), String.t(), String.t() | nil) :: Oban.Job.changeset()
-  def new_job(%Scope{user: user} = scope, task_id, user_prompt_text, model) do
+  @spec new_job(Accounts.scope(), String.t(), String.t(), String.t() | nil) ::
+          Oban.Job.changeset()
+  def new_job(%Scope{user: %User{} = user} = scope, task_id, user_prompt_text, model) do
     new(%{
       user_id: user.id,
       task_id: task_id,
       user_prompt_text: user_prompt_text,
       model: model,
-      encrypted_env_api_key: encrypt_env_api_key(scope.env_api_keys)
+      encrypted_env_api_key: encrypt_env_api_key(Accounts.scope_env_api_keys(scope))
     })
   end
 
@@ -72,7 +72,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
       }) do
     user = Accounts.get_user!(user_id)
     env_api_keys = args |> Map.get("encrypted_env_api_key") |> decrypt_env_api_key()
-    scope = user |> Scope.for_user() |> Scope.with_env_api_keys(env_api_keys)
+    scope = Accounts.scope_for_user_with_env_keys(user, env_api_keys)
     model = Map.get(args, "model")
 
     with {:ok, resolved_key} <-
@@ -106,7 +106,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
       ReqLLM.Context.user(user_prompt_text)
     ]
 
-    {model_spec, llm_opts} = ResolvedKey.to_llm_args(resolved_key, max_tokens: 30)
+    {model_spec, llm_opts} = Providers.to_llm_args(resolved_key, max_tokens: 30)
 
     case ReqLLM.stream_text(model_spec, messages, llm_opts) do
       {:ok, response} ->
@@ -114,7 +114,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
           response.stream
           |> Stream.filter(fn chunk -> chunk.type == :content end)
           |> Stream.map(fn chunk -> chunk.text || "" end)
-          |> StreamCleanup.wrap_stream(response.cancel)
+          |> Tasks.wrap_stream(response.cancel)
           |> Enum.join("")
 
         {:ok, title}

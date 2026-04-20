@@ -7,10 +7,11 @@ defmodule FrontmanServer.MixProject do
       version: "0.0.1",
       elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: [warnings_as_errors: true],
       start_permanent: Mix.env() == :prod,
       consolidate_protocols: Mix.env() != :test,
       deps: deps(),
-      compilers: [:phoenix_live_view] ++ Mix.compilers(),
+      compilers: [:boundary, :phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
       test_coverage: [tool: ExCoveralls],
       dialyzer: [
@@ -65,6 +66,7 @@ defmodule FrontmanServer.MixProject do
   defp deps do
     [
       {:swarm_ai, path: "../swarm_ai"},
+      {:boundary, "~> 0.10", runtime: false},
       {:bcrypt_elixir, "~> 3.0"},
       {:cloak_ecto, "~> 1.3"},
       {:phoenix, "~> 1.8.1"},

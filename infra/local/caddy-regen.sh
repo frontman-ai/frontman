@@ -52,8 +52,10 @@ else
         # Extract hash from pod name (worktree-HASH)
         HASH="${POD#worktree-}"
 
-        # Derive ports from hash (must match wt-pod-create)
-        BASE_PORT=$(( 16#${HASH} % 5000 + 10000 ))
+        # Derive ports from hash (must match bin/wt-pod-create)
+        # Base port range uses 5-port strides to avoid overlap:
+        # (0xHASH % 1000) * 5 + 10000
+        BASE_PORT=$(( (16#${HASH} % 1000) * 5 + 10000 ))
         PORT_PHOENIX=$((BASE_PORT))
         PORT_VITE=$((BASE_PORT + 1))
         PORT_NEXTJS=$((BASE_PORT + 2))

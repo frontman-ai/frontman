@@ -14,10 +14,36 @@ defmodule FrontmanServer.Tasks do
   This context provides the boundary for all task-related operations,
   delegating to the domain layer and infrastructure as appropriate.
   """
+
+  use Boundary,
+    deps: [FrontmanServer, FrontmanServer.Accounts, FrontmanServer.Providers],
+    exports: [
+      Task,
+      TaskSchema,
+      Interaction,
+      Interaction.UserMessage,
+      Interaction.AgentResponse,
+      Interaction.AgentCompleted,
+      Interaction.AgentError,
+      Interaction.ToolCall,
+      Interaction.ToolResult,
+      InteractionSchema,
+      Execution,
+      Execution.Framework,
+      ExecutionEvent,
+      RetryCoordinator,
+      StreamCleanup,
+      StreamStallTimeout,
+      SwarmDispatcher,
+      Todos,
+      Todos.Todo,
+      {MessageOptimizer, []}
+    ]
+
   require Logger
 
-  alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Providers.Model
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Providers
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Tasks.{
@@ -33,8 +59,11 @@ defmodule FrontmanServer.Tasks do
 
   # --- Authorization Helpers ---
 
-  @spec get_task_by_id(Scope.t(), String.t()) :: {:ok, TaskSchema.t()} | {:error, :not_found}
-  defp get_task_by_id(%Scope{user: %{id: user_id}}, task_id) do
+  @spec get_task_by_id(Accounts.scope(), String.t()) ::
+          {:ok, TaskSchema.t()} | {:error, :not_found}
+  defp get_task_by_id(scope, task_id) do
+    user_id = Accounts.scope_user_id(scope)
+
     query =
       TaskSchema
       |> TaskSchema.by_id(task_id)
@@ -55,8 +84,10 @@ defmodule FrontmanServer.Tasks do
   """
   @max_tasks 20
 
-  @spec list_tasks(Scope.t()) :: {:ok, [TaskSchema.t()]}
-  def list_tasks(%Scope{user: %{id: user_id}}) do
+  @spec list_tasks(Accounts.scope()) :: {:ok, [TaskSchema.t()]}
+  def list_tasks(scope) do
+    user_id = Accounts.scope_user_id(scope)
+
     tasks =
       TaskSchema
       |> TaskSchema.for_user(user_id)
@@ -72,8 +103,8 @@ defmodule FrontmanServer.Tasks do
 
   Requires authorization - scope.user.id must match task.user_id.
   """
-  @spec get_task(Scope.t(), String.t()) :: {:ok, Task.t()} | {:error, :not_found}
-  def get_task(%Scope{} = scope, task_id) do
+  @spec get_task(Accounts.scope(), String.t()) :: {:ok, Task.t()} | {:error, :not_found}
+  def get_task(scope, task_id) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       {:ok, schema_to_task(schema)}
     end
@@ -85,8 +116,8 @@ defmodule FrontmanServer.Tasks do
   Requires authorization - scope.user.id must match task.user_id.
   Cascade deletes configured in migration handle interaction cleanup.
   """
-  @spec delete_task(Scope.t(), String.t()) :: :ok | {:error, :not_found}
-  def delete_task(%Scope{} = scope, task_id) do
+  @spec delete_task(Accounts.scope(), String.t()) :: :ok | {:error, :not_found}
+  def delete_task(scope, task_id) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          {:ok, _} <- Repo.delete(schema) do
       :ok
@@ -98,8 +129,8 @@ defmodule FrontmanServer.Tasks do
 
   Lightweight query for cases where only the title is needed (e.g., title generation check).
   """
-  @spec get_short_desc(Scope.t(), String.t()) :: {:ok, String.t()} | {:error, :not_found}
-  def get_short_desc(%Scope{} = scope, task_id) do
+  @spec get_short_desc(Accounts.scope(), String.t()) :: {:ok, String.t()} | {:error, :not_found}
+  def get_short_desc(scope, task_id) do
     case get_task_by_id(scope, task_id) do
       {:ok, schema} -> {:ok, schema.short_desc}
       {:error, :not_found} -> {:error, :not_found}
@@ -111,9 +142,9 @@ defmodule FrontmanServer.Tasks do
 
   Called by the `GenerateTitle` Oban worker after the LLM produces a title.
   """
-  @spec set_generated_title(Scope.t(), String.t(), String.t()) ::
+  @spec set_generated_title(Accounts.scope(), String.t(), String.t()) ::
           :ok | {:error, :not_found | Ecto.Changeset.t()}
-  def set_generated_title(%Scope{} = scope, task_id, title) do
+  def set_generated_title(scope, task_id, title) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          {:ok, _updated} <-
            schema
@@ -157,13 +188,16 @@ defmodule FrontmanServer.Tasks do
   Requires a scope with a user.
   Returns `{:ok, task_id}` on success.
   """
-  @spec create_task(Scope.t(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
-  def create_task(%Scope{user: user}, task_id, framework) do
+  @spec create_task(Accounts.scope(), String.t(), String.t()) ::
+          {:ok, String.t()} | {:error, term()}
+  def create_task(scope, task_id, framework) do
+    user_id = Accounts.scope_user_id(scope)
+
     attrs = %{
       id: task_id,
       short_desc: Task.short_description(task_id),
       framework: framework,
-      user_id: user.id
+      user_id: user_id
     }
 
     case TaskSchema.create_changeset(attrs) |> Repo.insert() do
@@ -177,10 +211,10 @@ defmodule FrontmanServer.Tasks do
 
   Deduplicates by path - returns `{:ok, :already_loaded}` if already present.
   """
-  @spec add_discovered_project_rule(Scope.t(), String.t(), String.t(), String.t()) ::
+  @spec add_discovered_project_rule(Accounts.scope(), String.t(), String.t(), String.t()) ::
           {:ok, Interaction.DiscoveredProjectRule.t() | :already_loaded}
           | {:error, :not_found}
-  def add_discovered_project_rule(%Scope{} = scope, task_id, path, content) do
+  def add_discovered_project_rule(scope, task_id, path, content) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interactions = load_interactions(task_id)
 
@@ -205,11 +239,11 @@ defmodule FrontmanServer.Tasks do
   Stores the discovered project structure summary for a task.
   Called during MCP initialization after `list_tree` returns.
   """
-  @spec add_discovered_project_structure(Scope.t(), String.t(), String.t()) ::
+  @spec add_discovered_project_structure(Accounts.scope(), String.t(), String.t()) ::
           {:ok, Interaction.DiscoveredProjectStructure.t()}
           | {:ok, :already_loaded}
           | {:error, :not_found}
-  def add_discovered_project_structure(%Scope{} = scope, task_id, summary) do
+  def add_discovered_project_structure(scope, task_id, summary) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interactions = load_interactions(task_id)
 
@@ -256,9 +290,9 @@ defmodule FrontmanServer.Tasks do
   and kicking off the agent loop. If an execution is already running, the
   prompt is rejected entirely (nothing persisted).
   """
-  @spec submit_user_message(Scope.t(), String.t(), list(), list(), keyword()) ::
+  @spec submit_user_message(Accounts.scope(), String.t(), list(), list(), keyword()) ::
           {:ok, Interaction.UserMessage.t()} | {:error, :already_running} | {:error, :not_found}
-  def submit_user_message(%Scope{} = scope, task_id, content_blocks, tools, opts \\ []) do
+  def submit_user_message(scope, task_id, content_blocks, tools, opts \\ []) do
     with :ok <- guard_not_running(scope, task_id),
          {:ok, interaction} <- add_user_message(scope, task_id, content_blocks) do
       opts = Keyword.put(opts, :interaction_id, interaction.id)
@@ -278,9 +312,9 @@ defmodule FrontmanServer.Tasks do
   but don't want to trigger the agent loop (e.g., populating history for tests
   or replaying messages).
   """
-  @spec add_user_message(Scope.t(), String.t(), list()) ::
+  @spec add_user_message(Accounts.scope(), String.t(), list()) ::
           {:ok, Interaction.UserMessage.t()} | {:error, :not_found}
-  def add_user_message(%Scope{} = scope, task_id, content_blocks) do
+  def add_user_message(scope, task_id, content_blocks) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.UserMessage.new(content_blocks)
       append_interaction(schema, interaction)
@@ -290,9 +324,9 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends an AgentResponse interaction.
   """
-  @spec add_agent_response(Scope.t(), String.t(), String.t(), map()) ::
+  @spec add_agent_response(Accounts.scope(), String.t(), String.t(), map()) ::
           {:ok, Interaction.AgentResponse.t()} | {:error, :not_found}
-  def add_agent_response(%Scope{} = scope, task_id, content, metadata \\ %{}) do
+  def add_agent_response(scope, task_id, content, metadata \\ %{}) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.AgentResponse.new(content, metadata)
       append_interaction(schema, interaction)
@@ -302,9 +336,9 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends an AgentCompleted interaction.
   """
-  @spec add_agent_completed(Scope.t(), String.t(), term()) ::
+  @spec add_agent_completed(Accounts.scope(), String.t(), term()) ::
           {:ok, Interaction.AgentCompleted.t()} | {:error, :not_found}
-  def add_agent_completed(%Scope{} = scope, task_id, result \\ nil) do
+  def add_agent_completed(scope, task_id, result \\ nil) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.AgentCompleted.new(result)
       append_interaction(schema, interaction)
@@ -316,9 +350,9 @@ defmodule FrontmanServer.Tasks do
 
   Called when the agent loop is paused due to a tool timeout with `on_timeout: :pause_agent`.
   """
-  @spec add_agent_paused(Scope.t(), String.t(), String.t(), pos_integer()) ::
+  @spec add_agent_paused(Accounts.scope(), String.t(), String.t(), pos_integer()) ::
           {:ok, Interaction.AgentPaused.t()} | {:error, :not_found}
-  def add_agent_paused(%Scope{} = scope, task_id, tool_name, timeout_ms) do
+  def add_agent_paused(scope, task_id, tool_name, timeout_ms) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.AgentPaused.new(tool_name, timeout_ms)
       append_interaction(schema, interaction)
@@ -330,10 +364,17 @@ defmodule FrontmanServer.Tasks do
 
   `kind` is one of "failed", "crashed", "cancelled", or "terminated".
   """
-  @spec add_agent_error(Scope.t(), String.t(), String.t(), String.t(), boolean(), String.t()) ::
+  @spec add_agent_error(
+          Accounts.scope(),
+          String.t(),
+          String.t(),
+          String.t(),
+          boolean(),
+          String.t()
+        ) ::
           {:ok, Interaction.AgentError.t()} | {:error, :not_found}
   def add_agent_error(
-        %Scope{} = scope,
+        scope,
         task_id,
         error,
         kind \\ "failed",
@@ -349,9 +390,9 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends an AgentRetry interaction.
   """
-  @spec add_agent_retry(Scope.t(), String.t(), String.t()) ::
+  @spec add_agent_retry(Accounts.scope(), String.t(), String.t()) ::
           {:ok, Interaction.AgentRetry.t()} | {:error, :not_found}
-  def add_agent_retry(%Scope{} = scope, task_id, retried_error_id) do
+  def add_agent_retry(scope, task_id, retried_error_id) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.AgentRetry.new(retried_error_id)
       append_interaction(schema, interaction)
@@ -361,9 +402,9 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a ToolCall interaction.
   """
-  @spec add_tool_call(Scope.t(), String.t(), ToolCall.t()) ::
+  @spec add_tool_call(Accounts.scope(), String.t(), ToolCall.t()) ::
           {:ok, Interaction.ToolCall.t()} | {:error, :not_found}
-  def add_tool_call(%Scope{} = scope, task_id, %ToolCall{} = tool_call_data) do
+  def add_tool_call(scope, task_id, %ToolCall{} = tool_call_data) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interaction = Interaction.ToolCall.new(tool_call_data)
       append_interaction(schema, interaction)
@@ -380,11 +421,11 @@ defmodule FrontmanServer.Tasks do
   Returns `{:ok, interaction, :notified}` when a live executor received the result,
   `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
   """
-  @spec add_tool_result(Scope.t(), String.t(), map(), term(), boolean()) ::
+  @spec add_tool_result(Accounts.scope(), String.t(), map(), term(), boolean()) ::
           {:ok, Interaction.ToolResult.t(), :notified | :no_executor}
           | {:error, :not_found | Ecto.Changeset.t()}
   def add_tool_result(
-        %Scope{} = scope,
+        scope,
         task_id,
         %{id: tool_call_id, name: _} = tool_call_data,
         result,
@@ -405,8 +446,8 @@ defmodule FrontmanServer.Tasks do
 
   Verifies the task exists and belongs to the user before cancelling.
   """
-  @spec cancel_execution(Scope.t(), String.t()) :: :ok | {:error, :not_running}
-  def cancel_execution(%Scope{} = scope, task_id) do
+  @spec cancel_execution(Accounts.scope(), String.t()) :: :ok | {:error, :not_running}
+  def cancel_execution(scope, task_id) do
     Execution.cancel(scope, task_id)
   end
 
@@ -415,10 +456,10 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Enqueues an Oban job to generate a title for a task from the user's prompt.
   """
-  @spec enqueue_title_generation(Scope.t(), String.t(), String.t(), keyword()) ::
+  @spec enqueue_title_generation(Accounts.scope(), String.t(), String.t(), keyword()) ::
           {:ok, Oban.Job.t()} | {:error, Oban.Job.changeset()}
-  def enqueue_title_generation(%Scope{} = scope, task_id, user_prompt_text, opts \\ []) do
-    model = opts |> Keyword.get(:model) |> Model.resolve_string()
+  def enqueue_title_generation(scope, task_id, user_prompt_text, opts \\ []) do
+    model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
 
     GenerateTitle.new_job(scope, task_id, user_prompt_text, model)
     |> Oban.insert()
@@ -428,7 +469,8 @@ defmodule FrontmanServer.Tasks do
   Starts an execution if none is already running for this task.
   Fetches the task and delegates to Execution.run.
   """
-  @spec maybe_start_execution(Scope.t(), String.t(), list(), keyword()) :: :ok | :already_running
+  @spec maybe_start_execution(Accounts.scope(), String.t(), list(), keyword()) ::
+          :ok | :already_running
   def maybe_start_execution(scope, task_id, tools, opts) do
     if Execution.running?(scope, task_id) do
       :already_running
@@ -454,6 +496,10 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc false
+  @spec wrap_stream(Enumerable.t(), (-> term())) :: Enumerable.t()
+  defdelegate wrap_stream(stream, cancel_fn), to: FrontmanServer.Tasks.StreamCleanup
+
   alias FrontmanServer.Tasks.Todos
 
   @doc """
@@ -462,9 +508,9 @@ defmodule FrontmanServer.Tasks do
   Todos are managed through tool calls, not direct API calls.
   This function is for reading the current state only.
   """
-  @spec list_todos(Scope.t(), String.t()) ::
+  @spec list_todos(Accounts.scope(), String.t()) ::
           {:ok, [Todos.Todo.t()]} | {:error, :not_found}
-  def list_todos(%Scope{} = scope, task_id) do
+  def list_todos(scope, task_id) do
     case get_task(scope, task_id) do
       {:ok, task} ->
         todos_map = Todos.list_todos(task.interactions)

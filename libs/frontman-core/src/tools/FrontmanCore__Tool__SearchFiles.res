@@ -4,6 +4,9 @@ module Path = FrontmanBindings.Path
 module ChildProcess = FrontmanCore__ChildProcess
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
+module PathRecovery = FrontmanCore__PathRecovery
+module ToolPathHints = FrontmanCore__ToolPathHints
+module FilenamePattern = FrontmanCore__FilenamePattern
 
 let name = Tool.ToolNames.searchFiles
 let visibleToAgent = true
@@ -43,6 +46,16 @@ type output = {
   truncated: bool,
 }
 
+type backendError = {
+  backend: string,
+  command: string,
+  cwd: string,
+  exitCode: option<int>,
+  stderr: string,
+  message: string,
+  targetPath: string,
+}
+
 // Get ripgrep path from @vscode/ripgrep package
 let getRipgrepPath = (): option<string> => {
   try {
@@ -72,29 +85,8 @@ let buildRipgrepArgs = (~searchPath: string): array<string> => {
   args
 }
 
-// Check if a filename matches a pattern (case-insensitive, glob-like)
-let matchesPattern = (fileName: string, ~patternLower: string): bool => {
-  let fileNameLower = fileName->String.toLowerCase
-
-  switch patternLower {
-  | "" => true
-  | p if p->String.includes("*") => {
-      let parts = p->String.split("*")
-      let partsLength = Array.length(parts)
-
-      parts->Array.reduceWithIndex(true, (matches, part, idx) =>
-        switch (matches, part) {
-        | (false, _) => false
-        | (_, "") => true
-        | _ if idx === 0 => fileNameLower->String.startsWith(part)
-        | _ if idx === partsLength - 1 => fileNameLower->String.endsWith(part)
-        | _ => fileNameLower->String.includes(part)
-        }
-      )
-    }
-  | p => fileNameLower->String.includes(p)
-  }
-}
+let matchesPattern = (fileName: string, ~patternLower: string): bool =>
+  FilenamePattern.matchesPattern(~pattern=patternLower, ~text=fileName)
 
 // Filter file paths by pattern and paginate results.
 // Shared by both the ripgrep and git ls-files code paths.
@@ -116,13 +108,68 @@ let filterAndPaginate = (lines: array<string>, ~pattern: string, ~maxResults: in
   }
 }
 
+let trimForError = (value: string): string => {
+  let trimmed = value->String.trim
+  switch trimmed == "" {
+  | true => "(empty)"
+  | false => trimmed
+  }
+}
+
+let formatExitCode = (code: option<int>): string => {
+  switch code {
+  | Some(value) => Int.toString(value)
+  | None => "none"
+  }
+}
+
+let makeBackendError = (
+  ~backend: string,
+  ~command: string,
+  ~cwd: string,
+  ~exitCode: option<int>,
+  ~stderr: string,
+  ~message: string,
+  ~targetPath: string,
+): backendError => {
+  {
+    backend,
+    command,
+    cwd,
+    exitCode,
+    stderr,
+    message,
+    targetPath,
+  }
+}
+
+let formatBackendError = (err: backendError): string => {
+  `search_files backend failure (${err.backend})
+command: ${err.command}
+cwd: ${err.cwd}
+exit_code: ${formatExitCode(err.exitCode)}
+stderr: ${trimForError(err.stderr)}
+message: ${trimForError(err.message)}
+target_path: ${err.targetPath}`
+}
+
+let formatFallbackError = (~firstError: backendError, ~secondError: backendError): string => {
+  `search_files failed in both backends.
+
+primary:
+${formatBackendError(firstError)}
+
+fallback:
+${formatBackendError(secondError)}`
+}
+
 // Execute ripgrep for file search using spawn (no shell)
 let executeRipgrep = async (
   ~rgPath: string,
   ~pattern: string,
   ~searchPath: string,
   ~maxResults: int,
-): result<output, string> => {
+): result<output, backendError> => {
   let args = buildRipgrepArgs(~searchPath)
 
   let result = await ChildProcess.spawnResult(rgPath, args)
@@ -135,18 +182,28 @@ let executeRipgrep = async (
   | Error({code: Some(1), _}) =>
     // Exit code 1 means no matches found
     Ok({files: [], totalResults: 0, truncated: false})
-  | Error({stderr}) => Error(`Ripgrep failed: ${stderr}`)
+  | Error({code, stderr, message, _}) =>
+    Error(
+      makeBackendError(
+        ~backend="ripgrep",
+        ~command=rgPath ++ " --files --hidden --no-ignore " ++ searchPath,
+        ~cwd=searchPath,
+        ~exitCode=code,
+        ~stderr,
+        ~message,
+        ~targetPath=searchPath,
+      ),
+    )
   }
 }
 
 // Execute git ls-files using spawn (no shell) and filter results in-process.
 // The old approach piped through `grep -i` via a shell string, which broke on
 // patterns containing spaces or special characters.
-let executeGitLsFiles = async (
-  ~pattern: string,
-  ~searchPath: string,
-  ~maxResults: int,
-): result<output, string> => {
+let executeGitLsFiles = async (~pattern: string, ~searchPath: string, ~maxResults: int): result<
+  output,
+  backendError,
+> => {
   let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd=searchPath)
 
   switch result {
@@ -157,35 +214,77 @@ let executeGitLsFiles = async (
   | Error({code: Some(1), _}) =>
     // Exit code 1 means no matches found
     Ok({files: [], totalResults: 0, truncated: false})
-  | Error({stderr}) => Error(`Git ls-files failed: ${stderr}`)
+  | Error({code, stderr, message, _}) =>
+    Error(
+      makeBackendError(
+        ~backend="git",
+        ~command="git ls-files",
+        ~cwd=searchPath,
+        ~exitCode=code,
+        ~stderr,
+        ~message,
+        ~targetPath=searchPath,
+      ),
+    )
   }
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
   // resolveSearchDir ensures we always get a directory, even if the agent
   // passes a file path (e.g. "src/Button.tsx" → "src/").
-  let searchPath = await PathContext.resolveSearchDir(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path)
+  let requestedSearchPath = await PathContext.resolveSearchDir(
+    ~sourceRoot=ctx.sourceRoot,
+    ~inputPath=input.path,
+  )
+
+  let searchPath = switch await PathRecovery.nearestExistingDir(
+    ~sourceRoot=ctx.sourceRoot,
+    ~startPath=requestedSearchPath,
+  ) {
+  | Some(existingDir) => existingDir
+  | None => ctx.sourceRoot
+  }
+
   let maxResults = input.maxResults->Option.getOr(20)
 
   // Try ripgrep first, fall back to git ls-files
-  switch getRipgrepPath() {
+  let result = switch getRipgrepPath() {
   | Some(rgPath) =>
-    let result = await executeRipgrep(
+    let ripgrepResult = await executeRipgrep(
       ~rgPath,
       ~pattern=input.pattern,
       ~searchPath,
       ~maxResults,
     )
 
-    switch result {
-    | Ok(_) => result
-    | Error(_) =>
+    switch ripgrepResult {
+    | Ok(output) => Ok(output)
+    | Error(ripgrepError) =>
       // Fallback to git ls-files
-      await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults)
+      switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
+      | Ok(output) => Ok(output)
+      | Error(gitError) =>
+        Error(formatFallbackError(~firstError=ripgrepError, ~secondError=gitError))
+      }
     }
   | None =>
     // No ripgrep, use git ls-files
-    await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults)
+    switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
+    | Ok(output) => Ok(output)
+    | Error(gitError) => Error(formatBackendError(gitError))
+    }
+  }
+
+  switch result {
+  | Ok(output) =>
+    ToolPathHints.recordSearch(
+      ~sourceRoot=ctx.sourceRoot,
+      ~searchPath,
+      ~pattern=input.pattern,
+      ~files=output.files,
+      ~totalResults=output.totalResults,
+    )
+    Ok(output)
+  | Error(_) as err => err
   }
 }
-

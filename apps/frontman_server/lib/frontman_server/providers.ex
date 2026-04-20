@@ -21,9 +21,21 @@ defmodule FrontmanServer.Providers do
   After a successful agent run, call `record_usage/3` to track server key usage.
   """
 
+  use Boundary,
+    deps: [FrontmanServer, FrontmanServer.Accounts],
+    exports: [
+      AnthropicOAuth,
+      ChatGPTOAuth,
+      Model,
+      OAuthToken,
+      Registry,
+      ResolvedKey
+    ]
+
   import Ecto.Query, warn: false
   alias FrontmanServer.Repo
 
+  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.{Scope, User}
 
   alias FrontmanServer.Providers.{
@@ -73,7 +85,7 @@ defmodule FrontmanServer.Providers do
     - `{:error, :no_api_key}` - No API key available
     - `{:error, :usage_limit_exceeded}` - Server key quota exhausted
   """
-  @spec prepare_api_key(Scope.t() | nil, String.t() | nil, keyword()) ::
+  @spec prepare_api_key(Accounts.scope() | nil, String.t() | nil, keyword()) ::
           {:ok, ResolvedKey.t()} | {:error, :no_api_key | :usage_limit_exceeded}
   def prepare_api_key(scope, model, opts \\ []) do
     model = model || default_model()
@@ -119,7 +131,7 @@ defmodule FrontmanServer.Providers do
     - scope: The user scope (or nil)
     - resolved_key: The ResolvedKey struct from prepare_api_key/3
   """
-  @spec record_usage(Scope.t() | nil, ResolvedKey.t()) :: :ok | {:error, term()}
+  @spec record_usage(Accounts.scope() | nil, ResolvedKey.t()) :: :ok | {:error, term()}
   def record_usage(nil, %ResolvedKey{}), do: :ok
   def record_usage(_scope, %ResolvedKey{key_source: :user_key}), do: :ok
   def record_usage(_scope, %ResolvedKey{key_source: :env_key}), do: :ok
@@ -139,9 +151,44 @@ defmodule FrontmanServer.Providers do
   format. Falls back to "openrouter" for unprefixed strings.
   """
   @spec provider_from_model(String.t()) :: String.t()
-  def provider_from_model(model) when is_binary(model) do
-    Model.provider_from_string(model)
-  end
+  defdelegate provider_from_model(model), to: Model, as: :provider_from_string
+
+  @doc """
+  Resolves a possibly nil model string to a concrete provider:model value.
+  """
+  @spec resolve_model_string(String.t() | nil) :: String.t() | nil
+  defdelegate resolve_model_string(model), to: Model, as: :resolve_string
+
+  @doc """
+  Converts a resolved key into ReqLLM model + option arguments.
+  """
+  @spec to_llm_args(ResolvedKey.t(), keyword()) :: {String.t() | map(), keyword()}
+  defdelegate to_llm_args(resolved_key), to: ResolvedKey
+  defdelegate to_llm_args(resolved_key, opts), to: ResolvedKey
+
+  @doc """
+  Returns the provider-specific maximum image dimension when constrained.
+  """
+  @spec max_image_dimension(String.t()) :: pos_integer() | nil
+  defdelegate max_image_dimension(provider), to: Registry
+
+  @doc """
+  Returns a human-friendly model name for logs and telemetry.
+  """
+  @spec display_model_name(map() | String.t() | nil) :: String.t()
+  defdelegate display_model_name(model_ref), to: Model, as: :display_name
+
+  @doc """
+  Returns the provider name from a model reference.
+  """
+  @spec model_provider_name(map() | String.t() | nil) :: String.t()
+  defdelegate model_provider_name(model_ref), to: Model, as: :provider_name
+
+  @doc """
+  Returns the underlying LLM vendor from a model reference.
+  """
+  @spec model_llm_vendor_name(map() | String.t() | nil) :: String.t()
+  defdelegate model_llm_vendor_name(model_ref), to: Model, as: :llm_vendor_name
 
   ## API Key Management
 
@@ -151,10 +198,11 @@ defmodule FrontmanServer.Providers do
   On success, broadcasts a config change notification so subscribers
   (e.g. the tasks channel) can push updated config options to the client.
   """
-  def upsert_api_key(%Scope{user: %User{} = user} = scope, provider, key) do
+  def upsert_api_key(%Scope{user: %User{} = user}, provider, key) do
+    user_id = user.id
     provider = String.downcase(provider)
     # Build struct with user_id set explicitly (not via changeset for security)
-    api_key = %ApiKey{user_id: user.id}
+    api_key = %ApiKey{user_id: user_id}
     changeset = ApiKey.changeset(api_key, %{provider: provider, key: key})
 
     case Repo.insert(
@@ -163,7 +211,7 @@ defmodule FrontmanServer.Providers do
            conflict_target: [:user_id, :provider]
          ) do
       {:ok, record} ->
-        broadcast_config_changed(scope.user.id)
+        broadcast_config_changed(user_id)
         {:ok, record}
 
       error ->
@@ -183,7 +231,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the user's API key value for a provider, if present.
   """
-  def get_api_key_value(%Scope{} = scope, provider) do
+  def get_api_key_value(scope, provider) do
     case get_api_key(scope, provider) do
       %ApiKey{key: key} -> key
       _ -> nil
@@ -193,7 +241,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns true if the user has a stored API key for the provider.
   """
-  def has_api_key?(%Scope{} = scope, provider) do
+  def has_api_key?(scope, provider) do
     case get_api_key(scope, provider) do
       %ApiKey{} -> true
       _ -> false
@@ -219,7 +267,7 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the remaining server-key requests for the user and provider.
   """
-  def get_usage_remaining(%Scope{} = scope, provider) do
+  def get_usage_remaining(scope, provider) do
     case get_usage(scope, provider) do
       %UserKeyUsage{count: count} -> max(usage_limit() - count, 0)
       nil -> usage_limit()
@@ -229,14 +277,14 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns true if the user has remaining server-key requests.
   """
-  def has_remaining_usage?(%Scope{} = scope, provider) do
+  def has_remaining_usage?(scope, provider) do
     get_usage_remaining(scope, provider) > 0
   end
 
   @doc """
   Returns usage details for the user's server key usage.
   """
-  def get_usage_status(%Scope{} = scope, provider) do
+  def get_usage_status(scope, provider) do
     limit = usage_limit()
     used = usage_count(get_usage(scope, provider))
     remaining = max(limit - used, 0)
@@ -300,7 +348,7 @@ defmodule FrontmanServer.Providers do
             {:user_key, key}
 
           _ ->
-            resolve_env_or_server_key(provider, scope.env_api_keys)
+            resolve_env_or_server_key(provider, Accounts.scope_env_api_keys(scope))
         end
     end
   end
@@ -380,16 +428,18 @@ defmodule FrontmanServer.Providers do
   For internal token refreshes, use `upsert_oauth_token/6` directly.
   """
   def save_oauth_connection(
-        %Scope{user: %User{}} = scope,
+        %Scope{user: %User{} = user} = scope,
         provider,
         access_token,
         refresh_token,
         expires_at,
         metadata \\ %{}
       ) do
+    user_id = user.id
+
     case upsert_oauth_token(scope, provider, access_token, refresh_token, expires_at, metadata) do
       {:ok, token} ->
-        broadcast_config_changed(scope.user.id)
+        broadcast_config_changed(user_id)
         {:ok, token}
 
       error ->
@@ -535,14 +585,15 @@ defmodule FrontmanServer.Providers do
   can push updated config options to the client.
   """
   def delete_oauth_token(%Scope{user: %User{} = user}, provider) do
-    query = OAuthToken.for_user_and_provider(OAuthToken, user.id, provider)
+    user_id = user.id
+    query = OAuthToken.for_user_and_provider(OAuthToken, user_id, provider)
 
     case Repo.delete_all(query) do
       {0, _} ->
         {:error, :not_found}
 
       {_, _} ->
-        broadcast_config_changed(user.id)
+        broadcast_config_changed(user_id)
         :ok
     end
   end
@@ -597,11 +648,11 @@ defmodule FrontmanServer.Providers do
       `value` is a serialized `"provider:model"` string)
     * `:default_model` – serialized `"provider:model"` string for the best default
   """
-  @spec model_config_data(Scope.t()) :: %{
+  @spec model_config_data(Accounts.scope()) :: %{
           groups: [map()],
           default_model: String.t()
         }
-  def model_config_data(%Scope{} = scope) do
+  def model_config_data(scope) do
     provider_tiers = available_provider_tiers(scope)
 
     groups =
@@ -640,8 +691,8 @@ defmodule FrontmanServer.Providers do
     * `scope` – the user's `%Scope{}` struct. `env_api_keys` must be populated
       if project-level keys should be considered.
   """
-  @spec available_provider_tiers(Scope.t()) :: [{String.t(), :full | :free}]
-  def available_provider_tiers(%Scope{} = scope) do
+  @spec available_provider_tiers(Accounts.scope()) :: [{String.t(), :full | :free}]
+  def available_provider_tiers(scope) do
     ModelCatalog.catalog_providers()
     |> Enum.flat_map(fn provider ->
       case {key_type(scope, provider), ModelCatalog.has_free_tier?(provider)} do

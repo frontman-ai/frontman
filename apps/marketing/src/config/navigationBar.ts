@@ -43,6 +43,7 @@ export const navigationBarData: NavData = {
 			name: 'Compare',
 			link: '/vs/',
 			submenu: [
+				{ name: 'All comparisons', link: '/vs/' },
 				{ name: 'vs Cursor', link: '/vs/cursor/' },
 				{ name: 'vs Copilot', link: '/vs/copilot/' },
 				{ name: 'vs Stagewise', link: '/vs/stagewise/' },
@@ -53,6 +54,7 @@ export const navigationBarData: NavData = {
 			name: 'Integrations',
 			link: '/integrations/',
 			submenu: [
+				{ name: 'All integrations', link: '/integrations/' },
 				{ name: 'Next.js', link: '/integrations/nextjs/' },
 				{ name: 'Astro', link: '/integrations/astro/' },
 				{ name: 'Vite', link: '/integrations/vite/' }

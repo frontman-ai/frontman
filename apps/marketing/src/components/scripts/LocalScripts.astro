@@ -10,6 +10,9 @@
 			if (submenu && link) {
 				link.addEventListener('click', function (event) {
 					if (!window.matchMedia('(max-width: 1023px)').matches) return
+					const isOpen = menuItem.classList.contains('open')
+					if (isOpen) return
+
 					event.preventDefault()
 					// Close other open submenus first
 					menuItems.forEach((otherItem) => {
@@ -19,9 +22,8 @@
 							if (otherLink) otherLink.setAttribute('aria-expanded', 'false')
 						}
 					})
-					menuItem.classList.toggle('open')
-					const isOpen = menuItem.classList.contains('open')
-					link.setAttribute('aria-expanded', isOpen ? 'true' : 'false')
+					menuItem.classList.add('open')
+					link.setAttribute('aria-expanded', 'true')
 				})
 			}
 		})
@@ -61,7 +63,16 @@
 
 			// Close mobile menu when a nav link is clicked
 			headerMenu.querySelectorAll('a').forEach((link) => {
-				link.addEventListener('click', () => closeMobileMenu())
+				link.addEventListener('click', () => {
+					const parentMenuItem = link.closest('.header__menu-item')
+					const isSubmenuParent =
+						window.matchMedia('(max-width: 1023px)').matches
+						&& link.classList.contains('header__menu-link')
+						&& parentMenuItem?.querySelector('.header__submenu')
+
+					if (isSubmenuParent) return
+					closeMobileMenu()
+				})
 			})
 		}
 

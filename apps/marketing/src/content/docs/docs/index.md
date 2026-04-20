@@ -24,8 +24,8 @@ Start here if Frontman isn't running in your project yet.
 | Framework | Install command | Docs |
 |-----------|----------------|------|
 | **Astro** | `astro add @frontman-ai/astro` | [Astro integration →](/docs/integrations/astro/) |
-| **Next.js** | `npx @frontman-ai/nextjs init` | [Next.js integration →](/docs/integrations/nextjs/) |
-| **Vite** | `npm install @frontman-ai/vite` | [Vite integration →](/docs/integrations/vite/) |
+| **Next.js** | `npx @frontman-ai/nextjs install` | [Next.js integration →](/docs/integrations/nextjs/) |
+| **Vite** | `npx @frontman-ai/vite install` | [Vite integration →](/docs/integrations/vite/) |
 | **WordPress** | Standalone binary (beta) | [WordPress setup →](/docs/integrations/wordpress/) |
 
 Then continue with:
@@ -47,4 +47,4 @@ Already running? Learn how to get the most out of it.
 For developers who want framework-specific detail or technical reference.
 
 - **[Integrations](/docs/integrations/astro/)** — Framework-specific guides (Astro, Next.js, Vite, WordPress)
-- **[Reference](/docs/reference/configuration/)** — Configuration options, environment variables, architecture, troubleshooting
+- **[Reference](/docs/reference/)** — Configuration options, environment variables, architecture, troubleshooting

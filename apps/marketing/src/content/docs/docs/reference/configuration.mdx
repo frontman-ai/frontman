@@ -1,0 +1,434 @@
+---
+title: Configuration Options
+description: Frontman configuration reference for Astro, Next.js, and Vite — every option, default value, environment override, and example setup.
+---
+
+import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
+
+Frontman lets you run an AI agent against your local app without giving the Frontman server direct access to your filesystem. The browser client connects to the Frontman server for the agent loop, and your framework integration exposes local tools like file reads, file edits, screenshots, logs, and route inspection.
+
+This page documents every supported configuration option for the official **Astro**, **Next.js**, and **Vite** integrations, including defaults, examples, and environment-variable overrides.
+
+## How Frontman configuration works
+
+All Frontman integrations configure the same core pieces:
+
+- **Where the Frontman UI is mounted** in your app, via `basePath`
+- **Which Frontman server the browser client connects to**, via `host`
+- **Which local directory should be treated as your project root**, via `projectRoot`
+- **How file paths should be resolved in monorepos**, via `sourceRoot`
+- **Which client bundle and stylesheet to load**, via `clientUrl` and `clientCssUrl`
+- **Whether to render the UI in light or dark mode**, via `isLightTheme`
+
+In practice, most projects only need `host` for remote development or `projectRoot` / `sourceRoot` for monorepos. The rest of the options are mainly for custom deployments, self-hosting, or advanced embedding.
+
+## Shared options across integrations
+
+These options exist in all three official integrations unless otherwise noted.
+
+| Option | Type | Default | What it does |
+|---|---|---|---|
+| `host` | `string` | `FRONTMAN_HOST` or `api.frontman.sh` | Frontman server host used by the browser client for WebSocket/API connections |
+| `basePath` | `string` | `"frontman"` | Mount path for the Frontman UI and dev-server tool routes |
+| `projectRoot` | `string` | `PROJECT_ROOT`, `PWD`, or `"."` | Root directory of the app Frontman should treat as the project |
+| `sourceRoot` | `string` | `projectRoot` | Root used to resolve source file paths, especially useful in monorepos |
+| `serverName` | `string` | Framework-specific | Name returned in tool metadata |
+| `serverVersion` | `string` | Package version | Version returned in tool metadata |
+| `clientUrl` | `string` | Auto-generated | URL of the Frontman browser client bundle |
+| `clientCssUrl` | `string` or `undefined` | Production CSS URL in prod, omitted in dev | URL of the Frontman client stylesheet |
+| `entrypointUrl` | `string` or `undefined` | `undefined` | Optional custom entrypoint URL for advanced deployments |
+| `isLightTheme` | `boolean` | `false` | Renders Frontman in light theme instead of dark |
+
+### Defaults and environment-variable behavior
+
+Frontman uses a few simple rules across integrations:
+
+1. **`FRONTMAN_HOST` overrides the default server host** if you do not pass `host` directly.
+2. **`PROJECT_ROOT` overrides auto-detected root resolution** if you do not pass `projectRoot` directly.
+3. **`FRONTMAN_CLIENT_URL` overrides the generated client bundle URL** if you do not pass `clientUrl` directly.
+4. **`sourceRoot` defaults to `projectRoot`** when omitted.
+5. **Non-production hosts are treated as dev mode** in Astro and Vite, and in Next.js unless you explicitly override `isDev`.
+
+## `host`
+
+`host` controls which Frontman server the browser client connects to.
+
+**Type:** `string`  
+**Default:** `FRONTMAN_HOST` or `api.frontman.sh`
+
+Use this when you want your local app to talk to:
+
+- the hosted Frontman server: `api.frontman.sh`
+- a local Frontman server during development
+- a self-hosted Frontman deployment inside your company network
+
+### Example
+
+```ts
+host: 'api.frontman.sh'
+```
+
+```ts
+host: 'frontman.local:4000'
+```
+
+In Vite and Next.js, host values are normalized, so these resolve to the same thing:
+
+```ts
+host: 'api.frontman.sh'
+host: 'https://api.frontman.sh'
+host: 'https://api.frontman.sh:443'
+```
+
+### Why it matters
+
+When you open `/frontman`, the integration serves the Frontman UI shell. That UI then loads the browser client bundle and opens a connection back to the Frontman server you configured here. If `host` is wrong, the UI may render but the agent loop will fail to connect.
+
+## `basePath`
+
+`basePath` changes where Frontman is mounted in your app.
+
+**Type:** `string`  
+**Default:** `"frontman"`
+
+By default, Frontman lives at:
+
+- Astro: `/frontman/`
+- Next.js: `/frontman`
+- Vite: `/frontman`
+
+### Example
+
+```ts
+basePath: 'devtools/frontman'
+```
+
+That would move the UI to `/devtools/frontman` and the related tool endpoints under the same prefix.
+
+### Notes
+
+- Astro normalizes leading and trailing slashes, so `'/frontman/'` becomes `frontman`.
+- If your app already uses `/frontman` for another route, change this.
+- In Next.js, make sure your `matcher` also covers the custom path if you wire middleware manually.
+
+## `projectRoot`
+
+`projectRoot` tells Frontman which directory should be treated as the root of the project.
+
+**Type:** `string`  
+**Default:** `PROJECT_ROOT`, then `PWD`, then `"."`
+
+This matters for file-based tools such as reading files, editing files, searching, and route discovery.
+
+### Example
+
+```ts
+projectRoot: import.meta.dirname
+```
+
+```ts
+projectRoot: process.cwd()
+```
+
+### When to set it
+
+Set `projectRoot` explicitly when:
+
+- your dev server is started from a wrapper directory
+- your framework config lives outside the actual app root
+- you're in a workspace or monorepo and want to avoid accidental path ambiguity
+
+## `sourceRoot`
+
+`sourceRoot` defines the root used when resolving source file locations back to real files.
+
+**Type:** `string`  
+**Default:** `projectRoot`
+
+This is especially important in monorepos. Your framework app might live in `apps/web`, but source references may need to resolve relative to the monorepo root.
+
+### Example
+
+```ts
+projectRoot: '/repo/apps/web',
+sourceRoot: '/repo'
+```
+
+### When to set it
+
+Set `sourceRoot` when:
+
+- your app runs from a subdirectory inside a monorepo
+- source-location metadata points to paths outside the app folder
+- Frontman can see the page but struggles to map visible elements back to the right files
+
+## `serverName`
+
+`serverName` changes the integration name returned in tool responses.
+
+**Type:** `string`  
+**Default:** framework-specific
+
+Defaults:
+
+- Astro: `frontman-astro`
+- Next.js: `frontman-nextjs`
+- Vite: `frontman-vite`
+
+Most users should leave this alone. It mainly helps when debugging custom setups or running multiple tool servers.
+
+## `serverVersion`
+
+`serverVersion` controls the version string returned in tool metadata.
+
+**Type:** `string`  
+**Default:** the installed package version
+
+You usually do not need this unless you're testing a custom build or want explicit metadata in a self-hosted environment.
+
+## `clientUrl`
+
+`clientUrl` overrides the URL of the Frontman browser client bundle.
+
+**Type:** `string`  
+**Default:** generated from environment and dev/prod mode
+
+By default, Frontman generates a client bundle URL automatically and appends the query parameters the browser client needs, including:
+
+- `host=<your-configured-host>`
+- `clientName=astro|nextjs|vite`
+
+### When to set it
+
+Override `clientUrl` when:
+
+- you're testing a local Frontman client build
+- you're self-hosting the client assets
+- you're debugging a custom browser bundle
+
+### Example
+
+```ts
+clientUrl: 'https://app.frontman.sh/frontman.es.js'
+```
+
+If you override this manually in Next.js, the URL **must include** a `host` query parameter. Astro and Vite will inject missing query parameters for you; Next.js throws if `host` is missing.
+
+## `clientCssUrl`
+
+`clientCssUrl` overrides the stylesheet URL used by the Frontman UI.
+
+**Type:** `string`  
+**Default:** production CSS asset in production, omitted in dev
+
+In local dev mode, integrations generally skip the hosted CSS because the dev client handles styling differently. In production-like setups, they use the hosted CSS asset unless you override it.
+
+### When to set it
+
+Set this only if you are:
+
+- self-hosting Frontman client assets
+- testing a custom client stylesheet
+- pinning asset delivery to your own CDN
+
+## `entrypointUrl`
+
+`entrypointUrl` provides an optional custom entrypoint URL for advanced deployments.
+
+**Type:** `string`  
+**Default:** `undefined`
+
+This option exists in the integration configs but is not something most Frontman users need. If you're not building a custom deployment flow or wiring Frontman into non-standard infrastructure, leave it unset.
+
+## `isLightTheme`
+
+`isLightTheme` switches the Frontman UI from the default dark theme to a light theme.
+
+**Type:** `boolean`  
+**Default:** `false`
+
+### Example
+
+```ts
+isLightTheme: true
+```
+
+Useful when you're embedding Frontman into internal tools that already use a light interface and you want the UI to feel less bolted on with duct tape and spite.
+
+## Astro configuration
+
+Use the Astro integration in `astro.config.mjs` or `astro.config.ts`.
+
+<CodeFromFile snippet="astro/astro.config.ts.txt" />
+
+### Astro-specific notes
+
+- Frontman only runs in **dev mode**.
+- It registers an Astro dev toolbar app for element selection.
+- It uses Astro source annotations so the agent can map visible elements back to `.astro` files.
+- Astro strips leading and trailing slashes from `basePath` and falls back to `frontman` if you pass an empty string.
+
+### Astro options reference
+
+| Option | Type | Default |
+|---|---|---|
+| `projectRoot` | `string` | `PROJECT_ROOT`, `PWD`, or `"."` |
+| `sourceRoot` | `string` | `projectRoot` |
+| `basePath` | `string` | `"frontman"` |
+| `serverName` | `string` | `"frontman-astro"` |
+| `serverVersion` | `string` | installed package version |
+| `host` | `string` | `FRONTMAN_HOST` or `api.frontman.sh` |
+| `clientUrl` | `string` | generated automatically |
+| `clientCssUrl` | `string \/ undefined` | hosted CSS in prod mode |
+| `entrypointUrl` | `string \/ undefined` | `undefined` |
+| `isLightTheme` | `boolean` | `false` |
+
+## Next.js configuration
+
+Use the Next.js integration in `middleware.ts` for Next.js 13-15 or `proxy.ts` for Next.js 16+.
+
+### Next.js 13-15 (`middleware.ts`)
+
+<CodeFromFile snippet="nextjs/middleware.ts.txt" />
+
+### Next.js 16+ (`proxy.ts`)
+
+<CodeFromFile snippet="nextjs/proxy.ts.txt" />
+
+### Next.js-specific notes
+
+- Next.js exposes an explicit `isDev` override in addition to the shared options.
+- Host values are normalized, so full URLs and bare hostnames are both accepted.
+- If you override `clientUrl`, it must include a `host` query parameter or Frontman throws immediately.
+- OpenTelemetry setup is separate from config and is recommended if you want richer logs and request traces.
+
+### Next.js options reference
+
+| Option | Type | Default |
+|---|---|---|
+| `isDev` | `boolean` | inferred from `host` |
+| `basePath` | `string` | `"frontman"` |
+| `serverName` | `string` | `"frontman-nextjs"` |
+| `serverVersion` | `string` | installed package version |
+| `host` | `string` | `FRONTMAN_HOST` or `api.frontman.sh` |
+| `clientUrl` | `string` | generated automatically |
+| `clientCssUrl` | `string \/ undefined` | hosted CSS in prod mode |
+| `entrypointUrl` | `string \/ undefined` | `undefined` |
+| `isLightTheme` | `boolean` | `false` |
+| `projectRoot` | `string` | `PROJECT_ROOT`, `PWD`, or `"."` |
+| `sourceRoot` | `string` | `projectRoot` |
+
+## Vite configuration
+
+Use the Vite plugin inside `vite.config.ts`.
+
+<CodeFromFile snippet="vite/vite.config.ts.txt" />
+
+### Vite-specific notes
+
+- Vite exposes an explicit `isDev` override in addition to the shared options.
+- Host values are normalized before use.
+- The plugin mounts middleware inside the Vite dev server and exposes Frontman routes under `basePath`.
+- Vite is the most flexible option when you want Frontman in React, Vue, Svelte, Solid, or vanilla projects.
+
+### Vite options reference
+
+| Option | Type | Default |
+|---|---|---|
+| `isDev` | `boolean` | inferred from `host` |
+| `projectRoot` | `string` | `PROJECT_ROOT`, `PWD`, or `"."` |
+| `sourceRoot` | `string` | `projectRoot` |
+| `basePath` | `string` | `"frontman"` |
+| `serverName` | `string` | `"frontman-vite"` |
+| `serverVersion` | `string` | installed package version |
+| `host` | `string` | `FRONTMAN_HOST` or `api.frontman.sh` |
+| `clientUrl` | `string` | generated automatically |
+| `clientCssUrl` | `string \/ undefined` | hosted CSS in prod mode |
+| `entrypointUrl` | `string \/ undefined` | `undefined` |
+| `isLightTheme` | `boolean` | `false` |
+
+## Environment variables
+
+Frontman supports these environment variables across integrations:
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `FRONTMAN_HOST` | Astro, Next.js, Vite | Default Frontman server host when `host` is not passed explicitly |
+| `PROJECT_ROOT` | Astro, Next.js, Vite | Default project root when `projectRoot` is omitted |
+| `FRONTMAN_CLIENT_URL` | Astro, Next.js, Vite | Overrides the generated browser client bundle URL |
+
+### Example `.env`
+
+```bash
+FRONTMAN_HOST=frontman.local:4000
+PROJECT_ROOT=/Users/you/code/acme-web
+FRONTMAN_CLIENT_URL=http://localhost:5174/frontman.es.js
+```
+
+## Common configuration patterns
+
+### Local app + hosted Frontman
+
+This is the default setup for most users.
+
+```ts
+frontman({
+  projectRoot: import.meta.dirname,
+})
+```
+
+### Monorepo app
+
+Use this when the app lives in a subdirectory but you want source resolution from the repo root.
+
+```ts
+frontmanPlugin({
+  projectRoot: '/repo/apps/web',
+  sourceRoot: '/repo',
+})
+```
+
+### Self-hosted Frontman server
+
+Point the browser client at your own server.
+
+```ts
+createMiddleware({
+  host: 'frontman.internal.example.com',
+})
+```
+
+### Custom route prefix
+
+Mount Frontman under an internal tools path.
+
+```ts
+frontman({
+  basePath: 'internal/frontman',
+})
+```
+
+## Configuration troubleshooting
+
+### Frontman UI loads, but the agent cannot connect
+
+Check `host` first. The most common failure is serving the UI from your app successfully but pointing the client at the wrong Frontman server.
+
+### File tools are reading the wrong paths
+
+Check `projectRoot` and `sourceRoot`. In monorepos, `sourceRoot` is usually the fix.
+
+### Custom `clientUrl` works in Astro or Vite but fails in Next.js
+
+Next.js validates that `clientUrl` includes a `host` query parameter. Add one explicitly.
+
+### `/frontman` returns 404 after changing `basePath`
+
+Update the route you visit in the browser, and in Next.js make sure your middleware or proxy matcher includes the new path.
+
+## Related pages
+
+- **[Architecture Overview](/docs/reference/architecture/)** — how the agent loop, browser client, and framework tools work together
+- **[Environment Variables](/docs/reference/env-vars/)** — server-side and client-side environment reference
+- **[Supported Frameworks](/docs/reference/compatibility/)** — compatibility matrix for Astro, Next.js, Vite, Node.js, and browsers
+- **[How the Agent Works](/docs/using/how-the-agent-works/)** — conceptual overview of the end-to-end flow

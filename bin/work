@@ -17,6 +17,7 @@ RESET='\033[0m'
 
 REF="${REF:?REF is required}"
 DEV_IMAGE="${DEV_IMAGE:?DEV_IMAGE is required}"
+WORKTREE_BASE_BRANCH=""
 
 # ── Portable MD5 (same logic as Makefile / wt-dashboard) ──
 md5_short() {
@@ -63,6 +64,18 @@ parse_ref() {
 
 # ── Resolve branch name ────────────────────────────────
 resolve_branch() {
+  if [[ "$REF_TYPE" == "issue" ]]; then
+    # Issue worktrees should start from the currently checked out branch in the
+    # source repo. This keeps issue-based worktrees aligned with your current
+    # local context.
+    WORKTREE_BASE_BRANCH=$(git branch --show-current)
+    if [[ -z "$WORKTREE_BASE_BRANCH" ]]; then
+      printf "${RED}Error: Could not determine current branch for issue refs.${RESET}\n"
+      printf "Check out a local branch (not detached HEAD) and retry.\n"
+      exit 1
+    fi
+  fi
+
   if [[ "$REF_TYPE" == "pr" ]]; then
     printf "${DIM}Resolving PR #%s...${RESET}\n" "$REF_NUMBER"
     BRANCH=$(gh pr view "$REF_NUMBER" --json headRefName --jq '.headRefName')
@@ -147,26 +160,26 @@ ensure_pod() {
       # Pod exists but worktree dir may have been removed — recreate it
       if [ ! -d "$wt_dir" ]; then
         printf "${YELLOW}Worktree dir missing. Recreating git worktree...${RESET}\n"
-        make worktree-create BRANCH="$BRANCH"
+        make worktree-create BRANCH="$BRANCH" WORKTREE_BASE_BRANCH="$WORKTREE_BASE_BRANCH"
       fi
       ;;
     Exited|Stopped|Created)
       printf "${YELLOW}Pod %s is stopped. Resuming...${RESET}\n" "$pod_name"
       if [ ! -d "$wt_dir" ]; then
         printf "${YELLOW}Worktree dir missing. Recreating git worktree...${RESET}\n"
-        make worktree-create BRANCH="$BRANCH"
+        make worktree-create BRANCH="$BRANCH" WORKTREE_BASE_BRANCH="$WORKTREE_BASE_BRANCH"
       fi
       make wt-start BRANCH="$BRANCH"
       ;;
     missing)
       printf "${CYAN}Creating worktree and pod...${RESET}\n"
-      make wt-new BRANCH="$BRANCH"
+      make wt-new BRANCH="$BRANCH" WORKTREE_BASE_BRANCH="$WORKTREE_BASE_BRANCH"
       ;;
     *)
       printf "${YELLOW}Pod %s in state '%s'. Attempting start...${RESET}\n" "$pod_name" "$pod_status"
       if [ ! -d "$wt_dir" ]; then
         printf "${YELLOW}Worktree dir missing. Recreating git worktree...${RESET}\n"
-        make worktree-create BRANCH="$BRANCH"
+        make worktree-create BRANCH="$BRANCH" WORKTREE_BASE_BRANCH="$WORKTREE_BASE_BRANCH"
       fi
       make wt-start BRANCH="$BRANCH"
       ;;

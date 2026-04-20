@@ -34,6 +34,12 @@ describe("extractFilename", () => {
     ->expect(SourcePath.extractFilename("C:\\project/src\\views/Home.vue"))
     ->Expect.toBe("Home.vue")
   })
+
+  test("handles repeated mixed separators", t => {
+    t
+    ->expect(SourcePath.extractFilename("C:\\Users\\dev/src\\components/Leaf.vue"))
+    ->Expect.toBe("Leaf.vue")
+  })
 })
 
 // ── isNodeModulesPath ──────────────────────────────────────────────────

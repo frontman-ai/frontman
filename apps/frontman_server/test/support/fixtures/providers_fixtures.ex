@@ -3,6 +3,10 @@ defmodule FrontmanServer.ProvidersFixtures do
   Test fixtures and helpers for the Providers context.
   """
 
+  use Boundary,
+    top_level?: true,
+    check: [in: false, out: false]
+
   alias FrontmanServer.Providers.{Registry, ResolvedKey}
 
   # ── Server key helpers ──────────────────────────────────────────────

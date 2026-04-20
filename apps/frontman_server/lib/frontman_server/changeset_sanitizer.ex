@@ -42,4 +42,25 @@ defmodule FrontmanServer.ChangesetSanitizer do
   defp do_strip(value) when is_list(value), do: Enum.map(value, &do_strip/1)
 
   defp do_strip(value), do: value
+
+  @doc """
+  Validates that the given field is JSON-encodable.
+
+  JSONB columns crash Postgrex with `Jason.EncodeError` when a value contains
+  raw binary data (e.g. PNG bytes from an HTTP response). This catches the
+  problem at the changeset level with a clear error instead of a DB crash.
+  """
+  @spec validate_json_encodable(Ecto.Changeset.t(), atom()) :: Ecto.Changeset.t()
+  def validate_json_encodable(changeset, field) do
+    case get_change(changeset, field) do
+      nil ->
+        changeset
+
+      value ->
+        case Jason.encode(value) do
+          {:ok, _} -> changeset
+          {:error, _} -> add_error(changeset, field, "contains data that is not JSON-encodable")
+        end
+    end
+  end
 end
