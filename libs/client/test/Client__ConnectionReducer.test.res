@@ -72,13 +72,13 @@ describe("Connection Reducer", () => {
     )
 
     test(
-      "rejects ACPConnectStart when already connecting",
+      "ignores ACPConnectStart when already connecting",
       t => {
         let state = {...Reducer.initialState, acp: ACPConnecting}
         let (nextState, effects) = Reducer.reduce(state, ACPConnectStart)
 
         t->expect(nextState.acp)->Expect.toBe(Reducer.ACPConnecting)
-        t->expect(hasLogError(effects))->Expect.toBe(true)
+        t->expect(hasLogInfo(effects))->Expect.toBe(true)
       },
     )
   })
@@ -118,7 +118,7 @@ describe("Connection Reducer", () => {
     )
 
     test(
-      "Initialize rejects when already initialized",
+      "Initialize ignores when already initialized",
       t => {
         let mockRelay = Obj.magic({"id": "relay-1"})
         let mockServer = Obj.magic({"tools": []})
@@ -139,7 +139,7 @@ describe("Connection Reducer", () => {
           Initialize({config: mockConfig, relay: mockRelay, mcpServer: mockServer}),
         )
 
-        t->expect(hasLogError(effects))->Expect.toBe(true)
+        t->expect(hasLogInfo(effects))->Expect.toBe(true)
       },
     )
   })
@@ -164,9 +164,10 @@ describe("Connection Reducer", () => {
       t => {
         let (nextState, effects) = Reducer.reduce(Reducer.initialState, RelayConnectStart)
 
-        // Should be ignored - no relay instance
+        // Should be rejected - no relay instance
         t->expect(nextState.relay)->Expect.toBe(Reducer.RelayDisconnected)
-        t->expect(effects->Array.length)->Expect.toBe(0)
+        t->expect(effects->Array.length)->Expect.toBe(1)
+        t->expect(hasLogError(effects))->Expect.toBe(true)
       },
     )
 
