@@ -18,10 +18,19 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert response =~ "Continue with Google"
     end
 
-    test "stores normalized signup framework in session", %{conn: conn} do
-      conn = get(conn, ~p"/users/log-in?#{%{"framework" => "Next.js"}}")
+    test "stores canonical signup framework in session", %{conn: conn} do
+      conn = get(conn, ~p"/users/log-in?#{%{"framework" => "nextjs"}}")
 
       assert get_session(conn, :signup_framework) == "nextjs"
+    end
+
+    test "rejects non-canonical signup framework labels", %{conn: conn} do
+      conn =
+        conn
+        |> init_test_session(%{signup_framework: "nextjs"})
+        |> get(~p"/users/log-in?#{%{"framework" => "Next.js"}}")
+
+      refute get_session(conn, :signup_framework)
     end
 
     test "clears signup framework when value is invalid", %{conn: conn} do

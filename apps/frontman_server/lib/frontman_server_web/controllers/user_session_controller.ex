@@ -126,18 +126,9 @@ defmodule FrontmanServerWeb.UserSessionController do
 
   defp maybe_put_signup_framework(conn, _), do: delete_session(conn, :signup_framework)
 
-  defp normalize_signup_framework("Next.js"), do: {:ok, "nextjs"}
-  defp normalize_signup_framework("Vite"), do: {:ok, "vite"}
-  defp normalize_signup_framework("Astro"), do: {:ok, "astro"}
-  defp normalize_signup_framework("WordPress"), do: {:ok, "wordpress"}
-
-  defp normalize_signup_framework(framework) do
-    case framework |> String.downcase() |> String.replace(~r/[^a-z]/, "") do
-      "nextjs" -> {:ok, "nextjs"}
-      "vite" -> {:ok, "vite"}
-      "astro" -> {:ok, "astro"}
-      "wordpress" -> {:ok, "wordpress"}
-      _ -> :error
-    end
-  end
+  defp normalize_signup_framework("nextjs"), do: {:ok, "nextjs"}
+  defp normalize_signup_framework("vite"), do: {:ok, "vite"}
+  defp normalize_signup_framework("astro"), do: {:ok, "astro"}
+  defp normalize_signup_framework("wordpress"), do: {:ok, "wordpress"}
+  defp normalize_signup_framework(_), do: :error
 end
