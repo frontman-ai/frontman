@@ -3,7 +3,7 @@
  *
  * 1. Creates + migrates the e2e database
  * 2. Seeds the test user + ChatGPT OAuth token
- * 3. Starts the Phoenix server (E2E=true MIX_ENV=dev)
+ * 3. Starts the Phoenix server (MIX_ENV=e2e)
  * 4. Starts the client Vite dev server (for serving the Frontman UI JS)
  * 5. Waits for both to be ready
  */
@@ -35,11 +35,36 @@ function resolveBin(startDir: string, name: string): string {
   throw new Error(`Cannot find binary '${name}' starting from ${startDir}`);
 }
 
+// Keep in sync with strict boolean parsing in apps/frontman_server/config/runtime.exs.
+const TRUTHY_ENV_VALUES = new Set(["1", "true", "yes", "on"]);
+const FALSY_ENV_VALUES = new Set(["0", "false", "no", "off"]);
+
+function parseEnvBoolean(name: string, defaultValue: boolean): boolean {
+  const rawValue = process.env[name];
+
+  if (!rawValue || rawValue.trim() === "") {
+    return defaultValue;
+  }
+
+  const normalizedValue = rawValue.trim().toLowerCase();
+
+  if (TRUTHY_ENV_VALUES.has(normalizedValue)) {
+    return true;
+  }
+
+  if (FALSY_ENV_VALUES.has(normalizedValue)) {
+    return false;
+  }
+
+  throw new Error(
+    `[e2e] ${name} must be one of ${JSON.stringify([...TRUTHY_ENV_VALUES, ...FALSY_ENV_VALUES])}; got: ${JSON.stringify(rawValue)}`,
+  );
+}
+
 const E2E_ENV = {
   ...process.env,
-  E2E: "true",
-  MIX_ENV: "dev",
-  PHX_SERVER: "true",
+  MIX_ENV: "e2e",
+  PHX_SERVER: parseEnvBoolean("PHX_SERVER", true) ? "true" : "false",
 } satisfies NodeJS.ProcessEnv;
 
 let phoenixProc: ChildProcess | undefined;

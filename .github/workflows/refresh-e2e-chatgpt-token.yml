@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 15
 
     env:
-      MIX_ENV: dev
+      MIX_ENV: e2e
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
       E2E_CHATGPT_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
       E2E_CHATGPT_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}

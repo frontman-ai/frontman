@@ -10,7 +10,42 @@ source!([
   System.get_env()
 ])
 
-if System.get_env("PHX_SERVER") do
+truthy_env_values = ~w(1 true yes on)
+falsy_env_values = ~w(0 false no off)
+accepted_env_values = truthy_env_values ++ falsy_env_values
+
+strict_boolean! = fn env_var_name, raw_value ->
+  normalized_value = raw_value |> String.trim() |> String.downcase()
+
+  cond do
+    normalized_value in truthy_env_values ->
+      true
+
+    normalized_value in falsy_env_values ->
+      false
+
+    true ->
+      raise Dotenvy.Error,
+        message:
+          "#{env_var_name} must be one of #{inspect(accepted_env_values)}; got: #{inspect(raw_value)}"
+  end
+end
+
+env_boolean = fn env_var_name, default_value ->
+  case env!(env_var_name, :string, :frontman_env_boolean_missing) do
+    :frontman_env_boolean_missing ->
+      default_value
+
+    raw_value ->
+      if String.trim(raw_value) == "" do
+        default_value
+      else
+        strict_boolean!.(env_var_name, raw_value)
+      end
+  end
+end
+
+if env_boolean.("PHX_SERVER", false) do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
 
@@ -19,7 +54,7 @@ config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
 # LLM API keys — derived from the centralised :providers config so adding a
 # new provider doesn't require touching this file.
-if config_env() in [:dev, :test] do
+if config_env() in [:dev, :test, :e2e] do
   api_key_config =
     for {_id, %{config_key: key, env_var: var}} <-
           Application.get_env(:frontman_server, :providers, %{}),
@@ -78,16 +113,12 @@ else
   ]
 end
 
-# Dev/Test: Allow DB_HOST override for container development (e.g., DevPod)
+# Dev/Test/E2E: Allow DB_HOST override for container development (e.g., DevPod)
 # The docker bridge gateway IP (172.17.0.1) is used to connect from container to host PostgreSQL
-if config_env() in [:dev, :test] do
+if config_env() in [:dev, :test, :e2e] do
   db_host = env!("DB_HOST", :string, "localhost")
 
-  db_name =
-    case {config_env(), System.get_env("E2E")} do
-      {:dev, e2e} when e2e not in [nil, ""] -> env!("DB_NAME", :string, "frontman_server_e2e")
-      _ -> env!("DB_NAME", :string, nil)
-    end
+  db_name = env!("DB_NAME", :string, nil)
 
   repo_overrides = []
 
@@ -134,10 +165,10 @@ if config_env() == :prod do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
-  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+  maybe_ipv6 = if env_boolean.("ECTO_IPV6", false), do: [:inet6], else: []
 
   # SSL can be disabled for local PostgreSQL (DATABASE_SSL=false)
-  use_ssl = System.get_env("DATABASE_SSL", "true") not in ~w(false 0)
+  use_ssl = env_boolean.("DATABASE_SSL", true)
 
   ssl_config =
     if use_ssl do

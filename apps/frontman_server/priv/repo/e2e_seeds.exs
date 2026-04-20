@@ -4,7 +4,7 @@
 # Reads token values from environment variables (set them in CI or locally).
 #
 # Usage:
-#   E2E=true MIX_ENV=dev mix run priv/repo/e2e_seeds.exs
+#   MIX_ENV=e2e mix run priv/repo/e2e_seeds.exs
 
 alias FrontmanServer.Accounts
 alias FrontmanServer.Providers.OAuthToken

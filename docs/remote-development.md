@@ -433,7 +433,7 @@ config :frontman_server, FrontmanServer.Repo,
   # ... other config
 
 # config/runtime.exs — dynamic override for containers
-if config_env() in [:dev, :test] do
+if config_env() in [:dev, :test, :e2e] do
   db_host = env!("DB_HOST", :string, "localhost")
   if db_host != "localhost" do
     config :frontman_server, FrontmanServer.Repo, hostname: db_host
@@ -443,6 +443,7 @@ end
 
 This means:
 - **Local dev**: `DB_HOST` unset → uses `localhost`
+- **Local e2e**: `MIX_ENV=e2e` + `DB_HOST` unset → uses `localhost`
 - **DevPod containers**: `DB_HOST=host.docker.internal` (or Docker gateway IP) → overrides hostname
 - **CI**: `DB_HOST` resolved dynamically to the Docker gateway IP (see `.github/workflows/ci.yml`)
 

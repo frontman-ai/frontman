@@ -40,9 +40,8 @@ jobs:
     timeout-minutes: 20
 
     env:
-      # E2E mode: HTTPS on port 4002, separate DB, no watchers
-      E2E: "true"
-      MIX_ENV: dev
+      # E2E uses a dedicated Mix environment with HTTPS on port 4002.
+      MIX_ENV: e2e
       PHX_SERVER: "true"
       # Self-hosted runners can reuse Postgres state between runs.
       # Give each run its own database so migrations always start from a
@@ -125,11 +124,9 @@ jobs:
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
-      # E2E compiles with E2E=true which sets code_reloader: false at compile
-      # time (config/dev.exs).  CI's lint/dialyzer jobs compile WITHOUT E2E,
-      # so code_reloader: true.  Sharing the same "build-dev-" cache between
-      # the two causes a compile_env mismatch that crashes Dialyzer.
-      # Use a separate "build-e2e-" prefix to isolate the two environments.
+      # E2E compiles under MIX_ENV=e2e while lint/dialyzer jobs compile under
+      # MIX_ENV=dev. Keep a dedicated "build-e2e-" cache prefix so the two
+      # environments never share compile artifacts.
       - name: Cache Mix _build
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
