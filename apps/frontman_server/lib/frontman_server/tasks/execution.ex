@@ -27,6 +27,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry, ResolvedKey}
+  alias FrontmanServer.Sandboxes
   alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias FrontmanServer.Tools
@@ -48,6 +49,13 @@ defmodule FrontmanServer.Tasks.Execution do
   @spec running?(Scope.t(), String.t()) :: boolean()
   def running?(%Scope{}, task_id) do
     SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
+  end
+
+  @doc "Returns true when sandbox MVP bootstrap is enabled."
+  @spec sandbox_mvp_enabled?() :: boolean()
+  def sandbox_mvp_enabled? do
+    config = Application.get_env(:frontman_server, :sandbox_mvp, [])
+    Keyword.get(config, :enabled, false)
   end
 
   @doc """
@@ -72,30 +80,41 @@ defmodule FrontmanServer.Tasks.Execution do
   def run(%Scope{} = scope, %Task{} = task, opts \\ []) do
     tools = Keyword.get(opts, :tools, [])
     model = opts |> Keyword.get(:model) |> Model.resolve_string()
+    task_id = task.task_id
 
     # Resolve API key at the domain layer (earliest point)
     case Providers.prepare_api_key(scope, model) do
       {:ok, api_key_info} ->
-        task_id = task.task_id
-        agent = build_agent(task, tools, opts, api_key_info)
+        case ensure_sandbox(scope, task, opts) do
+          {:ok, sandbox} ->
+            agent = build_agent(task, tools, opts, api_key_info)
 
-        messages =
-          task.interactions
-          |> Interaction.to_llm_messages()
-          |> Enum.map(&to_swarm_message/1)
-          |> maybe_constrain_images(api_key_info.provider)
+            messages =
+              task.interactions
+              |> Interaction.to_llm_messages()
+              |> Enum.map(&to_swarm_message/1)
+              |> maybe_constrain_images(api_key_info.provider)
 
-        mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
+            mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
 
-        backend_tool_modules =
-          Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules())
+            backend_tool_modules =
+              Keyword.get(
+                opts,
+                :backend_tool_modules,
+                Tools.backend_tool_modules(sandbox: sandbox)
+              )
 
-        submit_to_runtime(scope, agent, task_id, messages,
-          api_key_info: api_key_info,
-          mcp_tool_defs: mcp_tool_defs,
-          backend_tool_modules: backend_tool_modules,
-          interaction_id: Keyword.get(opts, :interaction_id)
-        )
+            submit_to_runtime(scope, agent, task_id, messages,
+              api_key_info: api_key_info,
+              mcp_tool_defs: mcp_tool_defs,
+              backend_tool_modules: backend_tool_modules,
+              interaction_id: Keyword.get(opts, :interaction_id),
+              sandbox: sandbox
+            )
+
+          {:error, reason} ->
+            {:error, reason}
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -143,7 +162,8 @@ defmodule FrontmanServer.Tasks.Execution do
         backend_tool_modules: backend_tool_modules,
         mcp_tools: mcp_tools,
         mcp_tool_defs: mcp_tool_defs,
-        llm_opts: llm_opts
+        llm_opts: llm_opts,
+        sandbox: Keyword.get(opts, :sandbox)
       )
 
     # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
@@ -328,6 +348,113 @@ defmodule FrontmanServer.Tasks.Execution do
         arguments: ReqLLM.ToolCall.args_json(tc)
       }
     end)
+  end
+
+  # --- Sandbox bootstrap ---
+
+  defp ensure_sandbox(%Scope{} = scope, %Task{} = task, opts) do
+    case sandbox_mvp_enabled?() do
+      false ->
+        {:ok, nil}
+
+      true ->
+        wait_timeout_ms = Keyword.get(opts, :sandbox_wait_timeout_ms, sandbox_wait_timeout_ms())
+
+        case get_or_start_sandbox(scope, task.task_id, opts) do
+          {:ok, sandbox} ->
+            wait_for_sandbox_running(scope, sandbox.id, wait_timeout_ms)
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+    end
+  end
+
+  defp get_or_start_sandbox(%Scope{} = scope, task_id, opts) do
+    case Sandboxes.current_for_task(scope, task_id) do
+      {:ok, sandbox} ->
+        {:ok, sandbox}
+
+      {:error, :not_found} ->
+        env_spec = sandbox_env_spec(task_id)
+
+        create_opts =
+          [task_id: task_id]
+          |> maybe_put_provider_override(opts)
+
+        Sandboxes.provision_and_start(scope, env_spec, create_opts)
+    end
+  end
+
+  defp maybe_put_provider_override(opts, create_opts) do
+    case Keyword.fetch(opts, :sandbox_provider) do
+      {:ok, provider} -> Keyword.put(create_opts, :provider, provider)
+      :error -> create_opts
+    end
+  end
+
+  defp wait_for_sandbox_running(%Scope{} = scope, sandbox_id, timeout_ms) do
+    deadline_ms = System.monotonic_time(:millisecond) + timeout_ms
+    wait_for_sandbox_running(scope, sandbox_id, deadline_ms, sandbox_wait_interval_ms())
+  end
+
+  defp wait_for_sandbox_running(%Scope{} = scope, sandbox_id, deadline_ms, poll_interval_ms) do
+    case Sandboxes.get_sandbox(scope, sandbox_id) do
+      {:ok, sandbox} ->
+        case sandbox.status do
+          :running ->
+            {:ok, sandbox}
+
+          :error ->
+            {:error, :sandbox_provisioning_failed}
+
+          _status ->
+            continue_waiting(scope, sandbox_id, deadline_ms, poll_interval_ms)
+        end
+
+      {:error, :not_found} ->
+        {:error, :sandbox_not_found}
+    end
+  end
+
+  defp continue_waiting(scope, sandbox_id, deadline_ms, poll_interval_ms) do
+    now_ms = System.monotonic_time(:millisecond)
+
+    case now_ms >= deadline_ms do
+      true ->
+        {:error, :sandbox_provisioning_timeout}
+
+      false ->
+        Process.sleep(poll_interval_ms)
+        wait_for_sandbox_running(scope, sandbox_id, deadline_ms, poll_interval_ms)
+    end
+  end
+
+  defp sandbox_env_spec(task_id) do
+    config = Application.get_env(:frontman_server, :sandbox_mvp, [])
+
+    app_port = Keyword.get(config, :app_port, 4000)
+
+    %{
+      "name" => sandbox_name(task_id),
+      "image" => Keyword.get(config, :image, "ghcr.io/frontman-ai/frontman-dev:latest"),
+      "devcontainer" => %{"forwardPorts" => [app_port]},
+      "env" => %{}
+    }
+  end
+
+  defp sandbox_name(task_id) when is_binary(task_id) do
+    "task-" <> String.slice(task_id, 0, 12)
+  end
+
+  defp sandbox_wait_timeout_ms do
+    config = Application.get_env(:frontman_server, :sandbox_mvp, [])
+    Keyword.get(config, :wait_timeout_ms, 600_000)
+  end
+
+  defp sandbox_wait_interval_ms do
+    config = Application.get_env(:frontman_server, :sandbox_mvp, [])
+    Keyword.get(config, :poll_interval_ms, 1_000)
   end
 
   @doc false

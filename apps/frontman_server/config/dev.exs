@@ -16,6 +16,22 @@ config :frontman_server,
         System.get_env("PHX_URL_PORT") || if(System.get_env("E2E"), do: "4002", else: "4000")
       ),
     upstream_host: "127.0.0.1"
+  ],
+  sandbox_mvp: [
+    enabled: System.get_env("SANDBOX_MVP_ENABLED") in ["1", "true", "TRUE"],
+    image: System.get_env("SANDBOX_MVP_IMAGE") || "ghcr.io/frontman-ai/frontman-dev:latest",
+    project_root: System.get_env("SANDBOX_MVP_PROJECT_ROOT") || "/workspace/frontman",
+    repo_url:
+      System.get_env("SANDBOX_MVP_REPO_URL") || "https://github.com/frontman-ai/frontman.git",
+    repo_ref: System.get_env("SANDBOX_MVP_REPO_REF") || "main",
+    app_dir: System.get_env("SANDBOX_MVP_APP_DIR") || "apps/frontman_server",
+    install_command: System.get_env("SANDBOX_MVP_INSTALL_COMMAND") || "mix deps.get",
+    start_command: System.get_env("SANDBOX_MVP_START_COMMAND") || "mix phx.server",
+    app_port: String.to_integer(System.get_env("SANDBOX_MVP_APP_PORT") || "4000"),
+    health_path: System.get_env("SANDBOX_MVP_HEALTH_PATH") || "/health/ready",
+    wait_timeout_ms: String.to_integer(System.get_env("SANDBOX_MVP_WAIT_TIMEOUT_MS") || "600000"),
+    poll_interval_ms: String.to_integer(System.get_env("SANDBOX_MVP_POLL_INTERVAL_MS") || "1000"),
+    step_timeout_ms: String.to_integer(System.get_env("SANDBOX_MVP_STEP_TIMEOUT_MS") || "180000")
   ]
 
 # Configure your database

@@ -34,7 +34,9 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
     :heartbeat_interval_ms,
     :provision_timeout_ms,
     :environment_spec,
-    :task_supervisor
+    :task_supervisor,
+    :setup_task_ref,
+    :bootstrap_config
   ]
 
   # --- Client API ---
@@ -113,7 +115,8 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
       status: :provisioning,
       heartbeat_interval_ms: heartbeat_interval_ms,
       provision_timeout_ms: provision_timeout_ms,
-      task_supervisor: task_supervisor
+      task_supervisor: task_supervisor,
+      bootstrap_config: sandbox_bootstrap_config()
     }
 
     case EnvironmentSpec.from_map(sandbox.env_spec) do
@@ -148,13 +151,25 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
 
       heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
 
-      {:noreply,
-       %{
-         state
-         | provider_ref: provider_ref,
-           heartbeat_ref: heartbeat_ref,
-           provision_timer_ref: provision_timer_ref
-       }}
+      case start_setup_task(state, provider_ref) do
+        {:ok, setup_task_ref} ->
+          {:noreply,
+           %{
+             state
+             | provider_ref: provider_ref,
+               heartbeat_ref: heartbeat_ref,
+               provision_timer_ref: provision_timer_ref,
+               setup_task_ref: setup_task_ref
+           }}
+
+        {:error, reason} ->
+          Logger.error(
+            "[Orchestrator] failed to start setup task for #{state.sandbox_id}: #{inspect(reason)}"
+          )
+
+          update_db_status(state.sandbox_id, :error)
+          {:stop, :normal, state}
+      end
     else
       {:error, reason} ->
         Logger.error(
@@ -216,15 +231,41 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   end
 
   @impl true
+  def handle_info({ref, :ok}, %{setup_task_ref: ref} = state) do
+    Process.demonitor(ref, [:flush])
+    maybe_transition_to_running(%{state | setup_task_ref: nil})
+  end
+
+  def handle_info({ref, {:error, reason}}, %{setup_task_ref: ref} = state) do
+    Process.demonitor(ref, [:flush])
+
+    Logger.error(
+      "[Orchestrator] setup sequence failed for #{state.sandbox_id}: #{inspect(reason)}"
+    )
+
+    update_db_status(state.sandbox_id, :error)
+    {:stop, :normal, %{state | setup_task_ref: nil}}
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, :normal}, %{setup_task_ref: ref} = state) do
+    {:noreply, %{state | setup_task_ref: nil}}
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, reason}, %{setup_task_ref: ref} = state) do
+    Logger.error("[Orchestrator] setup task crashed for #{state.sandbox_id}: #{inspect(reason)}")
+
+    update_db_status(state.sandbox_id, :error)
+    {:stop, :normal, %{state | setup_task_ref: nil}}
+  end
+
+  def handle_info({_ref, :ok}, state), do: {:noreply, state}
+  def handle_info({_ref, {:error, _reason}}, state), do: {:noreply, state}
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state), do: {:noreply, state}
+
   def handle_info(:heartbeat, %{status: :provisioning} = state) do
     case state.provider.metrics(state.provider_ref) do
       {:ok, %{running: true}} ->
-        if state.provision_timer_ref, do: Process.cancel_timer(state.provision_timer_ref)
-        update_db_status(state.sandbox_id, :running)
-        heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
-
-        {:noreply,
-         %{state | status: :running, provision_timer_ref: nil, heartbeat_ref: heartbeat_ref}}
+        maybe_transition_to_running(state)
 
       {:ok, %{running: false}} ->
         heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
@@ -267,6 +308,7 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   def terminate(reason, state) do
     if state.heartbeat_ref, do: Process.cancel_timer(state.heartbeat_ref)
     if state.provision_timer_ref, do: Process.cancel_timer(state.provision_timer_ref)
+    if state.setup_task_ref, do: Process.demonitor(state.setup_task_ref, [:flush])
 
     Logger.info(
       "[Orchestrator] terminating #{state.sandbox_id} (status=#{state.status}, reason=#{inspect(reason)})"
@@ -276,6 +318,191 @@ defmodule FrontmanServer.Sandbox.Orchestrator do
   end
 
   # --- Private Helpers ---
+
+  defp start_setup_task(%{bootstrap_config: %{enabled: false}}, _provider_ref), do: {:ok, nil}
+
+  defp start_setup_task(state, provider_ref) do
+    task =
+      Task.Supervisor.async_nolink(state.task_supervisor, fn ->
+        run_setup_sequence(state.provider, provider_ref, state.bootstrap_config)
+      end)
+
+    {:ok, task.ref}
+  catch
+    :exit, reason -> {:error, reason}
+  end
+
+  defp maybe_transition_to_running(%{setup_task_ref: setup_task_ref} = state)
+       when not is_nil(setup_task_ref) do
+    heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
+    {:noreply, %{state | heartbeat_ref: heartbeat_ref}}
+  end
+
+  defp maybe_transition_to_running(state) do
+    case state.provider.metrics(state.provider_ref) do
+      {:ok, %{running: true}} ->
+        if state.provision_timer_ref, do: Process.cancel_timer(state.provision_timer_ref)
+
+        case update_db_status(state.sandbox_id, :running) do
+          {:ok, _sandbox} ->
+            heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
+
+            {:noreply,
+             %{state | status: :running, provision_timer_ref: nil, heartbeat_ref: heartbeat_ref}}
+
+          {:error, reason} ->
+            Logger.error(
+              "[Orchestrator] failed to persist running status for #{state.sandbox_id}: #{inspect(reason)}"
+            )
+
+            update_db_status(state.sandbox_id, :error)
+            {:stop, :normal, state}
+        end
+
+      {:ok, %{running: false}} ->
+        heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
+        {:noreply, %{state | heartbeat_ref: heartbeat_ref}}
+
+      {:error, _reason} ->
+        heartbeat_ref = schedule_heartbeat(state.heartbeat_interval_ms)
+        {:noreply, %{state | heartbeat_ref: heartbeat_ref}}
+    end
+  end
+
+  defp run_setup_sequence(_provider, _provider_ref, %{enabled: false}), do: :ok
+
+  defp run_setup_sequence(provider, provider_ref, config) do
+    step_timeout_ms = Map.fetch!(config, :step_timeout_ms)
+    project_root = Map.fetch!(config, :project_root)
+    app_dir = Map.fetch!(config, :app_dir)
+
+    app_root = Path.join(project_root, app_dir)
+
+    with :ok <- wait_for_vm_running(provider, provider_ref, step_timeout_ms),
+         :ok <- sync_repo(provider, provider_ref, config, step_timeout_ms),
+         :ok <- run_install_command(provider, provider_ref, app_root, config, step_timeout_ms),
+         :ok <- run_start_command(provider, provider_ref, app_root, config, step_timeout_ms) do
+      wait_for_health(provider, provider_ref, config, step_timeout_ms)
+    end
+  end
+
+  defp wait_for_vm_running(provider, provider_ref, timeout_ms) do
+    deadline_ms = System.monotonic_time(:millisecond) + timeout_ms
+    wait_for_vm_running_until(provider, provider_ref, deadline_ms)
+  end
+
+  defp wait_for_vm_running_until(provider, provider_ref, deadline_ms) do
+    case provider.metrics(provider_ref) do
+      {:ok, %{running: true}} ->
+        :ok
+
+      _other ->
+        now_ms = System.monotonic_time(:millisecond)
+
+        case now_ms >= deadline_ms do
+          true ->
+            {:error, {:wait_for_vm_running, :timeout}}
+
+          false ->
+            Process.sleep(1_000)
+            wait_for_vm_running_until(provider, provider_ref, deadline_ms)
+        end
+    end
+  end
+
+  defp sync_repo(provider, provider_ref, config, timeout_ms) do
+    script =
+      "if [ -d " <>
+        shell_escape(Path.join(config.project_root, ".git")) <>
+        " ]; then " <>
+        "git -C " <>
+        shell_escape(config.project_root) <>
+        " fetch --depth 1 origin " <>
+        shell_escape(config.repo_ref) <>
+        " && git -C " <>
+        shell_escape(config.project_root) <>
+        " checkout -f FETCH_HEAD; " <>
+        "else " <>
+        "rm -rf " <>
+        shell_escape(config.project_root) <>
+        " && git clone --depth 1 --branch " <>
+        shell_escape(config.repo_ref) <>
+        " " <>
+        shell_escape(config.repo_url) <>
+        " " <>
+        shell_escape(config.project_root) <>
+        "; fi"
+
+    run_setup_step(provider, provider_ref, :sync_repo, script, timeout_ms)
+  end
+
+  defp run_install_command(provider, provider_ref, app_root, config, timeout_ms) do
+    script = "cd " <> shell_escape(app_root) <> " && " <> config.install_command
+    run_setup_step(provider, provider_ref, :install_dependencies, script, timeout_ms)
+  end
+
+  defp run_start_command(provider, provider_ref, app_root, config, timeout_ms) do
+    script =
+      "cd " <>
+        shell_escape(app_root) <>
+        " && if [ -f /tmp/frontman-app.pid ]; then kill $(cat /tmp/frontman-app.pid) >/dev/null 2>&1 || true; fi" <>
+        " && nohup " <>
+        config.start_command <>
+        " >/tmp/frontman-app.log 2>&1 & echo $! > /tmp/frontman-app.pid"
+
+    run_setup_step(provider, provider_ref, :start_application, script, timeout_ms)
+  end
+
+  defp wait_for_health(provider, provider_ref, config, timeout_ms) do
+    health_url =
+      "http://127.0.0.1:" <> Integer.to_string(config.app_port) <> to_string(config.health_path)
+
+    script =
+      "for i in $(seq 1 60); do " <>
+        "curl -fsS " <>
+        shell_escape(health_url) <>
+        " >/dev/null 2>&1 && exit 0; " <>
+        "sleep 2; " <>
+        "done; " <>
+        "echo healthcheck_failed; exit 1"
+
+    run_setup_step(provider, provider_ref, :wait_for_health, script, timeout_ms)
+  end
+
+  defp run_setup_step(provider, provider_ref, step, script, timeout_ms) do
+    case provider.exec(provider_ref, "bash", ["-lc", script], timeout_ms: timeout_ms) do
+      {:ok, %{exit_code: 0}} ->
+        :ok
+
+      {:ok, %{exit_code: exit_code, stdout: stdout, stderr: stderr}} ->
+        {:error,
+         {step, %{exit_code: exit_code, stdout: String.trim(stdout), stderr: String.trim(stderr)}}}
+
+      {:error, reason} ->
+        {:error, {step, reason}}
+    end
+  end
+
+  defp sandbox_bootstrap_config do
+    config = Application.get_env(:frontman_server, :sandbox_mvp, [])
+
+    %{
+      enabled: Keyword.get(config, :enabled, false),
+      repo_url: Keyword.get(config, :repo_url, "https://github.com/frontman-ai/frontman.git"),
+      repo_ref: Keyword.get(config, :repo_ref, "main"),
+      project_root: Keyword.get(config, :project_root, "/workspace/frontman"),
+      app_dir: Keyword.get(config, :app_dir, "apps/frontman_server"),
+      install_command: Keyword.get(config, :install_command, "mix deps.get"),
+      start_command: Keyword.get(config, :start_command, "mix phx.server"),
+      app_port: Keyword.get(config, :app_port, 4000),
+      health_path: Keyword.get(config, :health_path, "/health/ready"),
+      step_timeout_ms: Keyword.get(config, :step_timeout_ms, 180_000)
+    }
+  end
+
+  defp shell_escape(value) when is_binary(value) do
+    "'" <> String.replace(value, "'", "'\"'\"'") <> "'"
+  end
 
   defp schedule_heartbeat(interval_ms) do
     Process.send_after(self(), :heartbeat, interval_ms)

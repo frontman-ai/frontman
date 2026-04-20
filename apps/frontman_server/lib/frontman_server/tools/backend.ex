@@ -31,6 +31,7 @@ defmodule FrontmanServer.Tools.Backend do
     use TypedStruct
 
     alias FrontmanServer.Accounts.Scope
+    alias FrontmanServer.Sandboxes.Sandbox
     alias FrontmanServer.Tasks.Task
 
     @type executor :: ([SwarmAi.ToolCall.t()] ->
@@ -39,6 +40,7 @@ defmodule FrontmanServer.Tools.Backend do
     typedstruct do
       field(:scope, Scope.t(), enforce: true)
       field(:task, Task.t(), enforce: true)
+      field(:sandbox, Sandbox.t() | nil, default: nil)
       field(:tool_executor, executor(), enforce: true)
       field(:mcp_tools, [SwarmAi.Tool.t()], default: [])
       field(:context_messages, [SwarmAi.Message.t()], default: [])

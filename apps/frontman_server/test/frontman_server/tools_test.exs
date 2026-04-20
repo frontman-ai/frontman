@@ -7,6 +7,7 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend.Context
+  alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Tools.TodoWrite
 
   setup do
@@ -67,6 +68,35 @@ defmodule FrontmanServer.ToolsTest do
       assert Tools.execution_target("unknown_tool") == :mcp
       assert Tools.execution_target("question") == :mcp
       assert Tools.execution_target("") == :mcp
+    end
+  end
+
+  describe "backend_tool_modules/1" do
+    test "includes sandbox tools when sandbox is provided" do
+      modules = Tools.backend_tool_modules(sandbox: %{id: "sandbox-1"})
+      names = Enum.map(modules, & &1.name())
+
+      assert "todo_write" in names
+      assert "web_fetch" in names
+      assert "read_file" in names
+      assert "write_file" in names
+    end
+  end
+
+  describe "prepare_for_task/3" do
+    test "deduplicates MCP tools that conflict with backend names", %{task_id: task_id} do
+      conflicting_mcp = %MCP{
+        name: "web_fetch",
+        description: "conflicting tool",
+        input_schema: %{"type" => "object", "properties" => %{}},
+        timeout_ms: 60_000,
+        on_timeout: :error
+      }
+
+      tools = Tools.prepare_for_task([conflicting_mcp], task_id)
+      web_fetch_count = tools |> Enum.count(&(&1.name == "web_fetch"))
+
+      assert web_fetch_count == 1
     end
   end
 

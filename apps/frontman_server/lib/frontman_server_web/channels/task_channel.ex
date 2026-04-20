@@ -255,12 +255,17 @@ defmodule FrontmanServerWeb.TaskChannel do
       end
 
     mcp_tools = socket.assigns[:mcp_tools] || []
-    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+    backend_tool_modules = backend_tool_modules_for_execution()
+
+    all_tools =
+      mcp_tools
+      |> Tools.prepare_for_task(task_id, backend_tool_modules: backend_tool_modules)
 
     opts =
       build_execution_opts(socket,
         model: model,
-        mcp_tool_defs: mcp_tools
+        mcp_tool_defs: mcp_tools,
+        backend_tool_modules: backend_tool_modules
       )
 
     Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
@@ -523,12 +528,17 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
 
     # Prepare tools (domain service)
-    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+    backend_tool_modules = backend_tool_modules_for_execution()
+
+    all_tools =
+      mcp_tools
+      |> Tools.prepare_for_task(task_id, backend_tool_modules: backend_tool_modules)
 
     opts =
       build_execution_opts(socket,
         model: model,
-        mcp_tool_defs: mcp_tools
+        mcp_tool_defs: mcp_tools,
+        backend_tool_modules: backend_tool_modules
       )
 
     case Tasks.submit_user_message(scope, task_id, prompt.content, all_tools, opts) do
@@ -576,6 +586,13 @@ defmodule FrontmanServerWeb.TaskChannel do
     case socket.assigns[:agent_override] do
       nil -> base_opts
       agent -> [{:agent, agent} | base_opts]
+    end
+  end
+
+  defp backend_tool_modules_for_execution do
+    case Execution.sandbox_mvp_enabled?() do
+      true -> Tools.backend_tool_modules(sandbox: %{})
+      false -> Tools.backend_tool_modules()
     end
   end
 
@@ -755,7 +772,14 @@ defmodule FrontmanServerWeb.TaskChannel do
       task_id = socket.assigns.task_id
       opts = socket.assigns[:last_execution_opts] || []
       mcp_tools = socket.assigns[:mcp_tools] || []
-      all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+
+      backend_tool_modules =
+        Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules())
+
+      all_tools =
+        mcp_tools
+        |> Tools.prepare_for_task(task_id, backend_tool_modules: backend_tool_modules)
+
       Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
     end
 
@@ -801,7 +825,14 @@ defmodule FrontmanServerWeb.TaskChannel do
       Tasks.add_agent_retry(scope, task_id, retried_error_id)
       opts = socket.assigns[:last_execution_opts] || []
       mcp_tools = socket.assigns[:mcp_tools] || []
-      all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+
+      backend_tool_modules =
+        Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules())
+
+      all_tools =
+        mcp_tools
+        |> Tools.prepare_for_task(task_id, backend_tool_modules: backend_tool_modules)
+
       Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
     end
 

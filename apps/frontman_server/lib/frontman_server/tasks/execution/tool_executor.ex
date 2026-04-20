@@ -211,7 +211,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       backend_module_map: Map.new(backend_tool_modules, &{&1.name(), &1}),
       mcp_tools: Keyword.fetch!(opts, :mcp_tools),
       mcp_tool_defs: Keyword.fetch!(opts, :mcp_tool_defs),
-      llm_opts: Keyword.fetch!(opts, :llm_opts)
+      llm_opts: Keyword.fetch!(opts, :llm_opts),
+      sandbox: Keyword.get(opts, :sandbox)
     }
   end
 
@@ -255,10 +256,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     # Pass the executor itself so backend tools can spawn sub-agents.
     executor =
       make_executor(scope, task_id,
-        backend_tool_modules: opts.backend_tool_modules,
-        mcp_tools: opts.mcp_tools,
-        mcp_tool_defs: opts.mcp_tool_defs,
-        llm_opts: opts.llm_opts
+        backend_tool_modules: Map.get(opts, :backend_tool_modules, []),
+        mcp_tools: Map.get(opts, :mcp_tools, []),
+        mcp_tool_defs: Map.get(opts, :mcp_tool_defs, []),
+        llm_opts: Map.get(opts, :llm_opts, [])
       )
 
     context_messages = Interaction.extract_markdown_messages(task.interactions)
@@ -266,10 +267,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     context = %Backend.Context{
       scope: scope,
       task: task,
+      sandbox: Map.get(opts, :sandbox),
       tool_executor: executor,
-      mcp_tools: opts.mcp_tools,
+      mcp_tools: Map.get(opts, :mcp_tools, []),
       context_messages: context_messages,
-      llm_opts: opts.llm_opts
+      llm_opts: Map.get(opts, :llm_opts, [])
     }
 
     case parse_arguments(tool_call.name, tool_call.arguments) do

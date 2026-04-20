@@ -33,6 +33,21 @@ config :frontman_server,
     app_login_scheme: "http",
     app_login_port: 4002,
     upstream_host: "127.0.0.1"
+  ],
+  sandbox_mvp: [
+    enabled: false,
+    image: "ghcr.io/frontman-ai/frontman-dev:latest",
+    project_root: "/workspace/frontman",
+    repo_url: "https://github.com/frontman-ai/frontman.git",
+    repo_ref: "main",
+    app_dir: "apps/frontman_server",
+    install_command: "mix deps.get",
+    start_command: "mix phx.server",
+    app_port: 4000,
+    health_path: "/health/ready",
+    wait_timeout_ms: 60_000,
+    poll_interval_ms: 100,
+    step_timeout_ms: 30_000
   ]
 
 # In test we don't send emails
