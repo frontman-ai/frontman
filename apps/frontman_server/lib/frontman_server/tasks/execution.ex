@@ -270,7 +270,7 @@ defmodule FrontmanServer.Tasks.Execution do
     %Message.Assistant{
       content: convert_content(msg.content),
       tool_calls: to_swarm_tool_calls(msg.tool_calls),
-      metadata: %{}
+      metadata: msg.metadata || %{}
     }
   end
 
@@ -279,7 +279,7 @@ defmodule FrontmanServer.Tasks.Execution do
       content: convert_content(msg.content),
       tool_call_id: msg.tool_call_id,
       name: msg.name,
-      metadata: %{}
+      metadata: msg.metadata || %{}
     }
   end
 

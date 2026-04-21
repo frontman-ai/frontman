@@ -200,20 +200,14 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   end
 
   # :meta with finish_reason - stream complete with reason
-  # Carry through response_id for Responses API previous_response_id chaining.
-  # Only response_id is extracted — it's the only metadata Chunk.done consumers use
-  # (for previous_response_id chaining in subsequent Responses API calls).
-  # When absent (e.g. Anthropic, Chat Completions API), we pass an empty map
-  # since those providers don't support response chaining.
+  # Carry through responses metadata needed for next-turn continuity:
+  # - response_id for previous_response_id chaining
+  # - phase / phase_items for phased assistant output replay
   defp to_swarm_chunk(
          %{type: :meta, metadata: %{finish_reason: reason} = meta},
          _requires_mcp_prefix?
        ) do
-    chunk_meta =
-      case meta do
-        %{response_id: id} when is_binary(id) -> %{response_id: id}
-        _ -> %{}
-      end
+    chunk_meta = extract_done_metadata(meta)
 
     Chunk.done(reason, chunk_meta)
   end
@@ -266,6 +260,32 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   defp to_swarm_chunk(malformed_chunk, _requires_mcp_prefix?) do
     raise "Malformed chunk from ReqLLM (missing or invalid type): #{inspect(malformed_chunk, limit: :infinity)}"
   end
+
+  defp extract_done_metadata(meta) do
+    %{}
+    |> maybe_put_response_id(meta)
+    |> maybe_put_phase(meta)
+    |> maybe_put_phase_items(meta)
+  end
+
+  defp maybe_put_response_id(metadata, %{response_id: id}) when is_binary(id) do
+    Map.put(metadata, :response_id, id)
+  end
+
+  defp maybe_put_response_id(metadata, _), do: metadata
+
+  defp maybe_put_phase(metadata, %{phase: phase}) when is_binary(phase) do
+    Map.put(metadata, :phase, phase)
+  end
+
+  defp maybe_put_phase(metadata, _), do: metadata
+
+  defp maybe_put_phase_items(metadata, %{phase_items: phase_items})
+       when is_list(phase_items) and phase_items != [] do
+    Map.put(metadata, :phase_items, phase_items)
+  end
+
+  defp maybe_put_phase_items(metadata, _), do: metadata
 
   # Check if tool call arguments are complete (non-streaming)
   defp complete_tool_call_args?(args) when is_map(args) and map_size(args) > 0, do: true

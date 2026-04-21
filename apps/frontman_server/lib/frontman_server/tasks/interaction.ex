@@ -1474,21 +1474,49 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   # Helper functions for to_llm_message(%AgentResponse{})
 
-  defp build_assistant_message(content, nil, _meta), do: ReqLLM.Context.assistant(content)
-  defp build_assistant_message(content, [], _meta), do: ReqLLM.Context.assistant(content)
-
   defp build_assistant_message(content, tool_calls, meta) do
-    # Handle both atom and string keys (DB stores string keys, but in-memory uses atoms)
-    response_id = get_flexible(meta, :response_id)
     encrypted_reasoning = filter_encrypted_reasoning(get_flexible(meta, :reasoning_details))
+    response_metadata = build_response_metadata_for_message(meta)
 
-    %ReqLLM.Message{
-      role: :assistant,
-      content: [ContentPart.text(content)],
-      tool_calls: tool_calls,
-      metadata: if(response_id, do: %{response_id: response_id}, else: %{}),
-      reasoning_details: encrypted_reasoning
-    }
+    if tool_calls in [nil, []] and response_metadata == %{} and is_nil(encrypted_reasoning) do
+      ReqLLM.Context.assistant(content)
+    else
+      %ReqLLM.Message{
+        role: :assistant,
+        content: [ContentPart.text(content)],
+        tool_calls: tool_calls,
+        metadata: response_metadata,
+        reasoning_details: encrypted_reasoning
+      }
+    end
+  end
+
+  defp build_response_metadata_for_message(meta) do
+    response_id = get_flexible(meta, :response_id)
+    phase = get_flexible(meta, :phase)
+    phase_items = get_flexible(meta, :phase_items)
+
+    metadata = %{}
+
+    metadata =
+      if is_binary(response_id) do
+        Map.put(metadata, :response_id, response_id)
+      else
+        metadata
+      end
+
+    metadata =
+      if is_binary(phase) do
+        Map.put(metadata, :phase, phase)
+      else
+        metadata
+      end
+
+    if is_list(phase_items) and phase_items != [] do
+      Map.put(metadata, :phase_items, phase_items)
+    else
+      metadata
+    end
   end
 
   defp filter_encrypted_reasoning(nil), do: nil

@@ -164,22 +164,46 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   defp build_response_metadata(response) do
     tool_calls = Map.get(response, :tool_calls)
     reasoning_details = Map.get(response, :reasoning_details)
+    response_meta = Map.get(response, :metadata) || %{}
 
-    metadata = %{}
-
-    metadata =
-      if tool_calls && tool_calls != [] do
-        Map.put(metadata, :tool_calls, Enum.map(tool_calls, &to_reqllm_tool_call/1))
-      else
-        metadata
-      end
-
-    if reasoning_details && reasoning_details != [] do
-      Map.put(metadata, :reasoning_details, reasoning_details)
-    else
-      metadata
-    end
+    %{}
+    |> maybe_put_tool_calls(tool_calls)
+    |> maybe_put_reasoning_details(reasoning_details)
+    |> maybe_put_string_metadata(:response_id, get_response_meta(response_meta, :response_id))
+    |> maybe_put_string_metadata(:phase, get_response_meta(response_meta, :phase))
+    |> maybe_put_phase_items(get_response_meta(response_meta, :phase_items))
   end
+
+  defp maybe_put_tool_calls(metadata, tool_calls) when is_list(tool_calls) and tool_calls != [] do
+    Map.put(metadata, :tool_calls, Enum.map(tool_calls, &to_reqllm_tool_call/1))
+  end
+
+  defp maybe_put_tool_calls(metadata, _tool_calls), do: metadata
+
+  defp maybe_put_reasoning_details(metadata, details) when is_list(details) and details != [] do
+    Map.put(metadata, :reasoning_details, details)
+  end
+
+  defp maybe_put_reasoning_details(metadata, _details), do: metadata
+
+  defp maybe_put_string_metadata(metadata, key, value) when is_binary(value) do
+    Map.put(metadata, key, value)
+  end
+
+  defp maybe_put_string_metadata(metadata, _key, _value), do: metadata
+
+  defp maybe_put_phase_items(metadata, phase_items)
+       when is_list(phase_items) and phase_items != [] do
+    Map.put(metadata, :phase_items, phase_items)
+  end
+
+  defp maybe_put_phase_items(metadata, _phase_items), do: metadata
+
+  defp get_response_meta(metadata, key) when is_map(metadata) do
+    Map.get(metadata, key) || Map.get(metadata, Atom.to_string(key))
+  end
+
+  defp get_response_meta(_metadata, _key), do: nil
 
   defp to_reqllm_tool_call(%SwarmAi.ToolCall{} = tc) do
     ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)

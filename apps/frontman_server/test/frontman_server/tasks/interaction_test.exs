@@ -265,22 +265,60 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       end
     end
 
-    test "preserves response_id and reasoning_details from DB metadata" do
+    test "preserves response metadata and reasoning_details from DB metadata" do
       interactions = [
         agent_resp("Thinking...", %{
           "tool_calls" => [db_tool_call("call_123", "test_tool")],
           "response_id" => "resp_abc123",
+          "phase" => "final_answer",
+          "phase_items" => [
+            %{
+              "phase" => "commentary",
+              "content" => [%{"type" => "output_text", "text" => "Thinking"}]
+            },
+            %{
+              "phase" => "final_answer",
+              "content" => [%{"type" => "output_text", "text" => "Done"}]
+            }
+          ],
           "reasoning_details" => [%{"type" => "reasoning.encrypted", "data" => "encrypted_data"}]
         })
       ]
 
       [msg] = Interaction.to_llm_messages(interactions)
 
-      assert msg.metadata == %{response_id: "resp_abc123"}
+      assert msg.metadata == %{
+               response_id: "resp_abc123",
+               phase: "final_answer",
+               phase_items: [
+                 %{
+                   "phase" => "commentary",
+                   "content" => [%{"type" => "output_text", "text" => "Thinking"}]
+                 },
+                 %{
+                   "phase" => "final_answer",
+                   "content" => [%{"type" => "output_text", "text" => "Done"}]
+                 }
+               ]
+             }
 
       assert msg.reasoning_details == [
                %{"type" => "reasoning.encrypted", "data" => "encrypted_data"}
              ]
+    end
+
+    test "preserves response metadata even when assistant has no tool_calls" do
+      interactions = [
+        agent_resp("All done", %{
+          "response_id" => "resp_final_123",
+          "phase" => "final_answer"
+        })
+      ]
+
+      [msg] = Interaction.to_llm_messages(interactions)
+
+      assert msg.metadata == %{response_id: "resp_final_123", phase: "final_answer"}
+      assert msg.tool_calls == nil
     end
 
     test "full conversation round-trip with tool calls from DB" do
