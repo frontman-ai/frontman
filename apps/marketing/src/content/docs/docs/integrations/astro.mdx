@@ -152,6 +152,9 @@ Keep `devToolbar.enabled: true` (the Astro default) for accurate source detectio
 
 ## Troubleshooting
 
+If your issue is broader than Astro-specific integration behavior (for example WebSocket disconnects, agent timeouts, tool-call failures, or model/key errors), check the [Frontman troubleshooting guide](/docs/reference/troubleshooting/).
+
+
 **`/frontman` returns 404**
 
 The middleware is not registered. Verify the integration appears in `integrations` in `astro.config.mjs` and that you are running the dev server (`astro dev`), not `astro build` or `astro preview`.

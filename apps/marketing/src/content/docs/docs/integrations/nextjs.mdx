@@ -197,6 +197,9 @@ Frontman works with both routing systems simultaneously.
 
 ## Troubleshooting
 
+If the problem is not specific to Next.js middleware/proxy setup (for example WebSocket reconnect loops, agent pause/timeout behavior, or tool-call failures), use the [Frontman troubleshooting guide](/docs/reference/troubleshooting/).
+
+
 **`/frontman` returns 404**
 
 Verify the `matcher` in your `middleware.ts` `config` export includes `/frontman` and `/frontman/:path*`. Without the matcher, Next.js does not route those requests through middleware at all.
