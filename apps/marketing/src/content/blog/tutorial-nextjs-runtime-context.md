@@ -8,7 +8,7 @@ tags: ['tutorial', 'getting-started', 'ai']
 updatedDate: 2026-03-10T00:00:00Z
 ---
 
-This is a practical walkthrough. We'll take a Next.js app with a layout bug, install Frontman — one of the [framework-aware AI tools](/blog/what-are-framework-aware-ai-coding-tools/) — and fix the bug by clicking the broken element in the browser instead of describing it to an AI that can't see it.
+This is a practical walkthrough. We'll take a Next.js app with a layout bug, install Frontman - one of the [browser-aware AI tools](/blog/what-are-browser-aware-ai-coding-tools/) - and fix the bug by clicking the broken element in the browser instead of describing it to an AI that cannot see it.
 
 By the end you'll know whether runtime-aware AI coding actually saves time or is just a debugger with extra steps. Spoiler: it's both.
 

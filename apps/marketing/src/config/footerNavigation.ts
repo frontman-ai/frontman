@@ -139,6 +139,14 @@ export const footerNavigationData: FooterData = {
 			category: 'Resources',
 			subCategories: [
 				{
+					subCategory: 'Use Case: Designers',
+					subCategoryLink: '/use-cases/designers/'
+				},
+				{
+					subCategory: 'Use Case: Frontend Developers',
+					subCategoryLink: '/use-cases/frontend-developers/'
+				},
+				{
 					subCategory: 'AI Releases',
 					subCategoryLink: '/open-source-ai-releases/'
 				}

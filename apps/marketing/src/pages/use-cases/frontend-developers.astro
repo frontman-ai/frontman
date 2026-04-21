@@ -1,0 +1,524 @@
+---
+import Layout from '../../layouts/Layout.astro'
+import Button from '../../components/ui/Button.astro'
+
+const SEO = {
+	title: 'AI Tool for Frontend Development with Runtime Context',
+	description:
+		'Frontman is an AI tool for frontend development that sees your running app. Click elements, describe UI fixes, and generate source code edits with hot reload.'
+}
+
+const faqs = [
+	{
+		question: 'How is Frontman different from Cursor for frontend work?',
+		answer:
+			'Cursor is an IDE-first workflow that reads files and proposes edits. Frontman is browser-first and runtime-aware. It sees the rendered DOM, computed styles, and component context while you click real elements in your running app.'
+	},
+	{
+		question: 'Can I use Frontman with my existing AI stack?',
+		answer:
+			'Yes. Teams commonly use Frontman for visual frontend changes and keep Cursor, Copilot, or Claude Code for refactors, backend work, and terminal-heavy tasks. Frontman edits normal source files, so workflows stay compatible.'
+	},
+	{
+		question: 'What frontend stacks are supported?',
+		answer:
+			'Frontman supports Next.js, Astro, and Vite projects (React, Vue, Svelte). It installs as framework middleware so the agent can access runtime and source context together.'
+	},
+	{
+		question: 'Is Frontman useful for CSS and layout debugging?',
+		answer:
+			'Yes. This is a core use case. Because Frontman sees computed CSS and layout context, it can fix spacing, alignment, responsive behavior, and component styling with less trial-and-error than file-only agents.'
+	},
+	{
+		question: 'Does Frontman replace a full IDE agent?',
+		answer:
+			'No. Frontman is specialized for visual frontend iteration on running apps. IDE agents are still better for broad refactors, backend architecture changes, and complex codebase-wide tasks.'
+	}
+]
+
+const faqJsonLd = {
+	'@context': 'https://schema.org',
+	'@type': 'FAQPage',
+	mainEntity: faqs.map((faq) => ({
+		'@type': 'Question',
+		name: faq.question,
+		acceptedAnswer: {
+			'@type': 'Answer',
+			text: faq.answer
+		}
+	}))
+}
+
+const comparisonRows = [
+	{
+		tool: 'Frontman',
+		seesRuntime: 'Yes',
+		clickToEdit: 'Yes',
+		frameworkContext: 'Deep',
+		bestFor: 'Visual edits on existing frontend apps'
+	},
+	{
+		tool: 'Cursor',
+		seesRuntime: 'Partial',
+		clickToEdit: 'No',
+		frameworkContext: 'File-level',
+		bestFor: 'General coding and refactoring'
+	},
+	{
+		tool: 'GitHub Copilot',
+		seesRuntime: 'No',
+		clickToEdit: 'No',
+		frameworkContext: 'File-level',
+		bestFor: 'Autocomplete and IDE assistance'
+	},
+	{
+		tool: 'Stagewise',
+		seesRuntime: 'Yes',
+		clickToEdit: 'Yes',
+		frameworkContext: 'Limited',
+		bestFor: 'Quick overlay workflow across frameworks'
+	}
+]
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<section class="hero-section">
+		<div class="hero-container">
+			<p class="hero-label">Use Case</p>
+			<h1 class="hero-title">AI Tool for Frontend Development</h1>
+			<p class="hero-subtitle">
+				Frontman is an AI tool for frontend development that works from the running browser,
+				not just source files. Click an element, describe the change, and get a real code edit.
+			</p>
+			<p class="hero-summary">
+				For CSS, layout, and component iteration, runtime context matters. Frontman connects to your
+				framework as middleware, sees the live DOM and styles, and applies changes with hot reload
+				while keeping your normal git workflow.
+			</p>
+		</div>
+	</section>
+
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Why file-only agents miss frontend intent</h2>
+			<div class="prose-content">
+				<p>
+					Frontend bugs are often runtime bugs: cascade conflicts, breakpoint behavior, unexpected component
+					nesting, and state-driven UI drift. Reading source files alone does not reveal the final rendered state.
+				</p>
+				<p>
+					Frontman closes that gap by combining runtime context with source-level edits. You can target the real
+					element on screen, then iterate in seconds instead of describing visual intent through a terminal loop.
+				</p>
+				<ul>
+					<li><strong>Rendered DOM visibility</strong> for actual structure and state.</li>
+					<li><strong>Computed CSS visibility</strong> for real spacing and style values.</li>
+					<li><strong>Framework awareness</strong> for safer edits in Next.js, Astro, and Vite apps.</li>
+				</ul>
+			</div>
+		</div>
+	</section>
+
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Frontend tasks where Frontman is strongest</h2>
+			<div class="task-grid">
+				<div class="task-card">
+					<h3>Layout and spacing fixes</h3>
+					<p>Resolve alignment issues and spacing inconsistencies directly on the rendered UI.</p>
+				</div>
+				<div class="task-card">
+					<h3>Responsive tweaks</h3>
+					<p>Adjust behavior at breakpoints while seeing live component interactions.</p>
+				</div>
+				<div class="task-card">
+					<h3>Component polish</h3>
+					<p>Refine states, typography, and hierarchy without manually tracing through files.</p>
+				</div>
+				<div class="task-card">
+					<h3>Visual QA cleanup</h3>
+					<p>Fix copy, style, and consistency bugs discovered during review before they pile up.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="content-section">
+		<div class="content-container-wide">
+			<h2 class="section-title">Frontend Workflow Comparison</h2>
+			<p class="section-intro">
+				Each tool can be useful. This table focuses on frontend editing accuracy and speed for existing apps.
+			</p>
+			<div class="table-wrap">
+				<table class="comparison-table">
+					<thead>
+						<tr>
+							<th>Tool</th>
+							<th>Sees Runtime UI</th>
+							<th>Click-to-Edit</th>
+							<th>Framework Context</th>
+							<th>Best For</th>
+						</tr>
+					</thead>
+					<tbody>
+						{comparisonRows.map((row) => (
+							<tr class={row.tool === 'Frontman' ? 'highlight-row' : ''}>
+								<td class="tool-cell">{row.tool}</td>
+								<td>{row.seesRuntime}</td>
+								<td>{row.clickToEdit}</td>
+								<td>{row.frameworkContext}</td>
+								<td>{row.bestFor}</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+
+	<section class="content-section content-section--light">
+		<div class="content-container">
+			<h2 class="section-title section-title--dark">Where Frontman fits in your stack</h2>
+			<div class="prose-content prose-content--dark">
+				<p>
+					Use Frontman when visual accuracy and iteration speed matter. Keep your IDE agent for backend logic,
+					terminal workflows, and broad codebase refactors. This split keeps each tool in its high-leverage lane.
+				</p>
+				<ul>
+					<li><strong>Frontman</strong> for browser-native UI edits and fast visual iteration.</li>
+					<li><strong>IDE agent</strong> for architecture, data layer, tests, and large refactors.</li>
+					<li><strong>Shared repo workflow</strong> so all changes remain reviewable in git.</li>
+				</ul>
+				<p>
+					Need deeper architecture context? Read <a href="/how-it-works/" class="text-link">how Frontman works</a>.
+					Want full market context? Use the <a href="/compare/" class="text-link">comparison hub</a>.
+				</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="content-section">
+		<div class="content-container">
+			<h2 class="section-title">Frequently Asked Questions</h2>
+			<div class="faq-list">
+				{faqs.map((faq) => (
+					<details class="faq-item group">
+						<summary class="faq-question">
+							<span>{faq.question}</span>
+							<span class="faq-icon">+</span>
+						</summary>
+						<div class="faq-answer">
+							<p>{faq.answer}</p>
+						</div>
+					</details>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<section class="cta-section">
+		<div class="cta-container">
+			<h2 class="cta-title">Ship frontend fixes at browser speed</h2>
+			<p class="cta-description">
+				Use Frontman for runtime-aware frontend edits, and keep the rest of your toolchain intact.
+			</p>
+			<div class="cta-links">
+				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+				<a href="/use-cases/designers/" class="cta-secondary">Designer workflow</a>
+				<a href="/integrations/" class="cta-secondary">Framework integrations</a>
+			</div>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	@reference "../../styles/global.css";
+
+	.hero-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 80px 24px 48px;
+		display: flex;
+		justify-content: center;
+	}
+	.hero-container {
+		max-width: 760px;
+		width: 100%;
+	}
+	.hero-label {
+		@apply font-mono;
+		font-size: 13px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #a259ff;
+		margin-bottom: 12px;
+	}
+	.hero-title {
+		font-size: 48px;
+		font-weight: 700;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
+		margin-bottom: 14px;
+	}
+	.hero-subtitle {
+		font-size: 20px;
+		line-height: 1.5;
+		color: #a1a1aa;
+		margin-bottom: 18px;
+	}
+	.hero-summary {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #71717a;
+	}
+
+	.text-link {
+		color: #a259ff;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.text-link:hover {
+		color: #c084fc;
+	}
+
+	.content-section {
+		background: #09090b;
+		color: #fafafa;
+		padding: 64px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.content-section--light {
+		background: #fafafa;
+		color: #09090b;
+	}
+	.content-container {
+		max-width: 760px;
+		width: 100%;
+	}
+	.content-container-wide {
+		max-width: 980px;
+		width: 100%;
+	}
+	.section-title {
+		font-size: 32px;
+		font-weight: 700;
+		letter-spacing: -0.02em;
+		margin-bottom: 20px;
+	}
+	.section-title--dark {
+		color: #09090b;
+	}
+	.section-intro {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+
+	.prose-content p {
+		font-size: 17px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		margin-bottom: 16px;
+	}
+	.prose-content--dark p {
+		color: #52525b;
+	}
+	.prose-content ul {
+		list-style: none;
+		padding: 0;
+		margin: 12px 0;
+	}
+	.prose-content li {
+		font-size: 17px;
+		line-height: 1.6;
+		padding: 8px 0 8px 22px;
+		position: relative;
+		color: #a1a1aa;
+	}
+	.prose-content--dark li {
+		color: #52525b;
+	}
+	.prose-content li::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 17px;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #a259ff;
+	}
+
+	.task-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 16px;
+	}
+	.task-card {
+		background: white;
+		border: 1px solid #e4e4e7;
+		border-radius: 12px;
+		padding: 18px;
+	}
+	.task-card h3 {
+		font-size: 18px;
+		margin: 0 0 8px;
+		color: #111827;
+	}
+	.task-card p {
+		font-size: 15px;
+		line-height: 1.6;
+		margin: 0;
+		color: #4b5563;
+	}
+
+	.table-wrap {
+		overflow-x: auto;
+		border: 1px solid #27272a;
+		border-radius: 12px;
+	}
+	.comparison-table {
+		width: 100%;
+		border-collapse: collapse;
+		min-width: 760px;
+	}
+	.comparison-table th,
+	.comparison-table td {
+		padding: 12px 14px;
+		text-align: left;
+		border-bottom: 1px solid #27272a;
+		font-size: 14px;
+		line-height: 1.5;
+	}
+	.comparison-table th {
+		font-size: 12px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: #a1a1aa;
+		background: #111113;
+	}
+	.comparison-table td {
+		color: #d4d4d8;
+		background: #09090b;
+	}
+	.tool-cell {
+		font-weight: 600;
+		color: #fafafa !important;
+	}
+	.highlight-row td {
+		background: #111827;
+	}
+
+	.faq-list {
+		border-top: 1px solid #27272a;
+	}
+	.faq-item {
+		border-bottom: 1px solid #27272a;
+	}
+	.faq-question {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 22px 0;
+		font-size: 17px;
+		font-weight: 500;
+		list-style: none;
+	}
+	.faq-question::-webkit-details-marker {
+		display: none;
+	}
+	.faq-icon {
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 1px solid #3f3f46;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 18px;
+		color: #71717a;
+		transition: transform 0.2s ease;
+	}
+	.group[open] .faq-icon {
+		transform: rotate(45deg);
+	}
+	.faq-answer p {
+		font-size: 15px;
+		line-height: 1.7;
+		color: #a1a1aa;
+		padding: 0 0 20px;
+		margin: 0;
+	}
+
+	.cta-section {
+		background: #09090b;
+		border-top: 1px solid #27272a;
+		padding: 72px 24px;
+		display: flex;
+		justify-content: center;
+	}
+	.cta-container {
+		max-width: 760px;
+		width: 100%;
+	}
+	.cta-title {
+		font-size: 36px;
+		line-height: 1.2;
+		margin-bottom: 10px;
+	}
+	.cta-description {
+		font-size: 17px;
+		line-height: 1.6;
+		color: #71717a;
+		margin-bottom: 24px;
+	}
+	.cta-links {
+		display: flex;
+		align-items: center;
+		gap: 20px;
+		flex-wrap: wrap;
+	}
+	.cta-secondary {
+		font-size: 15px;
+		color: #71717a;
+		text-decoration: none;
+	}
+	.cta-secondary:hover {
+		color: #fafafa;
+	}
+
+	@media (max-width: 900px) {
+		.task-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.hero-section,
+		.content-section,
+		.cta-section {
+			padding-left: 20px;
+			padding-right: 20px;
+		}
+		.hero-section {
+			padding-top: 48px;
+			padding-bottom: 36px;
+		}
+		.hero-title {
+			font-size: 34px;
+		}
+		.hero-subtitle {
+			font-size: 18px;
+		}
+		.section-title {
+			font-size: 26px;
+		}
+		.cta-title {
+			font-size: 30px;
+		}
+	}
+</style>

@@ -90,7 +90,7 @@ export default defineConfig({
     "/blog/mobile-app": "/blog/ai-coding-agents-blind-to-ui/",
     "/blog/user-stories": "/blog/frontman-vs-cursor-vs-claude-code/",
     "/blog/welcome": "/blog/introducing-frontman/",
-    "/blog/what-are-browser-aware-ai-coding-tools": "/blog/what-are-framework-aware-ai-coding-tools/",
+    "/blog/what-are-framework-aware-ai-coding-tools": "/blog/what-are-browser-aware-ai-coding-tools/",
     "/blog/user-feedback": "/changelog/",
   },
   vite: {
@@ -221,7 +221,7 @@ export default defineConfig({
       if (item.url === 'https://frontman.sh/') {
         item.priority = 1.0;
         item.changefreq = 'weekly';
-      } else if (/\/(pricing|features|how-it-works)\/?$/.test(item.url)) {
+      } else if (/\/(pricing|features|how-it-works)\/?$/.test(item.url) || /\/use-cases\//.test(item.url)) {
         item.priority = 0.9;
         item.changefreq = 'monthly';
       } else if (/\/vs\//.test(item.url) || /(?<!\/docs)\/integrations\//.test(item.url)) {

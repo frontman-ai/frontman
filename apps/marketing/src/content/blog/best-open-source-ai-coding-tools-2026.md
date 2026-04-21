@@ -211,7 +211,7 @@ The right tool depends on what you're trying to do:
 
 **"I want an AI agent in VS Code."** Cline is the most popular. Roo Code if you want structured modes. Kilo Code if you need JetBrains support.
 
-**"I want to click things in the browser and have AI edit the code."** These are [framework-aware AI coding tools](/blog/what-are-framework-aware-ai-coding-tools/). Frontman if you want deep framework integration and BYOK. Stagewise if you want zero-install and IDE agent bridging.
+**"I want to click things in the browser and have AI edit the code."** These are [browser-aware AI coding tools](/blog/what-are-browser-aware-ai-coding-tools/). Frontman if you want deep framework integration and BYOK. Stagewise if you want zero-install and IDE agent bridging.
 
 **"I want to generate a new app from a prompt."** bolt.diy or OpenHands. See the [Frontman vs v0 comparison](/vs/v0/) for how generative and iterative workflows differ.
 

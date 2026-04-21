@@ -31,7 +31,7 @@ When an AI coding tool edits your project, it's working from source text. Here's
 - **Compiled module graph.** Frameworks like Next.js, Vite, and Astro transform your source before serving it. The AI sees source files; the dev server sees the compiled, bundled, tree-shaken output.
 - **Registered routes and middleware.** File-based routing means the route table is a runtime artifact. Middleware ordering, redirect chains, and rewrite rules exist in the server's state, not in any single source file.
 - **Server logs and errors.** A component that renders fine might be throwing warnings server-side. The AI editing your code doesn't see `stdout`.
-- **Framework-specific context.** Astro island hydration directives, Next.js server/client component boundaries, Vite's HMR module graph — these are framework runtime concepts that source code only partially describes — which is why [framework-aware AI coding tools](/blog/what-are-framework-aware-ai-coding-tools/) take a different approach.
+- **Framework-specific context.** Astro island hydration directives, Next.js server/client component boundaries, Vite's HMR module graph - these are framework runtime concepts that source code only partially describes - which is why [browser-aware AI coding tools](/blog/what-are-browser-aware-ai-coding-tools/) take a different approach.
 
 ### An Uncomfortable Question
 

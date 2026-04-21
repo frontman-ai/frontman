@@ -59,7 +59,7 @@ Every change still goes through code review. Every change is a standard Git diff
 Every change is a Git commit on a branch. It goes through the same PR process as engineering work. If the diff is bad, it does not get merged. Frontman shows you the result via hot-reload before you commit — if the layout breaks, you see it immediately and undo it. The code review gate catches everything else.
 
 **"We tried giving non-devs access to the repo before."**
-Giving people VS Code access is not the same thing. Frontman [differs from general-purpose agents](/blog/what-are-framework-aware-ai-coding-tools/) — it's a constrained tool. You click an element, describe a change in plain English, and Frontman edits the source file. You cannot accidentally refactor the state management. You can update the padding. That is the right level of access for the right people.
+Giving people VS Code access is not the same thing. Frontman [differs from general-purpose agents](/blog/what-are-browser-aware-ai-coding-tools/) - it's a constrained tool. You click an element, describe a change in plain English, and Frontman edits the source file. You cannot accidentally refactor the state management. You can update the padding. That is the right level of access for the right people.
 
 **"Our engineers will push back on this."**
 Show them their PR queue. Count the tickets that say "update spacing," "fix typo," "change button color." Ask them if those are the problems they want to spend their week on. Every designer-authored PR is a PR the engineer did not have to write. They still review it — they just did not have to context-switch to create it.

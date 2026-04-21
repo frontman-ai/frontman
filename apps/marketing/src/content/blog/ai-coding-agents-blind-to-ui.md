@@ -65,7 +65,7 @@ For a designer or PM, it's a wall. You would need to know the file name, the com
 
 ## What Framework-Aware AI Changes
 
-Frontman takes a different approach — what we call [framework-aware AI](/blog/what-are-framework-aware-ai-coding-tools/). Instead of reading files and guessing what the UI looks like, it hooks into your framework — Next.js, Astro, Vite — and connects to the running browser. It has access to:
+Frontman takes a different approach - what we call [browser-aware AI](/blog/what-are-browser-aware-ai-coding-tools/). Instead of reading files and guessing what the UI looks like, it hooks into your framework - Next.js, Astro, Vite - and connects to the running browser. It has access to:
 
 - **The live UI** — the actual rendered page, not a code approximation
 - **Your component tree** — which component renders which element, mapped back to source files

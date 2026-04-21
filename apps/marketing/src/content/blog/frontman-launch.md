@@ -40,7 +40,7 @@ This means you can use Frontman to audit live UI against your design system. Cli
 
 ### How It Works
 
-Frontman installs as a plugin in your framework's dev server — one line in the config file. It supports Next.js, Vite (React, Vue, Svelte), and Astro. Your engineering team sets it up once; it takes about five minutes. This [framework-aware](/blog/what-are-framework-aware-ai-coding-tools/) approach means Frontman understands your component structure, not just raw files.
+Frontman installs as a plugin in your framework's dev server - one line in the config file. It supports Next.js, Vite (React, Vue, Svelte), and Astro. Your engineering team sets it up once; it takes about five minutes. This [browser-aware](/blog/what-are-browser-aware-ai-coding-tools/) approach means Frontman understands your component structure, not just raw files.
 
 Once running, anyone on the team can open the app in their browser and access Frontman. It runs entirely on your machine. Your code and your conversations with the AI never leave your local environment — there are no external servers involved.
 

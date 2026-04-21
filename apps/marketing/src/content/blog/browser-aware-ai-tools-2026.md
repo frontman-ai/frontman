@@ -86,7 +86,7 @@ Google's experimental MCP server exposing DevTools state to AI agents. Your agen
 
 **Want the most polished UX and don't mind paying:** Stagewise. The YC backing shows.
 
-**Want free + deep framework integration + full control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-framework-aware-ai-coding-tools/). No prompt limits, no account, BYOK, open source. The tradeoff is that it's early-stage with rougher edges.
+**Want free + deep framework integration + full control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-browser-aware-ai-coding-tools/). No prompt limits, no account, BYOK, open source. The tradeoff is that it's early-stage with rougher edges.
 
 **Want to add browser context to your existing agent:** Chrome DevTools MCP. Bare-bones but framework-agnostic and free.
 

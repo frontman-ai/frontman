@@ -1,7 +1,7 @@
 ---
-title: 'What Are Framework-Aware AI Coding Tools?'
+title: 'What Are Browser-Aware AI Coding Tools?'
 pubDate: 2026-03-17T10:00:00Z
-description: 'Framework-aware AI coding tools let you click on any element in your running app and describe what you want changed—in plain language. They understand your component library, your design system structure, and which file to edit. Here is what the category is, how the five current tools compare, and which ones matter for design and product teams.'
+description: 'Browser-aware AI coding tools let you click on any element in your running app and describe what you want changed in plain language. They use runtime context, and the strongest tools also understand framework structure and source mapping.'
 author: 'Danni Friedland'
 image: '/blog/what-are-framework-aware-ai-coding-tools-cover.png'
 tags: ['ai', 'design-systems', 'product-tools', 'comparison']
@@ -48,9 +48,9 @@ faq:
       in choosing a tool.
 ---
 
-If you run a design system across multiple product teams, you know the bottleneck. A designer spots a spacing inconsistency, an outdated color token, a component that doesn't match the latest Figma specs. They file a ticket. An engineer picks it up days later, makes a three-line change, opens a PR. Teams end up [bottlenecked on engineering](/blog/team-collaboration/) for changes that should take minutes.
+If you run a design system across multiple product teams, you know the bottleneck. A designer spots a spacing inconsistency, an outdated color token, or a component that does not match the latest Figma specs. They file a ticket. An engineer picks it up days later, makes a three-line change, opens a PR. Teams end up [bottlenecked on engineering](/blog/team-collaboration/) for changes that should take minutes.
 
-Framework-aware AI coding tools exist to short-circuit that loop. You open your running application in the browser, click on the element that needs to change, and describe what you want in plain language: "increase the padding to match our spacing scale," "swap this to use the secondary button variant," "this heading should be H2 semibold." The tool figures out which component file to edit, which design tokens to use, and makes the change — or select multiple elements to [fix design drift across your entire app](/blog/multi-select/). You see the result live.
+Browser-aware AI coding tools exist to short-circuit that loop. You open your running application in the browser, click on the element that needs to change, and describe what you want in plain language: "increase the padding to match our spacing scale," "swap this to use the secondary button variant," "this heading should be H2 semibold." The tool figures out which component file to edit, which design tokens to use, and makes the change - or select multiple elements to [fix design drift across your entire app](/blog/multi-select/). You see the result live.
 
 The difference between these tools and general-purpose AI coding assistants (Cursor, Copilot, Claude Code) is what they understand. A general-purpose tool reads your source files — a limitation we call the [Runtime Context Gap](/blog/runtime-context-gap/). A framework-aware tool understands your application's structure—it knows that the button you clicked lives in `src/components/ui/Button.tsx`, that it's used in 14 places, that your design system defines `--spacing-md` as `16px`, and that changing the padding here should use that token instead of hardcoding `20px`.
 
