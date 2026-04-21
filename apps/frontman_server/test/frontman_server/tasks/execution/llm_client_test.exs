@@ -89,15 +89,9 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   end
 
   describe "ping keepalive filtering (issue #731)" do
-    test "ping meta chunks from ReqLLM do not reach SwarmAi consumers" do
-      # After the fix, ReqLLM emits meta chunks with %{ping: true} for
-      # Anthropic keep-alive pings. These must be filtered out before
-      # reaching SwarmAi — they exist only to reset the stall timeout.
+    test "ping meta chunks from ReqLLM are metadata-only chunks" do
       ping_chunk = ReqLLM.StreamChunk.meta(%{ping: true})
 
-      # The catch-all meta clause in to_swarm_chunk returns nil for
-      # unknown meta keys, so pings get rejected by Stream.reject(&is_nil/1).
-      # We verify the chunk shape matches that catch-all path.
       assert ping_chunk.type == :meta
       refute Map.has_key?(ping_chunk.metadata, :usage)
       refute Map.has_key?(ping_chunk.metadata, :finish_reason)

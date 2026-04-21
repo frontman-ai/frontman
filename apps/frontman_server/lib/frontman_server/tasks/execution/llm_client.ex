@@ -84,11 +84,9 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.{MessageOptimizer, StreamCleanup, StreamStallTimeout}
-  alias SwarmAi.LLM.{Chunk, Usage}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.SchemaTransformer
-  alias SwarmAi.ToolCall
 
   require Logger
 
@@ -124,14 +122,13 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
         stall_timeout_ms =
           Application.fetch_env!(:frontman_server, :stream_stall_timeout_ms)
 
-        swarm_stream =
+        reqllm_stream =
           response.stream
           |> StreamStallTimeout.wrap_stream(stall_timeout_ms: stall_timeout_ms)
-          |> Stream.map(&to_swarm_chunk(&1, requires_mcp_prefix?))
-          |> Stream.reject(&is_nil/1)
+          |> Stream.map(&normalize_reqllm_chunk(&1, requires_mcp_prefix?))
           |> StreamCleanup.wrap_stream(response.cancel)
 
-        {:ok, swarm_stream}
+        {:ok, reqllm_stream}
 
       {:error, reason} ->
         Logger.error("LLMClient.stream ReqLLM.stream_text failed: #{inspect(reason)}")
@@ -139,99 +136,56 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     end
   end
 
-  defp to_swarm_chunk(%{type: :content, text: text}, _requires_mcp_prefix?)
-       when is_binary(text) do
-    Chunk.token(text)
+  defp normalize_reqllm_chunk(%{type: :content} = chunk, _requires_mcp_prefix?) do
+    chunk
   end
 
-  defp to_swarm_chunk(%{type: :thinking, text: text, metadata: meta}, _requires_mcp_prefix?)
-       when is_binary(text) do
-    Chunk.thinking(text, meta || %{})
+  defp normalize_reqllm_chunk(%{type: :thinking} = chunk, _requires_mcp_prefix?) do
+    chunk
   end
 
-  defp to_swarm_chunk(%{type: :thinking, text: text}, _requires_mcp_prefix?)
-       when is_binary(text) do
-    Chunk.thinking(text)
-  end
-
-  # Handle tool call chunks from ReqLLM
-  # In streaming mode, ReqLLM sends tool name first (with empty args),
-  # then argument fragments arrive as separate :meta chunks.
-  # In non-streaming mode, the complete tool call arrives at once.
-  defp to_swarm_chunk(
-         %{type: :tool_call, name: name, arguments: args, metadata: meta},
+  defp normalize_reqllm_chunk(
+         %{type: :tool_call, name: name, arguments: arguments, metadata: metadata} = chunk,
          requires_mcp_prefix?
        ) do
-    id = Map.get(meta, :id) || "call_#{:erlang.unique_integer([:positive])}"
-    index = Map.get(meta, :index, 0)
+    metadata = metadata || %{}
 
-    # Strip mcp_ prefix if we added it
-    name = if requires_mcp_prefix?, do: LLMClient.strip_mcp_prefix(name), else: name
+    id = metadata[:id] || metadata["id"] || "call_#{:erlang.unique_integer([:positive])}"
 
-    # Check if this is a complete tool call (non-streaming) or a streaming start
-    is_complete = complete_tool_call_args?(args)
+    index = normalize_index(metadata[:index] || metadata["index"])
 
-    if is_complete do
-      # Non-streaming: emit complete tool call directly
-      args_json = if is_binary(args), do: args, else: Jason.encode!(args)
-      tool_call = %ToolCall{id: id, name: name, arguments: args_json}
-      Chunk.tool_call_end(tool_call)
-    else
-      # Streaming: emit tool_call_start, arguments will follow as fragments
-      Chunk.tool_call_start(id, name, index)
-    end
+    normalized_name =
+      if requires_mcp_prefix? and is_binary(name),
+        do: LLMClient.strip_mcp_prefix(name),
+        else: name
+
+    normalized_arguments =
+      case arguments do
+        nil -> %{}
+        _ -> arguments
+      end
+
+    normalized_metadata =
+      metadata
+      |> Map.put(:id, id)
+      |> Map.put(:index, index)
+
+    %{
+      chunk
+      | name: normalized_name,
+        arguments: normalized_arguments,
+        metadata: normalized_metadata
+    }
   end
 
-  # Handle argument fragment chunks from ReqLLM streaming
-  defp to_swarm_chunk(
-         %{
-           type: :meta,
-           metadata: %{tool_call_args: %{index: index, fragment: fragment}}
-         },
-         _requires_mcp_prefix?
-       ) do
-    Chunk.tool_call_args(index, fragment)
-  end
-
-  # :meta with usage - token usage statistics
-  defp to_swarm_chunk(%{type: :meta, metadata: %{usage: usage}}, _requires_mcp_prefix?)
-       when is_map(usage) do
-    Chunk.usage(Usage.from_map(usage))
-  end
-
-  # :meta with finish_reason - stream complete with reason
-  # Carry through responses metadata needed for next-turn continuity:
-  # - response_id for previous_response_id chaining
-  # - phase / phase_items for phased assistant output replay
-  defp to_swarm_chunk(
-         %{type: :meta, metadata: %{finish_reason: reason} = meta},
-         _requires_mcp_prefix?
-       ) do
-    chunk_meta = extract_done_metadata(meta)
-
-    Chunk.done(reason, chunk_meta)
-  end
-
-  # :meta with terminal?: true only (no finish_reason) - message_stop signal
-  # This is Anthropic's stream-end event. The authoritative finish_reason was
-  # already emitted by message_delta (which has both finish_reason AND terminal?).
-  # Emitting another Chunk.done(:stop) here would overwrite :length/:tool_calls.
-  # Return nil so Stream.reject(&is_nil/1) drops it.
-  defp to_swarm_chunk(%{type: :meta, metadata: %{terminal?: true}}, _requires_mcp_prefix?) do
-    nil
-  end
-
-  # Catch-all for :meta chunks with unknown metadata keys
-  # These are informational signals we don't need to act on (e.g., provider-specific metadata)
-  # Silently ignore - we're resilient to new metadata fields
-  defp to_swarm_chunk(%{type: :meta, metadata: _meta}, _requires_mcp_prefix?) do
-    nil
+  defp normalize_reqllm_chunk(%{type: :meta} = chunk, _requires_mcp_prefix?) do
+    chunk
   end
 
   # Legacy compatibility path for ReqLLM builds that emit :error chunks.
   # Current ReqLLM versions raise ReqLLM.Error.API.Stream instead; those are
   # classified in ExecutionEvent.classify_error/1.
-  defp to_swarm_chunk(
+  defp normalize_reqllm_chunk(
          %{type: :error, text: text, metadata: %{error: original}},
          _requires_mcp_prefix?
        )
@@ -239,58 +193,35 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     classify_llm_error(original, text)
   end
 
-  defp to_swarm_chunk(%{type: :error, text: text}, _requires_mcp_prefix?)
+  defp normalize_reqllm_chunk(%{type: :error, text: text}, _requires_mcp_prefix?)
        when is_binary(text) do
     classify_llm_error(nil, text)
   end
 
-  defp to_swarm_chunk(%{type: :error} = chunk, _requires_mcp_prefix?) do
+  defp normalize_reqllm_chunk(%{type: :error} = chunk, _requires_mcp_prefix?) do
     raise "LLM stream error: #{inspect(chunk, limit: :infinity)}"
   end
 
-  # CRASH on truly unknown chunk TYPES (not :content, :thinking, :tool_call, :meta, or :error)
-  # This catches bugs where ReqLLM adds new types we don't handle
-  defp to_swarm_chunk(%{type: unknown_type} = chunk, _requires_mcp_prefix?)
+  defp normalize_reqllm_chunk(%{type: unknown_type} = chunk, _requires_mcp_prefix?)
        when unknown_type not in [:content, :thinking, :tool_call, :meta, :error] do
     raise "Unknown chunk TYPE from ReqLLM: #{inspect(unknown_type)}. " <>
             "Full chunk: #{inspect(chunk, limit: :infinity)}"
   end
 
-  # Catch-all for malformed chunks (missing type field or unexpected structure)
-  defp to_swarm_chunk(malformed_chunk, _requires_mcp_prefix?) do
+  defp normalize_reqllm_chunk(malformed_chunk, _requires_mcp_prefix?) do
     raise "Malformed chunk from ReqLLM (missing or invalid type): #{inspect(malformed_chunk, limit: :infinity)}"
   end
 
-  defp extract_done_metadata(meta) do
-    %{}
-    |> maybe_put_response_id(meta)
-    |> maybe_put_phase(meta)
-    |> maybe_put_phase_items(meta)
+  defp normalize_index(index) when is_integer(index), do: index
+
+  defp normalize_index(index) when is_binary(index) do
+    case Integer.parse(index) do
+      {value, ""} -> value
+      _other -> 0
+    end
   end
 
-  defp maybe_put_response_id(metadata, %{response_id: id}) when is_binary(id) do
-    Map.put(metadata, :response_id, id)
-  end
-
-  defp maybe_put_response_id(metadata, _), do: metadata
-
-  defp maybe_put_phase(metadata, %{phase: phase}) when is_binary(phase) do
-    Map.put(metadata, :phase, phase)
-  end
-
-  defp maybe_put_phase(metadata, _), do: metadata
-
-  defp maybe_put_phase_items(metadata, %{phase_items: phase_items})
-       when is_list(phase_items) and phase_items != [] do
-    Map.put(metadata, :phase_items, phase_items)
-  end
-
-  defp maybe_put_phase_items(metadata, _), do: metadata
-
-  # Check if tool call arguments are complete (non-streaming)
-  defp complete_tool_call_args?(args) when is_map(args) and map_size(args) > 0, do: true
-  defp complete_tool_call_args?(args) when is_binary(args) and args not in ["", "{}"], do: true
-  defp complete_tool_call_args?(_), do: false
+  defp normalize_index(_index), do: 0
 
   # Classify LLM API errors by HTTP status and raise a typed LLMError.
   # The original error is a ReqLLM.Error.API.Request with :status and :reason.

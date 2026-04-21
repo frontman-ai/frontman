@@ -19,12 +19,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:execution_event,
        %ExecutionEvent{type: :chunk, payload: %{type: type, text: text}, caused_by: nil}}
 
-  defp execution_tool_call_start(id, name),
+  defp execution_tool_call(id, name),
     do:
       {:execution_event,
        %ExecutionEvent{
          type: :chunk,
-         payload: %{type: :tool_call_start, tool_call_id: id, tool_call_name: name},
+         payload: %{type: :tool_call, name: name, arguments: %{}, metadata: %{id: id, index: 0}},
          caused_by: nil
        }}
 
@@ -224,7 +224,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        execution_chunk(:token, "Hello world")
+        execution_chunk(:content, "Hello world")
       )
 
       # Channel should forward this as an ACP notification
@@ -258,7 +258,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        execution_chunk(:token, "")
+        execution_chunk(:content, "")
       )
 
       refute_push("acp:message", %{
@@ -269,7 +269,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        execution_chunk(:token, "after thinking")
+        execution_chunk(:content, "after thinking")
       )
 
       assert_push("acp:message", %{
@@ -886,14 +886,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "tool_call_start chunk streaming" do
+  describe "tool_call chunk streaming" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
 
-    test "broadcasts early ACP tool_call notification on tool_call_start", %{
+    test "broadcasts early ACP tool_call notification on tool_call", %{
       socket: _socket,
       task_id: task_id
     } do
@@ -902,7 +902,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
-        execution_tool_call_start(tool_call_id, "write_file")
+        execution_tool_call(tool_call_id, "write_file")
       )
 
       assert_push("acp:message", %{
@@ -919,14 +919,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "deduplicates tool_call_create when interaction arrives after tool_call_start", %{
+    test "deduplicates tool_call_create when interaction arrives after tool_call", %{
       socket: socket,
       task_id: _task_id
     } do
       tool_call_id = "call_dedup_#{:rand.uniform(1_000_000)}"
 
-      # Step 1: Send tool_call_start chunk (early streaming notification)
-      send(socket.channel_pid, execution_tool_call_start(tool_call_id, "write_file"))
+      # Step 1: Send tool_call chunk (early streaming notification)
+      send(socket.channel_pid, execution_tool_call(tool_call_id, "write_file"))
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -967,11 +967,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "sends tool_call_create for interactions without prior tool_call_start", %{
+    test "sends tool_call_create for interactions without prior tool_call", %{
       socket: socket,
       task_id: task_id
     } do
-      # Tool calls that arrive without a prior tool_call_start should still get
+      # Tool calls that arrive without a prior tool_call should still get
       # the normal tool_call_create notification
       tool_call_id = "call_no_start_#{:rand.uniform(1_000_000)}"
 
@@ -1009,14 +1009,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       call_id_2 = "call_multi_2_#{:rand.uniform(1_000_000)}"
 
       # Announce first tool call via streaming
-      send(socket.channel_pid, execution_tool_call_start(call_id_1, "write_file"))
+      send(socket.channel_pid, execution_tool_call(call_id_1, "write_file"))
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
         "params" => %{"update" => %{"toolCallId" => ^call_id_1, "sessionUpdate" => "tool_call"}}
       })
 
-      # Second tool call arrives without prior tool_call_start
+      # Second tool call arrives without prior tool_call
       tool_call_2 = tool_call(call_id_2, "read_file", %{"target_file" => "other.txt"})
 
       send(socket.channel_pid, {:interaction, tool_call_2})

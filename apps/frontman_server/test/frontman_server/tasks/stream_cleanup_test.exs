@@ -2,7 +2,8 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Tasks.StreamCleanup
-  alias SwarmAi.LLM.{Chunk, Response, Usage}
+  alias ReqLLM.StreamChunk
+  alias SwarmAi.LLM.{Response, Usage}
 
   # ---------------------------------------------------------------------------
   # Integration test LLM — implements SwarmAi.LLM protocol with StreamCleanup
@@ -74,9 +75,9 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
   # Helper to build standard chunk sequences for integration tests
   defp standard_chunks(text) do
     [
-      Chunk.token(text),
-      Chunk.usage(%Usage{input_tokens: 10, output_tokens: 5}),
-      Chunk.done(:stop)
+      StreamChunk.text(text),
+      StreamChunk.meta(%{usage: %{input_tokens: 10, output_tokens: 5}}),
+      StreamChunk.meta(%{finish_reason: :stop})
     ]
   end
 
@@ -327,7 +328,9 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
       # Slow stream — gives us time to kill the consumer
       llm = %CleanupTrackingLLM{
         cancel_pid: test_pid,
-        chunks: List.duplicate(Chunk.token("tok"), 100) ++ [Chunk.done(:stop)],
+        chunks:
+          List.duplicate(StreamChunk.text("tok"), 100) ++
+            [StreamChunk.meta(%{finish_reason: :stop})],
         delay_ms: 50,
         error_after: nil,
         notify_started: test_pid
@@ -393,8 +396,8 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
       assert response.content == "streamed"
 
       # Verify the callback was invoked (chunks were observed)
-      assert :ets.lookup(collected_chunks, :token) != []
-      assert :ets.lookup(collected_chunks, :done) != []
+      assert :ets.lookup(collected_chunks, :content) != []
+      assert :ets.lookup(collected_chunks, :meta) != []
 
       # Connection released
       assert_receive :cancel_called, 500
@@ -407,7 +410,9 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
 
       llm = %CleanupTrackingLLM{
         cancel_pid: test_pid,
-        chunks: List.duplicate(Chunk.token("tok"), 100) ++ [Chunk.done(:stop)],
+        chunks:
+          List.duplicate(StreamChunk.text("tok"), 100) ++
+            [StreamChunk.meta(%{finish_reason: :stop})],
         delay_ms: 50,
         error_after: nil,
         notify_started: test_pid

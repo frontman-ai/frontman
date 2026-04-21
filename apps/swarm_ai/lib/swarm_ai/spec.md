@@ -91,10 +91,10 @@ Effects are tagged tuples representing instructions:
 Protocol-based streaming interface:
 
 ```elixir
-@spec stream(t, [Message.t()], keyword()) :: {:ok, Enumerable.t(Chunk.t())} | {:error, term()}
+@spec stream(t, [Message.t()], keyword()) :: {:ok, Enumerable.t(ReqLLM.StreamChunk.t())} | {:error, term()}
 ```
 
-**Chunk Types**: `:token`, `:thinking`, `:tool_call_start`, `:tool_call_args`, `:tool_call_end`, `:usage`, `:done`
+**Chunk Types**: `:content`, `:thinking`, `:tool_call`, `:meta`
 
 Production implementations should implement this protocol to support their preferred LLM providers.
 
@@ -172,7 +172,6 @@ Telemetry hierarchy:
 | `loop/step.ex` | Step data structure |
 | `loop/config.ex` | Loop configuration defaults |
 | `llm.ex` | LLM streaming protocol |
-| `llm/chunk.ex` | Stream chunk types |
 | `llm/response.ex` | Response aggregation from stream |
 | `message.ex` | Message struct and factories |
 | `message/content_part.ex` | Multi-modal content types |

@@ -27,12 +27,30 @@ defmodule SwarmAi.LLM.Usage do
   @spec from_map(map()) :: t()
   def from_map(map) when is_map(map) do
     %__MODULE__{
-      input_tokens: Map.get(map, :input_tokens, 0),
-      output_tokens: Map.get(map, :output_tokens, 0),
-      reasoning_tokens: Map.get(map, :reasoning_tokens, 0),
-      cached_tokens: Map.get(map, :cached_tokens, 0)
+      input_tokens:
+        usage_value(map, [:input_tokens, "input_tokens", :prompt_tokens, "prompt_tokens"]),
+      output_tokens:
+        usage_value(map, [
+          :output_tokens,
+          "output_tokens",
+          :completion_tokens,
+          "completion_tokens"
+        ]),
+      reasoning_tokens:
+        usage_value(map, [:reasoning_tokens, "reasoning_tokens", :reasoning, "reasoning"]),
+      cached_tokens:
+        usage_value(map, [:cached_tokens, "cached_tokens", :cached_input, "cached_input"])
     }
   end
+
+  defp usage_value(map, keys) do
+    keys
+    |> Enum.find_value(&Map.get(map, &1))
+    |> normalize_usage_value()
+  end
+
+  defp normalize_usage_value(value) when is_integer(value) and value >= 0, do: value
+  defp normalize_usage_value(_value), do: 0
 
   @doc """
   Returns the total token count (input + output + reasoning).

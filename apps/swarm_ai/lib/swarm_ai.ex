@@ -43,8 +43,8 @@ defmodule SwarmAi do
 
   """
 
+  alias SwarmAi.LLM.Response
   alias SwarmAi.{Loop, Message, Telemetry, ToolResult}
-  alias SwarmAi.LLM.{Chunk, Response}
 
   import SwarmAi.Message, only: [is_message: 1]
 
@@ -86,7 +86,7 @@ defmodule SwarmAi do
   """
   @type streaming_opts :: [
           {:tool_executor, tool_executor()}
-          | {:on_chunk, (Chunk.t() -> any())}
+          | {:on_chunk, (ReqLLM.StreamChunk.t() -> any())}
           | {:on_response, (Response.t() -> any())}
           | {:on_tool_call, (SwarmAi.ToolCall.t() -> any())}
           | {:metadata, map()}
@@ -162,14 +162,7 @@ defmodule SwarmAi do
               {{:paused, halt_reason}, :paused, length(halted_loop.steps), nil}
 
             %Loop{} = final_loop ->
-              r =
-                case final_loop.status do
-                  :completed -> {:ok, final_loop.result, loop.id}
-                  :failed -> {:error, final_loop.error, loop.id}
-                  other -> {:error, {:unexpected_status, other}, loop.id}
-                end
-
-              {r, final_loop.status, length(final_loop.steps), final_loop.result}
+              streaming_result(final_loop, loop.id)
           end
 
         # Include loop_id, metadata, and output in stop metadata
@@ -207,15 +200,28 @@ defmodule SwarmAi do
           | {:error, term(), SwarmAi.Id.t()}
   def run_blocking(agent, message, tool_executor) when is_function(tool_executor, 1) do
     batch_executor = fn tool_calls ->
-      Enum.map(tool_calls, fn tc ->
-        case tool_executor.(tc) do
-          {:ok, content} -> ToolResult.make(tc.id, content, false)
-          {:error, reason} -> ToolResult.make(tc.id, to_string(reason), true)
-        end
-      end)
+      Enum.map(tool_calls, &to_blocking_tool_result(tool_executor, &1))
     end
 
     run_streaming(agent, message, tool_executor: batch_executor)
+  end
+
+  defp streaming_result(%Loop{} = final_loop, loop_id) do
+    result =
+      case final_loop.status do
+        :completed -> {:ok, final_loop.result, loop_id}
+        :failed -> {:error, final_loop.error, loop_id}
+        other -> {:error, {:unexpected_status, other}, loop_id}
+      end
+
+    {result, final_loop.status, length(final_loop.steps), final_loop.result}
+  end
+
+  defp to_blocking_tool_result(tool_executor, tc) do
+    case tool_executor.(tc) do
+      {:ok, content} -> ToolResult.make(tc.id, content, false)
+      {:error, reason} -> ToolResult.make(tc.id, to_string(reason), true)
+    end
   end
 
   # =============================================================================

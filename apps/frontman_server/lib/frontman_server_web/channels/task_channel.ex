@@ -604,39 +604,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   # --- Execution events (domain events from SwarmDispatcher via PubSub) ---
 
   def handle_info({:execution_event, %ExecutionEvent{type: :chunk, payload: chunk}}, socket) do
-    task_id = socket.assigns.task_id
-
-    socket =
-      case chunk do
-        %{type: :token, text: text} when is_binary(text) and text != "" ->
-          notification =
-            ACP.build_agent_message_chunk_notification(task_id, text, DateTime.utc_now())
-
-          push(socket, @acp_message, notification)
-          socket
-
-        %{type: :tool_call_start, tool_call_id: id, tool_call_name: name}
-        when is_binary(id) and is_binary(name) ->
-          notification =
-            ACP.tool_call_create(
-              task_id,
-              id,
-              name,
-              "other",
-              DateTime.utc_now(),
-              ACP.tool_call_status_pending()
-            )
-
-          push(socket, @acp_message, notification)
-
-          announced = socket.assigns[:announced_tool_calls] || MapSet.new()
-          assign(socket, :announced_tool_calls, MapSet.put(announced, id))
-
-        _ ->
-          socket
-      end
-
-    {:noreply, socket}
+    {:noreply, handle_execution_chunk(socket, chunk)}
   end
 
   def handle_info({:execution_event, %ExecutionEvent{} = event}, socket) do
@@ -667,7 +635,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
 
     # Only send tool_call_create if we haven't already announced this tool call
-    # via the streaming :tool_call_start event (which fires earlier during LLM streaming).
+    # via the streaming :tool_call event (which fires earlier during LLM streaming).
     announced = socket.assigns[:announced_tool_calls] || MapSet.new()
 
     unless MapSet.member?(announced, tool_call.tool_call_id) do
@@ -769,6 +737,51 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info(msg, _socket) do
     raise "Unhandled message in TaskChannel: #{inspect(msg)}"
+  end
+
+  defp handle_execution_chunk(socket, %{type: :content, text: text})
+       when is_binary(text) and text != "" do
+    task_id = socket.assigns.task_id
+    notification = ACP.build_agent_message_chunk_notification(task_id, text, DateTime.utc_now())
+    push(socket, @acp_message, notification)
+    socket
+  end
+
+  defp handle_execution_chunk(socket, %{type: :tool_call, name: name, metadata: metadata})
+       when is_binary(name) and is_map(metadata) do
+    case extract_tool_call_id(metadata) do
+      id when is_binary(id) -> maybe_announce_stream_tool_call(socket, id, name)
+      _other -> socket
+    end
+  end
+
+  defp handle_execution_chunk(socket, _chunk), do: socket
+
+  defp extract_tool_call_id(metadata), do: metadata[:id] || metadata["id"]
+
+  defp maybe_announce_stream_tool_call(socket, id, name) do
+    announced = socket.assigns[:announced_tool_calls] || MapSet.new()
+
+    case MapSet.member?(announced, id) do
+      true ->
+        socket
+
+      false ->
+        task_id = socket.assigns.task_id
+
+        notification =
+          ACP.tool_call_create(
+            task_id,
+            id,
+            name,
+            "other",
+            DateTime.utc_now(),
+            ACP.tool_call_status_pending()
+          )
+
+        push(socket, @acp_message, notification)
+        assign(socket, :announced_tool_calls, MapSet.put(announced, id))
+    end
   end
 
   defp handle_invalid_acp_message(reason, payload, socket) do

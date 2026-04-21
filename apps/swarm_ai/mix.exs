@@ -41,6 +41,7 @@ defmodule SwarmAi.MixProject do
       {:jason, "~> 1.2"},
       {:uuidv7, "~> 1.0"},
       {:telemetry, "~> 1.0"},
+      {:req_llm, github: "agentjido/req_llm"},
       # Dev/Test
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},

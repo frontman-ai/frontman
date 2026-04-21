@@ -6,16 +6,22 @@ defmodule SwarmAi.MaxTokensTruncationTest do
 
   use SwarmAi.Testing, async: true
 
-  alias SwarmAi.LLM.{Chunk, Response, Usage}
+  alias ReqLLM.StreamChunk
+  alias SwarmAi.LLM.{Response, Usage}
 
   describe "max_tokens truncation during tool call" do
     test "Response.from_stream with :length and pending tool calls returns :length finish_reason" do
       # Simulates max_tokens hit mid-tool-use: tool call started, partial JSON, then :length
       stream = [
-        Chunk.tool_call_start("tc_1", "write_file", 0),
-        Chunk.tool_call_args(0, "{\"path\": \"foo.md\", \"content\": \"# Title\\n\\nSome long con"),
-        Chunk.usage(%Usage{input_tokens: 1000, output_tokens: 16_384}),
-        Chunk.done(:length)
+        StreamChunk.tool_call("write_file", %{}, %{id: "tc_1", index: 0}),
+        StreamChunk.meta(%{
+          tool_call_args: %{
+            index: 0,
+            fragment: "{\"path\": \"foo.md\", \"content\": \"# Title\\n\\nSome long con"
+          }
+        }),
+        StreamChunk.meta(%{usage: %{input_tokens: 1000, output_tokens: 16_384}}),
+        StreamChunk.meta(%{finish_reason: :length})
       ]
 
       response = Response.from_stream(stream)
@@ -36,18 +42,23 @@ defmodule SwarmAi.MaxTokensTruncationTest do
         arguments: "{\"path\": \"foo.md\", \"content\": \"truncated..."
       }
 
-      llm = mock_llm({:ok, %SwarmAi.LLM.Response{
-        content: "",
-        tool_calls: [truncated_tc],
-        finish_reason: :length,
-        usage: %Usage{input_tokens: 1000, output_tokens: 16_384}
-      }})
+      llm =
+        mock_llm(
+          {:ok,
+           %SwarmAi.LLM.Response{
+             content: "",
+             tool_calls: [truncated_tc],
+             finish_reason: :length,
+             usage: %Usage{input_tokens: 1000, output_tokens: 16_384}
+           }}
+        )
 
       agent = test_agent(llm, "TruncationTestAgent")
 
-      result = SwarmAi.run_blocking(agent, "Write a long file", fn _tc ->
-        {:error, "should not be called — truncated tool call"}
-      end)
+      result =
+        SwarmAi.run_blocking(agent, "Write a long file", fn _tc ->
+          {:error, "should not be called — truncated tool call"}
+        end)
 
       # The loop should detect :length + tool calls and fail, not execute the broken tool
       assert {:error, reason, _loop_id} = result

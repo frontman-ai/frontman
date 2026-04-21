@@ -58,7 +58,8 @@ defmodule SwarmAi.Testing do
   end
 
   defimpl SwarmAi.LLM, for: SwarmAi.Testing.MockLLM do
-    alias SwarmAi.LLM.{Chunk, Usage}
+    alias ReqLLM.StreamChunk
+    alias SwarmAi.LLM.Usage
 
     def stream(%{response: response, delay_ms: delay}, _messages, _opts) do
       if delay > 0, do: Process.sleep(delay)
@@ -87,25 +88,54 @@ defmodule SwarmAi.Testing do
 
       chunks =
         if response.content && response.content != "",
-          do: [Chunk.token(response.content) | chunks],
+          do: [StreamChunk.text(response.content) | chunks],
           else: chunks
 
       chunks =
-        Enum.reduce(response.tool_calls || [], chunks, fn tc, acc ->
-          [Chunk.tool_call_end(tc) | acc]
+        Enum.reduce(Enum.with_index(response.tool_calls || []), chunks, fn {tc, index}, acc ->
+          [to_stream_chunk_tool_call(tc, index) | acc]
         end)
 
       chunks =
-        if response.usage, do: [Chunk.usage(to_usage(response.usage)) | chunks], else: chunks
+        if response.usage,
+          do: [StreamChunk.meta(%{usage: to_usage_map(response.usage)}) | chunks],
+          else: chunks
 
-      chunks = [Chunk.done(response.finish_reason || :stop) | chunks]
+      chunks = [StreamChunk.meta(%{finish_reason: response.finish_reason || :stop}) | chunks]
       Enum.reverse(chunks)
     end
 
-    defp to_usage(%Usage{} = u), do: u
+    defp to_stream_chunk_tool_call(%SwarmAi.ToolCall{} = tc, index) do
+      args =
+        case tc.arguments do
+          arguments when is_map(arguments) ->
+            arguments
 
-    defp to_usage(%{input_tokens: i, output_tokens: o}),
-      do: %Usage{input_tokens: i, output_tokens: o}
+          arguments when is_binary(arguments) ->
+            case Jason.decode(arguments) do
+              {:ok, decoded} when is_map(decoded) -> decoded
+              _other -> %{}
+            end
+
+          _other ->
+            %{}
+        end
+
+      StreamChunk.tool_call(tc.name, args, %{id: tc.id, index: index})
+    end
+
+    defp to_usage_map(%Usage{} = usage) do
+      %{
+        input_tokens: usage.input_tokens,
+        output_tokens: usage.output_tokens,
+        reasoning_tokens: usage.reasoning_tokens,
+        cached_tokens: usage.cached_tokens
+      }
+    end
+
+    defp to_usage_map(%{input_tokens: i, output_tokens: o}) do
+      %{input_tokens: i, output_tokens: o, reasoning_tokens: 0, cached_tokens: 0}
+    end
 
     defp default_usage, do: %{input_tokens: 10, output_tokens: 5}
   end
@@ -118,7 +148,7 @@ defmodule SwarmAi.Testing do
   end
 
   defimpl SwarmAi.LLM, for: SwarmAi.Testing.EchoLLM do
-    alias SwarmAi.LLM.{Chunk, Usage}
+    alias ReqLLM.StreamChunk
 
     def stream(_client, messages, _opts) do
       user_msg = Enum.find(messages, &match?(%SwarmAi.Message.User{}, &1))
@@ -126,9 +156,9 @@ defmodule SwarmAi.Testing do
       content = "Echo: #{text_content}"
 
       chunks = [
-        Chunk.token(content),
-        Chunk.usage(%Usage{input_tokens: 5, output_tokens: 3}),
-        Chunk.done(:stop)
+        StreamChunk.text(content),
+        StreamChunk.meta(%{usage: %{input_tokens: 5, output_tokens: 3}}),
+        StreamChunk.meta(%{finish_reason: :stop})
       ]
 
       {:ok, chunks}
@@ -162,8 +192,7 @@ defmodule SwarmAi.Testing do
 
   defimpl SwarmAi.LLM, for: SwarmAi.Testing.StreamErrorLLM do
     def stream(%{error_message: message}, _messages, _opts) do
-      # Return a lazy stream that raises when consumed, matching
-      # the real LLMClient.to_swarm_chunk(%{type: :error, text: text}) behavior
+      # Return a lazy stream that raises when consumed.
       error_stream =
         Stream.resource(
           fn -> :init end,
@@ -186,7 +215,7 @@ defmodule SwarmAi.Testing do
   end
 
   defimpl SwarmAi.LLM, for: SwarmAi.Testing.StallingLLM do
-    alias SwarmAi.LLM.Chunk
+    alias ReqLLM.StreamChunk
 
     def stream(%{chunks_before_stall: n}, _messages, _opts) do
       stall_stream =
@@ -194,7 +223,7 @@ defmodule SwarmAi.Testing do
           fn -> 0 end,
           fn
             count when count < n ->
-              {[Chunk.token("chunk-#{count}")], count + 1}
+              {[StreamChunk.text("chunk-#{count}")], count + 1}
 
             _count ->
               # Hang forever — simulates a stalled provider
@@ -243,6 +272,7 @@ defmodule SwarmAi.Testing do
   using do
     quote do
       import SwarmAi.Testing
+      alias SwarmAi.LLM
       alias SwarmAi.Testing.EchoLLM
       alias SwarmAi.Testing.ErrorLLM
       alias SwarmAi.Testing.MockLLM
@@ -250,7 +280,6 @@ defmodule SwarmAi.Testing do
       alias SwarmAi.Testing.StreamErrorLLM
       alias SwarmAi.Testing.StreamTimeoutLLM
       alias SwarmAi.Testing.TestAgent
-      alias SwarmAi.LLM
       alias SwarmAi.ToolCall
       alias SwarmAi.ToolResult
     end
