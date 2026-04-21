@@ -1,816 +1,179 @@
 ---
 // /vs/v0 — Frontman vs v0 Comparison Page
-// Targets "v0 alternative open source" queries (overcrowded space, 6+ tools)
 // Key angle: v0 generates new UI in a sandbox, Frontman edits your real codebase in the browser.
 
-// Components
-import Layout from '../../layouts/Layout.astro'
-import Button from '../../components/ui/Button.astro'
-import ComparisonDisclosure from '../../components/ui/ComparisonDisclosure.astro'
+import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import type {
+  Alternative,
+  ComparisonFeature,
+  CompetitorInfo,
+  FAQ,
+  SEOInfo,
+} from '../../layouts/ComparisonLayout.astro'
 
-// SEO
-const SEO = {
-	title: 'Frontman vs v0 (2026) — Open-Source Alternative for Real Codebases',
-	description:
-		'v0 generates new UI in a sandbox. Frontman edits your real codebase in the browser — free, open-source, BYOK. Feature matrix, pricing, and architecture compared.'
+const seo: SEOInfo = {
+  title: 'Frontman vs v0 (2026) — Open-Source Alternative for Real Codebases',
+  description:
+    'v0 generates new UI in a sandbox. Frontman edits your real codebase in the browser — free, open-source, BYOK. Feature matrix, pricing, and architecture compared.',
 }
 
-// Comparison data
-type Status = 'yes' | 'no' | 'partial'
-
-type Feature = {
-	name: string
-	frontman: Status
-	v0: Status
-	frontmanNote?: string
-	v0Note?: string
+const competitor: CompetitorInfo = {
+  name: 'v0',
+  slug: 'v0',
+  url: 'https://v0.dev',
+  category: 'DesignApplication',
+  description:
+    'AI-powered UI generation tool by Vercel for creating new apps/components from prompts, often in a sandboxed workflow.',
+  pricing: {
+    cost: '$0–$100/mo',
+    model: 'Credit-based, proprietary',
+    features: [
+      'Free: $5 credits/month, 7 messages/day',
+      'Premium: $20/month, $20 credits + $2 daily bonus',
+      'Team: $30/user/month, shared credits',
+      'Business: $100/user/month, training opt-out',
+      'Additional credits purchasable on-demand',
+    ],
+  },
 }
 
-const features: Feature[] = [
-	{ name: 'Edits your real codebase', frontman: 'yes', v0: 'no', frontmanNote: 'Edits actual source files in your project', v0Note: 'Generates code in a sandboxed environment' },
-	{ name: 'Sees live DOM & styles', frontman: 'yes', v0: 'partial', frontmanNote: 'Browser-side MCP server inspects your running app', v0Note: 'Sees its own sandbox preview, not your app' },
-	{ name: 'Click-to-select elements', frontman: 'yes', v0: 'yes', frontmanNote: 'In your running app', v0Note: 'In the sandbox preview (Design Mode)' },
-	{ name: 'Works with existing projects', frontman: 'yes', v0: 'partial', frontmanNote: 'Designed for existing codebases', v0Note: 'Can import repos via GitHub sync, but primary workflow is new generation' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', v0: 'yes', frontmanNote: 'Instant via your framework\'s HMR', v0Note: 'Instant in sandbox preview' },
-	{ name: 'Generate UI from scratch', frontman: 'no', v0: 'yes', v0Note: 'Core workflow: prompt to full UI' },
-	{ name: 'Deploy to production', frontman: 'no', v0: 'yes', v0Note: 'One-click deploy to Vercel' },
-	{ name: 'Figma import', frontman: 'no', v0: 'yes', v0Note: 'Import Figma designs and convert to code' },
-	{ name: 'Framework-aware middleware', frontman: 'yes', v0: 'no', frontmanNote: 'Hooks into Next.js, Astro, Vite runtime', v0Note: 'Generates framework code but doesn\'t integrate into your dev server' },
-	{ name: 'Server-side context', frontman: 'yes', v0: 'no', frontmanNote: 'Routes, server logs, query timing', v0Note: 'Client-side sandbox only' },
-	{ name: 'Component tree access', frontman: 'yes', v0: 'no', frontmanNote: 'React fiber, Vue reactivity, Svelte tree', v0Note: 'Generates components, doesn\'t inspect your existing tree' },
-	{ name: 'Computed CSS inspection', frontman: 'yes', v0: 'no', frontmanNote: 'Runtime values from your real app', v0Note: 'CSS in generated output only' },
-	{ name: 'Designer/PM friendly', frontman: 'yes', v0: 'yes', frontmanNote: 'No IDE needed — works in your browser', v0Note: 'No IDE needed — works in v0.dev' },
-	{ name: 'Open source', frontman: 'yes', v0: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', v0Note: 'Proprietary SaaS' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', v0: 'no', frontmanNote: 'Any LLM provider', v0Note: 'Uses Vercel\'s own models (v0 Mini, Pro, Max)' },
-	{ name: 'Self-hostable', frontman: 'yes', v0: 'no', frontmanNote: 'Everything runs locally', v0Note: 'Cloud service only' },
-	{ name: 'Works offline (with local LLM)', frontman: 'yes', v0: 'no', frontmanNote: 'BYOK includes local models via OpenRouter', v0Note: 'Requires internet' },
+const features: ComparisonFeature[] = [
+  { name: 'Edits your real codebase', frontman: 'yes', competitor: 'no', frontmanNote: 'Edits actual source files in your project', competitorNote: 'Generates code in a sandboxed environment' },
+  { name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'partial', frontmanNote: 'Browser-side MCP server inspects your running app', competitorNote: 'Sees its own sandbox preview, not your app' },
+  { name: 'Click-to-select elements', frontman: 'yes', competitor: 'yes', frontmanNote: 'In your running app', competitorNote: 'In the sandbox preview (Design Mode)' },
+  { name: 'Works with existing projects', frontman: 'yes', competitor: 'partial', frontmanNote: 'Designed for existing codebases', competitorNote: 'Can import repos via GitHub sync, but primary workflow is new generation' },
+  { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Instant via your framework\'s HMR', competitorNote: 'Instant in sandbox preview' },
+  { name: 'Generate UI from scratch', frontman: 'no', competitor: 'yes', competitorNote: 'Core workflow: prompt to full UI' },
+  { name: 'Deploy to production', frontman: 'no', competitor: 'yes', competitorNote: 'One-click deploy to Vercel' },
+  { name: 'Figma import', frontman: 'no', competitor: 'yes', competitorNote: 'Import Figma designs and convert to code' },
+  { name: 'Framework-aware middleware', frontman: 'yes', competitor: 'no', frontmanNote: 'Hooks into Next.js, Astro, Vite runtime', competitorNote: 'Generates framework code but doesn\'t integrate into your dev server' },
+  { name: 'Server-side context', frontman: 'yes', competitor: 'no', frontmanNote: 'Routes, server logs, query timing', competitorNote: 'Client-side sandbox only' },
+  { name: 'Component tree access', frontman: 'yes', competitor: 'no', frontmanNote: 'React fiber, Vue reactivity, Svelte tree', competitorNote: 'Generates components, doesn\'t inspect your existing tree' },
+  { name: 'Computed CSS inspection', frontman: 'yes', competitor: 'no', frontmanNote: 'Runtime values from your real app', competitorNote: 'CSS in generated output only' },
+  { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'yes', frontmanNote: 'No IDE needed — works in your browser', competitorNote: 'No IDE needed — works in v0.dev' },
+  { name: 'Open source', frontman: 'yes', competitor: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', competitorNote: 'Proprietary SaaS' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', frontmanNote: 'Any LLM provider', competitorNote: 'Uses Vercel\'s own models (v0 Mini, Pro, Max)' },
+  { name: 'Self-hostable', frontman: 'yes', competitor: 'no', frontmanNote: 'Everything runs locally', competitorNote: 'Cloud service only' },
+  { name: 'Works offline (with local LLM)', frontman: 'yes', competitor: 'no', frontmanNote: 'BYOK includes local models via OpenRouter', competitorNote: 'Requires internet' },
 ]
 
-function statusLabel(status: Status): string {
-	switch (status) {
-		case 'yes': return 'Yes'
-		case 'no': return 'No'
-		case 'partial': return 'Partial'
-	}
-}
-
-// FAQ data for JSON-LD
-const faqs = [
-	{
-		question: 'Is Frontman an open-source alternative to v0?',
-		answer: 'They solve different problems. v0 (v0.dev) is a generative UI tool — you describe what you want, it builds new UI in a sandbox, and you deploy it. Frontman (frontman.sh) is an AI coding agent for editing existing codebases — you click elements in your running app, describe changes, and it edits the actual source files. Frontman is open-source (Apache 2.0 client, AGPL-3.0 server) and free with BYOK. If you\'re starting from scratch, v0 is faster. If you\'re editing an existing app, Frontman is the right tool.'
-	},
-	{
-		question: 'Can Frontman generate UI from scratch like v0?',
-		answer: 'No. Frontman is designed for editing existing codebases, not generating new projects from prompts. Its strength is visual editing: click an element in your running app, describe what you want changed, and the AI edits the source code with full browser context. If you need to generate a landing page or component from a text description, v0 is the better tool. If you need to modify your existing Next.js app\'s UI with AI that can see the rendered result, Frontman is the better tool.'
-	},
-	{
-		question: 'Can I use v0 and Frontman together?',
-		answer: 'Yes, and this is a natural workflow. Use v0 to generate initial UI components or prototypes, then bring them into your real project. Once the code is in your codebase, use Frontman to iterate on it visually — clicking elements, adjusting styles, fixing responsive issues — with the AI seeing how your real app renders, not a sandbox preview.'
-	},
-	{
-		question: 'What does Frontman see that v0 does not?',
-		answer: 'Frontman integrates with your framework (Next.js, Astro, Vite) as middleware and runs a browser-side MCP server. It sees your real app\'s live DOM, computed CSS, component tree with props and state, server-side routes and logs, and actual viewport behavior. v0 works in a sandboxed environment — it sees its own generated preview but has no access to your existing codebase\'s runtime, component tree, or server-side context.'
-	},
-	{
-		question: 'Is Frontman really free compared to v0?',
-		answer: 'Yes. v0\'s free tier gives you $5 of credits per month with a 7-message daily limit. Premium is $20/month, Team is $30/user/month. Frontman is completely free to self-host — you bring your own API keys and pay your LLM provider directly. There are no message limits, no credit system, and no monthly subscription from Frontman itself.'
-	},
-	{
-		question: 'Which tool is better for designers?',
-		answer: 'It depends on the workflow. v0 is better for generating new UI from descriptions or Figma imports — designers can describe what they want and get working code. Frontman is better for iterating on existing UI — designers can click elements in the running app and describe visual changes without opening an IDE. v0 creates; Frontman refines.'
-	}
+const faqs: FAQ[] = [
+  {
+    question: 'Is Frontman an open-source alternative to v0?',
+    answer:
+      'They solve different problems. v0 (v0.dev) is a generative UI tool — you describe what you want, it builds new UI in a sandbox, and you deploy it. Frontman (frontman.sh) is an AI coding agent for editing existing codebases — you click elements in your running app, describe changes, and it edits the actual source files. Frontman is open-source (Apache 2.0 client, AGPL-3.0 server) and free with BYOK. If you\'re starting from scratch, v0 is faster. If you\'re editing an existing app, Frontman is the right tool.',
+  },
+  {
+    question: 'Can Frontman generate UI from scratch like v0?',
+    answer:
+      'No. Frontman is designed for editing existing codebases, not generating new projects from prompts. Its strength is visual editing: click an element in your running app, describe what you want changed, and the AI edits the source code with full browser context. If you need to generate a landing page or component from a text description, v0 is the better tool. If you need to modify your existing Next.js app\'s UI with AI that can see the rendered result, Frontman is the better tool.',
+  },
+  {
+    question: 'Can I use v0 and Frontman together?',
+    answer:
+      'Yes, and this is a natural workflow. Use v0 to generate initial UI components or prototypes, then bring them into your real project. Once the code is in your codebase, use Frontman to iterate on it visually — clicking elements, adjusting styles, fixing responsive issues — with the AI seeing how your real app renders, not a sandbox preview.',
+  },
+  {
+    question: 'What does Frontman see that v0 does not?',
+    answer:
+      'Frontman integrates with your framework (Next.js, Astro, Vite) as middleware and runs a browser-side MCP server. It sees your real app\'s live DOM, computed CSS, component tree with props and state, server-side routes and logs, and actual viewport behavior. v0 works in a sandboxed environment — it sees its own generated preview but has no access to your existing codebase\'s runtime, component tree, or server-side context.',
+  },
+  {
+    question: 'Is Frontman really free compared to v0?',
+    answer:
+      'Yes. v0\'s free tier gives you $5 of credits per month with a 7-message daily limit. Premium is $20/month, Team is $30/user/month. Frontman is completely free to self-host — you bring your own API keys and pay your LLM provider directly. There are no message limits, no credit system, and no monthly subscription from Frontman itself.',
+  },
+  {
+    question: 'Which tool is better for designers?',
+    answer:
+      'It depends on the workflow. v0 is better for generating new UI from descriptions or Figma imports — designers can describe what they want and get working code. Frontman is better for iterating on existing UI — designers can click elements in the running app and describe visual changes without opening an IDE. v0 creates; Frontman refines.',
+  },
 ]
 
-// FAQPage JSON-LD
-const faqJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "FAQPage",
-	"mainEntity": faqs.map((faq) => ({
-		"@type": "Question",
-		"name": faq.question,
-		"acceptedAnswer": {
-			"@type": "Answer",
-			"text": faq.answer
-		}
-	}))
-}
+const alternatives: Alternative[] = [
+  { name: 'Frontman', slug: '', oneLiner: 'Visual editing in your real app with runtime context and source-level diffs.' },
+  { name: 'Bolt.new', slug: 'bolt', oneLiner: 'Prompt-to-app generation in a sandbox for rapid prototyping and greenfield starts.' },
+  { name: 'Lovable', slug: 'lovable', oneLiner: 'Generative app builder for non-coders with hosted infrastructure.' },
+  { name: 'Onlook', slug: 'onlook', oneLiner: 'Figma-like visual editor that outputs code in a sandbox workflow.' },
+  { name: 'Stagewise', slug: 'stagewise', oneLiner: 'Browser overlay to feed context into IDE agents.' },
+]
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
-	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
-	<!-- Hero / AI-Citable Summary (GEO Lead) -->
-	<section class="hero-section">
-		<div class="hero-container">
-			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs v0</h1>
-			<p class="hero-subtitle">Edit Your Real App vs Generate New UI</p>
+<ComparisonLayout
+  seo={seo}
+  competitor={competitor}
+  heroTitle="Frontman vs v0"
+  heroSubtitle="Edit Your Real App vs Generate New UI"
+  features={features}
+  faqs={faqs}
+  alternatives={alternatives}
+>
+  <Fragment slot="hero-summary">
+    <p>
+      <a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://v0.dev" class="text-link" rel="nofollow">v0</a> both use AI to help with frontend development, but they do opposite things. v0 generates new UI from text prompts in a sandboxed environment. Frontman edits your existing codebase by interacting with your running app in the browser.
+    </p>
+    <p>
+      <strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It sees the live DOM, component tree, computed CSS, and server-side context. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload. Free and unlimited — you bring your own API keys.
+    </p>
+    <p>
+      <strong>v0</strong> is Vercel's AI-powered UI generation tool. You describe what you want — or import a Figma design — and v0 generates a working app with React, Next.js, Tailwind, and shadcn/ui. It includes a visual Design Mode for clicking and editing generated output, GitHub sync, and one-click Vercel deploy. Credit-based pricing starting at $0/month (7 messages/day).
+    </p>
+    <p class="summary-emphasis">
+      The core difference: v0 creates new things. Frontman changes existing things. Use v0 to prototype, use Frontman to iterate on your real app.
+    </p>
+  </Fragment>
 
-			<div class="hero-summary">
-				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://v0.dev" class="text-link" rel="nofollow">v0</a> both use AI to help with frontend development, but they do opposite things. v0 generates new UI from text prompts in a sandboxed environment. Frontman edits your existing codebase by interacting with your running app in the browser.
-				</p>
-				<p>
-					<strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It sees the live DOM, component tree, computed CSS, and server-side context. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload. Free and unlimited — you bring your own API keys.
-				</p>
-				<p>
-					<strong>v0</strong> is Vercel's AI-powered UI generation tool. You describe what you want — or import a Figma design — and v0 generates a working app with React, Next.js, Tailwind, and shadcn/ui. It includes a visual Design Mode for clicking and editing generated output, GitHub sync, and one-click Vercel deploy. Credit-based pricing starting at $0/month (7 messages/day).
-				</p>
-				<p class="summary-emphasis">
-					The core difference: v0 creates new things. Frontman changes existing things. Use v0 to prototype, use Frontman to iterate on your real app.
-				</p>
-			</div>
-			<ComparisonDisclosure competitor="v0" />
-		</div>
-	</section>
+  <Fragment slot="competitor-strengths">
+    <p>v0 is the most popular generative UI tool right now, and the fastest way to go from an idea to a working frontend.</p>
+    <p><strong>Prompt-to-UI is fast.</strong> Describe what you want in plain English ("a dashboard with a sidebar, dark mode, and a chart showing monthly revenue") and v0 generates a complete, working React app. For prototyping and starting new projects, nothing is faster.</p>
+    <p><strong>Design Mode adds visual editing.</strong> v0's Design Mode lets you click elements in the generated preview and make visual changes. This is genuine click-to-edit functionality within the v0 sandbox. Frontman offers similar click-to-edit but for your actual running app, not a sandbox.</p>
+    <p>Import Figma designs and v0 generates working code that matches them. This helps designers hand off to developers on new projects. Frontman doesn't have Figma import.</p>
+    <p><strong>One-click deploy.</strong> Generated apps deploy to Vercel instantly. From idea to production URL in minutes. Frontman is a development tool, not a deployment platform.</p>
+    <p>v0 can sync with your GitHub repository, allowing generated code to flow into your existing project. This partially addresses the "sandbox vs real codebase" gap.</p>
+    <p><strong>Custom models.</strong> v0 runs its own model variants (v0 Mini, Pro, Max) optimized for UI generation. These are purpose-built for frontend code and outperform general-purpose models at that specific task.</p>
+  </Fragment>
 
-	<!-- Comparison Table -->
-	<section class="comparison-section">
-		<div class="comparison-container">
-			<h2 class="section-title">Feature Comparison</h2>
+  <Fragment slot="frontman-differentiators">
+    <p>v0 generates new UI from prompts. Frontman edits UI that already exists in your codebase. <strong>One creates. The other modifies.</strong></p>
+    <p><strong>Your real codebase, not a sandbox.</strong> When you use Frontman, you're editing the actual source files in your project. The AI sees the component tree, the CSS as the browser computed it, routing, and server state. Changes show up via hot module replacement in your actual dev server. With v0, you're working in a sandboxed environment that generates fresh code — which then needs to be integrated into your real project.</p>
+    <p><strong>Framework middleware integration.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to your component tree at the framework level (React fiber nodes, Vue reactivity, Svelte components), computed CSS from your actual stylesheets, server-side routes and logs, and source map resolution to find the exact file and line for any rendered element.</p>
+    <p>v0's sandbox doesn't know about your design system, your existing component library, your server endpoints, or your real responsive behavior at different viewports. Frontman sees all of this because it's running inside your actual app. When you ask "make this card match the other cards on the page," Frontman can inspect the other cards' actual styles.</p>
+    <p><strong>Open source and BYOK.</strong> v0 is a proprietary SaaS with credit-based pricing. Frontman's client libraries are Apache 2.0 and the server is AGPL-3.0. You bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API including local models. No credits, no message limits, no monthly fees from Frontman.</p>
+    <p><strong>Works with any component library.</strong> v0 is optimized for shadcn/ui and Tailwind. Frontman is component-library agnostic — it sees whatever your app actually renders, whether that's MUI, Chakra, Radix, custom components, or plain CSS. The browser doesn't care what library generated the DOM.</p>
+  </Fragment>
 
-			<!-- Desktop table -->
-			<div class="table-wrapper">
-				<table class="comparison-table" role="grid">
-					<thead>
-						<tr>
-							<th class="feature-header">Feature</th>
-							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">v0</th>
-						</tr>
-					</thead>
-					<tbody>
-						{features.map((feature) => (
-							<tr>
-								<td class="feature-cell">{feature.name}</td>
-								<td class={`status-cell status-cell--highlighted`} aria-label={statusLabel(feature.frontman)}>
-									<div class="status-content">
-										{feature.frontman === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.frontman === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.frontman === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
-									</div>
-								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.v0)}>
-									<div class="status-content">
-										{feature.v0 === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.v0 === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.v0 === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.v0Note && <span class="status-note">{feature.v0Note}</span>}
-									</div>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
+  <Fragment slot="who-should-use-competitor">
+    <p>v0 is the better choice when you're creating something new from scratch:</p>
+    <ul>
+      <li><strong>Rapid prototyping</strong> — turning ideas or requirements into working UI as fast as possible</li>
+      <li><strong>Starting new projects</strong> — generating a complete app scaffold from a description</li>
+      <li><strong>Figma-to-code workflows</strong> — converting designs into working React components</li>
+      <li><strong>Non-developers building apps</strong> — product managers, designers, and founders who need working code without writing it</li>
+      <li><strong>Quick deploys</strong> — need a working URL to share with stakeholders immediately</li>
+      <li><strong>shadcn/ui and Tailwind projects</strong> — v0 is optimized for this stack</li>
+    </ul>
+  </Fragment>
 
-			<!-- Mobile cards -->
-			<div class="mobile-cards">
-				{features.map((feature) => (
-					<div class="mobile-card">
-						<h3 class="mobile-card-title">{feature.name}</h3>
-						<div class="mobile-card-grid">
-							<div class="mobile-card-item mobile-card-item--highlighted">
-								<span class="mobile-card-tool">Frontman</span>
-								<span>
-									{feature.frontman === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.frontman === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.frontman === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-							<div class="mobile-card-item">
-								<span class="mobile-card-tool">v0</span>
-								<span>
-									{feature.v0 === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.v0 === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.v0 === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	</section>
+  <Fragment slot="who-should-use-frontman">
+    <p>Frontman is the better choice when you're working on an existing codebase:</p>
+    <ul>
+      <li><strong>Iterating on existing UI</strong> — adjusting styles, fixing responsive issues, refining layout on a real app</li>
+      <li><strong>Frontend developers on established projects</strong> — your app already exists and you need to edit it with AI that understands the context</li>
+      <li><strong>Teams where designers make UI changes</strong> — click elements in the running app, describe changes, review code diffs</li>
+      <li><strong>Any component library or CSS approach</strong> — MUI, Chakra, Tailwind, CSS Modules, styled-components — Frontman sees what renders, not what you typed</li>
+      <li><strong>Open source and vendor-independent</strong> — no cloud dependency, no credit system, BYOK, self-hostable</li>
+      <li><strong>Server-side context matters</strong> — routes, server logs, and server-side state alongside visual editing</li>
+    </ul>
+    <p>A natural workflow: use v0 to generate initial UI, bring it into your project, then use Frontman to iterate and refine visually with full browser context.</p>
+  </Fragment>
 
-	<!-- What v0 Does Well -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">What v0 Does Well</h2>
-			<div class="prose-content prose-content--dark">
-				<p>v0 is the most popular generative UI tool right now, and the fastest way to go from an idea to a working frontend.</p>
-				<p><strong>Prompt-to-UI is fast.</strong> Describe what you want in plain English ("a dashboard with a sidebar, dark mode, and a chart showing monthly revenue") and v0 generates a complete, working React app. For prototyping and starting new projects, nothing is faster.</p>
-				<p><strong>Design Mode adds visual editing.</strong> v0's Design Mode lets you click elements in the generated preview and make visual changes. This is genuine click-to-edit functionality within the v0 sandbox. Frontman offers similar click-to-edit but for your actual running app, not a sandbox.</p>
-				<p>Import Figma designs and v0 generates working code that matches them. This helps designers hand off to developers on new projects. Frontman doesn't have Figma import.</p>
-				<p><strong>One-click deploy.</strong> Generated apps deploy to Vercel instantly. From idea to production URL in minutes. Frontman is a development tool, not a deployment platform.</p>
-				<p>v0 can sync with your GitHub repository, allowing generated code to flow into your existing project. This partially addresses the "sandbox vs real codebase" gap.</p>
-				<p><strong>Custom models.</strong> v0 runs its own model variants (v0 Mini, Pro, Max) optimized for UI generation. These are purpose-built for frontend code and outperform general-purpose models at that specific task.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Where Frontman Is Different -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Where Frontman Is Different</h2>
-			<div class="prose-content">
-				<p>v0 generates new UI from prompts. Frontman edits UI that already exists in your codebase. <strong>One creates. The other modifies.</strong></p>
-
-				<p><strong>Your real codebase, not a sandbox.</strong> When you use Frontman, you're editing the actual source files in your project. The AI sees the component tree, the CSS as the browser computed it, routing, and server state. Changes show up via hot module replacement in your actual dev server. With v0, you're working in a sandboxed environment that generates fresh code — which then needs to be integrated into your real project.</p>
-
-				<p><strong>Framework middleware integration.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to your component tree at the framework level (React fiber nodes, Vue reactivity, Svelte components), computed CSS from your actual stylesheets, server-side routes and logs, and source map resolution to find the exact file and line for any rendered element.</p>
-
-				<p>v0's sandbox doesn't know about your design system, your existing component library, your server endpoints, or your real responsive behavior at different viewports. Frontman sees all of this because it's running inside your actual app. When you ask "make this card match the other cards on the page," Frontman can inspect the other cards' actual styles.</p>
-
-				<p><strong>Open source and BYOK.</strong> v0 is a proprietary SaaS with credit-based pricing. Frontman's client libraries are Apache 2.0 and the server is AGPL-3.0. You bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API including local models. No credits, no message limits, no monthly fees from Frontman.</p>
-
-				<p><strong>Works with any component library.</strong> v0 is optimized for shadcn/ui and Tailwind. Frontman is component-library agnostic — it sees whatever your app actually renders, whether that's MUI, Chakra, Radix, custom components, or plain CSS. The browser doesn't care what library generated the DOM.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use v0 -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use v0</h2>
-			<div class="prose-content prose-content--dark">
-				<p>v0 is the better choice when you're creating something new from scratch:</p>
-				<ul>
-					<li><strong>Rapid prototyping</strong> — turning ideas or requirements into working UI as fast as possible</li>
-					<li><strong>Starting new projects</strong> — generating a complete app scaffold from a description</li>
-					<li><strong>Figma-to-code workflows</strong> — converting designs into working React components</li>
-					<li><strong>Non-developers building apps</strong> — product managers, designers, and founders who need working code without writing it</li>
-					<li><strong>Quick deploys</strong> — need a working URL to share with stakeholders immediately</li>
-					<li><strong>shadcn/ui and Tailwind projects</strong> — v0 is optimized for this stack</li>
-				</ul>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use Frontman -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Who Should Use Frontman</h2>
-			<div class="prose-content">
-				<p>Frontman is the better choice when you're working on an existing codebase:</p>
-				<ul>
-					<li><strong>Iterating on existing UI</strong> — adjusting styles, fixing responsive issues, refining layout on a real app</li>
-					<li><strong>Frontend developers on established projects</strong> — your app already exists and you need to edit it with AI that understands the context</li>
-					<li><strong>Teams where designers make UI changes</strong> — click elements in the running app, describe changes, review code diffs</li>
-					<li><strong>Any component library or CSS approach</strong> — MUI, Chakra, Tailwind, CSS Modules, styled-components — Frontman sees what renders, not what you typed</li>
-					<li><strong>Open source and vendor-independent</strong> — no cloud dependency, no credit system, BYOK, self-hostable</li>
-					<li><strong>Server-side context matters</strong> — routes, server logs, and server-side state alongside visual editing</li>
-				</ul>
-				<p>A natural workflow: use v0 to generate initial UI, bring it into your project, then use Frontman to iterate and refine visually with full browser context.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Pricing -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Pricing Comparison</h2>
-			<div class="pricing-grid">
-				<div class="pricing-card pricing-card--highlighted">
-					<h3 class="pricing-name">Frontman</h3>
-					<div class="pricing-cost">Free</div>
-					<p class="pricing-model">Open source, BYOK</p>
-					<ul class="pricing-features">
-						<li>Unlimited usage, no caps or credits</li>
-						<li>Bring your own API keys (Claude, ChatGPT, OpenRouter)</li>
-						<li>Or sign in with Claude/ChatGPT subscription via OAuth</li>
-						<li>Apache 2.0 (client) / AGPL-3.0 (server)</li>
-						<li>You pay your LLM provider directly</li>
-					</ul>
-				</div>
-				<div class="pricing-card">
-					<h3 class="pricing-name">v0</h3>
-					<div class="pricing-cost">$0–$100/mo</div>
-					<p class="pricing-model">Credit-based, proprietary</p>
-					<ul class="pricing-features">
-						<li>Free: $5 credits/month, 7 messages/day</li>
-						<li>Premium: $20/month, $20 credits + $2 daily bonus</li>
-						<li>Team: $30/user/month, shared credits</li>
-						<li>Business: $100/user/month, training opt-out</li>
-						<li>Additional credits purchasable on-demand</li>
-					</ul>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<!-- FAQ -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Frequently Asked Questions</h2>
-			<div class="faq-list">
-				{faqs.map((faq) => (
-					<details class="faq-item group">
-						<summary class="faq-question">
-							<span>{faq.question}</span>
-							<span class="faq-icon">+</span>
-						</summary>
-						<div class="faq-answer">
-							<p>{faq.answer}</p>
-						</div>
-					</details>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- Related -->
-	<section class="content-section">
-		<div class="content-container">
-			<p>Part of our <a href="/blog/best-open-source-ai-coding-tools-2026/" class="text-link">best open-source AI coding tools comparison</a> covering 12 tools across CLI, IDE, and browser categories.</p>
-		</div>
-	</section>
-
-	<!-- CTA -->
-	<section class="cta-section">
-		<div class="cta-container">
-			<h2 class="cta-title">Try Frontman</h2>
-			<p class="cta-description">One command. No account. No credit card. No prompt limits.</p>
-			<div class="install-commands">
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
-					<span class="command-label">Next.js</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
-					<span class="command-label">Astro</span>
-				</div>
-			</div>
-			<div class="cta-links">
-				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
-				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
-			</div>
-		</div>
-	</section>
-</Layout>
-
-<style>
-	@reference "../../styles/global.css";
-	/* Hero */
-	.hero-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 64px;
-		display: flex;
-		justify-content: center;
-	}
-	.hero-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.hero-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #A259FF;
-		margin-bottom: 12px;
-	}
-	.hero-title {
-		font-size: 48px;
-		font-weight: 700;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		color: #fafafa;
-		margin-bottom: 8px;
-	}
-	.hero-subtitle {
-		font-size: 20px;
-		color: #71717a;
-		margin-bottom: 40px;
-	}
-	.hero-summary p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.hero-summary strong {
-		color: #fafafa;
-	}
-	.hero-summary code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.summary-emphasis {
-		color: #fafafa !important;
-		font-weight: 500;
-		border-left: 3px solid #A259FF;
-		padding-left: 16px;
-		margin-top: 24px !important;
-	}
-	.text-link {
-		color: #A259FF;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.text-link:hover {
-		color: #c084fc;
-	}
-
-	/* Comparison section */
-	.comparison-section {
-		background: #09090b;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.comparison-container {
-		max-width: 900px;
-		width: 100%;
-	}
-
-	/* Section titles */
-	.section-title {
-		font-size: 32px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 32px;
-		letter-spacing: -0.02em;
-	}
-	.section-title--dark {
-		color: #09090b;
-	}
-
-	/* Table */
-	.table-wrapper {
-		@apply hidden md:block;
-	}
-	.comparison-table {
-		@apply w-full;
-		border-collapse: separate;
-		border-spacing: 0;
-	}
-	.feature-header {
-		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
-		color: rgba(255, 255, 255, 0.4);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-	.tool-header {
-		@apply text-center text-base font-bold py-4 px-6;
-		color: rgba(255, 255, 255, 0.7);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		width: 240px;
-	}
-	.tool-header--highlighted {
-		color: #A259FF;
-		background: rgba(162, 89, 255, 0.08);
-		border-top: 3px solid #A259FF;
-		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
-	}
-	.feature-cell {
-		@apply text-left text-base py-4 px-6;
-		color: rgba(255, 255, 255, 0.9);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell {
-		@apply py-4 px-6;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell--highlighted {
-		background: rgba(162, 89, 255, 0.08);
-	}
-	.status-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: flex-start;
-	}
-	.status-note {
-		font-size: 13px;
-		color: rgba(255, 255, 255, 0.5);
-	}
-	tr:last-child .feature-cell,
-	tr:last-child .status-cell {
-		border-bottom: none;
-	}
-	.status-icon { @apply inline-block; }
-	.status-icon--yes { color: #22c55e; }
-	.status-icon--no { color: #ef4444; }
-	.status-icon--partial { color: #f59e0b; }
-
-	/* Mobile cards */
-	.mobile-cards {
-		@apply flex flex-col gap-3 md:hidden;
-	}
-	.mobile-card {
-		@apply p-4;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 12px;
-	}
-	.mobile-card-title {
-		@apply font-headings text-sm font-bold mb-3;
-		color: white;
-	}
-	.mobile-card-grid {
-		@apply grid grid-cols-2 gap-3;
-	}
-	.mobile-card-item {
-		@apply flex items-center justify-between py-2 px-3;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-	}
-	.mobile-card-item--highlighted {
-		background: rgba(162, 89, 255, 0.12);
-		border: 1px solid rgba(162, 89, 255, 0.25);
-	}
-	.mobile-card-tool {
-		@apply text-sm;
-		color: rgba(255, 255, 255, 0.6);
-	}
-	.mobile-card-item--highlighted .mobile-card-tool {
-		color: #A259FF;
-		font-weight: 600;
-	}
-
-	/* Content sections */
-	.content-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.content-section--light {
-		background: #fafafa;
-		color: #09090b;
-	}
-	.content-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.prose-content p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.prose-content--dark p {
-		color: #52525b;
-	}
-	.prose-content strong {
-		color: #fafafa;
-		font-weight: 600;
-	}
-	.prose-content--dark strong {
-		color: #09090b;
-	}
-	.prose-content code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.prose-content--dark code {
-		background: rgba(0, 0, 0, 0.06);
-	}
-	.prose-content ul {
-		list-style: none;
-		padding: 0;
-		margin: 16px 0;
-	}
-	.prose-content li {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding: 8px 0;
-		padding-left: 24px;
-		position: relative;
-	}
-	.prose-content--dark li {
-		color: #52525b;
-	}
-	.prose-content li::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 18px;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: #A259FF;
-	}
-	.prose-content li strong {
-		color: #fafafa;
-	}
-	.prose-content--dark li strong {
-		color: #09090b;
-	}
-
-	/* Pricing */
-	.pricing-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 24px;
-	}
-	.pricing-card {
-		padding: 32px;
-		border-radius: 16px;
-		border: 1px solid #e4e4e7;
-		background: white;
-	}
-	.pricing-card--highlighted {
-		border-color: #A259FF;
-		background: linear-gradient(135deg, rgba(162, 89, 255, 0.05), rgba(162, 89, 255, 0.02));
-		box-shadow: 0 0 0 1px rgba(162, 89, 255, 0.2);
-	}
-	.pricing-name {
-		font-size: 20px;
-		font-weight: 700;
-		color: #09090b;
-		margin-bottom: 8px;
-	}
-	.pricing-cost {
-		font-size: 36px;
-		font-weight: 800;
-		color: #09090b;
-		margin-bottom: 4px;
-		letter-spacing: -0.02em;
-	}
-	.pricing-card--highlighted .pricing-cost {
-		color: #A259FF;
-	}
-	.pricing-model {
-		font-size: 14px;
-		color: #71717a;
-		margin-bottom: 24px;
-	}
-	.pricing-features {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-	.pricing-features li {
-		font-size: 15px;
-		color: #52525b;
-		padding: 6px 0;
-		padding-left: 20px;
-		position: relative;
-	}
-	.pricing-features li::before {
-		content: '\2192';
-		position: absolute;
-		left: 0;
-		color: #a1a1aa;
-	}
-
-	/* FAQ */
-	.faq-list {
-		border-top: 1px solid #27272a;
-	}
-	.faq-item {
-		border-bottom: 1px solid #27272a;
-		cursor: pointer;
-	}
-	.faq-question {
-		width: 100%;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 24px 0;
-		color: #fafafa;
-		font-size: 17px;
-		font-weight: 500;
-		line-height: 1.4;
-		list-style: none;
-		transition: color 0.2s;
-	}
-	.faq-question::-webkit-details-marker { display: none; }
-	.faq-question:hover { color: #fff; }
-	.faq-question span:first-child { padding-right: 24px; }
-	.faq-icon {
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 1px solid #3f3f46;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		font-weight: 300;
-		color: #71717a;
-		transition: all 0.3s ease;
-	}
-	.group[open] .faq-icon {
-		transform: rotate(45deg);
-		background: #27272a;
-	}
-	.faq-answer p {
-		font-size: 15px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding-bottom: 24px;
-		margin: 0;
-		max-width: 620px;
-	}
-
-	/* CTA */
-	.cta-section {
-		background: #09090b;
-		border-top: 1px solid #27272a;
-		padding: 80px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.cta-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.cta-title {
-		font-size: 36px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 8px;
-		letter-spacing: -0.02em;
-	}
-	.cta-description {
-		font-size: 17px;
-		color: #71717a;
-		margin-bottom: 32px;
-	}
-	.install-commands {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 32px;
-	}
-	.install-command {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-	}
-	.install-command code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		color: #fafafa;
-	}
-	.command-prefix {
-		color: #A259FF;
-		margin-right: 8px;
-	}
-	.command-label {
-		font-size: 13px;
-		color: #71717a;
-	}
-	.cta-links {
-		display: flex;
-		align-items: center;
-		gap: 24px;
-	}
-	.cta-discord {
-		color: #71717a;
-		font-size: 15px;
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-	.cta-discord:hover {
-		color: #fafafa;
-	}
-
-	/* Responsive */
-	@media (max-width: 768px) {
-		.hero-section { padding: 48px 20px 40px; }
-		.hero-title { font-size: 32px; }
-		.hero-subtitle { font-size: 17px; margin-bottom: 24px; }
-		.section-title { font-size: 24px; }
-		.content-section { padding: 40px 20px; }
-		.comparison-section { padding: 40px 20px; }
-		.pricing-grid { grid-template-columns: 1fr; }
-		.cta-section { padding: 48px 20px; }
-		.cta-title { font-size: 28px; }
-		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
-		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
-	}
-</style>
+  <Fragment slot="post-faq">
+    <section class="flex justify-center bg-zinc-950 px-6 py-16 text-zinc-50 max-md:px-5 max-md:py-10">
+      <div class="w-full max-w-[720px]">
+        <p class="text-[17px] leading-[1.7] text-zinc-300">
+          Part of our <a href="/blog/best-open-source-ai-coding-tools-2026/" class="text-primary-500 underline underline-offset-2 transition-colors hover:text-primary-400">best open-source AI coding tools comparison</a> covering 12 tools across CLI, IDE, and browser categories.
+        </p>
+      </div>
+    </section>
+  </Fragment>
+</ComparisonLayout>

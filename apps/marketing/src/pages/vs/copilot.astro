@@ -4,800 +4,207 @@
 // Targets "copilot alternative for design teams" and "github copilot vs" queries
 // Positions Frontman as the tool that lets non-developers participate in UI iteration
 
-// Components
-import Layout from '../../layouts/Layout.astro'
 import Button from '../../components/ui/Button.astro'
-import ComparisonDisclosure from '../../components/ui/ComparisonDisclosure.astro'
+import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import type {
+  ComparisonFeature,
+  CompetitorInfo,
+  FAQ,
+  SEOInfo,
+} from '../../layouts/ComparisonLayout.astro'
 
-// SEO
-const SEO = {
-	title: 'Frontman vs GitHub Copilot (2026) — For Design System Teams',
-	description:
-		'Copilot is for developers in the IDE. Frontman is for everyone who thinks in what they see — designers, PMs, engineers doing visual work. No IDE required.'
+const seo: SEOInfo = {
+  title: 'Frontman vs GitHub Copilot (2026) — For Design System Teams',
+  description:
+    'Copilot is for developers in the IDE. Frontman is for everyone who thinks in what they see — designers, PMs, engineers doing visual work. No IDE required.',
 }
 
-// Comparison data
+const frontmanPricingFeatures = [
+  'Unlimited usage, no caps',
+  'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
+  'Or sign in with Claude/ChatGPT subscription via OAuth',
+  'Apache 2.0 (client) / AGPL-3.0 (server)',
+  'You pay your LLM provider directly',
+]
+
+const competitorPricingFeatures = [
+  'Free: 50 chats/month, 2,000 completions/month',
+  'Pro: $10/month — unlimited completions, 300 premium requests',
+  'Pro+: $39/month — 1,500 premium requests, all models',
+  'Business: $19/user/month — policy management, SSO',
+  'Enterprise: $39/user/month — custom models, IP indemnity',
+]
+
+const competitor: CompetitorInfo = {
+  name: 'GitHub Copilot',
+  slug: 'copilot',
+  url: 'https://github.com/features/copilot',
+  category: 'DeveloperApplication',
+  description:
+    'AI coding assistant integrated into IDEs and GitHub with autocomplete, chat, and agent workflows.',
+  pricing: {
+    cost: '$0–$39/mo',
+    model: 'Freemium, proprietary',
+    features: competitorPricingFeatures,
+  },
+}
+
 type Status = 'yes' | 'no' | 'partial'
 
 type Feature = {
-	name: string
-	frontman: Status
-	copilot: Status
-	frontmanNote?: string
-	copilotNote?: string
+  name: string
+  frontman: Status
+  copilot: Status
+  frontmanNote?: string
+  copilotNote?: string
 }
 
 const features: Feature[] = [
-	{ name: 'Designer/PM friendly', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE needed — click elements in the browser', copilotNote: 'Requires IDE proficiency' },
-	{ name: 'Click-to-select elements', frontman: 'yes', copilot: 'no', frontmanNote: 'Point at any component to edit it', copilotNote: 'Must describe or find in file tree' },
-	{ name: 'Works in the browser', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE or dev environment required', copilotNote: 'IDE extension (VS Code, JetBrains, etc.)' },
-	{ name: 'Sees live DOM & styles', frontman: 'yes', copilot: 'no', frontmanNote: 'Inspects the running page, not just source files', copilotNote: 'File-only context; no browser awareness' },
-	{ name: 'Sees computed CSS', frontman: 'yes', copilot: 'no', frontmanNote: 'Actual rendered values, not just class names', copilotNote: 'Reads source files only' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', copilot: 'partial', frontmanNote: 'Instant visual feedback in browser', copilotNote: 'Agent mode can trigger builds but doesn\'t see the result' },
-	{ name: 'Framework-aware', frontman: 'yes', copilot: 'partial', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', copilotNote: 'Language-level context, not framework runtime' },
-	{ name: 'Inline autocomplete', frontman: 'no', copilot: 'yes', copilotNote: 'Tab completion, multi-line predictions' },
-	{ name: 'Agent mode', frontman: 'yes', copilot: 'yes', frontmanNote: 'Browser-context agent', copilotNote: 'IDE agent with terminal, MCP, multi-file editing' },
-	{ name: 'Coding agent (async)', frontman: 'no', copilot: 'yes', copilotNote: 'Assigns issues, creates PRs autonomously' },
-	{ name: 'Multi-file refactoring', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can edit multiple files, but not primary workflow', copilotNote: 'Full cross-file edits via agent mode' },
-	{ name: 'Code review', frontman: 'no', copilot: 'yes', copilotNote: 'PR reviews on GitHub, diff reviews in IDE' },
-	{ name: 'Open source', frontman: 'yes', copilot: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', copilotNote: 'Proprietary (extension and service)' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'no', frontmanNote: 'Any LLM provider directly', copilotNote: 'Uses GitHub\'s model pool; no custom API keys' },
-	{ name: 'Self-hostable', frontman: 'yes', copilot: 'no', frontmanNote: 'Runs in your own infrastructure', copilotNote: 'Cloud service, GitHub-hosted' },
-	{ name: 'Backend coding', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', copilotNote: 'Any language, any framework' },
-	{ name: 'Multi-model choice', frontman: 'yes', copilot: 'yes', frontmanNote: 'BYOK: Claude, GPT, OpenRouter, any provider', copilotNote: 'Claude, GPT, Gemini, Grok — GitHub-hosted' },
+  { name: 'Designer/PM friendly', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE needed — click elements in the browser', copilotNote: 'Requires IDE proficiency' },
+  { name: 'Click-to-select elements', frontman: 'yes', copilot: 'no', frontmanNote: 'Point at any component to edit it', copilotNote: 'Must describe or find in file tree' },
+  { name: 'Works in the browser', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE or dev environment required', copilotNote: 'IDE extension (VS Code, JetBrains, etc.)' },
+  { name: 'Sees live DOM & styles', frontman: 'yes', copilot: 'no', frontmanNote: 'Inspects the running page, not just source files', copilotNote: 'File-only context; no browser awareness' },
+  { name: 'Sees computed CSS', frontman: 'yes', copilot: 'no', frontmanNote: 'Actual rendered values, not just class names', copilotNote: 'Reads source files only' },
+  { name: 'Hot reload feedback loop', frontman: 'yes', copilot: 'partial', frontmanNote: 'Instant visual feedback in browser', copilotNote: 'Agent mode can trigger builds but does not see the result' },
+  { name: 'Framework-aware', frontman: 'yes', copilot: 'partial', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', copilotNote: 'Language-level context, not framework runtime' },
+  { name: 'Inline autocomplete', frontman: 'no', copilot: 'yes', copilotNote: 'Tab completion, multi-line predictions' },
+  { name: 'Agent mode', frontman: 'yes', copilot: 'yes', frontmanNote: 'Browser-context agent', copilotNote: 'IDE agent with terminal, MCP, multi-file editing' },
+  { name: 'Coding agent (async)', frontman: 'no', copilot: 'yes', copilotNote: 'Assigns issues, creates PRs autonomously' },
+  { name: 'Multi-file refactoring', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can edit multiple files, but not primary workflow', copilotNote: 'Full cross-file edits via agent mode' },
+  { name: 'Code review', frontman: 'no', copilot: 'yes', copilotNote: 'PR reviews on GitHub, diff reviews in IDE' },
+  { name: 'Open source', frontman: 'yes', copilot: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', copilotNote: 'Proprietary (extension and service)' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'no', frontmanNote: 'Any LLM provider directly', copilotNote: 'Uses GitHub\'s model pool; no custom API keys' },
+  { name: 'Self-hostable', frontman: 'yes', copilot: 'no', frontmanNote: 'Runs in your own infrastructure', copilotNote: 'Cloud service, GitHub-hosted' },
+  { name: 'Backend coding', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', copilotNote: 'Any language, any framework' },
+  { name: 'Multi-model choice', frontman: 'yes', copilot: 'yes', frontmanNote: 'BYOK: Claude, GPT, OpenRouter, any provider', copilotNote: 'Claude, GPT, Gemini, Grok — GitHub-hosted' },
 ]
 
-function statusLabel(status: Status): string {
-	switch (status) {
-		case 'yes': return 'Yes'
-		case 'no': return 'No'
-		case 'partial': return 'Partial'
-	}
-}
+const comparisonFeatures: ComparisonFeature[] = features.map((feature) => ({
+  name: feature.name,
+  frontman: feature.frontman,
+  competitor: feature.copilot,
+  frontmanNote: feature.frontmanNote,
+  competitorNote: feature.copilotNote,
+}))
 
-// FAQ data for JSON-LD
-const faqs = [
-	{
-		question: 'Can designers and PMs actually use Frontman without developer help?',
-		answer: 'Yes. Frontman runs as an overlay on your existing app — no IDE, terminal, or dev environment needed. A designer or PM opens the app in their browser, clicks an element, describes what they want changed in plain English, and Frontman edits the source code. The change shows up instantly via hot reload. All edits produce real code diffs that developers review through their normal PR process. It\'s designed so non-developers can contribute UI changes without bottlenecking the engineering team.'
-	},
-	{
-		question: 'How does Frontman help teams maintain a design system?',
-		answer: 'When someone clicks a component in the browser, Frontman sees the actual rendered output — computed styles, spacing, typography — not just the source code. This means a design system lead can spot where a component deviates from the system (wrong padding, incorrect color token, mismatched font size), click it, and describe the fix. The AI sees the gap between what\'s rendered and what should be rendered, and edits the source to match. It closes the feedback loop between design intent and shipped UI without filing a ticket and waiting for a sprint.'
-	},
-	{
-		question: 'Does Frontman replace GitHub Copilot for our engineering team?',
-		answer: 'No, and it shouldn\'t. Copilot is the better tool for your developers — autocomplete, multi-file refactoring, code review, backend work. Frontman solves a different problem: letting non-developers participate in UI iteration and giving everyone browser-level context for visual changes. Most teams use both. Developers keep Copilot in their IDE. Designers, PMs, and frontend devs use Frontman in the browser when the change is visual and the AI needs to see what\'s actually rendered.'
-	},
-	{
-		question: 'Does Frontman work alongside GitHub Copilot?',
-		answer: 'Yes. Frontman runs in the browser as framework middleware (Next.js, Astro, Vite). Copilot runs in your IDE. They edit the same source files. Changes from either tool are reflected via hot reload and normal file watching. There is no conflict — they operate in completely separate environments.'
-	},
-	{
-		question: 'What does Frontman see that GitHub Copilot cannot?',
-		answer: 'Frontman integrates with your framework as a plugin and runs a browser-side MCP server. It sees the live DOM tree, computed CSS styles (actual pixel values, not just class names), the component tree with props and state, viewport layout and responsive behavior, and server-side routes and logs. Copilot reads your source files in the IDE. It knows what your code says but not what it renders. When a PM asks "make this card match the design system spacing," Frontman can measure the actual rendered spacing and fix it. Copilot would have to guess from class names.'
-	},
-	{
-		question: 'Is Frontman free? How does pricing compare to Copilot?',
-		answer: 'Yes. Copilot Free gives you 50 chat requests and 2,000 completions per month. Copilot Pro is $10/month per seat, Business is $19/user/month. Frontman is free to self-host with no per-seat pricing and no usage limits. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly. For a growing team where you want to give designers and PMs access too, there\'s no marginal cost per additional user.'
-	}
+const faqs: FAQ[] = [
+  {
+    question: 'Can designers and PMs actually use Frontman without developer help?',
+    answer:
+      'Yes. Frontman runs as an overlay on your existing app — no IDE, terminal, or dev environment needed. A designer or PM opens the app in their browser, clicks an element, describes what they want changed in plain English, and Frontman edits the source code. The change shows up instantly via hot reload. All edits produce real code diffs that developers review through their normal PR process. It is designed so non-developers can contribute UI changes without bottlenecking the engineering team.',
+  },
+  {
+    question: 'How does Frontman help teams maintain a design system?',
+    answer:
+      'When someone clicks a component in the browser, Frontman sees the actual rendered output — computed styles, spacing, typography — not just the source code. This means a design system lead can spot where a component deviates from the system (wrong padding, incorrect color token, mismatched font size), click it, and describe the fix. The AI sees the gap between what is rendered and what should be rendered, and edits the source to match. It closes the feedback loop between design intent and shipped UI without filing a ticket and waiting for a sprint.',
+  },
+  {
+    question: 'Does Frontman replace GitHub Copilot for our engineering team?',
+    answer:
+      'No, and it should not. Copilot is the better tool for your developers — autocomplete, multi-file refactoring, code review, backend work. Frontman solves a different problem: letting non-developers participate in UI iteration and giving everyone browser-level context for visual changes. Most teams use both. Developers keep Copilot in their IDE. Designers, PMs, and frontend devs use Frontman in the browser when the change is visual and the AI needs to see what is actually rendered.',
+  },
+  {
+    question: 'Does Frontman work alongside GitHub Copilot?',
+    answer:
+      'Yes. Frontman runs in the browser as framework middleware (Next.js, Astro, Vite). Copilot runs in your IDE. They edit the same source files. Changes from either tool are reflected via hot reload and normal file watching. There is no conflict — they operate in completely separate environments.',
+  },
+  {
+    question: 'What does Frontman see that GitHub Copilot cannot?',
+    answer:
+      'Frontman integrates with your framework as a plugin and runs a browser-side MCP server. It sees the live DOM tree, computed CSS styles (actual pixel values, not just class names), the component tree with props and state, viewport layout and responsive behavior, and server-side routes and logs. Copilot reads your source files in the IDE. It knows what your code says but not what it renders. When a PM asks "make this card match the design system spacing," Frontman can measure the actual rendered spacing and fix it. Copilot would have to guess from class names.',
+  },
+  {
+    question: 'Is Frontman free? How does pricing compare to Copilot?',
+    answer:
+      'Yes. Copilot Free gives you 50 chat requests and 2,000 completions per month. Copilot Pro is $10/month per seat, Business is $19/user/month. Frontman is free to self-host with no per-seat pricing and no usage limits. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly. For a growing team where you want to give designers and PMs access too, there is no marginal cost per additional user.',
+  },
 ]
-
-// FAQPage JSON-LD
-const faqJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "FAQPage",
-	"mainEntity": faqs.map((faq) => ({
-		"@type": "Question",
-		"name": faq.question,
-		"acceptedAnswer": {
-			"@type": "Answer",
-			"text": faq.answer
-		}
-	}))
-}
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
-	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+<ComparisonLayout
+  seo={seo}
+  competitor={competitor}
+  heroTitle="Frontman vs GitHub Copilot"
+  heroSubtitle="Your Whole Team Edits UI vs Developers Code Faster"
+  features={comparisonFeatures}
+  faqs={faqs}
+  frontmanPricing={{ features: frontmanPricingFeatures }}
+>
+  <Fragment slot="hero-summary">
+    <p>
+      <a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. Designers, PMs, and developers click elements in a running app, describe changes in plain English, and Frontman edits the actual source code — with hot reload showing results instantly. No IDE required. It integrates with your framework (Next.js, Astro, or Vite) as a plugin, using a browser-side MCP server to inspect the live DOM, computed styles, and component tree.
+    </p>
+    <p>
+      <a href="https://github.com/features/copilot" class="text-link" rel="nofollow">GitHub Copilot</a> is an AI coding assistant built into your IDE. It provides inline autocomplete, agent mode with multi-file editing, code review, and terminal integration. Copilot makes your developers faster across any language and framework — but it requires IDE proficiency and does not see what the app actually renders in a browser.
+    </p>
+    <p class="summary-emphasis">
+      Copilot accelerates your engineering team in the IDE. Frontman lets your entire product team — designers, PMs, and developers — iterate on UI together in the browser. Growing teams use both.
+    </p>
+  </Fragment>
 
-	<!-- Hero / AI-Citable Summary (GEO Lead) -->
-	<section class="hero-section">
-		<div class="hero-container">
-			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs GitHub Copilot</h1>
-			<p class="hero-subtitle">Your Whole Team Edits UI vs Developers Code Faster</p>
+  <Fragment slot="competitor-strengths">
+    <p>GitHub Copilot is the most widely adopted AI coding tool in the world, and for real reasons. It is the right choice for your engineering team\'s day-to-day coding work.</p>
+    <p><strong>Autocomplete accelerates developers.</strong> Copilot\'s inline suggestions predict what you are about to type — often multiple lines ahead. For raw coding speed, it is hard to beat. This is a developer productivity tool through and through.</p>
+    <p><strong>Agentic coding and code review.</strong> Copilot\'s agent can plan multi-step changes across files, run terminal commands, and create pull requests from GitHub issues. It also reviews PRs directly on GitHub. For teams on GitHub, this integration is hard to match.</p>
+    <p><strong>Any language, any framework.</strong> Python, Go, Rust, TypeScript, Java, SQL — Copilot handles your full stack. Frontman is focused on frontend frameworks (Next.js, Astro, Vite).</p>
+    <p>If your goal is to make your developers faster in the IDE, Copilot is the proven tool. The question is what happens when the people who care most about UI quality — designers, PMs, design system leads — cannot use an IDE.</p>
+  </Fragment>
 
-			<div class="hero-summary">
-				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. Designers, PMs, and developers click elements in a running app, describe changes in plain English, and Frontman edits the actual source code — with hot reload showing results instantly. No IDE required. It integrates with your framework (Next.js, Astro, or Vite) as a plugin, using a browser-side MCP server to inspect the live DOM, computed styles, and component tree.
-				</p>
-				<p>
-					<a href="https://github.com/features/copilot" class="text-link" rel="nofollow">GitHub Copilot</a> is an AI coding assistant built into your IDE. It provides inline autocomplete, agent mode with multi-file editing, code review, and terminal integration. Copilot makes your developers faster across any language and framework — but it requires IDE proficiency and doesn't see what the app actually renders in a browser.
-				</p>
-				<p class="summary-emphasis">
-					Copilot accelerates your engineering team in the IDE. Frontman lets your entire product team — designers, PMs, and developers — iterate on UI together in the browser. Growing teams use both.
-				</p>
-			</div>
-			<ComparisonDisclosure competitor="GitHub Copilot" />
-		</div>
-	</section>
+  <Fragment slot="frontman-differentiators">
+    <p>In most teams, the people closest to UI quality — designers, PMs, design system leads — cannot directly fix what they see. They file tickets, write specs, and wait. <strong>Frontman closes that gap.</strong></p>
+    <p><strong>Anyone on the team can edit UI.</strong> Frontman runs in the browser as an overlay on your running app. No IDE, no terminal, no dev environment. A designer spots a component that is off-brand — wrong spacing, incorrect color token — clicks it, describes the fix, and Frontman edits the source code. Hot reload shows the result instantly. The change goes through your normal code review process.</p>
+    <p><strong>The AI sees what is actually rendered.</strong> IDE-based tools like Copilot read source files but never see the browser. Frontman\'s browser-side MCP server inspects the live DOM, computed CSS (actual pixel values, not just class names), the component tree, and viewport behavior. When someone says "this card does not match the design system," Frontman can measure the gap between what is rendered and what should be.</p>
+    <p><strong>Click-to-edit, not file-to-edit.</strong> Instead of knowing which file to open, you point at the element. Frontman resolves the source location via source maps — the exact file, component, and line. This is the interaction model that makes it accessible to non-developers.</p>
+    <p><strong>Design system consistency at scale.</strong> When multiple teams ship UI against a shared design system, drift is inevitable. Frontman lets the people who own the system — not just the developers who implement it — spot and fix inconsistencies directly. No ticket, no sprint, no context loss.</p>
+    <p><strong>Open source, no per-seat cost.</strong> Apache 2.0 client, AGPL-3.0 server. You connect your own API keys to Claude, ChatGPT, or OpenRouter. No per-user pricing means you can give access to your whole product team without a procurement conversation for every new seat.</p>
+  </Fragment>
 
-	<!-- Comparison Table -->
-	<section class="comparison-section">
-		<div class="comparison-container">
-			<h2 class="section-title">Feature Comparison</h2>
+  <Fragment slot="who-should-use-competitor">
+    <p>Copilot is the right tool for your engineering team\'s coding workflow:</p>
+    <ul>
+      <li><strong>Your developers</strong> — autocomplete, agent mode, and code review make them faster in the IDE across any language</li>
+      <li><strong>Full-stack and backend work</strong> — Python, Go, Rust, Java, infrastructure — Copilot covers everything beyond the frontend</li>
+      <li><strong>Teams on GitHub</strong> — the platform integration (issues, PRs, code review, autonomous coding agent) is unmatched</li>
+      <li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
+    </ul>
+  </Fragment>
 
-			<!-- Desktop table -->
-			<div class="table-wrapper">
-				<table class="comparison-table" role="grid">
-					<thead>
-						<tr>
-							<th class="feature-header">Feature</th>
-							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">GitHub Copilot</th>
-						</tr>
-					</thead>
-					<tbody>
-						{features.map((feature) => (
-							<tr>
-								<td class="feature-cell">{feature.name}</td>
-								<td class={`status-cell status-cell--highlighted`} aria-label={statusLabel(feature.frontman)}>
-									<div class="status-content">
-										{feature.frontman === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.frontman === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.frontman === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
-									</div>
-								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.copilot)}>
-									<div class="status-content">
-										{feature.copilot === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.copilot === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.copilot === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.copilotNote && <span class="status-note">{feature.copilotNote}</span>}
-									</div>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
+  <Fragment slot="who-should-use-frontman">
+    <p>Frontman is built for teams where UI quality is a shared responsibility — not just a developer task:</p>
+    <ul>
+      <li><strong>Design system teams</strong> — designers and system leads can spot and fix component inconsistencies directly in the browser, without filing tickets or waiting for sprint capacity</li>
+      <li><strong>Product managers who iterate on UI</strong> — click the element, describe the change, see it live. No IDE setup, no context-switching through Figma-to-Jira-to-PR workflows</li>
+      <li><strong>Growing startups with multiple product teams</strong> — when several teams ship against a shared system, Frontman gives non-developers a way to maintain consistency without bottlenecking engineering</li>
+      <li><strong>Frontend developers who want browser context</strong> — the AI sees computed styles, rendered output, and viewport behavior, not just class names in source files</li>
+      <li><strong>Next.js, Astro, or Vite projects</strong> — deep framework plugin integration provides richer context than generic file reading</li>
+    </ul>
+    <p>Most teams use both. Copilot in the IDE for your developers. Frontman in the browser for your whole product team.</p>
+  </Fragment>
 
-			<!-- Mobile cards -->
-			<div class="mobile-cards">
-				{features.map((feature) => (
-					<div class="mobile-card">
-						<h3 class="mobile-card-title">{feature.name}</h3>
-						<div class="mobile-card-grid">
-							<div class="mobile-card-item mobile-card-item--highlighted">
-								<span class="mobile-card-tool">Frontman</span>
-								<span>
-									{feature.frontman === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.frontman === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.frontman === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-							<div class="mobile-card-item">
-								<span class="mobile-card-tool">Copilot</span>
-								<span>
-									{feature.copilot === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.copilot === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.copilot === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- What GitHub Copilot Does Well -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">What GitHub Copilot Does Well</h2>
-			<div class="prose-content prose-content--dark">
-				<p>GitHub Copilot is the most widely adopted AI coding tool in the world, and for real reasons. It's the right choice for your engineering team's day-to-day coding work.</p>
-				<p><strong>Autocomplete accelerates developers.</strong> Copilot's inline suggestions predict what you're about to type — often multiple lines ahead. For raw coding speed, it's hard to beat. This is a developer productivity tool through and through.</p>
-				<p><strong>Agentic coding and code review.</strong> Copilot's agent can plan multi-step changes across files, run terminal commands, and create pull requests from GitHub issues. It also reviews PRs directly on GitHub. For teams on GitHub, this integration is hard to match.</p>
-				<p><strong>Any language, any framework.</strong> Python, Go, Rust, TypeScript, Java, SQL — Copilot handles your full stack. Frontman is focused on frontend frameworks (Next.js, Astro, Vite).</p>
-				<p>If your goal is to make your developers faster in the IDE, Copilot is the proven tool. The question is what happens when the people who care most about UI quality — designers, PMs, design system leads — can't use an IDE.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Where Frontman Is Different -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Where Frontman Is Different</h2>
-			<div class="prose-content">
-				<p>In most teams, the people closest to UI quality — designers, PMs, design system leads — can't directly fix what they see. They file tickets, write specs, and wait. <strong>Frontman closes that gap.</strong></p>
-
-				<p><strong>Anyone on the team can edit UI.</strong> Frontman runs in the browser as an overlay on your running app. No IDE, no terminal, no dev environment. A designer spots a component that's off-brand — wrong spacing, incorrect color token — clicks it, describes the fix, and Frontman edits the source code. Hot reload shows the result instantly. The change goes through your normal code review process.</p>
-
-				<p><strong>The AI sees what's actually rendered.</strong> IDE-based tools like Copilot read source files but never see the browser. Frontman's browser-side MCP server inspects the live DOM, computed CSS (actual pixel values, not just class names), the component tree, and viewport behavior. When someone says "this card doesn't match the design system," Frontman can measure the gap between what's rendered and what should be.</p>
-
-				<p><strong>Click-to-edit, not file-to-edit.</strong> Instead of knowing which file to open, you point at the element. Frontman resolves the source location via source maps — the exact file, component, and line. This is the interaction model that makes it accessible to non-developers.</p>
-
-				<p><strong>Design system consistency at scale.</strong> When multiple teams ship UI against a shared design system, drift is inevitable. Frontman lets the people who own the system — not just the developers who implement it — spot and fix inconsistencies directly. No ticket, no sprint, no context loss.</p>
-
-				<p><strong>Open source, no per-seat cost.</strong> Apache 2.0 client, AGPL-3.0 server. You connect your own API keys to Claude, ChatGPT, or OpenRouter. No per-user pricing means you can give access to your whole product team without a procurement conversation for every new seat.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use GitHub Copilot -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use GitHub Copilot</h2>
-			<div class="prose-content prose-content--dark">
-				<p>Copilot is the right tool for your engineering team's coding workflow:</p>
-				<ul>
-					<li><strong>Your developers</strong> — autocomplete, agent mode, and code review make them faster in the IDE across any language</li>
-					<li><strong>Full-stack and backend work</strong> — Python, Go, Rust, Java, infrastructure — Copilot covers everything beyond the frontend</li>
-					<li><strong>Teams on GitHub</strong> — the platform integration (issues, PRs, code review, autonomous coding agent) is unmatched</li>
-					<li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
-				</ul>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use Frontman -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Who Should Use Frontman</h2>
-			<div class="prose-content">
-				<p>Frontman is built for teams where UI quality is a shared responsibility — not just a developer task:</p>
-				<ul>
-					<li><strong>Design system teams</strong> — designers and system leads can spot and fix component inconsistencies directly in the browser, without filing tickets or waiting for sprint capacity</li>
-					<li><strong>Product managers who iterate on UI</strong> — click the element, describe the change, see it live. No IDE setup, no context-switching through Figma-to-Jira-to-PR workflows</li>
-					<li><strong>Growing startups with multiple product teams</strong> — when several teams ship against a shared system, Frontman gives non-developers a way to maintain consistency without bottlenecking engineering</li>
-					<li><strong>Frontend developers who want browser context</strong> — the AI sees computed styles, rendered output, and viewport behavior, not just class names in source files</li>
-					<li><strong>Next.js, Astro, or Vite projects</strong> — deep framework plugin integration provides richer context than generic file reading</li>
-				</ul>
-				<p>Most teams use both. Copilot in the IDE for your developers. Frontman in the browser for your whole product team.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Pricing -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Pricing Comparison</h2>
-			<div class="pricing-grid">
-				<div class="pricing-card pricing-card--highlighted">
-					<h3 class="pricing-name">Frontman</h3>
-					<div class="pricing-cost">Free</div>
-					<p class="pricing-model">Open source, BYOK</p>
-					<ul class="pricing-features">
-						<li>Unlimited usage, no caps</li>
-						<li>Bring your own API keys (Claude, ChatGPT, OpenRouter)</li>
-						<li>Or sign in with Claude/ChatGPT subscription via OAuth</li>
-						<li>Apache 2.0 (client) / AGPL-3.0 (server)</li>
-						<li>You pay your LLM provider directly</li>
-					</ul>
-				</div>
-				<div class="pricing-card">
-					<h3 class="pricing-name">GitHub Copilot</h3>
-					<div class="pricing-cost">$0–$39/mo</div>
-					<p class="pricing-model">Freemium, proprietary</p>
-					<ul class="pricing-features">
-						<li>Free: 50 chats/month, 2,000 completions/month</li>
-						<li>Pro: $10/month — unlimited completions, 300 premium requests</li>
-						<li>Pro+: $39/month — 1,500 premium requests, all models</li>
-						<li>Business: $19/user/month — policy management, SSO</li>
-						<li>Enterprise: $39/user/month — custom models, IP indemnity</li>
-					</ul>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<!-- FAQ -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Frequently Asked Questions</h2>
-			<div class="faq-list">
-				{faqs.map((faq) => (
-					<details class="faq-item group">
-						<summary class="faq-question">
-							<span>{faq.question}</span>
-							<span class="faq-icon">+</span>
-						</summary>
-						<div class="faq-answer">
-							<p>{faq.answer}</p>
-						</div>
-					</details>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- CTA -->
-	<section class="cta-section">
-		<div class="cta-container">
-			<h2 class="cta-title">Try Frontman With Your Team</h2>
-			<p class="cta-description">Share these with your frontend developer — one command adds Frontman to your app. Then anyone on the team can start editing UI in the browser.</p>
-			<div class="install-commands">
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
-					<span class="command-label">Next.js</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
-					<span class="command-label">Astro</span>
-				</div>
-			</div>
-			<div class="cta-links">
-				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
-				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
-			</div>
-		</div>
-	</section>
-</Layout>
-
-<style>
-	@reference "../../styles/global.css";
-	/* Hero */
-	.hero-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 64px;
-		display: flex;
-		justify-content: center;
-	}
-	.hero-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.hero-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #A259FF;
-		margin-bottom: 12px;
-	}
-	.hero-title {
-		font-size: 48px;
-		font-weight: 700;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		color: #fafafa;
-		margin-bottom: 8px;
-	}
-	.hero-subtitle {
-		font-size: 20px;
-		color: #71717a;
-		margin-bottom: 40px;
-	}
-	.hero-summary p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.hero-summary strong {
-		color: #fafafa;
-	}
-	.hero-summary code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.summary-emphasis {
-		color: #fafafa !important;
-		font-weight: 500;
-		border-left: 3px solid #A259FF;
-		padding-left: 16px;
-		margin-top: 24px !important;
-	}
-	.text-link {
-		color: #A259FF;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.text-link:hover {
-		color: #c084fc;
-	}
-
-	/* Comparison section */
-	.comparison-section {
-		background: #09090b;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.comparison-container {
-		max-width: 900px;
-		width: 100%;
-	}
-
-	/* Section titles */
-	.section-title {
-		font-size: 32px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 32px;
-		letter-spacing: -0.02em;
-	}
-	.section-title--dark {
-		color: #09090b;
-	}
-
-	/* Table */
-	.table-wrapper {
-		@apply hidden md:block;
-	}
-	.comparison-table {
-		@apply w-full;
-		border-collapse: separate;
-		border-spacing: 0;
-	}
-	.feature-header {
-		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
-		color: rgba(255, 255, 255, 0.4);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-	.tool-header {
-		@apply text-center text-base font-bold py-4 px-6;
-		color: rgba(255, 255, 255, 0.7);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		width: 240px;
-	}
-	.tool-header--highlighted {
-		color: #A259FF;
-		background: rgba(162, 89, 255, 0.08);
-		border-top: 3px solid #A259FF;
-		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
-	}
-	.feature-cell {
-		@apply text-left text-base py-4 px-6;
-		color: rgba(255, 255, 255, 0.9);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell {
-		@apply py-4 px-6;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell--highlighted {
-		background: rgba(162, 89, 255, 0.08);
-	}
-	.status-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: flex-start;
-	}
-	.status-note {
-		font-size: 13px;
-		color: rgba(255, 255, 255, 0.5);
-	}
-	tr:last-child .feature-cell,
-	tr:last-child .status-cell {
-		border-bottom: none;
-	}
-	.status-icon { @apply inline-block; }
-	.status-icon--yes { color: #22c55e; }
-	.status-icon--no { color: #ef4444; }
-	.status-icon--partial { color: #f59e0b; }
-
-	/* Mobile cards */
-	.mobile-cards {
-		@apply flex flex-col gap-3 md:hidden;
-	}
-	.mobile-card {
-		@apply p-4;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 12px;
-	}
-	.mobile-card-title {
-		@apply font-headings text-sm font-bold mb-3;
-		color: white;
-	}
-	.mobile-card-grid {
-		@apply grid grid-cols-2 gap-3;
-	}
-	.mobile-card-item {
-		@apply flex items-center justify-between py-2 px-3;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-	}
-	.mobile-card-item--highlighted {
-		background: rgba(162, 89, 255, 0.12);
-		border: 1px solid rgba(162, 89, 255, 0.25);
-	}
-	.mobile-card-tool {
-		@apply text-sm;
-		color: rgba(255, 255, 255, 0.6);
-	}
-	.mobile-card-item--highlighted .mobile-card-tool {
-		color: #A259FF;
-		font-weight: 600;
-	}
-
-	/* Content sections */
-	.content-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.content-section--light {
-		background: #fafafa;
-		color: #09090b;
-	}
-	.content-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.prose-content p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.prose-content--dark p {
-		color: #52525b;
-	}
-	.prose-content strong {
-		color: #fafafa;
-		font-weight: 600;
-	}
-	.prose-content--dark strong {
-		color: #09090b;
-	}
-	.prose-content code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.prose-content--dark code {
-		background: rgba(0, 0, 0, 0.06);
-	}
-	.prose-content ul {
-		list-style: none;
-		padding: 0;
-		margin: 16px 0;
-	}
-	.prose-content li {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding: 8px 0;
-		padding-left: 24px;
-		position: relative;
-	}
-	.prose-content--dark li {
-		color: #52525b;
-	}
-	.prose-content li::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 18px;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: #A259FF;
-	}
-	.prose-content li strong {
-		color: #fafafa;
-	}
-	.prose-content--dark li strong {
-		color: #09090b;
-	}
-
-	/* Pricing */
-	.pricing-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 24px;
-	}
-	.pricing-card {
-		padding: 32px;
-		border-radius: 16px;
-		border: 1px solid #e4e4e7;
-		background: white;
-	}
-	.pricing-card--highlighted {
-		border-color: #A259FF;
-		background: linear-gradient(135deg, rgba(162, 89, 255, 0.05), rgba(162, 89, 255, 0.02));
-		box-shadow: 0 0 0 1px rgba(162, 89, 255, 0.2);
-	}
-	.pricing-name {
-		font-size: 20px;
-		font-weight: 700;
-		color: #09090b;
-		margin-bottom: 8px;
-	}
-	.pricing-cost {
-		font-size: 36px;
-		font-weight: 800;
-		color: #09090b;
-		margin-bottom: 4px;
-		letter-spacing: -0.02em;
-	}
-	.pricing-card--highlighted .pricing-cost {
-		color: #A259FF;
-	}
-	.pricing-model {
-		font-size: 14px;
-		color: #71717a;
-		margin-bottom: 24px;
-	}
-	.pricing-features {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-	.pricing-features li {
-		font-size: 15px;
-		color: #52525b;
-		padding: 6px 0;
-		padding-left: 20px;
-		position: relative;
-	}
-	.pricing-features li::before {
-		content: '\2192';
-		position: absolute;
-		left: 0;
-		color: #a1a1aa;
-	}
-
-	/* FAQ */
-	.faq-list {
-		border-top: 1px solid #27272a;
-	}
-	.faq-item {
-		border-bottom: 1px solid #27272a;
-		cursor: pointer;
-	}
-	.faq-question {
-		width: 100%;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 24px 0;
-		color: #fafafa;
-		font-size: 17px;
-		font-weight: 500;
-		line-height: 1.4;
-		list-style: none;
-		transition: color 0.2s;
-	}
-	.faq-question::-webkit-details-marker { display: none; }
-	.faq-question:hover { color: #fff; }
-	.faq-question span:first-child { padding-right: 24px; }
-	.faq-icon {
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 1px solid #3f3f46;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		font-weight: 300;
-		color: #71717a;
-		transition: all 0.3s ease;
-	}
-	.group[open] .faq-icon {
-		transform: rotate(45deg);
-		background: #27272a;
-	}
-	.faq-answer p {
-		font-size: 15px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding-bottom: 24px;
-		margin: 0;
-		max-width: 620px;
-	}
-
-	/* CTA */
-	.cta-section {
-		background: #09090b;
-		border-top: 1px solid #27272a;
-		padding: 80px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.cta-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.cta-title {
-		font-size: 36px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 8px;
-		letter-spacing: -0.02em;
-	}
-	.cta-description {
-		font-size: 17px;
-		color: #71717a;
-		margin-bottom: 32px;
-	}
-	.install-commands {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 32px;
-	}
-	.install-command {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-	}
-	.install-command code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		color: #fafafa;
-	}
-	.command-prefix {
-		color: #A259FF;
-		margin-right: 8px;
-	}
-	.command-label {
-		font-size: 13px;
-		color: #71717a;
-	}
-	.cta-links {
-		display: flex;
-		align-items: center;
-		gap: 24px;
-	}
-	.cta-discord {
-		color: #71717a;
-		font-size: 15px;
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-	.cta-discord:hover {
-		color: #fafafa;
-	}
-
-	/* Responsive */
-	@media (max-width: 768px) {
-		.hero-section { padding: 48px 20px 40px; }
-		.hero-title { font-size: 32px; }
-		.hero-subtitle { font-size: 17px; margin-bottom: 24px; }
-		.section-title { font-size: 24px; }
-		.content-section { padding: 40px 20px; }
-		.comparison-section { padding: 40px 20px; }
-		.pricing-grid { grid-template-columns: 1fr; }
-		.cta-section { padding: 48px 20px; }
-		.cta-title { font-size: 28px; }
-		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
-		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
-	}
-</style>
+  <Fragment slot="cta">
+    <section class="flex justify-center border-t border-zinc-800 bg-zinc-950 px-6 py-20 max-md:px-5 max-md:py-12">
+      <div class="w-full max-w-[720px]">
+        <h2 class="mb-2 text-4xl font-bold tracking-tight text-zinc-50 max-md:text-[28px]">Try Frontman With Your Team</h2>
+        <p class="mb-8 text-[17px] text-zinc-300">Share these with your frontend developer — one command adds Frontman to your app. Then anyone on the team can start editing UI in the browser.</p>
+        <div class="mb-8 flex flex-col gap-3">
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>
+            <span class="text-[13px] text-zinc-300">Next.js</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/vite install</code>
+            <span class="text-[13px] text-zinc-300">Vite (React, Vue, Svelte, SolidJS)</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> astro add @frontman-ai/astro</code>
+            <span class="text-[13px] text-zinc-300">Astro</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-6 max-md:flex-col max-md:items-start max-md:gap-3">
+          <Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+          <a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="text-[15px] text-zinc-300 transition-colors hover:text-zinc-50">Join Discord</a>
+        </div>
+      </div>
+    </section>
+  </Fragment>
+</ComparisonLayout>

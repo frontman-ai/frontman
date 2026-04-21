@@ -55,8 +55,14 @@ type Props = {
   heroSubtitle: string
   features: ComparisonFeature[]
   faqs: FAQ[]
-  alternatives: Alternative[]
+  alternatives?: Alternative[]
   showArchitectureDiagram?: boolean
+  showAlternatives?: boolean
+  frontmanPricing?: {
+    cost?: string
+    model?: string
+    features?: string[]
+  }
 }
 
 const {
@@ -66,9 +72,18 @@ const {
   heroSubtitle,
   features,
   faqs,
-  alternatives,
-  showArchitectureDiagram = true,
+  alternatives = [],
+  showArchitectureDiagram,
+  showAlternatives = true,
+  frontmanPricing,
 } = Astro.props
+
+const shouldShowArchitectureDiagram =
+  showArchitectureDiagram === undefined
+    ? Astro.slots.has('architecture-diagram')
+    : showArchitectureDiagram
+
+const shouldShowAlternatives = showAlternatives && alternatives.length > 0
 ---
 
 <Layout title={seo.title} description={seo.description}>
@@ -85,7 +100,7 @@ const {
   </ComparisonHero>
 
   <!-- Architecture Diagram -->
-  {showArchitectureDiagram && (
+  {shouldShowArchitectureDiagram && (
     <ComparisonArchitectureDiagram competitorName={competitor.name}>
       <slot name="architecture-diagram" />
     </ComparisonArchitectureDiagram>
@@ -120,14 +135,22 @@ const {
     competitorCost={competitor.pricing.cost}
     competitorModel={competitor.pricing.model}
     competitorFeatures={competitor.pricing.features}
+    frontmanCost={frontmanPricing?.cost}
+    frontmanModel={frontmanPricing?.model}
+    frontmanFeatures={frontmanPricing?.features}
   />
 
   <!-- Alternatives -->
-  <ComparisonAlternatives competitorName={competitor.name} alternatives={alternatives} />
+  {shouldShowAlternatives && (
+    <ComparisonAlternatives competitorName={competitor.name} alternatives={alternatives} />
+  )}
 
   <!-- FAQ -->
   <ComparisonFAQ faqs={faqs} />
 
+  <!-- Optional post-FAQ section -->
+  {Astro.slots.has('post-faq') && <slot name="post-faq" />}
+
   <!-- CTA -->
-  <ComparisonCTA />
+  {Astro.slots.has('cta') ? <slot name="cta" /> : <ComparisonCTA />}
 </Layout>

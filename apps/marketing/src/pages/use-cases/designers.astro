@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro'
-import Button from '../../components/ui/Button.astro'
+import UseCaseFaqSection from '../../components/use-cases/UseCaseFaqSection.astro'
+import UseCaseCtaSection from '../../components/use-cases/UseCaseCtaSection.astro'
 
 const SEO = {
 	title: 'AI Code Editor for Designers: Edit UI Without an IDE',
@@ -83,21 +84,35 @@ const comparisonRows = [
 		notes: 'Output still needs integration into real codebase'
 	}
 ]
+
+const textLinkClass =
+	'text-primary-500 underline underline-offset-2 transition-colors hover:text-primary-400'
+const proseBulletBaseClass =
+	'relative py-2 pl-[22px] text-[17px] leading-[1.6] before:absolute before:left-0 before:top-[17px] before:h-2 before:w-2 before:rounded-full before:bg-primary-500'
+const tableHeaderClass =
+	'border-b border-zinc-800 bg-[#111113] px-[14px] py-3 text-left text-[12px] uppercase tracking-[0.06em] text-zinc-300'
+const tableCellClass =
+	'border-b border-zinc-800 bg-[#09090b] px-[14px] py-3 text-left text-[14px] leading-[1.5] text-zinc-300'
+const highlightedTableCellClass = `${tableCellClass} bg-slate-900`
+const tableToolCellClass = `${tableCellClass} font-semibold text-zinc-50`
+const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 ---
 
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<section class="hero-section">
-		<div class="hero-container">
-			<p class="hero-label">Use Case</p>
-			<h1 class="hero-title">AI Code Editor for Designers</h1>
-			<p class="hero-subtitle">
+	<section class="flex justify-center bg-[#09090b] px-5 pb-9 pt-12 text-zinc-50 md:px-6 md:pb-12 md:pt-20">
+		<div class="w-full max-w-[760px]">
+			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-primary-500">Use Case</p>
+			<h1 class="mb-[14px] text-[34px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
+				AI Code Editor for Designers
+			</h1>
+			<p class="mb-[18px] text-[18px] leading-[1.5] text-zinc-300 md:text-[20px]">
 				Frontman is an AI code editor for designers: click elements in your running app,
 				describe changes in plain English, and get source code edits with hot reload.
 			</p>
-			<p class="hero-summary">
-				<a href="https://frontman.sh" class="text-link">Frontman</a> is a vertically integrated
+			<p class="text-[17px] leading-[1.7] text-zinc-300">
+				<a href="https://frontman.sh" class={textLinkClass}>Frontman</a> is a vertically integrated
 				AI agent that lives inside your framework and is accessible from the browser. Instead of
 				screenshots, tickets, and waiting for a sprint slot, designers can iterate directly on
 				the live app while engineering keeps normal review control.
@@ -105,84 +120,114 @@ const comparisonRows = [
 		</div>
 	</section>
 
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Why designers get blocked</h2>
-			<div class="prose-content">
-				<p>
+	<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
+		<div class="w-full max-w-[760px]">
+			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[32px]">
+				Why designers get blocked
+			</h2>
+			<div>
+				<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
 					The problem is not spotting visual issues. The problem is shipping them. Designers see spacing,
 					copy, and hierarchy issues immediately, but fixing them often means screenshots, annotations,
 					tickets, and backlog negotiations.
 				</p>
-				<p>
+				<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
 					That handoff loop slows down design quality and product velocity. Frontman removes the loop for
 					visual frontend work by letting designers work on the real running application.
 				</p>
-				<ul>
-					<li><strong>No IDE required</strong> for routine visual refinements.</li>
-					<li><strong>No guessing</strong> from static mocks: edits happen on real layouts and real data.</li>
-					<li><strong>No process rewrite</strong>: code still goes through the existing PR workflow.</li>
+				<ul class="my-3 list-none p-0">
+					<li class={`${proseBulletBaseClass} text-zinc-300`}>
+						<strong>No IDE required</strong> for routine visual refinements.
+					</li>
+					<li class={`${proseBulletBaseClass} text-zinc-300`}>
+						<strong>No guessing</strong> from static mocks: edits happen on real layouts and real data.
+					</li>
+					<li class={`${proseBulletBaseClass} text-zinc-300`}>
+						<strong>No process rewrite</strong>: code still goes through the existing PR workflow.
+					</li>
 				</ul>
 			</div>
 		</div>
 	</section>
 
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">How designers use Frontman</h2>
-			<div class="steps-grid">
-				<div class="step-card">
-					<span class="step-number">1</span>
-					<h3>Open the running app</h3>
-					<p>Navigate to the app in your browser and enter Frontman mode.</p>
+	<section class="flex justify-center bg-zinc-50 px-5 py-16 text-[#09090b] md:px-6">
+		<div class="w-full max-w-[760px]">
+			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-[#09090b] md:text-[32px]">
+				How designers use Frontman
+			</h2>
+			<div class="grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
+				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
+					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+						1
+					</span>
+					<h3 class="mb-2 text-[18px] text-slate-900">Open the running app</h3>
+					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
+						Navigate to the app in your browser and enter Frontman mode.
+					</p>
 				</div>
-				<div class="step-card">
-					<span class="step-number">2</span>
-					<h3>Click what looks wrong</h3>
-					<p>Select the real element on screen instead of describing file paths.</p>
+				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
+					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+						2
+					</span>
+					<h3 class="mb-2 text-[18px] text-slate-900">Click what looks wrong</h3>
+					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
+						Select the real element on screen instead of describing file paths.
+					</p>
 				</div>
-				<div class="step-card">
-					<span class="step-number">3</span>
-					<h3>Describe the change</h3>
-					<p>Use plain language: spacing, typography, hierarchy, copy, interaction states.</p>
+				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
+					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+						3
+					</span>
+					<h3 class="mb-2 text-[18px] text-slate-900">Describe the change</h3>
+					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
+						Use plain language: spacing, typography, hierarchy, copy, interaction states.
+					</p>
 				</div>
-				<div class="step-card">
-					<span class="step-number">4</span>
-					<h3>Review and ship</h3>
-					<p>See the update instantly, iterate if needed, and send through normal code review.</p>
+				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
+					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+						4
+					</span>
+					<h3 class="mb-2 text-[18px] text-slate-900">Review and ship</h3>
+					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
+						See the update instantly, iterate if needed, and send through normal code review.
+					</p>
 				</div>
 			</div>
 		</div>
 	</section>
 
-	<section class="content-section">
-		<div class="content-container-wide">
-			<h2 class="section-title">Comparison: Designer-to-Code Options</h2>
-			<p class="section-intro">
+	<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
+		<div class="w-full max-w-[1080px]">
+			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[32px]">
+				Comparison: Designer-to-Code Options
+			</h2>
+			<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
 				These tools solve different parts of the workflow. Frontman is built for editing existing
 				production UI with runtime context.
 			</p>
-			<div class="table-wrap">
-				<table class="comparison-table">
+			<div class="overflow-x-auto rounded-xl border border-zinc-800">
+				<table class="w-full min-w-[940px] border-collapse">
 					<thead>
 						<tr>
-							<th>Tool</th>
-							<th>Best For</th>
-							<th>Existing App</th>
-							<th>Source Code Edits</th>
-							<th>IDE Required</th>
-							<th>Notes</th>
+							<th class={tableHeaderClass}>Tool</th>
+							<th class={tableHeaderClass}>Best For</th>
+							<th class={tableHeaderClass}>Existing App</th>
+							<th class={tableHeaderClass}>Source Code Edits</th>
+							<th class={tableHeaderClass}>IDE Required</th>
+							<th class={tableHeaderClass}>Notes</th>
 						</tr>
 					</thead>
 					<tbody>
 						{comparisonRows.map((row) => (
-							<tr class={row.tool === 'Frontman' ? 'highlight-row' : ''}>
-								<td class="tool-cell">{row.tool}</td>
-								<td>{row.bestFor}</td>
-								<td>{row.existingApp}</td>
-								<td>{row.sourceEdits}</td>
-								<td>{row.ideRequired}</td>
-								<td>{row.notes}</td>
+							<tr>
+								<td class={row.tool === 'Frontman' ? highlightedTableToolCellClass : tableToolCellClass}>
+									{row.tool}
+								</td>
+								<td class={row.tool === 'Frontman' ? highlightedTableCellClass : tableCellClass}>{row.bestFor}</td>
+								<td class={row.tool === 'Frontman' ? highlightedTableCellClass : tableCellClass}>{row.existingApp}</td>
+								<td class={row.tool === 'Frontman' ? highlightedTableCellClass : tableCellClass}>{row.sourceEdits}</td>
+								<td class={row.tool === 'Frontman' ? highlightedTableCellClass : tableCellClass}>{row.ideRequired}</td>
+								<td class={row.tool === 'Frontman' ? highlightedTableCellClass : tableCellClass}>{row.notes}</td>
 							</tr>
 						))}
 					</tbody>
@@ -191,358 +236,45 @@ const comparisonRows = [
 		</div>
 	</section>
 
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">What designers can ship faster</h2>
-			<div class="prose-content prose-content--dark">
-				<ul>
-					<li>Typography hierarchy fixes across marketing pages and product surfaces.</li>
-					<li>Spacing and alignment consistency in reusable components.</li>
-					<li>Copy and CTA refinements discovered during product reviews.</li>
-					<li>Responsive tweaks for breakpoints that are hard to catch in design files.</li>
-					<li>Small visual QA issues before launch, without creating ticket debt.</li>
+	<section class="flex justify-center bg-zinc-50 px-5 py-16 text-[#09090b] md:px-6">
+		<div class="w-full max-w-[760px]">
+			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-[#09090b] md:text-[32px]">
+				What designers can ship faster
+			</h2>
+			<div>
+				<ul class="my-3 list-none p-0">
+					<li class={`${proseBulletBaseClass} text-zinc-600`}>
+						Typography hierarchy fixes across marketing pages and product surfaces.
+					</li>
+					<li class={`${proseBulletBaseClass} text-zinc-600`}>
+						Spacing and alignment consistency in reusable components.
+					</li>
+					<li class={`${proseBulletBaseClass} text-zinc-600`}>
+						Copy and CTA refinements discovered during product reviews.
+					</li>
+					<li class={`${proseBulletBaseClass} text-zinc-600`}>
+						Responsive tweaks for breakpoints that are hard to catch in design files.
+					</li>
+					<li class={`${proseBulletBaseClass} text-zinc-600`}>
+						Small visual QA issues before launch, without creating ticket debt.
+					</li>
 				</ul>
-				<p>
-					For deeper architecture context, see <a href="/how-it-works/" class="text-link">how Frontman works</a>.
-					For tool-level tradeoffs, see <a href="/compare/" class="text-link">the full comparison matrix</a>.
+				<p class="mb-0 text-[17px] leading-[1.7] text-zinc-600">
+					For deeper architecture context, see <a href="/how-it-works/" class={textLinkClass}>how Frontman works</a>.
+					For tool-level tradeoffs, see <a href="/compare/" class={textLinkClass}>the full comparison matrix</a>.
 				</p>
 			</div>
 		</div>
 	</section>
 
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Frequently Asked Questions</h2>
-			<div class="faq-list">
-				{faqs.map((faq) => (
-					<details class="faq-item group">
-						<summary class="faq-question">
-							<span>{faq.question}</span>
-							<span class="faq-icon">+</span>
-						</summary>
-						<div class="faq-answer">
-							<p>{faq.answer}</p>
-						</div>
-					</details>
-				))}
-			</div>
-		</div>
-	</section>
+	<UseCaseFaqSection faqs={faqs} />
 
-	<section class="cta-section">
-		<div class="cta-container">
-			<h2 class="cta-title">Design on the real thing</h2>
-			<p class="cta-description">
-				If your team is tired of visual ticket ping-pong, start with one page and one workflow.
-			</p>
-			<div class="cta-links">
-				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
-				<a href="/use-cases/frontend-developers/" class="cta-secondary">Frontend developer workflow</a>
-				<a href="/integrations/" class="cta-secondary">Supported integrations</a>
-			</div>
-		</div>
-	</section>
+	<UseCaseCtaSection
+		title="Design on the real thing"
+		description="If your team is tired of visual ticket ping-pong, start with one page and one workflow."
+		secondaryLinks={[
+			{href: '/use-cases/frontend-developers/', label: 'Frontend developer workflow'},
+			{href: '/integrations/', label: 'Supported integrations'},
+		]}
+	/>
 </Layout>
-
-<style>
-	@reference "../../styles/global.css";
-
-	.hero-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 48px;
-		display: flex;
-		justify-content: center;
-	}
-	.hero-container {
-		max-width: 760px;
-		width: 100%;
-	}
-	.hero-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #a259ff;
-		margin-bottom: 12px;
-	}
-	.hero-title {
-		font-size: 48px;
-		font-weight: 700;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		margin-bottom: 14px;
-	}
-	.hero-subtitle {
-		font-size: 20px;
-		line-height: 1.5;
-		color: #a1a1aa;
-		margin-bottom: 18px;
-	}
-	.hero-summary {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #71717a;
-	}
-
-	.text-link {
-		color: #a259ff;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.text-link:hover {
-		color: #c084fc;
-	}
-
-	.content-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.content-section--light {
-		background: #fafafa;
-		color: #09090b;
-	}
-	.content-container {
-		max-width: 760px;
-		width: 100%;
-	}
-	.content-container-wide {
-		max-width: 1080px;
-		width: 100%;
-	}
-	.section-title {
-		font-size: 32px;
-		font-weight: 700;
-		letter-spacing: -0.02em;
-		margin-bottom: 20px;
-	}
-	.section-title--dark {
-		color: #09090b;
-	}
-	.section-intro {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-
-	.prose-content p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.prose-content--dark p {
-		color: #52525b;
-	}
-	.prose-content ul {
-		list-style: none;
-		padding: 0;
-		margin: 12px 0;
-	}
-	.prose-content li {
-		font-size: 17px;
-		line-height: 1.6;
-		padding: 8px 0 8px 22px;
-		position: relative;
-		color: #a1a1aa;
-	}
-	.prose-content--dark li {
-		color: #52525b;
-	}
-	.prose-content li::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 17px;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: #a259ff;
-	}
-
-	.steps-grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 16px;
-	}
-	.step-card {
-		background: white;
-		border: 1px solid #e4e4e7;
-		border-radius: 12px;
-		padding: 18px;
-	}
-	.step-number {
-		display: inline-flex;
-		width: 28px;
-		height: 28px;
-		border-radius: 999px;
-		align-items: center;
-		justify-content: center;
-		font-size: 13px;
-		font-weight: 700;
-		background: #ede9fe;
-		color: #6d28d9;
-		margin-bottom: 10px;
-	}
-	.step-card h3 {
-		font-size: 18px;
-		margin: 0 0 8px;
-		color: #111827;
-	}
-	.step-card p {
-		font-size: 15px;
-		line-height: 1.6;
-		margin: 0;
-		color: #4b5563;
-	}
-
-	.table-wrap {
-		overflow-x: auto;
-		border: 1px solid #27272a;
-		border-radius: 12px;
-	}
-	.comparison-table {
-		width: 100%;
-		border-collapse: collapse;
-		min-width: 940px;
-	}
-	.comparison-table th,
-	.comparison-table td {
-		padding: 12px 14px;
-		text-align: left;
-		border-bottom: 1px solid #27272a;
-		font-size: 14px;
-		line-height: 1.5;
-	}
-	.comparison-table th {
-		font-size: 12px;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: #a1a1aa;
-		background: #111113;
-	}
-	.comparison-table td {
-		color: #d4d4d8;
-		background: #09090b;
-	}
-	.tool-cell {
-		font-weight: 600;
-		color: #fafafa !important;
-	}
-	.highlight-row td {
-		background: #111827;
-	}
-
-	.faq-list {
-		border-top: 1px solid #27272a;
-	}
-	.faq-item {
-		border-bottom: 1px solid #27272a;
-	}
-	.faq-question {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 22px 0;
-		font-size: 17px;
-		font-weight: 500;
-		list-style: none;
-	}
-	.faq-question::-webkit-details-marker {
-		display: none;
-	}
-	.faq-icon {
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 1px solid #3f3f46;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		color: #71717a;
-		transition: transform 0.2s ease;
-	}
-	.group[open] .faq-icon {
-		transform: rotate(45deg);
-	}
-	.faq-answer p {
-		font-size: 15px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding: 0 0 20px;
-		margin: 0;
-	}
-
-	.cta-section {
-		background: #09090b;
-		border-top: 1px solid #27272a;
-		padding: 72px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.cta-container {
-		max-width: 760px;
-		width: 100%;
-	}
-	.cta-title {
-		font-size: 36px;
-		line-height: 1.2;
-		margin-bottom: 10px;
-	}
-	.cta-description {
-		font-size: 17px;
-		line-height: 1.6;
-		color: #71717a;
-		margin-bottom: 24px;
-	}
-	.cta-links {
-		display: flex;
-		align-items: center;
-		gap: 20px;
-		flex-wrap: wrap;
-	}
-	.cta-secondary {
-		font-size: 15px;
-		color: #71717a;
-		text-decoration: none;
-	}
-	.cta-secondary:hover {
-		color: #fafafa;
-	}
-
-	@media (max-width: 900px) {
-		.steps-grid {
-			grid-template-columns: 1fr;
-		}
-	}
-
-	@media (max-width: 768px) {
-		.hero-section,
-		.content-section,
-		.cta-section {
-			padding-left: 20px;
-			padding-right: 20px;
-		}
-		.hero-section {
-			padding-top: 48px;
-			padding-bottom: 36px;
-		}
-		.hero-title {
-			font-size: 34px;
-		}
-		.hero-subtitle {
-			font-size: 18px;
-		}
-		.section-title {
-			font-size: 26px;
-		}
-		.cta-title {
-			font-size: 30px;
-		}
-	}
-</style>

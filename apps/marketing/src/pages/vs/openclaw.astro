@@ -5,721 +5,211 @@
 // KEY ANGLE: Not a competitor — a complement. Frontman is the specialized frontend
 // visual editing layer that OpenClaw's general-purpose browser tool lacks.
 
-// Components
-import Layout from '../../layouts/Layout.astro'
 import Button from '../../components/ui/Button.astro'
-import ComparisonDisclosure from '../../components/ui/ComparisonDisclosure.astro'
+import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import type {
+  ComparisonFeature,
+  CompetitorInfo,
+  FAQ,
+  SEOInfo,
+} from '../../layouts/ComparisonLayout.astro'
 
-// SEO
-const SEO = {
-	title: 'Frontman vs OpenClaw: Specialized Frontend Editing Meets General-Purpose AI Agent (2026)',
-	description:
-		'OpenClaw is a general-purpose AI agent. Frontman is a browser-based visual frontend editor. See how they compare — and how they work together as an OpenClaw skill.'
+const seo: SEOInfo = {
+  title: 'Frontman vs OpenClaw: Specialized Frontend Editing Meets General-Purpose AI Agent (2026)',
+  description:
+    'OpenClaw is a general-purpose AI agent. Frontman is a browser-based visual frontend editor. See how they compare — and how they work together as an OpenClaw skill.',
 }
 
-// Comparison data
+const competitor: CompetitorInfo = {
+  name: 'OpenClaw',
+  slug: 'openclaw',
+  url: 'https://openclaw.ai',
+  category: 'DeveloperApplication',
+  description:
+    'Open-source general-purpose AI agent with browser automation, shell access, messaging integrations, and a large skills ecosystem.',
+  pricing: {
+    cost: 'Free',
+    model: 'Open source (MIT)',
+    features: [
+      'Free and open source (MIT)',
+      '5,400+ community skills via ClawHub',
+      'Supports multi-channel messaging (Slack, Telegram, Discord, WhatsApp)',
+      'Local-first architecture with markdown-based storage',
+      'Bring your own API keys for model providers',
+    ],
+  },
+}
+
 type Status = 'yes' | 'no' | 'partial'
 
 type Feature = {
-	name: string
-	frontman: Status
-	openclaw: Status
-	frontmanNote?: string
-	openclawNote?: string
+  name: string
+  frontman: Status
+  openclaw: Status
+  frontmanNote?: string
+  openclawNote?: string
 }
 
 const features: Feature[] = [
-	{ name: 'Browser-based UI editing', frontman: 'yes', openclaw: 'partial', frontmanNote: 'Click elements, describe changes, get source-level edits', openclawNote: 'General browser automation — click, type, navigate' },
-	{ name: 'Sees live DOM & computed CSS', frontman: 'yes', openclaw: 'partial', frontmanNote: 'MCP server exposes full DOM tree, runtime CSS values', openclawNote: 'Can read page content, limited CSS introspection' },
-	{ name: 'Component tree awareness', frontman: 'yes', openclaw: 'no', frontmanNote: 'Knows which React/Vue/Svelte component renders each element', openclawNote: 'Sees HTML elements, not framework components' },
-	{ name: 'Source map resolution', frontman: 'yes', openclaw: 'no', frontmanNote: 'Maps DOM node → source file + line number', openclawNote: 'Cannot trace DOM to source' },
-	{ name: 'Framework integration', frontman: 'yes', openclaw: 'no', frontmanNote: 'Native plugins for Next.js, Astro, Vite', openclawNote: 'Framework-agnostic — no dev server integration' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', openclaw: 'no', frontmanNote: 'Edits source → HMR updates browser instantly', openclawNote: 'Can edit files, must manually refresh to verify' },
-	{ name: 'Shell command execution', frontman: 'no', openclaw: 'yes', openclawNote: 'Full terminal access, script execution' },
-	{ name: 'Multi-channel messaging', frontman: 'no', openclaw: 'yes', openclawNote: 'Slack, Telegram, Discord, WhatsApp, and more' },
-	{ name: 'General web automation', frontman: 'no', openclaw: 'yes', openclawNote: 'Navigate any site, fill forms, extract data' },
-	{ name: 'File system management', frontman: 'partial', openclaw: 'yes', frontmanNote: 'Edits source files for frontend changes', openclawNote: 'Full file system access, any file type' },
-	{ name: 'Skills/plugin ecosystem', frontman: 'no', openclaw: 'yes', openclawNote: '5,400+ community skills on ClawHub' },
-	{ name: 'Works together', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Available as an OpenClaw skill', openclawNote: 'Can use Frontman via skill install' },
-	{ name: 'Open source', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Apache 2.0 / AGPL-3.0', openclawNote: 'MIT' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', openclaw: 'yes', frontmanNote: 'OpenRouter, Anthropic, OpenAI', openclawNote: 'Any LLM provider' },
-	{ name: 'Local-first / self-hostable', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Runs on your machine, code never leaves', openclawNote: 'All data stored locally as markdown' },
+  { name: 'Browser-based UI editing', frontman: 'yes', openclaw: 'partial', frontmanNote: 'Click elements, describe changes, get source-level edits', openclawNote: 'General browser automation — click, type, navigate' },
+  { name: 'Sees live DOM & computed CSS', frontman: 'yes', openclaw: 'partial', frontmanNote: 'MCP server exposes full DOM tree, runtime CSS values', openclawNote: 'Can read page content, limited CSS introspection' },
+  { name: 'Component tree awareness', frontman: 'yes', openclaw: 'no', frontmanNote: 'Knows which React/Vue/Svelte component renders each element', openclawNote: 'Sees HTML elements, not framework components' },
+  { name: 'Source map resolution', frontman: 'yes', openclaw: 'no', frontmanNote: 'Maps DOM node → source file + line number', openclawNote: 'Cannot trace DOM to source' },
+  { name: 'Framework integration', frontman: 'yes', openclaw: 'no', frontmanNote: 'Native plugins for Next.js, Astro, Vite', openclawNote: 'Framework-agnostic — no dev server integration' },
+  { name: 'Hot reload feedback loop', frontman: 'yes', openclaw: 'no', frontmanNote: 'Edits source → HMR updates browser instantly', openclawNote: 'Can edit files, must manually refresh to verify' },
+  { name: 'Shell command execution', frontman: 'no', openclaw: 'yes', openclawNote: 'Full terminal access, script execution' },
+  { name: 'Multi-channel messaging', frontman: 'no', openclaw: 'yes', openclawNote: 'Slack, Telegram, Discord, WhatsApp, and more' },
+  { name: 'General web automation', frontman: 'no', openclaw: 'yes', openclawNote: 'Navigate any site, fill forms, extract data' },
+  { name: 'File system management', frontman: 'partial', openclaw: 'yes', frontmanNote: 'Edits source files for frontend changes', openclawNote: 'Full file system access, any file type' },
+  { name: 'Skills/plugin ecosystem', frontman: 'no', openclaw: 'yes', openclawNote: '5,400+ community skills on ClawHub' },
+  { name: 'Works together', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Available as an OpenClaw skill', openclawNote: 'Can use Frontman via skill install' },
+  { name: 'Open source', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Apache 2.0 / AGPL-3.0', openclawNote: 'MIT' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', openclaw: 'yes', frontmanNote: 'OpenRouter, Anthropic, OpenAI', openclawNote: 'Any LLM provider' },
+  { name: 'Local-first / self-hostable', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Runs on your machine, code never leaves', openclawNote: 'All data stored locally as markdown' },
 ]
 
-function statusLabel(status: Status): string {
-	switch (status) {
-		case 'yes': return 'Yes'
-		case 'no': return 'No'
-		case 'partial': return 'Partial'
-	}
-}
+const comparisonFeatures: ComparisonFeature[] = features.map((feature) => ({
+  name: feature.name,
+  frontman: feature.frontman,
+  competitor: feature.openclaw,
+  frontmanNote: feature.frontmanNote,
+  competitorNote: feature.openclawNote,
+}))
 
-// FAQ data for JSON-LD
-const faqs = [
-	{
-		question: 'Is Frontman a competitor to OpenClaw?',
-		answer: 'No. They serve different purposes and work well together. OpenClaw is a general-purpose AI agent that can control your browser, run shell commands, and work across messaging apps. Frontman is a specialized frontend editing tool that understands your component tree, computed CSS, and source maps. Frontman is available as an OpenClaw skill — install it with openclaw skill install frontman-dev.'
-	},
-	{
-		question: 'How do I use Frontman with OpenClaw?',
-		answer: 'Install the Frontman skill in OpenClaw with openclaw skill install frontman-dev. Then install Frontman in your project (npx @frontman-ai/nextjs install for Next.js, npx astro add @frontman-ai/astro for Astro, or npx @frontman-ai/vite install for Vite). Start your dev server and tell your OpenClaw agent to open localhost/frontman. The agent can then click elements, describe changes, and get real source-level edits with hot reload.'
-	},
-	{
-		question: 'What can Frontman do that OpenClaw browser tool cannot?',
-		answer: 'Frontman integrates with your framework as a dev server plugin and creates a browser-side MCP server. This gives it access to the component tree (which React/Vue/Svelte component renders each element), computed CSS values (runtime pixels, not class names), source map resolution (DOM node to exact file and line number), and hot reload feedback. OpenClaw browser tool sees HTML elements and can interact with them, but cannot trace them back to source components or make targeted source-level edits.'
-	},
-	{
-		question: 'What can OpenClaw do that Frontman cannot?',
-		answer: 'OpenClaw is a general-purpose agent. It runs shell commands, manages files, browses the open web, works across messaging channels (Slack, Telegram, Discord, WhatsApp), and has 5,400+ community skills for tasks like email, calendar, API integrations, and data extraction. Frontman is focused exclusively on visual frontend editing in your development environment.'
-	},
-	{
-		question: 'Can my designers use this combination?',
-		answer: 'Yes. Designers describe UI changes in whatever messaging app your team uses — Slack, Discord, Telegram. OpenClaw receives the message, uses the Frontman skill to open the app in the browser, click the relevant element, and make the edit. It posts a screenshot of the result back to the channel. The code diff goes through your normal review process. No IDE or terminal needed.'
-	},
-	{
-		question: 'Is this combination open source?',
-		answer: 'Yes. Frontman client libraries are Apache 2.0, the server is AGPL-3.0. OpenClaw is MIT licensed. The Frontman skill on ClawHub is MIT-0. Both tools run locally — your code and conversations never leave your machine. You bring your own API keys to both.'
-	}
+const faqs: FAQ[] = [
+  {
+    question: 'Is Frontman a competitor to OpenClaw?',
+    answer:
+      'No. They serve different purposes and work well together. OpenClaw is a general-purpose AI agent that can control your browser, run shell commands, and work across messaging apps. Frontman is a specialized frontend editing tool that understands your component tree, computed CSS, and source maps. Frontman is available as an OpenClaw skill — install it with openclaw skill install frontman-dev.',
+  },
+  {
+    question: 'How do I use Frontman with OpenClaw?',
+    answer:
+      'Install the Frontman skill in OpenClaw with openclaw skill install frontman-dev. Then install Frontman in your project (npx @frontman-ai/nextjs install for Next.js, npx astro add @frontman-ai/astro for Astro, or npx @frontman-ai/vite install for Vite). Start your dev server and tell your OpenClaw agent to open localhost/frontman. The agent can then click elements, describe changes, and get real source-level edits with hot reload.',
+  },
+  {
+    question: 'What can Frontman do that OpenClaw browser tool cannot?',
+    answer:
+      'Frontman integrates with your framework as a dev server plugin and creates a browser-side MCP server. This gives it access to the component tree (which React/Vue/Svelte component renders each element), computed CSS values (runtime pixels, not class names), source map resolution (DOM node to exact file and line number), and hot reload feedback. OpenClaw browser tool sees HTML elements and can interact with them, but cannot trace them back to source components or make targeted source-level edits.',
+  },
+  {
+    question: 'What can OpenClaw do that Frontman cannot?',
+    answer:
+      'OpenClaw is a general-purpose agent. It runs shell commands, manages files, browses the open web, works across messaging channels (Slack, Telegram, Discord, WhatsApp), and has 5,400+ community skills for tasks like email, calendar, API integrations, and data extraction. Frontman is focused exclusively on visual frontend editing in your development environment.',
+  },
+  {
+    question: 'Can my designers use this combination?',
+    answer:
+      'Yes. Designers describe UI changes in whatever messaging app your team uses — Slack, Discord, Telegram. OpenClaw receives the message, uses the Frontman skill to open the app in the browser, click the relevant element, and make the edit. It posts a screenshot of the result back to the channel. The code diff goes through your normal review process. No IDE or terminal needed.',
+  },
+  {
+    question: 'Is this combination open source?',
+    answer:
+      'Yes. Frontman client libraries are Apache 2.0, the server is AGPL-3.0. OpenClaw is MIT licensed. The Frontman skill on ClawHub is MIT-0. Both tools run locally — your code and conversations never leave your machine. You bring your own API keys to both.',
+  },
 ]
-
-// FAQPage JSON-LD
-const faqJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "FAQPage",
-	"mainEntity": faqs.map((faq) => ({
-		"@type": "Question",
-		"name": faq.question,
-		"acceptedAnswer": {
-			"@type": "Answer",
-			"text": faq.answer
-		}
-	}))
-}
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
-	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+<ComparisonLayout
+  seo={seo}
+  competitor={competitor}
+  heroTitle="Frontman vs OpenClaw"
+  heroSubtitle="Specialized Frontend Editing Meets General-Purpose AI Agent"
+  features={comparisonFeatures}
+  faqs={faqs}
+>
+  <Fragment slot="hero-summary">
+    <p>
+      <a href="https://openclaw.ai" class="text-link" rel="nofollow">OpenClaw</a> is the most popular open-source AI agent in 2026 — 250,000+ GitHub stars, 5,400+ community skills, and support for every messaging platform from Slack to WhatsApp. It can control your browser, run shell commands, and automate workflows across your entire stack.
+    </p>
+    <p>
+      <a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent built specifically for frontend development. It installs as a plugin in your dev server (Next.js, Astro, or Vite) and creates a browser-side MCP server that sees your component tree, computed CSS, source maps, and rendered DOM. Click any element, describe a change, and Frontman edits the source file with instant hot reload.
+    </p>
+    <p class="summary-emphasis">
+      They are not competitors — they are complementary. Frontman is available as an OpenClaw skill. Use OpenClaw for general-purpose automation, and Frontman for precise visual frontend editing in your codebase.
+    </p>
+  </Fragment>
 
-	<!-- Hero / AI-Citable Summary -->
-	<section class="hero-section">
-		<div class="hero-container">
-			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs OpenClaw</h1>
-			<p class="hero-subtitle">Specialized Frontend Editing Meets General-Purpose AI Agent</p>
+  <Fragment slot="competitor-strengths">
+    <p>OpenClaw became the fastest-growing open-source project in history for a reason. It is genuinely useful across a wide range of tasks.</p>
+    <p><strong>General-purpose automation.</strong> OpenClaw runs shell commands, manages files, calls APIs, and orchestrates multi-step workflows. It is not limited to any specific domain — it handles whatever you throw at it.</p>
+    <p><strong>Multi-channel support.</strong> Slack, Telegram, Discord, WhatsApp, Signal, iMessage, Teams, Matrix, IRC, and more. You talk to your agent where you already talk to your team.</p>
+    <p><strong>Community skills ecosystem.</strong> 5,400+ skills on ClawHub covering everything from email management to database administration to CI/CD automation. Installing a new capability is one command.</p>
+    <p><strong>Browser automation.</strong> OpenClaw can open tabs, navigate sites, click buttons, fill forms, take screenshots, and extract data. It works with any website, not just your own projects.</p>
+    <p><strong>Local-first architecture.</strong> All data — memory, conversations, files — stored as markdown on your disk. No external servers, no vendor lock-in. MIT licensed.</p>
+  </Fragment>
 
-			<div class="hero-summary">
-				<p>
-					<a href="https://openclaw.ai" class="text-link" rel="nofollow">OpenClaw</a> is the most popular open-source AI agent in 2026 — 250,000+ GitHub stars, 5,400+ community skills, and support for every messaging platform from Slack to WhatsApp. It can control your browser, run shell commands, and automate workflows across your entire stack.
-				</p>
-				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent built specifically for frontend development. It installs as a plugin in your dev server (Next.js, Astro, or Vite) and creates a browser-side MCP server that sees your component tree, computed CSS, source maps, and rendered DOM. Click any element, describe a change, and Frontman edits the source file with instant hot reload.
-				</p>
-				<p class="summary-emphasis">
-					They are not competitors — they are complementary. Frontman is available as an OpenClaw skill. Use OpenClaw for general-purpose automation, and Frontman for precise visual frontend editing in your codebase.
-				</p>
-			</div>
-			<ComparisonDisclosure competitor="OpenClaw" />
-		</div>
-	</section>
+  <Fragment slot="frontman-differentiators">
+    <p><strong>It understands your component tree.</strong> OpenClaw's browser tool sees HTML elements. Frontman sees React components, Vue instances, Svelte blocks, and Astro islands. When you click a card on screen, Frontman knows it is your <code>Card</code> component from <code>@company/ui</code>, rendered at line 47 of <code>Card.tsx</code>, with specific props and token-derived styles.</p>
+    <p><strong>It reads computed CSS, not class names.</strong> OpenClaw can read the page source and see <code>class="p-4 shadow-md"</code>. Frontman sees that <code>p-4</code> computes to <code>padding: 16px</code> and <code>shadow-md</code> renders as <code>box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1)</code>. When you say "make the shadow more subtle," Frontman knows the current runtime value.</p>
+    <p><strong>Source map resolution.</strong> Click a DOM element, and Frontman resolves it to the exact source file, component, and line number through the framework's source maps. No guessing which file to edit. This is possible because Frontman installs as a framework plugin inside your dev server — it has access to the build pipeline.</p>
+    <p><strong>Hot reload feedback loop.</strong> Frontman edits the source file, and the framework's HMR updates the browser instantly. Edit → see result → iterate. The AI verifies its own work by taking a screenshot after each edit. OpenClaw can edit files too, but it does not integrate with your dev server's hot reload pipeline.</p>
+    <p><strong>Click-to-select workflow.</strong> Instead of describing which element to change in words, you click it in the browser. The AI already has full context — the component, its styles, its position in the layout, and the source file. "Make this button primary" is unambiguous because the AI knows which button you mean.</p>
+    <p><strong>Real source file edits.</strong> Every change Frontman makes is a real edit to your source code — the same files your engineers write by hand. No CSS overrides, no separate layer. Changes go through your existing code review process.</p>
+  </Fragment>
 
-	<!-- Comparison Table -->
-	<section class="comparison-section">
-		<div class="comparison-container">
-			<h2 class="section-title">Feature Comparison</h2>
+  <Fragment slot="who-should-use-competitor">
+    <p><strong>Use OpenClaw alone</strong> if you need a general-purpose AI agent for shell automation, web scraping, multi-channel messaging, file management, or workflow orchestration. You do not need Frontman unless you are doing frontend development.</p>
+  </Fragment>
 
-			<!-- Desktop table -->
-			<div class="table-wrapper">
-				<table class="comparison-table" role="grid">
-					<thead>
-						<tr>
-							<th class="feature-header">Feature</th>
-							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">OpenClaw</th>
-						</tr>
-					</thead>
-					<tbody>
-						{features.map((feature) => (
-							<tr>
-								<td class="feature-cell">{feature.name}</td>
-								<td class={`status-cell status-cell--highlighted`} aria-label={statusLabel(feature.frontman)}>
-									<div class="status-content">
-										{feature.frontman === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.frontman === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.frontman === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
-									</div>
-								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.openclaw)}>
-									<div class="status-content">
-										{feature.openclaw === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.openclaw === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.openclaw === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.openclawNote && <span class="status-note">{feature.openclawNote}</span>}
-									</div>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
+  <Fragment slot="who-should-use-frontman">
+    <p><strong>Use Frontman alone</strong> if you want browser-based visual editing for your dev server and your team already has a workflow that does not involve OpenClaw. Frontman works standalone — no OpenClaw required.</p>
+    <p><strong>Use both together</strong> if you want the best of both worlds: OpenClaw's general-purpose capabilities (messaging, shell, files, skills ecosystem) combined with Frontman's deep frontend editing (component tree, computed CSS, source maps, hot reload). This is the recommended setup for product teams where designers and PMs are involved in UI iteration.</p>
+  </Fragment>
 
-			<!-- Mobile cards -->
-			<div class="mobile-cards">
-				{features.map((feature) => (
-					<div class="mobile-card">
-						<h3 class="mobile-card-title">{feature.name}</h3>
-						<div class="mobile-card-grid">
-							<div class="mobile-card-item mobile-card-item--highlighted">
-								<span class="mobile-card-tool">Frontman</span>
-								<span>
-									{feature.frontman === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.frontman === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.frontman === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-							<div class="mobile-card-item">
-								<span class="mobile-card-tool">OpenClaw</span>
-								<span>
-									{feature.openclaw === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.openclaw === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.openclaw === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- What OpenClaw Does Well -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">What OpenClaw Does Well</h2>
-			<div class="prose-content prose-content--dark">
-				<p>OpenClaw became the fastest-growing open-source project in history for a reason. It is genuinely useful across a wide range of tasks.</p>
-				<p><strong>General-purpose automation.</strong> OpenClaw runs shell commands, manages files, calls APIs, and orchestrates multi-step workflows. It is not limited to any specific domain — it handles whatever you throw at it.</p>
-				<p><strong>Multi-channel support.</strong> Slack, Telegram, Discord, WhatsApp, Signal, iMessage, Teams, Matrix, IRC, and more. You talk to your agent where you already talk to your team.</p>
-				<p><strong>Community skills ecosystem.</strong> 5,400+ skills on ClawHub covering everything from email management to database administration to CI/CD automation. Installing a new capability is one command.</p>
-				<p><strong>Browser automation.</strong> OpenClaw can open tabs, navigate sites, click buttons, fill forms, take screenshots, and extract data. It works with any website, not just your own projects.</p>
-				<p><strong>Local-first architecture.</strong> All data — memory, conversations, files — stored as markdown on your disk. No external servers, no vendor lock-in. MIT licensed.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Where Frontman Is Different -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Where Frontman Is Different</h2>
-			<div class="prose-content">
-				<p><strong>It understands your component tree.</strong> OpenClaw's browser tool sees HTML elements. Frontman sees React components, Vue instances, Svelte blocks, and Astro islands. When you click a card on screen, Frontman knows it is your <code>Card</code> component from <code>@company/ui</code>, rendered at line 47 of <code>Card.tsx</code>, with specific props and token-derived styles.</p>
-
-				<p><strong>It reads computed CSS, not class names.</strong> OpenClaw can read the page source and see <code>class="p-4 shadow-md"</code>. Frontman sees that <code>p-4</code> computes to <code>padding: 16px</code> and <code>shadow-md</code> renders as <code>box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1)</code>. When you say "make the shadow more subtle," Frontman knows the current runtime value.</p>
-
-				<p><strong>Source map resolution.</strong> Click a DOM element, and Frontman resolves it to the exact source file, component, and line number through the framework's source maps. No guessing which file to edit. This is possible because Frontman installs as a framework plugin inside your dev server — it has access to the build pipeline.</p>
-
-				<p><strong>Hot reload feedback loop.</strong> Frontman edits the source file, and the framework's HMR updates the browser instantly. Edit → see result → iterate. The AI verifies its own work by taking a screenshot after each edit. OpenClaw can edit files too, but it does not integrate with your dev server's hot reload pipeline.</p>
-
-				<p><strong>Click-to-select workflow.</strong> Instead of describing which element to change in words, you click it in the browser. The AI already has full context — the component, its styles, its position in the layout, and the source file. "Make this button primary" is unambiguous because the AI knows which button you mean.</p>
-
-				<p><strong>Real source file edits.</strong> Every change Frontman makes is a real edit to your source code — the same files your engineers write by hand. No CSS overrides, no separate layer. Changes go through your existing code review process.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Using Them Together -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Using Them Together</h2>
-			<div class="prose-content prose-content--dark">
-				<p>Frontman is available as an OpenClaw skill. Install it in one command:</p>
-				<pre class="install-code"><code>openclaw skill install frontman-dev</code></pre>
-				<p>Then install the Frontman plugin in your project:</p>
-				<pre class="install-code"><code>npx @frontman-ai/nextjs install    # Next.js
+  <Fragment slot="post-faq">
+    <section class="flex justify-center bg-zinc-50 px-6 py-16 text-zinc-950 max-md:px-5 max-md:py-10">
+      <div class="w-full max-w-[720px]">
+        <h2 class="mb-6 !text-[32px] !font-bold !tracking-tight !text-zinc-950 max-md:!text-2xl">Using Them Together</h2>
+        <p class="text-zinc-700">Frontman is available as an OpenClaw skill. Install it in one command:</p>
+        <pre class="mb-4 overflow-x-auto rounded-lg bg-zinc-900 px-4 py-3 text-sm text-zinc-100"><code>openclaw skill install frontman-dev</code></pre>
+        <p class="text-zinc-700">Then install the Frontman plugin in your project:</p>
+        <pre class="mb-4 overflow-x-auto rounded-lg bg-zinc-900 px-4 py-3 text-sm text-zinc-100"><code>npx @frontman-ai/nextjs install    # Next.js
 npx astro add @frontman-ai/astro    # Astro
 npx @frontman-ai/vite install       # Vite</code></pre>
-				<p>Once both are running, your OpenClaw agent gains specialized frontend editing capabilities. A typical workflow:</p>
-				<ul>
-					<li><strong>Designer in Slack:</strong> "The hero section spacing is off — it should be 48px gap, not 32"</li>
-					<li><strong>OpenClaw receives the message</strong> via Slack channel integration</li>
-					<li><strong>Frontman skill activates</strong> — opens the app in the browser, clicks the hero section</li>
-					<li><strong>Frontman's MCP server</strong> provides component tree, computed CSS, source location</li>
-					<li><strong>Source file edited</strong> — HMR updates the browser instantly</li>
-					<li><strong>Screenshot posted back to Slack</strong> — designer confirms it looks right</li>
-					<li><strong>PR opened</strong> — engineer reviews and merges as normal</li>
-				</ul>
-				<p>OpenClaw handles the messaging, shell commands, git operations, and PR creation. Frontman handles the visual editing. Each tool does what it is best at.</p>
-			</div>
-		</div>
-	</section>
+        <p class="text-zinc-700">Once both are running, your OpenClaw agent gains specialized frontend editing capabilities. A typical workflow:</p>
+        <ul>
+          <li><strong>Designer in Slack:</strong> "The hero section spacing is off — it should be 48px gap, not 32"</li>
+          <li><strong>OpenClaw receives the message</strong> via Slack channel integration</li>
+          <li><strong>Frontman skill activates</strong> — opens the app in the browser, clicks the hero section</li>
+          <li><strong>Frontman's MCP server</strong> provides component tree, computed CSS, source location</li>
+          <li><strong>Source file edited</strong> — HMR updates the browser instantly</li>
+          <li><strong>Screenshot posted back to Slack</strong> — designer confirms it looks right</li>
+          <li><strong>PR opened</strong> — engineer reviews and merges as normal</li>
+        </ul>
+        <p class="text-zinc-700">OpenClaw handles the messaging, shell commands, git operations, and PR creation. Frontman handles the visual editing. Each tool does what it is best at.</p>
+      </div>
+    </section>
+  </Fragment>
 
-	<!-- Who Should Use What -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Who Should Use What</h2>
-			<div class="prose-content">
-				<p><strong>Use OpenClaw alone</strong> if you need a general-purpose AI agent for shell automation, web scraping, multi-channel messaging, file management, or workflow orchestration. You do not need Frontman unless you are doing frontend development.</p>
-				<p><strong>Use Frontman alone</strong> if you want browser-based visual editing for your dev server and your team already has a workflow that does not involve OpenClaw. Frontman works standalone — no OpenClaw required.</p>
-				<p><strong>Use both together</strong> if you want the best of both worlds: OpenClaw's general-purpose capabilities (messaging, shell, files, skills ecosystem) combined with Frontman's deep frontend editing (component tree, computed CSS, source maps, hot reload). This is the recommended setup for product teams where designers and PMs are involved in UI iteration.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- FAQ -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Frequently Asked Questions</h2>
-			<div class="faq-list faq-list--light">
-				{faqs.map((faq) => (
-					<details class="faq-item faq-item--light group">
-						<summary class="faq-question faq-question--light">
-							<span>{faq.question}</span>
-							<span class="faq-icon faq-icon--light">+</span>
-						</summary>
-						<div class="faq-answer faq-answer--light">
-							<p>{faq.answer}</p>
-						</div>
-					</details>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- CTA -->
-	<section class="cta-section">
-		<div class="cta-container">
-			<h2 class="cta-title">Add Visual Frontend Editing to Your AI Agent</h2>
-			<p class="cta-description">Install the Frontman skill in OpenClaw. Free, open source, BYOK.</p>
-			<div class="install-commands">
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> openclaw skill install frontman-dev</code>
-					<span class="command-label">OpenClaw skill</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
-					<span class="command-label">Next.js</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
-					<span class="command-label">Astro</span>
-				</div>
-			</div>
-			<div class="cta-links">
-				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
-				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
-			</div>
-		</div>
-	</section>
-</Layout>
-
-<style>
-	@reference "../../styles/global.css";
-	/* Hero */
-	.hero-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 64px;
-		display: flex;
-		justify-content: center;
-	}
-	.hero-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.hero-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #A259FF;
-		margin-bottom: 12px;
-	}
-	.hero-title {
-		font-size: 48px;
-		font-weight: 700;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		color: #fafafa;
-		margin-bottom: 8px;
-	}
-	.hero-subtitle {
-		font-size: 20px;
-		color: #71717a;
-		margin-bottom: 40px;
-	}
-	.hero-summary p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.summary-emphasis {
-		color: #fafafa !important;
-		font-weight: 500;
-		border-left: 3px solid #A259FF;
-		padding-left: 16px;
-		margin-top: 24px !important;
-	}
-	.text-link {
-		color: #A259FF;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.text-link:hover {
-		color: #c084fc;
-	}
-
-	/* Comparison section */
-	.comparison-section {
-		background: #09090b;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.comparison-container {
-		max-width: 900px;
-		width: 100%;
-	}
-
-	/* Section titles */
-	.section-title {
-		font-size: 32px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 32px;
-		letter-spacing: -0.02em;
-	}
-	.section-title--dark {
-		color: #09090b;
-	}
-
-	/* Table */
-	.table-wrapper {
-		@apply hidden md:block;
-	}
-	.comparison-table {
-		@apply w-full;
-		border-collapse: separate;
-		border-spacing: 0;
-	}
-	.feature-header {
-		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
-		color: rgba(255, 255, 255, 0.4);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-	.tool-header {
-		@apply text-center text-base font-bold py-4 px-6;
-		color: rgba(255, 255, 255, 0.7);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		width: 240px;
-	}
-	.tool-header--highlighted {
-		color: #A259FF;
-		background: rgba(162, 89, 255, 0.08);
-		border-top: 3px solid #A259FF;
-		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
-	}
-	.feature-cell {
-		@apply text-left text-base py-4 px-6;
-		color: rgba(255, 255, 255, 0.9);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell {
-		@apply py-4 px-6;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell--highlighted {
-		background: rgba(162, 89, 255, 0.08);
-	}
-	.status-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: flex-start;
-	}
-	.status-note {
-		font-size: 13px;
-		color: rgba(255, 255, 255, 0.5);
-	}
-	tr:last-child .feature-cell,
-	tr:last-child .status-cell {
-		border-bottom: none;
-	}
-	.status-icon { @apply inline-block; }
-	.status-icon--yes { color: #22c55e; }
-	.status-icon--no { color: #ef4444; }
-	.status-icon--partial { color: #f59e0b; }
-
-	/* Mobile cards */
-	.mobile-cards {
-		@apply flex flex-col gap-3 md:hidden;
-	}
-	.mobile-card {
-		@apply p-4;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 12px;
-	}
-	.mobile-card-title {
-		@apply font-headings text-sm font-bold mb-3;
-		color: white;
-	}
-	.mobile-card-grid {
-		@apply grid grid-cols-2 gap-3;
-	}
-	.mobile-card-item {
-		@apply flex items-center justify-between py-2 px-3;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-	}
-	.mobile-card-item--highlighted {
-		background: rgba(162, 89, 255, 0.12);
-		border: 1px solid rgba(162, 89, 255, 0.25);
-	}
-	.mobile-card-tool {
-		@apply text-sm;
-		color: rgba(255, 255, 255, 0.6);
-	}
-	.mobile-card-item--highlighted .mobile-card-tool {
-		color: #A259FF;
-		font-weight: 600;
-	}
-
-	/* Content sections */
-	.content-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.content-section--light {
-		background: #fafafa;
-		color: #09090b;
-	}
-	.content-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.prose-content p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.prose-content--dark p {
-		color: #52525b;
-	}
-	.prose-content strong {
-		color: #fafafa;
-		font-weight: 600;
-	}
-	.prose-content--dark strong {
-		color: #09090b;
-	}
-	.prose-content code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 0.9em;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.prose-content--dark code {
-		background: rgba(0, 0, 0, 0.06);
-	}
-	.prose-content ul {
-		list-style: none;
-		padding: 0;
-		margin: 16px 0;
-	}
-	.prose-content li {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding: 8px 0;
-		padding-left: 24px;
-		position: relative;
-	}
-	.prose-content--dark li {
-		color: #52525b;
-	}
-	.prose-content li::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 18px;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: #A259FF;
-	}
-	.prose-content li strong {
-		color: #fafafa;
-	}
-	.prose-content--dark li strong {
-		color: #09090b;
-	}
-	.install-code {
-		background: rgba(0, 0, 0, 0.06);
-		border: 1px solid rgba(0, 0, 0, 0.1);
-		border-radius: 8px;
-		padding: 12px 16px;
-		margin: 16px 0;
-		overflow-x: auto;
-	}
-	.install-code code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		color: #09090b;
-		background: none;
-		padding: 0;
-	}
-
-	/* FAQ - light variant */
-	.faq-list--light {
-		border-top: 1px solid #e4e4e7;
-	}
-	.faq-item--light {
-		border-bottom: 1px solid #e4e4e7;
-		cursor: pointer;
-	}
-	.faq-question--light {
-		width: 100%;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 24px 0;
-		color: #09090b;
-		font-size: 17px;
-		font-weight: 500;
-		line-height: 1.4;
-		list-style: none;
-		transition: color 0.2s;
-	}
-	.faq-question--light::-webkit-details-marker { display: none; }
-	.faq-question--light:hover { color: #3f3f46; }
-	.faq-question--light span:first-child { padding-right: 24px; }
-	.faq-icon--light {
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 1px solid #d4d4d8;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		font-weight: 300;
-		color: #a1a1aa;
-		transition: all 0.3s ease;
-	}
-	.group[open] .faq-icon--light {
-		transform: rotate(45deg);
-		background: #f4f4f5;
-	}
-	.faq-answer--light p {
-		font-size: 15px;
-		line-height: 1.7;
-		color: #52525b;
-		padding-bottom: 24px;
-		margin: 0;
-		max-width: 620px;
-	}
-
-	/* CTA */
-	.cta-section {
-		background: #09090b;
-		border-top: 1px solid #27272a;
-		padding: 80px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.cta-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.cta-title {
-		font-size: 36px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 8px;
-		letter-spacing: -0.02em;
-	}
-	.cta-description {
-		font-size: 17px;
-		color: #71717a;
-		margin-bottom: 32px;
-	}
-	.install-commands {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 32px;
-	}
-	.install-command {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-	}
-	.install-command code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		color: #fafafa;
-	}
-	.command-prefix {
-		color: #A259FF;
-		margin-right: 8px;
-	}
-	.command-label {
-		font-size: 13px;
-		color: #71717a;
-	}
-	.cta-links {
-		display: flex;
-		align-items: center;
-		gap: 24px;
-	}
-	.cta-discord {
-		color: #71717a;
-		font-size: 15px;
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-	.cta-discord:hover {
-		color: #fafafa;
-	}
-
-	/* Responsive */
-	@media (max-width: 768px) {
-		.hero-section { padding: 48px 20px 40px; }
-		.hero-title { font-size: 32px; }
-		.hero-subtitle { font-size: 17px; margin-bottom: 24px; }
-		.section-title { font-size: 24px; }
-		.content-section { padding: 40px 20px; }
-		.comparison-section { padding: 40px 20px; }
-		.cta-section { padding: 48px 20px; }
-		.cta-title { font-size: 28px; }
-		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
-		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
-	}
-</style>
+  <Fragment slot="cta">
+    <section class="flex justify-center border-t border-zinc-800 bg-zinc-950 px-6 py-20 max-md:px-5 max-md:py-12">
+      <div class="w-full max-w-[720px]">
+        <h2 class="mb-2 !text-4xl !font-bold !tracking-tight !text-zinc-50 max-md:!text-[28px]">Add Visual Frontend Editing to Your AI Agent</h2>
+        <p class="mb-8 text-[17px] text-zinc-300">Install the Frontman skill in OpenClaw. Free, open source, BYOK.</p>
+        <div class="mb-8 flex flex-col gap-3">
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> openclaw skill install frontman-dev</code>
+            <span class="text-[13px] text-zinc-300">OpenClaw skill</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>
+            <span class="text-[13px] text-zinc-300">Next.js</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/vite install</code>
+            <span class="text-[13px] text-zinc-300">Vite (React, Vue, Svelte, SolidJS)</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> astro add @frontman-ai/astro</code>
+            <span class="text-[13px] text-zinc-300">Astro</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-6 max-md:flex-col max-md:items-start max-md:gap-3">
+          <Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+          <a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="text-[15px] text-zinc-300 transition-colors hover:text-zinc-50">Join Discord</a>
+        </div>
+      </div>
+    </section>
+  </Fragment>
+</ComparisonLayout>

@@ -72,142 +72,38 @@ const comparisons = [
 		tags: ['Design Tool', 'Visual Editor', 'Open Source']
 	}
 ]
+
+const comparisonCardClass =
+	'group block rounded-2xl border border-white/[0.08] bg-white/[0.03] p-6 no-underline transition-colors hover:border-primary-500/40 hover:bg-primary-500/[0.06] md:p-8'
 ---
 
 <Layout title={SEO.title} description={SEO.description}>
-	<section class="hero-section">
-		<div class="hero-container">
-			<p class="hero-label">Comparisons</p>
-			<h1 class="hero-title">Frontman vs Other AI Coding Tools</h1>
-			<p class="hero-subtitle">
+	<section class="flex justify-center bg-[#09090b] px-5 pb-9 pt-12 text-zinc-50 md:px-6 md:pb-12 md:pt-20">
+		<div class="w-full max-w-[720px]">
+			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-primary-500">Comparisons</p>
+			<h1 class="mb-4 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
+				Frontman vs Other AI Coding Tools
+			</h1>
+			<p class="text-[18px] leading-[1.6] text-zinc-300">
 				Honest, detailed comparisons with other AI coding tools. We show what each tool does well, where Frontman is different, and who should use what.
 			</p>
 		</div>
 	</section>
 
-	<section class="cards-section">
-		<div class="cards-container">
+	<section class="flex justify-center bg-[#09090b] px-5 pb-12 pt-4 md:px-6 md:pb-20 md:pt-6">
+		<div class="flex w-full max-w-[720px] flex-col gap-5">
 			{comparisons.map((comp) => (
-				<a href={comp.href} class="comparison-card">
-					<h2 class="card-title">{comp.title}</h2>
-					<p class="card-description">{comp.description}</p>
-					<div class="card-tags">
+				<a href={comp.href} class={comparisonCardClass}>
+					<h2 class="mb-3 text-[20px] font-bold tracking-[-0.01em] text-zinc-50 md:text-[24px]">{comp.title}</h2>
+						<p class="mb-4 text-[16px] leading-[1.6] text-zinc-300">{comp.description}</p>
+					<div class="mb-4 flex flex-wrap gap-2">
 						{comp.tags.map((tag) => (
-							<span class="card-tag">{tag}</span>
+							<span class="rounded-md bg-white/[0.06] px-2.5 py-1 text-[12px] tracking-[0.02em] text-zinc-300">{tag}</span>
 						))}
 					</div>
-					<span class="card-cta">Read comparison &rarr;</span>
+					<span class="text-[15px] font-medium text-primary-500 group-hover:underline group-hover:underline-offset-3">Read comparison &rarr;</span>
 				</a>
 			))}
 		</div>
 	</section>
 </Layout>
-
-<style>
-	@reference "../../styles/global.css";
-	.hero-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 48px;
-		display: flex;
-		justify-content: center;
-	}
-	.hero-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.hero-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #A259FF;
-		margin-bottom: 12px;
-	}
-	.hero-title {
-		font-size: 48px;
-		font-weight: 700;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		color: #fafafa;
-		margin-bottom: 16px;
-	}
-	.hero-subtitle {
-		font-size: 18px;
-		line-height: 1.6;
-		color: #a1a1aa;
-	}
-
-	.cards-section {
-		background: #09090b;
-		padding: 24px 24px 80px;
-		display: flex;
-		justify-content: center;
-	}
-	.cards-container {
-		max-width: 720px;
-		width: 100%;
-		display: flex;
-		flex-direction: column;
-		gap: 20px;
-	}
-
-	.comparison-card {
-		display: block;
-		padding: 32px;
-		border-radius: 16px;
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		background: rgba(255, 255, 255, 0.03);
-		text-decoration: none;
-		transition: border-color 0.2s, background 0.2s;
-	}
-	.comparison-card:hover {
-		border-color: rgba(162, 89, 255, 0.4);
-		background: rgba(162, 89, 255, 0.06);
-	}
-
-	.card-title {
-		font-size: 24px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 12px;
-		letter-spacing: -0.01em;
-	}
-	.card-description {
-		font-size: 16px;
-		line-height: 1.6;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.card-tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-		margin-bottom: 16px;
-	}
-	.card-tag {
-		font-size: 12px;
-		padding: 4px 10px;
-		border-radius: 6px;
-		background: rgba(255, 255, 255, 0.06);
-		color: #71717a;
-		letter-spacing: 0.02em;
-	}
-	.card-cta {
-		font-size: 15px;
-		font-weight: 500;
-		color: #A259FF;
-	}
-	.comparison-card:hover .card-cta {
-		text-decoration: underline;
-		text-underline-offset: 3px;
-	}
-
-	@media (max-width: 768px) {
-		.hero-section { padding: 48px 20px 32px; }
-		.hero-title { font-size: 32px; }
-		.cards-section { padding: 16px 20px 48px; }
-		.comparison-card { padding: 24px; }
-		.card-title { font-size: 20px; }
-	}
-</style>

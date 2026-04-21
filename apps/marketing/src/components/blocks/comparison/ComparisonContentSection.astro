@@ -19,14 +19,14 @@ const isLight = variant === 'light'
 ]}>
   <div class="w-full max-w-[720px]">
     <h2 class:list={[
-      'mb-6 text-[32px] font-bold tracking-tight max-md:text-2xl',
-      isLight ? 'text-zinc-950' : 'text-zinc-50',
+      'mb-6 !text-[32px] !font-bold !tracking-tight max-md:!text-2xl',
+      isLight ? '!text-zinc-950' : '!text-zinc-50',
     ]}>{title}</h2>
     <div class:list={[
       '[&_p]:mb-4 [&_p]:text-[17px] [&_p]:leading-[1.7]',
       isLight
-        ? '[&_p]:text-zinc-600 [&_strong]:text-zinc-950 [&_li]:text-zinc-600 [&_li_strong]:text-zinc-950 [&_code]:bg-black/[0.06] [&_.text-link]:text-violet-700 [&_.text-link]:underline [&_.text-link]:underline-offset-2 [&_.text-link:hover]:text-violet-800'
-        : '[&_p]:text-zinc-400 [&_strong]:text-zinc-50 [&_li]:text-zinc-400 [&_li_strong]:text-zinc-50 [&_code]:bg-white/[0.08] [&_.text-link]:text-primary-500 [&_.text-link]:underline [&_.text-link]:underline-offset-2 [&_.text-link:hover]:text-purple-400',
+        ? '[&_p]:text-zinc-950 [&_strong]:text-zinc-950 [&_li]:text-zinc-950 [&_code]:bg-black/[0.06] [&_.text-link]:text-violet-700 [&_.text-link]:underline [&_.text-link]:underline-offset-2 [&_.text-link:hover]:text-violet-800'
+        : '[&_p]:text-zinc-300 [&_strong]:text-zinc-50 [&_li]:text-zinc-300 [&_li_strong]:text-zinc-50 [&_code]:bg-white/[0.08] [&_.text-link]:text-primary-500 [&_.text-link]:underline [&_.text-link]:underline-offset-2 [&_.text-link:hover]:text-purple-400',
       '[&_strong]:font-semibold',
       '[&_code]:rounded [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-sm',
       '[&_ul]:my-4 [&_ul]:list-none [&_ul]:p-0',

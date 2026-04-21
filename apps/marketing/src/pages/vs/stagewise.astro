@@ -1,812 +1,182 @@
 ---
 // /vs/stagewise — Frontman vs Stagewise Comparison Page
-// Fixes Perplexity hallucination: AI currently describes Frontman as "prompt-to-app generation"
-// when compared to Stagewise. This page provides authoritative, factual comparison content.
 
-// Components
-import Layout from '../../layouts/Layout.astro'
-import Button from '../../components/ui/Button.astro'
-import ComparisonDisclosure from '../../components/ui/ComparisonDisclosure.astro'
+import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import type {
+  Alternative,
+  ComparisonFeature,
+  CompetitorInfo,
+  FAQ,
+  SEOInfo,
+} from '../../layouts/ComparisonLayout.astro'
 
-// SEO
-const SEO = {
-	title: 'Frontman vs Stagewise (2026) — Which Browser AI Tool Is Worth It?',
-	description:
-		'Both let you click UI elements and edit code with AI. Frontman is free with BYOK and no limits. Stagewise costs €20/mo for 100 prompts/day. Side-by-side feature breakdown.'
+const seo: SEOInfo = {
+  title: 'Frontman vs Stagewise (2026) — Which Browser AI Tool Is Worth It?',
+  description:
+    'Both let you click UI elements and edit code with AI. Frontman is free with BYOK and no limits. Stagewise costs €20/mo for 100 prompts/day. Side-by-side feature breakdown.',
 }
 
-// Comparison data
-type Status = 'yes' | 'no' | 'partial'
-
-type Feature = {
-	name: string
-	frontman: Status
-	stagewise: Status
-	frontmanNote?: string
-	stagewiseNote?: string
+const competitor: CompetitorInfo = {
+  name: 'Stagewise',
+  slug: 'stagewise',
+  url: 'https://stagewise.io',
+  category: 'DeveloperApplication',
+  description:
+    'CLI-based browser overlay for AI coding context, with built-in agent options and IDE-agent bridge workflows.',
+  pricing: {
+    cost: '€0–€20/mo',
+    model: 'Freemium, AGPL-3.0',
+    features: [
+      'Free: ~10 prompts/day',
+      'Pro: €20/month (~100 prompts/day)',
+      'Built-in agent uses their infrastructure',
+      'IDE agent bridge mode may bypass limits',
+      'AGPL-3.0 license',
+    ],
+  },
 }
 
-const features: Feature[] = [
-	{ name: 'Click-to-select elements', frontman: 'yes', stagewise: 'yes', frontmanNote: 'In your running app', stagewiseNote: 'In your running app' },
-	{ name: 'Sees live DOM & styles', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Via framework middleware', stagewiseNote: 'Via CLI-injected toolbar' },
-	{ name: 'Natural language code edits', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Self-contained agent', stagewiseNote: 'Built-in agent or IDE agent bridge' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Instant via HMR', stagewiseNote: 'Instant via HMR' },
-	{ name: 'Deep framework middleware', frontman: 'yes', stagewise: 'no', frontmanNote: 'Component tree, props, server state', stagewiseNote: 'DOM-level only' },
-	{ name: 'Truly unlimited and free', frontman: 'yes', stagewise: 'no', frontmanNote: 'BYOK, no prompt limits', stagewiseNote: '10 prompts/day free, 100/day for €20/mo' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', stagewise: 'partial', frontmanNote: 'Any LLM provider directly', stagewiseNote: 'Via IDE agent bridge only' },
-	{ name: 'Zero codebase install', frontman: 'no', stagewise: 'yes', frontmanNote: 'Requires framework adapter', stagewiseNote: 'npx stagewise@latest — nothing installed' },
-	{ name: 'IDE agent bridge', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Cursor, Copilot, Windsurf, Cline, etc.' },
-	{ name: 'Framework-agnostic', frontman: 'partial', stagewise: 'yes', frontmanNote: 'Next.js, Astro, Vite', stagewiseNote: 'Any framework including Angular' },
-	{ name: 'Server-side context', frontman: 'yes', stagewise: 'no', frontmanNote: 'Routes, server logs, query timing', stagewiseNote: 'Browser-only context' },
-	{ name: 'Designer/PM friendly', frontman: 'yes', stagewise: 'yes', frontmanNote: 'No IDE needed', stagewiseNote: 'No IDE needed' },
-	{ name: 'Open source', frontman: 'yes', stagewise: 'yes', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0', stagewiseNote: 'AGPL-3.0' },
-	{ name: 'Self-hostable (fully local)', frontman: 'yes', stagewise: 'partial', frontmanNote: 'Everything runs locally', stagewiseNote: 'Built-in agent has SaaS dependency' },
-	{ name: 'Plugin system', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Extensible via plugins' },
-	{ name: 'VS Code extension', frontman: 'no', stagewise: 'yes', stagewiseNote: 'Stagewise VSCode extension' },
+const features: ComparisonFeature[] = [
+  { name: 'Click-to-select elements', frontman: 'yes', competitor: 'yes', frontmanNote: 'In your running app', competitorNote: 'In your running app' },
+  { name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'yes', frontmanNote: 'Via framework middleware', competitorNote: 'Via CLI-injected toolbar' },
+  { name: 'Natural language code edits', frontman: 'yes', competitor: 'yes', frontmanNote: 'Self-contained agent', competitorNote: 'Built-in agent or IDE agent bridge' },
+  { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Instant via HMR', competitorNote: 'Instant via HMR' },
+  { name: 'Deep framework middleware', frontman: 'yes', competitor: 'no', frontmanNote: 'Component tree, props, server state', competitorNote: 'DOM-level only' },
+  { name: 'Truly unlimited and free', frontman: 'yes', competitor: 'no', frontmanNote: 'BYOK, no prompt limits', competitorNote: '10 prompts/day free, 100/day for €20/mo' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'partial', frontmanNote: 'Any LLM provider directly', competitorNote: 'Via IDE agent bridge only' },
+  { name: 'Zero codebase install', frontman: 'no', competitor: 'yes', frontmanNote: 'Requires framework adapter', competitorNote: 'npx stagewise@latest — nothing installed' },
+  { name: 'IDE agent bridge', frontman: 'no', competitor: 'yes', competitorNote: 'Cursor, Copilot, Windsurf, Cline, etc.' },
+  { name: 'Framework-agnostic', frontman: 'partial', competitor: 'yes', frontmanNote: 'Next.js, Astro, Vite', competitorNote: 'Any framework including Angular' },
+  { name: 'Server-side context', frontman: 'yes', competitor: 'no', frontmanNote: 'Routes, server logs, query timing', competitorNote: 'Browser-only context' },
+  { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'yes', frontmanNote: 'No IDE needed', competitorNote: 'No IDE needed' },
+  { name: 'Open source', frontman: 'yes', competitor: 'yes', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0', competitorNote: 'AGPL-3.0' },
+  { name: 'Self-hostable (fully local)', frontman: 'yes', competitor: 'partial', frontmanNote: 'Everything runs locally', competitorNote: 'Built-in agent has SaaS dependency' },
+  { name: 'Plugin system', frontman: 'no', competitor: 'yes', competitorNote: 'Extensible via plugins' },
+  { name: 'VS Code extension', frontman: 'no', competitor: 'yes', competitorNote: 'Stagewise VSCode extension' },
 ]
 
-function statusLabel(status: Status): string {
-	switch (status) {
-		case 'yes': return 'Yes'
-		case 'no': return 'No'
-		case 'partial': return 'Partial'
-	}
-}
-
-// FAQ data for JSON-LD
-const faqs = [
-	{
-		question: 'What is the difference between Frontman and Stagewise?',
-		answer: 'Both tools let you click elements in your running app and describe changes in natural language. The key difference is architecture: Stagewise is a CLI overlay that injects a toolbar into your browser and can bridge to IDE agents like Cursor. Frontman installs as framework middleware (Next.js, Astro, Vite) and runs its own self-contained agent with deep access to the component tree, props, server state, and computed styles. Stagewise is faster to try (zero install), but Frontman gives deeper context and is fully free with no prompt limits.'
-	},
-	{
-		question: 'Is Frontman a free alternative to Stagewise?',
-		answer: 'Yes. Stagewise\'s free tier is limited to 10 prompts per day. Their Pro plan costs €20/month for 100 prompts/day. Frontman is completely free — you bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly. There are no prompt limits, no subscription fees, and no usage caps. The client libraries are Apache 2.0 and the server is AGPL-3.0.'
-	},
-	{
-		question: 'Can I use Stagewise and Frontman together?',
-		answer: 'In theory, yes — they operate differently. Stagewise injects a toolbar via CLI, while Frontman runs as framework middleware. However, using both simultaneously on the same dev server may cause conflicts. Most developers choose one based on their workflow: Stagewise if they want to bridge to an existing IDE agent, Frontman if they want a self-contained agent with deeper framework context.'
-	},
-	{
-		question: 'Does Frontman work with Cursor like Stagewise does?',
-		answer: 'Differently. Stagewise acts as a bridge — it sends browser context to Cursor\'s agent for code edits. Frontman is a self-contained agent that doesn\'t need Cursor or any IDE. It has its own AI agent that reads the browser context and generates code edits directly. You can still use Cursor for backend coding alongside Frontman for visual frontend editing — they edit the same source files.'
-	},
-	{
-		question: 'Which tool has deeper browser context?',
-		answer: 'Frontman. Because it installs as framework middleware (not a CLI overlay), Frontman has access to the component tree at the framework level — React fiber nodes, Vue reactivity graph, or Svelte component tree. It also sees server-side context like routes, server logs, and query timing. Stagewise sees the DOM and computed styles but operates at a shallower level since it doesn\'t integrate into the framework\'s runtime.'
-	},
-	{
-		question: 'Which tool is easier to set up?',
-		answer: 'Stagewise. You run npx stagewise@latest in a second terminal and it works with any framework immediately — no changes to your codebase. Frontman requires installing a framework adapter (e.g., npx @frontman-ai/nextjs install for Next.js) which adds a small amount of middleware to your dev server. Frontman\'s setup takes about 60 seconds more but provides deeper integration in return.'
-	}
+const faqs: FAQ[] = [
+  {
+    question: 'What is the difference between Frontman and Stagewise?',
+    answer:
+      'Both tools let you click elements in your running app and describe changes in natural language. The key difference is architecture: Stagewise is a CLI overlay that injects a toolbar into your browser and can bridge to IDE agents like Cursor. Frontman installs as framework middleware (Next.js, Astro, Vite) and runs its own self-contained agent with deep access to the component tree, props, server state, and computed styles. Stagewise is faster to try (zero install), but Frontman gives deeper context and is fully free with no prompt limits.',
+  },
+  {
+    question: 'Is Frontman a free alternative to Stagewise?',
+    answer:
+      'Yes. Stagewise\'s free tier is limited to 10 prompts per day. Their Pro plan costs €20/month for 100 prompts/day. Frontman is completely free — you bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly. There are no prompt limits, no subscription fees, and no usage caps. The client libraries are Apache 2.0 and the server is AGPL-3.0.',
+  },
+  {
+    question: 'Can I use Stagewise and Frontman together?',
+    answer:
+      'In theory, yes — they operate differently. Stagewise injects a toolbar via CLI, while Frontman runs as framework middleware. However, using both simultaneously on the same dev server may cause conflicts. Most developers choose one based on their workflow: Stagewise if they want to bridge to an existing IDE agent, Frontman if they want a self-contained agent with deeper framework context.',
+  },
+  {
+    question: 'Does Frontman work with Cursor like Stagewise does?',
+    answer:
+      'Differently. Stagewise acts as a bridge — it sends browser context to Cursor\'s agent for code edits. Frontman is a self-contained agent that doesn\'t need Cursor or any IDE. It has its own AI agent that reads the browser context and generates code edits directly. You can still use Cursor for backend coding alongside Frontman for visual frontend editing — they edit the same source files.',
+  },
+  {
+    question: 'Which tool has deeper browser context?',
+    answer:
+      'Frontman. Because it installs as framework middleware (not a CLI overlay), Frontman has access to the component tree at the framework level — React fiber nodes, Vue reactivity graph, or Svelte component tree. It also sees server-side context like routes, server logs, and query timing. Stagewise sees the DOM and computed styles but operates at a shallower level since it doesn\'t integrate into the framework\'s runtime.',
+  },
+  {
+    question: 'Which tool is easier to set up?',
+    answer:
+      'Stagewise. You run npx stagewise@latest in a second terminal and it works with any framework immediately — no changes to your codebase. Frontman requires installing a framework adapter (e.g., npx @frontman-ai/nextjs install for Next.js) which adds a small amount of middleware to your dev server. Frontman\'s setup takes about 60 seconds more but provides deeper integration in return.',
+  },
 ]
 
-// FAQPage JSON-LD
-const faqJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "FAQPage",
-	"mainEntity": faqs.map((faq) => ({
-		"@type": "Question",
-		"name": faq.question,
-		"acceptedAnswer": {
-			"@type": "Answer",
-			"text": faq.answer
-		}
-	}))
-}
+const alternatives: Alternative[] = [
+  { name: 'Frontman', slug: '', oneLiner: 'Framework-aware browser middleware with deep runtime context and no prompt caps.' },
+  { name: 'Cursor', slug: 'cursor', oneLiner: 'General-purpose AI IDE with agent mode and autocomplete.' },
+  { name: 'Windsurf', slug: 'windsurf', oneLiner: 'AI IDE with embedded browser preview and Cascade agent.' },
+  { name: 'GitHub Copilot', slug: 'copilot', oneLiner: 'IDE-native assistant with strong GitHub workflow integration.' },
+  { name: 'Claude Code', slug: 'claude-code', oneLiner: 'Terminal-first agent with shell and git automation.' },
+]
+
+const frontmanPricingFeatures = [
+  'Unlimited prompts, no daily caps',
+  'Bring your own API keys',
+  'Apache 2.0 (client) / AGPL-3.0 (server)',
+  'You pay your LLM provider directly',
+  'Self-hostable, fully local',
+]
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
-	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+<ComparisonLayout
+  seo={seo}
+  competitor={competitor}
+  heroTitle="Frontman vs Stagewise"
+  heroSubtitle="Two Browser-Based AI Coding Tools, Different Architecture"
+  features={features}
+  faqs={faqs}
+  alternatives={alternatives}
+  frontmanPricing={{ features: frontmanPricingFeatures }}
+>
+  <Fragment slot="hero-summary">
+    <p>
+      <a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://stagewise.io" class="text-link" rel="nofollow">Stagewise</a> both let you click elements in your running app, describe changes in natural language, and get real source code edits. They solve the same problem — AI coding tools that can't see the browser — but with fundamentally different architectures.
+    </p>
+    <p>
+      <strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It runs its own self-contained agent with deep access to the component tree, computed styles, server routes, and server logs. Free and unlimited — you bring your own API keys.
+    </p>
+    <p>
+      <strong>Stagewise</strong> is a YC-backed CLI tool that injects a toolbar into your browser. It captures DOM context and routes it to its own built-in agent or bridges to IDE agents like Cursor, Copilot, and Windsurf. Framework-agnostic with zero codebase changes, but limited to 10 free prompts/day (€20/month for 100/day).
+    </p>
+    <p class="summary-emphasis">
+      The core tradeoff: Stagewise is faster to try and bridges to your existing IDE. Frontman goes deeper into the framework runtime and is fully free with no prompt limits.
+    </p>
+  </Fragment>
 
-	<!-- Hero / AI-Citable Summary (GEO Lead) -->
-	<section class="hero-section">
-		<div class="hero-container">
-			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs Stagewise</h1>
-			<p class="hero-subtitle">Two Browser-Based AI Coding Tools, Different Architecture</p>
+  <Fragment slot="competitor-strengths">
+    <p>Stagewise has real traction — 6,500+ GitHub stars and YC backing. It deserves credit for popularizing the "click elements in the browser, describe changes" workflow.</p>
+    <p><strong>Zero installation friction.</strong> Run <code>npx stagewise@latest</code> in a terminal next to your dev server. No framework adapters, no config files, no changes to your codebase. You're editing visually in 30 seconds. This is the lowest barrier to entry of any browser-based AI coding tool.</p>
+    <p>Stagewise can route browser context to your existing IDE agent — Cursor, Copilot, Windsurf, Cline, and others. If you're already invested in an IDE agent's workflow, Stagewise adds browser awareness without switching tools.</p>
+    <p><strong>Framework-agnostic.</strong> Because Stagewise operates as a CLI overlay rather than framework middleware, it works with any framework — including Angular, which Frontman doesn't support. If your stack isn't Next.js, Astro, or Vite, Stagewise is the option that works today.</p>
+    <p><strong>Plugin system and VS Code extension.</strong> Stagewise has an extensibility layer and a dedicated VS Code extension. Frontman currently has neither.</p>
+  </Fragment>
 
-			<div class="hero-summary">
-				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://stagewise.io" class="text-link" rel="nofollow">Stagewise</a> both let you click elements in your running app, describe changes in natural language, and get real source code edits. They solve the same problem — AI coding tools that can't see the browser — but with fundamentally different architectures.
-				</p>
-				<p>
-					<strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It runs its own self-contained agent with deep access to the component tree, computed styles, server routes, and server logs. Free and unlimited — you bring your own API keys.
-				</p>
-				<p>
-					<strong>Stagewise</strong> is a YC-backed CLI tool that injects a toolbar into your browser. It captures DOM context and routes it to its own built-in agent or bridges to IDE agents like Cursor, Copilot, and Windsurf. Framework-agnostic with zero codebase changes, but limited to 10 free prompts/day (€20/month for 100/day).
-				</p>
-				<p class="summary-emphasis">
-					The core tradeoff: Stagewise is faster to try and bridges to your existing IDE. Frontman goes deeper into the framework runtime and is fully free with no prompt limits.
-				</p>
-			</div>
-			<ComparisonDisclosure competitor="Stagewise" />
-		</div>
-	</section>
+  <Fragment slot="frontman-differentiators">
+    <p>Frontman and Stagewise look similar on the surface — both let you click elements and describe changes. The difference is depth. Stagewise injects a toolbar on top of your app. Frontman wires into the app itself.</p>
+    <p><strong>Framework middleware vs CLI overlay.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to information a CLI overlay can't reach: the React fiber tree, Vue reactivity graph, component props, server-side routes, server logs, and query timing. When you click a button, Frontman knows not just what DOM element it is, but which component rendered it, what props it received, and what server endpoint it calls.</p>
+    <p><strong>Fully free, no prompt limits.</strong> Stagewise's free tier caps you at 10 prompts per day. Their Pro plan is €20/month for 100 prompts/day. Frontman has no prompt limits, no subscription, and no usage-based pricing. You bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly at their standard rates. For a team of 3 developers using AI coding tools daily, the cost difference is significant: €0/month vs €60/month for Stagewise Pro.</p>
+    <p><strong>Self-contained agent.</strong> Frontman runs its own AI agent — it doesn't need Cursor, Copilot, or any IDE running alongside it. The agent has full access to the framework runtime context and generates code edits directly. This means faster iteration (no roundtrip through an IDE agent) and simpler architecture (one tool instead of two).</p>
+    <p>Because Frontman is framework middleware, it sees both sides: the client-side DOM and the server-side context. It knows your routes, sees server logs, and can access server-side state. Stagewise operates purely on the client side.</p>
+    <p><strong>True BYOK.</strong> Frontman connects directly to any LLM provider — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. Stagewise's "bring your own model" works through IDE agent bridges, not direct API key input.</p>
+  </Fragment>
 
-	<!-- Comparison Table -->
-	<section class="comparison-section">
-		<div class="comparison-container">
-			<h2 class="section-title">Feature Comparison</h2>
+  <Fragment slot="who-should-use-competitor">
+    <p>Stagewise is the better choice when you want browser-based AI coding with minimal commitment:</p>
+    <ul>
+      <li><strong>Quick evaluation</strong> — want to try browser-aware AI editing in 30 seconds without installing anything into your project</li>
+      <li><strong>IDE agent users</strong> — already using Cursor, Copilot, or Windsurf and want to add browser context to your existing agent</li>
+      <li><strong>Angular or non-supported framework</strong> — your stack isn't Next.js, Astro, or Vite and you need something framework-agnostic</li>
+      <li><strong>Occasional use</strong> — 10 prompts/day is enough for your workflow and you don't want to manage API keys</li>
+    </ul>
+  </Fragment>
 
-			<!-- Desktop table -->
-			<div class="table-wrapper">
-				<table class="comparison-table" role="grid">
-					<thead>
-						<tr>
-							<th class="feature-header">Feature</th>
-							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">Stagewise</th>
-						</tr>
-					</thead>
-					<tbody>
-						{features.map((feature) => (
-							<tr>
-								<td class="feature-cell">{feature.name}</td>
-								<td class={`status-cell status-cell--highlighted`} aria-label={statusLabel(feature.frontman)}>
-									<div class="status-content">
-										{feature.frontman === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.frontman === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.frontman === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
-									</div>
-								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.stagewise)}>
-									<div class="status-content">
-										{feature.stagewise === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.stagewise === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.stagewise === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.stagewiseNote && <span class="status-note">{feature.stagewiseNote}</span>}
-									</div>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
+  <Fragment slot="who-should-use-frontman">
+    <p>Frontman is the better choice when you need deeper integration and freedom from prompt limits:</p>
+    <ul>
+      <li><strong>Daily frontend development</strong> — 10 prompts/day isn't enough and you don't want to pay €20/month for a cap of 100</li>
+      <li><strong>Next.js, Astro, or Vite projects</strong> — Frontman's middleware gives you deeper context than any CLI overlay</li>
+      <li><strong>Teams with designers or PMs</strong> — non-technical team members can make visual changes without an IDE or a Cursor subscription</li>
+      <li><strong>Open-source and vendor-independent</strong> — you want full control with no SaaS dependency, no prompt caps, and no monthly fees</li>
+      <li><strong>Server-side context matters</strong> — you need the AI to understand routes, server logs, and server-side state alongside the visual UI</li>
+    </ul>
+    <p>If you hit Stagewise's prompt limits or need deeper framework context, Frontman is worth evaluating.</p>
+    <p>Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a> for a comparison with a full AI-powered IDE.</p>
+  </Fragment>
 
-			<!-- Mobile cards -->
-			<div class="mobile-cards">
-				{features.map((feature) => (
-					<div class="mobile-card">
-						<h3 class="mobile-card-title">{feature.name}</h3>
-						<div class="mobile-card-grid">
-							<div class="mobile-card-item mobile-card-item--highlighted">
-								<span class="mobile-card-tool">Frontman</span>
-								<span>
-									{feature.frontman === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.frontman === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.frontman === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-							<div class="mobile-card-item">
-								<span class="mobile-card-tool">Stagewise</span>
-								<span>
-									{feature.stagewise === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.stagewise === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.stagewise === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- What Stagewise Does Well -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">What Stagewise Does Well</h2>
-			<div class="prose-content prose-content--dark">
-				<p>Stagewise has real traction — 6,500+ GitHub stars and YC backing. It deserves credit for popularizing the "click elements in the browser, describe changes" workflow.</p>
-				<p><strong>Zero installation friction.</strong> Run <code>npx stagewise@latest</code> in a terminal next to your dev server. No framework adapters, no config files, no changes to your codebase. You're editing visually in 30 seconds. This is the lowest barrier to entry of any browser-based AI coding tool.</p>
-				<p>Stagewise can route browser context to your existing IDE agent — Cursor, Copilot, Windsurf, Cline, and others. If you're already invested in an IDE agent's workflow, Stagewise adds browser awareness without switching tools.</p>
-				<p><strong>Framework-agnostic.</strong> Because Stagewise operates as a CLI overlay rather than framework middleware, it works with any framework — including Angular, which Frontman doesn't support. If your stack isn't Next.js, Astro, or Vite, Stagewise is the option that works today.</p>
-				<p><strong>Plugin system and VS Code extension.</strong> Stagewise has an extensibility layer and a dedicated VS Code extension. Frontman currently has neither.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Where Frontman Is Different -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Where Frontman Is Different</h2>
-			<div class="prose-content">
-				<p>Frontman and Stagewise look similar on the surface — both let you click elements and describe changes. The difference is depth. Stagewise injects a toolbar on top of your app. Frontman wires into the app itself.</p>
-
-				<p><strong>Framework middleware vs CLI overlay.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to information a CLI overlay can't reach: the React fiber tree, Vue reactivity graph, component props, server-side routes, server logs, and query timing. When you click a button, Frontman knows not just what DOM element it is, but which component rendered it, what props it received, and what server endpoint it calls.</p>
-
-				<p><strong>Fully free, no prompt limits.</strong> Stagewise's free tier caps you at 10 prompts per day. Their Pro plan is €20/month for 100 prompts/day. Frontman has no prompt limits, no subscription, and no usage-based pricing. You bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly at their standard rates. For a team of 3 developers using AI coding tools daily, the cost difference is significant: €0/month vs €60/month for Stagewise Pro.</p>
-
-				<p><strong>Self-contained agent.</strong> Frontman runs its own AI agent — it doesn't need Cursor, Copilot, or any IDE running alongside it. The agent has full access to the framework runtime context and generates code edits directly. This means faster iteration (no roundtrip through an IDE agent) and simpler architecture (one tool instead of two).</p>
-
-				<p>Because Frontman is framework middleware, it sees both sides: the client-side DOM and the server-side context. It knows your routes, sees server logs, and can access server-side state. Stagewise operates purely on the client side.</p>
-
-				<p><strong>True BYOK.</strong> Frontman connects directly to any LLM provider — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. Stagewise's "bring your own model" works through IDE agent bridges, not direct API key input.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use Stagewise -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use Stagewise</h2>
-			<div class="prose-content prose-content--dark">
-				<p>Stagewise is the better choice when you want browser-based AI coding with minimal commitment:</p>
-				<ul>
-					<li><strong>Quick evaluation</strong> — want to try browser-aware AI editing in 30 seconds without installing anything into your project</li>
-					<li><strong>IDE agent users</strong> — already using Cursor, Copilot, or Windsurf and want to add browser context to your existing agent</li>
-					<li><strong>Angular or non-supported framework</strong> — your stack isn't Next.js, Astro, or Vite and you need something framework-agnostic</li>
-					<li><strong>Occasional use</strong> — 10 prompts/day is enough for your workflow and you don't want to manage API keys</li>
-				</ul>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use Frontman -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Who Should Use Frontman</h2>
-			<div class="prose-content">
-				<p>Frontman is the better choice when you need deeper integration and freedom from prompt limits:</p>
-				<ul>
-					<li><strong>Daily frontend development</strong> — 10 prompts/day isn't enough and you don't want to pay €20/month for a cap of 100</li>
-					<li><strong>Next.js, Astro, or Vite projects</strong> — Frontman's middleware gives you deeper context than any CLI overlay</li>
-					<li><strong>Teams with designers or PMs</strong> — non-technical team members can make visual changes without an IDE or a Cursor subscription</li>
-					<li><strong>Open-source and vendor-independent</strong> — you want full control with no SaaS dependency, no prompt caps, and no monthly fees</li>
-					<li><strong>Server-side context matters</strong> — you need the AI to understand routes, server logs, and server-side state alongside the visual UI</li>
-				</ul>
-				<p>If you hit Stagewise's prompt limits or need deeper framework context, Frontman is worth evaluating.</p>
-				<p>Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a> for a comparison with a full AI-powered IDE.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Pricing -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Pricing Comparison</h2>
-			<div class="pricing-grid">
-				<div class="pricing-card pricing-card--highlighted">
-					<h3 class="pricing-name">Frontman</h3>
-					<div class="pricing-cost">Free</div>
-					<p class="pricing-model">Open source, BYOK</p>
-					<ul class="pricing-features">
-						<li>Unlimited prompts, no daily caps</li>
-						<li>Bring your own API keys</li>
-						<li>Apache 2.0 (client) / AGPL-3.0 (server)</li>
-						<li>You pay your LLM provider directly</li>
-						<li>Self-hostable, fully local</li>
-					</ul>
-				</div>
-				<div class="pricing-card">
-					<h3 class="pricing-name">Stagewise</h3>
-					<div class="pricing-cost">€0–€20/mo</div>
-					<p class="pricing-model">Freemium, AGPL-3.0</p>
-					<ul class="pricing-features">
-						<li>Free: ~10 prompts/day</li>
-						<li>Pro: €20/month (~100 prompts/day)</li>
-						<li>Built-in agent uses their infrastructure</li>
-						<li>IDE agent bridge mode may bypass limits</li>
-						<li>AGPL-3.0 license</li>
-					</ul>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<!-- FAQ -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Frequently Asked Questions</h2>
-			<div class="faq-list">
-				{faqs.map((faq) => (
-					<details class="faq-item group">
-						<summary class="faq-question">
-							<span>{faq.question}</span>
-							<span class="faq-icon">+</span>
-						</summary>
-						<div class="faq-answer">
-							<p>{faq.answer}</p>
-						</div>
-					</details>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- Related -->
-	<section class="content-section">
-		<div class="content-container">
-			<p>Part of our <a href="/blog/best-open-source-ai-coding-tools-2026/" class="text-link">best open-source AI coding tools comparison</a> covering 12 tools across CLI, IDE, and browser categories.</p>
-		</div>
-	</section>
-
-	<!-- CTA -->
-	<section class="cta-section">
-		<div class="cta-container">
-			<h2 class="cta-title">Try Frontman</h2>
-			<p class="cta-description">One command. No account. No credit card. No prompt limits.</p>
-			<div class="install-commands">
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
-					<span class="command-label">Next.js</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-					<span class="command-label">Vite (React, Vue, Svelte)</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
-					<span class="command-label">Astro</span>
-				</div>
-			</div>
-			<div class="cta-links">
-				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
-				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
-			</div>
-		</div>
-	</section>
-</Layout>
-
-<style>
-	@reference "../../styles/global.css";
-	/* Hero */
-	.hero-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 64px;
-		display: flex;
-		justify-content: center;
-	}
-	.hero-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.hero-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #A259FF;
-		margin-bottom: 12px;
-	}
-	.hero-title {
-		font-size: 48px;
-		font-weight: 700;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		color: #fafafa;
-		margin-bottom: 8px;
-	}
-	.hero-subtitle {
-		font-size: 20px;
-		color: #71717a;
-		margin-bottom: 40px;
-	}
-	.hero-summary p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.hero-summary strong {
-		color: #fafafa;
-	}
-	.hero-summary code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.summary-emphasis {
-		color: #fafafa !important;
-		font-weight: 500;
-		border-left: 3px solid #A259FF;
-		padding-left: 16px;
-		margin-top: 24px !important;
-	}
-	.text-link {
-		color: #A259FF;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.text-link:hover {
-		color: #c084fc;
-	}
-
-	/* Comparison section */
-	.comparison-section {
-		background: #09090b;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.comparison-container {
-		max-width: 900px;
-		width: 100%;
-	}
-
-	/* Section titles */
-	.section-title {
-		font-size: 32px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 32px;
-		letter-spacing: -0.02em;
-	}
-	.section-title--dark {
-		color: #09090b;
-	}
-
-	/* Table */
-	.table-wrapper {
-		@apply hidden md:block;
-	}
-	.comparison-table {
-		@apply w-full;
-		border-collapse: separate;
-		border-spacing: 0;
-	}
-	.feature-header {
-		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
-		color: rgba(255, 255, 255, 0.4);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-	.tool-header {
-		@apply text-center text-base font-bold py-4 px-6;
-		color: rgba(255, 255, 255, 0.7);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		width: 240px;
-	}
-	.tool-header--highlighted {
-		color: #A259FF;
-		background: rgba(162, 89, 255, 0.08);
-		border-top: 3px solid #A259FF;
-		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
-	}
-	.feature-cell {
-		@apply text-left text-base py-4 px-6;
-		color: rgba(255, 255, 255, 0.9);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell {
-		@apply py-4 px-6;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell--highlighted {
-		background: rgba(162, 89, 255, 0.08);
-	}
-	.status-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: flex-start;
-	}
-	.status-note {
-		font-size: 13px;
-		color: rgba(255, 255, 255, 0.5);
-	}
-	tr:last-child .feature-cell,
-	tr:last-child .status-cell {
-		border-bottom: none;
-	}
-	.status-icon { @apply inline-block; }
-	.status-icon--yes { color: #22c55e; }
-	.status-icon--no { color: #ef4444; }
-	.status-icon--partial { color: #f59e0b; }
-
-	/* Mobile cards */
-	.mobile-cards {
-		@apply flex flex-col gap-3 md:hidden;
-	}
-	.mobile-card {
-		@apply p-4;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 12px;
-	}
-	.mobile-card-title {
-		@apply font-headings text-sm font-bold mb-3;
-		color: white;
-	}
-	.mobile-card-grid {
-		@apply grid grid-cols-2 gap-3;
-	}
-	.mobile-card-item {
-		@apply flex items-center justify-between py-2 px-3;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-	}
-	.mobile-card-item--highlighted {
-		background: rgba(162, 89, 255, 0.12);
-		border: 1px solid rgba(162, 89, 255, 0.25);
-	}
-	.mobile-card-tool {
-		@apply text-sm;
-		color: rgba(255, 255, 255, 0.6);
-	}
-	.mobile-card-item--highlighted .mobile-card-tool {
-		color: #A259FF;
-		font-weight: 600;
-	}
-
-	/* Content sections */
-	.content-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.content-section--light {
-		background: #fafafa;
-		color: #09090b;
-	}
-	.content-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.prose-content p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.prose-content--dark p {
-		color: #52525b;
-	}
-	.prose-content strong {
-		color: #fafafa;
-		font-weight: 600;
-	}
-	.prose-content--dark strong {
-		color: #09090b;
-	}
-	.prose-content code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.prose-content--dark code {
-		background: rgba(0, 0, 0, 0.06);
-	}
-	.prose-content ul {
-		list-style: none;
-		padding: 0;
-		margin: 16px 0;
-	}
-	.prose-content li {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding: 8px 0;
-		padding-left: 24px;
-		position: relative;
-	}
-	.prose-content--dark li {
-		color: #52525b;
-	}
-	.prose-content li::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 18px;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: #A259FF;
-	}
-	.prose-content li strong {
-		color: #fafafa;
-	}
-	.prose-content--dark li strong {
-		color: #09090b;
-	}
-
-	/* Pricing */
-	.pricing-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 24px;
-	}
-	.pricing-card {
-		padding: 32px;
-		border-radius: 16px;
-		border: 1px solid #e4e4e7;
-		background: white;
-	}
-	.pricing-card--highlighted {
-		border-color: #A259FF;
-		background: linear-gradient(135deg, rgba(162, 89, 255, 0.05), rgba(162, 89, 255, 0.02));
-		box-shadow: 0 0 0 1px rgba(162, 89, 255, 0.2);
-	}
-	.pricing-name {
-		font-size: 20px;
-		font-weight: 700;
-		color: #09090b;
-		margin-bottom: 8px;
-	}
-	.pricing-cost {
-		font-size: 36px;
-		font-weight: 800;
-		color: #09090b;
-		margin-bottom: 4px;
-		letter-spacing: -0.02em;
-	}
-	.pricing-card--highlighted .pricing-cost {
-		color: #A259FF;
-	}
-	.pricing-model {
-		font-size: 14px;
-		color: #71717a;
-		margin-bottom: 24px;
-	}
-	.pricing-features {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-	.pricing-features li {
-		font-size: 15px;
-		color: #52525b;
-		padding: 6px 0;
-		padding-left: 20px;
-		position: relative;
-	}
-	.pricing-features li::before {
-		content: '\2192';
-		position: absolute;
-		left: 0;
-		color: #a1a1aa;
-	}
-
-	/* FAQ */
-	.faq-list {
-		border-top: 1px solid #27272a;
-	}
-	.faq-item {
-		border-bottom: 1px solid #27272a;
-		cursor: pointer;
-	}
-	.faq-question {
-		width: 100%;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 24px 0;
-		color: #fafafa;
-		font-size: 17px;
-		font-weight: 500;
-		line-height: 1.4;
-		list-style: none;
-		transition: color 0.2s;
-	}
-	.faq-question::-webkit-details-marker { display: none; }
-	.faq-question:hover { color: #fff; }
-	.faq-question span:first-child { padding-right: 24px; }
-	.faq-icon {
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 1px solid #3f3f46;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		font-weight: 300;
-		color: #71717a;
-		transition: all 0.3s ease;
-	}
-	.group[open] .faq-icon {
-		transform: rotate(45deg);
-		background: #27272a;
-	}
-	.faq-answer p {
-		font-size: 15px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding-bottom: 24px;
-		margin: 0;
-		max-width: 620px;
-	}
-
-	/* CTA */
-	.cta-section {
-		background: #09090b;
-		border-top: 1px solid #27272a;
-		padding: 80px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.cta-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.cta-title {
-		font-size: 36px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 8px;
-		letter-spacing: -0.02em;
-	}
-	.cta-description {
-		font-size: 17px;
-		color: #71717a;
-		margin-bottom: 32px;
-	}
-	.install-commands {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 32px;
-	}
-	.install-command {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-	}
-	.install-command code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		color: #fafafa;
-	}
-	.command-prefix {
-		color: #A259FF;
-		margin-right: 8px;
-	}
-	.command-label {
-		font-size: 13px;
-		color: #71717a;
-	}
-	.cta-links {
-		display: flex;
-		align-items: center;
-		gap: 24px;
-	}
-	.cta-discord {
-		color: #71717a;
-		font-size: 15px;
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-	.cta-discord:hover {
-		color: #fafafa;
-	}
-
-	/* Responsive */
-	@media (max-width: 768px) {
-		.hero-section { padding: 48px 20px 40px; }
-		.hero-title { font-size: 32px; }
-		.hero-subtitle { font-size: 17px; margin-bottom: 24px; }
-		.section-title { font-size: 24px; }
-		.content-section { padding: 40px 20px; }
-		.comparison-section { padding: 40px 20px; }
-		.pricing-grid { grid-template-columns: 1fr; }
-		.cta-section { padding: 48px 20px; }
-		.cta-title { font-size: 28px; }
-		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
-		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
-	}
-</style>
+  <Fragment slot="post-faq">
+    <section class="flex justify-center bg-zinc-950 px-6 py-16 text-zinc-50 max-md:px-5 max-md:py-10">
+      <div class="w-full max-w-[720px]">
+        <p class="text-[17px] leading-[1.7] text-zinc-300">
+          Part of our <a href="/blog/best-open-source-ai-coding-tools-2026/" class="text-primary-500 underline underline-offset-2 transition-colors hover:text-primary-400">best open-source AI coding tools comparison</a> covering 12 tools across CLI, IDE, and browser categories.
+        </p>
+      </div>
+    </section>
+  </Fragment>
+</ComparisonLayout>

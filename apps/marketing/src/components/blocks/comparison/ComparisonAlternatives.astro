@@ -21,8 +21,8 @@ const { competitorName, alternatives } = Astro.props
 
 <section class="flex justify-center bg-zinc-950 px-6 py-16 text-zinc-50 max-md:px-5 max-md:py-10">
   <div class="w-full max-w-[720px]">
-    <h2 class="mb-3 text-[32px] font-bold tracking-tight text-zinc-50 max-md:text-2xl">{competitorName} Alternatives</h2>
-    <p class="mb-8 text-[17px] leading-[1.7] text-zinc-400">
+    <h2 class="mb-3 !text-[32px] !font-bold !tracking-tight !text-zinc-50 max-md:!text-2xl">{competitorName} Alternatives</h2>
+    <p class="mb-8 text-[17px] leading-[1.7] text-zinc-300">
       If {competitorName} isn't the right fit, here are other tools worth evaluating — and how they compare to Frontman.
     </p>
     <div class="grid gap-4 sm:grid-cols-2">
@@ -44,7 +44,7 @@ const { competitorName, alternatives } = Astro.props
             ]}>
               {isFrontman ? 'Frontman' : `Frontman vs ${alt.name}`}
             </h3>
-            <p class="text-sm leading-relaxed text-zinc-400">{alt.oneLiner}</p>
+            <p class="text-sm leading-relaxed text-zinc-300">{alt.oneLiner}</p>
           </a>
         )
       })}

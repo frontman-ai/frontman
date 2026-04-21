@@ -1,0 +1,33 @@
+---
+type FaqItem = {
+	question: string,
+	answer: string,
+}
+
+const { faqs } = Astro.props as {
+	faqs: Array<FaqItem>,
+}
+---
+
+<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
+	<div class="w-full max-w-[760px]">
+		<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[32px]">
+			Frequently Asked Questions
+		</h2>
+		<div class="border-t border-zinc-800">
+			{faqs.map((faq) => (
+				<details class="group border-b border-zinc-800">
+					<summary class="flex list-none items-center justify-between py-[22px] text-[17px] font-medium [&::-webkit-details-marker]:hidden">
+						<span>{faq.question}</span>
+						<span class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-zinc-700 text-[18px] text-zinc-300 transition-transform duration-200 group-open:rotate-45">
+							+
+						</span>
+					</summary>
+					<div>
+					<p class="m-0 pb-5 text-[15px] leading-[1.7] text-zinc-300">{faq.answer}</p>
+					</div>
+				</details>
+			))}
+		</div>
+	</div>
+</section>

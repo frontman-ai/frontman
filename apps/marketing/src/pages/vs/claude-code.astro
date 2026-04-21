@@ -3,800 +3,209 @@
 // Targets "claude code vs" and "claude code alternative" queries
 // Claude Code is Anthropic's agentic coding tool — terminal-native, multi-surface.
 
-// Components
-import Layout from '../../layouts/Layout.astro'
 import Button from '../../components/ui/Button.astro'
-import ComparisonDisclosure from '../../components/ui/ComparisonDisclosure.astro'
+import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import type {
+  ComparisonFeature,
+  CompetitorInfo,
+  FAQ,
+  SEOInfo,
+} from '../../layouts/ComparisonLayout.astro'
 
-// SEO
-const SEO = {
-	title: 'Frontman vs Claude Code: Browser vs Terminal (2026)',
-	description:
-		'Frontman sees your browser DOM and running app. Claude Code works in the terminal. Compare features, architecture, and pricing side by side.'
+const seo: SEOInfo = {
+  title: 'Frontman vs Claude Code: Browser vs Terminal (2026)',
+  description:
+    'Frontman sees your browser DOM and running app. Claude Code works in the terminal. Compare features, architecture, and pricing side by side.',
 }
 
-// Comparison data
+const frontmanPricingFeatures = [
+  'Unlimited usage, no caps',
+  'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
+  'Or sign in with Claude/ChatGPT subscription via OAuth',
+  'Apache 2.0 (client) / AGPL-3.0 (server)',
+  'You pay your LLM provider directly',
+]
+
+const competitorPricingFeatures = [
+  'No free tier for Claude Code',
+  'Pro: $20/month — included, usage limits apply',
+  'Max 5x: $100/month — 5x Pro usage',
+  'Max 20x: $200/month — 20x Pro usage',
+  'API: pay-per-token (Sonnet $3/$15, Opus $5/$25 per MTok)',
+  'Team: $20-100/seat/month',
+]
+
+const competitor: CompetitorInfo = {
+  name: 'Claude Code',
+  slug: 'claude-code',
+  url: 'https://claude.ai/code',
+  category: 'DeveloperApplication',
+  description:
+    'Agentic coding assistant from Anthropic that runs in terminal, IDEs, and web with strong shell and git workflows.',
+  pricing: {
+    cost: '$20–$200/mo',
+    model: 'Subscription, proprietary',
+    features: competitorPricingFeatures,
+  },
+}
+
 type Status = 'yes' | 'no' | 'partial'
 
 type Feature = {
-	name: string
-	frontman: Status
-	claudeCode: Status
-	frontmanNote?: string
-	claudeCodeNote?: string
+  name: string
+  frontman: Status
+  claudeCode: Status
+  frontmanNote?: string
+  claudeCodeNote?: string
 }
 
 const features: Feature[] = [
-	{ name: 'Sees live DOM & styles', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Browser-side MCP server inspects the live page', claudeCodeNote: 'Chrome extension (beta) — screenshots and DOM, not component tree' },
-	{ name: 'Sees computed CSS', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Runtime values, not class names', claudeCodeNote: 'Reads source files; Chrome extension sees DOM but not computed styles' },
-	{ name: 'Click-to-select elements', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Visual component selection', claudeCodeNote: 'Chrome extension is AI-driven, not developer-directed' },
-	{ name: 'Hot reload feedback loop', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Instant in browser via HMR', claudeCodeNote: 'Edits files; can refresh via Chrome extension but no HMR integration' },
-	{ name: 'File editing', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Edits source files', claudeCodeNote: 'Full file system access with diff review' },
-	{ name: 'Terminal commands', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'Runs shell commands, builds, tests, git operations' },
-	{ name: 'Agent mode', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Browser-context agent', claudeCodeNote: 'Agentic search, multi-step plans, sub-agents' },
-	{ name: 'Multi-file refactoring', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', claudeCodeNote: 'Full codebase reasoning, cross-file edits' },
-	{ name: 'Framework-aware', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', claudeCodeNote: 'Framework-agnostic; reads files, not runtime' },
-	{ name: 'Designer/PM friendly', frontman: 'yes', claudeCode: 'no', frontmanNote: 'No IDE or terminal needed', claudeCodeNote: 'Requires terminal or IDE proficiency' },
-	{ name: 'Open source', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', claudeCodeNote: 'Proprietary ("All rights reserved")' },
-	{ name: 'BYOK (bring your own key)', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Any LLM provider directly', claudeCodeNote: 'Claude models only (via subscription or API key)' },
-	{ name: 'Self-hostable', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Everything runs locally', claudeCodeNote: 'Runs locally but requires Anthropic API' },
-	{ name: 'Works in the browser', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Primary interface is the browser', claudeCodeNote: 'claude.ai/code web interface exists; Chrome extension is beta' },
-	{ name: 'Git & PR workflows', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'Commits, branches, PRs, GitHub Actions integration' },
-	{ name: 'MCP support', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Browser-side MCP server', claudeCodeNote: 'First-class MCP with hundreds of integrations' },
-	{ name: 'IDE integration', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'VS Code, JetBrains, Cursor, Windsurf' },
-	{ name: 'Backend coding', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', claudeCodeNote: 'Any language, any framework, any stack' },
+  { name: 'Sees live DOM & styles', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Browser-side MCP server inspects the live page', claudeCodeNote: 'Chrome extension (beta) — screenshots and DOM, not component tree' },
+  { name: 'Sees computed CSS', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Runtime values, not class names', claudeCodeNote: 'Reads source files; Chrome extension sees DOM but not computed styles' },
+  { name: 'Click-to-select elements', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Visual component selection', claudeCodeNote: 'Chrome extension is AI-driven, not developer-directed' },
+  { name: 'Hot reload feedback loop', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Instant in browser via HMR', claudeCodeNote: 'Edits files; can refresh via Chrome extension but no HMR integration' },
+  { name: 'File editing', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Edits source files', claudeCodeNote: 'Full file system access with diff review' },
+  { name: 'Terminal commands', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'Runs shell commands, builds, tests, git operations' },
+  { name: 'Agent mode', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Browser-context agent', claudeCodeNote: 'Agentic search, multi-step plans, sub-agents' },
+  { name: 'Multi-file refactoring', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', claudeCodeNote: 'Full codebase reasoning, cross-file edits' },
+  { name: 'Framework-aware', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', claudeCodeNote: 'Framework-agnostic; reads files, not runtime' },
+  { name: 'Designer/PM friendly', frontman: 'yes', claudeCode: 'no', frontmanNote: 'No IDE or terminal needed', claudeCodeNote: 'Requires terminal or IDE proficiency' },
+  { name: 'Open source', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', claudeCodeNote: 'Proprietary ("All rights reserved")' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Any LLM provider directly', claudeCodeNote: 'Claude models only (via subscription or API key)' },
+  { name: 'Self-hostable', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Everything runs locally', claudeCodeNote: 'Runs locally but requires Anthropic API' },
+  { name: 'Works in the browser', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Primary interface is the browser', claudeCodeNote: 'claude.ai/code web interface exists; Chrome extension is beta' },
+  { name: 'Git & PR workflows', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'Commits, branches, PRs, GitHub Actions integration' },
+  { name: 'MCP support', frontman: 'yes', claudeCode: 'yes', frontmanNote: 'Browser-side MCP server', claudeCodeNote: 'First-class MCP with hundreds of integrations' },
+  { name: 'IDE integration', frontman: 'no', claudeCode: 'yes', claudeCodeNote: 'VS Code, JetBrains, Cursor, Windsurf' },
+  { name: 'Backend coding', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', claudeCodeNote: 'Any language, any framework, any stack' },
 ]
 
-function statusLabel(status: Status): string {
-	switch (status) {
-		case 'yes': return 'Yes'
-		case 'no': return 'No'
-		case 'partial': return 'Partial'
-	}
-}
+const comparisonFeatures: ComparisonFeature[] = features.map((feature) => ({
+  name: feature.name,
+  frontman: feature.frontman,
+  competitor: feature.claudeCode,
+  frontmanNote: feature.frontmanNote,
+  competitorNote: feature.claudeCodeNote,
+}))
 
-// FAQ data for JSON-LD
-const faqs = [
-	{
-		question: 'Is Frontman an alternative to Claude Code?',
-		answer: 'They solve different problems. Claude Code is a terminal-native agentic coding tool that reads your codebase, edits files, runs commands, and handles git workflows. It works with any language and any project. Frontman is browser middleware for frontend development — it hooks into your framework (Next.js, Astro, Vite), sees the live DOM, and lets you click elements to edit their source code. For visual frontend editing with runtime context, Frontman is the tool. For general-purpose agentic coding across your full stack, Claude Code is the tool.'
-	},
-	{
-		question: 'Can Claude Code see what my app looks like in the browser?',
-		answer: 'Partially. Claude Code has a Chrome extension (beta) that can open tabs, take screenshots, read console errors, and click elements. But this is AI-driven automation — Claude decides what to look at and interact with. It is not a developer-directed "click this element, change it" workflow. The Chrome extension also doesn\'t access the framework component tree, computed CSS values, or server-side context. Frontman provides all of this by default because it runs inside your dev server as middleware.'
-	},
-	{
-		question: 'Can I use Frontman and Claude Code together?',
-		answer: 'Yes. Claude Code runs in your terminal or IDE. Frontman runs in the browser. They edit the same source files. Use Claude Code for backend work, refactoring, test writing, git operations, and complex multi-file changes. Use Frontman for visual frontend edits where you want to click a UI element, see computed styles, and get immediate hot-reload feedback.'
-	},
-	{
-		question: 'Is Frontman free compared to Claude Code?',
-		answer: 'Yes. Claude Code requires a paid Claude subscription: Pro ($20/month), Max ($100-200/month), or API access (pay-per-token). There is no free tier for Claude Code. Frontman is free to self-host with no limits — you bring your own API keys and pay your LLM provider directly. The Frontman client libraries are Apache 2.0 and the server is AGPL-3.0.'
-	},
-	{
-		question: 'What does Frontman see that Claude Code cannot?',
-		answer: 'Frontman hooks into your framework as middleware. It sees the React/Vue/Svelte component tree with props and state, computed CSS (actual pixel values, not class names), server-side routes and logs, the full DOM as rendered at the current viewport, and uses source maps to trace any clicked element back to its exact file and line. Claude Code reads source files and can take screenshots via the Chrome extension, but it does not have access to the framework runtime, component hierarchy, or computed styles.'
-	}
+const faqs: FAQ[] = [
+  {
+    question: 'Is Frontman an alternative to Claude Code?',
+    answer:
+      'They solve different problems. Claude Code is a terminal-native agentic coding tool that reads your codebase, edits files, runs commands, and handles git workflows. It works with any language and any project. Frontman is browser middleware for frontend development — it hooks into your framework (Next.js, Astro, Vite), sees the live DOM, and lets you click elements to edit their source code. For visual frontend editing with runtime context, Frontman is the tool. For general-purpose agentic coding across your full stack, Claude Code is the tool.',
+  },
+  {
+    question: 'Can Claude Code see what my app looks like in the browser?',
+    answer:
+      'Partially. Claude Code has a Chrome extension (beta) that can open tabs, take screenshots, read console errors, and click elements. But this is AI-driven automation — Claude decides what to look at and interact with. It is not a developer-directed "click this element, change it" workflow. The Chrome extension also does not access the framework component tree, computed CSS values, or server-side context. Frontman provides all of this by default because it runs inside your dev server as middleware.',
+  },
+  {
+    question: 'Can I use Frontman and Claude Code together?',
+    answer:
+      'Yes. Claude Code runs in your terminal or IDE. Frontman runs in the browser. They edit the same source files. Use Claude Code for backend work, refactoring, test writing, git operations, and complex multi-file changes. Use Frontman for visual frontend edits where you want to click a UI element, see computed styles, and get immediate hot-reload feedback.',
+  },
+  {
+    question: 'Is Frontman free compared to Claude Code?',
+    answer:
+      'Yes. Claude Code requires a paid Claude subscription: Pro ($20/month), Max ($100-200/month), or API access (pay-per-token). There is no free tier for Claude Code. Frontman is free to self-host with no limits — you bring your own API keys and pay your LLM provider directly. The Frontman client libraries are Apache 2.0 and the server is AGPL-3.0.',
+  },
+  {
+    question: 'What does Frontman see that Claude Code cannot?',
+    answer:
+      'Frontman hooks into your framework as middleware. It sees the React/Vue/Svelte component tree with props and state, computed CSS (actual pixel values, not class names), server-side routes and logs, the full DOM as rendered at the current viewport, and uses source maps to trace any clicked element back to its exact file and line. Claude Code reads source files and can take screenshots via the Chrome extension, but it does not have access to the framework runtime, component hierarchy, or computed styles.',
+  },
 ]
-
-// FAQPage JSON-LD
-const faqJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "FAQPage",
-	"mainEntity": faqs.map((faq) => ({
-		"@type": "Question",
-		"name": faq.question,
-		"acceptedAnswer": {
-			"@type": "Answer",
-			"text": faq.answer
-		}
-	}))
-}
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
-	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+<ComparisonLayout
+  seo={seo}
+  competitor={competitor}
+  heroTitle="Frontman vs Claude Code"
+  heroSubtitle="Browser Middleware vs Terminal Agent"
+  features={comparisonFeatures}
+  faqs={faqs}
+  frontmanPricing={{ features: frontmanPricingFeatures }}
+>
+  <Fragment slot="hero-summary">
+    <p>
+      <a href="https://frontman.sh" class="text-link">Frontman</a> is open-source browser middleware for AI-assisted frontend editing. It hooks into Next.js, Astro, or Vite as a framework plugin, runs a browser-side MCP server that inspects the live DOM and computed CSS, and lets you click any element to edit its source code with hot reload. Apache 2.0 client libraries, AGPL-3.0 server, BYOK.
+    </p>
+    <p>
+      <a href="https://claude.ai/code" class="text-link" rel="nofollow">Claude Code</a> is Anthropic\'s agentic coding tool. It runs in your terminal, VS Code, JetBrains, a desktop app, or on the web at claude.ai/code. Claude Code reads your entire codebase, edits files, runs shell commands, handles git operations, and can spawn sub-agents for parallel work. It works with any language and any project type. A Chrome extension (beta) provides limited browser interaction.
+    </p>
+    <p class="summary-emphasis">
+      These tools start from opposite ends. Claude Code starts at the terminal and works outward. Frontman starts at the browser and works inward. Both edit source files, but they see different things when doing it.
+    </p>
+  </Fragment>
 
-	<!-- Hero / AI-Citable Summary -->
-	<section class="hero-section">
-		<div class="hero-container">
-			<p class="hero-label">Comparison</p>
-			<h1 class="hero-title">Frontman vs Claude Code</h1>
-			<p class="hero-subtitle">Browser Middleware vs Terminal Agent</p>
+  <Fragment slot="competitor-strengths">
+    <p>Claude Code is among the most capable agentic coding tools available. Here is what it does well and why.</p>
+    <p>Claude Code runs wherever you have a terminal: Bash, zsh, PowerShell. It also runs in VS Code, JetBrains, a standalone desktop app, the web, and Slack. You pick the surface that fits your workflow. Most competing AI coding tools force you into a specific IDE.</p>
+    <p>Codebase understanding is where Claude Code pulls ahead. It uses agentic search to map your project without manual file selection. It reads, navigates, and reasons about multi-file dependencies. For large codebases where context gathering is the bottleneck, this matters more than in tools that require you to @-mention specific files.</p>
+    <p>Shell access makes it autonomous in practice. Claude Code can run builds, execute tests, check lint, do git operations, and react to command output. It does not just edit files and hope they compile. When a build fails, it reads the error and tries again. This feedback loop between code edits and terminal results is how it handles complex multi-step tasks.</p>
+    <p>Git and PR workflows are built in. Claude Code commits changes, creates branches, opens pull requests, and integrates with GitHub Actions for automated code review and issue triage. You can @claude in a Slack channel and it will produce a PR. For teams where the bottleneck is going from "code works locally" to "PR is merged," that is a direct time save.</p>
+    <p>MCP integration covers hundreds of servers: Jira, Sentry, Notion, Slack, GitHub, PostgreSQL, and more. Claude Code can also serve as an MCP server itself and supports the agent SDK for building custom agents.</p>
+    <p>Claude Code can also spawn multiple sub-agents working on different parts of a task simultaneously. For large refactoring jobs where different modules can be updated independently, parallel sub-agents reduce wall-clock time.</p>
+  </Fragment>
 
-			<div class="hero-summary">
-				<p>
-					<a href="https://frontman.sh" class="text-link">Frontman</a> is open-source browser middleware for AI-assisted frontend editing. It hooks into Next.js, Astro, or Vite as a framework plugin, runs a browser-side MCP server that inspects the live DOM and computed CSS, and lets you click any element to edit its source code with hot reload. Apache 2.0 client libraries, AGPL-3.0 server, BYOK.
-				</p>
-				<p>
-					<a href="https://claude.ai/code" class="text-link" rel="nofollow">Claude Code</a> is Anthropic's agentic coding tool. It runs in your terminal, VS Code, JetBrains, a desktop app, or on the web at claude.ai/code. Claude Code reads your entire codebase, edits files, runs shell commands, handles git operations, and can spawn sub-agents for parallel work. It works with any language and any project type. A Chrome extension (beta) provides limited browser interaction.
-				</p>
-				<p class="summary-emphasis">
-					These tools start from opposite ends. Claude Code starts at the terminal and works outward. Frontman starts at the browser and works inward. Both edit source files, but they see different things when doing it.
-				</p>
-			</div>
-			<ComparisonDisclosure competitor="Claude Code" />
-		</div>
-	</section>
+  <Fragment slot="frontman-differentiators">
+    <p>Claude Code is a general-purpose coding agent. It edits files across your codebase through terminal commands and file operations. What it does not do is see what your frontend actually looks like when it renders. That is where Frontman comes in.</p>
+    <p>The biggest difference is architectural. Frontman installs as a plugin for Next.js, Astro, or Vite and runs inside your dev server. When you click a button in the browser, Frontman knows which React/Vue/Svelte component rendered it, the exact file and line number (via source maps), the component\'s props and state, and every computed CSS property. Claude Code reads your source files and can take screenshots through the Chrome extension, but it does not have access to the framework\'s runtime state or component hierarchy.</p>
+    <p>The editing model is different too. With Frontman, you click the element you want to change. The AI already has the context: the component, its styles, its position on the page. With Claude Code, you describe the change in text. The Chrome extension lets Claude interact with browsers, but that interaction is AI-driven (Claude decides what to look at), not developer-directed (you point at the thing you want changed).</p>
+    <p>Frontman also keeps hot reload in the loop. It edits source files, and the framework\'s HMR immediately shows the result in the browser. Edit, see, edit again. Claude Code edits files too, but there is no built-in visual verification step. You have to switch to the browser yourself or explicitly ask Claude to take a screenshot via the Chrome extension.</p>
+    <p>On licensing and pricing: Frontman\'s client libraries are Apache 2.0. The server is AGPL-3.0. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Claude Code is proprietary, requires a paid Anthropic subscription (minimum $20/month), and only works with Claude models.</p>
+    <p>Finally, Frontman requires no terminal. Designers and PMs can open the app in a browser, click elements, and describe changes. Changes produce real code diffs for developer review. Claude Code requires terminal literacy at minimum, or IDE proficiency for the extension.</p>
+  </Fragment>
 
-	<!-- Comparison Table -->
-	<section class="comparison-section">
-		<div class="comparison-container">
-			<h2 class="section-title">Feature Comparison</h2>
+  <Fragment slot="who-should-use-competitor">
+    <p>Claude Code is the better choice when you need an autonomous coding agent across the full development cycle:</p>
+    <ul>
+      <li><strong>Full-stack developers.</strong> Any language, any framework, with terminal access and git integration.</li>
+      <li><strong>Complex refactoring and migration.</strong> Multi-file changes across a large codebase with automated test verification.</li>
+      <li><strong>CI/CD and automation.</strong> GitHub Actions integration, Slack-triggered PRs, automated code review.</li>
+      <li><strong>Terminal-native workflows.</strong> If you live in the terminal and want an AI that does too.</li>
+      <li><strong>Teams already paying for Claude.</strong> If you have a Claude Pro/Max subscription, Claude Code is included.</li>
+      <li><strong>Backend-heavy projects.</strong> Python, Go, Rust, Elixir, infrastructure, deployment scripts.</li>
+    </ul>
+  </Fragment>
 
-			<!-- Desktop table -->
-			<div class="table-wrapper">
-				<table class="comparison-table" role="grid">
-					<thead>
-						<tr>
-							<th class="feature-header">Feature</th>
-							<th class="tool-header tool-header--highlighted">Frontman</th>
-							<th class="tool-header">Claude Code</th>
-						</tr>
-					</thead>
-					<tbody>
-						{features.map((feature) => (
-							<tr>
-								<td class="feature-cell">{feature.name}</td>
-								<td class={`status-cell status-cell--highlighted`} aria-label={statusLabel(feature.frontman)}>
-									<div class="status-content">
-										{feature.frontman === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.frontman === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.frontman === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.frontmanNote && <span class="status-note">{feature.frontmanNote}</span>}
-									</div>
-								</td>
-								<td class="status-cell" aria-label={statusLabel(feature.claudeCode)}>
-									<div class="status-content">
-										{feature.claudeCode === 'yes' && (
-											<svg class="status-icon status-icon--yes" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-										)}
-										{feature.claudeCode === 'no' && (
-											<svg class="status-icon status-icon--no" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-										)}
-										{feature.claudeCode === 'partial' && (
-											<svg class="status-icon status-icon--partial" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-										)}
-										{feature.claudeCodeNote && <span class="status-note">{feature.claudeCodeNote}</span>}
-									</div>
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
+  <Fragment slot="who-should-use-frontman">
+    <p>Frontman is the better choice when you need the AI to see what your frontend renders:</p>
+    <ul>
+      <li><strong>Frontend developers frustrated by AI breaking CSS and layout.</strong> Frontman sees computed styles, the rendered page, and responsive behavior at the current viewport.</li>
+      <li><strong>Teams where designers or PMs need to make UI changes.</strong> Click elements in the browser, describe changes, review real code diffs. No terminal or IDE required.</li>
+      <li><strong>Next.js, Astro, or Vite projects</strong> where framework middleware provides runtime context that file reading alone cannot.</li>
+      <li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable, no subscription fee.</li>
+      <li><strong>Visual editing workflows</strong> where the feedback loop matters: click, describe, see the result via hot reload, iterate.</li>
+    </ul>
+    <p>Many developers use both. Claude Code for backend, refactoring, tests, and deployment automation. Frontman for visual frontend changes where the AI needs to see the rendered page.</p>
+    <p>For a detailed technical comparison including Cursor, read our <a href="/blog/frontman-vs-cursor-vs-claude-code/" class="text-link">full comparison of Frontman, Cursor, and Claude Code</a>. Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a>, <a href="/vs/windsurf/" class="text-link">Frontman vs Windsurf</a>.</p>
+  </Fragment>
 
-			<!-- Mobile cards -->
-			<div class="mobile-cards">
-				{features.map((feature) => (
-					<div class="mobile-card">
-						<h3 class="mobile-card-title">{feature.name}</h3>
-						<div class="mobile-card-grid">
-							<div class="mobile-card-item mobile-card-item--highlighted">
-								<span class="mobile-card-tool">Frontman</span>
-								<span>
-									{feature.frontman === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.frontman === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.frontman === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-							<div class="mobile-card-item">
-								<span class="mobile-card-tool">Claude Code</span>
-								<span>
-									{feature.claudeCode === 'yes' && <svg class="status-icon status-icon--yes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-									{feature.claudeCode === 'no' && <svg class="status-icon status-icon--no" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-									{feature.claudeCode === 'partial' && <svg class="status-icon status-icon--partial" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
-								</span>
-							</div>
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- What Claude Code Does Well -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">What Claude Code Does Well</h2>
-			<div class="prose-content prose-content--dark">
-				<p>Claude Code is among the most capable agentic coding tools available. Here's what it does well and why.</p>
-				<p>Claude Code runs wherever you have a terminal: Bash, zsh, PowerShell. It also runs in VS Code, JetBrains, a standalone desktop app, the web, and Slack. You pick the surface that fits your workflow. Most competing AI coding tools force you into a specific IDE.</p>
-				<p>Codebase understanding is where Claude Code pulls ahead. It uses agentic search to map your project without manual file selection. It reads, navigates, and reasons about multi-file dependencies. For large codebases where context gathering is the bottleneck, this matters more than in tools that require you to @-mention specific files.</p>
-				<p>Shell access makes it autonomous in practice. Claude Code can run builds, execute tests, check lint, do git operations, and react to command output. It doesn't just edit files and hope they compile. When a build fails, it reads the error and tries again. This feedback loop between code edits and terminal results is how it handles complex multi-step tasks.</p>
-				<p>Git and PR workflows are built in. Claude Code commits changes, creates branches, opens pull requests, and integrates with GitHub Actions for automated code review and issue triage. You can @claude in a Slack channel and it will produce a PR. For teams where the bottleneck is going from "code works locally" to "PR is merged," that's a direct time save.</p>
-				<p>MCP integration covers hundreds of servers: Jira, Sentry, Notion, Slack, GitHub, PostgreSQL, and more. Claude Code can also serve as an MCP server itself and supports the agent SDK for building custom agents.</p>
-				<p>Claude Code can also spawn multiple sub-agents working on different parts of a task simultaneously. For large refactoring jobs where different modules can be updated independently, parallel sub-agents reduce wall-clock time.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Where Frontman Is Different -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Where Frontman Is Different</h2>
-			<div class="prose-content">
-				<p>Claude Code is a general-purpose coding agent. It edits files across your codebase through terminal commands and file operations. What it doesn't do is see what your frontend actually looks like when it renders. That's where Frontman comes in.</p>
-
-				<p>The biggest difference is architectural. Frontman installs as a plugin for Next.js, Astro, or Vite and runs inside your dev server. When you click a button in the browser, Frontman knows which React/Vue/Svelte component rendered it, the exact file and line number (via source maps), the component's props and state, and every computed CSS property. Claude Code reads your source files and can take screenshots through the Chrome extension, but it doesn't have access to the framework's runtime state or component hierarchy.</p>
-
-				<p>The editing model is different too. With Frontman, you click the element you want to change. The AI already has the context: the component, its styles, its position on the page. With Claude Code, you describe the change in text. The Chrome extension lets Claude interact with browsers, but that interaction is AI-driven (Claude decides what to look at), not developer-directed (you point at the thing you want changed).</p>
-
-				<p>Frontman also keeps hot reload in the loop. It edits source files, and the framework's HMR immediately shows the result in the browser. Edit, see, edit again. Claude Code edits files too, but there's no built-in visual verification step. You have to switch to the browser yourself or explicitly ask Claude to take a screenshot via the Chrome extension.</p>
-
-				<p>On licensing and pricing: Frontman's client libraries are Apache 2.0. The server is AGPL-3.0. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Claude Code is proprietary, requires a paid Anthropic subscription (minimum $20/month), and only works with Claude models.</p>
-
-				<p>Finally, Frontman requires no terminal. Designers and PMs can open the app in a browser, click elements, and describe changes. Changes produce real code diffs for developer review. Claude Code requires terminal literacy at minimum, or IDE proficiency for the extension.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use Claude Code -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Who Should Use Claude Code</h2>
-			<div class="prose-content prose-content--dark">
-				<p>Claude Code is the better choice when you need an autonomous coding agent across the full development cycle:</p>
-				<ul>
-					<li><strong>Full-stack developers.</strong> Any language, any framework, with terminal access and git integration.</li>
-					<li><strong>Complex refactoring and migration.</strong> Multi-file changes across a large codebase with automated test verification.</li>
-					<li><strong>CI/CD and automation.</strong> GitHub Actions integration, Slack-triggered PRs, automated code review.</li>
-					<li><strong>Terminal-native workflows.</strong> If you live in the terminal and want an AI that does too.</li>
-					<li><strong>Teams already paying for Claude.</strong> If you have a Claude Pro/Max subscription, Claude Code is included.</li>
-					<li><strong>Backend-heavy projects.</strong> Python, Go, Rust, Elixir, infrastructure, deployment scripts.</li>
-				</ul>
-			</div>
-		</div>
-	</section>
-
-	<!-- Who Should Use Frontman -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Who Should Use Frontman</h2>
-			<div class="prose-content">
-				<p>Frontman is the better choice when you need the AI to see what your frontend renders:</p>
-				<ul>
-					<li><strong>Frontend developers frustrated by AI breaking CSS and layout.</strong> Frontman sees computed styles, the rendered page, and responsive behavior at the current viewport.</li>
-					<li><strong>Teams where designers or PMs need to make UI changes.</strong> Click elements in the browser, describe changes, review real code diffs. No terminal or IDE required.</li>
-					<li><strong>Next.js, Astro, or Vite projects</strong> where framework middleware provides runtime context that file reading alone cannot.</li>
-					<li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable, no subscription fee.</li>
-					<li><strong>Visual editing workflows</strong> where the feedback loop matters: click, describe, see the result via hot reload, iterate.</li>
-				</ul>
-				<p>Many developers use both. Claude Code for backend, refactoring, tests, and deployment automation. Frontman for visual frontend changes where the AI needs to see the rendered page.</p>
-				<p>For a detailed technical comparison including Cursor, read our <a href="/blog/frontman-vs-cursor-vs-claude-code/" class="text-link">full comparison of Frontman, Cursor, and Claude Code</a>. Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a>, <a href="/vs/windsurf/" class="text-link">Frontman vs Windsurf</a>.</p>
-			</div>
-		</div>
-	</section>
-
-	<!-- Pricing -->
-	<section class="content-section content-section--light">
-		<div class="content-container">
-			<h2 class="section-title section-title--dark">Pricing Comparison</h2>
-			<div class="pricing-grid">
-				<div class="pricing-card pricing-card--highlighted">
-					<h3 class="pricing-name">Frontman</h3>
-					<div class="pricing-cost">Free</div>
-					<p class="pricing-model">Open source, BYOK</p>
-					<ul class="pricing-features">
-						<li>Unlimited usage, no caps</li>
-						<li>Bring your own API keys (Claude, ChatGPT, OpenRouter)</li>
-						<li>Or sign in with Claude/ChatGPT subscription via OAuth</li>
-						<li>Apache 2.0 (client) / AGPL-3.0 (server)</li>
-						<li>You pay your LLM provider directly</li>
-					</ul>
-				</div>
-				<div class="pricing-card">
-					<h3 class="pricing-name">Claude Code</h3>
-					<div class="pricing-cost">$20–$200/mo</div>
-					<p class="pricing-model">Subscription, proprietary</p>
-					<ul class="pricing-features">
-						<li>No free tier for Claude Code</li>
-						<li>Pro: $20/month — included, usage limits apply</li>
-						<li>Max 5x: $100/month — 5x Pro usage</li>
-						<li>Max 20x: $200/month — 20x Pro usage</li>
-						<li>API: pay-per-token (Sonnet $3/$15, Opus $5/$25 per MTok)</li>
-						<li>Team: $20-100/seat/month</li>
-					</ul>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<!-- FAQ -->
-	<section class="content-section">
-		<div class="content-container">
-			<h2 class="section-title">Frequently Asked Questions</h2>
-			<div class="faq-list">
-				{faqs.map((faq) => (
-					<details class="faq-item group">
-						<summary class="faq-question">
-							<span>{faq.question}</span>
-							<span class="faq-icon">+</span>
-						</summary>
-						<div class="faq-answer">
-							<p>{faq.answer}</p>
-						</div>
-					</details>
-				))}
-			</div>
-		</div>
-	</section>
-
-	<!-- CTA -->
-	<section class="cta-section">
-		<div class="cta-container">
-			<h2 class="cta-title">Try Frontman</h2>
-			<p class="cta-description">One command. No account. No credit card. No usage limits.</p>
-			<div class="install-commands">
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
-					<span class="command-label">Next.js</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> npx @frontman-ai/vite install</code>
-					<span class="command-label">Vite (React, Vue, Svelte, SolidJS)</span>
-				</div>
-				<div class="install-command">
-					<code><span class="command-prefix">$</span> astro add @frontman-ai/astro</code>
-					<span class="command-label">Astro</span>
-				</div>
-			</div>
-			<div class="cta-links">
-				<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
-				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-discord">Join Discord</a>
-			</div>
-		</div>
-	</section>
-</Layout>
-
-<style>
-	@reference "../../styles/global.css";
-	/* Hero */
-	.hero-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 64px;
-		display: flex;
-		justify-content: center;
-	}
-	.hero-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.hero-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #A259FF;
-		margin-bottom: 12px;
-	}
-	.hero-title {
-		font-size: 48px;
-		font-weight: 700;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		color: #fafafa;
-		margin-bottom: 8px;
-	}
-	.hero-subtitle {
-		font-size: 20px;
-		color: #71717a;
-		margin-bottom: 40px;
-	}
-	.hero-summary p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.hero-summary code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.summary-emphasis {
-		color: #fafafa !important;
-		font-weight: 500;
-		border-left: 3px solid #A259FF;
-		padding-left: 16px;
-		margin-top: 24px !important;
-	}
-	.text-link {
-		color: #A259FF;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.text-link:hover {
-		color: #c084fc;
-	}
-
-	/* Comparison section */
-	.comparison-section {
-		background: #09090b;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.comparison-container {
-		max-width: 900px;
-		width: 100%;
-	}
-
-	/* Section titles */
-	.section-title {
-		font-size: 32px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 32px;
-		letter-spacing: -0.02em;
-	}
-	.section-title--dark {
-		color: #09090b;
-	}
-
-	/* Table */
-	.table-wrapper {
-		@apply hidden md:block;
-	}
-	.comparison-table {
-		@apply w-full;
-		border-collapse: separate;
-		border-spacing: 0;
-	}
-	.feature-header {
-		@apply text-left text-sm font-semibold uppercase tracking-wider py-4 px-6;
-		color: rgba(255, 255, 255, 0.4);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-	.tool-header {
-		@apply text-center text-base font-bold py-4 px-6;
-		color: rgba(255, 255, 255, 0.7);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		width: 240px;
-	}
-	.tool-header--highlighted {
-		color: #A259FF;
-		background: rgba(162, 89, 255, 0.08);
-		border-top: 3px solid #A259FF;
-		border-bottom: 1px solid rgba(162, 89, 255, 0.2);
-	}
-	.feature-cell {
-		@apply text-left text-base py-4 px-6;
-		color: rgba(255, 255, 255, 0.9);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell {
-		@apply py-4 px-6;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-	.status-cell--highlighted {
-		background: rgba(162, 89, 255, 0.08);
-	}
-	.status-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: flex-start;
-	}
-	.status-note {
-		font-size: 13px;
-		color: rgba(255, 255, 255, 0.5);
-	}
-	tr:last-child .feature-cell,
-	tr:last-child .status-cell {
-		border-bottom: none;
-	}
-	.status-icon { @apply inline-block; }
-	.status-icon--yes { color: #22c55e; }
-	.status-icon--no { color: #ef4444; }
-	.status-icon--partial { color: #f59e0b; }
-
-	/* Mobile cards */
-	.mobile-cards {
-		@apply flex flex-col gap-3 md:hidden;
-	}
-	.mobile-card {
-		@apply p-4;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 12px;
-	}
-	.mobile-card-title {
-		@apply font-headings text-sm font-bold mb-3;
-		color: white;
-	}
-	.mobile-card-grid {
-		@apply grid grid-cols-2 gap-3;
-	}
-	.mobile-card-item {
-		@apply flex items-center justify-between py-2 px-3;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.03);
-	}
-	.mobile-card-item--highlighted {
-		background: rgba(162, 89, 255, 0.12);
-		border: 1px solid rgba(162, 89, 255, 0.25);
-	}
-	.mobile-card-tool {
-		@apply text-sm;
-		color: rgba(255, 255, 255, 0.6);
-	}
-	.mobile-card-item--highlighted .mobile-card-tool {
-		color: #A259FF;
-		font-weight: 600;
-	}
-
-	/* Content sections */
-	.content-section {
-		background: #09090b;
-		color: #fafafa;
-		padding: 64px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.content-section--light {
-		background: #fafafa;
-		color: #09090b;
-	}
-	.content-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.prose-content p {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		margin-bottom: 16px;
-	}
-	.prose-content--dark p {
-		color: #52525b;
-	}
-	.prose-content strong {
-		color: #fafafa;
-		font-weight: 600;
-	}
-	.prose-content--dark strong {
-		color: #09090b;
-	}
-	.prose-content code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		background: rgba(255, 255, 255, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-	.prose-content--dark code {
-		background: rgba(0, 0, 0, 0.06);
-	}
-	.prose-content ul {
-		list-style: none;
-		padding: 0;
-		margin: 16px 0;
-	}
-	.prose-content li {
-		font-size: 17px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding: 8px 0;
-		padding-left: 24px;
-		position: relative;
-	}
-	.prose-content--dark li {
-		color: #52525b;
-	}
-	.prose-content li::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 18px;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: #A259FF;
-	}
-	.prose-content li strong {
-		color: #fafafa;
-	}
-	.prose-content--dark li strong {
-		color: #09090b;
-	}
-
-	/* Pricing */
-	.pricing-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 24px;
-	}
-	.pricing-card {
-		padding: 32px;
-		border-radius: 16px;
-		border: 1px solid #e4e4e7;
-		background: white;
-	}
-	.pricing-card--highlighted {
-		border-color: #A259FF;
-		background: linear-gradient(135deg, rgba(162, 89, 255, 0.05), rgba(162, 89, 255, 0.02));
-		box-shadow: 0 0 0 1px rgba(162, 89, 255, 0.2);
-	}
-	.pricing-name {
-		font-size: 20px;
-		font-weight: 700;
-		color: #09090b;
-		margin-bottom: 8px;
-	}
-	.pricing-cost {
-		font-size: 36px;
-		font-weight: 800;
-		color: #09090b;
-		margin-bottom: 4px;
-		letter-spacing: -0.02em;
-	}
-	.pricing-card--highlighted .pricing-cost {
-		color: #A259FF;
-	}
-	.pricing-model {
-		font-size: 14px;
-		color: #71717a;
-		margin-bottom: 24px;
-	}
-	.pricing-features {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-	.pricing-features li {
-		font-size: 15px;
-		color: #52525b;
-		padding: 6px 0;
-		padding-left: 20px;
-		position: relative;
-	}
-	.pricing-features li::before {
-		content: '\2192';
-		position: absolute;
-		left: 0;
-		color: #a1a1aa;
-	}
-
-	/* FAQ */
-	.faq-list {
-		border-top: 1px solid #27272a;
-	}
-	.faq-item {
-		border-bottom: 1px solid #27272a;
-		cursor: pointer;
-	}
-	.faq-question {
-		width: 100%;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 24px 0;
-		color: #fafafa;
-		font-size: 17px;
-		font-weight: 500;
-		line-height: 1.4;
-		list-style: none;
-		transition: color 0.2s;
-	}
-	.faq-question::-webkit-details-marker { display: none; }
-	.faq-question:hover { color: #fff; }
-	.faq-question span:first-child { padding-right: 24px; }
-	.faq-icon {
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 1px solid #3f3f46;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 18px;
-		font-weight: 300;
-		color: #71717a;
-		transition: all 0.3s ease;
-	}
-	.group[open] .faq-icon {
-		transform: rotate(45deg);
-		background: #27272a;
-	}
-	.faq-answer p {
-		font-size: 15px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		padding-bottom: 24px;
-		margin: 0;
-		max-width: 620px;
-	}
-
-	/* CTA */
-	.cta-section {
-		background: #09090b;
-		border-top: 1px solid #27272a;
-		padding: 80px 24px;
-		display: flex;
-		justify-content: center;
-	}
-	.cta-container {
-		max-width: 720px;
-		width: 100%;
-	}
-	.cta-title {
-		font-size: 36px;
-		font-weight: 700;
-		color: #fafafa;
-		margin-bottom: 8px;
-		letter-spacing: -0.02em;
-	}
-	.cta-description {
-		font-size: 17px;
-		color: #71717a;
-		margin-bottom: 32px;
-	}
-	.install-commands {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		margin-bottom: 32px;
-	}
-	.install-command {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 12px 16px;
-		border-radius: 8px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-	}
-	.install-command code {
-		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
-		font-size: 14px;
-		color: #fafafa;
-	}
-	.command-prefix {
-		color: #A259FF;
-		margin-right: 8px;
-	}
-	.command-label {
-		font-size: 13px;
-		color: #71717a;
-	}
-	.cta-links {
-		display: flex;
-		align-items: center;
-		gap: 24px;
-	}
-	.cta-discord {
-		color: #71717a;
-		font-size: 15px;
-		text-decoration: none;
-		transition: color 0.2s;
-	}
-	.cta-discord:hover {
-		color: #fafafa;
-	}
-
-	/* Responsive */
-	@media (max-width: 768px) {
-		.hero-section { padding: 48px 20px 40px; }
-		.hero-title { font-size: 32px; }
-		.hero-subtitle { font-size: 17px; margin-bottom: 24px; }
-		.section-title { font-size: 24px; }
-		.content-section { padding: 40px 20px; }
-		.comparison-section { padding: 40px 20px; }
-		.pricing-grid { grid-template-columns: 1fr; }
-		.cta-section { padding: 48px 20px; }
-		.cta-title { font-size: 28px; }
-		.cta-links { flex-direction: column; align-items: flex-start; gap: 12px; }
-		.install-command { flex-direction: column; align-items: flex-start; gap: 4px; }
-	}
-</style>
+  <Fragment slot="cta">
+    <section class="flex justify-center border-t border-zinc-800 bg-zinc-950 px-6 py-20 max-md:px-5 max-md:py-12">
+      <div class="w-full max-w-[720px]">
+        <h2 class="mb-2 text-4xl font-bold tracking-tight text-zinc-50 max-md:text-[28px]">Try Frontman</h2>
+        <p class="mb-8 text-[17px] text-zinc-300">One command. No account. No credit card. No usage limits.</p>
+        <div class="mb-8 flex flex-col gap-3">
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>
+            <span class="text-[13px] text-zinc-300">Next.js</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/vite install</code>
+            <span class="text-[13px] text-zinc-300">Vite (React, Vue, Svelte, SolidJS)</span>
+          </div>
+          <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
+            <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> astro add @frontman-ai/astro</code>
+            <span class="text-[13px] text-zinc-300">Astro</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-6 max-md:flex-col max-md:items-start max-md:gap-3">
+          <Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+          <a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="text-[15px] text-zinc-300 transition-colors hover:text-zinc-50">Join Discord</a>
+        </div>
+      </div>
+    </section>
+  </Fragment>
+</ComparisonLayout>

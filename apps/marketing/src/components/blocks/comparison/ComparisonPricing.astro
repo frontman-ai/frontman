@@ -33,27 +33,27 @@ const {
 
 <section class="flex justify-center bg-zinc-50 px-6 py-16 text-zinc-950 max-md:px-5 max-md:py-10">
   <div class="w-full max-w-[720px]">
-    <h2 class="mb-8 text-[32px] font-bold tracking-tight text-zinc-950 max-md:text-2xl">Pricing Comparison</h2>
+    <h2 class="mb-8 !text-[32px] !font-bold !tracking-tight !text-zinc-950 max-md:!text-2xl">Pricing Comparison</h2>
     <div class="grid grid-cols-2 gap-6 max-md:grid-cols-1">
       <!-- Frontman -->
       <div class="rounded-2xl border border-primary-500 bg-gradient-to-br from-primary-500/5 to-primary-500/[0.02] p-8 shadow-[0_0_0_1px_rgba(162,89,255,0.2)]">
-        <h3 class="mb-2 text-xl font-bold text-zinc-950">Frontman</h3>
+        <h3 class="mb-2 text-xl font-bold !text-zinc-950" style="color:#09090b">Frontman</h3>
         <div class="mb-1 text-4xl font-extrabold tracking-tight text-primary-500">{frontmanCost}</div>
-        <p class="mb-6 text-sm text-zinc-500">{frontmanModel}</p>
+        <p class="mb-6 text-sm text-zinc-700">{frontmanModel}</p>
         <ul class="m-0 list-none p-0">
           {frontmanFeatures.map((f) => (
-            <li class="relative py-1.5 pl-5 text-[15px] text-zinc-600 before:absolute before:left-0 before:text-zinc-400 before:content-['→']">{f}</li>
+            <li class="relative py-1.5 pl-5 text-[15px] text-zinc-950 before:absolute before:left-0 before:text-zinc-700 before:content-['→']">{f}</li>
           ))}
         </ul>
       </div>
       <!-- Competitor -->
       <div class="rounded-2xl border border-zinc-200 bg-white p-8">
-        <h3 class="mb-2 text-xl font-bold text-zinc-950">{competitorName}</h3>
+        <h3 class="mb-2 text-xl font-bold !text-zinc-950" style="color:#09090b">{competitorName}</h3>
         <div class="mb-1 text-4xl font-extrabold tracking-tight text-zinc-950">{competitorCost}</div>
-        <p class="mb-6 text-sm text-zinc-500">{competitorModel}</p>
+        <p class="mb-6 text-sm text-zinc-700">{competitorModel}</p>
         <ul class="m-0 list-none p-0">
           {competitorFeatures.map((f) => (
-            <li class="relative py-1.5 pl-5 text-[15px] text-zinc-600 before:absolute before:left-0 before:text-zinc-400 before:content-['→']">{f}</li>
+            <li class="relative py-1.5 pl-5 text-[15px] text-zinc-950 before:absolute before:left-0 before:text-zinc-700 before:content-['→']">{f}</li>
           ))}
         </ul>
       </div>
