@@ -286,8 +286,8 @@ defmodule SwarmAi.Loop.RunnerTest do
       [tool_call] = response.tool_calls
       assert tool_call.id == "call_789"
       assert tool_call.name == "get_time"
-      # Missing fragments default to {} so downstream JSON parsing is deterministic.
-      assert tool_call.arguments == "{}"
+      # Preserve missing fragments so downstream parsing fails loudly.
+      assert tool_call.arguments == ""
     end
 
     test "raises when argument fragments arrive before tool_call_start" do

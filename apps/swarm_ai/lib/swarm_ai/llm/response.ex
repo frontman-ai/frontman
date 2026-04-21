@@ -46,88 +46,121 @@ defmodule SwarmAi.LLM.Response do
   """
   @spec from_stream(Enumerable.t(StreamChunk.t())) :: t()
   def from_stream(stream) do
-    chunks = if is_list(stream), do: stream, else: Enum.to_list(stream)
-    summary = ReqLLM.Response.Stream.summarize(chunks)
+    result = Enum.reduce(stream, initial_stream_state(), &accumulate_chunk/2)
 
     %__MODULE__{
-      content: summary.text,
-      reasoning_details: build_reasoning_details(chunks),
-      tool_calls: summarize_tool_calls(chunks, summary.tool_calls),
-      usage: build_usage(summary.usage),
-      finish_reason: extract_finish_reason(chunks, summary.finish_reason),
-      metadata: extract_response_metadata(chunks)
+      content: IO.iodata_to_binary(result.content),
+      reasoning_details: Enum.reverse(result.reasoning_details),
+      tool_calls: finalize_tool_calls(result.tool_calls_by_id, result.fragments_by_index),
+      usage: build_usage(result.usage),
+      finish_reason: result.finish_reason || :stop,
+      metadata: result.metadata
     }
   end
 
-  defp summarize_tool_calls(chunks, summarized_tool_calls) do
-    starts = extract_tool_call_starts(chunks)
-    fragments_by_index = collect_tool_call_fragments(chunks)
+  defp initial_stream_state do
+    %{
+      content: [],
+      reasoning_details: [],
+      reasoning_index: 0,
+      tool_calls_by_id: %{},
+      tool_call_indexes: MapSet.new(),
+      fragments_by_index: %{},
+      usage: nil,
+      finish_reason: nil,
+      metadata: %{}
+    }
+  end
 
-    validate_tool_call_fragments!(starts, fragments_by_index)
+  defp accumulate_chunk(%StreamChunk{type: :content, text: text}, acc) when is_binary(text) do
+    %{acc | content: [acc.content, text]}
+  end
 
+  defp accumulate_chunk(
+         %StreamChunk{type: :thinking, text: text, metadata: metadata},
+         acc
+       )
+       when is_binary(text) do
+    entry = build_reasoning_entry(text, metadata || %{}, acc.reasoning_index)
+
+    %{
+      acc
+      | reasoning_details: [entry | acc.reasoning_details],
+        reasoning_index: acc.reasoning_index + 1
+    }
+  end
+
+  defp accumulate_chunk(
+         %StreamChunk{type: :tool_call, name: name, arguments: arguments, metadata: metadata},
+         acc
+       ) do
+    metadata = metadata || %{}
+
+    case {meta_field(metadata, :id), normalize_index(meta_field(metadata, :index) || 0)} do
+      {id, index} when is_binary(id) and is_integer(index) ->
+        call = %{id: id, name: name, arguments: arguments, index: index}
+
+        %{
+          acc
+          | tool_calls_by_id: Map.put(acc.tool_calls_by_id, id, call),
+            tool_call_indexes: MapSet.put(acc.tool_call_indexes, index)
+        }
+
+      _other ->
+        acc
+    end
+  end
+
+  defp accumulate_chunk(%StreamChunk{type: :meta, metadata: metadata}, acc) do
+    metadata = metadata || %{}
+
+    acc
+    |> accumulate_tool_call_fragment(metadata)
+    |> maybe_put_usage(metadata)
+    |> maybe_put_finish_reason(metadata)
+    |> maybe_put_response_metadata(metadata)
+  end
+
+  defp accumulate_chunk(_chunk, acc), do: acc
+
+  defp accumulate_tool_call_fragment(acc, metadata) do
+    case extract_tool_call_fragment(metadata) do
+      {:ok, index, fragment} ->
+        if not MapSet.member?(acc.tool_call_indexes, index) do
+          raise ArgumentError,
+                "Received tool_call_args for index #{index} but no tool_call_start was received. " <>
+                  "This indicates a bug in the streaming pipeline."
+        end
+
+        %{
+          acc
+          | fragments_by_index:
+              Map.update(acc.fragments_by_index, index, fragment, &(&1 <> fragment))
+        }
+
+      :error ->
+        acc
+    end
+  end
+
+  defp finalize_tool_calls(tool_calls_by_id, fragments_by_index) do
     malformed_indexes = malformed_fragment_indexes(fragments_by_index)
 
-    Enum.map(summarized_tool_calls, fn call ->
-      id = fetch_tool_call_id!(call)
-      args = tool_call_field(call, :arguments)
-      fallback_name = tool_call_field(call, :name)
+    tool_calls_by_id
+    |> Map.values()
+    |> Enum.sort_by(& &1.index)
+    |> Enum.map(fn %{id: id, index: index, name: name, arguments: start_arguments} ->
+      arguments =
+        resolve_tool_call_arguments(
+          id,
+          name,
+          index,
+          start_arguments,
+          fragments_by_index,
+          malformed_indexes
+        )
 
-      case Map.get(starts, id) do
-        nil ->
-          %SwarmAi.ToolCall{
-            id: id,
-            name: fallback_name,
-            arguments: encode_tool_call_arguments(args)
-          }
-
-        %{index: index, name: name, arguments: start_args} ->
-          arguments =
-            resolve_tool_call_arguments(
-              id,
-              name,
-              index,
-              args,
-              start_args,
-              fragments_by_index,
-              malformed_indexes
-            )
-
-          %SwarmAi.ToolCall{id: id, name: name || fallback_name, arguments: arguments}
-      end
-    end)
-  end
-
-  defp extract_tool_call_starts(chunks) do
-    Enum.reduce(chunks, %{}, fn
-      %StreamChunk{type: :tool_call, name: name, arguments: arguments, metadata: metadata}, acc ->
-        metadata = metadata || %{}
-
-        case {meta_field(metadata, :id), normalize_index(meta_field(metadata, :index) || 0)} do
-          {id, index} when is_binary(id) and is_integer(index) ->
-            Map.put(acc, id, %{index: index, name: name, arguments: arguments})
-
-          _other ->
-            acc
-        end
-
-      _chunk, acc ->
-        acc
-    end)
-  end
-
-  defp collect_tool_call_fragments(chunks) do
-    Enum.reduce(chunks, %{}, fn
-      %StreamChunk{type: :meta, metadata: metadata}, acc ->
-        case extract_tool_call_fragment(metadata || %{}) do
-          {:ok, index, fragment} ->
-            Map.update(acc, index, fragment, &(&1 <> fragment))
-
-          :error ->
-            acc
-        end
-
-      _chunk, acc ->
-        acc
+      %SwarmAi.ToolCall{id: id, name: name, arguments: arguments}
     end)
   end
 
@@ -150,21 +183,6 @@ defmodule SwarmAi.LLM.Response do
     end
   end
 
-  defp validate_tool_call_fragments!(starts, fragments_by_index) do
-    start_indexes =
-      starts
-      |> Map.values()
-      |> MapSet.new(& &1.index)
-
-    Enum.each(Map.keys(fragments_by_index), fn index ->
-      if not MapSet.member?(start_indexes, index) do
-        raise ArgumentError,
-              "Received tool_call_args for index #{index} but no tool_call_start was received. " <>
-                "This indicates a bug in the streaming pipeline."
-      end
-    end)
-  end
-
   defp malformed_fragment_indexes(fragments_by_index) do
     Enum.reduce(fragments_by_index, MapSet.new(), fn {index, fragment}, acc ->
       case Jason.decode(fragment) do
@@ -178,8 +196,7 @@ defmodule SwarmAi.LLM.Response do
          id,
          name,
          index,
-         args,
-         start_args,
+         start_arguments,
          fragments_by_index,
          malformed_indexes
        ) do
@@ -191,27 +208,19 @@ defmodule SwarmAi.LLM.Response do
 
         raw
 
-      not Map.has_key?(fragments_by_index, index) and empty_tool_call_arguments?(start_args) ->
+      Map.has_key?(fragments_by_index, index) ->
+        Map.fetch!(fragments_by_index, index)
+
+      empty_tool_call_arguments?(start_arguments) ->
         Logger.warning(
-          "Tool call #{name} (#{id}) missing streamed argument fragments; defaulting arguments to {}"
+          "Tool call #{name} (#{id}) missing streamed argument fragments; preserving empty arguments"
         )
 
-        "{}"
+        ""
 
       true ->
-        encode_tool_call_arguments(args)
+        encode_tool_call_arguments(start_arguments)
     end
-  end
-
-  defp fetch_tool_call_id!(call) when is_map(call) do
-    case tool_call_field(call, :id) do
-      id when is_binary(id) -> id
-      _other -> raise KeyError, key: :id, term: call
-    end
-  end
-
-  defp tool_call_field(call, key) when is_map(call) and is_atom(key) do
-    Map.get(call, key) || Map.get(call, Atom.to_string(key))
   end
 
   defp encode_tool_call_arguments(nil), do: "{}"
@@ -228,21 +237,6 @@ defmodule SwarmAi.LLM.Response do
   defp empty_tool_call_arguments?(args) when is_map(args), do: map_size(args) == 0
   defp empty_tool_call_arguments?(_), do: false
 
-  defp build_reasoning_details(chunks) do
-    {entries, _index} =
-      Enum.reduce(chunks, {[], 0}, fn
-        %StreamChunk{type: :thinking, text: text, metadata: metadata}, {acc, index}
-        when is_binary(text) ->
-          entry = build_reasoning_entry(text, metadata || %{}, index)
-          {[entry | acc], index + 1}
-
-        _chunk, state ->
-          state
-      end)
-
-    Enum.reverse(entries)
-  end
-
   defp build_reasoning_entry(text, metadata, index) do
     metadata
     |> Map.put("text", text)
@@ -253,36 +247,32 @@ defmodule SwarmAi.LLM.Response do
   defp build_usage(usage) when is_map(usage), do: Usage.from_map(usage)
   defp build_usage(_other), do: nil
 
-  defp extract_finish_reason(chunks, fallback_finish_reason) do
-    finish_reason =
-      Enum.reduce(chunks, nil, fn
-        %StreamChunk{type: :meta, metadata: metadata}, acc ->
-          case normalize_finish_reason(meta_field(metadata || %{}, :finish_reason)) do
-            nil -> acc
-            reason -> merge_finish_reason(acc, reason)
-          end
+  defp maybe_put_usage(acc, metadata) do
+    case meta_field(metadata, :usage) do
+      usage when is_map(usage) -> %{acc | usage: usage}
+      _other -> acc
+    end
+  end
 
-        _chunk, acc ->
-          acc
-      end)
-
-    finish_reason || fallback_finish_reason || :stop
+  defp maybe_put_finish_reason(acc, metadata) do
+    case normalize_finish_reason(meta_field(metadata, :finish_reason)) do
+      nil -> acc
+      reason -> %{acc | finish_reason: merge_finish_reason(acc.finish_reason, reason)}
+    end
   end
 
   defp merge_finish_reason(current, reason) when current in [nil, :stop], do: reason
   defp merge_finish_reason(current, _reason), do: current
 
-  defp extract_response_metadata(chunks) do
-    Enum.reduce(chunks, %{}, fn
-      %StreamChunk{type: :meta, metadata: metadata}, acc ->
-        acc
-        |> maybe_put_response_id(metadata || %{})
-        |> maybe_put_phase(metadata || %{})
-        |> maybe_put_phase_items(metadata || %{})
-
-      _chunk, acc ->
-        acc
-    end)
+  defp maybe_put_response_metadata(acc, metadata) do
+    %{
+      acc
+      | metadata:
+          acc.metadata
+          |> maybe_put_response_id(metadata)
+          |> maybe_put_phase(metadata)
+          |> maybe_put_phase_items(metadata)
+    }
   end
 
   defp maybe_put_response_id(metadata, source) do
