@@ -23,9 +23,7 @@ defmodule SwarmAi.Runtime.Supervisor do
 
     children = [
       {SwarmAi.Runtime.TasksSupervisor,
-       name: :"#{name}.TasksSupervisor",
-       registry: registry_name,
-       task_supervisor: task_sup_name}
+       name: :"#{name}.TasksSupervisor", registry: registry_name, task_supervisor: task_sup_name}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

@@ -131,14 +131,113 @@ defmodule FrontmanServerWeb.UserAuth do
   Will reissue the session token if it is older than the configured age.
   """
   def fetch_current_scope_for_user(conn, _opts) do
-    with {token, conn} <- ensure_user_token(conn),
-         {user, token_inserted_at} <- Accounts.get_user_by_session_token(token) do
-      conn
-      |> assign(:current_scope, Scope.for_user(user))
-      |> maybe_reissue_user_session_token(user, token_inserted_at)
-    else
-      nil -> assign(conn, :current_scope, Scope.for_user(nil))
+    case ensure_user_token(conn) do
+      {token, conn} ->
+        case Accounts.get_user_by_session_token(token) do
+          {user, token_inserted_at} ->
+            conn
+            |> assign(:current_scope, Scope.for_user(user))
+            |> maybe_reissue_user_session_token(user, token_inserted_at)
+
+          nil ->
+            conn
+            |> clear_stale_session_token()
+            |> authenticate_from_remember_me(token)
+        end
+
+      nil ->
+        assign(conn, :current_scope, Scope.for_user(nil))
     end
+  end
+
+  defp clear_stale_session_token(conn) do
+    conn
+    |> delete_session(:user_token)
+    |> delete_session(:user_remember_me)
+  end
+
+  defp authenticate_from_remember_me(conn, stale_token) do
+    conn = fetch_cookies(conn, signed: [@remember_me_cookie])
+
+    case find_valid_remember_me_session(conn, stale_token) do
+      {:ok, token, user, token_inserted_at} ->
+        conn
+        |> put_token_in_session(token)
+        |> put_session(:user_remember_me, true)
+        |> assign(:current_scope, Scope.for_user(user))
+        |> maybe_reissue_user_session_token(user, token_inserted_at)
+
+      :error ->
+        conn
+        |> delete_resp_cookie(@remember_me_cookie)
+        |> assign(:current_scope, Scope.for_user(nil))
+    end
+  end
+
+  defp find_valid_remember_me_session(conn, stale_token) do
+    conn
+    |> remember_me_candidate_tokens()
+    |> Enum.reject(&(&1 == stale_token))
+    |> Enum.find_value(:error, fn token ->
+      case Accounts.get_user_by_session_token(token) do
+        {user, token_inserted_at} ->
+          {:ok, token, user, token_inserted_at}
+
+        nil ->
+          nil
+      end
+    end)
+  end
+
+  defp remember_me_candidate_tokens(conn) do
+    fetched_cookie_token =
+      case conn.cookies[@remember_me_cookie] do
+        token when is_binary(token) -> [token]
+        _ -> []
+      end
+
+    raw_cookie_tokens =
+      conn
+      |> remember_me_signed_values_from_raw_header()
+      |> Enum.map(&decode_signed_remember_me_token(conn, &1))
+      |> Enum.filter(&is_binary/1)
+
+    (fetched_cookie_token ++ raw_cookie_tokens)
+    |> Enum.uniq()
+  end
+
+  defp remember_me_signed_values_from_raw_header(conn) do
+    conn
+    |> get_req_header("cookie")
+    |> Enum.flat_map(&String.split(&1, ";"))
+    |> Enum.map(&String.trim/1)
+    |> Enum.flat_map(fn cookie ->
+      case String.split(cookie, "=", parts: 2) do
+        [@remember_me_cookie, value] -> [value]
+        _ -> []
+      end
+    end)
+  end
+
+  defp decode_signed_remember_me_token(conn, signed_value) do
+    conn
+    |> conn_with_cookie_header("#{@remember_me_cookie}=#{signed_value}")
+    |> fetch_cookies(signed: [@remember_me_cookie])
+    |> Map.get(:cookies)
+    |> Map.get(@remember_me_cookie)
+  end
+
+  defp conn_with_cookie_header(conn, cookie_header) do
+    updated_headers = [
+      {"cookie", cookie_header} | Enum.reject(conn.req_headers, &match?({"cookie", _}, &1))
+    ]
+
+    %{
+      conn
+      | req_headers: updated_headers,
+        req_cookies: %Plug.Conn.Unfetched{aspect: :cookies},
+        cookies: %Plug.Conn.Unfetched{aspect: :cookies}
+    }
   end
 
   defp ensure_user_token(conn) do

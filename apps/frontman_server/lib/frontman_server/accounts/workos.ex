@@ -29,6 +29,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   @supported_providers ~w(github google)
   @workos_api_base "https://api.workos.com"
+  @workos_auth_max_attempts 2
 
   @doc """
   Generates a WorkOS authorization URL for the given provider.
@@ -93,8 +94,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
         pending_authentication_token,
         signup_framework \\ nil
       ) do
-    require Logger
-
     body = %{
       client_id: workos_client_id(),
       client_secret: workos_api_key(),
@@ -103,23 +102,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
       pending_authentication_token: pending_authentication_token
     }
 
-    case Req.post("#{@workos_api_base}/user_management/authenticate", json: body) do
-      {:ok, %Req.Response{status: 200, body: response_body}} ->
-        with {:ok, auth_response} <- parse_auth_response(response_body),
-             {:ok, profile} <- extract_profile(auth_response) do
-          find_or_create_user_from_oauth(profile, signup_framework)
-        end
-
-      {:ok, %Req.Response{status: status, body: error_body}} ->
-        Logger.debug(
-          "WorkOS email verify error - status: #{status}, body: #{inspect(error_body)}"
-        )
-
-        {:error, AuthError.from_response(error_body)}
-
-      {:error, reason} ->
-        Logger.error("WorkOS email verify request failed: #{inspect(reason)}")
-        {:error, reason}
+    with {:ok, response_body} <- post_authenticate_request(body, "email verify"),
+         {:ok, auth_response} <- parse_auth_response(response_body),
+         {:ok, profile} <- extract_profile(auth_response) do
+      find_or_create_user_from_oauth(profile, signup_framework)
     end
   end
 
@@ -303,8 +289,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   # Raw HTTP authentication to capture full error responses
 
   defp authenticate_with_code_raw(code) do
-    require Logger
-
     body = %{
       client_id: workos_client_id(),
       client_secret: workos_api_key(),
@@ -312,16 +296,38 @@ defmodule FrontmanServer.Accounts.WorkOS do
       code: code
     }
 
+    with {:ok, response_body} <- post_authenticate_request(body, "auth") do
+      parse_auth_response(response_body)
+    end
+  end
+
+  defp post_authenticate_request(body, context, attempt \\ 1) do
+    require Logger
+
     case Req.post("#{@workos_api_base}/user_management/authenticate", json: body) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
-        parse_auth_response(response_body)
+        {:ok, response_body}
 
       {:ok, %Req.Response{status: status, body: error_body}} ->
-        Logger.debug("WorkOS auth error - status: #{status}, body: #{inspect(error_body)}")
+        Logger.debug("WorkOS #{context} error - status: #{status}, body: #{inspect(error_body)}")
         {:error, AuthError.from_response(error_body)}
 
+      {:error, %Req.TransportError{reason: :closed}} when attempt < @workos_auth_max_attempts ->
+        Logger.warning(
+          "WorkOS #{context} request transport closed (attempt #{attempt}/#{@workos_auth_max_attempts}); retrying"
+        )
+
+        post_authenticate_request(body, context, attempt + 1)
+
+      {:error, %Req.TransportError{reason: :closed} = reason} ->
+        Logger.error(
+          "WorkOS #{context} request failed after #{attempt} attempt(s): #{inspect(reason)}"
+        )
+
+        {:error, reason}
+
       {:error, reason} ->
-        Logger.error("WorkOS request failed: #{inspect(reason)}")
+        Logger.error("WorkOS #{context} request failed: #{inspect(reason)}")
         {:error, reason}
     end
   end

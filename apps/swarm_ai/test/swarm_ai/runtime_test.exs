@@ -6,10 +6,12 @@ defmodule SwarmAi.RuntimeTest do
   # --- MFA callbacks for ToolExecution structs ---
 
   def instant_run(tool_call), do: ToolResult.make(tool_call.id, "done", false)
+
   def slow_run(tool_call) do
     Process.sleep(500)
     ToolResult.make(tool_call.id, "never", false)
   end
+
   def noop_timeout(_tool_call, _reason), do: :ok
 
   describe "child_spec/1" do
@@ -124,8 +126,8 @@ defmodule SwarmAi.RuntimeTest do
       await_exit(pid)
 
       # Should complete (error ToolResult returned to LLM, LLM responds with final message)
-      assert_receive {:test_event, "task-tool-def", {:completed, {:ok, "done after timeout error", _}},
-                      _metadata},
+      assert_receive {:test_event, "task-tool-def",
+                      {:completed, {:ok, "done after timeout error", _}}, _metadata},
                      3_000
     end
   end
@@ -387,9 +389,7 @@ defmodule SwarmAi.RuntimeTest do
       agent = test_agent(llm)
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-pause", agent, "Hello",
-          tool_executor: pause_executor
-        )
+        SwarmAi.Runtime.run(runtime, "task-pause", agent, "Hello", tool_executor: pause_executor)
 
       await_exit(pid)
 

@@ -218,6 +218,74 @@ defmodule FrontmanServerWeb.UserAuthTest do
       assert new_signed_token != signed_token
       assert max_age == @remember_me_cookie_max_age
     end
+
+    test "falls back to remember me cookie when session token is stale", %{conn: conn, user: user} do
+      logged_in_conn =
+        conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      remember_token = logged_in_conn.cookies[@remember_me_cookie]
+      %{value: signed_token} = logged_in_conn.resp_cookies[@remember_me_cookie]
+      stale_session_token = :crypto.strong_rand_bytes(32)
+
+      conn =
+        conn
+        |> put_session(:user_token, stale_session_token)
+        |> put_req_cookie(@remember_me_cookie, signed_token)
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      assert conn.assigns.current_scope.user.id == user.id
+      assert conn.assigns.current_scope.user.authenticated_at == user.authenticated_at
+      assert get_session(conn, :user_token) == remember_token
+      assert get_session(conn, :user_remember_me)
+    end
+
+    test "recovers from duplicate remember me cookies by selecting a valid token", %{
+      conn: conn,
+      user: user
+    } do
+      old_conn = conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+      old_token = old_conn.cookies[@remember_me_cookie]
+      %{value: old_signed_token} = old_conn.resp_cookies[@remember_me_cookie]
+
+      new_conn = conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+      new_token = new_conn.cookies[@remember_me_cookie]
+      %{value: new_signed_token} = new_conn.resp_cookies[@remember_me_cookie]
+
+      :ok = Accounts.delete_user_session_token(old_token)
+
+      duplicate_cookie_header =
+        "#{@remember_me_cookie}=#{old_signed_token}; #{@remember_me_cookie}=#{new_signed_token}"
+
+      conn =
+        conn
+        |> put_session(:user_token, old_token)
+        |> put_req_header("cookie", duplicate_cookie_header)
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      assert conn.assigns.current_scope.user.id == user.id
+      assert conn.assigns.current_scope.user.authenticated_at == user.authenticated_at
+      assert get_session(conn, :user_token) == new_token
+      assert get_session(conn, :user_remember_me)
+    end
+
+    test "clears stale remember me cookie when token is invalid", %{conn: conn, user: user} do
+      logged_in_conn =
+        conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
+
+      stale_token = logged_in_conn.cookies[@remember_me_cookie]
+      %{value: signed_token} = logged_in_conn.resp_cookies[@remember_me_cookie]
+      :ok = Accounts.delete_user_session_token(stale_token)
+
+      conn =
+        conn
+        |> put_req_cookie(@remember_me_cookie, signed_token)
+        |> UserAuth.fetch_current_scope_for_user([])
+
+      refute conn.assigns.current_scope
+      refute get_session(conn, :user_token)
+      refute get_session(conn, :user_remember_me)
+      assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
+    end
   end
 
   describe "require_sudo_mode/2" do
