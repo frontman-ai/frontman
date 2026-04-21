@@ -30,14 +30,17 @@ defmodule FrontmanServerWeb.Router do
     plug(:require_authenticated_user_api)
   end
 
-  pipeline :fetch_organization do
-    plug(FrontmanServerWeb.Plugs.FetchOrganization)
-  end
+  ## Public routes
 
   scope "/", FrontmanServerWeb do
     pipe_through(:browser)
 
     get("/", PageController, :home)
+
+    delete("/users/log-out", UserSessionController, :delete)
+    # GET logout renders a CSRF-protected confirmation page that auto-submits.
+    # This prevents forced-logout attacks via <img src="/users/log-out">.
+    get("/users/log-out", UserSessionController, :confirm_logout)
   end
 
   scope "/health", FrontmanServerWeb do
@@ -45,57 +48,6 @@ defmodule FrontmanServerWeb.Router do
 
     get("/", HealthController, :index)
     get("/ready", HealthController, :ready)
-  end
-
-  scope "/api", FrontmanServerWeb do
-    pipe_through([:api_with_session])
-
-    get("/user/me", UserMeController, :show)
-    post("/user/api-keys", UserApiKeyController, :create)
-    get("/user/api-key-usage", UserApiKeyController, :usage)
-
-    # Anthropic OAuth routes
-    get("/oauth/anthropic/authorize-url", AnthropicOAuthController, :authorize_url)
-    post("/oauth/anthropic/exchange", AnthropicOAuthController, :exchange)
-    delete("/oauth/anthropic/disconnect", AnthropicOAuthController, :disconnect)
-    get("/oauth/anthropic/status", AnthropicOAuthController, :status)
-
-    # ChatGPT OAuth routes (device auth flow - all require session)
-    post("/oauth/chatgpt/initiate", ChatGPTOAuthController, :initiate)
-    post("/oauth/chatgpt/poll", ChatGPTOAuthController, :poll)
-    delete("/oauth/chatgpt/disconnect", ChatGPTOAuthController, :disconnect)
-    get("/oauth/chatgpt/status", ChatGPTOAuthController, :status)
-  end
-
-  # Organization-scoped routes
-  scope "/orgs/:org_slug", FrontmanServerWeb do
-    pipe_through([:browser, :require_authenticated_user, :fetch_organization])
-
-    # Add organization-scoped routes here
-  end
-
-  # Public API routes (no auth required)
-  scope "/api", FrontmanServerWeb do
-    pipe_through(:api)
-
-    get("/integrations/latest-versions", IntegrationsController, :latest_versions)
-  end
-
-  # Enable LiveDashboard and Swoosh mailbox preview in development
-  if Application.compile_env(:frontman_server, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
-    import Phoenix.LiveDashboard.Router
-
-    scope "/dev" do
-      pipe_through(:browser)
-
-      live_dashboard("/dashboard", metrics: FrontmanServerWeb.Telemetry)
-      forward("/mailbox", Plug.Swoosh.MailboxPreview)
-    end
   end
 
   ## Authentication routes
@@ -125,6 +77,10 @@ defmodule FrontmanServerWeb.Router do
     pipe_through([:browser, :redirect_if_user_is_authenticated])
 
     get("/users/register", UserSessionController, :new)
+
+    get("/users/log-in", UserSessionController, :new)
+    get("/users/log-in/:token", UserSessionController, :confirm)
+    post("/users/log-in", UserSessionController, :create)
   end
 
   scope "/", FrontmanServerWeb do
@@ -135,27 +91,56 @@ defmodule FrontmanServerWeb.Router do
     get("/users/settings/confirm-email/:token", UserSettingsController, :confirm_email)
   end
 
-  scope "/", FrontmanServerWeb do
-    pipe_through([:browser, :redirect_if_user_is_authenticated])
+  ## API routes
 
-    get("/users/log-in", UserSessionController, :new)
-    get("/users/log-in/:token", UserSessionController, :confirm)
-    post("/users/log-in", UserSessionController, :create)
-  end
+  # Public API routes (no auth required)
+  scope "/api", FrontmanServerWeb do
+    pipe_through(:api)
 
-  scope "/", FrontmanServerWeb do
-    pipe_through([:browser])
-
-    delete("/users/log-out", UserSessionController, :delete)
-    # GET logout renders a CSRF-protected confirmation page that auto-submits.
-    # This prevents forced-logout attacks via <img src="/users/log-out">.
-    get("/users/log-out", UserSessionController, :confirm_logout)
+    get("/integrations/latest-versions", IntegrationsController, :latest_versions)
   end
 
   # API endpoint for socket token (uses browser pipeline for session cookie)
   scope "/api", FrontmanServerWeb do
-    pipe_through([:browser])
+    pipe_through(:browser)
 
     get("/socket-token", SocketTokenController, :show)
+  end
+
+  scope "/api", FrontmanServerWeb do
+    pipe_through(:api_with_session)
+
+    get("/user/me", UserMeController, :show)
+    post("/user/api-keys", UserApiKeyController, :create)
+    get("/user/api-key-usage", UserApiKeyController, :usage)
+
+    # Anthropic OAuth routes
+    get("/oauth/anthropic/authorize-url", AnthropicOAuthController, :authorize_url)
+    post("/oauth/anthropic/exchange", AnthropicOAuthController, :exchange)
+    delete("/oauth/anthropic/disconnect", AnthropicOAuthController, :disconnect)
+    get("/oauth/anthropic/status", AnthropicOAuthController, :status)
+
+    # ChatGPT OAuth routes (device auth flow - all require session)
+    post("/oauth/chatgpt/initiate", ChatGPTOAuthController, :initiate)
+    post("/oauth/chatgpt/poll", ChatGPTOAuthController, :poll)
+    delete("/oauth/chatgpt/disconnect", ChatGPTOAuthController, :disconnect)
+    get("/oauth/chatgpt/status", ChatGPTOAuthController, :status)
+  end
+
+  # Enable LiveDashboard and Swoosh mailbox preview in development
+  if Application.compile_env(:frontman_server, :dev_routes) do
+    # If you want to use the LiveDashboard in production, you should put
+    # it behind authentication and allow only admins to access it.
+    # If your application does not have an admins-only section yet,
+    # you can use Plug.BasicAuth to set up some basic authentication
+    # as long as you are also using SSL (which you should anyway).
+    import Phoenix.LiveDashboard.Router
+
+    scope "/dev" do
+      pipe_through(:browser)
+
+      live_dashboard("/dashboard", metrics: FrontmanServerWeb.Telemetry)
+      forward("/mailbox", Plug.Swoosh.MailboxPreview)
+    end
   end
 end
