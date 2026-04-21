@@ -40,5 +40,17 @@ defmodule SwarmAi.LLM.ResponseTest do
 
       assert response.finish_reason == :tool_calls
     end
+
+    test "normalizes provider atom finish reasons to canonical values" do
+      stream = [
+        StreamChunk.text("hello"),
+        StreamChunk.meta(%{finish_reason: :end_turn}),
+        StreamChunk.meta(%{finish_reason: :stop})
+      ]
+
+      response = Response.from_stream(stream)
+
+      assert response.finish_reason == :stop
+    end
   end
 end

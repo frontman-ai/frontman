@@ -315,7 +315,10 @@ defmodule SwarmAi.LLM.Response do
   defp normalize_index(_other), do: :error
 
   defp normalize_finish_reason(nil), do: nil
-  defp normalize_finish_reason(reason) when is_atom(reason), do: reason
+
+  defp normalize_finish_reason(reason) when is_atom(reason),
+    do: normalize_finish_reason(Atom.to_string(reason))
+
   defp normalize_finish_reason("stop"), do: :stop
   defp normalize_finish_reason("completed"), do: :stop
   defp normalize_finish_reason("tool_calls"), do: :tool_calls
