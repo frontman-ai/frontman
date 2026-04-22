@@ -76,7 +76,7 @@ defmodule FrontmanServer.MixProject do
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_view, "~> 1.1.0"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:req_llm, github: "agentjido/req_llm"},
+      {:req_llm, github: "agentjido/req_llm", override: true},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.2.0",
