@@ -15,6 +15,8 @@ defmodule FrontmanServer.Accounts.UserIdentity do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{}
+
   @providers ~w(github google)
 
   @primary_key {:id, :binary_id, autogenerate: true}

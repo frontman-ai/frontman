@@ -250,10 +250,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  defp extract_profile(auth_response) do
-    {:error, {:invalid_auth_response, auth_response}}
-  end
-
   defp workos_to_provider("GitHubOAuth"), do: {:ok, "github"}
   defp workos_to_provider("GoogleOAuth"), do: {:ok, "google"}
 
