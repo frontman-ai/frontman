@@ -30,6 +30,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @supported_providers ~w(github google)
   @workos_api_base "https://api.workos.com"
   @workos_auth_max_attempts 2
+  @workos_auth_connect_timeout_ms 5_000
+  @workos_auth_receive_timeout_ms 30_000
+
+  @type signup_framework :: String.t() | nil
 
   @doc """
   Generates a WorkOS authorization URL for the given provider.
@@ -40,6 +44,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
       {:ok, "https://api.workos.com/..."}
 
   """
+  @spec get_authorization_url(String.t(), String.t(), String.t() | nil) ::
+          {:ok, String.t()} | {:error, term()}
   def get_authorization_url(provider, redirect_uri, state \\ nil)
 
   def get_authorization_url(provider, redirect_uri, state)
@@ -75,7 +81,28 @@ defmodule FrontmanServer.Accounts.WorkOS do
   Note: We use a raw HTTP call instead of the SDK to capture the full error
   response, including `pending_authentication_token` for email verification.
   """
-  def authenticate_with_code(code, signup_framework \\ nil) do
+  @spec authenticate_with_code(String.t(), signup_framework()) ::
+          {:ok, User.t()} | {:error, term()}
+  def authenticate_with_code(code, signup_framework \\ nil)
+
+  def authenticate_with_code(code, nil) when is_binary(code) and code != "" do
+    authenticate_with_code_internal(code, nil)
+  end
+
+  def authenticate_with_code(code, signup_framework)
+      when is_binary(code) and code != "" and is_binary(signup_framework) do
+    authenticate_with_code_internal(code, signup_framework)
+  end
+
+  def authenticate_with_code("", _signup_framework), do: {:error, {:invalid_argument, :code}}
+
+  def authenticate_with_code(code, _signup_framework) when not is_binary(code),
+    do: {:error, {:invalid_argument, :code}}
+
+  def authenticate_with_code(_code, _signup_framework),
+    do: {:error, {:invalid_argument, :signup_framework}}
+
+  defp authenticate_with_code_internal(code, signup_framework) do
     with {:ok, auth_response} <- authenticate_with_code_raw(code),
          {:ok, profile} <- extract_profile(auth_response) do
       find_or_create_user_from_oauth(profile, signup_framework)
@@ -89,11 +116,56 @@ defmodule FrontmanServer.Accounts.WorkOS do
   receives a verification code via email, which is then submitted along with
   the pending authentication token to complete the flow.
   """
+  @spec authenticate_with_email_verification(String.t(), String.t(), signup_framework()) ::
+          {:ok, User.t()} | {:error, term()}
   def authenticate_with_email_verification(
         code,
         pending_authentication_token,
         signup_framework \\ nil
-      ) do
+      )
+
+  def authenticate_with_email_verification(code, pending_authentication_token, nil)
+      when is_binary(code) and code != "" and is_binary(pending_authentication_token) and
+             pending_authentication_token != "" do
+    authenticate_with_email_verification_internal(code, pending_authentication_token, nil)
+  end
+
+  def authenticate_with_email_verification(code, pending_authentication_token, signup_framework)
+      when is_binary(code) and code != "" and is_binary(pending_authentication_token) and
+             pending_authentication_token != "" and is_binary(signup_framework) do
+    authenticate_with_email_verification_internal(
+      code,
+      pending_authentication_token,
+      signup_framework
+    )
+  end
+
+  def authenticate_with_email_verification("", _pending_authentication_token, _signup_framework),
+    do: {:error, {:invalid_argument, :code}}
+
+  def authenticate_with_email_verification(_code, "", _signup_framework),
+    do: {:error, {:invalid_argument, :pending_authentication_token}}
+
+  def authenticate_with_email_verification(code, _pending_authentication_token, _signup_framework)
+      when not is_binary(code),
+      do: {:error, {:invalid_argument, :code}}
+
+  def authenticate_with_email_verification(_code, pending_authentication_token, _signup_framework)
+      when not is_binary(pending_authentication_token),
+      do: {:error, {:invalid_argument, :pending_authentication_token}}
+
+  def authenticate_with_email_verification(
+        _code,
+        _pending_authentication_token,
+        _signup_framework
+      ),
+      do: {:error, {:invalid_argument, :signup_framework}}
+
+  defp authenticate_with_email_verification_internal(
+         code,
+         pending_authentication_token,
+         signup_framework
+       ) do
     body = %{
       client_id: workos_client_id(),
       client_secret: workos_api_key(),
@@ -114,33 +186,40 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   Returns `{:ok, identity}` on success or `{:error, changeset}` on failure.
   """
-  def link_provider(user, code) do
+  @spec link_provider(User.t(), String.t()) :: {:ok, UserIdentity.t()} | {:error, term()}
+  def link_provider(%User{} = user, code) when is_binary(code) and code != "" do
     with {:ok, auth_response} <- authenticate_with_code_raw(code),
          {:ok, profile} <- extract_profile(auth_response) do
       create_identity(user, profile)
     end
   end
 
+  def link_provider(%User{}, ""), do: {:error, {:invalid_argument, :code}}
+  def link_provider(%User{}, _code), do: {:error, {:invalid_argument, :code}}
+
   @doc """
   Unlinks an OAuth provider from a user account.
 
   Returns `{:ok, identity}` on success or `{:error, :not_found}` if the identity doesn't exist.
   """
-  def unlink_provider(user, provider) when provider in @supported_providers do
+  @spec unlink_provider(User.t(), String.t()) ::
+          {:ok, UserIdentity.t()} | {:error, :not_found | String.t() | term()}
+  def unlink_provider(%User{} = user, provider) when provider in @supported_providers do
     case get_identity_by_provider(user, provider) do
       nil -> {:error, :not_found}
       identity -> Repo.delete(identity)
     end
   end
 
-  def unlink_provider(_user, provider) do
+  def unlink_provider(%User{}, provider) do
     {:error, "Unsupported provider: #{provider}"}
   end
 
   @doc """
   Lists all OAuth identities for a user.
   """
-  def list_identities(user) do
+  @spec list_identities(User.t()) :: [UserIdentity.t()]
+  def list_identities(%User{} = user) do
     UserIdentity
     |> where([i], i.user_id == ^user.id)
     |> Repo.all()
@@ -149,7 +228,8 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @doc """
   Gets a specific identity by provider for a user.
   """
-  def get_identity_by_provider(user, provider) do
+  @spec get_identity_by_provider(User.t(), String.t()) :: UserIdentity.t() | nil
+  def get_identity_by_provider(%User{} = user, provider) when is_binary(provider) do
     UserIdentity
     |> where([i], i.user_id == ^user.id and i.provider == ^provider)
     |> Repo.one()
@@ -158,33 +238,56 @@ defmodule FrontmanServer.Accounts.WorkOS do
   # Private functions
 
   defp extract_profile(%{user: user, authentication_method: auth_method}) do
-    provider = workos_to_provider(auth_method)
-
-    {:ok,
-     %{
-       provider: provider,
-       provider_id: user[:id],
-       provider_email: user[:email],
-       provider_name: extract_name(user),
-       provider_avatar_url: user[:profile_picture_url]
-     }}
+    with {:ok, provider} <- workos_to_provider(auth_method) do
+      {:ok,
+       %{
+         provider: provider,
+         provider_id: user[:id],
+         provider_email: user[:email],
+         provider_name: extract_name(user),
+         provider_avatar_url: user[:profile_picture_url]
+       }}
+    end
   end
 
-  defp workos_to_provider("GitHubOAuth"), do: "github"
-  defp workos_to_provider("GoogleOAuth"), do: "google"
+  defp extract_profile(auth_response) do
+    {:error, {:invalid_auth_response, auth_response}}
+  end
+
+  defp workos_to_provider("GitHubOAuth"), do: {:ok, "github"}
+  defp workos_to_provider("GoogleOAuth"), do: {:ok, "google"}
+
+  defp workos_to_provider(authentication_method) do
+    {:error, {:invalid_authentication_method, authentication_method}}
+  end
 
   defp extract_name(user) do
     first_name = user[:first_name]
     last_name = user[:last_name]
     email = user[:email]
 
-    cond do
-      first_name && last_name -> "#{first_name} #{last_name}"
-      first_name -> first_name
-      last_name -> last_name
-      email -> email |> String.split("@") |> List.first()
-      true -> "Unknown"
+    case first_name do
+      nil -> extract_name_from_last_name_or_email(last_name, email)
+      "" -> extract_name_from_last_name_or_email(last_name, email)
+      value -> extract_name_with_last_name(value, last_name)
     end
+  end
+
+  defp extract_name_with_last_name(first_name, nil), do: first_name
+  defp extract_name_with_last_name(first_name, ""), do: first_name
+  defp extract_name_with_last_name(first_name, last_name), do: "#{first_name} #{last_name}"
+
+  defp extract_name_from_last_name_or_email(nil, email), do: extract_name_from_email(email)
+  defp extract_name_from_last_name_or_email("", email), do: extract_name_from_email(email)
+  defp extract_name_from_last_name_or_email(last_name, _email), do: last_name
+
+  defp extract_name_from_email(nil), do: "Unknown"
+  defp extract_name_from_email(""), do: "Unknown"
+
+  defp extract_name_from_email(email) do
+    email
+    |> String.split("@")
+    |> List.first()
   end
 
   defp find_or_create_user_from_oauth(profile, signup_framework) do
@@ -286,7 +389,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   defp provider_to_workos("github"), do: "GitHubOAuth"
   defp provider_to_workos("google"), do: "GoogleOAuth"
 
-  # Raw HTTP authentication to capture full error responses
+  # Raw HTTP authentication to capture full error responses.
 
   defp authenticate_with_code_raw(code) do
     body = %{
@@ -304,7 +407,11 @@ defmodule FrontmanServer.Accounts.WorkOS do
   defp post_authenticate_request(body, context, attempt \\ 1) do
     require Logger
 
-    case Req.post("#{@workos_api_base}/user_management/authenticate", json: body) do
+    case Req.post("#{@workos_api_base}/user_management/authenticate",
+           json: body,
+           receive_timeout: @workos_auth_receive_timeout_ms,
+           connect_options: [timeout: @workos_auth_connect_timeout_ms]
+         ) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok, response_body}
 
@@ -332,26 +439,42 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  defp parse_auth_response(body) do
-    user = %{
-      id: body["user"]["id"],
-      email: body["user"]["email"],
-      email_verified: body["user"]["email_verified"],
-      first_name: body["user"]["first_name"],
-      last_name: body["user"]["last_name"],
-      profile_picture_url: body["user"]["profile_picture_url"],
-      created_at: body["user"]["created_at"],
-      updated_at: body["user"]["updated_at"]
-    }
-
-    {:ok,
-     %{
-       user: user,
-       access_token: body["access_token"],
-       refresh_token: body["refresh_token"],
-       authentication_method: body["authentication_method"]
-     }}
+  defp parse_auth_response(
+         %{"user" => user, "authentication_method" => authentication_method} = body
+       )
+       when is_map(user) do
+    with {:ok, user_id} <- require_non_empty_binary(user["id"], :user_id),
+         {:ok, user_email} <- require_non_empty_binary(user["email"], :user_email),
+         {:ok, auth_method} <-
+           require_non_empty_binary(authentication_method, :authentication_method) do
+      {:ok,
+       %{
+         user: %{
+           id: user_id,
+           email: user_email,
+           email_verified: user["email_verified"],
+           first_name: user["first_name"],
+           last_name: user["last_name"],
+           profile_picture_url: user["profile_picture_url"],
+           created_at: user["created_at"],
+           updated_at: user["updated_at"]
+         },
+         access_token: body["access_token"],
+         refresh_token: body["refresh_token"],
+         authentication_method: auth_method
+       }}
+    end
   end
+
+  defp parse_auth_response(body) do
+    {:error, {:invalid_auth_response, body}}
+  end
+
+  defp require_non_empty_binary("", field), do: {:error, {:invalid_auth_response_field, field}}
+  defp require_non_empty_binary(value, _field) when is_binary(value), do: {:ok, value}
+
+  defp require_non_empty_binary(_value, field),
+    do: {:error, {:invalid_auth_response_field, field}}
 
   defp workos_api_key do
     Application.get_env(:workos, WorkOS.Client)[:api_key]
