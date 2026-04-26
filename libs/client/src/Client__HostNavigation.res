@@ -2,7 +2,7 @@
 // This keeps hosted auth flows working in shells like WordPress Playground.
 
 let useTopWindow = (~currentWindow: WebAPI.DOMAPI.window, ~topWindow: WebAPI.DOMAPI.window): bool =>
-  currentWindow != topWindow
+  currentWindow !== topWindow
 
 let returnUrl = (~currentUrl: string, ~topUrl: option<string>, ~useTopWindow: bool): string =>
   switch (useTopWindow, topUrl) {
