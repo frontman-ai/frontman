@@ -155,9 +155,6 @@ module Task = {
         planEntries: array<ACPTypes.planEntry>,
         turnError: option<turnErrorInfo>,
         retryStatus: option<retryStatus>,
-        // User-attached images keyed by URI (e.g., "attachment://att_abc123/image.png")
-        // Accumulated across messages so the agent can use them via image_ref-aware tools
-        imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
         // Pending interactive question (from the question tool) awaiting user input
         pendingQuestion: option<Client__Question__Types.pendingQuestion>,
       })
@@ -264,12 +261,6 @@ module Task = {
     | New({isAnimationFrozen}) => isAnimationFrozen
     | Unloaded(_) => false
     | Loading({isAnimationFrozen}) | Loaded({isAnimationFrozen}) => isAnimationFrozen
-    }
-
-  let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
-    switch task {
-    | Loaded({imageAttachments}) => imageAttachments
-    | New(_) | Unloaded(_) | Loading(_) => Dict.make()
     }
 
   // Derived: is any selection mode active?
@@ -406,7 +397,6 @@ module Task = {
         planEntries: [],
         turnError: None,
         retryStatus: None,
-        imageAttachments: Dict.make(),
         pendingQuestion: None,
       })
     | Unloaded(_) | Loading(_) | Loaded(_) =>
@@ -445,7 +435,6 @@ module Task = {
       planEntries: [],
       turnError: None,
       retryStatus: None,
-      imageAttachments: Dict.make(),
       pendingQuestion: None,
     })
   }
@@ -584,7 +573,6 @@ module Task = {
         planEntries,
         turnError,
         retryStatus,
-        imageAttachments,
         pendingQuestion,
       }) => {
         let data = {
@@ -615,7 +603,6 @@ module Task = {
           planEntries: updated.planEntries,
           turnError: updated.turnError,
           retryStatus,
-          imageAttachments,
           pendingQuestion: updated.pendingQuestion,
         })
       }

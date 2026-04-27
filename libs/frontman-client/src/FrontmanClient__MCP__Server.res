@@ -9,10 +9,11 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #MCPServer
 })
 
-// Resolved image data for write_file image_ref interception
+// Resolved data for attachment-aware tool calls.
 type resolvedImage = {
   base64: string,
   mediaType: string,
+  filename: string,
 }
 
 type imageRefResolver = (string, ~taskId: string) => option<resolvedImage>
@@ -21,7 +22,7 @@ type t = {
   tools: array<module(Tool.Tool)>,
   relay: Relay.t,
   serverInfo: Types.info,
-  // Resolver for image_ref URIs — set by the client layer which has access to the state store.
+  // Resolver for image_ref URIs — set by the client layer which has access to user messages.
   // Receives (uri, ~taskId) so it resolves from the correct task, not the currently viewed one.
   resolveImageRef: ref<option<imageRefResolver>>,
   // Provider for tool result metadata (model, env API keys).
@@ -156,11 +157,6 @@ let executeLocalTool = async (
   }
 }
 
-let filenameFromImageRef = (imageRef: string): string => {
-  let parts = imageRef->String.split("/")
-  parts->Array.get(parts->Array.length - 1)->Option.getOr("attachment")
-}
-
 // Resolve image_ref before forwarding to relay tools that consume user attachments.
 // Replaces image_ref with content (base64) and encoding ("base64") for write_file,
 // and keeps image_ref plus adds mime_type/filename for wp_upload_media.
@@ -184,7 +180,7 @@ let resolveToolImageRef = (
         Error(
           `Image not found for URI: ${imageRef}. Available images may have expired or the URI is incorrect.`,
         )
-      | Some({base64, mediaType}) =>
+      | Some({base64, mediaType, filename}) =>
         let newArgs = args->Dict.copy
         switch removeImageRef {
         | true => newArgs->Dict.delete("image_ref")
@@ -198,7 +194,7 @@ let resolveToolImageRef = (
             newArgs->Dict.set("mime_type", JSON.Encode.string(mediaType))
           }
           if newArgs->Dict.get("filename")->Option.isNone {
-            newArgs->Dict.set("filename", JSON.Encode.string(filenameFromImageRef(imageRef)))
+            newArgs->Dict.set("filename", JSON.Encode.string(filename))
           }
         | false => ()
         }
