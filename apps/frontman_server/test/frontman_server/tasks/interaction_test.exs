@@ -8,7 +8,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     Annotation,
     ToolCall,
     ToolResult,
-    UserImage,
     UserMessage
   }
 
@@ -211,57 +210,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert text =~ "Just a regular message"
       refute text =~ "[Annotated Elements]"
-    end
-
-    test "uses attachment metadata for tool guidance" do
-      msg = %UserMessage{
-        id: Interaction.new_id(),
-        sequence: 1,
-        timestamp: Interaction.now(),
-        messages: ["Replace the hero image"],
-        annotations: [],
-        images: [
-          %UserImage{
-            blob: Base.encode64("image-bytes"),
-            mime_type: "image/png",
-            filename: "hero.png",
-            uri: "attachment://att_hero/hero.png",
-            tool_guidance:
-              "WordPress: if the user's request asks you to use this attachment, first call wp_upload_media with image_ref to upload it into the Media Library."
-          }
-        ]
-      }
-
-      [llm_msg] = Interaction.to_llm_messages([msg])
-      text = extract_text(llm_msg)
-      assert text =~ "wp_upload_media"
-      assert text =~ "if the user's request asks you to use this attachment"
-      assert text =~ "attachment://att_hero/hero.png"
-      refute text =~ "Code projects"
-    end
-
-    test "omits tool guidance when attachment metadata has no guidance" do
-      msg = %UserMessage{
-        id: Interaction.new_id(),
-        sequence: 1,
-        timestamp: Interaction.now(),
-        messages: ["Save the image"],
-        annotations: [],
-        images: [
-          %UserImage{
-            blob: Base.encode64("image-bytes"),
-            mime_type: "image/png",
-            filename: "hero.png",
-            uri: "attachment://att_hero/hero.png"
-          }
-        ]
-      }
-
-      [llm_msg] = Interaction.to_llm_messages([msg])
-      text = extract_text(llm_msg)
-      assert text =~ "attachment://att_hero/hero.png"
-      refute text =~ "write_file with image_ref"
-      refute text =~ "wp_upload_media"
     end
   end
 

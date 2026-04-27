@@ -281,9 +281,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     **Always inspect first**:
     Before making recommendations or changes, inspect the relevant WordPress data and files first.
 
-    **Elementor**:
-    Selected Elementor IDs are whole widgets/containers. For nested HTML-widget DOM, edit `settings.html` with `wp_elementor_replace_html_fragment`. Remove elements only when the user explicitly wants the whole widget/container removed, using `scope=whole_element`.
-
     **For design questions**:
     First check which theme is active with WordPress tools.
     Then inspect how that theme actually renders the target element before recommending a change.

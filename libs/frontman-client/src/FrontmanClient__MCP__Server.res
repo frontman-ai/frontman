@@ -9,11 +9,10 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #MCPServer
 })
 
-// Resolved data for attachment-aware tool calls.
+// Resolved image data for write_file image_ref interception
 type resolvedImage = {
   base64: string,
   mediaType: string,
-  filename: string,
 }
 
 type imageRefResolver = (string, ~taskId: string) => option<resolvedImage>
@@ -22,7 +21,7 @@ type t = {
   tools: array<module(Tool.Tool)>,
   relay: Relay.t,
   serverInfo: Types.info,
-  // Resolver for image_ref URIs — set by the client layer which has access to user messages.
+  // Resolver for image_ref URIs — set by the client layer which has access to the state store.
   // Receives (uri, ~taskId) so it resolves from the correct task, not the currently viewed one.
   resolveImageRef: ref<option<imageRefResolver>>,
   // Provider for tool result metadata (model, env API keys).
@@ -157,15 +156,12 @@ let executeLocalTool = async (
   }
 }
 
-// Resolve image_ref before forwarding to relay tools that consume user attachments.
-// Replaces image_ref with content (base64) and encoding ("base64") for write_file,
-// and keeps image_ref plus adds mime_type/filename for wp_upload_media.
-let resolveToolImageRef = (
+// Resolve image_ref in write_file arguments before forwarding to relay.
+// Replaces image_ref with content (base64) and encoding ("base64").
+let resolveWriteFileImageRef = (
   server: t,
   arguments: option<Dict.t<JSON.t>>,
   ~taskId: string,
-  ~removeImageRef: bool,
-  ~includeMediaFields: bool,
 ): result<option<Dict.t<JSON.t>>, string> => {
   switch arguments {
   | None => Ok(None)
@@ -180,24 +176,11 @@ let resolveToolImageRef = (
         Error(
           `Image not found for URI: ${imageRef}. Available images may have expired or the URI is incorrect.`,
         )
-      | Some({base64, mediaType, filename}) =>
+      | Some({base64}) =>
         let newArgs = args->Dict.copy
-        switch removeImageRef {
-        | true => newArgs->Dict.delete("image_ref")
-        | false => ()
-        }
+        newArgs->Dict.delete("image_ref")
         newArgs->Dict.set("content", JSON.Encode.string(base64))
         newArgs->Dict.set("encoding", JSON.Encode.string("base64"))
-        switch includeMediaFields {
-        | true =>
-          if newArgs->Dict.get("mime_type")->Option.isNone {
-            newArgs->Dict.set("mime_type", JSON.Encode.string(mediaType))
-          }
-          if newArgs->Dict.get("filename")->Option.isNone {
-            newArgs->Dict.set("filename", JSON.Encode.string(filename))
-          }
-        | false => ()
-        }
         Ok(Some(newArgs))
       }
     | (Some(_), _) => Error("image_ref must be a string")
@@ -228,25 +211,10 @@ let executeTool = async (
     switch server.relay->Relay.hasTool(name) {
     | false => Completed(toolError(server, `Tool not found: ${name}`))
     | true =>
-      // Intercept attachment-aware tools with image_ref to resolve from the correct task.
-      let resolvedArgs = switch name {
-      | name if name == ToolNames.writeFile =>
-        resolveToolImageRef(
-          server,
-          arguments,
-          ~taskId,
-          ~removeImageRef=true,
-          ~includeMediaFields=false,
-        )
-      | "wp_upload_media" =>
-        resolveToolImageRef(
-          server,
-          arguments,
-          ~taskId,
-          ~removeImageRef=false,
-          ~includeMediaFields=true,
-        )
-      | _ => Ok(arguments)
+      // Intercept write_file with image_ref to resolve from the correct task
+      let resolvedArgs = switch name == ToolNames.writeFile {
+      | true => resolveWriteFileImageRef(server, arguments, ~taskId)
+      | false => Ok(arguments)
       }
 
       switch resolvedArgs {

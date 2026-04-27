@@ -216,7 +216,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:mime_type, String.t())
       field(:filename, String.t())
       field(:uri, String.t() | nil, enforce: false)
-      field(:tool_guidance, String.t() | nil, enforce: false)
     end
 
     @spec from_map(map()) :: t()
@@ -225,8 +224,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         blob: data["blob"],
         mime_type: data["mime_type"] || "image/png",
         filename: data["filename"] || "attachment",
-        uri: data["uri"],
-        tool_guidance: data["tool_guidance"]
+        uri: data["uri"]
       }
     end
   end
@@ -511,14 +509,13 @@ defmodule FrontmanServer.Tasks.Interaction do
         inner = Map.get(resource, "resource", %{})
         meta = Map.get(resource, "_meta", %{})
 
-        # UserImage fields come from both _meta (filename/guidance) and inner resource (blob, mimeType, uri).
+        # UserImage fields come from both _meta (filename) and inner resource (blob, mimeType, uri).
         # Merge into a flat map with the keys UserImage.from_map expects.
         UserImage.from_map(%{
           "blob" => inner["blob"] || "",
           "mime_type" => inner["mimeType"] || "image/png",
           "filename" => meta["filename"] || "attachment",
-          "uri" => inner["uri"],
-          "tool_guidance" => meta["tool_guidance"]
+          "uri" => inner["uri"]
         })
       end)
     end
@@ -1363,9 +1360,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_current_page_context(text, _), do: text
 
-  # Append image attachment URIs so the LLM knows it can save them via image_ref-aware tools.
-  defp append_image_attachment_context(text, images)
-       when is_list(images) and images != [] do
+  # Append image attachment URIs so the LLM knows it can save them via write_file's image_ref
+  defp append_image_attachment_context(text, images) when is_list(images) and images != [] do
     uris =
       images
       |> Enum.filter(fn img -> is_binary(Map.get(img, :uri)) end)
@@ -1378,32 +1374,17 @@ defmodule FrontmanServer.Tasks.Interaction do
       _ ->
         uri_list = Enum.join(uris, "\n")
 
-        attachment_context =
+        text <>
           """
 
           [Available Image Attachments]
-          The following images were attached by the user and can be used via image_ref:
-          #{uri_list}#{image_attachment_tool_guidance(images)}
+          The following images were attached by the user and can be saved to disk using the write_file tool with the image_ref parameter:
+          #{uri_list}
           """
-
-        text <> attachment_context
     end
   end
 
   defp append_image_attachment_context(text, _), do: text
-
-  defp image_attachment_tool_guidance(images) do
-    guidance =
-      images
-      |> Enum.map(& &1.tool_guidance)
-      |> Enum.filter(&(is_binary(&1) and &1 != ""))
-      |> Enum.uniq()
-
-    case guidance do
-      [] -> ""
-      lines -> "\n\n" <> Enum.join(lines, "\n")
-    end
-  end
 
   defp build_viewport_context(%{viewport_width: w, viewport_height: h})
        when is_integer(w) and is_integer(h) do

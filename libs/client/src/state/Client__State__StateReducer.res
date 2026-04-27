@@ -327,33 +327,6 @@ let actionToString = action => {
 module Selectors = {
   let getMessageId = Message.getId
 
-  let attachmentUri = (att: Message.fileAttachmentData): string =>
-    `attachment://${att.id}/${att.filename}`
-
-  let imagePartToAttachment = (part: UserContentPart.t): option<Message.fileAttachmentData> =>
-    switch part {
-    | Image({id: Some(id), image, mediaType: Some(mediaType), name: Some(filename)}) =>
-      Some({Message.id, dataUrl: image, mediaType, filename})
-    | Image(_) | Text(_) | File(_) => None
-    }
-
-  let resolveImageRefFromMessages = (task: Task.t, uri: string): option<
-    Message.fileAttachmentData,
-  > =>
-    task
-    ->Task.getMessages
-    ->Array.findMap(msg =>
-      switch msg {
-      | User({content}) =>
-        content->Array.findMap(part =>
-          imagePartToAttachment(part)->Option.flatMap(
-            att => attachmentUri(att) == uri ? Some(att) : None,
-          )
-        )
-      | Assistant(_) | ToolCall(_) | Error(_) => None
-      }
-    )
-
   // Get the current task - always returns a Task.t (never None)
   let currentTask = (state: state): Task.t => {
     switch state.currentTask {
@@ -443,15 +416,15 @@ module Selectors = {
     TaskReducer.Selectors.retryStatus(currentTask(state))
   }
 
-  // Resolve an image attachment URI from the task's existing user messages.
-  // Used by the MCP server before forwarding attachment-aware tools to relay.
+  // Resolve an image attachment URI from a specific task's accumulated attachments.
+  // Used by the MCP server to resolve write_file image_ref before forwarding to relay.
   // Takes taskId (not currentTask) because the agent's task may differ from the viewed tab.
   let resolveImageRef = (state: state, ~taskId: string, ~uri: string): option<
     Message.resolvedImageData,
   > => {
     state.tasks
     ->Dict.get(taskId)
-    ->Option.flatMap(task => resolveImageRefFromMessages(task, uri))
+    ->Option.flatMap(task => Task.getImageAttachments(task)->Dict.get(uri))
     ->Option.map(Message.resolveAttachmentImage)
   }
 
@@ -616,24 +589,11 @@ module Selectors = {
 // Effect handler helpers (extracted for reuse)
 // ============================================================================
 
-let attachmentToolGuidance = (framework: Client__RuntimeConfig.frameworkId): option<string> =>
-  switch framework {
-  | Wordpress =>
-    Some(
-      "WordPress: if the user's request asks you to use this attachment, first call wp_upload_media with image_ref to upload it into the Media Library, then use the returned attachment_id/url in post or Elementor tools. Do not upload attachments the user did not ask you to use.",
-    )
-  | Nextjs
-  | Vite
-  | Astro =>
-    None
-  }
-
 // Build ACP content blocks for image/file attachments
 // Strips the data:mime;base64, prefix and creates resource blocks with BlobResourceContents
-let buildAttachmentContentBlocks = (
-  attachments: array<Client__Message.fileAttachmentData>,
-  ~framework: Client__RuntimeConfig.frameworkId,
-): array<Client__State__Types.ACPTypes.contentBlock> => {
+let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
+  Client__State__Types.ACPTypes.contentBlock,
+> => {
   attachments->Array.map(att => {
     // Strip "data:mime;base64," prefix to get raw base64
     let base64Data = switch att.dataUrl->String.indexOf(";base64,") {
@@ -641,13 +601,10 @@ let buildAttachmentContentBlocks = (
     | idx => att.dataUrl->String.slice(~start=idx + 8, ~end=String.length(att.dataUrl))
     }
 
-    let metaObj = Dict.make()
-    metaObj->Dict.set("user_image", JSON.Encode.bool(true))
-    metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
-    attachmentToolGuidance(framework)->Option.forEach(guidance =>
-      metaObj->Dict.set("tool_guidance", JSON.Encode.string(guidance))
-    )
-    let meta = JSON.Encode.object(metaObj)
+    // Build _meta JSON
+    let meta: JSON.t = %raw(`(function(filename) {
+      return { "user_image": true, "filename": filename };
+    })`)(att.filename)
 
     Client__State__Types.ACPTypes.EmbeddedResource({
       resource: {
@@ -675,9 +632,6 @@ let sendMessageToAPIImpl = (
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
-    // Include runtime config _meta (e.g., framework, openrouterKeyValue) with each prompt
-    let runtimeConfig = Client__RuntimeConfig.read()
-
     // Page context from task (always included)
     let pageContextBlocks =
       state.tasks
@@ -688,13 +642,12 @@ let sendMessageToAPIImpl = (
     let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
 
     // Build attachment content blocks
-    let attachmentBlocks = buildAttachmentContentBlocks(
-      attachments,
-      ~framework=runtimeConfig.framework,
-    )
+    let attachmentBlocks = buildAttachmentContentBlocks(attachments)
     let additionalBlocks =
       Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
 
+    // Include runtime config _meta (e.g., framework, openrouterKeyValue) with each prompt
+    let runtimeConfig = Client__RuntimeConfig.read()
     let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
 
     // Add selected model to _meta if present (as "provider:value" string)
