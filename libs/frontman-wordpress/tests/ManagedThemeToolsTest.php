@@ -103,8 +103,17 @@ if ( ! class_exists( 'WP_Filesystem_Direct' ) ) {
 			return is_file( $path );
 		}
 
-		public function put_contents( string $path, string $content ): bool {
-			return false !== file_put_contents( $path, $content );
+		public function put_contents( string $path, string $content, $mode = false ): bool {
+			if ( false === $mode ) {
+				throw new RuntimeException( 'Missing file mode for filesystem write.' );
+			}
+
+			$written = false !== file_put_contents( $path, $content );
+			if ( $written ) {
+				chmod( $path, $mode );
+			}
+
+			return $written;
 		}
 
 		public function move( string $source, string $destination, bool $overwrite = false ): bool {
@@ -277,7 +286,7 @@ class Frontman_Managed_Theme_Tools_Test_Runner {
 		$this->test_status_reports_token_mismatch_as_orphaned();
 		$this->test_create_managed_theme_rejects_non_block_theme();
 		$this->test_create_managed_theme_rejects_existing_child_theme();
-		$this->test_create_managed_theme_bootstraps_filesystem_api();
+		$this->test_create_managed_theme_writes_without_filesystem_constants();
 		$this->test_create_managed_theme();
 		$this->test_activate_managed_theme_requires_confirmation();
 		$this->test_write_managed_theme_file_tracks_owned_files();
@@ -523,33 +532,14 @@ class Frontman_Managed_Theme_Tools_Test_Runner {
 		}
 	}
 
-	private function test_create_managed_theme_bootstraps_filesystem_api(): void {
-		$missing_filesystem_constants = ! defined( 'FS_CHMOD_FILE' ) || ! defined( 'FS_CHMOD_DIR' );
-		$this->write_fixture(
-			'wp-admin/includes/file.php',
-			"<?php\n" .
-			"\$GLOBALS['frontman_test_file_api_loaded'] = true;\n" .
-			"if ( ! defined( 'FS_CHMOD_DIR' ) ) {\n" .
-			"\tdefine( 'FS_CHMOD_DIR', 0755 );\n" .
-			"}\n" .
-			"if ( ! defined( 'FS_CHMOD_FILE' ) ) {\n" .
-			"\tdefine( 'FS_CHMOD_FILE', 0644 );\n" .
-			"}\n"
-		);
-
+	private function test_create_managed_theme_writes_without_filesystem_constants(): void {
 		$root = get_theme_root() . '/frontman-managed-parent-theme';
 
 		try {
 			$created = $this->tool->create_theme( [] );
-			$this->assert_true( true === $created['created'], 'Managed theme creation succeeds even when the runtime starts without the filesystem chmod constants' );
-
-			if ( $missing_filesystem_constants ) {
-				$this->assert_true( true === ( $GLOBALS['frontman_test_file_api_loaded'] ?? false ), 'Managed theme creation loads the WordPress file API before writing files' );
-				$this->assert_true( defined( 'FS_CHMOD_FILE' ), 'Managed theme creation bootstraps the WordPress file chmod constant' );
-			}
+			$this->assert_true( true === $created['created'], 'Managed theme creation writes files with an explicit file mode' );
 		} finally {
 			unset( $GLOBALS['frontman_test_options']['frontman_managed_theme'] );
-			unset( $GLOBALS['frontman_test_file_api_loaded'] );
 
 			if ( file_exists( $root . '/frontman-managed.json' ) ) {
 				unlink( $root . '/frontman-managed.json' );

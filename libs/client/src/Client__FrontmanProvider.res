@@ -26,6 +26,18 @@ let getContentBlockText = (block: Types.contentBlock): option<string> =>
   | ImageContent(_) | AudioContent(_) | ResourceLink(_) | EmbeddedResource(_) => None
   }
 
+let _attachmentIdFromUri = (uri: string): option<string> => {
+  switch uri->String.startsWith("attachment://") {
+  | false => None
+  | true =>
+    uri
+    ->String.slice(~start=13, ~end=String.length(uri))
+    ->String.split("/")
+    ->Array.get(0)
+    ->Option.flatMap(id => id == "" ? None : Some(id))
+  }
+}
+
 // Parse accumulated user_message_chunk content blocks into (content, annotations).
 // Inverse of messageAnnotationsToContentBlocks + buildAttachmentContentBlocks on the send path.
 let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
@@ -69,7 +81,7 @@ let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
         ->ignore
       }
     | EmbeddedResource({
-        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
+        resource: {_meta: Some(meta), resource: BlobResourceContents({uri, blob, mimeType})},
       }) =>
       // User images (screenshots already handled in first pass)
       switch meta->JSON.Decode.object {
@@ -80,7 +92,7 @@ let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
         content
         ->Array.push(
           Client__Message.UserContentPart.Image({
-            id: None,
+            id: _attachmentIdFromUri(uri),
             image: `data:${mime};base64,${blob}`,
             mediaType: Some(mime),
             name: Some(filename),

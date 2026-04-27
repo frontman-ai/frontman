@@ -74,7 +74,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_update_element',
-			'Updates one Elementor element settings object by merging provided settings into the existing settings after saving the previous element as a private rollback snapshot. Never send the whole page for a small widget/style edit.',
+			'Updates one Elementor element settings object by merging provided settings into the existing settings after saving the previous element as a private rollback snapshot. Provide only settings that actually change. For nested markup inside an HTML widget, prefer wp_elementor_replace_html_fragment.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -94,8 +94,26 @@ class Frontman_Tool_Elementor {
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
+			'wp_elementor_replace_html_fragment',
+			'Replaces an exact fragment inside an Elementor HTML widget settings.html value after saving the previous widget as a private rollback snapshot. Use this for user-selected nested DOM inside an HTML widget instead of deleting the whole widget.',
+			[
+				'type'                 => 'object',
+				'additionalProperties' => false,
+				'properties'           => [
+					'post_id'    => [ 'type' => 'integer' ],
+					'element_id' => [ 'type' => 'string', 'description' => 'Elementor HTML widget element ID.' ],
+					'old_html'   => [ 'type' => 'string', 'description' => 'Exact HTML fragment currently present in settings.html.' ],
+					'new_html'   => [ 'type' => 'string', 'description' => 'Replacement HTML fragment. Use an empty string to remove the exact fragment.' ],
+					'occurrence' => [ 'type' => 'integer', 'description' => '1-based occurrence to replace when old_html appears more than once.' ],
+				],
+				'required'             => [ 'post_id', 'element_id', 'old_html', 'new_html' ],
+			],
+			[ $this, 'replace_html_fragment' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_add_element',
-			'Adds a new Elementor element at the root or inside a parent container. Use wp_elementor_generate_element or widget schema output to build valid element JSON.',
+			'Adds a new Elementor element at the root or inside a parent container after saving the previous page tree as a private rollback snapshot. Use wp_elementor_generate_element or widget schema output to build valid element JSON.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -116,16 +134,17 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_remove_element',
-			'Removes an Elementor element and its children after saving the previous element as a private rollback snapshot. Ask the user for confirmation first and only call with confirm=true after approval.',
+			'Removes a whole Elementor element and all of its children after saving the previous element as a private rollback snapshot. Only use when the user selected or explicitly requested the whole Elementor widget/container; use wp_elementor_replace_html_fragment for nested DOM inside HTML widgets. Ask the user for confirmation first and only call with confirm=true after approval.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
 				'properties'           => [
 					'post_id'    => [ 'type' => 'integer' ],
 					'element_id' => [ 'type' => 'string' ],
+					'scope'      => [ 'type' => 'string', 'enum' => [ 'whole_element' ], 'description' => 'Must be whole_element to confirm the intent is deleting the complete Elementor element, not nested rendered DOM.' ],
 					'confirm'    => [ 'type' => 'boolean' ],
 				],
-				'required'             => [ 'post_id', 'element_id', 'confirm' ],
+				'required'             => [ 'post_id', 'element_id', 'scope', 'confirm' ],
 			],
 			[ $this, 'remove_element' ]
 		) );
@@ -155,14 +174,14 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_duplicate_element',
-			'Duplicates an Elementor element next to the original, assigning new IDs to the clone and its children.',
+			'Duplicates an Elementor element next to the original after saving the previous page tree as a private rollback snapshot, assigning new IDs to the clone and its children.',
 			$this->element_id_schema(),
 			[ $this, 'duplicate_element' ]
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_move_element',
-			'Moves an Elementor element to the root or into another parent element at a position. position=-1 appends.',
+			'Moves an Elementor element to the root or into another parent element at a position after saving the previous page tree as a private rollback snapshot. position=-1 appends.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -303,6 +322,7 @@ class Frontman_Tool_Elementor {
 		if ( ! is_array( $data ) ) {
 			throw new Frontman_Tool_Error( 'data must be an Elementor element tree array.' );
 		}
+		$this->validate_full_element_tree( $data );
 
 		$current  = Frontman_Elementor_Data::get_page_data( $post_id );
 		$rollback = is_array( $current ) ? Frontman_Elementor_Data::make_page_rollback( 'saved_page_data', $current ) : null;
@@ -332,8 +352,24 @@ class Frontman_Tool_Elementor {
 		if ( ! is_array( $settings ) ) {
 			throw new Frontman_Tool_Error( 'settings must be an object.' );
 		}
+		if ( [] === $settings ) {
+			throw new Frontman_Tool_Error( 'settings must include at least one changed setting.' );
+		}
 
-		$data     = $this->require_page_data( $post_id );
+		$data    = $this->require_page_data( $post_id );
+		$element = Frontman_Elementor_Data::get_element( $data, $element_id );
+		if ( null === $element ) {
+			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
+		}
+
+		$current_settings = isset( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : [];
+		if ( 'widget' === (string) ( $element['elType'] ?? '' ) && 'html' === (string) ( $element['widgetType'] ?? '' ) && array_key_exists( 'html', $settings ) ) {
+			throw new Frontman_Tool_Error( 'Use wp_elementor_replace_html_fragment to edit an Elementor HTML widget settings.html value.' );
+		}
+		if ( array_merge( $current_settings, $settings ) === $current_settings ) {
+			throw new Frontman_Tool_Error( 'settings do not change the Elementor element.' );
+		}
+
 		$rollback = Frontman_Elementor_Data::make_element_rollback( 'updated', $data, $element_id );
 		if ( null === $rollback ) {
 			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
@@ -345,6 +381,73 @@ class Frontman_Tool_Elementor {
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
 		$this->save_elementor_data( $post_id, $data );
 		return [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'rollback_id' => $rollback['rollback_id'] ];
+	}
+
+	public function replace_html_fragment( array $input ): array {
+		$post_id    = $this->require_post_id( $input );
+		$element_id = $this->require_element_id( $input );
+		$old_html   = (string) ( $input['old_html'] ?? '' );
+		$new_html   = (string) ( $input['new_html'] ?? '' );
+		if ( '' === $old_html ) {
+			throw new Frontman_Tool_Error( 'old_html must be a non-empty exact fragment.' );
+		}
+
+		$data    = $this->require_page_data( $post_id );
+		$element = Frontman_Elementor_Data::get_element( $data, $element_id );
+		if ( null === $element ) {
+			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
+		}
+		if ( 'widget' !== (string) ( $element['elType'] ?? '' ) || 'html' !== (string) ( $element['widgetType'] ?? '' ) ) {
+			throw new Frontman_Tool_Error( 'Element is not an Elementor HTML widget: ' . $element_id );
+		}
+
+		$settings = isset( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : [];
+		$html     = $settings['html'] ?? null;
+		if ( ! is_string( $html ) ) {
+			throw new Frontman_Tool_Error( 'Elementor HTML widget does not have a settings.html string.' );
+		}
+
+		$matches = substr_count( $html, $old_html );
+		if ( 0 === $matches ) {
+			throw new Frontman_Tool_Error( 'old_html fragment was not found in settings.html.' );
+		}
+
+		$has_occurrence = array_key_exists( 'occurrence', $input );
+		$occurrence     = $has_occurrence ? (int) $input['occurrence'] : 1;
+		if ( $matches > 1 && ! $has_occurrence ) {
+			throw new Frontman_Tool_Error( 'old_html fragment appears more than once; provide occurrence to choose which match to replace.' );
+		}
+		if ( $occurrence < 1 || $occurrence > $matches ) {
+			throw new Frontman_Tool_Error( 'occurrence must be between 1 and ' . $matches . '.' );
+		}
+		if ( trim( $old_html ) === trim( $html ) && '' === trim( $new_html ) ) {
+			throw new Frontman_Tool_Error( 'Refusing to delete the entire settings.html value with the fragment tool.' );
+		}
+
+		$updated_html = $this->replace_nth_occurrence( $html, $old_html, $new_html, $occurrence );
+		if ( null === $updated_html || $updated_html === $html ) {
+			throw new Frontman_Tool_Error( 'Replacement does not change settings.html.' );
+		}
+
+		$rollback = Frontman_Elementor_Data::make_element_rollback( 'updated_html_fragment', $data, $element_id );
+		if ( null === $rollback ) {
+			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
+		}
+		if ( ! Frontman_Elementor_Data::update_element_settings( $data, $element_id, [ 'html' => $updated_html ] ) ) {
+			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
+		}
+
+		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
+		$this->save_elementor_data( $post_id, $data );
+		return [
+			'success'           => true,
+			'post_id'           => $post_id,
+			'element_id'        => $element_id,
+			'occurrence'        => $occurrence,
+			'matches_before'    => $matches,
+			'matches_remaining' => substr_count( $updated_html, $old_html ),
+			'rollback_id'       => $rollback['rollback_id'],
+		];
 	}
 
 	public function add_element( array $input ): array {
@@ -364,6 +467,7 @@ class Frontman_Tool_Elementor {
 		if ( ! Frontman_Elementor_Data::insert_element( $data, $element, $parent_id, $position ) ) {
 			throw new Frontman_Tool_Error( 'Parent element not found: ' . $parent_id );
 		}
+		$this->validate_full_element_tree( $data );
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
 		$this->save_elementor_data( $post_id, $data );
@@ -373,6 +477,9 @@ class Frontman_Tool_Elementor {
 	public function remove_element( array $input ): array {
 		if ( true !== ( $input['confirm'] ?? false ) ) {
 			throw new Frontman_Tool_Error( 'Element removal requires confirm=true after user approval.' );
+		}
+		if ( 'whole_element' !== sanitize_key( $input['scope'] ?? '' ) ) {
+			throw new Frontman_Tool_Error( 'Element removal requires scope=whole_element to confirm the whole Elementor element should be deleted.' );
 		}
 
 		$post_id    = $this->require_post_id( $input );
@@ -531,5 +638,67 @@ class Frontman_Tool_Elementor {
 		}
 
 		return $data;
+	}
+
+	private function validate_full_element_tree( array $elements ): void {
+		if ( [] === $elements ) {
+			throw new Frontman_Tool_Error( 'data must contain at least one Elementor element.' );
+		}
+
+		$seen_ids = [];
+		$this->validate_element_tree( $elements, 'data', $seen_ids );
+	}
+
+	private function validate_element_tree( array $elements, string $path, array &$seen_ids ): void {
+		foreach ( $elements as $index => $element ) {
+			$element_path = $path . '[' . $index . ']';
+			if ( ! is_array( $element ) ) {
+				throw new Frontman_Tool_Error( $element_path . ' must be an Elementor element object.' );
+			}
+
+			$id = $element['id'] ?? '';
+			if ( ! is_string( $id ) || '' === trim( $id ) ) {
+				throw new Frontman_Tool_Error( $element_path . '.id is required.' );
+			}
+			if ( isset( $seen_ids[ $id ] ) ) {
+				throw new Frontman_Tool_Error( 'Duplicate Elementor element ID: ' . $id );
+			}
+			$seen_ids[ $id ] = true;
+
+			$el_type = $element['elType'] ?? '';
+			if ( ! is_string( $el_type ) || '' === trim( $el_type ) ) {
+				throw new Frontman_Tool_Error( $element_path . '.elType is required.' );
+			}
+			if ( 'widget' === $el_type ) {
+				$widget_type = $element['widgetType'] ?? '';
+				if ( ! is_string( $widget_type ) || '' === trim( $widget_type ) ) {
+					throw new Frontman_Tool_Error( $element_path . '.widgetType is required for widget elements.' );
+				}
+			}
+
+			if ( isset( $element['settings'] ) && ! is_array( $element['settings'] ) ) {
+				throw new Frontman_Tool_Error( $element_path . '.settings must be an object.' );
+			}
+			if ( isset( $element['elements'] ) ) {
+				if ( ! is_array( $element['elements'] ) ) {
+					throw new Frontman_Tool_Error( $element_path . '.elements must be an array.' );
+				}
+				$this->validate_element_tree( $element['elements'], $element_path . '.elements', $seen_ids );
+			}
+		}
+	}
+
+	private function replace_nth_occurrence( string $html, string $old_html, string $new_html, int $occurrence ): ?string {
+		$offset   = 0;
+		$position = false;
+		for ( $index = 1; $index <= $occurrence; $index++ ) {
+			$position = strpos( $html, $old_html, $offset );
+			if ( false === $position ) {
+				return null;
+			}
+			$offset = $position + strlen( $old_html );
+		}
+
+		return substr( $html, 0, $position ) . $new_html . substr( $html, $position + strlen( $old_html ) );
 	}
 }

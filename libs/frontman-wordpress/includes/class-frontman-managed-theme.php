@@ -17,6 +17,7 @@ class Frontman_Managed_Theme {
 	private const STYLESHEET_PREFIX = 'frontman-managed-';
 	private const MUTABLE_EXTENSIONS = [ 'css', 'json', 'html' ];
 	private const MAX_FILE_BYTES = 262144;
+	private const FILE_MODE = 0644;
 
 	/**
 	 * Return the current managed-theme status.
@@ -666,7 +667,7 @@ class Frontman_Managed_Theme {
 			throw new Frontman_Tool_Error( 'Failed to allocate a temporary file for ' . basename( $path ) );
 		}
 
-		if ( ! $filesystem->put_contents( $temp_path, $content ) ) {
+		if ( ! $filesystem->put_contents( $temp_path, $content, self::FILE_MODE ) ) {
 			self::delete_file_if_exists( $temp_path );
 			throw new Frontman_Tool_Error( 'Failed to write file: ' . basename( $path ) );
 		}
@@ -702,12 +703,12 @@ class Frontman_Managed_Theme {
 	}
 
 	/**
-	 * Load the WordPress file API and chmod constants when available.
+	 * Load the WordPress file API when available.
 	 */
 	private static function bootstrap_filesystem_api(): void {
 		$file_api_path = ABSPATH . 'wp-admin/includes/file.php';
 
-		if ( ( ! function_exists( 'wp_tempnam' ) || ! defined( 'FS_CHMOD_FILE' ) || ! defined( 'FS_CHMOD_DIR' ) ) && file_exists( $file_api_path ) ) {
+		if ( ! function_exists( 'wp_tempnam' ) && file_exists( $file_api_path ) ) {
 			require_once $file_api_path;
 		}
 

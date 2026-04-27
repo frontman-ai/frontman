@@ -1237,6 +1237,79 @@ describe("Client State Reducer - Session Loading Actions", () => {
     | _ => JsExn.throw("Expected User message")
     }
   })
+
+  test("resolveImageRef finds images replayed from task history", t => {
+    let task = Task.makeUnloaded(
+      ~id="task-with-image",
+      ~title="Loaded Session",
+      ~createdAt=1000.0,
+      ~updatedAt=1000.0,
+    )
+    let loadingTask = Task.startLoading(task, ~previewUrl="http://localhost:3000")
+
+    let tasks = Dict.make()
+    tasks->Dict.set("task-with-image", loadingTask)
+
+    let state: Reducer.state = {
+      ...Reducer.defaultState,
+      tasks,
+      currentTask: Task.Selected("task-with-image"),
+      sessionsLoadState: Client__State__Types.SessionsLoaded,
+    }
+
+    let (stateWithImage, _effects) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask("task-with-image"),
+        action: UserMessageReceived({
+          id: "msg-image-1",
+          content: [
+            UserContentPart.Image({
+              id: Some("att_6avioppil"),
+              image: "data:image/jpeg;base64,abc123",
+              mediaType: Some("image/jpeg"),
+              name: Some("content.jpeg"),
+            }),
+          ],
+          annotations: [],
+          timestamp: "2024-01-15T10:30:00Z",
+        }),
+      }),
+    )
+
+    let resolvedWhileLoading = Reducer.Selectors.resolveImageRef(
+      stateWithImage,
+      ~taskId="task-with-image",
+      ~uri="attachment://att_6avioppil/content.jpeg",
+    )
+
+    switch resolvedWhileLoading {
+    | Some({base64, mediaType}) => {
+        t->expect(base64)->Expect.toBe("abc123")
+        t->expect(mediaType)->Expect.toBe("image/jpeg")
+      }
+    | None => JsExn.throw("Expected image_ref to resolve while task is loading")
+    }
+
+    let (loadedState, _effects) = Reducer.next(
+      stateWithImage,
+      TaskAction({target: ForTask("task-with-image"), action: LoadComplete}),
+    )
+
+    let resolvedAfterLoad = Reducer.Selectors.resolveImageRef(
+      loadedState,
+      ~taskId="task-with-image",
+      ~uri="attachment://att_6avioppil/content.jpeg",
+    )
+
+    switch resolvedAfterLoad {
+    | Some({base64, mediaType}) => {
+        t->expect(base64)->Expect.toBe("abc123")
+        t->expect(mediaType)->Expect.toBe("image/jpeg")
+      }
+    | None => JsExn.throw("Expected image_ref to resolve after task load completes")
+    }
+  })
 })
 
 describe("Client State Reducer - UpdateTaskTitle safety", () => {

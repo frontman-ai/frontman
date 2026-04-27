@@ -3,7 +3,7 @@
  * Plugin Name:       Frontman - Agentic AI Editor
  * Plugin URI:        https://frontman.sh
  * Description:       Frontman - Agentic AI Editor: AI-powered frontend editing plugin for WordPress. Your AI agent observes your live site and makes changes to posts, blocks, menus, templates, and site options - all through a conversational interface, no dashboard required.
- * Version:           0.16.0
+ * Version:           0.16.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Frontman AI
@@ -44,7 +44,7 @@ if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
 	}
 }
 
-define( 'FRONTMAN_VERSION', '0.16.0' );
+define( 'FRONTMAN_VERSION', '0.16.1' );
 define( 'FRONTMAN_PLUGIN_DIR', frontman_plugin_dir_path( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_URL', frontman_plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
@@ -64,6 +64,7 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-settings.php';
 // Load tool implementations.
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-posts.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-blocks.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-media.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-menus.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-options.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-templates.php';
@@ -84,6 +85,7 @@ function frontman_init(): void {
 	( new Frontman_Core_Tools() )->register( $tools );
 	( new Frontman_Tool_Posts() )->register( $tools );
 	( new Frontman_Tool_Blocks() )->register( $tools );
+	( new Frontman_Tool_Media() )->register( $tools );
 	( new Frontman_Tool_Menus() )->register( $tools );
 	( new Frontman_Tool_Options() )->register( $tools );
 	( new Frontman_Tool_Templates() )->register( $tools );

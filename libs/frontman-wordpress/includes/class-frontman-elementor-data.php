@@ -363,7 +363,7 @@ class Frontman_Elementor_Data {
                 return self::widget( 'text-editor', array_merge( [ 'editor' => wp_kses_post( $input['content'] ?? '' ) ], $settings ) );
             case 'image':
                 $attachment_id = absint( $input['attachment_id'] ?? 0 );
-                return self::widget( 'image', array_merge( [ 'image' => [ 'id' => $attachment_id, 'url' => $attachment_id ? wp_get_attachment_url( $attachment_id ) : '' ], 'image_size' => 'large' ], $settings ) );
+                return self::widget( 'image', array_merge( [ 'image' => [ 'id' => $attachment_id, 'url' => $attachment_id ? wp_get_attachment_url( $attachment_id ) : '', 'source' => 'library' ], 'image_size' => 'large' ], $settings ) );
             case 'button':
                 return self::widget( 'button', array_merge( [ 'text' => sanitize_text_field( $input['button_text'] ?? 'Click' ), 'link' => [ 'url' => esc_url_raw( $input['url'] ?? '#' ) ] ], $settings ) );
             case 'widget':

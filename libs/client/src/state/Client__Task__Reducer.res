@@ -525,13 +525,14 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
 > => {
   content->Array.filterMap(part => {
     switch part {
-    | Image({id, image, mediaType, name}) =>
+    | Image({id: Some(id), image, mediaType: Some(mediaType), name: Some(name)}) =>
       Some({
-        Message.id: id->Option.getOrThrow,
+        Message.id,
         dataUrl: image,
-        mediaType: mediaType->Option.getOrThrow,
-        filename: name->Option.getOrThrow,
+        mediaType,
+        filename: name,
       })
+    | Image(_) => None
     | File({file}) =>
       Some({
         Message.id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
