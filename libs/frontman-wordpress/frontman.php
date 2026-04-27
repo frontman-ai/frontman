@@ -55,7 +55,7 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-core-path.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-core-file-tracker.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-core-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-managed-theme.php';
-require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-elementor-data.php';
+require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
@@ -70,7 +70,6 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-templates.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-managed-theme.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-widgets.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
-require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-elementor.php';
 
 /**
  * Main plugin bootstrap.
@@ -91,7 +90,12 @@ function frontman_init(): void {
 	( new Frontman_Tool_Managed_Theme() )->register( $tools );
 	( new Frontman_Tool_Widgets() )->register( $tools );
 	( new Frontman_Tool_Cache() )->register( $tools );
-	( new Frontman_Tool_Elementor() )->register( $tools );
+
+	if ( Frontman_Plugin_Dependencies::is_available( 'elementor/elementor.php', '\Elementor\Plugin' ) ) {
+		require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-elementor-data.php';
+		require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-elementor.php';
+		( new Frontman_Tool_Elementor() )->register( $tools );
+	}
 
 	// Build the UI renderer and router.
 	$ui     = new Frontman_UI( $settings );
