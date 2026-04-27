@@ -1117,6 +1117,87 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       refute result.is_error
     end
 
+    test "e2e: reconnect re-dispatches unresolved tool calls from a later turn after a prior turn completed",
+         %{
+           scope: scope
+         } do
+      task_id = task_fixture(scope)
+      first_tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
+      second_tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
+
+      first_args =
+        Jason.encode!(%{
+          "questions" => [
+            %{
+              "question" => "Pick one",
+              "header" => "First turn",
+              "options" => [%{"label" => "A", "description" => "Option A"}]
+            }
+          ]
+        })
+
+      second_args =
+        Jason.encode!(%{
+          "questions" => [
+            %{
+              "question" => "Pick again",
+              "header" => "Second turn",
+              "options" => [%{"label" => "B", "description" => "Option B"}]
+            }
+          ]
+        })
+
+      first_tc = ReqLLM.ToolCall.new(first_tool_call_id, "question", first_args)
+      second_tc = ReqLLM.ToolCall.new(second_tool_call_id, "question", second_args)
+
+      Tasks.add_user_message(scope, task_id, user_content("first turn"))
+      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [first_tc]})
+      Tasks.add_tool_call(scope, task_id, first_tc)
+
+      Tasks.add_tool_result(
+        scope,
+        task_id,
+        %{id: first_tool_call_id, name: "question"},
+        %{"answers" => [%{"answer" => "A"}]},
+        false
+      )
+
+      Tasks.add_agent_response(scope, task_id, "First done")
+      Tasks.add_agent_completed(scope, task_id)
+
+      Tasks.add_user_message(scope, task_id, user_content("second turn"))
+      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [second_tc]})
+      Tasks.add_tool_call(scope, task_id, second_tc)
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      push(socket, "acp:message", build_acp_request("session/load", 1, %{"sessionId" => task_id}))
+      :sys.get_state(socket.channel_pid)
+
+      messages = collect_all_pushes()
+
+      tools_call =
+        Enum.find(messages, fn
+          {"mcp:message",
+           %{
+             "method" => "tools/call",
+             "params" => %{"name" => "question", "arguments" => %{"questions" => questions}}
+           }} ->
+            match?([%{"header" => "Second turn"}], questions)
+
+          _ ->
+            false
+        end)
+
+      assert tools_call,
+             "tools/call for the unresolved second turn was not re-dispatched after reconnect"
+    end
+
     test "e2e: session/load before MCP handshake → answer after handshake → persisted", %{
       scope: scope,
       task_id: task_id,

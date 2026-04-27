@@ -413,7 +413,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   # ToolCalls without a matching ToolResult are re-sent as {:interaction, ...}
   # messages to self(), which routes MCP tools to the client via tools/call.
   defp reexecute_unresolved_tool_calls(interactions) do
-    alias Tasks.Interaction.{AgentCompleted, AgentError, ToolCall, ToolResult}
+    alias Tasks.Interaction.{AgentCompleted, AgentError, AgentResponse, ToolCall, ToolResult}
 
     interactions
     |> Enum.reduce({[], MapSet.new(), false}, fn
@@ -428,6 +428,9 @@ defmodule FrontmanServerWeb.TaskChannel do
             else: [tool_call | pending]
 
         {pending, resolved_ids, completed?}
+
+      %AgentResponse{}, {pending, resolved_ids, _completed?} ->
+        {pending, resolved_ids, false}
 
       interaction, {_pending, resolved_ids, _completed?}
       when is_struct(interaction, AgentCompleted) or is_struct(interaction, AgentError) ->

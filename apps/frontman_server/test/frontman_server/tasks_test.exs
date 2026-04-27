@@ -311,6 +311,24 @@ defmodule FrontmanServer.TasksTest do
       assert Enum.all?(sequences, &(&1 > 0))
       assert sequences == Enum.uniq(sequences)
     end
+
+    test "preserves chronological history when legacy rows have nil sequence", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      {:ok, legacy_message} = Tasks.add_user_message(scope, task_id, user_content("legacy hello"))
+
+      from(i in InteractionSchema, where: i.id == ^legacy_message.id)
+      |> Repo.update_all(set: [sequence: nil])
+
+      {:ok, _new_response} = Tasks.add_agent_response(scope, task_id, "new response")
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert [
+               %Interaction.UserMessage{messages: ["legacy hello"]},
+               %Interaction.AgentResponse{content: "new response"}
+             ] = task.interactions
+    end
   end
 
   defp db_sequences(task_id) do

@@ -91,10 +91,11 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   @doc """
   Orders interactions by sequence number for deterministic ordering.
+  Falls back to inserted_at for legacy rows without sequence.
   """
   @spec ordered(Ecto.Queryable.t()) :: Ecto.Query.t()
   def ordered(query \\ __MODULE__) do
-    from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at])
+    from(i in query, order_by: [asc: coalesce(i.sequence, 0), asc: i.inserted_at])
   end
 
   # --- JSONB to Domain Struct Conversion ---
