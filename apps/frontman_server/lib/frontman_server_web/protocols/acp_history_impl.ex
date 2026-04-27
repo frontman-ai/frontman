@@ -97,14 +97,10 @@ defimpl ACPHistory, for: Interaction.UserMessage do
 
   defp image_blocks(images) do
     Enum.map(images, fn img ->
-      meta =
-        %{"user_image" => true, "filename" => img.filename, "tool_guidance" => img.tool_guidance}
-        |> reject_nils()
-
       %{
         "type" => "resource",
         "resource" => %{
-          "_meta" => meta,
+          "_meta" => %{"user_image" => true, "filename" => img.filename},
           "resource" => %{
             "uri" => img.uri || "attachment://#{img.filename}",
             "mimeType" => img.mime_type,

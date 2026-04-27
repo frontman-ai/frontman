@@ -284,6 +284,10 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     **Elementor**:
     Selected Elementor IDs are whole widgets/containers. For nested HTML-widget DOM, edit `settings.html` with `wp_elementor_replace_html_fragment`. Remove elements only when the user explicitly wants the whole widget/container removed, using `scope=whole_element`.
 
+    **Attached media assets**:
+    If the user asks to use an attached image or media asset, upload it to the WordPress Media Library first with `wp_upload_media` using the attachment's `image_ref`, then use the returned `attachment_id` or `url` in post, block, Elementor, or theme tools.
+    Do not call `wp_upload_media` just because an attachment exists; only upload an attachment when the user's request asks you to use that asset.
+
     **For design questions**:
     First check which theme is active with WordPress tools.
     Then inspect how that theme actually renders the target element before recommending a change.

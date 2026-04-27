@@ -589,24 +589,11 @@ module Selectors = {
 // Effect handler helpers (extracted for reuse)
 // ============================================================================
 
-let attachmentToolGuidance = (framework: Client__RuntimeConfig.frameworkId): option<string> =>
-  switch framework {
-  | Wordpress =>
-    Some(
-      "WordPress: if the user's request asks you to use this attachment, first call wp_upload_media with image_ref to upload it into the Media Library, then use the returned attachment_id/url in post or Elementor tools. Do not upload attachments the user did not ask you to use.",
-    )
-  | Nextjs
-  | Vite
-  | Astro =>
-    None
-  }
-
 // Build ACP content blocks for image/file attachments
 // Strips the data:mime;base64, prefix and creates resource blocks with BlobResourceContents
-let buildAttachmentContentBlocks = (
-  attachments: array<Client__Message.fileAttachmentData>,
-  ~framework: Client__RuntimeConfig.frameworkId,
-): array<Client__State__Types.ACPTypes.contentBlock> => {
+let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
+  Client__State__Types.ACPTypes.contentBlock,
+> => {
   attachments->Array.map(att => {
     // Strip "data:mime;base64," prefix to get raw base64
     let base64Data = switch att.dataUrl->String.indexOf(";base64,") {
@@ -617,9 +604,6 @@ let buildAttachmentContentBlocks = (
     let metaObj = Dict.make()
     metaObj->Dict.set("user_image", JSON.Encode.bool(true))
     metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
-    attachmentToolGuidance(framework)->Option.forEach(guidance =>
-      metaObj->Dict.set("tool_guidance", JSON.Encode.string(guidance))
-    )
     let meta = JSON.Encode.object(metaObj)
 
     Client__State__Types.ACPTypes.EmbeddedResource({
@@ -648,9 +632,6 @@ let sendMessageToAPIImpl = (
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
-    // Include runtime config _meta (e.g., framework, openrouterKeyValue) with each prompt
-    let runtimeConfig = Client__RuntimeConfig.read()
-
     // Page context from task (always included)
     let pageContextBlocks =
       state.tasks
@@ -661,13 +642,12 @@ let sendMessageToAPIImpl = (
     let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
 
     // Build attachment content blocks
-    let attachmentBlocks = buildAttachmentContentBlocks(
-      attachments,
-      ~framework=runtimeConfig.framework,
-    )
+    let attachmentBlocks = buildAttachmentContentBlocks(attachments)
     let additionalBlocks =
       Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
 
+    // Include runtime config _meta (e.g., framework, openrouterKeyValue) with each prompt
+    let runtimeConfig = Client__RuntimeConfig.read()
     let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
 
     // Add selected model to _meta if present (as "provider:value" string)

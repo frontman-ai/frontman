@@ -38,6 +38,10 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "wp_activate_managed_theme"
       assert prompt =~ "block themes only"
       assert prompt =~ "already a child theme"
+      assert prompt =~ "wp_upload_media"
+
+      assert prompt =~
+               "only upload an attachment when the user's request asks you to use that asset"
     end
 
     test "non-nextjs framework adds no framework guidance" do

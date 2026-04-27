@@ -288,61 +288,6 @@ describe("Client State Reducer", () => {
   })
 })
 
-describe("Client State Reducer attachment content blocks", () => {
-  let _metaString = (meta: JSON.t, field: string): string =>
-    meta
-    ->JSON.Decode.object
-    ->Option.flatMap(obj => obj->Dict.get(field))
-    ->Option.flatMap(JSON.Decode.string)
-    ->Option.getOrThrow
-
-  test("puts tool guidance in ACP resource _meta", t => {
-    let attachment: Client__Message.fileAttachmentData = {
-      id: "att_hero",
-      dataUrl: "data:image/png;base64,aGVybw==",
-      mediaType: "image/png",
-      filename: "hero.png",
-    }
-
-    let blocks = Reducer.buildAttachmentContentBlocks(
-      [attachment],
-      ~framework=Client__RuntimeConfig.Wordpress,
-    )
-
-    switch blocks->Array.get(0) {
-    | Some(Client__State__Types.ACPTypes.EmbeddedResource({resource: {_meta: Some(meta)}})) => {
-        t->expect(_metaString(meta, "filename"))->Expect.toBe("hero.png")
-        t
-        ->expect(_metaString(meta, "tool_guidance")->String.includes("wp_upload_media"))
-        ->Expect.toBe(true)
-      }
-    | _ => JsExn.throw("Expected attachment embedded resource with _meta")
-    }
-  })
-
-  test("omits tool guidance for non-WordPress attachments", t => {
-    let attachment: Client__Message.fileAttachmentData = {
-      id: "att_hero",
-      dataUrl: "data:image/png;base64,aGVybw==",
-      mediaType: "image/png",
-      filename: "hero.png",
-    }
-
-    let blocks = Reducer.buildAttachmentContentBlocks(
-      [attachment],
-      ~framework=Client__RuntimeConfig.Nextjs,
-    )
-
-    switch blocks->Array.get(0) {
-    | Some(Client__State__Types.ACPTypes.EmbeddedResource({resource: {_meta: Some(meta)}})) => {
-        let metaObj = meta->JSON.Decode.object->Option.getOrThrow
-        t->expect(metaObj->Dict.get("tool_guidance")->Option.isNone)->Expect.toBe(true)
-      }
-    | _ => JsExn.throw("Expected attachment embedded resource with _meta")
-    }
-  })
-})
-
 describe("Client State Reducer - TurnCompleted Content Conversion", () => {
   test("handles empty textBuffer correctly", t => {
     let state = TestHelpers.makeStateWithTask(
