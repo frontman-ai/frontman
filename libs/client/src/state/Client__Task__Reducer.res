@@ -993,13 +993,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let attachments = extractAttachmentsFromUserContent(content)
     let message = Message.User({id, content, annotations, createdAt: Date.now()})
 
-    // Accumulate image attachments keyed by URI for write_file image_ref resolution
-    let updatedImageAttachments = data.imageAttachments->Dict.copy
-    attachments->Array.forEach(att => {
-      let uri = `attachment://${att.id}/${att.filename}`
-      updatedImageAttachments->Dict.set(uri, att)
-    })
-
     (
       Task.Loaded({
         ...data,
@@ -1007,7 +1000,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         isAgentRunning: true,
         turnError: None, // Clear any previous error when sending a new message
         retryStatus: None,
-        imageAttachments: updatedImageAttachments,
         // Clear annotations from task state — they now live on the message
         annotations: [],
         annotationMode: Annotation.Off,
@@ -1196,7 +1188,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           planEntries: [],
           turnError: None,
           retryStatus: None,
-          imageAttachments: Dict.make(),
           pendingQuestion: None,
         }),
         [],

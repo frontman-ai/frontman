@@ -12,6 +12,7 @@ type fileAttachmentData = {
 type resolvedImageData = {
   base64: string,
   mediaType: string,
+  filename: string,
 }
 
 // Strip the "data:mime;base64," prefix from a data URL to get raw base64
@@ -20,7 +21,7 @@ let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
   | -1 => att.dataUrl
   | idx => att.dataUrl->String.slice(~start=idx + 8, ~end=String.length(att.dataUrl))
   }
-  {base64, mediaType: att.mediaType}
+  {base64, mediaType: att.mediaType, filename: att.filename}
 }
 
 // Serializable annotation snapshot — stored on user messages.

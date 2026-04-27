@@ -254,7 +254,7 @@ module Provider = {
       MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
         let state = StateStore.getState(Client__State__Store.store)
         Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)->Option.map(
-          ({base64, mediaType}) => {MCPServer.base64, mediaType},
+          ({base64, mediaType, filename}) => {MCPServer.base64, mediaType, filename},
         )
       })
 
