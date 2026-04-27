@@ -26,6 +26,8 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       prompt = Prompts.build(framework: fw)
 
       assert prompt =~ "Next.js"
+      assert prompt =~ "write_file"
+      assert prompt =~ "image_ref"
     end
 
     test "wordpress framework marks file tools read-only" do
@@ -39,23 +41,25 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "block themes only"
       assert prompt =~ "already a child theme"
       assert prompt =~ "wp_upload_media"
+      refute prompt =~ "use `write_file` with the attachment's `image_ref`"
 
-      assert prompt =~
-               "only upload an attachment when the user's request asks you to use that asset"
+      assert prompt =~ "Do not upload unused attachments"
     end
 
-    test "non-nextjs framework adds no framework guidance" do
-      base_prompt = Prompts.build([])
+    test "non-wordpress framework adds code attachment guidance" do
       vite_prompt = Prompts.build(framework: Framework.from_string("vite"))
 
-      assert String.length(base_prompt) == String.length(vite_prompt)
+      assert vite_prompt =~ "write_file"
+      assert vite_prompt =~ "image_ref"
+      refute vite_prompt =~ "wp_upload_media"
     end
 
-    test "nil framework adds no framework guidance" do
-      base_prompt = Prompts.build([])
+    test "nil framework adds code attachment guidance" do
       nil_prompt = Prompts.build(framework: nil)
 
-      assert String.length(base_prompt) == String.length(nil_prompt)
+      assert nil_prompt =~ "write_file"
+      assert nil_prompt =~ "image_ref"
+      refute nil_prompt =~ "wp_upload_media"
     end
   end
 

@@ -1360,9 +1360,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_current_page_context(text, _), do: text
 
-  # Append image attachment URIs so the LLM knows it can save them via image_ref-aware tools.
-  defp append_image_attachment_context(text, images)
-       when is_list(images) and images != [] do
+  # Append image attachment URIs so the LLM knows they can be referenced via image_ref.
+  defp append_image_attachment_context(text, images) when is_list(images) and images != [] do
     uris =
       images
       |> Enum.filter(fn img -> is_binary(Map.get(img, :uri)) end)
@@ -1375,15 +1374,13 @@ defmodule FrontmanServer.Tasks.Interaction do
       _ ->
         uri_list = Enum.join(uris, "\n")
 
-        attachment_context =
+        text <>
           """
 
           [Available Image Attachments]
           The following images were attached by the user and can be used via image_ref:
           #{uri_list}
           """
-
-        text <> attachment_context
     end
   end
 

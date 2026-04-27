@@ -129,6 +129,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     |> maybe_append(has_annotations, &annotation_guidance/0)
     |> maybe_append(has_typescript_react, &typescript_react_guidance/0)
     |> append_framework_guidance(framework)
+    |> append_attachment_guidance(framework)
   end
 
   defp maybe_append(prompt, true, guidance_fn), do: prompt <> "\n" <> guidance_fn.()
@@ -146,6 +147,11 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     do: prompt <> "\n" <> wordpress_guidance()
 
   defp append_framework_guidance(prompt, nil), do: prompt
+
+  defp append_attachment_guidance(prompt, %Framework{id: :wordpress}), do: prompt
+
+  defp append_attachment_guidance(prompt, _framework),
+    do: prompt <> "\n" <> code_project_attachment_guidance()
 
   defp append_project_structure(prompt, nil), do: prompt
   defp append_project_structure(prompt, ""), do: prompt
@@ -284,9 +290,8 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     **Elementor**:
     Selected Elementor IDs are whole widgets/containers. For nested HTML-widget DOM, edit `settings.html` with `wp_elementor_replace_html_fragment`. Remove elements only when the user explicitly wants the whole widget/container removed, using `scope=whole_element`.
 
-    **Attached media assets**:
-    If the user asks to use an attached image or media asset, upload it to the WordPress Media Library first with `wp_upload_media` using the attachment's `image_ref`, then use the returned `attachment_id` or `url` in post, block, Elementor, or theme tools.
-    Do not call `wp_upload_media` just because an attachment exists; only upload an attachment when the user's request asks you to use that asset.
+    **Attachments**:
+    Use `wp_upload_media` with `image_ref` only when the user asks to use an attachment; then use the returned `attachment_id`/`url`. Do not upload unused attachments.
 
     **For design questions**:
     First check which theme is active with WordPress tools.
@@ -323,6 +328,14 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     Check whether a cache plugin is active.
     Clear the cache if possible.
     Then refresh the preview page, using `execute_js` with `window.location.reload()` if needed.
+    """
+  end
+
+  defp code_project_attachment_guidance do
+    """
+    ## Attachments
+
+    Use `write_file` with `image_ref` only when the user asks to use an attachment; then reference the saved file. Do not save unused attachments.
     """
   end
 
