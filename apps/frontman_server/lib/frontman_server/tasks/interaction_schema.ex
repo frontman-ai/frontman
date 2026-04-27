@@ -42,12 +42,12 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   """
   @spec create_changeset(String.t(), struct()) :: Ecto.Changeset.t()
   def create_changeset(task_id, interaction) do
-    type = interaction.__struct__ |> Module.split() |> List.last() |> Macro.underscore()
+    {type, data} = Interaction.to_record(interaction)
 
     attrs = %{
       task_id: task_id,
       type: type,
-      data: Map.from_struct(interaction),
+      data: data,
       sequence: generate_sequence()
     }
 
@@ -139,151 +139,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   Converts a persisted InteractionSchema to its domain struct.
   """
   @spec to_struct(t()) :: Interaction.t()
-  def to_struct(%__MODULE__{type: "user_message", data: data, sequence: sequence}) do
-    %Interaction.UserMessage{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      timestamp: parse_datetime(data["timestamp"]),
-      messages: data["messages"] || [],
-      annotations: parse_annotations(data["annotations"]),
-      selected_figma_node: Interaction.FigmaNode.from_map(data["selected_figma_node"]),
-      images: parse_images(data["images"]),
-      current_page: Interaction.CurrentPage.from_map(data["current_page"])
-    }
+  def to_struct(%__MODULE__{type: type, data: data, sequence: sequence}) do
+    Interaction.from_record(type, data, sequence)
   end
 
-  def to_struct(%__MODULE__{type: "agent_response", data: data, sequence: sequence}) do
-    %Interaction.AgentResponse{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      content: data["content"],
-      timestamp: parse_datetime(data["timestamp"]),
-      metadata: data["metadata"]
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "tool_call", data: data, sequence: sequence}) do
-    %Interaction.ToolCall{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      tool_call_id: data["tool_call_id"],
-      tool_name: data["tool_name"],
-      arguments: data["arguments"] || %{},
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "tool_result", data: data, sequence: sequence}) do
-    %Interaction.ToolResult{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      tool_call_id: data["tool_call_id"],
-      tool_name: data["tool_name"],
-      result: data["result"],
-      is_error: data["is_error"] || false,
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "discovered_project_rule", data: data, sequence: sequence}) do
-    %Interaction.DiscoveredProjectRule{
-      path: data["path"],
-      sequence: sequence || data["sequence"] || 0,
-      content: data["content"],
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{
-        type: "discovered_project_structure",
-        data: data,
-        sequence: sequence
-      }) do
-    %Interaction.DiscoveredProjectStructure{
-      summary: data["summary"],
-      sequence: sequence || data["sequence"] || 0,
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_spawned", data: data, sequence: sequence}) do
-    %Interaction.AgentSpawned{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      config: data["config"] || %{},
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_completed", data: data, sequence: sequence}) do
-    %Interaction.AgentCompleted{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      result: data["result"],
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_error", data: data, sequence: sequence}) do
-    %Interaction.AgentError{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      error: data["error"],
-      kind: data["kind"] || "failed",
-      retryable: data["retryable"] || false,
-      category: data["category"] || "unknown",
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_retry", data: data, sequence: sequence}) do
-    %Interaction.AgentRetry{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      retried_error_id: data["retried_error_id"],
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_paused", data: data, sequence: sequence}) do
-    %Interaction.AgentPaused{
-      id: data["id"],
-      sequence: sequence || data["sequence"] || 0,
-      timestamp: parse_datetime(data["timestamp"]),
-      reason: data["reason"],
-      tool_name: data["tool_name"],
-      timeout_ms: data["timeout_ms"]
-    }
-  end
-
-  def to_struct(%__MODULE__{type: type}) do
-    raise "Unknown interaction type: #{type}"
-  end
-
-  @spec parse_datetime(DateTime.t() | String.t() | nil) :: DateTime.t() | nil
-  defp parse_datetime(nil), do: nil
-  defp parse_datetime(%DateTime{} = dt), do: dt
-
-  defp parse_datetime(str) when is_binary(str) do
-    case DateTime.from_iso8601(str) do
-      {:ok, dt, _} -> dt
-      _ -> nil
-    end
-  end
-
-  # Parse annotations list from stored data — delegates to domain Annotation.from_map/1
-  defp parse_annotations(nil), do: []
-
-  defp parse_annotations(annotations) when is_list(annotations),
-    do: Enum.map(annotations, &Interaction.Annotation.from_map/1)
-
-  defp parse_annotations(_), do: []
-
-  # Parse user-uploaded images from stored data — delegates to domain UserImage.from_map/1
-  defp parse_images(nil), do: []
-
-  defp parse_images(images) when is_list(images),
-    do: Enum.map(images, &Interaction.UserImage.from_map/1)
-
-  defp parse_images(_), do: []
 end

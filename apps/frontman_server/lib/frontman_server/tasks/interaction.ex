@@ -40,6 +40,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     __MODULE__.DiscoveredProjectStructure
   ]
 
+  @typedoc "Persisted interaction type discriminator and JSON data payload."
+  @type record :: {String.t(), map()}
+
   @doc """
   Returns the list of all interaction type modules.
   """
@@ -47,15 +50,21 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   @doc """
   Returns the list of known type strings (e.g. `["user_message", "agent_response", ...]`).
-
-  Derived from `interaction_modules/0` using the same convention as
-  `InteractionSchema.create_changeset/2` — the last segment of the module name,
-  underscored.
   """
   def known_type_strings do
-    Enum.map(@interaction_modules, fn mod ->
-      mod |> Module.split() |> List.last() |> Macro.underscore()
-    end)
+    [
+      "user_message",
+      "agent_response",
+      "agent_spawned",
+      "agent_completed",
+      "agent_error",
+      "agent_paused",
+      "agent_retry",
+      "tool_call",
+      "tool_result",
+      "discovered_project_rule",
+      "discovered_project_structure"
+    ]
   end
 
   alias FrontmanServer.Image
@@ -1018,6 +1027,292 @@ defmodule FrontmanServer.Tasks.Interaction do
       )
     end
   end
+
+  @doc """
+  Converts a domain interaction into its persisted type discriminator and data.
+
+  The sequence is intentionally not included in the data payload; it is stored
+  only in the interactions table sequence column.
+  """
+  @spec to_record(t()) :: record()
+  def to_record(%UserMessage{} = interaction) do
+    {
+      "user_message",
+      json_data(%{
+        id: interaction.id,
+        timestamp: interaction.timestamp,
+        messages: interaction.messages,
+        annotations: interaction.annotations,
+        selected_figma_node: figma_node_data(interaction.selected_figma_node),
+        images: interaction.images,
+        current_page: interaction.current_page
+      })
+    }
+  end
+
+  def to_record(%AgentResponse{} = interaction) do
+    {
+      "agent_response",
+      json_data(%{
+        id: interaction.id,
+        content: interaction.content,
+        timestamp: interaction.timestamp,
+        metadata: interaction.metadata
+      })
+    }
+  end
+
+  def to_record(%AgentSpawned{} = interaction) do
+    {
+      "agent_spawned",
+      json_data(%{id: interaction.id, config: interaction.config, timestamp: interaction.timestamp})
+    }
+  end
+
+  def to_record(%AgentCompleted{} = interaction) do
+    {
+      "agent_completed",
+      json_data(%{id: interaction.id, timestamp: interaction.timestamp, result: interaction.result})
+    }
+  end
+
+  def to_record(%AgentError{} = interaction) do
+    {
+      "agent_error",
+      json_data(%{
+        id: interaction.id,
+        timestamp: interaction.timestamp,
+        error: interaction.error,
+        kind: interaction.kind,
+        retryable: interaction.retryable,
+        category: interaction.category
+      })
+    }
+  end
+
+  def to_record(%AgentRetry{} = interaction) do
+    {
+      "agent_retry",
+      json_data(%{
+        id: interaction.id,
+        timestamp: interaction.timestamp,
+        retried_error_id: interaction.retried_error_id
+      })
+    }
+  end
+
+  def to_record(%AgentPaused{} = interaction) do
+    {
+      "agent_paused",
+      json_data(%{
+        id: interaction.id,
+        timestamp: interaction.timestamp,
+        reason: interaction.reason,
+        tool_name: interaction.tool_name,
+        timeout_ms: interaction.timeout_ms
+      })
+    }
+  end
+
+  def to_record(%ToolCall{} = interaction) do
+    {
+      "tool_call",
+      json_data(%{
+        id: interaction.id,
+        tool_call_id: interaction.tool_call_id,
+        tool_name: interaction.tool_name,
+        arguments: interaction.arguments,
+        timestamp: interaction.timestamp
+      })
+    }
+  end
+
+  def to_record(%ToolResult{} = interaction) do
+    {
+      "tool_result",
+      json_data(%{
+        id: interaction.id,
+        tool_call_id: interaction.tool_call_id,
+        tool_name: interaction.tool_name,
+        result: interaction.result,
+        is_error: interaction.is_error,
+        timestamp: interaction.timestamp
+      })
+    }
+  end
+
+  def to_record(%DiscoveredProjectRule{} = interaction) do
+    {
+      "discovered_project_rule",
+      json_data(%{path: interaction.path, content: interaction.content, timestamp: interaction.timestamp})
+    }
+  end
+
+  def to_record(%DiscoveredProjectStructure{} = interaction) do
+    {
+      "discovered_project_structure",
+      json_data(%{summary: interaction.summary, timestamp: interaction.timestamp})
+    }
+  end
+
+  @doc """
+  Converts persisted type, JSON data, and DB sequence into a domain interaction.
+  """
+  @spec from_record(String.t(), map(), integer() | nil) :: t()
+  def from_record("user_message", data, sequence) do
+    %UserMessage{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      timestamp: parse_datetime(data["timestamp"]),
+      messages: data["messages"] || [],
+      annotations: parse_annotations(data["annotations"]),
+      selected_figma_node: FigmaNode.from_map(data["selected_figma_node"]),
+      images: parse_images(data["images"]),
+      current_page: CurrentPage.from_map(data["current_page"])
+    }
+  end
+
+  def from_record("agent_response", data, sequence) do
+    %AgentResponse{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      content: data["content"],
+      timestamp: parse_datetime(data["timestamp"]),
+      metadata: data["metadata"]
+    }
+  end
+
+  def from_record("tool_call", data, sequence) do
+    %ToolCall{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      tool_call_id: data["tool_call_id"],
+      tool_name: data["tool_name"],
+      arguments: data["arguments"] || %{},
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def from_record("tool_result", data, sequence) do
+    %ToolResult{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      tool_call_id: data["tool_call_id"],
+      tool_name: data["tool_name"],
+      result: data["result"],
+      is_error: data["is_error"] || false,
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def from_record("discovered_project_rule", data, sequence) do
+    %DiscoveredProjectRule{
+      path: data["path"],
+      sequence: sequence || data["sequence"] || 0,
+      content: data["content"],
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def from_record("discovered_project_structure", data, sequence) do
+    %DiscoveredProjectStructure{
+      summary: data["summary"],
+      sequence: sequence || data["sequence"] || 0,
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def from_record("agent_spawned", data, sequence) do
+    %AgentSpawned{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      config: data["config"] || %{},
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def from_record("agent_completed", data, sequence) do
+    %AgentCompleted{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      result: data["result"],
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def from_record("agent_error", data, sequence) do
+    %AgentError{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      error: data["error"],
+      kind: data["kind"] || "failed",
+      retryable: data["retryable"] || false,
+      category: data["category"] || "unknown",
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def from_record("agent_retry", data, sequence) do
+    %AgentRetry{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      retried_error_id: data["retried_error_id"],
+      timestamp: parse_datetime(data["timestamp"])
+    }
+  end
+
+  def from_record("agent_paused", data, sequence) do
+    %AgentPaused{
+      id: data["id"],
+      sequence: sequence || data["sequence"] || 0,
+      timestamp: parse_datetime(data["timestamp"]),
+      reason: data["reason"],
+      tool_name: data["tool_name"],
+      timeout_ms: data["timeout_ms"]
+    }
+  end
+
+  def from_record(type, _data, _sequence) do
+    raise "Unknown interaction type: #{type}"
+  end
+
+  defp figma_node_data(nil), do: nil
+
+  defp figma_node_data(%FigmaNode{} = node) do
+    %{
+      id: node.id,
+      node: node.node,
+      image: node.image,
+      is_dsl: node.is_dsl
+    }
+  end
+
+  defp json_data(data) do
+    data
+    |> Jason.encode!()
+    |> Jason.decode!()
+  end
+
+  @spec parse_datetime(DateTime.t() | String.t() | nil) :: DateTime.t() | nil
+  defp parse_datetime(nil), do: nil
+  defp parse_datetime(%DateTime{} = dt), do: dt
+
+  defp parse_datetime(str) when is_binary(str) do
+    case DateTime.from_iso8601(str) do
+      {:ok, dt, _} -> dt
+      _ -> nil
+    end
+  end
+
+  defp parse_annotations(nil), do: []
+
+  defp parse_annotations(annotations) when is_list(annotations),
+    do: Enum.map(annotations, &Annotation.from_map/1)
+
+  defp parse_annotations(_), do: []
+  defp parse_images(nil), do: []
+  defp parse_images(images) when is_list(images), do: Enum.map(images, &UserImage.from_map/1)
+  defp parse_images(_), do: []
 
   @doc """
   Retrieves a value from a map supporting both string and atom keys.

@@ -7,6 +7,7 @@ defmodule FrontmanServer.TasksTest do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
 
   setup do
     scope = user_scope_fixture()
@@ -28,6 +29,31 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.task_id == task_id
       assert task.framework == framework
+    end
+  end
+
+  describe "interaction persistence records" do
+    test "serializes interaction type and data explicitly without duplicating sequence" do
+      task_id = Ecto.UUID.generate()
+      interaction = %Interaction.AgentResponse{
+        id: "response-1",
+        sequence: 123,
+        content: "hello",
+        timestamp: ~U[2025-01-01 00:00:00Z],
+        metadata: %{"source" => "test"}
+      }
+
+      changeset = InteractionSchema.create_changeset(task_id, interaction)
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :type) == "agent_response"
+      assert Ecto.Changeset.get_change(changeset, :data) == %{
+               "id" => "response-1",
+               "content" => "hello",
+               "timestamp" => "2025-01-01T00:00:00Z",
+               "metadata" => %{"source" => "test"}
+             }
+      assert Ecto.Changeset.get_change(changeset, :sequence) > 0
     end
   end
 
