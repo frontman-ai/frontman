@@ -327,33 +327,6 @@ let actionToString = action => {
 module Selectors = {
   let getMessageId = Message.getId
 
-  let attachmentUri = (att: Message.fileAttachmentData): string =>
-    `attachment://${att.id}/${att.filename}`
-
-  let imagePartToAttachment = (part: UserContentPart.t): option<Message.fileAttachmentData> =>
-    switch part {
-    | Image({id: Some(id), image, mediaType: Some(mediaType), name: Some(filename)}) =>
-      Some({Message.id, dataUrl: image, mediaType, filename})
-    | Image(_) | Text(_) | File(_) => None
-    }
-
-  let resolveImageRefFromMessages = (task: Task.t, uri: string): option<
-    Message.fileAttachmentData,
-  > =>
-    task
-    ->Task.getMessages
-    ->Array.findMap(msg =>
-      switch msg {
-      | User({content}) =>
-        content->Array.findMap(part =>
-          imagePartToAttachment(part)->Option.flatMap(
-            att => attachmentUri(att) == uri ? Some(att) : None,
-          )
-        )
-      | Assistant(_) | ToolCall(_) | Error(_) => None
-      }
-    )
-
   // Get the current task - always returns a Task.t (never None)
   let currentTask = (state: state): Task.t => {
     switch state.currentTask {
@@ -443,7 +416,7 @@ module Selectors = {
     TaskReducer.Selectors.retryStatus(currentTask(state))
   }
 
-  // Resolve an image attachment URI from the task's existing user messages.
+  // Resolve an image attachment URI from a specific task's accumulated attachments.
   // Used by the MCP server before forwarding attachment-aware tools to relay.
   // Takes taskId (not currentTask) because the agent's task may differ from the viewed tab.
   let resolveImageRef = (state: state, ~taskId: string, ~uri: string): option<
@@ -451,7 +424,7 @@ module Selectors = {
   > => {
     state.tasks
     ->Dict.get(taskId)
-    ->Option.flatMap(task => resolveImageRefFromMessages(task, uri))
+    ->Option.flatMap(task => Task.getImageAttachments(task)->Dict.get(uri))
     ->Option.map(Message.resolveAttachmentImage)
   }
 
