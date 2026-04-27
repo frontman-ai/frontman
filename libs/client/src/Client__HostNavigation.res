@@ -35,13 +35,13 @@ let assign = (~url: string) => {
   let currentWindow = WebAPI.Global.window
   let topWindow = WebAPI.Global.top
 
-  if useTopWindow(~currentWindow, ~topWindow) {
+  switch useTopWindow(~currentWindow, ~topWindow) {
+  | true =>
     try {
       topWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
     } catch {
     | _ => currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
     }
-  } else {
-    currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
+  | false => currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
   }
 }
