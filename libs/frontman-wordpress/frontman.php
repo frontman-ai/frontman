@@ -59,7 +59,6 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
-require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-settings.php';
 
 // Load tool implementations.
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-posts.php';
@@ -76,10 +75,6 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
  * Main plugin bootstrap.
  */
 function frontman_init(): void {
-	// Register settings (admin_init fields only — menu added later).
-	$settings = new Frontman_Settings();
-	$settings->register();
-
 	// Register all WP tools.
 	$tools = Frontman_Tools::instance();
 	( new Frontman_Core_Tools() )->register( $tools );
@@ -100,15 +95,12 @@ function frontman_init(): void {
 	}
 
 	// Build the UI renderer and router.
-	$ui     = new Frontman_UI( $settings );
+	$ui     = new Frontman_UI();
 	$router = new Frontman_Router( $tools, $ui );
 
-	// Register request interception (parse_request) and admin menu.
-	// UI must register before Settings so the parent menu page exists
-	// when the Settings submenu is added.
+	// Register request interception (parse_request) and admin menu link.
 	$router->register();
 	$ui->register();
-	$settings->register_menu();
 }
 add_action( 'init', 'frontman_init' );
 

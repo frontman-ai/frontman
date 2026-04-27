@@ -16,18 +16,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Frontman_UI {
-	private const ADMIN_STYLE_HANDLE      = 'frontman-agentic-ai-editor-admin';
 	private const ADMIN_MENU_STYLE_HANDLE = 'frontman-agentic-ai-editor-admin-menu';
 	private const PAGE_STYLE_HANDLE       = 'frontman-agentic-ai-editor-page';
 	private const RUNTIME_SCRIPT_HANDLE   = 'frontman-agentic-ai-editor-runtime';
 	private const CLIENT_STYLE_HANDLE     = 'frontman-agentic-ai-editor-client';
 	private const CLIENT_SCRIPT_HANDLE    = 'frontman-agentic-ai-editor-client';
-
-	private Frontman_Settings $settings;
-
-	public function __construct( Frontman_Settings $settings ) {
-		$this->settings = $settings;
-	}
 
 	/**
 	 * Register admin menu items.
@@ -41,23 +34,13 @@ class Frontman_UI {
 	}
 
 	/**
-	 * Load branded admin styles for Frontman screens.
+	 * Load branded admin menu icon styling.
 	 *
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 */
 	public function enqueue_admin_assets( string $hook_suffix ): void {
+		unset( $hook_suffix );
 		$this->enqueue_admin_menu_icon_style();
-
-		if ( ! in_array( $hook_suffix, [ 'toplevel_page_frontman', 'frontman_page_frontman-settings' ], true ) ) {
-			return;
-		}
-
-		wp_enqueue_style(
-			self::ADMIN_STYLE_HANDLE,
-			FRONTMAN_PLUGIN_URL . 'assets/frontman-admin.css',
-			[],
-			FRONTMAN_VERSION,
-		);
 	}
 
 	/**
@@ -66,7 +49,6 @@ class Frontman_UI {
 	public function add_admin_menu_link(): void {
 		$menu_icon_url = FRONTMAN_PLUGIN_URL . 'assets/frontman-menu-icon.svg';
 
-		// Register a top-level menu page so Settings can be a submenu.
 		add_menu_page(
 			__( 'Frontman', 'frontman-agentic-ai-editor' ),
 			__( 'Frontman', 'frontman-agentic-ai-editor' ),
@@ -152,22 +134,11 @@ class Frontman_UI {
 		// for Frontman browser clients. The client reads window.__frontmanRuntime.
 		// basePath is used by Client__BrowserUrl.syncBrowserUrl() to keep the
 		// browser URL in sync as the user navigates within the preview iframe.
-		// API keys are passed so the server can use the user's own key for LLM requests.
 		$runtime = [
 			'framework' => 'wordpress',
 			'basePath'  => 'frontman',
 			'wpNonce'   => Frontman_Auth::create_nonce(),
 		];
-
-		$openrouter_key = $this->settings->get( 'openrouter_api_key', '' );
-		$anthropic_key  = $this->settings->get( 'anthropic_api_key', '' );
-
-		if ( ! empty( $openrouter_key ) ) {
-			$runtime['openrouterKeyValue'] = $openrouter_key;
-		}
-		if ( ! empty( $anthropic_key ) ) {
-			$runtime['anthropicKeyValue'] = $anthropic_key;
-		}
 
 		// Build the entrypoint URL for the web preview iframe.
 		// When suffix routing is used (e.g. /about/frontman), this points the
