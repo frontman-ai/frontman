@@ -1360,7 +1360,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_current_page_context(text, _), do: text
 
-  # Append image attachment URIs so the LLM knows it can save them via write_file's image_ref
+  # Append image attachment URIs so the LLM knows it can save them via image_ref-aware tools.
   defp append_image_attachment_context(text, images) when is_list(images) and images != [] do
     uris =
       images
@@ -1378,8 +1378,11 @@ defmodule FrontmanServer.Tasks.Interaction do
           """
 
           [Available Image Attachments]
-          The following images were attached by the user and can be saved to disk using the write_file tool with the image_ref parameter:
+          The following images were attached by the user and can be used via image_ref:
           #{uri_list}
+
+          WordPress: first call wp_upload_media with image_ref to upload the asset into the Media Library, then use the returned attachment_id/url in post or Elementor tools.
+          Code projects: use write_file with image_ref to save the asset to disk.
           """
     end
   end

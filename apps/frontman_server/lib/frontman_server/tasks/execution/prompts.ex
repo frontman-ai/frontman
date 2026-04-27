@@ -281,6 +281,9 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     **Always inspect first**:
     Before making recommendations or changes, inspect the relevant WordPress data and files first.
 
+    **Elementor precision**:
+    Selected Elementor element IDs are widget/container boundaries. If the user selected nested rendered DOM inside an Elementor HTML widget, inspect the widget with `wp_elementor_get_element` and edit `settings.html` with `wp_elementor_replace_html_fragment`; do not remove the whole widget. Only call `wp_elementor_remove_element` when the user selected or explicitly requested the whole Elementor widget/container, and pass `scope=whole_element`. Do not call `wp_elementor_update_element` with empty settings, and only call `wp_elementor_save_page_data` with a complete valid Elementor tree.
+
     **For design questions**:
     First check which theme is active with WordPress tools.
     Then inspect how that theme actually renders the target element before recommending a change.

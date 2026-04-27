@@ -327,6 +327,33 @@ let actionToString = action => {
 module Selectors = {
   let getMessageId = Message.getId
 
+  let attachmentUri = (att: Message.fileAttachmentData): string =>
+    `attachment://${att.id}/${att.filename}`
+
+  let imagePartToAttachment = (part: UserContentPart.t): option<Message.fileAttachmentData> =>
+    switch part {
+    | Image({id: Some(id), image, mediaType: Some(mediaType), name: Some(filename)}) =>
+      Some({Message.id, dataUrl: image, mediaType, filename})
+    | Image(_) | Text(_) | File(_) => None
+    }
+
+  let resolveImageRefFromMessages = (task: Task.t, uri: string): option<
+    Message.fileAttachmentData,
+  > =>
+    task
+    ->Task.getMessages
+    ->Array.findMap(msg =>
+      switch msg {
+      | User({content}) =>
+        content->Array.findMap(part =>
+          imagePartToAttachment(part)->Option.flatMap(
+            att => attachmentUri(att) == uri ? Some(att) : None,
+          )
+        )
+      | Assistant(_) | ToolCall(_) | Error(_) => None
+      }
+    )
+
   // Get the current task - always returns a Task.t (never None)
   let currentTask = (state: state): Task.t => {
     switch state.currentTask {
@@ -424,7 +451,12 @@ module Selectors = {
   > => {
     state.tasks
     ->Dict.get(taskId)
-    ->Option.flatMap(task => Task.getImageAttachments(task)->Dict.get(uri))
+    ->Option.flatMap(task =>
+      switch Task.getImageAttachments(task)->Dict.get(uri) {
+      | Some(att) => Some(att)
+      | None => resolveImageRefFromMessages(task, uri)
+      }
+    )
     ->Option.map(Message.resolveAttachmentImage)
   }
 

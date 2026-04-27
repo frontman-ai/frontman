@@ -156,7 +156,7 @@ module Task = {
         turnError: option<turnErrorInfo>,
         retryStatus: option<retryStatus>,
         // User-attached images keyed by URI (e.g., "attachment://att_abc123/image.png")
-        // Accumulated across messages so the agent can save them to disk via write_file
+        // Accumulated across messages so the agent can use them via image_ref-aware tools
         imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
         // Pending interactive question (from the question tool) awaiting user input
         pendingQuestion: option<Client__Question__Types.pendingQuestion>,
