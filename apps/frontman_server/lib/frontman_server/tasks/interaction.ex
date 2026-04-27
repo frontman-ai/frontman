@@ -1383,9 +1383,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
           [Available Image Attachments]
           The following images were attached by the user and can be used via image_ref:
-          #{uri_list}
-
-          #{image_attachment_tool_guidance(images)}
+          #{uri_list}#{image_attachment_tool_guidance(images)}
           """
 
         text <> attachment_context
@@ -1402,8 +1400,8 @@ defmodule FrontmanServer.Tasks.Interaction do
       |> Enum.uniq()
 
     case guidance do
-      [] -> "Code projects: use write_file with image_ref to save the asset to disk."
-      lines -> Enum.join(lines, "\n")
+      [] -> ""
+      lines -> "\n\n" <> Enum.join(lines, "\n")
     end
   end
 
