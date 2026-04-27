@@ -16,7 +16,8 @@ let currentUrl = (): string => {
   let currentUrl = currentWindow->WebAPI.Window.location->WebAPI.Location.href
   let shouldUseTopWindow = useTopWindow(~currentWindow, ~topWindow)
 
-  if shouldUseTopWindow {
+  switch shouldUseTopWindow {
+  | true =>
     try {
       returnUrl(
         ~currentUrl,
@@ -26,8 +27,7 @@ let currentUrl = (): string => {
     } catch {
     | _ => returnUrl(~currentUrl, ~topUrl=None, ~useTopWindow=shouldUseTopWindow)
     }
-  } else {
-    currentUrl
+  | false => currentUrl
   }
 }
 
