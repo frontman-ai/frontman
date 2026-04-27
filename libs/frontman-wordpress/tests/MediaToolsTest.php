@@ -262,13 +262,14 @@ class Frontman_Media_Tools_Test_Runner {
 
 	private function test_sanitizer_preserves_upload_content(): void {
 		$input = [
-			'image_ref' => 'attachment://att_abc/raw.png',
+			'image_ref' => 'attachment://att_abc/caf%C3%A9.png',
 			'content'   => 'abc<raw>base64',
 			'filename'  => 'raw.png',
 			'mime_type' => 'image/png',
 		];
 
 		$sanitized = $this->tools->sanitize_input( 'wp_upload_media', $input );
+		$this->assert_same( 'attachment://att_abc/caf%C3%A9.png', $sanitized['image_ref'], 'wp_upload_media sanitizer preserves image_ref URI bytes' );
 		$this->assert_same( 'abc<raw>base64', $sanitized['content'], 'wp_upload_media sanitizer preserves raw base64 content' );
 	}
 

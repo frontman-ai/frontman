@@ -27,6 +27,12 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_check_invalid_utf8' ) ) {
+	function wp_check_invalid_utf8( string $value ): string {
+		return $value;
+	}
+}
+
 if ( ! function_exists( '__' ) ) {
 	function __( string $value ): string {
 		return $value;
@@ -101,6 +107,7 @@ class Frontman_Core_Tools_Test_Runner {
 		$this->seed_files();
 		$this->test_clear_all_file_tracker_records();
 		$this->test_core_path_semantics();
+		$this->test_tool_sanitizer_preserves_path_bytes();
 		$this->test_list_files_and_search_files();
 		$this->test_read_file_and_exposed_tools();
 		$this->test_grep_and_list_tree();
@@ -108,6 +115,13 @@ class Frontman_Core_Tools_Test_Runner {
 		$this->test_file_exists();
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
+	}
+
+	private function test_tool_sanitizer_preserves_path_bytes(): void {
+		$input = [ 'path' => 'workspace/caf%C3%A9.php' ];
+		$sanitized = $this->tools->sanitize_input( 'read_file', $input );
+
+		$this->assert_same( 'workspace/caf%C3%A9.php', $sanitized['path'], 'Path sanitizer should preserve percent-encoded bytes' );
 	}
 
 	private function seed_files(): void {

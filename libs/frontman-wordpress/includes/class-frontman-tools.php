@@ -317,7 +317,7 @@ class Frontman_Tools {
 			return sanitize_key( $value );
 		}
 
-		if ( in_array( $field_name, [ 'block_markup', 'pattern', 'glob', 'settings' ], true ) ) {
+		if ( in_array( $field_name, [ 'block_markup', 'pattern', 'glob', 'settings', 'path', 'image_ref' ], true ) ) {
 			return $value;
 		}
 

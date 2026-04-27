@@ -16,17 +16,37 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_unslash' ) ) {
+	function wp_unslash( $value ) {
+		return is_string( $value ) ? stripslashes( $value ) : $value;
+	}
+}
+
+if ( ! function_exists( 'home_url' ) ) {
+	function home_url( string $path = '' ): string {
+		return 'https://example.test/blog' . $path;
+	}
+}
+
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	function wp_parse_url( string $url ) {
+		return parse_url( $url );
+	}
+}
+
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
 require_once __DIR__ . '/../includes/class-frontman-router.php';
 
 class Frontman_Router_Test_Runner {
 	private int $assertions = 0;
 	private ReflectionMethod $classifyRoute;
+	private ReflectionMethod $getRequestPath;
 	private ReflectionMethod $sendSseToolResult;
 
 	public function __construct() {
 		$reflection = new ReflectionClass( 'Frontman_Router' );
 		$this->classifyRoute = $reflection->getMethod( 'classify_route' );
+		$this->getRequestPath = $reflection->getMethod( 'get_request_path' );
 		$this->sendSseToolResult = $reflection->getMethod( 'send_sse_tool_result' );
 	}
 
@@ -34,6 +54,7 @@ class Frontman_Router_Test_Runner {
 		$this->test_suffix_routes_win_over_prefix_regex();
 		$this->test_prefix_api_routes_still_match();
 		$this->test_non_frontman_routes_are_ignored();
+		$this->test_request_path_preserves_percent_encoded_segments();
 		$this->test_sse_errors_use_result_event_format();
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
@@ -67,6 +88,18 @@ class Frontman_Router_Test_Runner {
 		$router = ( new ReflectionClass( 'Frontman_Router' ) )->newInstanceWithoutConstructor();
 		$route = $this->classifyRoute->invoke( $router, '/wp-admin/plugins.php', 'GET' );
 		$this->assert_same( 'none', $route['type'], 'non-Frontman paths should not be intercepted' );
+	}
+
+	private function test_request_path_preserves_percent_encoded_segments(): void {
+		$router = ( new ReflectionClass( 'Frontman_Router' ) )->newInstanceWithoutConstructor();
+		$_SERVER['REQUEST_URI'] = '/blog/caf%C3%A9/frontman?x=1';
+
+		try {
+			$path = $this->getRequestPath->invoke( $router );
+			$this->assert_same( '/caf%C3%A9/frontman', $path, 'request path should preserve percent-encoded URL bytes' );
+		} finally {
+			unset( $_SERVER['REQUEST_URI'] );
+		}
 	}
 
 	private function test_sse_errors_use_result_event_format(): void {

@@ -227,7 +227,8 @@ class Frontman_Router {
 	 * Handles WordPress installed in a subdirectory (e.g. /blog/frontman).
 	 */
 	private function get_request_path(): string {
-		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- REQUEST_URI is parsed as a URL path below; text sanitization would strip valid percent-encoded path bytes.
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
 
 		// Strip query string.
 		$path = strtok( $request_uri, '?' );
