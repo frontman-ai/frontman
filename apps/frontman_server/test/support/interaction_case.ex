@@ -155,7 +155,6 @@ defmodule FrontmanServer.InteractionCase do
     def user_msg(messages, annotations \\ []) do
       %UserMessage{
         id: Interaction.new_id(),
-        sequence: seq(),
         messages: List.wrap(messages),
         timestamp: Interaction.now(),
         annotations: annotations
@@ -166,7 +165,6 @@ defmodule FrontmanServer.InteractionCase do
     def agent_resp(content, metadata \\ %{}) do
       %AgentResponse{
         id: Interaction.new_id(),
-        sequence: seq(),
         content: content,
         timestamp: Interaction.now(),
         metadata: metadata
@@ -177,7 +175,6 @@ defmodule FrontmanServer.InteractionCase do
     def tool_call(call_id, name, args \\ %{}) do
       %ToolCall{
         id: Interaction.new_id(),
-        sequence: seq(),
         tool_call_id: call_id,
         tool_name: name,
         arguments: args,
@@ -189,7 +186,6 @@ defmodule FrontmanServer.InteractionCase do
     def tool_result(call_id, name, result, opts \\ []) do
       %ToolResult{
         id: Interaction.new_id(),
-        sequence: opts[:sequence] || seq(),
         tool_call_id: call_id,
         tool_name: name,
         result: result,
@@ -242,8 +238,6 @@ defmodule FrontmanServer.InteractionCase do
     # -------------------------------------------------------------------
     # Internal helpers
     # -------------------------------------------------------------------
-
-    defp seq, do: System.unique_integer([:monotonic, :positive])
 
     defp maybe_put(map, _key, nil), do: map
     defp maybe_put(map, key, val), do: Map.put(map, key, val)

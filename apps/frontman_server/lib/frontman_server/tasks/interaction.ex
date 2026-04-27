@@ -45,19 +45,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   """
   def interaction_modules, do: @interaction_modules
 
-  @doc """
-  Returns the list of known type strings (e.g. `["user_message", "agent_response", ...]`).
-
-  Derived from `interaction_modules/0` using the same convention as
-  `InteractionSchema.create_changeset/2` — the last segment of the module name,
-  underscored.
-  """
-  def known_type_strings do
-    Enum.map(@interaction_modules, fn mod ->
-      mod |> Module.split() |> List.last() |> Macro.underscore()
-    end)
-  end
-
   alias FrontmanServer.Image
   alias ReqLLM.Message.ContentPart
 
@@ -354,7 +341,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       # Text messages from the user (extracted from text content blocks)
       field(:messages, list(String.t()), default: [])
@@ -598,7 +584,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:content, String.t())
       field(:timestamp, DateTime.t())
       field(:metadata, map(), enforce: false)
@@ -639,7 +624,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:config, map(), enforce: false)
       field(:timestamp, DateTime.t())
     end
@@ -677,7 +661,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       field(:result, term(), enforce: false)
     end
@@ -718,7 +701,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       field(:error, String.t())
       field(:kind, String.t(), default: "failed")
@@ -773,7 +755,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       field(:retried_error_id, String.t())
     end
@@ -813,7 +794,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
       field(:reason, String.t())
       field(:tool_name, String.t())
@@ -857,7 +837,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:arguments, map())
@@ -901,7 +880,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:id, String.t())
-      field(:sequence, integer(), default: 0)
       field(:tool_call_id, String.t())
       field(:tool_name, String.t())
       field(:result, term())
@@ -951,7 +929,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:path, String.t())
-      field(:sequence, integer(), default: 0)
       field(:content, String.t())
       field(:timestamp, DateTime.t())
     end
@@ -992,7 +969,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     typedstruct enforce: true do
       field(:summary, String.t())
-      field(:sequence, integer(), default: 0)
       field(:timestamp, DateTime.t())
     end
 
@@ -1058,8 +1034,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   ToolResult interactions.
 
   Returns `true` when there is no pending AgentResponse, or when every
-  tool_call in the last AgentResponse has a corresponding ToolResult
-  (matched by tool_call_id, appearing after the AgentResponse by sequence).
+  tool_call in the last AgentResponse has a corresponding later ToolResult.
 
   Used to gate re-execution after a late-arriving interactive tool result:
   we only restart the agent loop when ALL tool results are present so the
@@ -1067,20 +1042,39 @@ defmodule FrontmanServer.Tasks.Interaction do
   """
   @spec all_pending_tools_resolved?(list(t())) :: boolean()
   def all_pending_tools_resolved?(interactions) do
-    with %AgentResponse{metadata: meta, sequence: agent_seq}
-         when is_map(meta) <-
-           interactions |> Enum.filter(&match?(%AgentResponse{}, &1)) |> List.last(),
-         tool_calls when tool_calls != [] <- get_field(meta, "tool_calls") || [] do
-      expected_ids = MapSet.new(tool_calls, &get_field(&1, "id"))
+    case last_agent_response_with_following_interactions(interactions) do
+      {tool_calls, following_interactions} ->
+        expected_ids = MapSet.new(tool_calls, &get_field(&1, "id"))
 
-      result_ids =
-        interactions
-        |> Enum.filter(&match?(%ToolResult{sequence: seq} when seq > agent_seq, &1))
-        |> MapSet.new(& &1.tool_call_id)
+        result_ids =
+          following_interactions
+          |> Enum.filter(&match?(%ToolResult{}, &1))
+          |> MapSet.new(& &1.tool_call_id)
 
-      MapSet.subset?(expected_ids, result_ids)
-    else
-      _ -> true
+        MapSet.subset?(expected_ids, result_ids)
+
+      nil ->
+        true
+    end
+  end
+
+  defp last_agent_response_with_following_interactions(interactions) do
+    interactions
+    |> Enum.with_index()
+    |> Enum.filter(&match?({%AgentResponse{}, _index}, &1))
+    |> List.last()
+    |> case do
+      {%AgentResponse{metadata: meta}, index} ->
+        case get_field(meta || %{}, "tool_calls") do
+          tool_calls when is_list(tool_calls) and tool_calls != [] ->
+            {tool_calls, Enum.drop(interactions, index + 1)}
+
+          _ ->
+            nil
+        end
+
+      nil ->
+        nil
     end
   end
 
@@ -1092,7 +1086,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   UserMessage, AgentResponse, and ToolResult.
   ToolCall interactions are excluded as they're embedded in AgentResponse metadata.
 
-  Interactions are expected to be ordered by sequence number (set at creation time),
+  Interactions are expected to be ordered by the persisted sequence column,
   which guarantees correct conversation structure (assistant messages before their
   tool results) regardless of database insertion timing.
   """

@@ -415,25 +415,29 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp reexecute_unresolved_tool_calls(interactions) do
     alias Tasks.Interaction.{AgentCompleted, AgentError, ToolCall, ToolResult}
 
-    resolved_ids =
-      interactions
-      |> Enum.filter(&match?(%ToolResult{}, &1))
-      |> MapSet.new(& &1.tool_call_id)
-
-    # Don't re-execute if the agent already completed/errored after the tool call.
-    # This handles legacy data where "Client disconnected" caused the agent to
-    # improvise and complete despite a missing tool result.
-    last_completion_seq =
-      interactions
-      |> Enum.filter(&(match?(%AgentCompleted{}, &1) or match?(%AgentError{}, &1)))
-      |> Enum.map(& &1.sequence)
-      |> Enum.max(fn -> 0 end)
-
     interactions
-    |> Enum.filter(&match?(%ToolCall{}, &1))
-    |> Enum.reject(fn tc ->
-      MapSet.member?(resolved_ids, tc.tool_call_id) or tc.sequence < last_completion_seq
+    |> Enum.reduce({[], MapSet.new(), false}, fn
+      %ToolResult{} = tool_result, {pending, resolved_ids, completed?} ->
+        pending = Enum.reject(pending, &(&1.tool_call_id == tool_result.tool_call_id))
+        {pending, MapSet.put(resolved_ids, tool_result.tool_call_id), completed?}
+
+      %ToolCall{} = tool_call, {pending, resolved_ids, completed?} ->
+        pending =
+          if completed? or MapSet.member?(resolved_ids, tool_call.tool_call_id),
+            do: pending,
+            else: [tool_call | pending]
+
+        {pending, resolved_ids, completed?}
+
+      interaction, {_pending, resolved_ids, _completed?}
+      when is_struct(interaction, AgentCompleted) or is_struct(interaction, AgentError) ->
+        {[], resolved_ids, true}
+
+      _interaction, acc ->
+        acc
     end)
+    |> elem(0)
+    |> Enum.reverse()
     |> Enum.each(fn tc -> send(self(), {:interaction, tc}) end)
   end
 

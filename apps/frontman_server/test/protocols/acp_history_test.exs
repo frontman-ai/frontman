@@ -18,8 +18,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
   @session_id "test-session-123"
 
   # Minimal required fields per interaction type. Every type needs at least
-  # :sequence and :timestamp; types with additional enforced fields are listed
-  # explicitly. Types not listed here only need the two common fields.
+  # :timestamp; types with additional enforced fields are listed explicitly.
   @minimal_fields %{
     Interaction.UserMessage => %{id: "t", messages: ["hi"], images: []},
     Interaction.AgentResponse => %{id: "t", content: "c"},
@@ -48,8 +47,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
         mod = unquote(mod)
         extra = Map.get(unquote(Macro.escape(@minimal_fields)), mod, %{})
 
-        interaction =
-          struct!(mod, Map.merge(%{sequence: 1, timestamp: DateTime.utc_now()}, extra))
+        interaction = struct!(mod, Map.merge(%{timestamp: DateTime.utc_now()}, extra))
 
         # Must not raise Protocol.UndefinedError
         result = ACPHistory.to_history_items(interaction, @session_id)
@@ -62,7 +60,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
     test "UserMessage" do
       interaction = %Interaction.UserMessage{
         id: "um-1",
-        sequence: 1,
         timestamp: DateTime.utc_now(),
         messages: ["Hello"],
         images: []
@@ -75,7 +72,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
     test "AgentResponse" do
       interaction = %Interaction.AgentResponse{
         id: "ar-1",
-        sequence: 2,
         content: "Response text",
         timestamp: DateTime.utc_now()
       }
@@ -87,7 +83,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
     test "ToolCall" do
       interaction = %Interaction.ToolCall{
         id: "tc-1",
-        sequence: 3,
         tool_call_id: "call-1",
         tool_name: "read_file",
         arguments: %{"path" => "test.txt"},
@@ -101,7 +96,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
     test "ToolResult" do
       interaction = %Interaction.ToolResult{
         id: "tr-1",
-        sequence: 4,
         tool_call_id: "call-1",
         tool_name: "read_file",
         result: "file contents",
@@ -118,7 +112,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
     test "AgentSpawned" do
       interaction = %Interaction.AgentSpawned{
         id: "as-1",
-        sequence: 5,
         timestamp: DateTime.utc_now()
       }
 
@@ -128,7 +121,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
     test "AgentCompleted" do
       interaction = %Interaction.AgentCompleted{
         id: "ac-1",
-        sequence: 6,
         timestamp: DateTime.utc_now()
       }
 
@@ -138,7 +130,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
     test "DiscoveredProjectRule" do
       interaction = %Interaction.DiscoveredProjectRule{
         path: "/project/AGENTS.md",
-        sequence: 7,
         content: "# Rules",
         timestamp: DateTime.utc_now()
       }
@@ -149,7 +140,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
     test "DiscoveredProjectStructure" do
       interaction = %Interaction.DiscoveredProjectStructure{
         summary: "Project type: single project\n\nDirectory layout:\n.",
-        sequence: 8,
         timestamp: DateTime.utc_now()
       }
 

@@ -443,7 +443,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
-          sequence: 10,
           content: "Let me use tools",
           timestamp: DateTime.utc_now(),
           metadata: %{
@@ -453,8 +452,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             ]
           }
         },
-        tool_result("call_1", "read_file", "file contents", sequence: 11),
-        tool_result("call_2", "question", "user answer", sequence: 12)
+        tool_result("call_1", "read_file", "file contents"),
+        tool_result("call_2", "question", "user answer")
       ]
 
       assert Interaction.all_pending_tools_resolved?(interactions) == true
@@ -464,7 +463,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
-          sequence: 10,
           content: "Let me use tools",
           timestamp: DateTime.utc_now(),
           metadata: %{
@@ -474,7 +472,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             ]
           }
         },
-        tool_result("call_1", "read_file", "file contents", sequence: 11)
+        tool_result("call_1", "read_file", "file contents")
         # call_2 has no matching ToolResult
       ]
 
@@ -485,7 +483,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       interactions = [
         %AgentResponse{
           id: "1",
-          sequence: 10,
           content: "Asking a question",
           timestamp: DateTime.utc_now(),
           metadata: %{"tool_calls" => [flat_tool_call("call_q", "question", "{}")]}
@@ -500,7 +497,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         # First AgentResponse with unresolved tool call
         %AgentResponse{
           id: "1",
-          sequence: 1,
           content: "First response",
           timestamp: DateTime.utc_now(),
           metadata: %{"tool_calls" => [flat_tool_call("call_old", "read_file", "{}")]}
@@ -508,7 +504,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         # Second (last) AgentResponse with no tool calls
         %AgentResponse{
           id: "2",
-          sequence: 5,
           content: "Final response",
           timestamp: DateTime.utc_now(),
           metadata: %{}
@@ -520,15 +515,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "ignores ToolResults that appear BEFORE the last AgentResponse" do
       interactions = [
-        tool_result("call_1", "question", "old answer", sequence: 5),
+        tool_result("call_1", "question", "old answer"),
         %AgentResponse{
           id: "1",
-          sequence: 10,
           content: "Asking again",
           timestamp: DateTime.utc_now(),
           metadata: %{"tool_calls" => [flat_tool_call("call_1", "question", "{}")]}
         }
-        # No ToolResult AFTER sequence 10
+        # No ToolResult after the latest AgentResponse.
       ]
 
       assert Interaction.all_pending_tools_resolved?(interactions) == false
@@ -550,12 +544,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         interactions = [
           %AgentResponse{
             id: "1",
-            sequence: 10,
             content: "Using tool",
             timestamp: DateTime.utc_now(),
             metadata: %{tool_calls: tool_calls}
           },
-          tool_result(call_id, "question", "answer", sequence: 11)
+          tool_result(call_id, "question", "answer")
         ]
 
         assert Interaction.all_pending_tools_resolved?(interactions) == true
@@ -607,7 +600,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolCall to JSON" do
       tc = %ToolCall{
         id: "1",
-        sequence: System.unique_integer([:monotonic, :positive]),
         tool_call_id: "call_123",
         tool_name: "calculator",
         arguments: %{"x" => 1},
@@ -624,7 +616,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "encodes ToolResult to JSON" do
       tr = %ToolResult{
         id: "1",
-        sequence: System.unique_integer([:monotonic, :positive]),
         tool_call_id: "call_123",
         tool_name: "calculator",
         result: 42,
@@ -649,17 +640,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert interaction.reason =~ "question"
       assert interaction.reason =~ "120000"
       assert interaction.reason =~ "pause_agent"
-      assert interaction.sequence == 0
       assert is_binary(interaction.id)
       assert %DateTime{} = interaction.timestamp
     end
 
     test "AgentPaused is in interaction_modules list" do
       assert Interaction.AgentPaused in Interaction.interaction_modules()
-    end
-
-    test "AgentPaused is in known_type_strings" do
-      assert "agent_paused" in Interaction.known_type_strings()
     end
   end
 end
