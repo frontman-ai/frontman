@@ -616,12 +616,16 @@ module Selectors = {
 // Effect handler helpers (extracted for reuse)
 // ============================================================================
 
-let attachmentToolGuidance = (framework: Client__RuntimeConfig.frameworkId): string =>
+let attachmentToolGuidance = (framework: Client__RuntimeConfig.frameworkId): option<string> =>
   switch framework {
-  | Wordpress => "WordPress: if the user's request asks you to use this attachment, first call wp_upload_media with image_ref to upload it into the Media Library, then use the returned attachment_id/url in post or Elementor tools. Do not upload attachments the user did not ask you to use."
+  | Wordpress =>
+    Some(
+      "WordPress: if the user's request asks you to use this attachment, first call wp_upload_media with image_ref to upload it into the Media Library, then use the returned attachment_id/url in post or Elementor tools. Do not upload attachments the user did not ask you to use.",
+    )
   | Nextjs
   | Vite
-  | Astro => "Code projects: use write_file with image_ref to save the asset to disk."
+  | Astro =>
+    None
   }
 
 // Build ACP content blocks for image/file attachments
@@ -640,7 +644,9 @@ let buildAttachmentContentBlocks = (
     let metaObj = Dict.make()
     metaObj->Dict.set("user_image", JSON.Encode.bool(true))
     metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
-    metaObj->Dict.set("tool_guidance", JSON.Encode.string(attachmentToolGuidance(framework)))
+    attachmentToolGuidance(framework)->Option.forEach(guidance =>
+      metaObj->Dict.set("tool_guidance", JSON.Encode.string(guidance))
+    )
     let meta = JSON.Encode.object(metaObj)
 
     Client__State__Types.ACPTypes.EmbeddedResource({

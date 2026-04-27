@@ -319,6 +319,28 @@ describe("Client State Reducer attachment content blocks", () => {
     | _ => JsExn.throw("Expected attachment embedded resource with _meta")
     }
   })
+
+  test("omits tool guidance for non-WordPress attachments", t => {
+    let attachment: Client__Message.fileAttachmentData = {
+      id: "att_hero",
+      dataUrl: "data:image/png;base64,aGVybw==",
+      mediaType: "image/png",
+      filename: "hero.png",
+    }
+
+    let blocks = Reducer.buildAttachmentContentBlocks(
+      [attachment],
+      ~framework=Client__RuntimeConfig.Nextjs,
+    )
+
+    switch blocks->Array.get(0) {
+    | Some(Client__State__Types.ACPTypes.EmbeddedResource({resource: {_meta: Some(meta)}})) => {
+        let metaObj = meta->JSON.Decode.object->Option.getOrThrow
+        t->expect(metaObj->Dict.get("tool_guidance")->Option.isNone)->Expect.toBe(true)
+      }
+    | _ => JsExn.throw("Expected attachment embedded resource with _meta")
+    }
+  })
 })
 
 describe("Client State Reducer - TurnCompleted Content Conversion", () => {

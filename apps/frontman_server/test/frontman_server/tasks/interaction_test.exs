@@ -240,7 +240,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       refute text =~ "Code projects"
     end
 
-    test "falls back to generic attachment guidance when metadata has no guidance" do
+    test "omits tool guidance when attachment metadata has no guidance" do
       msg = %UserMessage{
         id: Interaction.new_id(),
         sequence: 1,
@@ -259,7 +259,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       [llm_msg] = Interaction.to_llm_messages([msg])
       text = extract_text(llm_msg)
-      assert text =~ "write_file with image_ref"
+      assert text =~ "attachment://att_hero/hero.png"
+      refute text =~ "write_file with image_ref"
       refute text =~ "wp_upload_media"
     end
   end
