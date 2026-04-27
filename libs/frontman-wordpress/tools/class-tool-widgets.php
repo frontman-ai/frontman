@@ -143,7 +143,7 @@ class Frontman_Tool_Widgets {
 	}
 
 	private function widget_sidebar_map(): array {
-		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
+		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
 		$map = [];
 		foreach ( $sidebars_widgets as $sidebar_id => $widgets ) {
 			if ( ! is_array( $widgets ) ) {
@@ -174,6 +174,20 @@ class Frontman_Tool_Widgets {
 		return $this->sanitize_value_recursive( $settings );
 	}
 
+	/**
+	 * WordPress core stores widget instances in widget_{base} options.
+	 */
+	private function core_widget_option_name( string $widget_base ): string {
+		return 'widget_' . sanitize_key( $widget_base );
+	}
+
+	/**
+	 * WordPress core stores sidebar assignments in this built-in option.
+	 */
+	private function core_sidebars_widgets_option_name(): string {
+		return 'sidebars_widgets';
+	}
+
 	private function sanitize_value_recursive( $value ) {
 		if ( is_array( $value ) ) {
 			$result = [];
@@ -196,7 +210,7 @@ class Frontman_Tool_Widgets {
 	public function list_widget_areas( array $input ): array {
 		global $wp_registered_sidebars;
 
-		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
+		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
 		$result           = [];
 
 		foreach ( $wp_registered_sidebars as $id => $sidebar ) {
@@ -220,7 +234,7 @@ class Frontman_Tool_Widgets {
 	public function read_widget( array $input ): array {
 		$widget_id = sanitize_text_field( $input['widget_id'] ?? '' );
 		$parts = $this->parse_widget_id( $widget_id );
-		$settings = get_option( 'widget_' . $parts['base'], [] );
+		$settings = get_option( $this->core_widget_option_name( $parts['base'] ), [] );
 		if ( ! isset( $settings[ $parts['number'] ] ) ) {
 			throw new Frontman_Tool_Error( "Widget instance not found: {$widget_id}" );
 		}
@@ -245,7 +259,7 @@ class Frontman_Tool_Widgets {
 		$before      = $this->sidebar_snapshot( $sidebar_id );
 		$this->assert_mutation_supported( $widget_base );
 
-		$all_settings = get_option( 'widget_' . $widget_base, [] );
+		$all_settings = get_option( $this->core_widget_option_name( $widget_base ), [] );
 		$max_number   = 0;
 		foreach ( array_keys( $all_settings ) as $key ) {
 			if ( is_numeric( $key ) ) {
@@ -256,15 +270,15 @@ class Frontman_Tool_Widgets {
 		$widget_number = $max_number + 1;
 		$widget_id     = $widget_base . '-' . $widget_number;
 		$all_settings[ $widget_number ] = $settings;
-		update_option( 'widget_' . $widget_base, $all_settings );
+		update_option( $this->core_widget_option_name( $widget_base ), $all_settings );
 
-		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
+		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
 		$widgets = $sidebars_widgets[ $sidebar_id ] ?? [];
 		$position = isset( $input['position'] ) ? max( 0, absint( $input['position'] ) - 1 ) : count( $widgets );
 		$position = min( $position, count( $widgets ) );
 		array_splice( $widgets, $position, 0, [ $widget_id ] );
 		$sidebars_widgets[ $sidebar_id ] = $widgets;
-		update_option( 'sidebars_widgets', $sidebars_widgets );
+		update_option( $this->core_sidebars_widgets_option_name(), $sidebars_widgets );
 
 		return [
 			'created'   => true,
@@ -293,7 +307,7 @@ class Frontman_Tool_Widgets {
 		$this->assert_mutation_supported( $widget_base );
 
 		// Get current widget settings.
-		$all_settings = get_option( "widget_{$widget_base}", [] );
+		$all_settings = get_option( $this->core_widget_option_name( $widget_base ), [] );
 
 		if ( ! isset( $all_settings[ $widget_number ] ) ) {
 			throw new Frontman_Tool_Error( "Widget instance not found: {$widget_id}" );
@@ -304,7 +318,7 @@ class Frontman_Tool_Widgets {
 		// Merge new settings.
 		$all_settings[ $widget_number ] = array_merge( $all_settings[ $widget_number ], $settings );
 
-		update_option( "widget_{$widget_base}", $all_settings );
+		update_option( $this->core_widget_option_name( $widget_base ), $all_settings );
 
 		return [
 			'before'    => $before,
@@ -333,7 +347,7 @@ class Frontman_Tool_Widgets {
 			'to_sidebar'   => $this->sidebar_snapshot( $to_sidebar_id ),
 		];
 
-		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
+		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
 		$from_widgets = array_values( array_filter( $sidebars_widgets[ $from_sidebar_id ] ?? [], static function( $id ) use ( $widget_id ) {
 			return $id !== $widget_id;
 		} ) );
@@ -345,7 +359,7 @@ class Frontman_Tool_Widgets {
 
 		$sidebars_widgets[ $from_sidebar_id ] = $from_widgets;
 		$sidebars_widgets[ $to_sidebar_id ]   = $to_widgets;
-		update_option( 'sidebars_widgets', $sidebars_widgets );
+		update_option( $this->core_sidebars_widgets_option_name(), $sidebars_widgets );
 
 		return [
 			'moved'  => true,
@@ -380,11 +394,11 @@ class Frontman_Tool_Widgets {
 			'sidebar' => $this->sidebar_snapshot( $sidebar_id ),
 		];
 
-		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
+		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
 		$sidebars_widgets[ $sidebar_id ] = array_values( array_filter( $sidebars_widgets[ $sidebar_id ] ?? [], static function( $id ) use ( $widget_id ) {
 			return $id !== $widget_id;
 		} ) );
-		update_option( 'sidebars_widgets', $sidebars_widgets );
+		update_option( $this->core_sidebars_widgets_option_name(), $sidebars_widgets );
 
 		return [
 			'deleted'   => true,

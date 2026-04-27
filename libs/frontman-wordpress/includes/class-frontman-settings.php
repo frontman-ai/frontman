@@ -15,9 +15,6 @@ class Frontman_Settings {
 	private const DEFAULTS = [
 		'openrouter_api_key' => '',
 		'anthropic_api_key'  => '',
-		'dev_mode'           => false,
-		'dev_client_port'    => 5173,
-		'frontman_host'      => 'frontman.local:4000',
 	];
 
 	/**
@@ -54,11 +51,11 @@ class Frontman_Settings {
 		// --- API Keys section ---
 		add_settings_section(
 			'frontman_api_keys_section',
-			__( 'API Keys', 'frontman' ),
+			__( 'API Keys', 'frontman-agentic-ai-editor' ),
 			function() {
 				printf(
 					'<p>%s</p>',
-					esc_html__( 'Provide your own LLM API keys. These are passed to the Frontman server so the AI agent can use your key for requests.', 'frontman' )
+					esc_html__( 'Provide your own LLM API keys. These are passed to the Frontman server so the AI agent can use your key for requests.', 'frontman-agentic-ai-editor' )
 				);
 			},
 			'frontman-settings'
@@ -66,7 +63,7 @@ class Frontman_Settings {
 
 		add_settings_field(
 			'openrouter_api_key',
-			__( 'OpenRouter API Key', 'frontman' ),
+			__( 'OpenRouter API Key', 'frontman-agentic-ai-editor' ),
 			[ $this, 'render_password_field' ],
 			'frontman-settings',
 			'frontman_api_keys_section',
@@ -75,51 +72,11 @@ class Frontman_Settings {
 
 		add_settings_field(
 			'anthropic_api_key',
-			__( 'Anthropic API Key', 'frontman' ),
+			__( 'Anthropic API Key', 'frontman-agentic-ai-editor' ),
 			[ $this, 'render_password_field' ],
 			'frontman-settings',
 			'frontman_api_keys_section',
 			[ 'key' => 'anthropic_api_key', 'placeholder' => 'sk-ant-...' ],
-		);
-
-		// --- Development section ---
-		add_settings_section(
-			'frontman_dev_section',
-			__( 'Development', 'frontman' ),
-			function() {
-				printf(
-					'<p>%s</p>',
-					esc_html__( 'Enable dev mode to load the Frontman client from a local Vite dev server instead of the production CDN.', 'frontman' )
-				);
-			},
-			'frontman-settings'
-		);
-
-		add_settings_field(
-			'dev_mode',
-			__( 'Dev Mode', 'frontman' ),
-			[ $this, 'render_checkbox_field' ],
-			'frontman-settings',
-			'frontman_dev_section',
-			[ 'key' => 'dev_mode', 'label' => __( 'Load client from local Vite dev server', 'frontman' ) ],
-		);
-
-		add_settings_field(
-			'dev_client_port',
-			__( 'Client Dev Port', 'frontman' ),
-			[ $this, 'render_text_field' ],
-			'frontman-settings',
-			'frontman_dev_section',
-			[ 'key' => 'dev_client_port', 'placeholder' => '5173', 'type' => 'number' ],
-		);
-
-		add_settings_field(
-			'frontman_host',
-			__( 'Frontman Server Host', 'frontman' ),
-			[ $this, 'render_text_field' ],
-			'frontman-settings',
-			'frontman_dev_section',
-			[ 'key' => 'frontman_host', 'placeholder' => 'frontman.local:4000' ],
 		);
 	}
 
@@ -129,8 +86,8 @@ class Frontman_Settings {
 	public function add_settings_page(): void {
 		add_submenu_page(
 			'frontman',
-			__( 'Frontman Settings', 'frontman' ),
-			__( 'Settings', 'frontman' ),
+			__( 'Frontman Settings', 'frontman-agentic-ai-editor' ),
+			__( 'Settings', 'frontman-agentic-ai-editor' ),
 			'manage_options',
 			'frontman-settings',
 			[ $this, 'render_page' ],
@@ -146,16 +103,16 @@ class Frontman_Settings {
 			<div class="frontman-admin-hero">
 				<div class="frontman-admin-brand">
 					<div class="frontman-admin-logo-wrap">
-						<img class="frontman-admin-logo" src="<?php echo esc_url( FRONTMAN_PLUGIN_URL . 'assets/frontman-logo.svg' ); ?>" alt="<?php esc_attr_e( 'Frontman logo', 'frontman' ); ?>">
+						<img class="frontman-admin-logo" src="<?php echo esc_url( FRONTMAN_PLUGIN_URL . 'assets/frontman-logo.svg' ); ?>" alt="<?php esc_attr_e( 'Frontman logo', 'frontman-agentic-ai-editor' ); ?>">
 					</div>
 					<div class="frontman-admin-copy">
-						<p class="frontman-admin-eyebrow"><?php esc_html_e( 'Frontman for WordPress', 'frontman' ); ?></p>
-						<h1><?php esc_html_e( 'Frontman Settings', 'frontman' ); ?></h1>
-						<p><?php esc_html_e( 'Configure API keys and development settings, then launch Frontman from the WordPress sidebar.', 'frontman' ); ?></p>
+						<p class="frontman-admin-eyebrow"><?php esc_html_e( 'Frontman for WordPress', 'frontman-agentic-ai-editor' ); ?></p>
+						<h1><?php esc_html_e( 'Frontman Settings', 'frontman-agentic-ai-editor' ); ?></h1>
+						<p><?php esc_html_e( 'Configure API keys, then launch Frontman from the WordPress sidebar.', 'frontman-agentic-ai-editor' ); ?></p>
 					</div>
 				</div>
 				<div class="frontman-admin-actions">
-					<a class="button button-primary" href="<?php echo esc_url( home_url( '/frontman' ) ); ?>"><?php esc_html_e( 'Open Frontman', 'frontman' ); ?></a>
+					<a class="button button-primary" href="<?php echo esc_url( home_url( '/frontman' ) ); ?>"><?php esc_html_e( 'Open Frontman', 'frontman-agentic-ai-editor' ); ?></a>
 				</div>
 			</div>
 			<div class="frontman-admin-card">
@@ -231,9 +188,6 @@ class Frontman_Settings {
 		return [
 			'openrouter_api_key' => sanitize_text_field( $input['openrouter_api_key'] ?? '' ),
 			'anthropic_api_key'  => sanitize_text_field( $input['anthropic_api_key'] ?? '' ),
-			'dev_mode'           => ! empty( $input['dev_mode'] ),
-			'dev_client_port'    => absint( $input['dev_client_port'] ?? self::DEFAULTS['dev_client_port'] ),
-			'frontman_host'      => sanitize_text_field( $input['frontman_host'] ?? self::DEFAULTS['frontman_host'] ),
 		];
 	}
 

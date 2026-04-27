@@ -169,7 +169,14 @@ class Frontman_Core_Tools {
 		}
 
 		$entries = array_values( array_diff( $entries, [ '.', '..' ] ) );
-		$entries = $this->filter_git_ignored_entries( $full_path, $entries );
+		$entries = array_values(
+			array_filter(
+				$entries,
+				static function( string $entry ): bool {
+					return ! in_array( $entry, self::NOISE_DIRS, true );
+				}
+			)
+		);
 
 		$result = [];
 		foreach ( $entries as $name ) {
@@ -444,23 +451,6 @@ class Frontman_Core_Tools {
 		}
 
 		return false !== strpos( $file_name_lower, $pattern_lower );
-	}
-
-	private function filter_git_ignored_entries( string $cwd, array $entries ): array {
-		if ( empty( $entries ) || ! function_exists( 'exec' ) ) {
-			return $entries;
-		}
-
-		$ignored = [];
-		$status  = 1;
-		$command = 'cd ' . escapeshellarg( $cwd ) . ' && printf %s ' . escapeshellarg( implode( "\n", $entries ) ) . ' | git check-ignore --stdin 2>/dev/null';
-		exec( $command, $ignored, $status );
-
-		if ( 1 !== $status && 0 !== $status ) {
-			return $entries;
-		}
-
-		return array_values( array_diff( $entries, array_filter( $ignored ) ) );
 	}
 
 	private function load_instruction_variants( string $dir, array $variants ): array {

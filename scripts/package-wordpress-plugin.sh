@@ -6,7 +6,8 @@ ROOT_DIR="$(git rev-parse --show-toplevel)"
 PLUGIN_SRC="$ROOT_DIR/libs/frontman-wordpress"
 DIST_DIR="$ROOT_DIR/dist"
 BUILD_DIR="$DIST_DIR/frontman-wordpress-package"
-PLUGIN_DIR="$BUILD_DIR/github/frontman"
+PLUGIN_SLUG="frontman-agentic-ai-editor"
+PLUGIN_DIR="$BUILD_DIR/github/$PLUGIN_SLUG"
 WPORG_DIR="$BUILD_DIR/wordpress-org"
 
 PLUGIN_VERSION="$(bash "$ROOT_DIR/scripts/validate-wordpress-plugin-release.sh")"
@@ -36,7 +37,7 @@ fi
 
 (
   cd "$BUILD_DIR/github"
-  zip -rq "$ZIP_PATH" frontman
+  zip -rq "$ZIP_PATH" "$PLUGIN_SLUG"
 )
 
 mkdir -p "$WPORG_EXPORT_PATH"

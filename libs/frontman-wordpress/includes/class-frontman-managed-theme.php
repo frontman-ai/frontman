@@ -711,13 +711,6 @@ class Frontman_Managed_Theme {
 			require_once $file_api_path;
 		}
 
-		if ( ! defined( 'FS_CHMOD_DIR' ) ) {
-			define( 'FS_CHMOD_DIR', 0755 );
-		}
-
-		if ( ! defined( 'FS_CHMOD_FILE' ) ) {
-			define( 'FS_CHMOD_FILE', 0644 );
-		}
 	}
 
 	/**

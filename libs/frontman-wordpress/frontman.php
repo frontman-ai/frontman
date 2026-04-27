@@ -10,7 +10,7 @@
  * Author URI:        https://frontman.sh/about
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       frontman
+ * Text Domain:       frontman-agentic-ai-editor
  */
 
 // Abort if called directly.
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'frontman_plugin_dir_path' ) ) {
 	/**
-	 * Resolve the plugin directory path in WordPress or tests.
+	 * Resolve the plugin directory path.
 	 */
 	function frontman_plugin_dir_path( string $file ): string {
 		if ( function_exists( 'plugin_dir_path' ) ) {
@@ -33,7 +33,7 @@ if ( ! function_exists( 'frontman_plugin_dir_path' ) ) {
 
 if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
 	/**
-	 * Resolve the plugin directory URL in WordPress or tests.
+	 * Resolve the plugin directory URL.
 	 */
 	function frontman_plugin_dir_url( string $file ): string {
 		if ( function_exists( 'plugin_dir_url' ) ) {

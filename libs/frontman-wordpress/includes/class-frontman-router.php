@@ -4,7 +4,7 @@
  *
  * Uses parse_request to catch requests before WordPress tries to resolve
  * them as posts/pages. This means the client can call the same paths as
- * all other Frontman adapters (Vite, Astro, Next.js):
+ * all other Frontman adapters:
  *
  *   GET  /frontman                        → Serve the UI (preview: homepage)
  *   GET  /about/frontman                  → Serve the UI (preview: /about)
@@ -54,9 +54,7 @@ class Frontman_Router {
 	 */
 	public function intercept( \WP $wp ): void {
 		$request_uri = $this->get_request_path();
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- REQUEST_METHOD is read once, then immediately unslashed and sanitized with sanitize_text_field() before routing.
-		$method_raw  = isset( $_SERVER['REQUEST_METHOD'] ) ? wp_unslash( $_SERVER['REQUEST_METHOD'] ) : 'GET';
-		$method      = strtoupper( sanitize_text_field( $method_raw ) );
+		$method      = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
 		$route       = $this->classify_route( $request_uri, $method );
 
 		if ( 'prefix' === $route['type'] ) {
@@ -229,11 +227,13 @@ class Frontman_Router {
 	 * Handles WordPress installed in a subdirectory (e.g. /blog/frontman).
 	 */
 	private function get_request_path(): string {
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- REQUEST_URI is read once, then immediately unslashed before query-string stripping and path normalization.
-		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
 
 		// Strip query string.
 		$path = strtok( $request_uri, '?' );
+		if ( false === $path ) {
+			$path = '/';
+		}
 
 		// Strip the site's home path prefix if WP is in a subdirectory.
 		$home_url_parts = wp_parse_url( home_url() );
@@ -257,10 +257,16 @@ class Frontman_Router {
 	}
 
 	/**
-	 * Read JSON body from the request.
+	 * Read JSON body from the request. Decoded values are sanitized against the
+	 * destination tool schema before dispatch in handle_tool_call().
 	 */
 	private function read_json_body(): array {
 		$raw  = file_get_contents( 'php://input' );
+		if ( ! is_string( $raw ) || '' === $raw ) {
+			return [];
+		}
+
+		$raw  = wp_check_invalid_utf8( $raw );
 		$data = json_decode( $raw, true );
 		return is_array( $data ) ? $data : [];
 	}
@@ -289,9 +295,10 @@ class Frontman_Router {
 	 * Tools are handled locally in the WordPress plugin.
 	 */
 	private function handle_tool_call(): void {
-		$body  = $this->read_json_body();
-		$name  = $body['name'] ?? '';
-		$input = $body['arguments'] ?? $body['input'] ?? [];
+		$body      = $this->read_json_body();
+		$name      = sanitize_key( $body['name'] ?? '' );
+		$raw_input = $body['arguments'] ?? $body['input'] ?? [];
+		$input     = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
 
 		if ( empty( $name ) ) {
 			$this->send_sse_tool_result( Frontman_Tools::error_result( 'Missing tool name' ) );

@@ -185,6 +185,7 @@ class Frontman_Tool_Options {
 			$value = sanitize_text_field( $value );
 		}
 
+		// Intentionally limited to WordPress core options in WRITABLE_OPTIONS.
 		$updated = update_option( $name, $value );
 
 		return [

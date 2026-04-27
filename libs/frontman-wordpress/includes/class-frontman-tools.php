@@ -121,6 +121,19 @@ class Frontman_Tools {
 	}
 
 	/**
+	 * Sanitize tool input against the registered JSON schema before dispatch.
+	 */
+	public function sanitize_input( string $name, array $input ): array {
+		$tool = $this->get( $name );
+		if ( ! $tool ) {
+			return $this->sanitize_untyped_array( $input, $name );
+		}
+
+		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '' );
+		return is_array( $sanitized ) ? $sanitized : [];
+	}
+
+	/**
 	 * Execute a tool by name and return an MCP-compliant callToolResult.
 	 *
 	 * Mirrors FrontmanCore__Server.executeTool():
@@ -140,7 +153,7 @@ class Frontman_Tools {
 			throw new \RuntimeException(
 				sprintf(
 					/* translators: %s: tool name */
-					esc_html__( 'Unknown tool: %s', 'frontman' ),
+					esc_html__( 'Unknown tool: %s', 'frontman-agentic-ai-editor' ),
 					esc_html( $tool_name ),
 				)
 			);
@@ -192,5 +205,134 @@ class Frontman_Tools {
 	 */
 	private static function meta(): array {
 		return [ 'envApiKey' => new \stdClass() ];
+	}
+
+	/**
+	 * Sanitize a value using a JSON-schema fragment.
+	 */
+	private function sanitize_value_for_schema( $value, array $schema, string $tool_name, string $field_name ) {
+		$type = $schema['type'] ?? null;
+
+		switch ( $type ) {
+			case 'object':
+				return is_array( $value ) ? $this->sanitize_object_for_schema( $value, $schema, $tool_name ) : [];
+
+			case 'array':
+				if ( ! is_array( $value ) ) {
+					return [];
+				}
+
+				$item_schema = isset( $schema['items'] ) && is_array( $schema['items'] ) ? $schema['items'] : [];
+				return array_values(
+					array_map(
+						function ( $item ) use ( $item_schema, $tool_name, $field_name ) {
+							return $this->sanitize_value_for_schema( $item, $item_schema, $tool_name, $field_name );
+						},
+						$value
+					)
+				);
+
+			case 'integer':
+				return (int) $value;
+
+			case 'number':
+				return (float) $value;
+
+			case 'boolean':
+				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
+
+			case 'string':
+				return $this->sanitize_string_value( (string) $value, $tool_name, $field_name );
+		}
+
+		if ( is_array( $value ) ) {
+			return $this->sanitize_untyped_array( $value, $tool_name );
+		}
+
+		if ( is_string( $value ) ) {
+			return $this->sanitize_string_value( $value, $tool_name, $field_name );
+		}
+
+		if ( is_bool( $value ) || is_int( $value ) || is_float( $value ) || null === $value ) {
+			return $value;
+		}
+
+		return sanitize_text_field( (string) $value );
+	}
+
+	/**
+	 * Sanitize object properties and drop unexpected fixed-schema fields.
+	 */
+	private function sanitize_object_for_schema( array $value, array $schema, string $tool_name ): array {
+		$properties            = isset( $schema['properties'] ) && is_array( $schema['properties'] ) ? $schema['properties'] : [];
+		$allow_extra_properties = ! empty( $schema['additionalProperties'] );
+		$sanitized             = [];
+
+		foreach ( $properties as $property_name => $property_schema ) {
+			if ( ! array_key_exists( $property_name, $value ) ) {
+				continue;
+			}
+
+			$sanitized[ $property_name ] = is_array( $property_schema )
+				? $this->sanitize_value_for_schema( $value[ $property_name ], $property_schema, $tool_name, (string) $property_name )
+				: $this->sanitize_value_for_schema( $value[ $property_name ], [], $tool_name, (string) $property_name );
+		}
+
+		if ( $allow_extra_properties ) {
+			foreach ( $value as $property_name => $property_value ) {
+				if ( array_key_exists( $property_name, $sanitized ) ) {
+					continue;
+				}
+
+				$sanitized[ $property_name ] = $this->sanitize_value_for_schema( $property_value, [], $tool_name, (string) $property_name );
+			}
+		}
+
+		return $sanitized;
+	}
+
+	/**
+	 * Sanitize arrays whose schema permits dynamic keys.
+	 */
+	private function sanitize_untyped_array( array $value, string $tool_name ): array {
+		$sanitized = [];
+		foreach ( $value as $key => $item ) {
+			$sanitized[ $key ] = $this->sanitize_value_for_schema( $item, [], $tool_name, (string) $key );
+		}
+
+		return $sanitized;
+	}
+
+	/**
+	 * Apply the narrowest safe string sanitizer available for each tool field.
+	 */
+	private function sanitize_string_value( string $value, string $tool_name, string $field_name ): string {
+		$value = wp_check_invalid_utf8( $value );
+
+		if ( in_array( $field_name, [ 'url', 'permalink' ], true ) ) {
+			return esc_url_raw( $value );
+		}
+
+		if ( in_array( $field_name, [ 'post_type', 'status', 'orderby', 'order', 'type', 'widget_base', 'sidebar_id', 'to_sidebar_id', 'location', 'widget_name' ], true ) ) {
+			return sanitize_key( $value );
+		}
+
+		if ( in_array( $field_name, [ 'block_markup', 'pattern', 'glob', 'settings' ], true ) ) {
+			return $value;
+		}
+
+		if ( 'content' === $field_name ) {
+			return in_array( $tool_name, [ 'wp_update_template', 'wp_write_managed_theme_file' ], true ) ? $value : wp_kses_post( $value );
+		}
+
+		if ( 0 === strpos( $tool_name, 'wp_elementor_' ) ) {
+			return $value;
+		}
+
+		if ( 'excerpt' === $field_name ) {
+			return sanitize_textarea_field( $value );
+		}
+
+		return sanitize_text_field( $value );
 	}
 }

@@ -4,7 +4,7 @@
  *
  * This page is served directly by the router's parse_request interception,
  * not via wp-admin. The client JS fetches /frontman/tools and
- * /frontman/tools/call at the same origin — identical to Vite/Astro/Next.js.
+ * /frontman/tools/call at the same origin as the WordPress site.
  *
  * Auth is already verified by the router before render_page() is called.
  *
@@ -16,6 +16,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Frontman_UI {
+	private const ADMIN_STYLE_HANDLE      = 'frontman-agentic-ai-editor-admin';
+	private const ADMIN_MENU_STYLE_HANDLE = 'frontman-agentic-ai-editor-admin-menu';
+	private const PAGE_STYLE_HANDLE       = 'frontman-agentic-ai-editor-page';
+	private const RUNTIME_SCRIPT_HANDLE   = 'frontman-agentic-ai-editor-runtime';
+	private const CLIENT_STYLE_HANDLE     = 'frontman-agentic-ai-editor-client';
+	private const CLIENT_SCRIPT_HANDLE    = 'frontman-agentic-ai-editor-client';
+
 	private Frontman_Settings $settings;
 
 	public function __construct( Frontman_Settings $settings ) {
@@ -31,7 +38,6 @@ class Frontman_UI {
 	public function register(): void {
 		add_action( 'admin_menu', [ $this, 'add_admin_menu_link' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
-		add_action( 'admin_head', [ $this, 'output_admin_menu_icon_css' ] );
 	}
 
 	/**
@@ -40,12 +46,14 @@ class Frontman_UI {
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 */
 	public function enqueue_admin_assets( string $hook_suffix ): void {
+		$this->enqueue_admin_menu_icon_style();
+
 		if ( ! in_array( $hook_suffix, [ 'toplevel_page_frontman', 'frontman_page_frontman-settings' ], true ) ) {
 			return;
 		}
 
 		wp_enqueue_style(
-			'frontman-admin',
+			self::ADMIN_STYLE_HANDLE,
 			FRONTMAN_PLUGIN_URL . 'assets/frontman-admin.css',
 			[],
 			FRONTMAN_VERSION,
@@ -60,13 +68,13 @@ class Frontman_UI {
 
 		// Register a top-level menu page so Settings can be a submenu.
 		add_menu_page(
-			__( 'Frontman', 'frontman' ),
-			__( 'Frontman', 'frontman' ),
+			__( 'Frontman', 'frontman-agentic-ai-editor' ),
+			__( 'Frontman', 'frontman-agentic-ai-editor' ),
 			'manage_options',
 			'frontman',
 			'__return_null', // Callback unused — we redirect below.
 			$menu_icon_url,
-			3,
+			81,
 		);
 
 		// Redirect the wp-admin menu click to /frontman.
@@ -77,32 +85,27 @@ class Frontman_UI {
 	}
 
 	/**
-	 * Output admin menu icon styling so the Frontman icon matches
-	 * the native WordPress admin menu color scheme.
+	 * Enqueue admin menu icon styling so the Frontman icon matches
+	 * the native WordPress admin menu color scheme without raw style tags.
 	 */
-	public function output_admin_menu_icon_css(): void {
+	private function enqueue_admin_menu_icon_style(): void {
+		wp_register_style( self::ADMIN_MENU_STYLE_HANDLE, false, [], FRONTMAN_VERSION );
+		wp_enqueue_style( self::ADMIN_MENU_STYLE_HANDLE );
+		wp_add_inline_style( self::ADMIN_MENU_STYLE_HANDLE, $this->get_admin_menu_icon_css() );
+	}
+
+	/**
+	 * Build admin menu icon CSS for wp_add_inline_style().
+	 */
+	private function get_admin_menu_icon_css(): string {
 		$default_icon = $this->get_menu_icon_data_uri( '#a7aaad' );
 		$active_icon  = $this->get_menu_icon_data_uri( '#ffffff' );
-		?>
-		<style>
-			#adminmenu .toplevel_page_frontman .wp-menu-image img {
-				display: none;
-			}
 
-			#adminmenu .toplevel_page_frontman .wp-menu-image {
-				background-image: url("<?php echo esc_attr( $default_icon ); ?>") !important;
-				background-position: center;
-				background-repeat: no-repeat;
-				background-size: 16px 16px;
-			}
-
-			#adminmenu .toplevel_page_frontman:hover .wp-menu-image,
-			#adminmenu .toplevel_page_frontman.current .wp-menu-image,
-			#adminmenu .toplevel_page_frontman.wp-has-current-submenu .wp-menu-image {
-				background-image: url("<?php echo esc_attr( $active_icon ); ?>") !important;
-			}
-		</style>
-		<?php
+		return sprintf(
+			'#adminmenu .toplevel_page_frontman .wp-menu-image img{display:none;}#adminmenu .toplevel_page_frontman .wp-menu-image{background-image:url("%1$s") !important;background-position:center;background-repeat:no-repeat;background-size:16px 16px;}#adminmenu .toplevel_page_frontman:hover .wp-menu-image,#adminmenu .toplevel_page_frontman.current .wp-menu-image,#adminmenu .toplevel_page_frontman.wp-has-current-submenu .wp-menu-image{background-image:url("%2$s") !important;}',
+			esc_attr( $default_icon ),
+			esc_attr( $active_icon )
+		);
 	}
 
 	/**
@@ -130,21 +133,10 @@ class Frontman_UI {
 	 *                                  Set by suffix-based routing: /about/frontman → '/about'.
 	 */
 	public function render_page( ?string $preview_path = null ): void {
-		$is_dev = (bool) $this->settings->get( 'dev_mode', false );
-		$logo_url = FRONTMAN_PLUGIN_URL . 'assets/frontman-logo.svg';
-
-		// "host" is the Frontman cloud server used for WebSocket, auth tokens, and API calls.
-		// In production: api.frontman.sh. In dev: frontman.local:4000 (or FRONTMAN_HOST env var).
-		if ( $is_dev ) {
-			$host        = $this->settings->get( 'frontman_host', 'frontman.local:4000' );
-			$dev_port    = (int) $this->settings->get( 'dev_client_port', 5173 );
-			$base_js_url = "http://localhost:{$dev_port}/src/Main.res.mjs";
-			$client_css  = ''; // Vite injects CSS via HMR in dev
-		} else {
-			$host        = 'api.frontman.sh';
-			$base_js_url = 'https://app.frontman.sh/frontman.es.js';
-			$client_css  = 'https://app.frontman.sh/frontman.css';
-		}
+		$logo_url    = FRONTMAN_PLUGIN_URL . 'assets/frontman-logo.svg';
+		$host        = 'api.frontman.sh';
+		$base_js_url = 'https://app.frontman.sh/frontman.es.js';
+		$client_css  = 'https://app.frontman.sh/frontman.css';
 
 		// The client reads host + clientName from import.meta.url query params.
 		// This is how all Frontman adapters pass the Frontman server host to the client bundle.
@@ -157,7 +149,7 @@ class Frontman_UI {
 		);
 
 		// Inline runtime config — same shape as FrontmanCore__UIShell produces
-		// for Vite/Astro/Next.js. The client reads window.__frontmanRuntime.
+		// for Frontman browser clients. The client reads window.__frontmanRuntime.
 		// basePath is used by Client__BrowserUrl.syncBrowserUrl() to keep the
 		// browser URL in sync as the user navigates within the preview iframe.
 		// API keys are passed so the server can use the user's own key for LLM requests.
@@ -177,8 +169,6 @@ class Frontman_UI {
 			$runtime['anthropicKeyValue'] = $anthropic_key;
 		}
 
-		$runtime_config = wp_json_encode( $runtime );
-
 		// Build the entrypoint URL for the web preview iframe.
 		// When suffix routing is used (e.g. /about/frontman), this points the
 		// preview at /about. The client reads this from the DOM via getInitialUrl().
@@ -187,150 +177,99 @@ class Frontman_UI {
 			$entrypoint_url = home_url( $preview_path );
 		}
 
+		$this->enqueue_frontman_page_assets( $client_url, $client_css, $runtime );
+
 		status_header( 200 );
 		header( 'Content-Type: text/html; charset=utf-8' );
-		// phpcs:disable WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet,WordPress.WP.EnqueuedResources.NonEnqueuedScript
 		?>
 <!DOCTYPE html>
 <html lang="en" class="dark">
 	<head>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title><?php esc_html_e( 'Frontman', 'frontman' ); ?></title>
+		<title><?php esc_html_e( 'Frontman', 'frontman-agentic-ai-editor' ); ?></title>
 		<link rel="icon" type="image/svg+xml" href="<?php echo esc_url( $logo_url ); ?>">
-		<?php if ( $client_css ) : ?>
-		<link rel="stylesheet" href="<?php echo esc_url( $client_css ); ?>">
-		<?php endif; ?>
-	<style>
-		html, body, #root {
-			height: 100%;
-			margin: 0;
-			padding: 0;
-		}
-
-		#frontman-warning-overlay {
-			position: fixed;
-			inset: 0;
-			background: rgba(10, 12, 16, 0.74);
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			padding: 24px;
-			z-index: 99999;
-		}
-
-		#frontman-warning-card {
-			max-width: 560px;
-			width: 100%;
-			background: #10151d;
-			color: #f5f7fa;
-			border: 1px solid rgba(255, 196, 87, 0.25);
-			border-radius: 16px;
-			box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
-			padding: 24px;
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-		}
-
-		#frontman-warning-card h2 {
-			margin: 0;
-			font-size: 24px;
-			line-height: 1.2;
-		}
-
-		#frontman-warning-heading {
-			display: flex;
-			align-items: center;
-			gap: 14px;
-			margin: 0 0 12px;
-		}
-
-		#frontman-warning-heading img {
-			width: 42px;
-			height: 42px;
-			border-radius: 12px;
-			flex: 0 0 auto;
-		}
-
-		#frontman-warning-card p {
-			margin: 0 0 14px;
-			font-size: 15px;
-			line-height: 1.6;
-			color: #d9e1ea;
-		}
-
-		#frontman-warning-card ul {
-			margin: 0 0 18px 20px;
-			padding: 0;
-			color: #d9e1ea;
-		}
-
-		#frontman-warning-card li {
-			margin-bottom: 8px;
-			line-height: 1.5;
-		}
-
-		#frontman-warning-card button {
-			background: #ffc857;
-			color: #1e2329;
-			border: 0;
-			border-radius: 10px;
-			padding: 11px 16px;
-			font-size: 14px;
-			font-weight: 600;
-			cursor: pointer;
-		}
-	</style>
+		<?php wp_print_styles( [ self::PAGE_STYLE_HANDLE, self::CLIENT_STYLE_HANDLE ] ); ?>
 </head>
 <body>
 	<?php if ( $entrypoint_url ) : ?>
-	<script type="template" id="frontman-entrypoint-url"><?php echo esc_url( $entrypoint_url ); ?></script>
+	<span id="frontman-entrypoint-url" hidden><?php echo esc_url( $entrypoint_url ); ?></span>
 	<?php endif; ?>
 	<div id="frontman-warning-overlay" hidden>
 		<div id="frontman-warning-card" role="dialog" aria-modal="true" aria-labelledby="frontman-warning-title">
 			<div id="frontman-warning-heading">
 				<img src="<?php echo esc_url( $logo_url ); ?>" alt="" aria-hidden="true">
-				<h2 id="frontman-warning-title"><?php esc_html_e( 'Use Frontman Carefully', 'frontman' ); ?></h2>
+				<h2 id="frontman-warning-title"><?php esc_html_e( 'Use Frontman Carefully', 'frontman-agentic-ai-editor' ); ?></h2>
 			</div>
-			<p><?php esc_html_e( 'Frontman for WordPress is experimental. The agent can change real content, templates, styles, menus, widgets, and settings on your site.', 'frontman' ); ?></p>
+			<p><?php esc_html_e( 'Frontman for WordPress is experimental. The agent can change real content, templates, styles, menus, widgets, and settings on your site.', 'frontman-agentic-ai-editor' ); ?></p>
 			<ul>
-				<li><?php esc_html_e( 'Make sure you have a current backup before using it on an important site.', 'frontman' ); ?></li>
-				<li><?php esc_html_e( 'Review each change carefully. The agent may not always do exactly what you intended.', 'frontman' ); ?></li>
-				<li><?php esc_html_e( 'When possible, start on a staging site first.', 'frontman' ); ?></li>
+				<li><?php esc_html_e( 'Make sure you have a current backup before using it on an important site.', 'frontman-agentic-ai-editor' ); ?></li>
+				<li><?php esc_html_e( 'Review each change carefully. The agent may not always do exactly what you intended.', 'frontman-agentic-ai-editor' ); ?></li>
+				<li><?php esc_html_e( 'When possible, start on a staging site first.', 'frontman-agentic-ai-editor' ); ?></li>
 			</ul>
-			<button type="button" id="frontman-warning-dismiss"><?php esc_html_e( 'I Understand', 'frontman' ); ?></button>
+			<button type="button" id="frontman-warning-dismiss"><?php esc_html_e( 'I Understand', 'frontman-agentic-ai-editor' ); ?></button>
 		</div>
 	</div>
 	<div id="root"></div>
-	<script>window.__frontmanRuntime=<?php echo wp_json_encode( $runtime ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Safe JSON for inline script. ?></script>
-	<script>if(typeof process==="undefined"){window.process={env:{NODE_ENV:"production"}}}</script>
-	<script>
-	(function() {
-		var storageKey = 'frontman-wordpress-warning-dismissed-v1';
-		var overlay = document.getElementById('frontman-warning-overlay');
-		var button = document.getElementById('frontman-warning-dismiss');
-		if (!overlay || !button) return;
-
-		try {
-			if (window.localStorage && window.localStorage.getItem(storageKey) === 'true') {
-				return;
-			}
-		} catch (e) {}
-
-		overlay.hidden = false;
-		button.addEventListener('click', function() {
-			try {
-				if (window.localStorage) {
-					window.localStorage.setItem(storageKey, 'true');
-				}
-			} catch (e) {}
-			overlay.hidden = true;
-		});
-	})();
-	</script>
-	<script type="module" src="<?php echo esc_url( $client_url ); ?>"></script>
+	<?php wp_print_scripts( [ self::RUNTIME_SCRIPT_HANDLE, self::CLIENT_SCRIPT_HANDLE ] ); ?>
 </body>
 </html>
 		<?php
-		// phpcs:enable WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet,WordPress.WP.EnqueuedResources.NonEnqueuedScript
+	}
+
+	/**
+	 * Enqueue the standalone Frontman page assets before printing them manually.
+	 */
+	private function enqueue_frontman_page_assets( string $client_url, string $client_css, array $runtime ): void {
+		wp_register_style( self::PAGE_STYLE_HANDLE, false, [], FRONTMAN_VERSION );
+		wp_enqueue_style( self::PAGE_STYLE_HANDLE );
+		wp_add_inline_style( self::PAGE_STYLE_HANDLE, $this->get_frontman_page_css() );
+
+		if ( '' !== $client_css ) {
+			wp_enqueue_style( self::CLIENT_STYLE_HANDLE, $client_css, [], FRONTMAN_VERSION );
+		}
+
+		$runtime_json = wp_json_encode( $runtime );
+		if ( ! is_string( $runtime_json ) ) {
+			$runtime_json = '{}';
+		}
+
+		wp_register_script( self::RUNTIME_SCRIPT_HANDLE, '', [], FRONTMAN_VERSION, true );
+		wp_enqueue_script( self::RUNTIME_SCRIPT_HANDLE );
+		wp_add_inline_script( self::RUNTIME_SCRIPT_HANDLE, 'window.__frontmanRuntime=' . $runtime_json . ';', 'before' );
+		wp_add_inline_script( self::RUNTIME_SCRIPT_HANDLE, 'if(typeof process==="undefined"){window.process={env:{NODE_ENV:"production"}}}', 'before' );
+		wp_add_inline_script( self::RUNTIME_SCRIPT_HANDLE, $this->get_warning_script() );
+
+		wp_enqueue_script( self::CLIENT_SCRIPT_HANDLE, $client_url, [ self::RUNTIME_SCRIPT_HANDLE ], FRONTMAN_VERSION, true );
+		add_filter( 'script_loader_tag', [ $this, 'add_module_type_to_client_script' ], 10, 3 );
+	}
+
+	/**
+	 * Mark the Frontman client bundle as a JavaScript module.
+	 */
+	public function add_module_type_to_client_script( string $tag, string $handle, string $src ): string {
+		if ( self::CLIENT_SCRIPT_HANDLE !== $handle ) {
+			return $tag;
+		}
+
+		return sprintf(
+			'<scr' . 'ipt type="module" src="%1$s" id="%2$s-js"></scr' . 'ipt>' . "\n",
+			esc_url( $src ),
+			esc_attr( $handle )
+		);
+	}
+
+	/**
+	 * Build standalone page CSS for wp_add_inline_style().
+	 */
+	private function get_frontman_page_css(): string {
+		return 'html,body,#root{height:100%;margin:0;padding:0;}#frontman-warning-overlay{position:fixed;inset:0;background:rgba(10,12,16,.74);display:flex;align-items:center;justify-content:center;padding:24px;z-index:99999;}#frontman-warning-card{max-width:560px;width:100%;background:#10151d;color:#f5f7fa;border:1px solid rgba(255,196,87,.25);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.45);padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}#frontman-warning-card h2{margin:0;font-size:24px;line-height:1.2;}#frontman-warning-heading{display:flex;align-items:center;gap:14px;margin:0 0 12px;}#frontman-warning-heading img{width:42px;height:42px;border-radius:12px;flex:0 0 auto;}#frontman-warning-card p{margin:0 0 14px;font-size:15px;line-height:1.6;color:#d9e1ea;}#frontman-warning-card ul{margin:0 0 18px 20px;padding:0;color:#d9e1ea;}#frontman-warning-card li{margin-bottom:8px;line-height:1.5;}#frontman-warning-card button{background:#ffc857;color:#1e2329;border:0;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;}';
+	}
+
+	/**
+	 * Build the first-run warning behavior for wp_add_inline_script().
+	 */
+	private function get_warning_script(): string {
+		return '(function(){var storageKey="frontman-wordpress-warning-dismissed-v1";var overlay=document.getElementById("frontman-warning-overlay");var button=document.getElementById("frontman-warning-dismiss");if(!overlay||!button){return;}try{if(window.localStorage&&window.localStorage.getItem(storageKey)==="true"){return;}}catch(e){}overlay.hidden=false;button.addEventListener("click",function(){try{if(window.localStorage){window.localStorage.setItem(storageKey,"true");}}catch(e){}overlay.hidden=true;});})();';
 	}
 }

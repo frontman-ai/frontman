@@ -37,7 +37,7 @@ class Frontman_Auth {
 		if ( ! is_user_logged_in() ) {
 			return new \WP_Error(
 				'frontman_not_authenticated',
-				__( 'Authentication required. Please log in to WordPress.', 'frontman' ),
+				__( 'Authentication required. Please log in to WordPress.', 'frontman-agentic-ai-editor' ),
 				[ 'status' => 401 ],
 			);
 		}
@@ -45,7 +45,7 @@ class Frontman_Auth {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return new \WP_Error(
 				'frontman_forbidden',
-				__( 'Insufficient permissions. Administrator access required.', 'frontman' ),
+				__( 'Insufficient permissions. Administrator access required.', 'frontman-agentic-ai-editor' ),
 				[ 'status' => 403 ],
 			);
 		}
@@ -75,7 +75,7 @@ class Frontman_Auth {
 		if ( empty( $nonce ) ) {
 			return new \WP_Error(
 				'frontman_missing_nonce',
-				__( 'Missing request nonce.', 'frontman' ),
+				__( 'Missing request nonce.', 'frontman-agentic-ai-editor' ),
 				[ 'status' => 403 ],
 			);
 		}
@@ -83,7 +83,7 @@ class Frontman_Auth {
 		if ( ! wp_verify_nonce( $nonce, self::NONCE_ACTION ) ) {
 			return new \WP_Error(
 				'frontman_invalid_nonce',
-				__( 'Invalid request nonce.', 'frontman' ),
+				__( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
 				[ 'status' => 403 ],
 			);
 		}

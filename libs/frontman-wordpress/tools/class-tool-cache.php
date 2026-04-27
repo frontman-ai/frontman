@@ -121,8 +121,7 @@ class Frontman_Tool_Cache {
 					break;
 				case 'wp-super-cache':
 					if ( function_exists( 'wp_cache_clear_cache' ) ) {
-						global $file_prefix;
-						wp_cache_clear_cache( $file_prefix ?? '', true );
+						wp_cache_clear_cache( '', true );
 						$cleared[] = $plugin['slug'];
 					}
 					break;

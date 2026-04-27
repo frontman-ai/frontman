@@ -44,7 +44,7 @@ This is an experimental release. It works, but it hasn't been tested across ever
 
 == Installation ==
 
-1. Download the Frontman plugin release ZIP or upload the `frontman` folder to `/wp-content/plugins/`
+1. Download the Frontman plugin release ZIP or upload the `frontman-agentic-ai-editor` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu
 3. Navigate to `/frontman` on your site (you must be logged in as an admin)
 4. Use Frontman - WordPress tools, file inspection, and managed child-theme editing now run directly inside the plugin
