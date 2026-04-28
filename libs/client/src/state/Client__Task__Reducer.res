@@ -544,6 +544,31 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
   })
 }
 
+let attachmentUri = (att: Message.fileAttachmentData): string => `attachment://${att.id}/${att.filename}`
+
+let accumulateImageAttachments = (
+  imageAttachments: Dict.t<Message.fileAttachmentData>,
+  attachments: array<Message.fileAttachmentData>,
+): Dict.t<Message.fileAttachmentData> => {
+  let updated = imageAttachments->Dict.copy
+  attachments->Array.forEach(att => updated->Dict.set(attachmentUri(att), att))
+  updated
+}
+
+let collectImageAttachmentsFromMessages = (
+  messages: Client__MessageStore.t,
+): Dict.t<Message.fileAttachmentData> => {
+  messages
+  ->MessageStore.toArray
+  ->Array.reduce(Dict.make(), (imageAttachments, msg) =>
+    switch msg {
+    | Message.User({content}) =>
+      accumulateImageAttachments(imageAttachments, extractAttachmentsFromUserContent(content))
+    | _ => imageAttachments
+    }
+  )
+}
+
 // Helper to get task ID for error messages
 let getTaskIdForError = (task: Task.t): string => Task.getId(task)->Option.getOr("(no id)")
 
@@ -993,11 +1018,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let message = Message.User({id, content, annotations, createdAt: Date.now()})
 
     // Accumulate image attachments keyed by URI for write_file image_ref resolution
-    let updatedImageAttachments = data.imageAttachments->Dict.copy
-    attachments->Array.forEach(att => {
-      let uri = `attachment://${att.id}/${att.filename}`
-      updatedImageAttachments->Dict.set(uri, att)
-    })
+    let updatedImageAttachments = accumulateImageAttachments(data.imageAttachments, attachments)
 
     (
       Task.Loaded({
@@ -1178,6 +1199,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       let sortedMessages = MessageStore.toSorted(messages, (a, b) =>
         Selectors.getMessageCreatedAt(a) -. Selectors.getMessageCreatedAt(b)
       )
+      let imageAttachments = collectImageAttachmentsFromMessages(sortedMessages)
       (
         Task.Loaded({
           id,
@@ -1195,7 +1217,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           planEntries: [],
           turnError: None,
           retryStatus: None,
-          imageAttachments: Dict.make(),
+          imageAttachments,
           pendingQuestion: None,
         }),
         [],

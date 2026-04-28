@@ -156,6 +156,36 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     ->Expect.toBe("Still BlueHotDog")
   })
 
+  test("LoadComplete rebuilds image_ref resolver store from replayed user images", t => {
+    let task = TestHelpers.makeLoadingTask()
+    let imageDataUrl = "data:image/png;base64,aGVsbG8="
+    let imageUri = "attachment://att-history/screenshot.png"
+
+    let (task, _) = TaskReducer.next(
+      task,
+      UserMessageReceived({
+        id: "user-with-image",
+        content: [
+          UserContentPart.text("please use this screenshot"),
+          UserContentPart.Image({
+            id: Some("att-history"),
+            image: imageDataUrl,
+            mediaType: Some("image/png"),
+            name: Some("screenshot.png"),
+          }),
+        ],
+        annotations: [],
+        timestamp: "2026-04-27T16:59:45Z",
+      }),
+    )
+
+    let (loaded, _) = TaskReducer.next(task, LoadComplete)
+    let imageAttachments = Task.getImageAttachments(loaded)
+    let resolved = imageAttachments->Dict.get(imageUri)->Option.map(Message.resolveAttachmentImage)
+
+    t->expect(resolved)->Expect.toEqual(Some({Message.base64: "aGVsbG8=", mediaType: "image/png"}))
+  })
+
   test("all agent messages are Completed (not Streaming) after LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
 
