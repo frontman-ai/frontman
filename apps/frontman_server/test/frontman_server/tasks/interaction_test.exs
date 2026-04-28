@@ -4,7 +4,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias FrontmanServer.Tasks.Interaction
 
   alias FrontmanServer.Tasks.Interaction.{
-    AgentResponse,
     Annotation,
     ToolCall,
     ToolResult,
@@ -441,17 +440,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "returns true when all tool_calls have matching ToolResults" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          content: "Let me use tools",
-          timestamp: DateTime.utc_now(),
-          metadata: %{
-            "tool_calls" => [
-              db_tool_call("call_1", "read_file"),
-              db_tool_call("call_2", "question")
-            ]
-          }
-        },
+        agent_resp("Let me use tools", %{
+          "tool_calls" => [
+            db_tool_call("call_1", "read_file"),
+            db_tool_call("call_2", "question")
+          ]
+        }),
         tool_result("call_1", "read_file", "file contents"),
         tool_result("call_2", "question", "user answer")
       ]
@@ -461,17 +455,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "returns false when some tool_calls are missing ToolResults" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          content: "Let me use tools",
-          timestamp: DateTime.utc_now(),
-          metadata: %{
-            "tool_calls" => [
-              db_tool_call("call_1", "read_file"),
-              db_tool_call("call_2", "question")
-            ]
-          }
-        },
+        agent_resp("Let me use tools", %{
+          "tool_calls" => [
+            db_tool_call("call_1", "read_file"),
+            db_tool_call("call_2", "question")
+          ]
+        }),
         tool_result("call_1", "read_file", "file contents")
         # call_2 has no matching ToolResult
       ]
@@ -481,12 +470,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "returns false when no tool_calls have matching ToolResults" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          content: "Asking a question",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => [flat_tool_call("call_q", "question", "{}")]}
-        }
+        agent_resp("Asking a question", %{
+          "tool_calls" => [flat_tool_call("call_q", "question", "{}")]
+        })
       ]
 
       assert Interaction.all_pending_tools_resolved?(interactions) == false
@@ -495,19 +481,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "only checks the LAST AgentResponse, not earlier ones" do
       interactions = [
         # First AgentResponse with unresolved tool call
-        %AgentResponse{
-          id: "1",
-          content: "First response",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => [flat_tool_call("call_old", "read_file", "{}")]}
-        },
+        agent_resp("First response", %{
+          "tool_calls" => [flat_tool_call("call_old", "read_file", "{}")]
+        }),
         # Second (last) AgentResponse with no tool calls
-        %AgentResponse{
-          id: "2",
-          content: "Final response",
-          timestamp: DateTime.utc_now(),
-          metadata: %{}
-        }
+        agent_resp("Final response", %{})
       ]
 
       assert Interaction.all_pending_tools_resolved?(interactions) == true
@@ -516,12 +494,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "ignores ToolResults that appear BEFORE the last AgentResponse" do
       interactions = [
         tool_result("call_1", "question", "old answer"),
-        %AgentResponse{
-          id: "1",
-          content: "Asking again",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => [flat_tool_call("call_1", "question", "{}")]}
-        }
+        agent_resp("Asking again", %{
+          "tool_calls" => [flat_tool_call("call_1", "question", "{}")]
+        })
         # No ToolResult after the latest AgentResponse.
       ]
 
@@ -542,12 +517,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           end
 
         interactions = [
-          %AgentResponse{
-            id: "1",
-            content: "Using tool",
-            timestamp: DateTime.utc_now(),
-            metadata: %{tool_calls: tool_calls}
-          },
+          agent_resp("Using tool", %{tool_calls: tool_calls}),
           tool_result(call_id, "question", "answer")
         ]
 
@@ -598,13 +568,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "encodes ToolCall to JSON" do
-      tc = %ToolCall{
-        id: "1",
-        tool_call_id: "call_123",
-        tool_name: "calculator",
-        arguments: %{"x" => 1},
-        timestamp: ~U[2025-01-01 00:00:00Z]
-      }
+      tc = tool_call("call_123", "calculator", %{"x" => 1})
 
       decoded = tc |> Jason.encode!() |> Jason.decode!()
 
@@ -614,14 +578,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "encodes ToolResult to JSON" do
-      tr = %ToolResult{
-        id: "1",
-        tool_call_id: "call_123",
-        tool_name: "calculator",
-        result: 42,
-        is_error: false,
-        timestamp: ~U[2025-01-01 00:00:00Z]
-      }
+      tr = tool_result("call_123", "calculator", 42)
 
       decoded = tr |> Jason.encode!() |> Jason.decode!()
 
