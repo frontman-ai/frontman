@@ -140,6 +140,8 @@ defmodule FrontmanServer.Tasks.Execution do
       [api_key: resolved_key.api_key, model: resolved_key.model]
       |> maybe_enable_prompt_cache(resolved_key.provider)
 
+    llm_opts = maybe_disable_parallel_tool_calls(agent_framework(agent), llm_opts)
+
     tool_executor =
       ToolExecutor.make_executor(scope, task_id,
         backend_tool_modules: backend_tool_modules,
@@ -181,6 +183,16 @@ defmodule FrontmanServer.Tasks.Execution do
 
   defp maybe_enable_prompt_cache(opts, _provider), do: opts
 
+  defp maybe_disable_parallel_tool_calls(%Framework{id: :wordpress}, llm_opts) do
+    # WordPress tools mutate external state; serial calls avoid stale Elementor rollback races.
+    Keyword.put(llm_opts, :parallel_tool_calls, false)
+  end
+
+  defp maybe_disable_parallel_tool_calls(_framework, llm_opts), do: llm_opts
+
+  defp agent_framework(%RootAgent{framework: framework}), do: framework
+  defp agent_framework(_agent), do: nil
+
   defp build_agent(%Task{} = task, tools, opts, %ResolvedKey{} = resolved_key) do
     case Keyword.get(opts, :agent) do
       nil ->
@@ -202,6 +214,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
         max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
         {model_spec, llm_opts} = Providers.to_llm_args(resolved_key, max_tokens: max_tokens)
+        llm_opts = maybe_disable_parallel_tool_calls(fw, llm_opts)
 
         RootAgent.new(
           tools: tools,

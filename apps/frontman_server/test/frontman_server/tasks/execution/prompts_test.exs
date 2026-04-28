@@ -41,6 +41,8 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "block themes only"
       assert prompt =~ "already a child theme"
       assert prompt =~ "wp_upload_media"
+      assert prompt =~ "wp_elementor_update_element"
+      assert prompt =~ "Restore Elementor rollbacks one at a time"
       refute prompt =~ "use `write_file` with the attachment's `image_ref`"
 
       assert prompt =~ "Do not upload unused attachments"

@@ -74,7 +74,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_update_element',
-			'Updates one Elementor element settings object by merging provided settings into the existing settings after saving the previous element as a private rollback snapshot. Provide only settings that actually change. For nested markup inside an HTML widget, prefer wp_elementor_replace_html_fragment.',
+			'Updates one Elementor element settings object by merging provided settings into the existing settings after saving the previous element as a private rollback snapshot. Provide only settings that actually change. Do not use this to replace settings.html on an HTML widget; use wp_elementor_replace_html_fragment instead.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -95,7 +95,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_replace_html_fragment',
-			'Replaces an exact fragment inside an Elementor HTML widget settings.html value after saving the previous widget as a private rollback snapshot. Use this for user-selected nested DOM inside an HTML widget instead of deleting the whole widget.',
+			'Replaces an exact fragment inside an Elementor HTML widget settings.html value after saving the previous widget as a private rollback snapshot. Use this for user-selected nested DOM inside an HTML widget instead of deleting the whole widget. If a container has multiple HTML widgets, inspect them and choose the widget whose settings.html contains old_html.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -158,7 +158,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_restore_rollback',
-			'Restores a private Elementor rollback snapshot by rollback_id. Ask the user for confirmation first and only call with confirm=true after approval.',
+			'Restores a private Elementor rollback snapshot by rollback_id. Ask the user for confirmation first and only call with confirm=true after approval. Restore one rollback at a time; wait for the result before restoring another rollback.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -409,7 +409,7 @@ class Frontman_Tool_Elementor {
 
 		$matches = substr_count( $html, $old_html );
 		if ( 0 === $matches ) {
-			throw new Frontman_Tool_Error( 'old_html fragment was not found in settings.html.' );
+			throw new Frontman_Tool_Error( 'old_html fragment was not found in settings.html for Elementor HTML widget ' . $element_id . '. Inspect sibling HTML widgets before retrying.' );
 		}
 
 		$has_occurrence = array_key_exists( 'occurrence', $input );
