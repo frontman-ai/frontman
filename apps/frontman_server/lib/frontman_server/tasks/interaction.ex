@@ -294,6 +294,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:parent, ParentLocation.t() | nil)
       field(:css_classes, String.t() | nil)
       field(:nearby_text, String.t() | nil)
+      field(:elementor_context, map() | nil)
       field(:bounding_box, BoundingBox.t() | nil)
       field(:screenshot, Screenshot.t() | nil)
     end
@@ -321,6 +322,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         parent: ParentLocation.from_map(Interaction.get_flex(data, "parent")),
         css_classes: Interaction.get_flex(data, "css_classes"),
         nearby_text: Interaction.get_flex(data, "nearby_text"),
+        elementor_context: Interaction.get_flex(data, "elementor"),
         bounding_box: BoundingBox.from_map(Interaction.get_flex(data, "bounding_box")),
         screenshot: Screenshot.from_map(Interaction.get_flex(data, "screenshot"))
       }
@@ -560,6 +562,7 @@ defmodule FrontmanServer.Tasks.Interaction do
             parent: ann.parent,
             css_classes: ann.css_classes,
             nearby_text: ann.nearby_text,
+            elementor: ann.elementor_context,
             bounding_box: ann.bounding_box,
             screenshot: ann.screenshot
           }
@@ -1291,6 +1294,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.comment, "Comment"),
       annotation_string_field(ann.css_classes, "CSS Classes"),
       annotation_string_field(ann.nearby_text, "Nearby Text"),
+      annotation_elementor_field(ann.elementor_context),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
       annotation_parent_field(ann.parent)
@@ -1300,6 +1304,26 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp annotation_string_field(value, label) when is_binary(value), do: "\n  #{label}: #{value}"
   defp annotation_string_field(_, _), do: ""
+
+  defp annotation_elementor_field(context) when is_map(context) do
+    summary =
+      [
+        {"post_id", get_flex(context, "post_id")},
+        {"element_id", get_flex(context, "element_id")},
+        {"selection_scope", get_flex(context, "selection_scope")},
+        {"element_type", get_flex(context, "element_type")},
+        {"widget_type", get_flex(context, "widget_type")}
+      ]
+      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+      |> Enum.map_join(", ", fn {key, value} -> "#{key}=#{value}" end)
+
+    case summary do
+      "" -> ""
+      value -> "\n  Elementor: #{value}"
+    end
+  end
+
+  defp annotation_elementor_field(_context), do: ""
 
   defp annotation_bbox_field(%{x: x, y: y, width: w, height: h}),
     do: "\n  Bounding Box: {x: #{x}, y: #{y}, width: #{w}, height: #{h}}"

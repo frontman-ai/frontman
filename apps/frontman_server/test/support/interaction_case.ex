@@ -78,6 +78,7 @@ defmodule FrontmanServer.InteractionCase do
       * `:css_classes`    — CSS class string
       * `:nearby_text`    — visible text near the element
       * `:comment`        — user comment
+      * `:elementor`      — Elementor context map from annotation metadata
       * `:bounding_box`   — `%{"x" => …, "y" => …, "width" => …, "height" => …}`
     """
     def annotation_block(id, tag, file, line, col, extra \\ %{}) do
@@ -95,6 +96,7 @@ defmodule FrontmanServer.InteractionCase do
         |> maybe_put("css_classes", extra[:css_classes])
         |> maybe_put("nearby_text", extra[:nearby_text])
         |> maybe_put("comment", extra[:comment])
+        |> maybe_put("elementor", extra[:elementor])
         |> maybe_put("bounding_box", extra[:bounding_box])
 
       %{

@@ -97,6 +97,25 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                height: 50.0
              }
     end
+
+    test "extracts Elementor context when provided" do
+      elementor = %{
+        "post_id" => 42,
+        "element_id" => "abc12345",
+        "selection_scope" => "inside_element",
+        "element_type" => "widget",
+        "widget_type" => "html"
+      }
+
+      msg =
+        UserMessage.new([
+          text_block("Fix this"),
+          annotation_block("ann-el", "span", "/src/Component.tsx", 5, 1, elementor: elementor)
+        ])
+
+      assert [ann] = msg.annotations
+      assert ann.elementor_context == elementor
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -203,6 +222,29 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert text =~ "Bounding Box:"
       assert text =~ "200"
+    end
+
+    test "includes Elementor selection scope in annotation LLM message" do
+      ann = %Annotation{
+        annotation_id: "ann-elementor",
+        annotation_index: 0,
+        tag_name: "span",
+        elementor_context: %{
+          "post_id" => 42,
+          "element_id" => "abc12345",
+          "selection_scope" => "inside_element",
+          "element_type" => "widget",
+          "widget_type" => "html"
+        }
+      }
+
+      messages = Interaction.to_llm_messages([user_msg("Fix copy", [ann])])
+      text = extract_text(hd(messages))
+
+      assert text =~ "Elementor:"
+      assert text =~ "element_id=abc12345"
+      assert text =~ "selection_scope=inside_element"
+      assert text =~ "widget_type=html"
     end
 
     test "does not add annotation section when annotations is empty" do
@@ -576,6 +618,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             component_name: "Hero",
             css_classes: "hero-title text-xl",
             nearby_text: "Welcome to our app",
+            elementor: %{
+              "post_id" => 42,
+              "element_id" => "abc12345",
+              "selection_scope" => "whole_element"
+            },
             bounding_box: %{"x" => 24.0, "y" => 176.0, "width" => 822.0, "height" => 42.0}
           ),
           screenshot_block("ann-full", "base64screenshotdata", "image/jpeg")
@@ -590,6 +637,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert ann["tag_name"] == "H1"
       assert ann["css_classes"] == "hero-title text-xl"
       assert ann["nearby_text"] == "Welcome to our app"
+
+      assert ann["elementor"] == %{
+               "post_id" => 42,
+               "element_id" => "abc12345",
+               "selection_scope" => "whole_element"
+             }
 
       assert ann["bounding_box"] == %{
                "x" => 24.0,

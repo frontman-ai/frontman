@@ -288,9 +288,8 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     Before making recommendations or changes, inspect the relevant WordPress data and files first.
 
     **Elementor**:
-    - Selected Elementor IDs are whole widgets/containers.
-    - For nested DOM inside an HTML widget, edit `settings.html` with `wp_elementor_replace_html_fragment`; do not use `wp_elementor_update_element` for `settings.html`.
-    - If a container has multiple HTML widgets, inspect children and edit the widget whose `settings.html` contains the exact fragment.
+    - Use annotation `elementor.selection_scope` for tool choice: `whole_element` means the selected DOM node is the Elementor widget/container; `inside_element` means it is a descendant inside that widget/container.
+    - For `inside_element`, inspect the Elementor target first. If it is an HTML widget, edit `settings.html` with `wp_elementor_replace_html_fragment`; do not use `wp_elementor_update_element` for `settings.html`.
     - Mutate WordPress/Elementor state one tool call at a time. Restore Elementor rollbacks one at a time; never batch `wp_elementor_restore_rollback`.
     - Remove elements only when the user explicitly wants the whole widget/container removed, using `scope=whole_element`.
 

@@ -112,8 +112,12 @@ module AnnotationRow = {
           | (Some(elementType), _) => `Elementor ${elementType}`
           | _ => "Elementor element"
           }
+          let scope = switch context.selectionScope {
+          | Client__ElementorDetection.SelectionScope.WholeElement => "selected"
+          | Client__ElementorDetection.SelectionScope.InsideElement => "inside"
+          }
           <div className="text-[11px] text-violet-300/80 mt-0.5 truncate">
-            {React.string(`${kind} (${target})`)}
+            {React.string(`${kind} (${scope}, ${target})`)}
           </div>
         })}
         // Comment display / edit
