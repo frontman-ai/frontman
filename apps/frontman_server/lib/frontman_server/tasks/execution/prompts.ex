@@ -297,6 +297,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
     **Pages and menus**:
     - Use `wp_duplicate_post` to clone existing WordPress pages/posts so Elementor data and safe post metadata are copied.
+    - After `wp_create_post` or `wp_duplicate_post` creates a page draft, navigate the preview to the returned permalink with `execute_js` instead of reloading the previous page, then continue editing or verifying the returned `post_id`.
     - When adding a WordPress page/post to a navigation menu, pass `post_id` to `wp_create_menu_item` instead of creating a custom URL item.
 
     **For design questions**:

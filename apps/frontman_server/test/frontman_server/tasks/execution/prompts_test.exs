@@ -40,6 +40,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "already a child theme"
       refute prompt =~ "selection_scope"
       assert prompt =~ "Restore Elementor rollbacks one at a time"
+      assert prompt =~ "navigate the preview to the returned permalink"
       refute prompt =~ "use `write_file` with the attachment's `image_ref`"
 
       assert prompt =~ "Do not upload unused attachments"
