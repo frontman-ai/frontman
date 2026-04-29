@@ -4,10 +4,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias FrontmanServer.Tasks.Interaction
 
   alias FrontmanServer.Tasks.Interaction.{
-    AgentResponse,
     Annotation,
-    ToolCall,
-    ToolResult,
     UserImage,
     UserMessage
   }
@@ -232,21 +229,21 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "lists attachment URI without tool-specific guidance" do
-      msg = %UserMessage{
-        id: Interaction.new_id(),
-        sequence: 1,
-        timestamp: Interaction.now(),
-        messages: ["Save the image"],
-        annotations: [],
-        images: [
-          %UserImage{
-            blob: Base.encode64("image-bytes"),
-            mime_type: "image/png",
-            filename: "hero.png",
-            uri: "attachment://att_hero/hero.png"
+      msg =
+        user_msg("Save the image")
+        |> then(fn msg ->
+          %{
+            msg
+            | images: [
+                %UserImage{
+                  blob: Base.encode64("image-bytes"),
+                  mime_type: "image/png",
+                  filename: "hero.png",
+                  uri: "attachment://att_hero/hero.png"
+                }
+              ]
           }
-        ]
-      }
+        end)
 
       [llm_msg] = Interaction.to_llm_messages([msg])
       text = extract_text(llm_msg)
@@ -458,20 +455,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "returns true when all tool_calls have matching ToolResults" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: 10,
-          content: "Let me use tools",
-          timestamp: DateTime.utc_now(),
-          metadata: %{
-            "tool_calls" => [
-              db_tool_call("call_1", "read_file"),
-              db_tool_call("call_2", "question")
-            ]
-          }
-        },
-        tool_result("call_1", "read_file", "file contents", sequence: 11),
-        tool_result("call_2", "question", "user answer", sequence: 12)
+        agent_resp("Let me use tools", %{
+          "tool_calls" => [
+            db_tool_call("call_1", "read_file"),
+            db_tool_call("call_2", "question")
+          ]
+        }),
+        tool_result("call_1", "read_file", "file contents"),
+        tool_result("call_2", "question", "user answer")
       ]
 
       assert Interaction.all_pending_tools_resolved?(interactions) == true
@@ -479,19 +470,13 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "returns false when some tool_calls are missing ToolResults" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: 10,
-          content: "Let me use tools",
-          timestamp: DateTime.utc_now(),
-          metadata: %{
-            "tool_calls" => [
-              db_tool_call("call_1", "read_file"),
-              db_tool_call("call_2", "question")
-            ]
-          }
-        },
-        tool_result("call_1", "read_file", "file contents", sequence: 11)
+        agent_resp("Let me use tools", %{
+          "tool_calls" => [
+            db_tool_call("call_1", "read_file"),
+            db_tool_call("call_2", "question")
+          ]
+        }),
+        tool_result("call_1", "read_file", "file contents")
         # call_2 has no matching ToolResult
       ]
 
@@ -500,13 +485,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "returns false when no tool_calls have matching ToolResults" do
       interactions = [
-        %AgentResponse{
-          id: "1",
-          sequence: 10,
-          content: "Asking a question",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => [flat_tool_call("call_q", "question", "{}")]}
-        }
+        agent_resp("Asking a question", %{
+          "tool_calls" => [flat_tool_call("call_q", "question", "{}")]
+        })
       ]
 
       assert Interaction.all_pending_tools_resolved?(interactions) == false
@@ -515,21 +496,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "only checks the LAST AgentResponse, not earlier ones" do
       interactions = [
         # First AgentResponse with unresolved tool call
-        %AgentResponse{
-          id: "1",
-          sequence: 1,
-          content: "First response",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => [flat_tool_call("call_old", "read_file", "{}")]}
-        },
+        agent_resp("First response", %{
+          "tool_calls" => [flat_tool_call("call_old", "read_file", "{}")]
+        }),
         # Second (last) AgentResponse with no tool calls
-        %AgentResponse{
-          id: "2",
-          sequence: 5,
-          content: "Final response",
-          timestamp: DateTime.utc_now(),
-          metadata: %{}
-        }
+        agent_resp("Final response", %{})
       ]
 
       assert Interaction.all_pending_tools_resolved?(interactions) == true
@@ -537,15 +508,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "ignores ToolResults that appear BEFORE the last AgentResponse" do
       interactions = [
-        tool_result("call_1", "question", "old answer", sequence: 5),
-        %AgentResponse{
-          id: "1",
-          sequence: 10,
-          content: "Asking again",
-          timestamp: DateTime.utc_now(),
-          metadata: %{"tool_calls" => [flat_tool_call("call_1", "question", "{}")]}
-        }
-        # No ToolResult AFTER sequence 10
+        tool_result("call_1", "question", "old answer"),
+        agent_resp("Asking again", %{
+          "tool_calls" => [flat_tool_call("call_1", "question", "{}")]
+        })
+        # No ToolResult after the latest AgentResponse.
       ]
 
       assert Interaction.all_pending_tools_resolved?(interactions) == false
@@ -565,14 +532,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           end
 
         interactions = [
-          %AgentResponse{
-            id: "1",
-            sequence: 10,
-            content: "Using tool",
-            timestamp: DateTime.utc_now(),
-            metadata: %{tool_calls: tool_calls}
-          },
-          tool_result(call_id, "question", "answer", sequence: 11)
+          agent_resp("Using tool", %{tool_calls: tool_calls}),
+          tool_result(call_id, "question", "answer")
         ]
 
         assert Interaction.all_pending_tools_resolved?(interactions) == true
@@ -631,14 +592,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "encodes ToolCall to JSON" do
-      tc = %ToolCall{
-        id: "1",
-        sequence: System.unique_integer([:monotonic, :positive]),
-        tool_call_id: "call_123",
-        tool_name: "calculator",
-        arguments: %{"x" => 1},
-        timestamp: ~U[2025-01-01 00:00:00Z]
-      }
+      tc = tool_call("call_123", "calculator", %{"x" => 1})
 
       decoded = tc |> Jason.encode!() |> Jason.decode!()
 
@@ -648,15 +602,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "encodes ToolResult to JSON" do
-      tr = %ToolResult{
-        id: "1",
-        sequence: System.unique_integer([:monotonic, :positive]),
-        tool_call_id: "call_123",
-        tool_name: "calculator",
-        result: 42,
-        is_error: false,
-        timestamp: ~U[2025-01-01 00:00:00Z]
-      }
+      tr = tool_result("call_123", "calculator", 42)
 
       decoded = tr |> Jason.encode!() |> Jason.decode!()
 
@@ -675,17 +621,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert interaction.reason =~ "question"
       assert interaction.reason =~ "120000"
       assert interaction.reason =~ "pause_agent"
-      assert interaction.sequence == 0
       assert is_binary(interaction.id)
       assert %DateTime{} = interaction.timestamp
     end
 
     test "AgentPaused is in interaction_modules list" do
       assert Interaction.AgentPaused in Interaction.interaction_modules()
-    end
-
-    test "AgentPaused is in known_type_strings" do
-      assert "agent_paused" in Interaction.known_type_strings()
     end
   end
 end

@@ -70,7 +70,11 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_in(@acp_message, payload, socket) do
-    case JsonRpc.parse(payload) do
+    parsed = JsonRpc.parse(payload)
+
+    Logger.info("got ACP message #{inspect(parsed)}")
+
+    case parsed do
       {:ok, {:request, id, @acp_method_session_prompt, params}} ->
         handle_prompt(id, params, socket)
 
@@ -81,8 +85,6 @@ defmodule FrontmanServerWeb.TaskChannel do
         handle_session_load(id, params, socket)
 
       {:ok, {:request, id, method, _params}} ->
-        Logger.info("Unknown ACP method in task channel: #{method}")
-
         response =
           JsonRpc.error_response(
             id,
@@ -413,28 +415,52 @@ defmodule FrontmanServerWeb.TaskChannel do
   # ToolCalls without a matching ToolResult are re-sent as {:interaction, ...}
   # messages to self(), which routes MCP tools to the client via tools/call.
   defp reexecute_unresolved_tool_calls(interactions) do
-    alias Tasks.Interaction.{AgentCompleted, AgentError, ToolCall, ToolResult}
-
     resolved_ids =
       interactions
-      |> Enum.filter(&match?(%ToolResult{}, &1))
-      |> MapSet.new(& &1.tool_call_id)
-
-    # Don't re-execute if the agent already completed/errored after the tool call.
-    # This handles legacy data where "Client disconnected" caused the agent to
-    # improvise and complete despite a missing tool result.
-    last_completion_seq =
-      interactions
-      |> Enum.filter(&(match?(%AgentCompleted{}, &1) or match?(%AgentError{}, &1)))
-      |> Enum.map(& &1.sequence)
-      |> Enum.max(fn -> 0 end)
+      |> Enum.filter(&is_struct(&1, Tasks.Interaction.ToolResult))
+      |> Enum.map(& &1.tool_call_id)
+      |> MapSet.new()
 
     interactions
-    |> Enum.filter(&match?(%ToolCall{}, &1))
-    |> Enum.reject(fn tc ->
-      MapSet.member?(resolved_ids, tc.tool_call_id) or tc.sequence < last_completion_seq
-    end)
+    |> collect_unresolved_tool_calls(resolved_ids, false, [])
     |> Enum.each(fn tc -> send(self(), {:interaction, tc}) end)
+  end
+
+  defp collect_unresolved_tool_calls([], _resolved_ids, _blocked?, acc), do: Enum.reverse(acc)
+
+  defp collect_unresolved_tool_calls([interaction | rest], resolved_ids, blocked?, acc) do
+    case interaction do
+      %Tasks.Interaction.ToolResult{} ->
+        collect_unresolved_tool_calls(rest, resolved_ids, blocked?, acc)
+
+      %Tasks.Interaction.AgentResponse{} ->
+        collect_unresolved_tool_calls(rest, resolved_ids, false, acc)
+
+      %Tasks.Interaction.AgentCompleted{} ->
+        collect_unresolved_tool_calls(rest, resolved_ids, true, [])
+
+      %Tasks.Interaction.AgentError{} ->
+        collect_unresolved_tool_calls(rest, resolved_ids, true, [])
+
+      %Tasks.Interaction.ToolCall{} = tool_call ->
+        collect_unresolved_tool_call(rest, resolved_ids, blocked?, acc, tool_call)
+
+      _other ->
+        collect_unresolved_tool_calls(rest, resolved_ids, blocked?, acc)
+    end
+  end
+
+  defp collect_unresolved_tool_call(rest, resolved_ids, blocked?, acc, tool_call) do
+    cond do
+      blocked? ->
+        collect_unresolved_tool_calls(rest, resolved_ids, blocked?, acc)
+
+      MapSet.member?(resolved_ids, tool_call.tool_call_id) ->
+        collect_unresolved_tool_calls(rest, resolved_ids, blocked?, acc)
+
+      true ->
+        collect_unresolved_tool_calls(rest, resolved_ids, blocked?, [tool_call | acc])
+    end
   end
 
   defp process_prompt(id, params, socket) do
@@ -831,29 +857,43 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Each action is processed synchronously within the current callback,
   # eliminating async process hops that caused race conditions.
   defp execute_init_actions(actions, socket) do
-    Enum.reduce(actions, socket, fn action, socket ->
-      case action do
-        {:push_mcp, msg} ->
-          push(socket, "mcp:message", msg)
-          socket
+    apply_init_actions(actions, socket)
+  end
 
-        {:push_acp, msg} ->
-          push(socket, @acp_message, msg)
-          socket
+  defp apply_init_actions([], socket), do: socket
 
-        {:initialization_complete, data} ->
-          task_id = socket.assigns.task_id
-          Logger.info("MCP initialization complete for task #{task_id}")
+  defp apply_init_actions([action | rest], socket) do
+    socket = apply_init_action(socket, action)
+    apply_init_actions(rest, socket)
+  end
 
-          socket
-          |> assign(:mcp_status, :ready)
-          |> assign(:mcp_tools, data.tools)
+  defp apply_init_action(socket, {:push_mcp, msg}) do
+    push(socket, "mcp:message", msg)
+    socket
+  end
 
-        {:initialization_failed, error} ->
-          Logger.error("MCP initialization failed: #{inspect(error)}")
-          assign(socket, :mcp_status, :failed)
-      end
-    end)
+  defp apply_init_action(socket, {:push_acp, msg}) do
+    push(socket, @acp_message, msg)
+    socket
+  end
+
+  defp apply_init_action(socket, {:initialization_complete, data}) do
+    task_id = socket.assigns.task_id
+    Logger.info("MCP initialization complete for task #{task_id}")
+
+    socket
+    |> assign(:mcp_status, :ready)
+    |> assign(:mcp_capabilities, data.mcp_capabilities)
+    |> assign(:mcp_server_info, data.mcp_server_info)
+    |> assign(:mcp_tools, data.tools)
+  end
+
+  defp apply_init_action(socket, {:initialization_failed, error}) do
+    Logger.error("MCP initialization failed: #{inspect(error)}")
+
+    socket
+    |> assign(:mcp_status, :failed)
+    |> assign(:mcp_error, error)
   end
 
   # Process any queued prompt after MCP initialization completes or fails.

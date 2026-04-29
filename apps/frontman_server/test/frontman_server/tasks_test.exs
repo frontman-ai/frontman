@@ -7,6 +7,7 @@ defmodule FrontmanServer.TasksTest do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
 
   setup do
     scope = user_scope_fixture()
@@ -98,7 +99,6 @@ defmodule FrontmanServer.TasksTest do
 
       tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
 
-      # 1. User asks a question
       {:ok, _} =
         Tasks.submit_user_message(
           scope,
@@ -108,7 +108,6 @@ defmodule FrontmanServer.TasksTest do
           agent: %FrontmanServer.Testing.BlockingAgent{}
         )
 
-      # 2. Agent responds with a tool_call in metadata (OpenAI wire format, as stored in DB)
       {:ok, _} =
         Tasks.add_agent_response(scope, task_id, "Let me calculate that.", %{
           "tool_calls" => [
@@ -123,51 +122,37 @@ defmodule FrontmanServer.TasksTest do
           ]
         })
 
-      # 3. ToolCall interaction (the LLM's raw tool invocation record)
       tc = ReqLLM.ToolCall.new(tool_call_id, "calculator", ~s({"expression": "2+2"}))
       {:ok, _} = Tasks.add_tool_call(scope, task_id, tc)
 
-      # 4. ToolResult interaction (the tool's response)
       {:ok, _, _} =
         Tasks.add_tool_result(scope, task_id, %{id: tool_call_id, name: "calculator"}, "4", false)
 
-      # 5. Agent sends final answer
       {:ok, _} = Tasks.add_agent_response(scope, task_id, "The answer is 4.")
 
-      # --- Verify interactions have correct monotonic sequences ---
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      sequences = Enum.map(task.interactions, & &1.sequence)
+      sequences = db_sequences(task_id)
 
       assert length(sequences) == 5
       assert sequences == Enum.sort(sequences), "sequences should be strictly increasing"
       assert sequences == Enum.uniq(sequences), "sequences should be unique"
 
-      # --- Verify LLM messages are valid for Anthropic ---
+      {:ok, task} = Tasks.get_task(scope, task_id)
       messages = Tasks.Interaction.to_llm_messages(task.interactions)
 
-      # to_llm_messages skips ToolCall interactions (they're redundant with agent_response metadata)
-      # Expected: user -> assistant(with tool_calls) -> tool -> assistant
       assert length(messages) == 4,
              "expected 4 LLM messages, got #{length(messages)}: #{inspect(Enum.map(messages, & &1.role))}"
 
-      [user_msg, assistant_with_tool, tool_result_msg, final_assistant] = messages
+      [_user_msg, assistant_with_tool, tool_result_msg, final_assistant] = messages
 
-      # Roles must be in valid Anthropic order
-      assert user_msg.role == :user
-      assert assistant_with_tool.role == :assistant
-      assert tool_result_msg.role == :tool
-      assert final_assistant.role == :assistant
+      assert Enum.map(messages, & &1.role) == [:user, :assistant, :tool, :assistant]
 
-      # The assistant message must include the tool_call with matching ID
       assert [%ReqLLM.ToolCall{} = tc_in_msg] = assistant_with_tool.tool_calls
       assert tc_in_msg.id == tool_call_id
       assert tc_in_msg.function.name == "calculator"
 
-      # The tool result must reference the same tool_call_id
       assert tool_result_msg.tool_call_id == tool_call_id
       assert [%{type: :text, text: "4"}] = tool_result_msg.content
 
-      # Final assistant should have the answer
       assert [%{type: :text, text: "The answer is 4."}] = final_assistant.content
     end
   end
@@ -220,19 +205,6 @@ defmodule FrontmanServer.TasksTest do
       assert interaction.result == "error message"
     end
 
-    test "stores tool result in interactions", %{scope: scope} do
-      task_id = task_fixture(scope)
-
-      tool_call_data = %{id: "call_notify", name: "some_tool"}
-
-      {:ok, _interaction, _status} =
-        Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
-
-      # The tool result should have been stored successfully
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      assert length(task.interactions) == 1
-    end
-
     test "rejects duplicate tool result for the same tool_call_id", %{scope: scope} do
       task_id = task_fixture(scope)
 
@@ -246,64 +218,14 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
-      assert length(tool_results) == 1
-      assert hd(tool_results).result == "result1"
+      assert [%Tasks.Interaction.ToolResult{result: "result1"}] = tool_results
     end
   end
 
-  describe "append_interaction sequence assignment" do
-    test "assigns monotonically increasing sequences", %{scope: scope} do
-      task_id = task_fixture(scope)
-
-      {:ok, msg1} = Tasks.add_agent_response(scope, task_id, "first")
-      {:ok, msg2} = Tasks.add_agent_response(scope, task_id, "second")
-      {:ok, msg3} = Tasks.add_agent_response(scope, task_id, "third")
-
-      assert msg1.sequence > 0
-      assert msg2.sequence > msg1.sequence
-      assert msg3.sequence > msg2.sequence
-    end
-
-    test "sequences survive struct creation with default 0", %{scope: scope} do
-      task_id = task_fixture(scope)
-
-      # The struct starts with sequence 0, but after append_interaction
-      # it should have a proper sequence assigned by the DB
-      {:ok, interaction} = Tasks.add_agent_response(scope, task_id, "content")
-      assert interaction.sequence > 0
-    end
-
-    test "concurrent inserts produce unique, sortable sequences", %{scope: scope} do
-      task_id = task_fixture(scope)
-
-      # Spawn 20 concurrent processes all inserting interactions for the same task.
-      # With the old MAX(sequence)+1 approach, concurrent readers would see the same
-      # MAX and produce duplicate sequences. The timestamp+monotonic approach must
-      # guarantee every sequence is unique.
-      results =
-        1..20
-        |> Task.async_stream(
-          fn i ->
-            Tasks.add_agent_response(scope, task_id, "concurrent msg #{i}")
-          end,
-          max_concurrency: 20,
-          timeout: :infinity
-        )
-        |> Enum.map(fn {:ok, {:ok, interaction}} -> interaction.sequence end)
-
-      assert length(results) == 20
-      assert results == Enum.uniq(results), "sequences must be unique, got duplicates"
-
-      # When read back from DB, the ordered query should return all 20 in sorted order
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      db_sequences = Enum.map(task.interactions, & &1.sequence)
-
-      assert length(db_sequences) == 20
-      assert db_sequences == Enum.sort(db_sequences), "DB ordering must be sorted"
-      assert db_sequences == Enum.uniq(db_sequences), "DB sequences must be unique"
-    end
-
-    test "sequences are consistent when read back from DB", %{scope: scope} do
+  describe "interaction persistence ordering" do
+    test "mixed interaction writes persist strictly ordered unique positive sequences", %{
+      scope: scope
+    } do
       task_id = task_fixture(scope)
 
       {:ok, _} =
@@ -316,15 +238,59 @@ defmodule FrontmanServer.TasksTest do
       tool_call_data = %{id: "tc_1", name: "test_tool"}
       {:ok, _, _} = Tasks.add_tool_result(scope, task_id, tool_call_data, "result", false)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      sequences = Enum.map(task.interactions, & &1.sequence)
+      sequences = db_sequences(task_id)
 
-      # Sequences should be strictly increasing
-      assert sequences == Enum.sort(sequences)
       assert length(sequences) == 3
-      assert Enum.all?(sequences, &(&1 > 0))
+      assert sequences == Enum.sort(sequences)
       assert sequences == Enum.uniq(sequences)
+      assert Enum.all?(sequences, &(&1 > 0))
     end
+
+    test "concurrent inserts produce unique, sortable sequences", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      1..20
+      |> Task.async_stream(
+        fn i ->
+          Tasks.add_agent_response(scope, task_id, "concurrent msg #{i}")
+        end,
+        max_concurrency: 20,
+        timeout: :infinity
+      )
+      |> Enum.each(fn {:ok, {:ok, _interaction}} -> :ok end)
+
+      results = db_sequences(task_id)
+
+      assert length(results) == 20
+      assert results == Enum.uniq(results), "sequences must be unique, got duplicates"
+      assert results == Enum.sort(results), "DB ordering must be sorted"
+    end
+
+    test "preserves chronological history when legacy rows have nil sequence", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      {:ok, legacy_message} = Tasks.add_user_message(scope, task_id, user_content("legacy hello"))
+
+      from(i in InteractionSchema, where: i.id == ^legacy_message.id)
+      |> Repo.update_all(set: [sequence: nil])
+
+      {:ok, _new_response} = Tasks.add_agent_response(scope, task_id, "new response")
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert [
+               %Interaction.UserMessage{messages: ["legacy hello"]},
+               %Interaction.AgentResponse{content: "new response"}
+             ] = task.interactions
+    end
+  end
+
+  defp db_sequences(task_id) do
+    InteractionSchema
+    |> InteractionSchema.for_task(task_id)
+    |> InteractionSchema.ordered()
+    |> Repo.all()
+    |> Enum.map(& &1.sequence)
   end
 
   describe "add_discovered_project_rule/4" do

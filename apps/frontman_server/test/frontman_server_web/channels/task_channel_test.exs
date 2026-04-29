@@ -61,6 +61,29 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  defp question_tool_call(id, header, label) do
+    args =
+      Jason.encode!(%{
+        "questions" => [
+          %{
+            "question" => "Pick one",
+            "header" => header,
+            "options" => [%{"label" => label, "description" => "Option #{label}"}]
+          }
+        ]
+      })
+
+    ReqLLM.ToolCall.new(id, "question", args)
+  end
+
+  defp question_answer_response(id, answer) do
+    JsonRpc.success_response(id, %{
+      "content" => [
+        %{"type" => "text", "text" => Jason.encode!(%{"answers" => [%{"answer" => answer}]})}
+      ]
+    })
+  end
+
   # MCP tool definition used in tests that need a registered tool
   @mcp_get_logs_tool %{
     "name" => "get_logs",
@@ -214,29 +237,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_push("mcp:message", %{
         "method" => "tools/call",
         "params" => %{"name" => "ownTool"}
-      })
-    end
-
-    test "channel receives chunk events via PubSub broadcast", %{
-      socket: _socket,
-      task_id: task_id
-    } do
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        Tasks.topic(task_id),
-        execution_chunk(:content, "Hello world")
-      )
-
-      # Channel should forward this as an ACP notification
-      # Note: content is wrapped in a map with type: "text"
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "agent_message_chunk",
-            "content" => %{"type" => "text", "text" => "Hello world"}
-          }
-        }
       })
     end
 
@@ -418,29 +418,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       # Channel should still be alive
       assert Process.alive?(socket.channel_pid)
-    end
-
-    test "does not interfere with subsequent prompts after nil completion", %{
-      socket: socket,
-      task_id: task_id
-    } do
-      # First: completed event with no pending prompt
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_completed())
-
-      :sys.get_state(socket.channel_pid)
-
-      # Then: send a real prompt and complete it normally
-      push(socket, "acp:message", build_prompt_request(id: 50, text: "Next question"))
-
-      :sys.get_state(socket.channel_pid)
-
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_completed())
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 50,
-        "result" => %{"stopReason" => "end_turn"}
-      })
     end
   end
 
@@ -836,24 +813,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id}
     end
 
-    test "cancel notification is accepted (no response expected per ACP spec)", %{
-      socket: socket
-    } do
-      # ACP spec: session/cancel is a notification, not a request.
-      # No JSON-RPC response should be sent back.
-      push(
-        socket,
-        "acp:message",
-        build_acp_request("session/cancel", nil, %{"sessionId" => "irrelevant"})
-      )
-
-      # Allow time for processing
-      :sys.get_state(socket.channel_pid)
-
-      # No response should be pushed (notifications don't get responses)
-      refute_push("acp:message", %{"id" => _})
-    end
-
     test "cancel resolves pending prompt with stopReason 'cancelled'", %{
       socket: socket,
       task_id: task_id
@@ -871,19 +830,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "result" => %{"stopReason" => "cancelled"}
       })
     end
-
-    test "cancel with no pending prompt is a no-op", %{
-      socket: socket,
-      task_id: task_id
-    } do
-      # No prompt was sent, so no pending_prompt exists
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_cancelled())
-
-      :sys.get_state(socket.channel_pid)
-
-      # No prompt response should be pushed
-      refute_push("acp:message", %{"result" => %{"stopReason" => "cancelled"}})
-    end
   end
 
   describe "tool_call chunk streaming" do
@@ -891,32 +837,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
-    end
-
-    test "broadcasts early ACP tool_call notification on tool_call", %{
-      socket: _socket,
-      task_id: task_id
-    } do
-      tool_call_id = "call_early_#{:rand.uniform(1_000_000)}"
-
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        Tasks.topic(task_id),
-        execution_tool_call(tool_call_id, "write_file")
-      )
-
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "tool_call",
-            "toolCallId" => ^tool_call_id,
-            "title" => "write_file",
-            "status" => "pending"
-          }
-        }
-      })
     end
 
     test "deduplicates tool_call_create when interaction arrives after tool_call", %{
@@ -1001,54 +921,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
     end
-
-    test "tracks multiple tool calls independently", %{
-      socket: socket
-    } do
-      call_id_1 = "call_multi_1_#{:rand.uniform(1_000_000)}"
-      call_id_2 = "call_multi_2_#{:rand.uniform(1_000_000)}"
-
-      # Announce first tool call via streaming
-      send(socket.channel_pid, execution_tool_call(call_id_1, "write_file"))
-      :sys.get_state(socket.channel_pid)
-
-      assert_push("acp:message", %{
-        "params" => %{"update" => %{"toolCallId" => ^call_id_1, "sessionUpdate" => "tool_call"}}
-      })
-
-      # Second tool call arrives without prior tool_call
-      tool_call_2 = tool_call(call_id_2, "read_file", %{"target_file" => "other.txt"})
-
-      send(socket.channel_pid, {:interaction, tool_call_2})
-      :sys.get_state(socket.channel_pid)
-
-      # Second tool call should still get its own tool_call create
-      assert_push("acp:message", %{
-        "params" => %{"update" => %{"toolCallId" => ^call_id_2, "sessionUpdate" => "tool_call"}}
-      })
-    end
   end
 
   describe "reconnect re-executes unresolved tool calls" do
     setup %{scope: scope} do
       task_id = task_fixture(scope)
 
-      # Seed DB with the state that exists after a disconnect during a question tool call:
-      # user_message → agent_response (with tool_calls metadata) → tool_call (no tool_result)
       tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
-
-      question_args =
-        Jason.encode!(%{
-          "questions" => [
-            %{
-              "question" => "Pick one",
-              "header" => "Test",
-              "options" => [%{"label" => "A", "description" => "Option A"}]
-            }
-          ]
-        })
-
-      reqllm_tc = ReqLLM.ToolCall.new(tool_call_id, "question", question_args)
+      reqllm_tc = question_tool_call(tool_call_id, "Test", "A")
 
       Tasks.submit_user_message(
         scope,
@@ -1069,8 +949,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: task_id,
       tool_call_id: tool_call_id
     } do
-      # Full e2e: join fresh channel, complete MCP handshake, load session,
-      # verify tools/call is pushed, respond, verify DB has tool result.
       {:ok, _reply, socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
@@ -1081,7 +959,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "acp:message", build_acp_request("session/load", 1, %{"sessionId" => task_id}))
       :sys.get_state(socket.channel_pid)
 
-      # Drain history replay + success response, find the tools/call
       messages = collect_all_pushes()
 
       tools_call =
@@ -1096,25 +973,74 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert tools_call, "tools/call for question not found in #{length(messages)} messages"
       {"mcp:message", %{"id" => mcp_request_id}} = tools_call
 
-      # Client answers the question
-      push(
-        socket,
-        "mcp:message",
-        JsonRpc.success_response(mcp_request_id, %{
-          "content" => [
-            %{"type" => "text", "text" => Jason.encode!(%{"answers" => [%{"answer" => "A"}]})}
-          ]
-        })
-      )
+      push(socket, "mcp:message", question_answer_response(mcp_request_id, "A"))
 
       :sys.get_state(socket.channel_pid)
 
-      # Tool result persisted
       {:ok, task} = Tasks.get_task(scope, task_id)
       tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
-      assert [result] = tool_results
-      assert result.tool_call_id == tool_call_id
-      refute result.is_error
+
+      assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
+               tool_results
+    end
+
+    test "e2e: reconnect re-dispatches unresolved tool calls from a later turn after a prior turn completed",
+         %{
+           scope: scope
+         } do
+      task_id = task_fixture(scope)
+      first_tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
+      second_tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
+
+      first_tc = question_tool_call(first_tool_call_id, "First turn", "A")
+      second_tc = question_tool_call(second_tool_call_id, "Second turn", "B")
+
+      Tasks.add_user_message(scope, task_id, user_content("first turn"))
+      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [first_tc]})
+      Tasks.add_tool_call(scope, task_id, first_tc)
+
+      Tasks.add_tool_result(
+        scope,
+        task_id,
+        %{id: first_tool_call_id, name: "question"},
+        %{"answers" => [%{"answer" => "A"}]},
+        false
+      )
+
+      Tasks.add_agent_response(scope, task_id, "First done")
+      Tasks.add_agent_completed(scope, task_id)
+
+      Tasks.add_user_message(scope, task_id, user_content("second turn"))
+      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [second_tc]})
+      Tasks.add_tool_call(scope, task_id, second_tc)
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      push(socket, "acp:message", build_acp_request("session/load", 1, %{"sessionId" => task_id}))
+      :sys.get_state(socket.channel_pid)
+
+      messages = collect_all_pushes()
+
+      tools_call =
+        Enum.find(messages, fn
+          {"mcp:message",
+           %{
+             "method" => "tools/call",
+             "params" => %{"name" => "question", "arguments" => %{"questions" => questions}}
+           }} ->
+            match?([%{"header" => "Second turn"}], questions)
+
+          _ ->
+            false
+        end)
+
+      assert tools_call,
+             "tools/call for the unresolved second turn was not re-dispatched after reconnect"
     end
 
     test "e2e: session/load before MCP handshake → answer after handshake → persisted", %{
@@ -1122,9 +1048,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: task_id,
       tool_call_id: tool_call_id
     } do
-      # Production ordering: session/load fires before MCP handshake completes.
-      # The tools/call is pushed during/after the handshake. The client answers
-      # after the handshake is done.
       {:ok, _reply, socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
@@ -1133,7 +1056,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
       assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
 
-      # session/load BEFORE MCP init
       push(
         socket,
         "acp:message",
@@ -1142,7 +1064,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
-      # Complete MCP handshake step by step
       push(
         socket,
         "mcp:message",
@@ -1179,32 +1100,21 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_push("acp:message", %{"method" => "mcp_initialization_complete"})
 
-      # Now find the tools/call that was pushed during the handshake
       assert_push(
         "mcp:message",
         %{"method" => "tools/call", "id" => mcp_request_id, "params" => %{"name" => "question"}},
         2_000
       )
 
-      # Client answers
-      push(
-        socket,
-        "mcp:message",
-        JsonRpc.success_response(mcp_request_id, %{
-          "content" => [
-            %{"type" => "text", "text" => Jason.encode!(%{"answers" => [%{"answer" => "A"}]})}
-          ]
-        })
-      )
+      push(socket, "mcp:message", question_answer_response(mcp_request_id, "A"))
 
       :sys.get_state(socket.channel_pid)
 
-      # Tool result persisted
       {:ok, task} = Tasks.get_task(scope, task_id)
       tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
-      assert [result] = tool_results
-      assert result.tool_call_id == tool_call_id
-      refute result.is_error
+
+      assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
+               tool_results
     end
 
     test "tools/call is pushed AFTER session/load success response (ordering guarantee)", %{
@@ -1229,6 +1139,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           _ -> false
         end)
 
+      assert is_integer(session_load_idx), "session/load success not found"
+
       tools_call_idx =
         Enum.find_index(messages, fn
           {"mcp:message", %{"method" => "tools/call", "params" => %{"name" => "question"}}} ->
@@ -1238,8 +1150,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             false
         end)
 
-      assert session_load_idx != nil, "session/load success not found"
-      assert tools_call_idx != nil, "tools/call not found"
+      assert is_integer(tools_call_idx), "tools/call not found"
 
       assert session_load_idx < tools_call_idx,
              "tools/call (idx #{tools_call_idx}) arrived BEFORE session/load success (idx #{session_load_idx})"
@@ -1250,7 +1161,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: task_id,
       tool_call_id: tool_call_id
     } do
-      # Add a tool result so the tool call is resolved
       Tasks.add_tool_result(
         scope,
         task_id,

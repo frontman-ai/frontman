@@ -12,6 +12,7 @@ mkcert="1.4.4"
 "npm:@tailwindcss/language-server"="latest"
 "npm:vscode-langservers-extracted"="latest"
 "npm:@biomejs/biome"="latest"
+"npm:typescript-language-server" = "latest"
 lefthook="latest"
 
 [env]
