@@ -463,7 +463,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     opts =
       build_execution_opts(socket,
         model: model,
-        mcp_tool_defs: mcp_tools
+        mcp_tool_defs: mcp_tools,
+        title_prompt_text: prompt.text_summary
       )
 
     case Tasks.submit_user_message(scope, task_id, prompt.content, all_tools, opts) do
@@ -483,8 +484,6 @@ defmodule FrontmanServerWeb.TaskChannel do
         socket = assign(socket, :last_execution_opts, opts)
 
         Logger.info("User message added, agent spawned for task #{task_id}")
-
-        Tasks.enqueue_title_generation(scope, task_id, prompt.text_summary, model: model)
 
         {:noreply, socket}
 

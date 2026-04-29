@@ -297,7 +297,18 @@ defmodule FrontmanServer.Tasks do
          {:ok, interaction} <- add_user_message(scope, task_id, content_blocks) do
       opts = Keyword.put(opts, :interaction_id, interaction.id)
       maybe_start_execution(scope, task_id, tools, opts)
+      maybe_enqueue_title_from_submit(scope, task_id, opts)
       {:ok, interaction}
+    end
+  end
+
+  defp maybe_enqueue_title_from_submit(scope, task_id, opts) do
+    case Keyword.fetch(opts, :title_prompt_text) do
+      {:ok, prompt_text} ->
+        maybe_enqueue_initial_title_generation(scope, task_id, prompt_text, model: opts[:model])
+
+      :error ->
+        :ok
     end
   end
 
@@ -463,6 +474,28 @@ defmodule FrontmanServer.Tasks do
 
     GenerateTitle.new_job(scope, task_id, user_prompt_text, model)
     |> Oban.insert()
+  end
+
+  @doc """
+  Enqueues title generation only for the task's first user message while the
+  task is still using its default title.
+  """
+  @spec maybe_enqueue_initial_title_generation(Accounts.scope(), String.t(), String.t(), keyword()) ::
+          {:ok, Oban.Job.t()} | {:ok, :skipped} | {:error, :not_found | Oban.Job.changeset()}
+  def maybe_enqueue_initial_title_generation(scope, task_id, user_prompt_text, opts \\ []) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      interactions = load_interactions(task_id)
+
+      if schema.short_desc == Task.short_description(task_id) and first_user_message?(interactions) do
+        enqueue_title_generation(scope, task_id, user_prompt_text, opts)
+      else
+        {:ok, :skipped}
+      end
+    end
+  end
+
+  defp first_user_message?(interactions) do
+    Enum.count(interactions, &match?(%Interaction.UserMessage{}, &1)) == 1
   end
 
   @doc """

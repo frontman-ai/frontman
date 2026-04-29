@@ -317,10 +317,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Build me a login page"), [],
-          agent: agent
+          agent: agent,
+          title_prompt_text: "Build me a login page"
         )
-
-      Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
 
       assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
@@ -332,36 +331,31 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       agent1 = test_agent(mock_llm("First response"), "TitleAgent1")
       agent2 = test_agent(mock_llm("Second response"), "TitleAgent2")
 
-      # First message + title enqueue
+      # First message enqueues the task title from the task context.
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Build me a login page"), [],
-          agent: agent1
+          agent: agent1,
+          title_prompt_text: "Build me a login page"
         )
 
-      {:ok, first_job} =
-        Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+      assert [%{id: first_job_id}] = all_enqueued(worker: GenerateTitle)
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      # Second message + title enqueue (should be deduplicated by Oban unique constraint)
+      # Second message does not enqueue another title job.
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Now add a signup form"), [],
-          agent: agent2
+          agent: agent2,
+          title_prompt_text: "Now add a signup form"
         )
 
-      {:ok, second_job} =
-        Tasks.enqueue_title_generation(scope, task_id, "Now add a signup form")
-
-      # Oban unique constraint returns the existing job — same ID means no new job was inserted
-      assert first_job.id == second_job.id
-
-      # Only one title generation job should exist for this task
+      # Only one title generation job should exist for this task.
       enqueued = all_enqueued(worker: GenerateTitle)
 
       title_jobs_for_task =
         Enum.filter(enqueued, fn job -> job.args["task_id"] == task_id end)
 
-      assert length(title_jobs_for_task) == 1
+      assert [%{id: ^first_job_id}] = title_jobs_for_task
     end
   end
 
