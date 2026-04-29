@@ -223,28 +223,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert text =~ "200"
     end
 
-    test "includes generic annotation metadata in annotation LLM message" do
-      ann = %Annotation{
-        annotation_id: "ann-elementor",
-        annotation_index: 0,
-        tag_name: "span",
-        metadata: %{
-          "custom_context" => %{
-            "target_id" => "abc12345",
-            "target_type" => "widget"
-          }
-        }
-      }
-
-      messages = Interaction.to_llm_messages([user_msg("Fix copy", [ann])])
-      text = extract_text(hd(messages))
-
-      assert text =~ "Metadata:"
-      assert text =~ "\"custom_context\""
-      assert text =~ "\"target_id\":\"abc12345\""
-      assert text =~ "\"target_type\":\"widget\""
-    end
-
     test "does not add annotation section when annotations is empty" do
       messages = Interaction.to_llm_messages([user_msg("Just a regular message")])
       text = extract_text(hd(messages))

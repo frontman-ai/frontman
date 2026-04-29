@@ -301,7 +301,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     alias FrontmanServer.Tasks.Interaction
 
-    @known_meta_keys MapSet.new(~w(
+    @known_meta_keys ~w(
       annotation
       annotation_id
       annotation_index
@@ -319,7 +319,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       parent
       screenshot
       tag_name
-    ))
+    )
 
     @doc """
     Builds an Annotation from a map with string or atom keys.
@@ -349,47 +349,25 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     defp metadata_from_map(data) do
+      inline_metadata = data |> stringify_keys() |> drop_known_metadata()
+
       explicit_metadata =
-        case Interaction.get_flex(data, "metadata") do
-          metadata when is_map(metadata) ->
-            metadata |> stringify_keys() |> reject_known_metadata()
+        data |> Interaction.get_flex("metadata") |> stringify_keys() |> drop_known_metadata()
 
-          _ ->
-            %{}
-        end
-
-      data
-      |> Enum.reduce(%{}, fn {key, value}, acc ->
-        key_string = meta_key_to_string(key)
-
-        cond do
-          is_nil(key_string) -> acc
-          MapSet.member?(@known_meta_keys, key_string) -> acc
-          is_nil(value) -> acc
-          true -> Map.put(acc, key_string, value)
-        end
-      end)
-      |> Map.merge(explicit_metadata)
+      Map.merge(inline_metadata, explicit_metadata)
     end
 
-    defp stringify_keys(map) do
-      Enum.reduce(map, %{}, fn {key, value}, acc ->
-        case meta_key_to_string(key) do
-          nil -> acc
-          key_string -> Map.put(acc, key_string, value)
-        end
-      end)
+    defp stringify_keys(map) when is_map(map) do
+      Map.new(map, fn {key, value} -> {to_string(key), value} end)
     end
 
-    defp reject_known_metadata(metadata) do
-      Map.reject(metadata, fn {key, value} ->
-        is_nil(value) || MapSet.member?(@known_meta_keys, key)
-      end)
-    end
+    defp stringify_keys(_), do: %{}
 
-    defp meta_key_to_string(key) when is_binary(key), do: key
-    defp meta_key_to_string(key) when is_atom(key), do: Atom.to_string(key)
-    defp meta_key_to_string(_key), do: nil
+    defp drop_known_metadata(metadata),
+      do:
+        metadata
+        |> Map.drop(@known_meta_keys)
+        |> Map.reject(fn {_key, value} -> is_nil(value) end)
 
     @doc """
     Builds an Annotation from an ACP `_meta` block, pairing with a separate
@@ -1356,7 +1334,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.comment, "Comment"),
       annotation_string_field(ann.css_classes, "CSS Classes"),
       annotation_string_field(ann.nearby_text, "Nearby Text"),
-      annotation_metadata_field(ann.metadata),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
       annotation_parent_field(ann.parent)
@@ -1366,11 +1343,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp annotation_string_field(value, label) when is_binary(value), do: "\n  #{label}: #{value}"
   defp annotation_string_field(_, _), do: ""
-
-  defp annotation_metadata_field(metadata) when is_map(metadata) and map_size(metadata) > 0,
-    do: "\n  Metadata: #{Jason.encode!(metadata, pretty: false)}"
-
-  defp annotation_metadata_field(_metadata), do: ""
 
   defp annotation_bbox_field(%{x: x, y: y, width: w, height: h}),
     do: "\n  Bounding Box: {x: #{x}, y: #{y}, width: #{w}, height: #{h}}"

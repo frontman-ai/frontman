@@ -53,14 +53,19 @@ defimpl ACPHistory, for: Interaction.UserMessage do
         })
         |> reject_nils()
 
+      uri =
+        if is_binary(ann.file),
+          do: "file://#{ann.file}:#{ann.line}:#{ann.column}",
+          else: "element://#{ann.tag_name}"
+
       text_block = %{
         "type" => "resource",
         "resource" => %{
           "_meta" => meta,
           "resource" => %{
-            "uri" => annotation_uri(ann),
+            "uri" => uri,
             "mimeType" => "text/plain",
-            "text" => annotation_text(ann)
+            "text" => "Annotated element: <#{ann.tag_name}>"
           }
         }
       }
@@ -156,13 +161,6 @@ defimpl ACPHistory, for: Interaction.UserMessage do
     }
     |> reject_nils()
   end
-
-  defp annotation_uri(%{file: file, line: line, column: column}) when is_binary(file),
-    do: "file://#{file}:#{line}:#{column}"
-
-  defp annotation_uri(%{tag_name: tag_name}), do: "element://#{tag_name}"
-
-  defp annotation_text(%{tag_name: tag_name}), do: "Annotated element: <#{tag_name}>"
 
   defp reject_nils(map), do: Map.reject(map, fn {_, v} -> is_nil(v) end)
 end
