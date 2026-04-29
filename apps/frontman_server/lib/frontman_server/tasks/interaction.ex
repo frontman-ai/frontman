@@ -294,12 +294,32 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:parent, ParentLocation.t() | nil)
       field(:css_classes, String.t() | nil)
       field(:nearby_text, String.t() | nil)
-      field(:elementor_context, map() | nil)
+      field(:metadata, map(), default: %{})
       field(:bounding_box, BoundingBox.t() | nil)
       field(:screenshot, Screenshot.t() | nil)
     end
 
     alias FrontmanServer.Tasks.Interaction
+
+    @known_meta_keys MapSet.new(~w(
+      annotation
+      annotation_id
+      annotation_index
+      annotation_screenshot
+      bounding_box
+      column
+      comment
+      component_name
+      component_props
+      css_classes
+      file
+      line
+      metadata
+      nearby_text
+      parent
+      screenshot
+      tag_name
+    ))
 
     @doc """
     Builds an Annotation from a map with string or atom keys.
@@ -322,11 +342,54 @@ defmodule FrontmanServer.Tasks.Interaction do
         parent: ParentLocation.from_map(Interaction.get_flex(data, "parent")),
         css_classes: Interaction.get_flex(data, "css_classes"),
         nearby_text: Interaction.get_flex(data, "nearby_text"),
-        elementor_context: Interaction.get_flex(data, "elementor"),
+        metadata: metadata_from_map(data),
         bounding_box: BoundingBox.from_map(Interaction.get_flex(data, "bounding_box")),
         screenshot: Screenshot.from_map(Interaction.get_flex(data, "screenshot"))
       }
     end
+
+    defp metadata_from_map(data) do
+      explicit_metadata =
+        case Interaction.get_flex(data, "metadata") do
+          metadata when is_map(metadata) ->
+            metadata |> stringify_keys() |> reject_known_metadata()
+
+          _ ->
+            %{}
+        end
+
+      data
+      |> Enum.reduce(%{}, fn {key, value}, acc ->
+        key_string = meta_key_to_string(key)
+
+        cond do
+          is_nil(key_string) -> acc
+          MapSet.member?(@known_meta_keys, key_string) -> acc
+          is_nil(value) -> acc
+          true -> Map.put(acc, key_string, value)
+        end
+      end)
+      |> Map.merge(explicit_metadata)
+    end
+
+    defp stringify_keys(map) do
+      Enum.reduce(map, %{}, fn {key, value}, acc ->
+        case meta_key_to_string(key) do
+          nil -> acc
+          key_string -> Map.put(acc, key_string, value)
+        end
+      end)
+    end
+
+    defp reject_known_metadata(metadata) do
+      Map.reject(metadata, fn {key, value} ->
+        is_nil(value) || MapSet.member?(@known_meta_keys, key)
+      end)
+    end
+
+    defp meta_key_to_string(key) when is_binary(key), do: key
+    defp meta_key_to_string(key) when is_atom(key), do: Atom.to_string(key)
+    defp meta_key_to_string(_key), do: nil
 
     @doc """
     Builds an Annotation from an ACP `_meta` block, pairing with a separate
@@ -562,13 +625,12 @@ defmodule FrontmanServer.Tasks.Interaction do
             parent: ann.parent,
             css_classes: ann.css_classes,
             nearby_text: ann.nearby_text,
-            elementor: ann.elementor_context,
             bounding_box: ann.bounding_box,
             screenshot: ann.screenshot
           }
 
           # Strip nil values to keep JSON compact
-          base
+          Map.merge(ann.metadata || %{}, base)
           |> Enum.reject(fn {_k, v} -> is_nil(v) end)
           |> Map.new()
         end)
@@ -1294,7 +1356,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.comment, "Comment"),
       annotation_string_field(ann.css_classes, "CSS Classes"),
       annotation_string_field(ann.nearby_text, "Nearby Text"),
-      annotation_elementor_field(ann.elementor_context),
+      annotation_metadata_field(ann.metadata),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
       annotation_parent_field(ann.parent)
@@ -1305,24 +1367,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp annotation_string_field(value, label) when is_binary(value), do: "\n  #{label}: #{value}"
   defp annotation_string_field(_, _), do: ""
 
-  defp annotation_elementor_field(context) when is_map(context) do
-    summary =
-      [
-        {"post_id", get_flex(context, "post_id")},
-        {"element_id", get_flex(context, "element_id")},
-        {"element_type", get_flex(context, "element_type")},
-        {"widget_type", get_flex(context, "widget_type")}
-      ]
-      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
-      |> Enum.map_join(", ", fn {key, value} -> "#{key}=#{value}" end)
+  defp annotation_metadata_field(metadata) when is_map(metadata) and map_size(metadata) > 0,
+    do: "\n  Metadata: #{Jason.encode!(metadata, pretty: false)}"
 
-    case summary do
-      "" -> ""
-      value -> "\n  Elementor: #{value}"
-    end
-  end
-
-  defp annotation_elementor_field(_context), do: ""
+  defp annotation_metadata_field(_metadata), do: ""
 
   defp annotation_bbox_field(%{x: x, y: y, width: w, height: h}),
     do: "\n  Bounding Box: {x: #{x}, y: #{y}, width: #{w}, height: #{h}}"

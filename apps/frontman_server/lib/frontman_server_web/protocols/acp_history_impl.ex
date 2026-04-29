@@ -34,7 +34,8 @@ defimpl ACPHistory, for: Interaction.UserMessage do
     |> Enum.with_index()
     |> Enum.flat_map(fn {ann, index} ->
       meta =
-        %{
+        (ann.metadata || %{})
+        |> Map.merge(%{
           "annotation" => true,
           "annotation_index" => index,
           "annotation_id" => ann.annotation_id,
@@ -48,9 +49,8 @@ defimpl ACPHistory, for: Interaction.UserMessage do
           "parent" => encode_parent(ann.parent),
           "css_classes" => ann.css_classes,
           "nearby_text" => ann.nearby_text,
-          "elementor" => ann.elementor_context,
           "bounding_box" => encode_bounding_box(ann.bounding_box)
-        }
+        })
         |> reject_nils()
 
       text_block = %{
@@ -160,28 +160,7 @@ defimpl ACPHistory, for: Interaction.UserMessage do
   defp annotation_uri(%{file: file, line: line, column: column}) when is_binary(file),
     do: "file://#{file}:#{line}:#{column}"
 
-  defp annotation_uri(%{elementor_context: context}) when is_map(context) do
-    element_id = Interaction.get_flex(context, "element_id")
-
-    case Interaction.get_flex(context, "post_id") do
-      post_id when is_integer(post_id) -> "elementor://post/#{post_id}/element/#{element_id}"
-      _ -> "elementor://element/#{element_id}"
-    end
-  end
-
   defp annotation_uri(%{tag_name: tag_name}), do: "element://#{tag_name}"
-
-  defp annotation_text(%{elementor_context: context, tag_name: tag_name}) when is_map(context) do
-    detail =
-      case {Interaction.get_flex(context, "element_type"),
-            Interaction.get_flex(context, "widget_type")} do
-        {"widget", widget_type} when is_binary(widget_type) -> "widget #{widget_type}"
-        {element_type, _} when is_binary(element_type) -> element_type
-        _ -> tag_name
-      end
-
-    "Annotated Elementor element: <#{tag_name}> #{detail}"
-  end
 
   defp annotation_text(%{tag_name: tag_name}), do: "Annotated element: <#{tag_name}>"
 

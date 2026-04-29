@@ -98,22 +98,22 @@ defmodule FrontmanServer.Tasks.InteractionTest do
              }
     end
 
-    test "extracts Elementor context when provided" do
-      elementor = %{
-        "post_id" => 42,
-        "element_id" => "abc12345",
-        "element_type" => "widget",
-        "widget_type" => "html"
+    test "preserves generic annotation metadata when provided" do
+      context = %{
+        "target_id" => "abc12345",
+        "target_type" => "widget"
       }
 
       msg =
         UserMessage.new([
           text_block("Fix this"),
-          annotation_block("ann-el", "span", "/src/Component.tsx", 5, 1, elementor: elementor)
+          annotation_block("ann-el", "span", "/src/Component.tsx", 5, 1,
+            metadata: %{"custom_context" => context}
+          )
         ])
 
       assert [ann] = msg.annotations
-      assert ann.elementor_context == elementor
+      assert ann.metadata == %{"custom_context" => context}
     end
   end
 
@@ -223,25 +223,26 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert text =~ "200"
     end
 
-    test "includes Elementor target props in annotation LLM message" do
+    test "includes generic annotation metadata in annotation LLM message" do
       ann = %Annotation{
         annotation_id: "ann-elementor",
         annotation_index: 0,
         tag_name: "span",
-        elementor_context: %{
-          "post_id" => 42,
-          "element_id" => "abc12345",
-          "element_type" => "widget",
-          "widget_type" => "html"
+        metadata: %{
+          "custom_context" => %{
+            "target_id" => "abc12345",
+            "target_type" => "widget"
+          }
         }
       }
 
       messages = Interaction.to_llm_messages([user_msg("Fix copy", [ann])])
       text = extract_text(hd(messages))
 
-      assert text =~ "Elementor:"
-      assert text =~ "element_id=abc12345"
-      assert text =~ "widget_type=html"
+      assert text =~ "Metadata:"
+      assert text =~ "\"custom_context\""
+      assert text =~ "\"target_id\":\"abc12345\""
+      assert text =~ "\"target_type\":\"widget\""
     end
 
     test "does not add annotation section when annotations is empty" do
@@ -615,9 +616,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             component_name: "Hero",
             css_classes: "hero-title text-xl",
             nearby_text: "Welcome to our app",
-            elementor: %{
-              "post_id" => 42,
-              "element_id" => "abc12345"
+            metadata: %{
+              "custom_context" => %{
+                "target_id" => "abc12345"
+              }
             },
             bounding_box: %{"x" => 24.0, "y" => 176.0, "width" => 822.0, "height" => 42.0}
           ),
@@ -634,9 +636,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert ann["css_classes"] == "hero-title text-xl"
       assert ann["nearby_text"] == "Welcome to our app"
 
-      assert ann["elementor"] == %{
-               "post_id" => 42,
-               "element_id" => "abc12345"
+      assert ann["custom_context"] == %{
+               "target_id" => "abc12345"
              }
 
       assert ann["bounding_box"] == %{
