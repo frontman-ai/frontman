@@ -5,8 +5,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
   alias FrontmanServer.Tasks.Interaction.{
     Annotation,
-    ToolCall,
-    ToolResult,
     UserImage,
     UserMessage
   }
@@ -213,21 +211,21 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "lists attachment URI without tool-specific guidance" do
-      msg = %UserMessage{
-        id: Interaction.new_id(),
-        sequence: 1,
-        timestamp: Interaction.now(),
-        messages: ["Save the image"],
-        annotations: [],
-        images: [
-          %UserImage{
-            blob: Base.encode64("image-bytes"),
-            mime_type: "image/png",
-            filename: "hero.png",
-            uri: "attachment://att_hero/hero.png"
+      msg =
+        user_msg("Save the image")
+        |> then(fn msg ->
+          %{
+            msg
+            | images: [
+                %UserImage{
+                  blob: Base.encode64("image-bytes"),
+                  mime_type: "image/png",
+                  filename: "hero.png",
+                  uri: "attachment://att_hero/hero.png"
+                }
+              ]
           }
-        ]
-      }
+        end)
 
       [llm_msg] = Interaction.to_llm_messages([msg])
       text = extract_text(llm_msg)
