@@ -3,6 +3,7 @@
 define( 'ABSPATH', sys_get_temp_dir() . '/frontman-wordpress-mutation-tests/' );
 
 $GLOBALS['frontman_test_posts'] = [];
+$GLOBALS['frontman_test_meta'] = [];
 $GLOBALS['frontman_test_options'] = [];
 $GLOBALS['frontman_test_menu_terms'] = [];
 $GLOBALS['frontman_test_menu_item_to_term'] = [];
@@ -188,6 +189,24 @@ if ( ! function_exists( 'wp_delete_post' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_post_meta' ) ) {
+	function get_post_meta( int $post_id, string $key = '', bool $single = false ) {
+		$meta = $GLOBALS['frontman_test_meta'][ $post_id ] ?? [];
+		if ( '' === $key ) {
+			return $meta;
+		}
+
+		return $single ? ( $meta[ $key ][0] ?? '' ) : ( $meta[ $key ] ?? [] );
+	}
+}
+
+if ( ! function_exists( 'add_post_meta' ) ) {
+	function add_post_meta( int $post_id, string $key, $value ): bool {
+		$GLOBALS['frontman_test_meta'][ $post_id ][ $key ][] = wp_unslash( $value );
+		return true;
+	}
+}
+
 if ( ! function_exists( 'parse_blocks' ) ) {
 	function parse_blocks( string $content ): array {
 		$parts = array_values( array_filter( explode( "\n\n", $content ) ) );
@@ -326,15 +345,16 @@ if ( ! function_exists( 'wp_update_nav_menu_item' ) ) {
 	function wp_update_nav_menu_item( int $term_id, int $menu_item_id, array $menu_data ) {
 		$menu_data = wp_unslash( $menu_data );
 		if ( 0 === $menu_item_id ) {
-			$menu_item_id = count( $GLOBALS['frontman_test_posts'] ) + 1;
+			$menu_item_id = empty( $GLOBALS['frontman_test_posts'] ) ? 1 : max( array_keys( $GLOBALS['frontman_test_posts'] ) ) + 1;
 			$item = new WP_Post();
 			$item->ID = $menu_item_id;
 			$item->post_type = 'nav_menu_item';
+			$item->post_status = $menu_data['menu-item-status'] ?? 'publish';
 			$item->title = $menu_data['menu-item-title'] ?? '';
 			$item->url = $menu_data['menu-item-url'] ?? '';
-			$item->type = 'custom';
-			$item->object = 'custom';
-			$item->object_id = 0;
+			$item->type = $menu_data['menu-item-type'] ?? 'custom';
+			$item->object = $menu_data['menu-item-object'] ?? 'custom';
+			$item->object_id = $menu_data['menu-item-object-id'] ?? 0;
 			$item->menu_item_parent = $menu_data['menu-item-parent-id'] ?? 0;
 			$item->menu_order = $menu_data['menu-item-position'] ?? ( count( wp_get_nav_menu_items( $term_id ) ) + 1 );
 		} else {
@@ -346,6 +366,18 @@ if ( ! function_exists( 'wp_update_nav_menu_item' ) ) {
 		}
 		if ( isset( $menu_data['menu-item-url'] ) ) {
 			$item->url = $menu_data['menu-item-url'];
+		}
+		if ( isset( $menu_data['menu-item-type'] ) ) {
+			$item->type = $menu_data['menu-item-type'];
+		}
+		if ( isset( $menu_data['menu-item-object'] ) ) {
+			$item->object = $menu_data['menu-item-object'];
+		}
+		if ( isset( $menu_data['menu-item-object-id'] ) ) {
+			$item->object_id = $menu_data['menu-item-object-id'];
+		}
+		if ( isset( $menu_data['menu-item-parent-id'] ) ) {
+			$item->menu_item_parent = $menu_data['menu-item-parent-id'];
 		}
 		if ( isset( $menu_data['menu-item-position'] ) ) {
 			$item->menu_order = $menu_data['menu-item-position'];
@@ -440,9 +472,11 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->test_posts_include_before_snapshots();
 		$this->test_blocks_include_before_snapshots();
 		$this->test_block_move_and_delete_snapshots();
+		$this->test_duplicate_post_copies_page_metadata();
 		$this->test_menu_management_snapshots();
 		$this->test_menu_item_creation_includes_before_snapshot();
 		$this->test_menu_option_and_widget_updates_include_before_snapshots();
+		$this->test_post_backed_menu_items_preserve_metadata();
 		$this->test_widget_management_snapshots();
 		$this->test_template_update_snapshot();
 		$this->test_cache_tools();
@@ -462,6 +496,13 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$post->post_author = 1;
 		$post->post_name = 'before';
 		$GLOBALS['frontman_test_posts'][10] = $post;
+		$GLOBALS['frontman_test_meta'][10] = [
+			'_elementor_edit_mode' => [ 'builder' ],
+			'_elementor_data' => [ '[{"id":"root10","elType":"container","elements":[]}]' ],
+			'_wp_page_template' => [ 'elementor_header_footer' ],
+			'_frontman_elementor_rollbacks' => [ 'do-not-copy' ],
+			'_edit_lock' => [ 'do-not-copy' ],
+		];
 
 		$slash_post = new WP_Post();
 		$slash_post->ID = 11;
@@ -620,6 +661,21 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_true( false !== strpos( $deleted['after']['post_content'], 'C:\\tmp\\file' ), 'wp_delete_block preserves existing backslash-sensitive block markup' );
 	}
 
+	private function test_duplicate_post_copies_page_metadata(): void {
+		$tool = new Frontman_Tool_Posts();
+		$duplicated = $tool->duplicate_post( [
+			'source_id' => 10,
+			'title' => 'Duplicated Home',
+		] );
+
+		$duplicate_id = $duplicated['id'];
+		$this->assert_same( 'Duplicated Home', $duplicated['after']['title'], 'wp_duplicate_post returns the duplicated post snapshot' );
+		$this->assert_same( 'draft', $duplicated['after']['status'], 'wp_duplicate_post creates duplicate drafts' );
+		$this->assert_same( '[{"id":"root10","elType":"container","elements":[]}]', $GLOBALS['frontman_test_meta'][ $duplicate_id ]['_elementor_data'][0], 'wp_duplicate_post copies Elementor data' );
+		$this->assert_true( ! isset( $GLOBALS['frontman_test_meta'][ $duplicate_id ]['_frontman_elementor_rollbacks'] ), 'wp_duplicate_post does not copy Frontman rollback snapshots' );
+		$this->assert_true( ! isset( $GLOBALS['frontman_test_meta'][ $duplicate_id ]['_edit_lock'] ), 'wp_duplicate_post does not copy edit locks' );
+	}
+
 	private function test_menu_management_snapshots(): void {
 		$tool = new Frontman_Tool_Menus();
 		$locations = $tool->list_menu_locations( [] );
@@ -700,6 +756,34 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( 1, count( $created['before']['items'] ), 'wp_create_menu_item returns menu state before insertion' );
 		$this->assert_same( 2, count( $created['after']['items'] ), 'wp_create_menu_item returns menu state after insertion' );
 		$this->assert_same( "Awesome C:\\Tools", $created['item']['title'], 'wp_create_menu_item returns the created menu item and preserves backslashes' );
+	}
+
+	private function test_post_backed_menu_items_preserve_metadata(): void {
+		$menu_tool = new Frontman_Tool_Menus();
+		$created = $menu_tool->create_menu_item( [
+			'menu_id' => 7,
+			'post_id' => 10,
+		] );
+
+		$this->assert_same( 'post_type', $created['item']['type'], 'wp_create_menu_item can create post-backed menu items' );
+		$this->assert_same( 'page', $created['item']['object'], 'post-backed menu item records the source post type' );
+		$this->assert_same( 10, $created['item']['object_id'], 'post-backed menu item records the source post ID' );
+
+		$updated = $menu_tool->update_menu_item( [
+			'menu_item_id' => $created['menu_item_id'],
+			'title' => 'Home Link',
+		] );
+
+		$this->assert_same( 'post_type', $updated['after']['type'], 'wp_update_menu_item preserves post-backed menu item type when changing title' );
+		$this->assert_same( 'page', $updated['after']['object'], 'wp_update_menu_item preserves post-backed menu item object when changing title' );
+		$this->assert_same( 10, $updated['after']['object_id'], 'wp_update_menu_item preserves post-backed menu item object_id when changing title' );
+		$this->assert_error_contains(
+			static function() use ( $menu_tool, $created ) {
+				$menu_tool->update_menu_item( [ 'menu_item_id' => $created['menu_item_id'], 'url' => 'https://example.com/custom' ] );
+			},
+			'post-backed menu item',
+			'wp_update_menu_item rejects URL-only updates on post-backed menu items'
+		);
 	}
 
 	private function test_widget_management_snapshots(): void {

@@ -2,7 +2,7 @@
 /**
  * WordPress Post tools — CRUD operations on posts/pages/CPTs.
  *
- * Tools: wp_list_posts, wp_read_post, wp_create_post, wp_update_post, wp_delete_post
+ * Tools: wp_list_posts, wp_read_post, wp_create_post, wp_duplicate_post, wp_update_post, wp_delete_post
  *
  * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
  * The registry (Frontman_Tools::call) wraps results into MCP format with _meta.
@@ -89,7 +89,7 @@ class Frontman_Tool_Posts {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_create_post',
-			'Creates a new post or page. Returns the new post ID and permalink.',
+			'Creates a new post or page. Returns the new post ID and permalink. Use wp_duplicate_post when the user asks to duplicate or clone an existing page so Elementor/post metadata is copied.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -117,6 +117,27 @@ class Frontman_Tool_Posts {
 				'required' => [ 'title', 'content' ],
 			],
 			[ $this, 'create_post' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_duplicate_post',
+			'Duplicates an existing post or page as a draft, copying content and Elementor/page metadata. Use this instead of wp_create_post when cloning a page.',
+			[
+				'type'                 => 'object',
+				'additionalProperties' => false,
+				'properties'           => [
+					'source_id' => [
+						'type'        => 'integer',
+						'description' => 'The post/page ID to duplicate.',
+					],
+					'title'     => [
+						'type'        => 'string',
+						'description' => 'Optional title for the duplicated post. Defaults to "{source title} Copy".',
+					],
+				],
+				'required' => [ 'source_id' ],
+			],
+			[ $this, 'duplicate_post' ]
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -274,6 +295,48 @@ class Frontman_Tool_Posts {
 	}
 
 	/**
+	 * wp_duplicate_post handler.
+	 */
+	public function duplicate_post( array $input ): array {
+		$source_id = absint( $input['source_id'] ?? 0 );
+		$source    = get_post( $source_id );
+
+		if ( ! $source ) {
+			throw new Frontman_Tool_Error( "Post not found: {$source_id}" );
+		}
+
+		$title  = isset( $input['title'] ) ? sanitize_text_field( $input['title'] ) : trim( (string) $source->post_title ) . ' Copy';
+
+		$post_data = [
+			'post_title'   => $title,
+			'post_content' => (string) ( $source->post_content ?? '' ),
+			'post_excerpt' => (string) ( $source->post_excerpt ?? '' ),
+			'post_type'    => sanitize_key( $source->post_type ?? 'post' ),
+			'post_status'  => 'draft',
+		];
+
+		$post_id = wp_insert_post( wp_slash( $post_data ), true );
+
+		if ( is_wp_error( $post_id ) ) {
+			throw new Frontman_Tool_Error( $post_id->get_error_message() );
+		}
+
+		foreach ( [ '_elementor_edit_mode', '_elementor_data', '_elementor_template_type', '_elementor_version', '_elementor_page_settings', '_wp_page_template' ] as $key ) {
+			foreach ( get_post_meta( $source_id, $key, false ) as $value ) {
+				add_post_meta( (int) $post_id, $key, wp_slash( $value ) );
+			}
+		}
+
+		return [
+			'duplicated'       => true,
+			'id'               => (int) $post_id,
+			'source'           => $this->read_post( [ 'id' => $source_id ] ),
+			'after'            => $this->read_post( [ 'id' => (int) $post_id ] ),
+			'permalink'        => get_permalink( $post_id ),
+		];
+	}
+
+	/**
 	 * wp_update_post handler.
 	 */
 	public function update_post( array $input ): array {
@@ -347,6 +410,7 @@ class Frontman_Tool_Posts {
 			'trashed' => ! $force,
 		];
 	}
+
 }
 
 // phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

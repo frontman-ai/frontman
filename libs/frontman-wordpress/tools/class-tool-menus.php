@@ -122,7 +122,7 @@ class Frontman_Tool_Menus {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_create_menu_item',
-			'Creates a new custom-link menu item in a navigation menu.',
+			'Creates a new custom-link or post/page-backed menu item in a navigation menu. Use post_id for WordPress pages/posts so the menu item keeps proper object metadata.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -137,7 +137,11 @@ class Frontman_Tool_Menus {
 					],
 					'url'       => [
 						'type'        => 'string',
-						'description' => 'URL for the new custom link.',
+						'description' => 'URL for a custom-link menu item. Do not use with post_id.',
+					],
+					'post_id'   => [
+						'type'        => 'integer',
+						'description' => 'Optional WordPress post/page ID for a post-backed menu item.',
 					],
 					'parent_id' => [
 						'type'        => 'integer',
@@ -148,14 +152,14 @@ class Frontman_Tool_Menus {
 						'description' => 'Optional 1-based menu position.',
 					],
 				],
-				'required' => [ 'menu_id', 'title', 'url' ],
+				'required' => [ 'menu_id' ],
 			],
 			[ $this, 'create_menu_item' ]
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_menu_item',
-			'Updates a menu item\'s title, URL, or position. Only the fields you provide will be changed.',
+			'Updates a menu item\'s title, URL, or position while preserving its existing WordPress menu item metadata.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -170,7 +174,7 @@ class Frontman_Tool_Menus {
 					],
 					'url'          => [
 						'type'        => 'string',
-						'description' => 'New URL for custom link menu items.',
+						'description' => 'New URL for custom link menu items. Post-backed menu items keep their post permalink.',
 					],
 					'position'     => [
 						'type'        => 'integer',
@@ -249,7 +253,7 @@ class Frontman_Tool_Menus {
 		foreach ( $menus as $menu ) {
 			$items      = wp_get_nav_menu_items( $menu->term_id ) ?: [];
 			$locations  = get_nav_menu_locations();
-			$assigned   = array_keys( array_filter( $locations, function( $id ) use ( $menu ) { return $id === $menu->term_id; } ) );
+			$assigned   = array_keys( array_filter( $locations, function( $id ) use ( $menu ) { return (int) $id === (int) $menu->term_id; } ) );
 
 			$result[] = [
 				'id'        => $menu->term_id,
@@ -406,19 +410,45 @@ class Frontman_Tool_Menus {
 
 		$before = $this->read_menu( [ 'id' => $menu_id ] );
 
-		$menu_data = [
-			'menu-item-title'     => sanitize_text_field( $input['title'] ?? '' ),
-			'menu-item-url'       => esc_url_raw( $input['url'] ?? '' ),
-			'menu-item-type'      => 'custom',
-			'menu-item-object'    => 'custom',
-			'menu-item-object-id' => 0,
-			'menu-item-status'    => 'publish',
-		];
+		if ( isset( $input['post_id'] ) && absint( $input['post_id'] ) > 0 ) {
+			$post_id = absint( $input['post_id'] );
+			$post    = get_post( $post_id );
+			if ( ! $post ) {
+				throw new Frontman_Tool_Error( "Post not found: {$post_id}" );
+			}
+
+			$menu_data = [
+				'menu-item-title'     => isset( $input['title'] ) ? sanitize_text_field( $input['title'] ) : $post->post_title,
+				'menu-item-url'       => get_permalink( $post_id ),
+				'menu-item-type'      => 'post_type',
+				'menu-item-object'    => sanitize_key( $post->post_type ),
+				'menu-item-object-id' => $post_id,
+				'menu-item-status'    => 'publish',
+			];
+		} else {
+			$title = sanitize_text_field( $input['title'] ?? '' );
+			$url   = esc_url_raw( $input['url'] ?? '' );
+
+			if ( '' === $title ) {
+				throw new Frontman_Tool_Error( 'title is required for custom-link menu items.' );
+			}
+			if ( '' === $url ) {
+				throw new Frontman_Tool_Error( 'url is required for custom-link menu items. Use post_id for WordPress pages/posts.' );
+			}
+
+			$menu_data = [
+				'menu-item-title'     => $title,
+				'menu-item-url'       => $url,
+				'menu-item-type'      => 'custom',
+				'menu-item-object'    => 'custom',
+				'menu-item-object-id' => 0,
+				'menu-item-status'    => 'publish',
+			];
+		}
 
 		if ( isset( $input['parent_id'] ) ) {
 			$menu_data['menu-item-parent-id'] = absint( $input['parent_id'] );
 		}
-
 		if ( isset( $input['position'] ) ) {
 			$menu_data['menu-item-position'] = absint( $input['position'] );
 		}
@@ -454,16 +484,39 @@ class Frontman_Tool_Menus {
 			throw new Frontman_Tool_Error( "Menu item not found: {$menu_item_id}" );
 		}
 
-		$menu_data = [];
+		$setup_item = wp_setup_nav_menu_item( $item );
+		$status     = (string) ( $setup_item->post_status ?? 'publish' );
+		$menu_data  = [
+			'menu-item-db-id'     => (int) $setup_item->ID,
+			'menu-item-title'     => (string) $setup_item->title,
+			'menu-item-url'       => (string) $setup_item->url,
+			'menu-item-type'      => (string) $setup_item->type,
+			'menu-item-object'    => (string) $setup_item->object,
+			'menu-item-object-id' => (int) $setup_item->object_id,
+			'menu-item-parent-id' => (int) $setup_item->menu_item_parent,
+			'menu-item-position'  => (int) $setup_item->menu_order,
+			'menu-item-status'    => '' === $status ? 'publish' : $status,
+		];
+		$changed    = false;
 
 		if ( isset( $input['title'] ) ) {
 			$menu_data['menu-item-title'] = sanitize_text_field( $input['title'] );
+			$changed = true;
 		}
 		if ( isset( $input['url'] ) ) {
+			if ( 'custom' !== (string) ( $setup_item->type ?? '' ) ) {
+				throw new Frontman_Tool_Error( 'Cannot set url on a post-backed menu item. Create a custom-link menu item for arbitrary URLs.' );
+			}
 			$menu_data['menu-item-url'] = esc_url_raw( $input['url'] );
+			$changed = true;
 		}
 		if ( isset( $input['position'] ) ) {
 			$menu_data['menu-item-position'] = absint( $input['position'] );
+			$changed = true;
+		}
+
+		if ( ! $changed ) {
+			throw new Frontman_Tool_Error( 'Provide title, url, or position to update a menu item.' );
 		}
 
 		// Get the menu this item belongs to.
