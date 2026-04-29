@@ -21,6 +21,12 @@
       "groupName": "elixir-deps"
     },
     {
+      "description": "Disable hexpm/elixir Docker updates because Docker Hub tag listing times out",
+      "matchDatasources": ["docker"],
+      "matchDepNames": ["hexpm/elixir"],
+      "enabled": false
+    },
+    {
       "description": "Group ReScript-related packages",
       "matchPackageNames": [
         "rescript",
