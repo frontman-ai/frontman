@@ -7,6 +7,6 @@
 	},
 	"dependencies": {
 		"@frontman-ai/astro": "workspace:*",
-		"astro": "^5.8.0"
+		"astro": "^6.1.6"
 	}
 }

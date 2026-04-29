@@ -1,14 +1,18 @@
 ---
-// Components
+import { marked } from 'marked'
+import termsContent from '../data/markdown-files/terms.md?raw'
 import Layout from '../layouts/Layout.astro'
 
-// Content
-// - SEO
 const SEO = {
 	title: 'Frontman | Terms of Service',
 	description:
 		'Read the Terms of Service for Frontman. Learn about your rights, responsibilities, and the rules governing your use of the Frontman platform.'
 }
+
+const termsHtml = await marked.parse(termsContent)
+const updatedAtMatch = termsContent.match(/_Last updated:\s*(.+)_/)
+const updatedAt = updatedAtMatch?.[1] ?? null
+const contentHtml = termsHtml.replace(/<p><em>Last updated:[\s\S]*?<\/em><\/p>\s*$/u, '')
 ---
 
 <Layout title={SEO.title} description={SEO.description}>
@@ -16,162 +20,9 @@ const SEO = {
 		<div class="legal-container">
 			<p class="legal-label">Legal</p>
 			<h1 class="legal-title">Terms of Service</h1>
-			<p class="legal-updated">Last updated: February 25, 2026</p>
+			{updatedAt && <p class="legal-updated">Last updated: {updatedAt}</p>}
 
-			<div class="legal-content">
-				<section>
-					<h2>Introduction</h2>
-					<p>
-						Welcome to Frontman! By using our services, you agree to be bound by these terms and
-						conditions. Please read them carefully.
-					</p>
-				</section>
-
-				<section>
-					<h2>Acceptance of Terms</h2>
-					<p>
-						By accessing or using Frontman, you agree to comply with and be bound by these Terms of
-						Service and our <a href="/privacy/">Privacy Policy</a>. If you do not agree with these
-						terms, you should not use our services.
-					</p>
-				</section>
-
-				<section>
-					<h2>Changes to Terms</h2>
-					<p>
-						We reserve the right to modify these terms at any time. We will notify you of any
-						changes by posting the new terms on our website. Your continued use of the service
-						after such changes constitutes your acceptance of the new terms.
-					</p>
-				</section>
-
-				<section>
-					<h2>User Accounts</h2>
-					<h3>Registration</h3>
-					<p>
-						To use certain features of Frontman, you may need to create an account. You agree to
-						provide accurate and complete information when creating your account and to keep this
-						information up-to-date.
-					</p>
-					<h3>Account Security</h3>
-					<p>
-						You are responsible for maintaining the confidentiality of your account and password.
-						You agree to notify us immediately of any unauthorized use of your account.
-					</p>
-				</section>
-
-				<section>
-					<h2>Use of Services</h2>
-					<h3>License</h3>
-					<p>
-						We grant you a limited, non-exclusive, non-transferable, and revocable license to use
-						our services for personal or internal business purposes.
-					</p>
-					<h3>Prohibited Activities</h3>
-					<p>You agree not to use Frontman for any unlawful or prohibited activities, including but not limited to:</p>
-					<ul>
-						<li>Violating any applicable laws or regulations</li>
-						<li>Infringing on the intellectual property rights of others</li>
-						<li>Uploading or distributing viruses or malicious code</li>
-						<li>Interfering with the operation of the service</li>
-					</ul>
-				</section>
-
-				<section>
-					<h2>Content</h2>
-					<h3>Your Content</h3>
-					<p>
-						You retain ownership of any content you upload to Frontman. By uploading content, you
-						grant us a worldwide, royalty-free, and non-exclusive license to use, reproduce, and
-						display your content for the purpose of operating and improving the service.
-					</p>
-					<h3>Our Content</h3>
-					<p>
-						All content provided by Frontman, including text, graphics, logos, and software, is
-						the property of Frontman or its licensors and is protected by intellectual property
-						laws. You may not use, reproduce, or distribute any of our content without our prior
-						written permission.
-					</p>
-				</section>
-
-				<section>
-					<h2>Payment and Billing</h2>
-					<h3>Subscription Fees</h3>
-					<p>
-						Certain features of Frontman may require a subscription. You agree to pay all
-						applicable fees as described on our pricing page. Fees are non-refundable except as
-						required by law.
-					</p>
-					<h3>Billing Information</h3>
-					<p>
-						You must provide accurate and up-to-date billing information. You authorize us to
-						charge your payment method for the subscription fees.
-					</p>
-				</section>
-
-				<section>
-					<h2>Termination</h2>
-					<p>
-						We may terminate or suspend your account and access to Frontman at any time, without
-						prior notice, for conduct that we believe violates these terms or is harmful to other
-						users of the service.
-					</p>
-				</section>
-
-				<section>
-					<h2>Disclaimer of Warranties</h2>
-					<p>
-						Frontman is provided "as is" and "as available" without warranties of any kind, either
-						express or implied. We do not warrant that the service will be uninterrupted or
-						error-free.
-					</p>
-				</section>
-
-				<section>
-					<h2>Limitation of Liability</h2>
-					<p>
-						To the maximum extent permitted by law, Frontman shall not be liable for any indirect,
-						incidental, special, or consequential damages arising out of or in connection with your
-						use of the service.
-					</p>
-				</section>
-
-				<section>
-					<h2>Governing Law</h2>
-					<p>
-						These terms are governed by and construed in accordance with the laws of the
-						jurisdiction in which Frontman operates, without regard to its conflict of law
-						principles.
-					</p>
-				</section>
-
-				<section>
-					<h2>Contact Information</h2>
-					<p>
-						If you have any questions about these Terms of Service, please contact us at
-						<a href="mailto:support@frontman.sh">support@frontman.sh</a>.
-					</p>
-				</section>
-
-				<section>
-					<h2>Miscellaneous</h2>
-					<h3>Entire Agreement</h3>
-					<p>
-						These terms constitute the entire agreement between you and Frontman regarding the use
-						of the service and supersede any prior agreements.
-					</p>
-					<h3>Severability</h3>
-					<p>
-						If any provision of these terms is found to be invalid or unenforceable, the remaining
-						provisions will remain in full force and effect.
-					</p>
-					<h3>Waiver</h3>
-					<p>
-						Our failure to enforce any right or provision of these terms will not be considered a
-						waiver of those rights.
-					</p>
-				</section>
-			</div>
+			<div class="legal-content" set:html={contentHtml}></div>
 		</div>
 	</div>
 </Layout>
@@ -216,24 +67,20 @@ const SEO = {
 		margin-bottom: 64px;
 	}
 
-	/* Content sections */
-	.legal-content section {
-		margin-bottom: 48px;
-	}
-
-	.legal-content section:last-child {
-		margin-bottom: 0;
-	}
-
-	.legal-content h2 {
+	.legal-content :global(h2) {
 		font-size: 22px;
 		font-weight: 600;
 		color: #fafafa;
+		margin-top: 48px;
 		margin-bottom: 16px;
 		letter-spacing: -0.01em;
 	}
 
-	.legal-content h3 {
+	.legal-content :global(h2:first-child) {
+		margin-top: 0;
+	}
+
+	.legal-content :global(h3) {
 		font-size: 17px;
 		font-weight: 600;
 		color: #d4d4d8;
@@ -241,7 +88,7 @@ const SEO = {
 		margin-bottom: 8px;
 	}
 
-	.legal-content p {
+	.legal-content :global(p) {
 		font-size: 15px;
 		line-height: 1.7;
 		color: #a1a1aa;
@@ -249,28 +96,37 @@ const SEO = {
 		max-width: 620px;
 	}
 
-	.legal-content a {
+	.legal-content :global(a) {
 		color: #a78bfa;
 		text-decoration: underline;
 		text-underline-offset: 2px;
 		transition: color 0.2s;
 	}
 
-	.legal-content a:hover {
+	.legal-content :global(a:hover) {
 		color: #c4b5fd;
 	}
 
-	.legal-content ul {
+	.legal-content :global(ul) {
 		list-style: disc;
 		padding-left: 24px;
 		margin-bottom: 12px;
 	}
 
-	.legal-content ul li {
+	.legal-content :global(li) {
 		font-size: 15px;
 		line-height: 1.7;
 		color: #a1a1aa;
 		margin-bottom: 4px;
+	}
+
+	.legal-content :global(strong) {
+		color: #d4d4d8;
+		font-weight: 600;
+	}
+
+	.legal-content :global(hr) {
+		display: none;
 	}
 
 	@media (max-width: 640px) {

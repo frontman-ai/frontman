@@ -79,7 +79,7 @@
 		"@rescript/webapi": "*",
 		"@vitest/ui": "catalog:",
 		"dom-element-to-component-source": "0.5.0",
-		"next": "^15.5.14",
+		"next": "^15.5.15",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sentry-testkit": "^6.0.0",

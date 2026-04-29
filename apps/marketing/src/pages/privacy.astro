@@ -1,14 +1,18 @@
 ---
-// Components
+import { marked } from 'marked'
+import privacyContent from '../data/markdown-files/privacy.md?raw'
 import Layout from '../layouts/Layout.astro'
 
-// Content
-// - SEO
 const SEO = {
 	title: 'Frontman | Privacy Policy',
 	description:
 		'Read the Frontman Privacy Policy. Learn how we collect, use, and protect your personal information when you use the Frontman platform.'
 }
+
+const privacyHtml = await marked.parse(privacyContent)
+const updatedAtMatch = privacyContent.match(/_Last updated:\s*(.+)_/)
+const updatedAt = updatedAtMatch?.[1] ?? null
+const contentHtml = privacyHtml.replace(/<p><em>Last updated:[\s\S]*?<\/em><\/p>\s*$/u, '')
 ---
 
 <Layout title={SEO.title} description={SEO.description}>
@@ -16,164 +20,9 @@ const SEO = {
 		<div class="legal-container">
 			<p class="legal-label">Legal</p>
 			<h1 class="legal-title">Privacy Policy</h1>
-			<p class="legal-updated">Last updated: February 25, 2026</p>
+			{updatedAt && <p class="legal-updated">Last updated: {updatedAt}</p>}
 
-			<div class="legal-content">
-				<section>
-					<h2>Introduction</h2>
-					<p>
-						At Frontman, we take your privacy seriously. This Privacy Policy explains how we
-						collect, use, disclose, and safeguard your information when you use our platform and
-						services. Please read this policy carefully. By using Frontman, you consent to the
-						practices described in this policy.
-					</p>
-				</section>
-
-				<section>
-					<h2>Information We Collect</h2>
-					<h3>Information You Provide</h3>
-					<p>We may collect information that you voluntarily provide when using Frontman, including:</p>
-					<ul>
-						<li>Account information such as your name, email address, and password when you register</li>
-						<li>Profile information you choose to add to your account</li>
-						<li>Payment and billing information when you subscribe to paid features</li>
-						<li>Content you create, upload, or share through the platform</li>
-						<li>Communications you send to us, such as support requests or feedback</li>
-					</ul>
-
-					<h3>Information Collected Automatically</h3>
-					<p>When you use Frontman, we may automatically collect certain information, including:</p>
-					<ul>
-						<li>Device information such as your browser type, operating system, and device identifiers</li>
-						<li>Usage data such as pages visited, features used, and interaction patterns</li>
-						<li>Log data including IP address, access times, and referring URLs</li>
-						<li>Performance and error data to help us improve the service</li>
-					</ul>
-
-					<h3>Code and Project Data</h3>
-					<p>
-						Frontman operates within your development environment. We are committed to
-						transparency about how we handle your code and project data:
-					</p>
-					<ul>
-						<li>Frontman processes code context locally within your browser to provide AI-powered suggestions</li>
-						<li>Code snippets may be sent to AI model providers to generate responses to your requests</li>
-						<li>We do not store your source code on our servers beyond what is necessary to process your requests</li>
-						<li>We do not use your proprietary code to train AI models</li>
-					</ul>
-				</section>
-
-				<section>
-					<h2>How We Use Your Information</h2>
-					<p>We use the information we collect to:</p>
-					<ul>
-						<li>Provide, operate, and maintain the Frontman platform</li>
-						<li>Process your transactions and manage your subscriptions</li>
-						<li>Improve, personalize, and expand our services</li>
-						<li>Communicate with you about updates, security alerts, and support</li>
-						<li>Monitor and analyze usage trends to improve user experience</li>
-						<li>Detect, prevent, and address technical issues and security threats</li>
-						<li>Comply with legal obligations</li>
-					</ul>
-				</section>
-
-				<section>
-					<h2>How We Share Your Information</h2>
-					<p>
-						We do not sell your personal information. We may share your information in the
-						following limited circumstances:
-					</p>
-					<ul>
-						<li><strong>Service providers:</strong> With third-party vendors who assist us in operating our platform, such as hosting, analytics, and payment processing</li>
-						<li><strong>AI model providers:</strong> Code context necessary to fulfill your AI requests may be shared with our AI model providers, subject to their data processing agreements</li>
-						<li><strong>Legal requirements:</strong> When required by law, regulation, or legal process</li>
-						<li><strong>Business transfers:</strong> In connection with a merger, acquisition, or sale of assets</li>
-						<li><strong>With your consent:</strong> When you have given us explicit permission to share your information</li>
-					</ul>
-				</section>
-
-				<section>
-					<h2>Data Retention</h2>
-					<p>
-						We retain your personal information only for as long as necessary to fulfill the
-						purposes for which it was collected, including to satisfy legal, accounting, or
-						reporting requirements. When your data is no longer needed, we will securely delete or
-						anonymize it.
-					</p>
-				</section>
-
-				<section>
-					<h2>Data Security</h2>
-					<p>
-						We implement appropriate technical and organizational security measures to protect
-						your personal information against unauthorized access, alteration, disclosure, or
-						destruction. However, no method of transmission over the internet or electronic
-						storage is completely secure, and we cannot guarantee absolute security.
-					</p>
-				</section>
-
-				<section>
-					<h2>Your Rights</h2>
-					<p>Depending on your location, you may have the following rights regarding your personal data:</p>
-					<ul>
-						<li><strong>Access:</strong> Request a copy of the personal information we hold about you</li>
-						<li><strong>Correction:</strong> Request correction of inaccurate or incomplete information</li>
-						<li><strong>Deletion:</strong> Request deletion of your personal information</li>
-						<li><strong>Portability:</strong> Request a portable copy of your data</li>
-						<li><strong>Objection:</strong> Object to the processing of your personal information</li>
-						<li><strong>Restriction:</strong> Request restriction of processing of your personal information</li>
-					</ul>
-					<p>
-						To exercise any of these rights, please contact us at
-						<a href="mailto:support@frontman.sh">support@frontman.sh</a>.
-					</p>
-				</section>
-
-				<section>
-					<h2>Cookies and Tracking</h2>
-					<p>
-						We use cookies and similar tracking technologies to collect usage information and
-						improve our services. You can control cookie preferences through your browser
-						settings. Disabling cookies may affect the functionality of certain features.
-					</p>
-				</section>
-
-				<section>
-					<h2>Third-Party Links</h2>
-					<p>
-						Frontman may contain links to third-party websites or services. We are not responsible
-						for the privacy practices of these third parties. We encourage you to review the
-						privacy policies of any third-party services you access through Frontman.
-					</p>
-				</section>
-
-				<section>
-					<h2>Children's Privacy</h2>
-					<p>
-						Frontman is not intended for use by individuals under the age of 16. We do not
-						knowingly collect personal information from children. If we become aware that we have
-						collected information from a child, we will take steps to delete it promptly.
-					</p>
-				</section>
-
-				<section>
-					<h2>Changes to This Policy</h2>
-					<p>
-						We may update this Privacy Policy from time to time. We will notify you of any
-						material changes by posting the updated policy on our website and updating the "Last
-						updated" date. Your continued use of Frontman after changes are posted constitutes
-						your acceptance of the revised policy.
-					</p>
-				</section>
-
-				<section>
-					<h2>Contact Us</h2>
-					<p>
-						If you have any questions or concerns about this Privacy Policy or our data practices,
-						please contact us at <a href="mailto:support@frontman.sh">support@frontman.sh</a>.
-					</p>
-				</section>
-			</div>
+			<div class="legal-content" set:html={contentHtml}></div>
 		</div>
 	</div>
 </Layout>
@@ -218,24 +67,20 @@ const SEO = {
 		margin-bottom: 64px;
 	}
 
-	/* Content sections */
-	.legal-content section {
-		margin-bottom: 48px;
-	}
-
-	.legal-content section:last-child {
-		margin-bottom: 0;
-	}
-
-	.legal-content h2 {
+	.legal-content :global(h2) {
 		font-size: 22px;
 		font-weight: 600;
 		color: #fafafa;
+		margin-top: 48px;
 		margin-bottom: 16px;
 		letter-spacing: -0.01em;
 	}
 
-	.legal-content h3 {
+	.legal-content :global(h2:first-child) {
+		margin-top: 0;
+	}
+
+	.legal-content :global(h3) {
 		font-size: 17px;
 		font-weight: 600;
 		color: #d4d4d8;
@@ -243,7 +88,7 @@ const SEO = {
 		margin-bottom: 8px;
 	}
 
-	.legal-content p {
+	.legal-content :global(p) {
 		font-size: 15px;
 		line-height: 1.7;
 		color: #a1a1aa;
@@ -251,33 +96,37 @@ const SEO = {
 		max-width: 620px;
 	}
 
-	.legal-content a {
+	.legal-content :global(a) {
 		color: #a78bfa;
 		text-decoration: underline;
 		text-underline-offset: 2px;
 		transition: color 0.2s;
 	}
 
-	.legal-content a:hover {
+	.legal-content :global(a:hover) {
 		color: #c4b5fd;
 	}
 
-	.legal-content ul {
+	.legal-content :global(ul) {
 		list-style: disc;
 		padding-left: 24px;
 		margin-bottom: 12px;
 	}
 
-	.legal-content ul li {
+	.legal-content :global(li) {
 		font-size: 15px;
 		line-height: 1.7;
 		color: #a1a1aa;
 		margin-bottom: 4px;
 	}
 
-	.legal-content strong {
+	.legal-content :global(strong) {
 		color: #d4d4d8;
 		font-weight: 600;
+	}
+
+	.legal-content :global(hr) {
+		display: none;
 	}
 
 	@media (max-width: 640px) {

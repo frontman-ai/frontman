@@ -11,12 +11,14 @@ export async function register() {
 
       // Setup Frontman OTEL processors (auto-initializes LogCapture)
       const [logProcessor, spanProcessor] = setup();
+      const spanProcessors = [spanProcessor] as NonNullable<ConstructorParameters<typeof NodeSDK>[0]>['spanProcessors'];
+      const sdkConfig = {
+        logRecordProcessor: logProcessor,
+        spanProcessors,
+      } as NonNullable<ConstructorParameters<typeof NodeSDK>[0]>;
 
       // Initialize OpenTelemetry SDK with Frontman processors
-      new NodeSDK({
-        logRecordProcessors: [logProcessor],
-        spanProcessors: [spanProcessor],
-      }).start();
+      new NodeSDK(sdkConfig).start();
 
       console.log('✓ Frontman instrumentation initialized');
     }

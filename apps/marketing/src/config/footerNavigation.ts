@@ -174,7 +174,7 @@ export const footerNavigationData: FooterData = {
 					external: true
 				},
 				{
-					subCategory: 'License (Apache 2.0)',
+					subCategory: 'Licenses (Apache 2.0 client / AGPL-3.0 server)',
 					subCategoryLink: 'https://github.com/frontman-ai/frontman/blob/main/LICENSE',
 					external: true
 				}
