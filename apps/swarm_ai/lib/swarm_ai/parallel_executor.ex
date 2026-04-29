@@ -1,6 +1,6 @@
 defmodule SwarmAi.ParallelExecutor do
   @moduledoc """
-  Runs tool executions in parallel with per-task deadlines.
+  Runs tool executions with per-task deadlines.
 
   Accepts a list of `ToolExecution.t()` structs. PE is the sole execution
   authority — executors build descriptions, PE runs them.
@@ -51,6 +51,23 @@ defmodule SwarmAi.ParallelExecutor do
     case collect_results(pending, awaiting, %{}, task_supervisor) do
       {:ok, results_map} -> {:ok, finalize(tool_calls, results_map)}
       {:halt, _} = halt -> halt
+    end
+  end
+
+  @doc """
+  Runs executions one at a time and preserves original call order.
+  """
+  @spec run_serial([ToolExecution.t()], pid() | atom()) :: result()
+  def run_serial(executions, task_supervisor) do
+    Enum.reduce_while(executions, {:ok, []}, fn exec, {:ok, results} ->
+      case run([exec], task_supervisor) do
+        {:ok, [result]} -> {:cont, {:ok, [result | results]}}
+        {:halt, _reason} = halt -> {:halt, halt}
+      end
+    end)
+    |> case do
+      {:ok, results} -> {:ok, Enum.reverse(results)}
+      {:halt, _reason} = halt -> halt
     end
   end
 

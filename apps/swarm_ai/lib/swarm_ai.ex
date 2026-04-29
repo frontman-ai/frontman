@@ -535,8 +535,8 @@ defmodule SwarmAi do
 
   # Emit per-tool telemetry before/after batch execution so OTel handlers can
   # create tool spans with correct parent (step) and attributes.
-  # Tools in a batch execute in parallel inside tool_executor, so all start
-  # events are emitted before the batch and all stop events after it completes.
+  # tool_executor controls batch execution order, so all start events are emitted
+  # before the batch and all stop events after it completes.
   # Individual tool durations are measured by the OTel handler via wall-clock
   # (start_span/end_span), not by the telemetry duration measurement here.
   defp emit_tool_start(loop_id, step, tc, metadata) do

@@ -24,6 +24,19 @@ defmodule SwarmAi.ParallelToolExecutionTest do
   def run_crash(_tool_call), do: raise("boom")
   def noop_timeout(_tool_call, _reason), do: :ok
 
+  def run_serial_gate(test_pid, tool_call) do
+    send(test_pid, {:serial_started, tool_call.name, self()})
+
+    receive do
+      :go -> :ok
+    after
+      5_000 -> raise "serial gate timeout"
+    end
+
+    send(test_pid, {:serial_finished, tool_call.name})
+    ToolResult.make(tool_call.id, "Result", false)
+  end
+
   describe "batch tool execution through Runtime" do
     test "executes multiple tools concurrently" do
       runtime = start_runtime!()
@@ -119,6 +132,51 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
       await_exit(pid)
       assert_receive {:test_event, "task-crash", {:completed, {:ok, "Handled", _}}, _}, 2_000
+    end
+
+    test "can execute a tool batch serially" do
+      runtime = start_runtime!()
+      test_pid = self()
+
+      llm =
+        multi_turn_llm([
+          {:tool_calls,
+           [
+             %SwarmAi.ToolCall{id: "tc_1", name: "t1", arguments: "{}"},
+             %SwarmAi.ToolCall{id: "tc_2", name: "t2", arguments: "{}"}
+           ], "Running..."},
+          {:complete, "All done"}
+        ])
+
+      agent = test_agent(llm)
+
+      executor = fn tool_calls ->
+        Enum.map(tool_calls, fn tc ->
+          %ToolExecution.Sync{
+            tool_call: tc,
+            timeout_ms: 5_000,
+            on_timeout_policy: :error,
+            run: {__MODULE__, :run_serial_gate, [test_pid]},
+            on_timeout: {__MODULE__, :noop_timeout, []}
+          }
+        end)
+      end
+
+      {:ok, pid} =
+        SwarmAi.Runtime.run(runtime, "task-serial", agent, "Do work",
+          tool_executor: executor,
+          tool_execution_mode: :serial
+        )
+
+      assert_receive {:serial_started, "t1", first_pid}, 1_000
+      refute_receive {:serial_started, "t2", _}, 100
+      send(first_pid, :go)
+      assert_receive {:serial_finished, "t1"}, 1_000
+      assert_receive {:serial_started, "t2", second_pid}, 1_000
+      send(second_pid, :go)
+
+      await_exit(pid)
+      assert_receive {:test_event, "task-serial", {:completed, {:ok, "All done", _}}, _}, 2_000
     end
   end
 

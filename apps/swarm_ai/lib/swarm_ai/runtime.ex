@@ -163,10 +163,10 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  # Wraps the caller's batch tool_executor with per-tool parallel execution.
+  # Wraps the caller's batch tool_executor with per-tool supervised execution.
   # The inner executor returns [ToolExecution.t()] describing how to run each tool.
   # PE is the sole execution authority.
-  defp wrap_executor_with_parallel(opts, task_supervisor) do
+  defp wrap_executor_with_supervised_execution(opts, task_supervisor) do
     case Keyword.fetch(opts, :tool_executor) do
       :error -> opts
       {:ok, executor} -> do_wrap_executor(opts, executor, task_supervisor)
@@ -174,17 +174,27 @@ defmodule SwarmAi.Runtime do
   end
 
   defp do_wrap_executor(opts, inner_executor, task_supervisor) do
-    parallel_executor = fn tool_calls ->
+    tool_execution_mode = Keyword.get(opts, :tool_execution_mode, :parallel)
+
+    supervised_executor = fn tool_calls ->
       executions = inner_executor.(tool_calls)
 
-      case SwarmAi.ParallelExecutor.run(executions, task_supervisor) do
+      case run_tool_executions(executions, task_supervisor, tool_execution_mode) do
         {:ok, results} -> results
         {:halt, _} = halt -> halt
       end
     end
 
-    Keyword.put(opts, :tool_executor, parallel_executor)
+    opts
+    |> Keyword.put(:tool_executor, supervised_executor)
+    |> Keyword.delete(:tool_execution_mode)
   end
+
+  defp run_tool_executions(executions, task_supervisor, :serial),
+    do: SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor)
+
+  defp run_tool_executions(executions, task_supervisor, :parallel),
+    do: SwarmAi.ParallelExecutor.run(executions, task_supervisor)
 
   defp run_registered_task(runtime, task, handshake) do
     registry = registry_name(runtime)
@@ -196,7 +206,7 @@ defmodule SwarmAi.Runtime do
 
     streaming_opts =
       task.loop_config
-      |> wrap_executor_with_parallel(task_sup)
+      |> wrap_executor_with_supervised_execution(task_sup)
       |> build_streaming_opts(dispatcher, task.key, task.event_context, watcher)
 
     send(handshake.caller, {handshake.ack_ref, :registered})
