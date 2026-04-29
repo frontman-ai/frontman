@@ -811,10 +811,8 @@ let elementorText = (context: Client__ElementorDetection.t, ~tagName: string): s
 
 let elementorTargetText = (context: Client__ElementorDetection.t): string =>
   switch context.postId {
-  | Some(postId) =>
-    `post_id=${postId->Int.toString}, element_id=${context.elementId}, selection_scope=${context.selectionScope->Client__ElementorDetection.SelectionScope.toString}`
-  | None =>
-    `element_id=${context.elementId}, selection_scope=${context.selectionScope->Client__ElementorDetection.SelectionScope.toString}`
+  | Some(postId) => `post_id=${postId->Int.toString}, element_id=${context.elementId}`
+  | None => `element_id=${context.elementId}`
   }
 
 let nearbyTextWithElementorHint = (

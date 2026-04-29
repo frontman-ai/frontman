@@ -1310,7 +1310,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       [
         {"post_id", get_flex(context, "post_id")},
         {"element_id", get_flex(context, "element_id")},
-        {"selection_scope", get_flex(context, "selection_scope")},
         {"element_type", get_flex(context, "element_type")},
         {"widget_type", get_flex(context, "widget_type")}
       ]

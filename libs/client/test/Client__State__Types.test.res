@@ -323,7 +323,6 @@ describe("Client__State__Types", () => {
             elementType: Some("widget"),
             widgetType: Some("heading"),
             documentType: Some("wp-page"),
-            selectionScope: Client__ElementorDetection.SelectionScope.WholeElement,
             editHint: "Use Elementor tools",
           }),
           position: {xPercent: 50.0, yAbsolute: 100.0},
@@ -342,14 +341,6 @@ describe("Client__State__Types", () => {
           elementor->Dict.get("element_id")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow,
         )
         ->Expect.toBe("abc12345")
-        t
-        ->expect(
-          elementor
-          ->Dict.get("selection_scope")
-          ->Option.flatMap(JSON.Decode.string)
-          ->Option.getOrThrow,
-        )
-        ->Expect.toBe("whole_element")
         t->expect(nearbyText->String.includes("Hero title"))->Expect.toBe(true)
         t->expect(nearbyText->String.includes("Detected editing context"))->Expect.toBe(true)
         t->expect(nearbyText->String.includes("Elementor"))->Expect.toBe(true)
@@ -646,7 +637,6 @@ describe("messageAnnotationsToContentBlocks", () => {
           elementType: Some("widget"),
           widgetType: Some("html"),
           documentType: Some("wp-page"),
-          selectionScope: Client__ElementorDetection.SelectionScope.InsideElement,
           editHint: "Use Elementor tools for edits",
         }),
       },
@@ -660,7 +650,6 @@ describe("messageAnnotationsToContentBlocks", () => {
     t->expect(nearbyText->String.includes("Detected editing context"))->Expect.toBe(true)
     t->expect(nearbyText->String.includes("post_id=22744"))->Expect.toBe(true)
     t->expect(nearbyText->String.includes("element_id=b535bb8"))->Expect.toBe(true)
-    t->expect(nearbyText->String.includes("selection_scope=inside_element"))->Expect.toBe(true)
     t->expect(nearbyText->String.includes("Use Elementor tools for edits"))->Expect.toBe(true)
   })
 

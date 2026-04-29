@@ -102,7 +102,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       elementor = %{
         "post_id" => 42,
         "element_id" => "abc12345",
-        "selection_scope" => "inside_element",
         "element_type" => "widget",
         "widget_type" => "html"
       }
@@ -224,7 +223,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert text =~ "200"
     end
 
-    test "includes Elementor selection scope in annotation LLM message" do
+    test "includes Elementor target props in annotation LLM message" do
       ann = %Annotation{
         annotation_id: "ann-elementor",
         annotation_index: 0,
@@ -232,7 +231,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         elementor_context: %{
           "post_id" => 42,
           "element_id" => "abc12345",
-          "selection_scope" => "inside_element",
           "element_type" => "widget",
           "widget_type" => "html"
         }
@@ -243,7 +241,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert text =~ "Elementor:"
       assert text =~ "element_id=abc12345"
-      assert text =~ "selection_scope=inside_element"
       assert text =~ "widget_type=html"
     end
 
@@ -620,8 +617,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             nearby_text: "Welcome to our app",
             elementor: %{
               "post_id" => 42,
-              "element_id" => "abc12345",
-              "selection_scope" => "whole_element"
+              "element_id" => "abc12345"
             },
             bounding_box: %{"x" => 24.0, "y" => 176.0, "width" => 822.0, "height" => 42.0}
           ),
@@ -640,8 +636,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert ann["elementor"] == %{
                "post_id" => 42,
-               "element_id" => "abc12345",
-               "selection_scope" => "whole_element"
+               "element_id" => "abc12345"
              }
 
       assert ann["bounding_box"] == %{

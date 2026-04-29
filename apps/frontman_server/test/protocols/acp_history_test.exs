@@ -72,6 +72,38 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
       assert items != []
     end
 
+    test "UserMessage annotation keeps Elementor metadata" do
+      elementor = %{
+        "post_id" => 42,
+        "element_id" => "abc12345",
+        "element_type" => "widget",
+        "widget_type" => "html"
+      }
+
+      interaction = %Interaction.UserMessage{
+        id: "um-elementor",
+        sequence: 1,
+        timestamp: DateTime.utc_now(),
+        messages: [],
+        images: [],
+        annotations: [
+          %Interaction.Annotation{
+            annotation_id: "ann-1",
+            annotation_index: 0,
+            tag_name: "span",
+            elementor_context: elementor
+          }
+        ]
+      }
+
+      [item] = ACPHistory.to_history_items(interaction, @session_id)
+      resource = item["params"]["update"]["content"]["resource"]
+
+      assert resource["_meta"]["elementor"] == elementor
+      assert resource["resource"]["uri"] == "elementor://post/42/element/abc12345"
+      assert resource["resource"]["text"] == "Annotated Elementor element: <span> widget html"
+    end
+
     test "AgentResponse" do
       interaction = %Interaction.AgentResponse{
         id: "ar-1",

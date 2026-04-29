@@ -1,30 +1,9 @@
-module SelectionScope = {
-  type t =
-    | @as("whole_element") WholeElement
-    | @as("inside_element") InsideElement
-
-  let schema: S.t<t> = S.union([S.literal(WholeElement), S.literal(InsideElement)])
-
-  let toString = (scope: t): string =>
-    switch scope {
-    | WholeElement => "whole_element"
-    | InsideElement => "inside_element"
-    }
-
-  let description = (scope: t): string =>
-    switch scope {
-    | WholeElement => "selected DOM node is the Elementor widget/container"
-    | InsideElement => "selected DOM node is inside the Elementor widget/container"
-    }
-}
-
 type t = {
   postId: option<int>,
   elementId: string,
   elementType: option<string>,
   widgetType: option<string>,
   documentType: option<string>,
-  selectionScope: SelectionScope.t,
   editHint: string,
 }
 
@@ -34,7 +13,6 @@ let schema: S.t<t> = S.object(s => {
   elementType: s.field("element_type", S.option(S.string)),
   widgetType: s.field("widget_type", S.option(S.string)),
   documentType: s.field("document_type", S.option(S.string)),
-  selectionScope: s.field("selection_scope", SelectionScope.schema),
   editHint: s.field("edit_hint", S.string),
 })
 
@@ -99,16 +77,12 @@ let _closestElementorRoot = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMA
 let _closestElementorElement = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element> =>
   element->WebAPI.Element.closest(".elementor-element[data-id]")->Null.toOption
 
-let _makeHint = (
-  ~postId: option<int>,
-  ~elementId: string,
-  ~selectionScope: SelectionScope.t,
-): string => {
+let _makeHint = (~postId: option<int>, ~elementId: string): string => {
   let target = switch postId {
   | Some(id) => `post_id=${id->Int.toString}, element_id=${elementId}`
   | None => `element_id=${elementId}`
   }
-  `Elementor target (${target}, selection_scope=${selectionScope->SelectionScope.toString}: ${selectionScope->SelectionScope.description}). Prefer wp_elementor_* tools; inspect first, then choose whole-element tools for whole_element or fragment/settings edits for inside_element.`
+  `Elementor target (${target}). Prefer wp_elementor_update_element for granular edits; inspect first so the tool can use Elementor element props to choose settings vs HTML-fragment updates.`
 }
 
 let getElementorContext = (
@@ -133,19 +107,13 @@ let getElementorContext = (
         | Some(root) => _attr(root, "data-elementor-type")
         | None => None
         }
-        let selectionScope = switch element === elementorElement {
-        | true => SelectionScope.WholeElement
-        | false => SelectionScope.InsideElement
-        }
-
         Some({
           postId,
           elementId,
           elementType,
           widgetType,
           documentType,
-          selectionScope,
-          editHint: _makeHint(~postId, ~elementId, ~selectionScope),
+          editHint: _makeHint(~postId, ~elementId),
         })
       }
     }
@@ -166,5 +134,5 @@ let summary = (context: t, ~tagName: string): string => {
   | _ => tagName
   }
 
-  `Annotated Elementor element: <${tagName}> ${detail}, selection_scope=${context.selectionScope->SelectionScope.toString} (${context.editHint})`
+  `Annotated Elementor element: <${tagName}> ${detail} (${context.editHint})`
 }

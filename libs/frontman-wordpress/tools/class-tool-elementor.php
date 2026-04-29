@@ -74,7 +74,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_update_element',
-			'Updates one Elementor element settings object by merging changed settings after saving a private rollback snapshot. Do not use this for HTML widget settings.html; use wp_elementor_replace_html_fragment instead.',
+			'Updates one Elementor element after saving a private rollback snapshot. For normal Elementor elements, merge changed settings. For Elementor HTML widgets, provide old_html and new_html to replace an exact fragment inside settings.html; the tool inspects the element type and applies the correct update path.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -83,32 +83,17 @@ class Frontman_Tool_Elementor {
 					'element_id' => [ 'type' => 'string' ],
 					'settings'   => [
 						'type'                 => 'object',
-						'description'          => 'Elementor settings keys to merge.',
+						'description'          => 'Elementor settings keys to merge for non-HTML-fragment updates.',
 						'additionalProperties' => true,
 						'properties'           => new \stdClass(),
 					],
-				],
-				'required'             => [ 'post_id', 'element_id', 'settings' ],
-			],
-			[ $this, 'update_element' ]
-		) );
-
-		$tools->add( new Frontman_Tool_Definition(
-			'wp_elementor_replace_html_fragment',
-			'Replaces an exact fragment inside an Elementor HTML widget settings.html after saving a private rollback snapshot. Use for annotations with elementor.selection_scope=inside_element when the target is an HTML widget.',
-			[
-				'type'                 => 'object',
-				'additionalProperties' => false,
-				'properties'           => [
-					'post_id'    => [ 'type' => 'integer' ],
-					'element_id' => [ 'type' => 'string', 'description' => 'Elementor HTML widget element ID.' ],
-					'old_html'   => [ 'type' => 'string', 'description' => 'Exact HTML fragment currently present in settings.html.' ],
-					'new_html'   => [ 'type' => 'string', 'description' => 'Replacement HTML fragment. Use an empty string to remove the exact fragment.' ],
+					'old_html'   => [ 'type' => 'string', 'description' => 'Exact HTML fragment currently present in an Elementor HTML widget settings.html.' ],
+					'new_html'   => [ 'type' => 'string', 'description' => 'Replacement HTML fragment for an Elementor HTML widget. Use an empty string to remove the exact fragment.' ],
 					'occurrence' => [ 'type' => 'integer', 'description' => '1-based occurrence to replace when old_html appears more than once.' ],
 				],
-				'required'             => [ 'post_id', 'element_id', 'old_html', 'new_html' ],
+				'required'             => [ 'post_id', 'element_id' ],
 			],
-			[ $this, 'replace_html_fragment' ]
+			[ $this, 'update_element' ]
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -134,7 +119,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_remove_element',
-			'Removes a whole Elementor element and all of its children after saving the previous element as a private rollback snapshot. Only use when the user selected or explicitly requested the whole Elementor widget/container; use wp_elementor_replace_html_fragment for nested DOM inside HTML widgets. Ask the user for confirmation first and only call with confirm=true after approval.',
+			'Removes a whole Elementor element and all of its children after saving the previous element as a private rollback snapshot. Only use when the user explicitly requested removing the whole Elementor widget/container. Ask the user for confirmation first and only call with confirm=true after approval.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -346,13 +331,34 @@ class Frontman_Tool_Elementor {
 	}
 
 	public function update_element( array $input ): array {
-		$post_id    = $this->require_post_id( $input );
-		$element_id = $this->require_element_id( $input );
-		$settings   = $input['settings'] ?? null;
-		if ( ! is_array( $settings ) ) {
+		$post_id      = $this->require_post_id( $input );
+		$element_id   = $this->require_element_id( $input );
+		$has_settings = array_key_exists( 'settings', $input );
+		$has_old_html = array_key_exists( 'old_html', $input );
+		$has_new_html = array_key_exists( 'new_html', $input );
+		$has_fragment = $has_old_html || $has_new_html;
+
+		if ( ! $has_settings && ! $has_fragment ) {
+			throw new Frontman_Tool_Error( 'Provide settings or old_html/new_html changes.' );
+		}
+		if ( $has_settings && ! is_array( $input['settings'] ) ) {
 			throw new Frontman_Tool_Error( 'settings must be an object.' );
 		}
-		if ( [] === $settings ) {
+		if ( $has_fragment && ( ! $has_old_html || ! $has_new_html ) ) {
+			throw new Frontman_Tool_Error( 'old_html and new_html must be provided together.' );
+		}
+
+		$settings = $has_settings ? $input['settings'] : [];
+		$old_html = $has_old_html ? (string) $input['old_html'] : '';
+		$new_html = $has_new_html ? (string) $input['new_html'] : '';
+
+		if ( $has_fragment && '' === $old_html ) {
+			throw new Frontman_Tool_Error( 'old_html must be a non-empty exact fragment.' );
+		}
+		if ( $has_fragment && [] !== $settings ) {
+			throw new Frontman_Tool_Error( 'Use either settings or old_html/new_html in one update call.' );
+		}
+		if ( ! $has_fragment && [] === $settings ) {
 			throw new Frontman_Tool_Error( 'settings must include at least one changed setting.' );
 		}
 
@@ -361,10 +367,19 @@ class Frontman_Tool_Elementor {
 		if ( null === $element ) {
 			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
 		}
+		$is_html_widget = 'widget' === (string) ( $element['elType'] ?? '' ) && 'html' === (string) ( $element['widgetType'] ?? '' );
+
+		if ( $has_fragment ) {
+			if ( ! $is_html_widget ) {
+				throw new Frontman_Tool_Error( 'old_html/new_html can only be used with Elementor HTML widgets: ' . $element_id );
+			}
+
+			return $this->update_html_fragment( $post_id, $data, $element_id, $element, $old_html, $new_html, $input );
+		}
 
 		$current_settings = isset( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : [];
-		if ( 'widget' === (string) ( $element['elType'] ?? '' ) && 'html' === (string) ( $element['widgetType'] ?? '' ) && array_key_exists( 'html', $settings ) ) {
-			throw new Frontman_Tool_Error( 'Use wp_elementor_replace_html_fragment to edit an Elementor HTML widget settings.html value.' );
+		if ( $is_html_widget && array_key_exists( 'html', $settings ) ) {
+			throw new Frontman_Tool_Error( 'Use old_html and new_html on wp_elementor_update_element to edit an Elementor HTML widget settings.html fragment.' );
 		}
 		if ( array_merge( $current_settings, $settings ) === $current_settings ) {
 			throw new Frontman_Tool_Error( 'settings do not change the Elementor element.' );
@@ -383,24 +398,7 @@ class Frontman_Tool_Elementor {
 		return [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'rollback_id' => $rollback['rollback_id'] ];
 	}
 
-	public function replace_html_fragment( array $input ): array {
-		$post_id    = $this->require_post_id( $input );
-		$element_id = $this->require_element_id( $input );
-		$old_html   = (string) ( $input['old_html'] ?? '' );
-		$new_html   = (string) ( $input['new_html'] ?? '' );
-		if ( '' === $old_html ) {
-			throw new Frontman_Tool_Error( 'old_html must be a non-empty exact fragment.' );
-		}
-
-		$data    = $this->require_page_data( $post_id );
-		$element = Frontman_Elementor_Data::get_element( $data, $element_id );
-		if ( null === $element ) {
-			throw new Frontman_Tool_Error( 'Element not found: ' . $element_id );
-		}
-		if ( 'widget' !== (string) ( $element['elType'] ?? '' ) || 'html' !== (string) ( $element['widgetType'] ?? '' ) ) {
-			throw new Frontman_Tool_Error( 'Element is not an Elementor HTML widget: ' . $element_id );
-		}
-
+	private function update_html_fragment( int $post_id, array &$data, string $element_id, array $element, string $old_html, string $new_html, array $input ): array {
 		$settings = isset( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : [];
 		$html     = $settings['html'] ?? null;
 		if ( ! is_string( $html ) ) {
@@ -421,7 +419,7 @@ class Frontman_Tool_Elementor {
 			throw new Frontman_Tool_Error( 'occurrence must be between 1 and ' . $matches . '.' );
 		}
 		if ( trim( $old_html ) === trim( $html ) && '' === trim( $new_html ) ) {
-			throw new Frontman_Tool_Error( 'Refusing to delete the entire settings.html value with the fragment tool.' );
+			throw new Frontman_Tool_Error( 'Refusing to delete the entire settings.html value with old_html/new_html.' );
 		}
 
 		$updated_html = $this->replace_nth_occurrence( $html, $old_html, $new_html, $occurrence );

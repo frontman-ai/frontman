@@ -176,7 +176,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_removed_rollback_refuses_same_id_conflict();
 		$this->test_save_page_data_rejects_invalid_tree();
 		$this->test_save_page_data_preserves_page_rollback();
-		$this->test_replace_html_fragment_preserves_widget();
+		$this->test_update_html_fragment_preserves_widget();
 		$this->test_add_duplicate_and_move_restore_rollbacks();
 		$this->test_rollback_preserves_backslash_newline_styles();
 		$this->test_generate_element();
@@ -356,7 +356,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$names = array_column( $this->tools->all_definitions(), 'name' );
 		$this->assert_true( in_array( 'wp_elementor_get_page_structure', $names, true ), 'Elementor structure tool is registered' );
 		$this->assert_true( in_array( 'wp_elementor_update_element', $names, true ), 'Elementor update tool is registered' );
-		$this->assert_true( in_array( 'wp_elementor_replace_html_fragment', $names, true ), 'Elementor HTML fragment tool is registered' );
+		$this->assert_true( ! in_array( 'wp_elementor_replace_html_fragment', $names, true ), 'Elementor HTML fragment tool is folded into update tool' );
 		$this->assert_true( in_array( 'wp_elementor_list_rollbacks', $names, true ), 'Elementor rollback list tool is registered' );
 		$this->assert_true( in_array( 'wp_elementor_restore_rollback', $names, true ), 'Elementor rollback restore tool is registered' );
 	}
@@ -500,7 +500,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->assert_true( false !== strpos( $noop_error, 'do not change' ), 'Update rejects no-op settings' );
 
 		$html_error = $this->call_error( 'wp_elementor_update_element', [ 'post_id' => 46, 'element_id' => 'html4601', 'settings' => [ 'html' => '<p>overwrite</p>' ] ] );
-		$this->assert_true( false !== strpos( $html_error, 'wp_elementor_replace_html_fragment' ), 'Update rejects direct HTML widget settings.html overwrites' );
+		$this->assert_true( false !== strpos( $html_error, 'old_html and new_html' ), 'Update rejects direct HTML widget settings.html overwrites' );
 	}
 
 	private function test_update_duplicate_and_flush(): void {
@@ -646,10 +646,10 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->assert_same( 'root4300', $data[0]['id'], 'Save page data rollback restores previous page tree' );
 	}
 
-	private function test_replace_html_fragment_preserves_widget(): void {
+	private function test_update_html_fragment_preserves_widget(): void {
 		$element             = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 46 ), 'html4601' );
 		$full_deletion_error = $this->call_error(
-			'wp_elementor_replace_html_fragment',
+			'wp_elementor_update_element',
 			[
 				'post_id'    => 46,
 				'element_id' => 'html4601',
@@ -661,7 +661,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 
 		$old_fragment = '<div class="field"><label><input type="checkbox" name="sms"> SMS opt in</label></div>';
 		$updated      = $this->call_success(
-			'wp_elementor_replace_html_fragment',
+			'wp_elementor_update_element',
 			[
 				'post_id'    => 46,
 				'element_id' => 'html4601',
@@ -684,8 +684,11 @@ class Frontman_Elementor_Tools_Test_Runner {
 
 		$restored = $this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 46, 'rollback_id' => $updated['rollback_id'], 'confirm' => true ] );
 		$this->assert_true( true === $restored['success'], 'HTML fragment rollback restore succeeds' );
+		$this->assert_true( ! empty( $restored['undo_rollback_id'] ), 'HTML fragment rollback restore returns an undo rollback ID' );
 		$element = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 46 ), 'html4601' );
+		$this->assert_same( 'html', $element['widgetType'], 'HTML fragment rollback keeps the Elementor HTML widget' );
 		$this->assert_true( false !== strpos( $element['settings']['html'], 'SMS opt in' ), 'HTML fragment rollback restores removed markup' );
+		$this->assert_true( false !== strpos( $element['settings']['html'], 'Email opt in' ), 'HTML fragment rollback preserves sibling markup' );
 	}
 
 	private function test_add_duplicate_and_move_restore_rollbacks(): void {
@@ -751,7 +754,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 
 	private function test_rollback_preserves_backslash_newline_styles(): void {
 		$original = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 45 ), 'html4501' )['settings']['html'];
-		$updated  = $this->call_success( 'wp_elementor_replace_html_fragment', [ 'post_id' => 45, 'element_id' => 'html4501', 'old_html' => $original, 'new_html' => '<div>changed</div>' ] );
+		$updated  = $this->call_success( 'wp_elementor_update_element', [ 'post_id' => 45, 'element_id' => 'html4501', 'old_html' => $original, 'new_html' => '<div>changed</div>' ] );
 		$this->assert_true( ! empty( $updated['rollback_id'] ), 'Backslash style fragment replacement returns rollback ID' );
 
 		$restored = $this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 45, 'rollback_id' => $updated['rollback_id'], 'confirm' => true ] );
