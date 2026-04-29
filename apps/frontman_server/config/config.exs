@@ -142,6 +142,17 @@ config :llm_db,
           limits: %{context: 200_000, output: 32_000},
           modalities: %{input: [:text, :image, :pdf], output: [:text]}
         },
+        "openai/gpt-5.5" => %{
+          name: "GPT-5.5",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            streaming: %{text: true, tool_calls: true},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 1_000_000, output: 128_000},
+          modalities: %{input: [:text, :image], output: [:text]}
+        },
         "openai/gpt-5.4-pro" => %{
           name: "GPT-5.4 Pro",
           capabilities: %{
@@ -235,6 +246,17 @@ config :llm_db,
     ],
     openai: [
       models: %{
+        "gpt-5.5" => %{
+          name: "GPT-5.5",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            streaming: %{text: true, tool_calls: true},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 1_000_000, output: 128_000},
+          modalities: %{input: [:text, :image], output: [:text]}
+        },
         "gpt-5.4" => %{
           name: "GPT-5.4",
           capabilities: %{

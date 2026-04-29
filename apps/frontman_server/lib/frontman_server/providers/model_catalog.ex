@@ -24,6 +24,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   # ── Model lists ────────────────────────────────────────────────────
 
   @openrouter_models [
+    %{displayName: "GPT-5.5", value: "openai/gpt-5.5"},
     %{displayName: "GPT-5.4 Pro", value: "openai/gpt-5.4-pro"},
     %{displayName: "GPT-5.4", value: "openai/gpt-5.4"},
     %{displayName: "GPT-5.3 Codex", value: "openai/gpt-5.3-codex"},
@@ -65,6 +66,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   ]
 
   @openai_models [
+    %{displayName: "GPT-5.5", value: "gpt-5.5"},
     %{displayName: "GPT-5.4", value: "gpt-5.4"},
     %{displayName: "GPT-5.3 Codex", value: "gpt-5.3-codex"},
     %{displayName: "GPT-5.2 Codex", value: "gpt-5.2-codex"},
@@ -84,7 +86,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     "openrouter" => %{provider: "openrouter", value: "google/gemini-3-flash-preview"},
     "anthropic" => %{provider: "anthropic", value: "claude-sonnet-4-5"},
     "fireworks" => %{provider: "fireworks", value: "accounts/fireworks/routers/kimi-k2p5-turbo"},
-    "openai" => %{provider: "openai", value: "gpt-5.4"}
+    "openai" => %{provider: "openai", value: "gpt-5.5"}
   }
 
   # ── Public API ─────────────────────────────────────────────────────
@@ -99,7 +101,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   ## Examples
 
       iex> ModelCatalog.models("openai", :full) |> length()
-      6
+      7
 
       iex> ModelCatalog.models("openrouter", :free) |> length()
       4
@@ -118,7 +120,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   ## Examples
 
       iex> ModelCatalog.default_model("openai")
-      %{provider: "openai", value: "gpt-5.4"}
+      %{provider: "openai", value: "gpt-5.5"}
   """
   @spec default_model(String.t()) :: map() | nil
   def default_model(provider) when is_binary(provider) do

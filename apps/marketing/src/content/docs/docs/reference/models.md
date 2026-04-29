@@ -11,7 +11,7 @@ Frontman supports multiple AI providers. The available models depend on your pro
 |----------|-------------|--------|
 | **OpenRouter** | API key, env variable, free tier | GPT-5.x, Claude family, Gemini, Kimi, Minimax, and more |
 | **Anthropic** | OAuth, API key, env variable | Claude Opus 4.6, Sonnet 4.5, Opus 4.5, Haiku 4.5, Sonnet 4, Opus 4 |
-| **OpenAI (ChatGPT)** | OAuth | GPT-5.4, GPT-5.3 Codex, GPT-5.2, GPT-5.1 Codex variants |
+| **OpenAI (ChatGPT)** | OAuth | GPT-5.5, GPT-5.4, GPT-5.3 Codex, GPT-5.2, GPT-5.1 Codex variants |
 | **Google** | API key | Gemini 3 Pro/Flash, Gemini 2.5 Pro (via OpenRouter) |
 | **xAI** | API key | Grok models (via OpenRouter) |
 
@@ -27,6 +27,7 @@ OpenRouter gives access to the widest range of models through a single API key. 
 
 | Model | ID |
 |-------|----|
+| GPT-5.5 | `openai/gpt-5.5` |
 | GPT-5.4 Pro | `openai/gpt-5.4-pro` |
 | GPT-5.4 | `openai/gpt-5.4` |
 | GPT-5.3 Codex | `openai/gpt-5.3-codex` |
@@ -78,11 +79,12 @@ Direct access to Claude models via API key, environment variable, or OAuth with 
 
 Access GPT models by connecting your ChatGPT Pro/Plus subscription via OAuth.
 
-**Default model:** GPT-5.4
+**Default model:** GPT-5.5
 **Auth:** OAuth only
 
 | Model | ID |
 |-------|----|
+| GPT-5.5 | `gpt-5.5` |
 | GPT-5.4 | `gpt-5.4` |
 | GPT-5.3 Codex | `gpt-5.3-codex` |
 | GPT-5.2 Codex | `gpt-5.2-codex` |

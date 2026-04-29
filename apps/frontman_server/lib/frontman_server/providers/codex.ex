@@ -111,13 +111,19 @@ defmodule FrontmanServer.Providers.Codex do
     * `base_url` derived from `endpoint`
     * Optional `chatgpt_account_id`
     * Removes `max_tokens`
+    * Disables response storage so ReqLLM does not emit Codex-unsupported previous_response_id
   """
   @spec patch_llm_opts(keyword(), String.t(), String.t() | nil) :: keyword()
   def patch_llm_opts(opts, endpoint, account_id) when is_binary(endpoint) do
     opts
     |> Keyword.put(:base_url, base_url(endpoint))
     |> Keyword.delete(:max_tokens)
+    |> put_stateless_provider_options()
     |> maybe_put_chatgpt_account_id(account_id)
+  end
+
+  defp put_stateless_provider_options(opts) do
+    Keyword.update(opts, :provider_options, [store: false], &Keyword.put(&1, :store, false))
   end
 
   defp maybe_put_chatgpt_account_id(opts, account_id)

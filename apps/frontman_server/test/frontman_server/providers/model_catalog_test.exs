@@ -21,6 +21,15 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
       assert ModelCatalog.models("unknown-provider", :full) == []
     end
 
+    test "includes GPT-5.5 in OpenAI and OpenRouter full tiers" do
+      assert %{displayName: "GPT-5.5", value: "gpt-5.5"} in ModelCatalog.models("openai", :full)
+
+      assert %{displayName: "GPT-5.5", value: "openai/gpt-5.5"} in ModelCatalog.models(
+               "openrouter",
+               :full
+             )
+    end
+
     test "returns Fireworks models for full and free tiers" do
       expected = [
         %{displayName: "Kimi K2.5 Turbo", value: "accounts/fireworks/routers/kimi-k2p5-turbo"}
@@ -49,6 +58,7 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
     test "picks highest-priority provider's default" do
       default = ModelCatalog.pick_default(["openai", "anthropic", "openrouter"])
       assert default.provider == "openai"
+      assert default.value == "gpt-5.5"
     end
 
     test "picks anthropic when openai not available" do
