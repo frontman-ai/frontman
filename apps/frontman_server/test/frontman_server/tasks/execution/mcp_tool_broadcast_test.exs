@@ -22,7 +22,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       on_exit(fn -> Sandbox.stop_owner(pid) end)
 
       scope = user_scope_fixture()
-      task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
+      task_id = task_with_pubsub_fixture(scope, framework: "nextjs")
 
       {:ok, task_id: task_id, scope: scope}
     end
@@ -93,7 +93,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       on_exit(fn -> Sandbox.stop_owner(pid) end)
 
       scope = user_scope_fixture()
-      task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
+      task_id = task_with_pubsub_fixture(scope, framework: "nextjs")
 
       {:ok, task_id: task_id, scope: scope}
     end

@@ -128,7 +128,7 @@ defmodule FrontmanServerWeb.ChannelCase do
   ## Examples
 
       {socket, task_id} = join_task_channel(scope)
-      {socket, task_id} = join_task_channel(scope, framework: "test-framework")
+      {socket, task_id} = join_task_channel(scope, framework: "nextjs")
   """
   defmacro join_task_channel(scope, opts \\ []) do
     quote do

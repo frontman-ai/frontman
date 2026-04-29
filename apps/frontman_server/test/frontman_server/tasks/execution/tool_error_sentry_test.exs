@@ -27,7 +27,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
-    task_id = task_fixture(scope, framework: "test-framework")
+    task_id = task_fixture(scope, framework: "nextjs")
 
     {:ok, task_id: task_id, scope: scope}
   end

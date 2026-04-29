@@ -11,7 +11,7 @@ defmodule FrontmanServer.ToolsTest do
 
   setup do
     scope = user_scope_fixture()
-    task_id = task_fixture(scope, framework: "test-framework")
+    task_id = task_fixture(scope, framework: "nextjs")
     {:ok, task} = Tasks.get_task(scope, task_id)
     {:ok, task_id: task_id, task: task, scope: scope}
   end

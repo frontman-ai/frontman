@@ -14,7 +14,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   setup %{scope: scope} do
     Sentry.Test.start_collecting_sentry_reports()
 
-    {socket, task_id} = join_task_channel(scope, framework: "test-framework")
+    {socket, task_id} = join_task_channel(scope, framework: "nextjs")
     complete_mcp_handshake(socket)
 
     {:ok, socket: socket, task_id: task_id}

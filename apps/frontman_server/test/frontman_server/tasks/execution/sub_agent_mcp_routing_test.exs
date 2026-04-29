@@ -29,7 +29,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
 
   describe "ToolExecutor MCP tool routing" do
     setup %{scope: scope} do
-      task_id = task_fixture(scope, framework: "test-framework")
+      task_id = task_fixture(scope, framework: "nextjs")
 
       # Join TaskChannel to intercept MCP requests
       {:ok, _reply, socket} =

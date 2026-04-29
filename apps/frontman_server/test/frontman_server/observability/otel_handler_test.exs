@@ -60,7 +60,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
     ensure_ets_tables()
     :otel_simple_processor.set_exporter(:otel_exporter_pid, self())
 
-    task_id = task_with_pubsub_fixture(scope, framework: "test-framework")
+    task_id = task_with_pubsub_fixture(scope, framework: "nextjs")
 
     on_exit(&cleanup_ets_tables/0)
     {:ok, task_id: task_id, scope: scope}

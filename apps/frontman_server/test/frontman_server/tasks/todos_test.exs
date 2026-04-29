@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
   setup do
     scope = user_scope_fixture()
-    task_id = task_fixture(scope, framework: "test-framework")
+    task_id = task_fixture(scope, framework: "nextjs")
 
     {:ok, task_id: task_id, scope: scope}
   end
