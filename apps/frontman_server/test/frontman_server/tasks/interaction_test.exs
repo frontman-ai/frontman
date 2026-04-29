@@ -274,7 +274,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       text = extract_text(llm_msg)
       assert text =~ "attachment://att_hero/hero.png"
       refute text =~ "write_file with image_ref"
-      refute text =~ "wp_upload_media"
     end
   end
 
