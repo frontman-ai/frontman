@@ -82,7 +82,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
 
       interaction = %Interaction.UserMessage{
         id: "um-elementor",
-        sequence: 1,
         timestamp: DateTime.utc_now(),
         messages: [],
         images: [],
