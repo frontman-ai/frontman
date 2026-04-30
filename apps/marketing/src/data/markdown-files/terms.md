@@ -75,8 +75,8 @@ These terms are governed by and construed in accordance with the laws of the jur
 
 If you have any questions about these Terms of Service, please contact us at:
 
-Support: support@frontman.sh
-Legal: legal@frontman.sh
+- Support: [support@frontman.sh](mailto:support@frontman.sh)
+- Legal: [legal@frontman.sh](mailto:legal@frontman.sh)
 
 ## Miscellaneous
 
