@@ -23,8 +23,7 @@ ${tagline}
 let importLine = `import { frontmanPlugin } from '@frontman-ai/vite';`
 
 // The plugin call with host option
-let pluginCall = (~server: string) =>
-  `frontmanPlugin({ host: '${server}' })`
+let pluginCall = (~server: string) => `frontmanPlugin({ host: '${server}' })`
 
 // Manual instructions shown when user has an existing config and skips auto-edit
 module ManualInstructions = {
@@ -57,8 +56,7 @@ module ManualInstructions = {
 
 // Success messages
 module SuccessMessages = {
-  let fileCreated = (fileName: string) =>
-    `  ${Style.check} Created ${Style.bold(fileName)}`
+  let fileCreated = (fileName: string) => `  ${Style.check} Created ${Style.bold(fileName)}`
 
   let fileUpdated = (fileName: string) =>
     `  ${Style.check} Updated ${Style.bold(fileName)} ${Style.dim("(added frontmanPlugin)")}`
@@ -67,7 +65,9 @@ module SuccessMessages = {
     `  ${Style.purple("–")} Skipped ${Style.bold(fileName)} ${Style.dim("(already configured)")}`
 
   let manualEditRequired = (fileName: string) =>
-    `  ${Style.warn}  ${Style.bold(fileName)} requires manual setup ${Style.dim("(see details below)")}`
+    `  ${Style.warn}  ${Style.bold(fileName)} requires manual setup ${Style.dim(
+        "(see details below)",
+      )}`
 
   let installComplete = (~devCommand: string, ~port: string) => {
     let p = Style.purple
@@ -81,18 +81,23 @@ module SuccessMessages = {
     ${p("1.")} Start your dev server   ${d(devCommand)}
     ${p("2.")} Open your browser to    ${d(`http://localhost:${port}/frontman`)}
 
-  ${p("┌───────────────────────────────────────────────┐")}
+  ${p(
+        "┌───────────────────────────────────────────────┐",
+      )}
   ${p("│                                               │")}
   ${p("│   Questions? Comments? Need support?          │")}
   ${p("│                                               │")}
   ${p("│       Join us on Discord:                     │")}
   ${p("│       https://discord.gg/xk8uXJSvhC           │")}
   ${p("│                                               │")}
-  ${p("└───────────────────────────────────────────────┘")}
+  ${p(
+        "└───────────────────────────────────────────────┘",
+      )}
 `
   }
 
-  let dryRunHeader =
-    `  ${Style.warn}  ${Style.yellowBold("DRY RUN MODE")} ${Style.dim("— No files will be created")}
+  let dryRunHeader = `  ${Style.warn}  ${Style.yellowBold("DRY RUN MODE")} ${Style.dim(
+      "— No files will be created",
+    )}
 `
 }

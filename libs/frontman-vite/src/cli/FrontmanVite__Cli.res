@@ -41,10 +41,7 @@ Examples:
 let parseArgs = (argv: array<string>): parsedArgs => {
   let args = argv->Array.slice(~start=2, ~end=Array.length(argv))
 
-  let rec parse = (
-    ~remaining: array<string>,
-    ~result: parsedArgs,
-  ): parsedArgs => {
+  let rec parse = (~remaining: array<string>, ~result: parsedArgs): parsedArgs => {
     switch remaining->Array.get(0) {
     | None => result
     | Some(arg) =>

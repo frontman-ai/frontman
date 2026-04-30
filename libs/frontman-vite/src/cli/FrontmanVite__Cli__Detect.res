@@ -82,16 +82,11 @@ let detectPackageManager = async (projectDir: string): packageManager => {
 }
 
 // Pattern to detect frontman plugin import
-let frontmanImportPattern = %re("/@frontman-ai\/vite|frontman-vite|frontmanPlugin/")
+let frontmanImportPattern = /@frontman-ai\/vite|frontman-vite|frontmanPlugin/
 
 // Find the vite config file (supports .ts, .js, .mjs, .mts)
 let findViteConfig = async (projectDir: string): option<(string, string)> => {
-  let candidates = [
-    "vite.config.ts",
-    "vite.config.js",
-    "vite.config.mts",
-    "vite.config.mjs",
-  ]
+  let candidates = ["vite.config.ts", "vite.config.js", "vite.config.mts", "vite.config.mjs"]
 
   let rec check = async (remaining: array<string>) => {
     switch remaining->Array.get(0) {
@@ -161,8 +156,7 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
   | true =>
     let hasVite = await hasViteDependency(projectDir)
     switch hasVite {
-    | false =>
-      Error("Could not find vite in package.json. Please verify this is a Vite project.")
+    | false => Error("Could not find vite in package.json. Please verify this is a Vite project.")
     | true =>
       let (viteConfig, viteConfigFileName) = await analyzeViteConfig(projectDir)
       let packageManager = await detectPackageManager(projectDir)

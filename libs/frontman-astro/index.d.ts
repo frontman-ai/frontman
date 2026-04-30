@@ -52,11 +52,6 @@ export interface FrontmanConfig {
    */
   clientCssUrl?: string;
 
-  /**
-   * Use a light theme for the Frontman UI.
-   * @default false
-   */
-  isLightTheme?: boolean;
 }
 
 /**

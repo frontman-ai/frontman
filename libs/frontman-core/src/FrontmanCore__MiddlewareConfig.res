@@ -1,6 +1,6 @@
 // Shared middleware configuration type used by all framework adapters
 //
-// Each adapter has its own Config type with framework-specific fields (isDev, etc.),
+// Each adapter has its own Config type with framework-specific fields,
 // but the middleware layer only needs this subset.
 
 type frameworkId = Nextjs | Vite | Astro
@@ -30,6 +30,5 @@ type t = {
   clientUrl: string,
   clientCssUrl: option<string>,
   entrypointUrl: option<string>,
-  isLightTheme: bool,
   frameworkId: frameworkId,
 }

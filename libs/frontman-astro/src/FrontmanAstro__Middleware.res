@@ -29,7 +29,6 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   clientUrl: config.clientUrl,
   clientCssUrl: config.clientCssUrl,
   entrypointUrl: config.entrypointUrl,
-  isLightTheme: config.isLightTheme,
   frameworkId: CoreMiddlewareConfig.Astro,
 }
 

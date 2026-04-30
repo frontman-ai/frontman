@@ -77,7 +77,6 @@ frontmanPlugin({
   clientUrl: 'https://...',        // Custom client bundle URL (default: inferred from isDev)
   clientCssUrl: 'https://...',     // Custom client CSS URL (default: inferred from isDev)
   entrypointUrl: 'http://...',     // Custom entrypoint URL for the API
-  isLightTheme: false,             // Use light theme (default: false / dark)
 });
 ```
 

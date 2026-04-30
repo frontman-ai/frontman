@@ -14,7 +14,6 @@ module Helpers = {
       serverVersion: "1.0.0",
       host: "localhost:3000",
       clientUrl: "http://localhost:3000/client.js?clientName=nextjs&host=localhost:3000",
-      isLightTheme: false,
     }
     Middleware.createMiddleware(configInput)
   }

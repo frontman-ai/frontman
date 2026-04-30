@@ -261,7 +261,6 @@ createMiddleware({
   clientUrl: string,           // Custom client bundle URL
   clientCssUrl: string,        // Custom client CSS URL
   entrypointUrl: string,       // Custom entrypoint URL
-  isLightTheme: boolean,       // Use light theme (default: false)
   projectRoot: string,         // Project root directory (default: process.cwd())
 })
 ```

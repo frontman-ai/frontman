@@ -1,0 +1,60 @@
+---
+import { Icon } from 'astro-icon/components'
+
+interface Props {
+	firstName: string
+	lastName: string
+	location: string
+	bio: string
+	github: string
+	linkedin: string
+	twitter: string
+}
+
+const { firstName, lastName, location, bio, github, linkedin, twitter } = Astro.props
+const fullName = `${firstName} ${lastName}`
+
+const socialLinks = [
+	{
+		label: 'GitHub',
+		href: github,
+		icon: 'github-icon',
+	},
+	{
+		label: 'LinkedIn',
+		href: linkedin,
+		icon: 'linkedin-icon',
+	},
+	{
+		label: 'Twitter',
+		href: twitter,
+		icon: 'twitter-icon',
+	},
+]
+---
+
+<div class="flex h-full flex-col rounded-xl border border-zinc-800 p-6 transition-colors hover:border-zinc-700 sm:p-8">
+	<div class="mb-5">
+		<h2 class="mb-1 text-[22px] font-semibold leading-tight tracking-[-0.01em] text-zinc-50">
+			<span class="block">{firstName}</span>
+			<span class="block">{lastName}</span>
+		</h2>
+		<p class="mb-0.5 text-sm text-zinc-500">Co-founder</p>
+		<p class="text-sm text-zinc-600">{location}</p>
+	</div>
+	<p class="mb-6 flex-1 text-[15px] leading-[1.6] text-zinc-400">{bio}</p>
+	<div class="mt-auto flex flex-wrap gap-4">
+		{socialLinks.map((link) => (
+			<a
+				href={link.href}
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label={`${fullName} on ${link.label}`}
+				class="flex items-center gap-1.5 text-[13px] text-zinc-500 no-underline transition-colors hover:text-zinc-50"
+			>
+				<Icon name={link.icon} class="h-4 w-4 shrink-0" aria-hidden="true" />
+				<span>{link.label}</span>
+			</a>
+		))}
+	</div>
+</div>

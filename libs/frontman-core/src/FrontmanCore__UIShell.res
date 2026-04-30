@@ -5,23 +5,36 @@
 
 module MiddlewareConfig = FrontmanCore__MiddlewareConfig
 
+let escapeHtmlAttribute = (value: string): string =>
+  value
+  ->String.replaceAll("&", "&amp;")
+  ->String.replaceAll("\"", "&quot;")
+  ->String.replaceAll("'", "&#39;")
+  ->String.replaceAll("<", "&lt;")
+  ->String.replaceAll(">", "&gt;")
+
+// Pin the dev-only debugger so React Scan releases do not change Frontman debug behavior under us.
+let reactScanScript = `<script src="https://unpkg.com/react-scan@0.5.3/dist/auto.global.js" crossorigin="anonymous"></script>`
+
+let reactScanTag = (~enableReactScan: bool): string => {
+  switch enableReactScan {
+  | true => reactScanScript
+  | false => ""
+  }
+}
 // Generate the HTML shell for the Frontman UI
-let generateHTML = (config: MiddlewareConfig.t): string => {
+let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string => {
   let clientCssTag =
-    config.clientCssUrl->Option.mapOr("", url => `<link rel="stylesheet" href="${url}">`)
+    config.clientCssUrl->Option.mapOr("", url =>
+      `<link rel="stylesheet" href="${url->escapeHtmlAttribute}">`
+    )
 
   let entrypointTemplate =
     config.entrypointUrl->Option.mapOr("", url =>
-      `<script type="template" id="frontman-entrypoint-url">${url}</script>`
+      `<script type="template" id="frontman-entrypoint-url">${url->escapeHtmlAttribute}</script>`
     )
 
-  let themeClass = switch config.isLightTheme {
-  | true => ""
-  | false => "dark"
-  }
-
   let runtimeConfigScript = {
-    // Get raw env vars and filter out empty strings
     let getEnvKey = varName =>
       FrontmanBindings.Process.env
       ->Dict.get(varName)
@@ -56,7 +69,7 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
   }
 
   `<!DOCTYPE html>
-<html lang="en" class="${themeClass}">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -76,14 +89,15 @@ let generateHTML = (config: MiddlewareConfig.t): string => {
     <div id="root"></div>
     ${runtimeConfigScript}
     <script>if(typeof process==="undefined"){window.process={env:{NODE_ENV:"production"}}}</script>
-    <script type="module" src="${config.clientUrl}"></script>
+    ${reactScanTag(~enableReactScan)}
+    <script type="module" src="${config.clientUrl->escapeHtmlAttribute}"></script>
 </body>
 </html>`
 }
 
 // Serve the HTML shell as a Response
-let serve = (config: MiddlewareConfig.t): WebAPI.FetchAPI.response => {
-  let html = generateHTML(config)
+let serve = (config: MiddlewareConfig.t, ~enableReactScan=false): WebAPI.FetchAPI.response => {
+  let html = generateHTML(config, ~enableReactScan)
   let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "text/html")]))
   WebAPI.Response.fromString(html, ~init={headers: headers})
 }
@@ -92,10 +106,11 @@ let serve = (config: MiddlewareConfig.t): WebAPI.FetchAPI.response => {
 let serveWithEntrypoint = (
   ~config: MiddlewareConfig.t,
   ~entrypointUrl: option<string>,
+  ~enableReactScan=false,
 ): WebAPI.FetchAPI.response => {
   let effectiveConfig = switch entrypointUrl {
   | Some(_) => {...config, entrypointUrl}
   | None => config
   }
-  serve(effectiveConfig)
+  serve(effectiveConfig, ~enableReactScan)
 }

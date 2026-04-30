@@ -74,8 +74,7 @@ let execute = async (_ctx: Tool.serverExecutionContext, input: input): Tool.tool
     })
   } catch {
   | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
     Error(`Failed to retrieve logs: ${msg}`)
   }
 }

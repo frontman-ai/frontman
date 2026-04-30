@@ -17,7 +17,6 @@ let defaultConfig: CoreMiddlewareConfig.t = {
   clientUrl: "http://localhost/client.js",
   clientCssUrl: None,
   entrypointUrl: None,
-  isLightTheme: false,
   frameworkId: CoreMiddlewareConfig.Astro,
 }
 

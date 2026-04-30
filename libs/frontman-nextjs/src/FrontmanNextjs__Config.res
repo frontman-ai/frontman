@@ -52,7 +52,6 @@ type t = {
   clientUrl: string,
   clientCssUrl: option<string>,
   entrypointUrl: option<string>,
-  isLightTheme: bool,
   projectRoot: string,
   // sourceRoot: root for file paths (monorepo root in monorepo setups)
   // Defaults to projectRoot if not specified
@@ -69,7 +68,6 @@ let make = (
   ~clientUrl=None,
   ~clientCssUrl=None,
   ~entrypointUrl=None,
-  ~isLightTheme=None,
   ~projectRoot=None,
   ~sourceRoot=None,
 ) => {
@@ -82,7 +80,6 @@ let make = (
   let basePath = basePath->Option.getOr("frontman")
   let serverName = serverName->Option.getOr("frontman-nextjs")
   let serverVersion = serverVersion->Option.getOr(packageVersion)
-  let isLightTheme = isLightTheme->Option.getOr(false)
 
   let projectRoot =
     projectRoot
@@ -138,7 +135,6 @@ let make = (
       },
     ),
     entrypointUrl,
-    isLightTheme,
     projectRoot,
     sourceRoot,
   }
@@ -154,7 +150,6 @@ type jsConfigInput = {
   clientUrl?: string,
   clientCssUrl?: string,
   entrypointUrl?: string,
-  isLightTheme?: bool,
   projectRoot?: string,
   sourceRoot?: string,
 }
@@ -170,7 +165,6 @@ let makeFromObject = (config: jsConfigInput): t =>
     ~clientUrl=config.clientUrl,
     ~clientCssUrl=config.clientCssUrl,
     ~entrypointUrl=config.entrypointUrl,
-    ~isLightTheme=config.isLightTheme,
     ~projectRoot=config.projectRoot,
     ~sourceRoot=config.sourceRoot,
   )

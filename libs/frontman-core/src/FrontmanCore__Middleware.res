@@ -56,7 +56,8 @@ let getCanonicalRedirect = (~prefixPath: string, ~basePath: string): option<stri
     // Trailing nested suffix: strip one trailing /basePath from prefix
     switch prefixPath->String.endsWith(suffix) {
     | true =>
-      let stripped = prefixPath->String.slice(~start=0, ~end=prefixPath->String.length - suffix->String.length)
+      let stripped =
+        prefixPath->String.slice(~start=0, ~end=prefixPath->String.length - suffix->String.length)
       let cleanPrefix = switch stripped {
       | "" => ""
       | p => p
@@ -70,7 +71,11 @@ let getCanonicalRedirect = (~prefixPath: string, ~basePath: string): option<stri
       // Leading basePath/ prefix: strip leading basePath/ from prefix
       switch prefixPath->String.startsWith(basePath ++ "/") {
       | true =>
-        let rest = prefixPath->String.slice(~start=basePath->String.length + 1, ~end=prefixPath->String.length)
+        let rest =
+          prefixPath->String.slice(
+            ~start=basePath->String.length + 1,
+            ~end=prefixPath->String.length,
+          )
         let canonical = switch rest {
         | "" => "/" ++ basePath ++ "/"
         | p => "/" ++ p ++ "/" ++ basePath ++ "/"
@@ -106,10 +111,9 @@ let buildEntrypointUrl = (
 // Create middleware from config and registry
 // Returns request => promise<option<response>>
 // None means "not handled, pass through to next middleware"
-let createMiddleware = (
-  ~config: MiddlewareConfig.t,
-  ~registry: ToolRegistry.t,
-): (WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>>) => {
+let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t): (
+  WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>>
+) => {
   let handlerConfig: RequestHandlers.handlerConfig = {
     projectRoot: config.projectRoot,
     sourceRoot: config.sourceRoot,
@@ -138,10 +142,7 @@ let createMiddleware = (
     let toolsCallPath = basePath ++ "/tools/call"
     let resolveSourceLocationPath = basePath ++ "/resolve-source-location"
 
-    let isApiRoute =
-      path == toolsPath ||
-      path == toolsCallPath ||
-      path == resolveSourceLocationPath
+    let isApiRoute = path == toolsPath || path == toolsCallPath || path == resolveSourceLocationPath
 
     let suffixPrefix = switch isApiRoute {
     | true => None
@@ -168,14 +169,15 @@ let createMiddleware = (
       Some(RequestHandlers.handleGetTools(~registry, ~config=handlerConfig)->CORS.withCors)
     | ("post", p) if p == toolsCallPath =>
       Some(
-        (await RequestHandlers.handleToolCall(~registry, ~config=handlerConfig, req))->CORS.withCors,
+        (
+          await RequestHandlers.handleToolCall(~registry, ~config=handlerConfig, req)
+        )->CORS.withCors,
       )
     | ("post", p) if p == resolveSourceLocationPath =>
       Some(
-        (await RequestHandlers.handleResolveSourceLocation(
-          ~sourceRoot=config.sourceRoot,
-          req,
-        ))->CORS.withCors,
+        (
+          await RequestHandlers.handleResolveSourceLocation(~sourceRoot=config.sourceRoot, req)
+        )->CORS.withCors,
       )
 
     // UI route (suffix match) — redirect nested basePath segments to canonical URL
@@ -188,16 +190,18 @@ let createMiddleware = (
             "",
             ~init={
               status: 302,
-              headers: WebAPI.HeadersInit.fromDict(
-                Dict.fromArray([("Location", canonicalPath)]),
-              ),
+              headers: WebAPI.HeadersInit.fromDict(Dict.fromArray([("Location", canonicalPath)])),
             },
           ),
         )
       | None =>
         // Use original-case prefix to preserve URL casing for case-sensitive frameworks
         let originalPrefix = originalSuffixPrefix->Option.getOrThrow
-        let entrypointUrl = buildEntrypointUrl(~config, ~requestUrl=req.url, ~prefixPath=originalPrefix)
+        let entrypointUrl = buildEntrypointUrl(
+          ~config,
+          ~requestUrl=req.url,
+          ~prefixPath=originalPrefix,
+        )
         Some(UIShell.serveWithEntrypoint(~config, ~entrypointUrl)->CORS.withCors)
       }
 

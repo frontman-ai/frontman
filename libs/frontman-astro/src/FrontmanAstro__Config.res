@@ -30,7 +30,6 @@ type t = {
   clientUrl: string,
   clientCssUrl: option<string>,
   entrypointUrl: option<string>,
-  isLightTheme: bool,
 }
 
 // JS-friendly type for config input
@@ -44,7 +43,6 @@ type jsConfigInput = {
   clientUrl?: string,
   clientCssUrl?: string,
   entrypointUrl?: string,
-  isLightTheme?: bool,
 }
 
 // Ensure config is an object even when called with no args (frontman())
@@ -84,7 +82,6 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
   }
   let serverName = config.serverName->Option.getOr("frontman-astro")
   let serverVersion = config.serverVersion->Option.getOr(packageVersion)
-  let isLightTheme = config.isLightTheme->Option.getOr(false)
 
   let clientUrl = {
     let baseUrl = config.clientUrl->Option.getOr(
@@ -126,6 +123,5 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
       },
     ),
     entrypointUrl: config.entrypointUrl,
-    isLightTheme,
   }
 }

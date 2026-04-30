@@ -58,7 +58,6 @@ All options are optional with sensible defaults:
 | `serverName` | `"frontman-astro"` | Server name included in tool responses |
 | `serverVersion` | `"1.0.0"` | Server version included in tool responses |
 | `clientUrl` | Auto-generated from `host` | URL to the Frontman client bundle (must include a `host` query parameter) |
-| `isLightTheme` | `false` | Use a light theme for the Frontman UI |
 
 ### Environment variables
 

@@ -30,7 +30,10 @@ let collectBody: incomingMessage => promise<nodeBuffer> = %raw(`
 `)
 
 // Helper: pipe a ReadableStream to ServerResponse
-let pipeStreamToResponse: (WebAPI.FileAPI.readableStream<'a>, serverResponse) => promise<unit> = %raw(`
+let pipeStreamToResponse: (
+  WebAPI.FileAPI.readableStream<'a>,
+  serverResponse,
+) => promise<unit> = %raw(`
   async function pipeStreamToResponse(stream, res) {
     const reader = stream.getReader();
     try {
@@ -84,8 +87,7 @@ let adaptMiddlewareToVite = (
       let hasBody = bufferLength(bodyBuffer) > 0
 
       let body = switch hasBody {
-      | true =>
-        Some(WebAPI.BodyInit.fromArrayBuffer((Obj.magic(bodyBuffer): ArrayBuffer.t)))
+      | true => Some(WebAPI.BodyInit.fromArrayBuffer((Obj.magic(bodyBuffer): ArrayBuffer.t)))
       | false => None
       }
 
@@ -123,7 +125,6 @@ type pluginOptions = {
   clientUrl?: string,
   clientCssUrl?: string,
   entrypointUrl?: string,
-  isLightTheme?: bool,
   projectRoot?: string,
   sourceRoot?: string,
   host?: string,
@@ -151,7 +152,6 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
       let clientUrl = opts.clientUrl
       let clientCssUrl = opts.clientCssUrl
       let entrypointUrl = opts.entrypointUrl
-      let isLightTheme = opts.isLightTheme
       let projectRoot = opts.projectRoot
       let sourceRoot = opts.sourceRoot
       let host = opts.host
@@ -161,7 +161,6 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
         ?clientUrl,
         ?clientCssUrl,
         ?entrypointUrl,
-        ?isLightTheme,
         ?projectRoot,
         ?sourceRoot,
         ?host,
@@ -171,18 +170,17 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
       let adaptedMiddleware = adaptMiddlewareToVite(~basePath=config.basePath, middleware)
 
       server.middlewares->useMiddleware((req, res, next) => {
-        let _ =
-          adaptedMiddleware(req, res, next)->Promise.catch(error => {
-            let msg =
-              error
-              ->JsExn.fromException
-              ->Option.flatMap(JsExn.message)
-              ->Option.getOr("Unknown error")
-            Console.error2("Frontman middleware error:", msg)
-            setStatusCode(res, 500)
-            endResponseWithData(res, "Internal Server Error")
-            Promise.resolve()
-          })
+        let _ = adaptedMiddleware(req, res, next)->Promise.catch(error => {
+          let msg =
+            error
+            ->JsExn.fromException
+            ->Option.flatMap(JsExn.message)
+            ->Option.getOr("Unknown error")
+          Console.error2("Frontman middleware error:", msg)
+          setStatusCode(res, 500)
+          endResponseWithData(res, "Internal Server Error")
+          Promise.resolve()
+        })
       })
     },
   }

@@ -26,7 +26,7 @@ lint: ## Check formatting
 	yarn rescript format --check src
 
 format: ## Format code
-	yarn rescript format src
+	yarn rescript format
 
 clean: ## Clean build artifacts
 	yarn rescript clean

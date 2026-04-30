@@ -29,11 +29,15 @@ defmodule FrontmanServer.Tools.WebFetch do
   @spec description() :: String.t()
   def description do
     """
-    Fetch a web page and return its content as markdown.
+    Fetch a public external web page and return its content as markdown.
 
-    Use this to retrieve content from a known URL. HTML pages are automatically
-    converted to markdown. Results are paginated by lines — use offset and limit
-    to read through large pages.
+    Use this to retrieve content from known public internet URLs. Do not use this
+    for the current app page, localhost, private networks, .local, .internal, or
+    other development-server URLs. For the current web preview page, use the
+    available browser or framework-specific page inspection tools instead.
+
+    HTML pages are automatically converted to markdown. Results are paginated by
+    lines — use offset and limit to read through large pages.
 
     If total_lines > start_line + lines_returned, there is more content available.
     Call again with a higher offset to continue reading.
@@ -48,7 +52,8 @@ defmodule FrontmanServer.Tools.WebFetch do
       "properties" => %{
         "url" => %{
           "type" => "string",
-          "description" => "The URL to fetch. Must start with http:// or https://"
+          "description" =>
+            "The public external URL to fetch. Must start with http:// or https://. Do not use localhost, private/internal hosts, development-server URLs, or the current web preview page URL."
         },
         "offset" => %{
           "type" => "integer",
@@ -308,7 +313,8 @@ defmodule FrontmanServer.Tools.WebFetch do
   end
 
   defp ssrf_error do
-    {:error, "Requests to private/internal addresses are not allowed"}
+    {:error,
+     "Requests to private/internal addresses are not allowed. For current app pages or local development URLs, use the available browser or framework-specific page inspection tools instead."}
   end
 
   # -- IP resolution and private range checks ---------------------------------

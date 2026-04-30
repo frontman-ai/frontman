@@ -4,8 +4,8 @@
 // Description: Meet the founders of Frontman.
 
 // Components
+import FounderCard from '../components/ui/cards/FounderCard.astro'
 import Layout from '../layouts/Layout.astro'
-import { Icon } from 'astro-icon/components'
 
 // Content
 const SEO = {
@@ -16,7 +16,8 @@ const SEO = {
 
 const founders = [
 	{
-		name: 'Danni Friedland',
+		firstName: 'Danni',
+		lastName: 'Friedland',
 		location: 'Berlin, Germany',
 		bio: 'Co-founder of Frontman. Previously founded Walnut Inc, a category leader in sales tech. Focused on developer tools and the intersection of AI and frontend engineering.',
 		github: 'https://github.com/BlueHotDog',
@@ -24,7 +25,8 @@ const founders = [
 		twitter: 'https://twitter.com/dannifriedland',
 	},
 	{
-		name: 'Itay Adler',
+		firstName: 'Itay',
+		lastName: 'Adler',
 		location: 'Israel',
 		bio: 'Co-founder of Frontman. Background in full-stack engineering and product development. Focused on making AI tools that understand running applications, not just source files.',
 		github: 'https://github.com/itayadler',
@@ -37,7 +39,7 @@ const founders = [
 const personSchemas = founders.map((founder) => ({
 	'@context': 'https://schema.org',
 	'@type': 'Person',
-	name: founder.name,
+	name: `${founder.firstName} ${founder.lastName}`,
 	jobTitle: 'Co-founder',
 	worksFor: {
 		'@type': 'Organization',
@@ -53,241 +55,36 @@ const personSchemas = founders.map((founder) => ({
 		<script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
 	))}
 
-	<div class="about-page">
-		<div class="about-container">
+	<div class="flex min-h-screen justify-center bg-zinc-950 px-5 py-12 text-zinc-50 sm:px-6 sm:py-20 md:pb-30">
+		<div class="w-full max-w-[720px]">
 			<!-- Header -->
-			<p class="about-label">About</p>
-			<h1 class="about-title">About Frontman</h1>
-			<p class="about-tagline">Built by developers, for developers</p>
-			<p class="about-subtitle">
+			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-zinc-500">About</p>
+			<h1 class="mb-3 text-[32px] leading-[1.1] font-bold tracking-[-0.02em] text-zinc-50 sm:text-[42px]">About Frontman</h1>
+			<p class="mb-3 text-[22px] leading-[1.3] font-medium tracking-[-0.01em] text-zinc-400">Built by developers, for developers</p>
+			<p class="mb-12 max-w-[580px] text-[17px] leading-[1.6] text-zinc-500 sm:mb-20">
 				Frontman is an open-source AI coding agent that lives inside your browser. It sees your live DOM, understands your running application, and edits your actual source code. We built it because every other AI coding tool was blind to the UI.
 			</p>
 
 			<!-- Founders -->
-			<div class="founders-grid">
+			<div class="mb-20 grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10">
 				{founders.map((founder) => (
-					<div class="founder-card">
-						<div class="founder-info">
-							<h2 class="founder-name">{founder.name}</h2>
-							<p class="founder-role">Co-founder</p>
-							<p class="founder-location">{founder.location}</p>
-						</div>
-						<p class="founder-bio">{founder.bio}</p>
-						<div class="founder-links">
-							<a href={founder.github} target="_blank" rel="noopener noreferrer" aria-label={`${founder.name} on GitHub`}>
-								<Icon name="github-icon" class="link-icon" aria-hidden="true" />
-								<span>GitHub</span>
-							</a>
-							<a href={founder.linkedin} target="_blank" rel="noopener noreferrer" aria-label={`${founder.name} on LinkedIn`}>
-								<Icon name="linkedin-icon" class="link-icon" aria-hidden="true" />
-								<span>LinkedIn</span>
-							</a>
-							<a href={founder.twitter} target="_blank" rel="noopener noreferrer" aria-label={`${founder.name} on Twitter`}>
-								<Icon name="twitter-icon" class="link-icon" aria-hidden="true" />
-								<span>Twitter</span>
-							</a>
-						</div>
-					</div>
+					<FounderCard {...founder} />
 				))}
 			</div>
 
 			<!-- Open Source callout -->
-			<div class="oss-section">
-				<h2 class="oss-title">Open source from day one</h2>
-				<p class="oss-text">
+			<div class="border-t border-zinc-800 pt-12">
+				<h2 class="mb-2 text-xl font-semibold tracking-[-0.01em] text-zinc-50">Open source from day one</h2>
+				<p class="mb-4 max-w-[560px] text-[15px] leading-[1.7] text-zinc-400">
 					Frontman is open source. Our client libraries are licensed under Apache 2.0, and the server is licensed under AGPL-3.0. You can read every line of code, every prompt we send to the LLM, and every edit we make to your files. Contributions are welcome.
 				</p>
-				<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="oss-link">
+				<p class="mb-4 max-w-[560px] text-[15px] leading-[1.7] text-zinc-400">
+					We also contribute a portion of revenue to carbon removal through <a href="https://climate.stripe.com/p0ClMe" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] transition-colors transition-[text-decoration-color] hover:text-zinc-300 hover:decoration-zinc-400">Stripe Climate</a> as part of our climate pledge.
+				</p>
+				<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="text-[15px] font-medium text-zinc-50 no-underline transition-colors hover:text-zinc-400">
 					View on GitHub &rarr;
 				</a>
 			</div>
 		</div>
 	</div>
 </Layout>
-
-<style>
-	@reference "../styles/global.css";
-	.about-page {
-		background: #09090b;
-		color: #fafafa;
-		padding: 80px 24px 120px;
-		display: flex;
-		justify-content: center;
-		min-height: 100vh;
-	}
-
-	.about-container {
-		max-width: 720px;
-		width: 100%;
-	}
-
-	/* Header */
-	.about-label {
-		@apply font-mono;
-		font-size: 13px;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: #71717a;
-		margin-bottom: 12px;
-	}
-
-	.about-title {
-		font-size: 42px;
-		font-weight: 700;
-		line-height: 1.1;
-		margin-bottom: 12px;
-		letter-spacing: -0.02em;
-		color: #fafafa;
-	}
-
-	.about-tagline {
-		font-size: 22px;
-		font-weight: 500;
-		color: #a1a1aa;
-		line-height: 1.3;
-		margin-bottom: 12px;
-		letter-spacing: -0.01em;
-	}
-
-	.about-subtitle {
-		font-size: 17px;
-		color: #71717a;
-		line-height: 1.6;
-		margin-bottom: 80px;
-		max-width: 580px;
-	}
-
-	/* Founders grid */
-	.founders-grid {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 32px;
-		margin-bottom: 80px;
-	}
-
-	@media (min-width: 640px) {
-		.founders-grid {
-			grid-template-columns: 1fr 1fr;
-			gap: 40px;
-		}
-	}
-
-	.founder-card {
-		border: 1px solid #27272a;
-		border-radius: 12px;
-		padding: 32px;
-		transition: border-color 0.2s;
-	}
-
-	.founder-card:hover {
-		border-color: #3f3f46;
-	}
-
-	.founder-info {
-		margin-bottom: 20px;
-	}
-
-	.founder-name {
-		font-size: 22px;
-		font-weight: 600;
-		color: #fafafa;
-		margin-bottom: 4px;
-		letter-spacing: -0.01em;
-	}
-
-	.founder-role {
-		font-size: 14px;
-		color: #71717a;
-		margin-bottom: 2px;
-	}
-
-	.founder-location {
-		font-size: 14px;
-		color: #52525b;
-	}
-
-	.founder-bio {
-		font-size: 15px;
-		line-height: 1.6;
-		color: #a1a1aa;
-		margin-bottom: 24px;
-	}
-
-	.founder-links {
-		display: flex;
-		gap: 16px;
-		flex-wrap: wrap;
-	}
-
-	.founder-links a {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		font-size: 13px;
-		color: #71717a;
-		transition: color 0.2s;
-		text-decoration: none;
-	}
-
-	.founder-links a:hover {
-		color: #fafafa;
-	}
-
-	.link-icon {
-		width: 16px;
-		height: 16px;
-		flex-shrink: 0;
-	}
-
-	/* Open Source section */
-	.oss-section {
-		border-top: 1px solid #27272a;
-		padding-top: 48px;
-	}
-
-	.oss-title {
-		font-size: 20px;
-		font-weight: 600;
-		color: #fafafa;
-		margin-bottom: 8px;
-		letter-spacing: -0.01em;
-	}
-
-	.oss-text {
-		font-size: 15px;
-		line-height: 1.7;
-		color: #a1a1aa;
-		max-width: 560px;
-		margin-bottom: 16px;
-	}
-
-	.oss-link {
-		font-size: 15px;
-		color: #fafafa;
-		text-decoration: none;
-		font-weight: 500;
-		transition: color 0.2s;
-	}
-
-	.oss-link:hover {
-		color: #a1a1aa;
-	}
-
-	@media (max-width: 640px) {
-		.about-page {
-			padding: 48px 20px 80px;
-		}
-
-		.about-title {
-			font-size: 32px;
-		}
-
-		.about-subtitle {
-			margin-bottom: 48px;
-		}
-
-		.founder-card {
-			padding: 24px;
-		}
-	}
-</style>

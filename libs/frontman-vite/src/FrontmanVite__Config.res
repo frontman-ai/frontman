@@ -55,7 +55,6 @@ type t = {
   clientUrl: string,
   clientCssUrl: option<string>,
   entrypointUrl: option<string>,
-  isLightTheme: bool,
 }
 
 // JS-friendly type for config input (all optional)
@@ -70,7 +69,6 @@ type jsConfigInput = {
   clientUrl?: string,
   clientCssUrl?: string,
   entrypointUrl?: string,
-  isLightTheme?: bool,
 }
 
 // JS-friendly function that accepts a config object
@@ -95,20 +93,18 @@ let makeFromObject = (config: jsConfigInput): t => {
   let basePath = config.basePath->Option.getOr("frontman")
   let serverName = config.serverName->Option.getOr("frontman-vite")
   let serverVersion = config.serverVersion->Option.getOr(packageVersion)
-  let isLightTheme = config.isLightTheme->Option.getOr(false)
 
   let clientUrl = {
-    let baseUrl =
-      config.clientUrl->Option.getOr(
-        Bindings.Process.env
-        ->Dict.get("FRONTMAN_CLIENT_URL")
-        ->Option.getOr(
-          switch isDev {
-          | true => Hosts.devClientJs
-          | false => Hosts.clientJs
-          },
-        ),
-      )
+    let baseUrl = config.clientUrl->Option.getOr(
+      Bindings.Process.env
+      ->Dict.get("FRONTMAN_CLIENT_URL")
+      ->Option.getOr(
+        switch isDev {
+        | true => Hosts.devClientJs
+        | false => Hosts.clientJs
+        },
+      ),
+    )
     // Ensure clientUrl always has the required query params the client reads from import.meta.url
     let url = WebAPI.URL.make(~url=baseUrl)
     switch url.searchParams->WebAPI.URLSearchParams.has(~name="clientName") {
@@ -138,6 +134,5 @@ let makeFromObject = (config: jsConfigInput): t => {
       },
     ),
     entrypointUrl: config.entrypointUrl,
-    isLightTheme,
   }
 }

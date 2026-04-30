@@ -61,7 +61,7 @@ let installDependencies = async (
 // Strategy: add import at the top, add frontmanPlugin({ host }) to plugins array
 let injectFrontmanPlugin = (~server: string, content: string): result<string, string> => {
   // Check if plugins array exists
-  let pluginsPattern = %re("/plugins\s*:\s*\[/")
+  let pluginsPattern = /plugins\s*:\s*\[/
 
   switch pluginsPattern->RegExp.test(content) {
   | false => Error("Could not find a `plugins: [` array in your Vite config")
@@ -83,8 +83,7 @@ let injectFrontmanPlugin = (~server: string, content: string): result<string, st
 
     let contentWithImport = switch lastImportIdx.contents >= 0 {
     | true =>
-      let before =
-        lines->Array.slice(~start=0, ~end=lastImportIdx.contents + 1)->Array.join("\n")
+      let before = lines->Array.slice(~start=0, ~end=lastImportIdx.contents + 1)->Array.join("\n")
       let after =
         lines
         ->Array.slice(~start=lastImportIdx.contents + 1, ~end=Array.length(lines))
@@ -98,10 +97,7 @@ let injectFrontmanPlugin = (~server: string, content: string): result<string, st
     // Insert frontmanPlugin({ host }) as first item in plugins array
     let call = Templates.pluginCall(~server)
     let result =
-      contentWithImport->String.replaceRegExp(
-        %re("/plugins\s*:\s*\[/"),
-        `plugins: [\n    ${call},`,
-      )
+      contentWithImport->String.replaceRegExp(/plugins\s*:\s*\[/, `plugins: [\n    ${call},`)
 
     Ok(result)
   }
@@ -206,7 +202,12 @@ let run = async (options: installOptions): installResult => {
     // Step 3: Handle vite config
     let manualSteps = []
 
-    switch await handleViteConfig(~projectDir, ~info, ~server=options.server, ~dryRun=options.dryRun) {
+    switch await handleViteConfig(
+      ~projectDir,
+      ~info,
+      ~server=options.server,
+      ~dryRun=options.dryRun,
+    ) {
     | Ok() => ()
     | Error(details) => manualSteps->Array.push(details)->ignore
     }
