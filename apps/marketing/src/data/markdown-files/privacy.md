@@ -1,5 +1,3 @@
-# Privacy Policy
-
 ## Introduction
 
 At Frontman, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform and services. Please read this policy carefully. By using Frontman, you consent to the practices described in this policy.

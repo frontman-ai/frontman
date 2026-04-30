@@ -13,7 +13,7 @@ export async function register() {
       const [logProcessor, spanProcessor] = setup();
       const spanProcessors = [spanProcessor] as NonNullable<ConstructorParameters<typeof NodeSDK>[0]>['spanProcessors'];
       const sdkConfig = {
-        logRecordProcessor: logProcessor,
+        logRecordProcessors: [logProcessor],
         spanProcessors,
       } as NonNullable<ConstructorParameters<typeof NodeSDK>[0]>;
 

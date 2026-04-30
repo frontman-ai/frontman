@@ -14704,6 +14704,7 @@ __metadata:
     astro-broken-links-checker: "npm:^1.0.7"
     astro-icon: "npm:^1.1.5"
     hc-starlight: "npm:^0.0.8"
+    marked: "npm:^16.2.1"
     prettier: "npm:^3.3.2"
     prettier-plugin-astro: "npm:^0.14.0"
     prettier-plugin-tailwindcss: "npm:^0.6.4"

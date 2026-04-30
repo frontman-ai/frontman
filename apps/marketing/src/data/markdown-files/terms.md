@@ -1,5 +1,3 @@
-# Terms of Service
-
 ## Introduction
 
 Welcome to Frontman! By using our services, you agree to be bound by these terms and conditions. Please read them carefully.
@@ -94,4 +92,4 @@ If any provision of these terms is found to be invalid or unenforceable, the rem
 
 Our failure to enforce any right or provision of these terms will not be considered a waiver of those rights.
 
-_Last updated: July 10, 2024_
+_Last updated: February 25, 2026_
