@@ -86,7 +86,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       assert llm_opts[:auth_mode] == :oauth
       refute Keyword.has_key?(llm_opts, :api_key)
       refute Keyword.has_key?(llm_opts, :max_tokens)
-      assert llm_opts[:provider_options] == [store: false]
+      refute Keyword.has_key?(llm_opts, :provider_options)
       refute Keyword.has_key?(llm_opts, :req_http_options)
     end
 
