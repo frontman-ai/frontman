@@ -161,7 +161,7 @@ defmodule FrontmanServer.Image do
     skip = max(length - 2, 0)
 
     case rest do
-      <<_::binary-size(skip), remaining::binary>> -> jpeg_scan_for_sof(remaining)
+      <<_::binary-size(^skip), remaining::binary>> -> jpeg_scan_for_sof(remaining)
       _ -> :unknown
     end
   end
