@@ -125,17 +125,13 @@ hooks-install: ## Install git pre-commit hooks via Lefthook
 setup-elixir-tools: ## Install Hex/Rebar for the active mise Elixir
 	@printf "$(YELLOW)Installing Hex/Rebar for mise Elixir...$(RESET)\n"
 	@if ! mise exec -- mix hex.info >/dev/null 2>&1; then \
-		tmp=$$(mktemp -t hex.XXXXXX.ez); \
-		curl -fsSL "https://builds.hex.pm/installs/1.19.0/hex-2.4.2-otp-28.ez" -o "$$tmp"; \
-		mise exec -- mix archive.install --force "$$tmp"; \
-		rm -f "$$tmp"; \
+		mise exec -- mix archive.install github hexpm/hex branch latest --force; \
 	fi
-	@if ! mise exec -- sh -c 'test -x "$$MIX_HOME/rebar3"'; then \
-		tmp=$$(mktemp -t rebar3.XXXXXX); \
-		curl -fsSL "https://s3.amazonaws.com/rebar3/rebar3" -o "$$tmp"; \
-		chmod +x "$$tmp"; \
-		mise exec -- sh -c 'mkdir -p "$$MIX_HOME" && mv "$$1" "$$MIX_HOME/rebar3"' sh "$$tmp"; \
-	fi
+	@tmp=$$(mktemp -t rebar3.XXXXXX); \
+	curl -fsSL "https://s3.amazonaws.com/rebar3/rebar3" -o "$$tmp"; \
+	chmod +x "$$tmp"; \
+	mise exec -- mix local.rebar rebar3 "$$tmp" --force; \
+	rm -f "$$tmp"
 	@printf "$(GREEN)Hex/Rebar ready.$(RESET)\n"
 
 verify-toolchain-pins: ## Verify Docker Elixir image matches mise.toml
