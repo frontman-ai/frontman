@@ -54,7 +54,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
 
       {model_spec, llm_opts} = ResolvedKey.to_llm_args(key, max_tokens: 16_384)
 
-      assert model_spec == "openrouter:openai/gpt-5.1-codex"
+      assert model_spec == "openrouter:openai/gpt-5.5"
       assert llm_opts[:api_key] == "sk-or-456"
       assert llm_opts[:max_tokens] == 16_384
       refute Keyword.has_key?(llm_opts, :auth_mode)

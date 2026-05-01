@@ -5,11 +5,11 @@ defmodule FrontmanServer.Providers.ModelTest do
 
   describe "parse/1" do
     test "returns error for strings without colon" do
-      assert :error = Model.parse("gpt-5.1-codex")
+      assert :error = Model.parse("model-without-provider")
     end
 
     test "returns error for empty provider" do
-      assert :error = Model.parse(":gpt-5.1-codex")
+      assert :error = Model.parse(":model-without-provider")
     end
 
     test "returns error for empty name" do
@@ -35,7 +35,7 @@ defmodule FrontmanServer.Providers.ModelTest do
 
   describe "from_client_params/1" do
     test "returns error for empty provider" do
-      assert :error = Model.from_client_params(%{"provider" => "", "value" => "gpt-5"})
+      assert :error = Model.from_client_params(%{"provider" => "", "value" => "gpt-5.5"})
     end
 
     test "returns error for empty value" do
@@ -44,7 +44,7 @@ defmodule FrontmanServer.Providers.ModelTest do
 
     test "returns error for missing keys" do
       assert :error = Model.from_client_params(%{"provider" => "openrouter"})
-      assert :error = Model.from_client_params(%{"value" => "gpt-5"})
+      assert :error = Model.from_client_params(%{"value" => "gpt-5.5"})
     end
 
     test "returns error for nil" do
@@ -54,7 +54,7 @@ defmodule FrontmanServer.Providers.ModelTest do
 
   describe "roundtrip" do
     test "parse -> to_string is identity" do
-      original = "openrouter:openai/gpt-5.1-codex"
+      original = "openrouter:openai/gpt-5.5"
       {:ok, model} = Model.parse(original)
       assert Model.to_string(model) == original
     end
@@ -76,7 +76,7 @@ defmodule FrontmanServer.Providers.ModelTest do
   describe "llm_vendor_name/1" do
     test "extracts vendor from OpenRouter model names" do
       assert Model.llm_vendor_name("openrouter:anthropic/claude-opus-4.6") == "anthropic"
-      assert Model.llm_vendor_name("openrouter:openai/gpt-5.1-codex") == "openai"
+      assert Model.llm_vendor_name("openrouter:openai/gpt-5.5") == "openai"
       assert Model.llm_vendor_name("openrouter:google/gemini-2.5-pro") == "google"
     end
 

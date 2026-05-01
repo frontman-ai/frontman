@@ -86,7 +86,7 @@ defmodule FrontmanServer.ProvidersFixtures do
   end
 
   defp defaults_for("openrouter") do
-    [api_key: "sk-or-test", key_source: :user_key, model: "openrouter:openai/gpt-5.1-codex"]
+    [api_key: "sk-or-test", key_source: :user_key, model: "openrouter:openai/gpt-5.5"]
   end
 
   defp defaults_for("fireworks") do

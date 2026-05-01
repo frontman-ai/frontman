@@ -9,7 +9,7 @@ defmodule FrontmanServer.Providers.CodexTest do
     end
 
     test "rewrites openai namespace to openai_codex" do
-      assert Codex.normalize_model("openai:gpt-5.2-codex") == "openai_codex:gpt-5.2-codex"
+      assert Codex.normalize_model("openai:gpt-5.3-codex") == "openai_codex:gpt-5.3-codex"
     end
 
     test "keeps openai_codex models unchanged" do

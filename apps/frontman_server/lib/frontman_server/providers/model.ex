@@ -16,9 +16,9 @@ defmodule FrontmanServer.Providers.Model do
 
   ## Examples
 
-      iex> model = Model.new("openrouter", "openai/gpt-5.1-codex")
+      iex> model = Model.new("openrouter", "openai/gpt-5.5")
       iex> Model.to_string(model)
-      "openrouter:openai/gpt-5.1-codex"
+      "openrouter:openai/gpt-5.5"
 
       iex> Model.parse("anthropic:claude-sonnet-4-5")
       {:ok, %Model{provider: "anthropic", name: "claude-sonnet-4-5"}}
@@ -58,8 +58,8 @@ defmodule FrontmanServer.Providers.Model do
 
   ## Examples
 
-      iex> Model.parse("openrouter:openai/gpt-5.1-codex")
-      {:ok, %Model{provider: "openrouter", name: "openai/gpt-5.1-codex"}}
+      iex> Model.parse("openrouter:openai/gpt-5.5")
+      {:ok, %Model{provider: "openrouter", name: "openai/gpt-5.5"}}
 
       iex> Model.parse("invalid")
       :error
@@ -96,7 +96,7 @@ defmodule FrontmanServer.Providers.Model do
 
   ## Examples
 
-      iex> Model.provider_from_string("openrouter:openai/gpt-5.1-codex")
+      iex> Model.provider_from_string("openrouter:openai/gpt-5.5")
       "openrouter"
 
       iex> Model.provider_from_string("anthropic:claude-sonnet-4-5")
@@ -122,8 +122,8 @@ defmodule FrontmanServer.Providers.Model do
 
   ## Examples
 
-      iex> Model.display_name(Model.new("openai", "gpt-5"))
-      "openai:gpt-5"
+      iex> Model.display_name(Model.new("openai", "gpt-5.5"))
+      "openai:gpt-5.5"
 
       iex> Model.display_name("anthropic:claude-sonnet-4-5")
       "anthropic:claude-sonnet-4-5"
@@ -146,7 +146,7 @@ defmodule FrontmanServer.Providers.Model do
 
   ## Examples
 
-      iex> Model.provider_name(Model.new("openai", "gpt-5"))
+      iex> Model.provider_name(Model.new("openai", "gpt-5.5"))
       "openai"
 
       iex> Model.provider_name("anthropic:claude-sonnet-4-5")
@@ -185,7 +185,7 @@ defmodule FrontmanServer.Providers.Model do
       iex> Model.llm_vendor_name("openrouter:anthropic/claude-opus-4.6")
       "anthropic"
 
-      iex> Model.llm_vendor_name("openrouter:openai/gpt-5.1-codex")
+      iex> Model.llm_vendor_name("openrouter:openai/gpt-5.5")
       "openai"
 
       iex> Model.llm_vendor_name("anthropic:claude-sonnet-4-5")
@@ -232,8 +232,8 @@ defmodule FrontmanServer.Providers.Model do
   Accepts both string-keyed maps (from JSON/client wire format) and
   atom-keyed maps (from internal Elixir code):
 
-      %{"provider" => "openrouter", "value" => "openai/gpt-5.1-codex"}
-      %{provider: "openrouter", value: "openai/gpt-5.1-codex"}
+      %{"provider" => "openrouter", "value" => "openai/gpt-5.5"}
+      %{provider: "openrouter", value: "openai/gpt-5.5"}
 
   Returns `{:ok, model}` or `:error`.
   """
@@ -263,11 +263,11 @@ defmodule FrontmanServer.Providers.Model do
 
   ## Examples
 
-      iex> Model.resolve_string(Model.new("openai", "gpt-5"))
-      "openai:gpt-5"
+      iex> Model.resolve_string(Model.new("openai", "gpt-5.5"))
+      "openai:gpt-5.5"
 
-      iex> Model.resolve_string(%{"provider" => "openai", "value" => "gpt-5"})
-      "openai:gpt-5"
+      iex> Model.resolve_string(%{"provider" => "openai", "value" => "gpt-5.5"})
+      "openai:gpt-5.5"
 
       iex> Model.resolve_string(nil)
       nil

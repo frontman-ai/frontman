@@ -96,7 +96,7 @@ defmodule AgentClientProtocolTest do
             model_option("Claude Sonnet 4.5", "anthropic:claude-sonnet-4-5")
           ]),
           model_group("openrouter", "OpenRouter", [
-            model_option("GPT-5", "openrouter:openai/gpt-5")
+            model_option("GPT-5.5", "openrouter:openai/gpt-5.5")
           ])
         ])
 

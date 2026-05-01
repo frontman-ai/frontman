@@ -32,7 +32,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 
   ## Options
 
-  - `:model` - Model spec string (default: "openrouter:openai/gpt-5.1-codex")
+  - `:model` - Model spec string (default: "openrouter:google/gemini-3-flash-preview")
   - `:tools` - List of SwarmAi.Tool structs
   - `:llm_opts` - Options for ReqLLM, must include `:api_key`
   """

@@ -148,7 +148,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         build_prompt_request(
           _meta: %{
             "openrouterKeyValue" => "sk-or-test",
-            "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.1-codex"}
+            "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"}
           }
         )
       )
@@ -160,7 +160,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         args: %{
           user_id: user.id,
           task_id: task_id,
-          model: "openrouter:openai/gpt-5.1-codex"
+          model: "openrouter:openai/gpt-5.5"
         }
       )
     end

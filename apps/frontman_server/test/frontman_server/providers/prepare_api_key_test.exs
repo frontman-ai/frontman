@@ -115,12 +115,12 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-env-test"})
 
       {:ok, %ResolvedKey{} = resolved} =
-        Providers.prepare_api_key(scope, "openrouter:openai/gpt-5.1-codex")
+        Providers.prepare_api_key(scope, "openrouter:openai/gpt-5.5")
 
       assert resolved.key_source == :env_key
       assert resolved.api_key == "sk-or-env-test"
       assert resolved.provider == "openrouter"
-      assert resolved.model == "openrouter:openai/gpt-5.1-codex"
+      assert resolved.model == "openrouter:openai/gpt-5.5"
     end
 
     test "defaults to openrouter when model is nil", %{scope: scope} do

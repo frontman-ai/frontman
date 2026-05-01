@@ -36,7 +36,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
     test "accepts prompt with openrouterKeyValue (regression)", %{socket: socket} do
       push_prompt_and_assert_accepted(socket, %{
         "openrouterKeyValue" => "sk-or-test-key-789",
-        "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.1-codex"}
+        "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"}
       })
     end
 

@@ -30,6 +30,27 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
              )
     end
 
+    test "excludes retired GPT-5.2 and older GPT-5 family models" do
+      openai_values = ModelCatalog.models("openai", :full) |> Enum.map(& &1.value) |> MapSet.new()
+
+      openrouter_values =
+        ModelCatalog.models("openrouter", :full) |> Enum.map(& &1.value) |> MapSet.new()
+
+      assert MapSet.subset?(MapSet.new(~w[gpt-5.5 gpt-5.4 gpt-5.3-codex]), openai_values)
+
+      assert MapSet.disjoint?(
+               openai_values,
+               MapSet.new(~w[gpt-5.2-codex gpt-5.2 gpt-5.1-codex-max gpt-5.1-codex-mini])
+             )
+
+      assert MapSet.disjoint?(
+               openrouter_values,
+               MapSet.new(
+                 ~w[openai/gpt-5.2 openai/gpt-5.1 openai/gpt-5 openai/gpt-5-mini openai/gpt-5-chat]
+               )
+             )
+    end
+
     test "returns Fireworks models for full and free tiers" do
       expected = [
         %{displayName: "Kimi K2.5 Turbo", value: "accounts/fireworks/routers/kimi-k2p5-turbo"}

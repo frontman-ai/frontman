@@ -38,8 +38,8 @@ defmodule FrontmanServer.Providers.Codex do
       iex> Codex.normalize_model("openai:codex-5.3")
       "openai_codex:gpt-5.3-codex"
 
-      iex> Codex.normalize_model("openai:gpt-5.2-codex")
-      "openai_codex:gpt-5.2-codex"
+      iex> Codex.normalize_model("openai:gpt-5.3-codex")
+      "openai_codex:gpt-5.3-codex"
   """
   @spec normalize_model(String.t()) :: String.t()
   def normalize_model("openai:codex-5.3") do
@@ -77,7 +77,7 @@ defmodule FrontmanServer.Providers.Codex do
 
   ## Examples
 
-      iex> Codex.resolve_model("openai_codex:gpt-5.2-codex")
+      iex> Codex.resolve_model("openai_codex:gpt-5.3-codex")
       # => %LLMDB.Model{provider: :openai_codex, ...}
   """
   @spec resolve_model(String.t()) :: map() | String.t()

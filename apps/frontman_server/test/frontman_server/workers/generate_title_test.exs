@@ -58,7 +58,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
       {:ok, _job} =
         Tasks.enqueue_title_generation(scope, task_id, "Help me build a login page",
-          model: Model.new("openrouter", "openai/gpt-5.1-codex")
+          model: Model.new("openrouter", "openai/gpt-5.5")
         )
 
       assert_enqueued(
@@ -66,7 +66,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
         args: %{
           user_id: user.id,
           task_id: task_id,
-          model: "openrouter:openai/gpt-5.1-codex"
+          model: "openrouter:openai/gpt-5.5"
         }
       )
     end

@@ -28,11 +28,6 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     %{displayName: "GPT-5.4 Pro", value: "openai/gpt-5.4-pro"},
     %{displayName: "GPT-5.4", value: "openai/gpt-5.4"},
     %{displayName: "GPT-5.3 Codex", value: "openai/gpt-5.3-codex"},
-    %{displayName: "GPT-5.2", value: "openai/gpt-5.2"},
-    %{displayName: "GPT-5.1", value: "openai/gpt-5.1"},
-    %{displayName: "GPT-5", value: "openai/gpt-5"},
-    %{displayName: "GPT-5 mini", value: "openai/gpt-5-mini"},
-    %{displayName: "GPT-5 Chat", value: "openai/gpt-5-chat"},
     %{displayName: "GPT-4.1", value: "openai/gpt-4.1"},
     %{displayName: "o3", value: "openai/o3"},
     %{displayName: "o4-mini", value: "openai/o4-mini"},
@@ -68,11 +63,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   @openai_models [
     %{displayName: "GPT-5.5", value: "gpt-5.5"},
     %{displayName: "GPT-5.4", value: "gpt-5.4"},
-    %{displayName: "GPT-5.3 Codex", value: "gpt-5.3-codex"},
-    %{displayName: "GPT-5.2 Codex", value: "gpt-5.2-codex"},
-    %{displayName: "GPT-5.2", value: "gpt-5.2"},
-    %{displayName: "GPT-5.1 Codex Max", value: "gpt-5.1-codex-max"},
-    %{displayName: "GPT-5.1 Codex Mini", value: "gpt-5.1-codex-mini"}
+    %{displayName: "GPT-5.3 Codex", value: "gpt-5.3-codex"}
   ]
 
   @models %{
@@ -101,7 +92,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   ## Examples
 
       iex> ModelCatalog.models("openai", :full) |> length()
-      7
+      3
 
       iex> ModelCatalog.models("openrouter", :free) |> length()
       4
