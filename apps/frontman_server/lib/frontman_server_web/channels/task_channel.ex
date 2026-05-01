@@ -419,7 +419,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       interactions
       |> Enum.filter(&is_struct(&1, Tasks.Interaction.ToolResult))
       |> Enum.map(& &1.tool_call_id)
-      |> MapSet.new()
 
     interactions
     |> collect_unresolved_tool_calls(resolved_ids, false, [])
@@ -455,7 +454,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       blocked? ->
         collect_unresolved_tool_calls(rest, resolved_ids, blocked?, acc)
 
-      MapSet.member?(resolved_ids, tool_call.tool_call_id) ->
+      tool_call.tool_call_id in resolved_ids ->
         collect_unresolved_tool_calls(rest, resolved_ids, blocked?, acc)
 
       true ->
