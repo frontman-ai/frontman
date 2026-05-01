@@ -37,9 +37,6 @@ let _getBasePath: unit => string = {
     }
 }
 
-// Returns the URL suffix including the leading slash (e.g. "/frontman").
-let suffix = () => `/${_getBasePath()}`
-
 // Strip a single trailing slash from a URL or pathname, unless it's just "/".
 // Used to normalize trailing-slash variants (e.g. /en and /en/) so they are
 // treated as the same destination for comparison and URL building purposes.

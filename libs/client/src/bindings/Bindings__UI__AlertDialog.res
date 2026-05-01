@@ -1,9 +1,6 @@
 // UI AlertDialog component bindings
 // Usage:
 // <UI__AlertDialog open={isOpen} onOpenChange={setIsOpen}>
-//   <UI__AlertDialogTrigger asChild=true>
-//     <UI__Button variant=#destructive>{React.string("Delete")}</UI__Button>
-//   </UI__AlertDialogTrigger>
 //   <UI__AlertDialogContent>
 //     <UI__AlertDialogHeader>
 //       <UI__AlertDialogTitle>{React.string("Are you sure?")}</UI__AlertDialogTitle>
@@ -28,29 +25,6 @@ module AlertDialog = {
     ~onOpenChange: bool => unit=?,
     ~children: React.element=?,
   ) => React.element = "AlertDialog"
-}
-
-module AlertDialogTrigger = {
-  @module("@/components/ui/alert-dialog") @react.component
-  external make: (
-    ~className: string=?,
-    ~asChild: bool=?,
-    ~onClick: ReactEvent.Mouse.t => unit=?,
-    ~disabled: bool=?,
-    ~children: React.element=?,
-  ) => React.element = "AlertDialogTrigger"
-}
-
-module AlertDialogPortal = {
-  @module("@/components/ui/alert-dialog") @react.component
-  external make: (~className: string=?, ~children: React.element=?) => React.element =
-    "AlertDialogPortal"
-}
-
-module AlertDialogOverlay = {
-  @module("@/components/ui/alert-dialog") @react.component
-  external make: (~className: string=?, ~children: React.element=?) => React.element =
-    "AlertDialogOverlay"
 }
 
 module AlertDialogContent = {
