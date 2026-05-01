@@ -20,9 +20,6 @@ module Provider = {
 
 let useScrollContext = () => React.useContext(context)
 
-// Re-export so existing consumers (ScrollButton) keep working
-let useStickToBottomContext = useScrollContext
-
 // --- Cached classNames ---
 
 let scrollButtonBaseClassName = "sticky bottom-4 left-[50%] translate-x-[-50%] z-10 rounded-full w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-600 text-zinc-200 hover:bg-zinc-700 transition-colors"

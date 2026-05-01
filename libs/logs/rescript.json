@@ -25,6 +25,6 @@
 			"suffix": ".res.mjs"
 		}
 	],
-	"dependencies": ["@rescript/webapi"],
+	"dependencies": [],
 	"dev-dependencies": ["rescript-vitest"]
 }

@@ -328,47 +328,6 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
   location
 }
 
-let useDisableIFrameAnchorPointerEvents = (
-  ~iframeRef: Nullable.t<WebAPI.DOMAPI.element>,
-  ~activate=true,
-) => {
-  React.useEffect(() => {
-    let iframeDoc = EventHelpers.getIframeDoc(iframeRef)
-
-    switch iframeDoc {
-    | Some(doc) =>
-      // Convert NodeList to array
-      let getAnchors: WebAPI.DOMAPI.document => array<WebAPI.DOMAPI.element> = %raw(`
-        (doc) => {
-          return Array.from(doc.querySelectorAll("a"));
-        }
-      `)
-      let anchorElements = getAnchors(doc)
-
-      // Store original pointer-events values and set/restore based on activate
-      let originalStyles = Array.map(anchorElements, element => {
-        let htmlElement = element->Obj.magic
-        let originalPointerEvents = htmlElement["style"]["pointerEvents"]
-        if activate {
-          htmlElement["style"]["pointerEvents"] = "none"
-        }
-        originalPointerEvents
-      })
-
-      Some(
-        () => {
-          // Always restore original pointer-events values on cleanup
-          Array.forEachWithIndex(anchorElements, (element, index) => {
-            let htmlElement = element->Obj.magic
-            htmlElement["style"]["pointerEvents"] = originalStyles[index]
-          })
-        },
-      )
-    | None => None
-    }
-  }, (iframeRef, activate))
-}
-
 module DOMmutations = {
   let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ()) => {
     let (mutationTimestamp, setMutationTimestamp) = React.useState(() => Js.Date.now())

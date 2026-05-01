@@ -1,3 +1,0 @@
-include Bindings__DomTestingLibrary__Queries
-include Bindings__DomTestingLibrary__Utils
-module FireEvent = Bindings__DomTestingLibrary__FireEvent

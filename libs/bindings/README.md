@@ -6,7 +6,7 @@ ReScript bindings for Node.js and browser APIs, providing ergonomic wrappers aro
 
 - [ReScript](https://rescript-lang.org) with ES6 modules
 - Node.js APIs (fs, path, child_process, streams)
-- Browser APIs (WebStreams, TypedArrays)
+- Browser APIs (WebStreams)
 - OpenTelemetry for observability
 
 ## Key Modules

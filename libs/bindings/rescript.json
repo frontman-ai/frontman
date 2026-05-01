@@ -20,10 +20,6 @@
 			"suffix": ".res.mjs"
 		}
 	],
-	"dependencies": [
-		"sury",
-		"@rescript/webapi"
-	],
-	"ppx-flags": ["sury-ppx/bin"],
+	"dependencies": ["@rescript/webapi"],
 	"compiler-flags": []
 }

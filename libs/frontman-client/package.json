@@ -38,10 +38,8 @@
 	},
 	"devDependencies": {
 		"@rescript/webapi": "*",
-		"@vitest/ui": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"sentry-testkit": "^6.0.0",
 		"sury": "catalog:",
 		"sury-ppx": "^11.0.0-alpha.2",
 		"vite": "catalog:",

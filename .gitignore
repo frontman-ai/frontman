@@ -51,6 +51,7 @@ Thumbs.db
 opencode.json*
 scripts/certs/
 mprocs.log
+libs/frontman-nextjs/test/cli/.llm-cache/*.runs
 
 # Containerized worktree infra (auto-generated)
 infra/local/Caddyfile

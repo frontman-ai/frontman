@@ -8,7 +8,6 @@
 		"@rescript/runtime": "12.0.0-beta.14"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "*",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",

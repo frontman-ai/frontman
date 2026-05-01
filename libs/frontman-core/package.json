@@ -48,7 +48,6 @@
 	},
 	"devDependencies": {
 		"@rescript/webapi": "*",
-		"@vitest/ui": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",
