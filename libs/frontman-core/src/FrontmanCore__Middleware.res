@@ -197,12 +197,15 @@ let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t):
       | None =>
         // Use original-case prefix to preserve URL casing for case-sensitive frameworks
         let originalPrefix = originalSuffixPrefix->Option.getOrThrow
+        let enableReactScan =
+          url.searchParams->WebAPI.URLSearchParams.has(~name="debug") &&
+            url.searchParams->WebAPI.URLSearchParams.get("debug") == "1"
         let entrypointUrl = buildEntrypointUrl(
           ~config,
           ~requestUrl=req.url,
           ~prefixPath=originalPrefix,
         )
-        Some(UIShell.serveWithEntrypoint(~config, ~entrypointUrl)->CORS.withCors)
+        Some(UIShell.serveWithEntrypoint(~config, ~entrypointUrl, ~enableReactScan)->CORS.withCors)
       }
 
     | _ => None

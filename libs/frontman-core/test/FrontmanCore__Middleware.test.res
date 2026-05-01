@@ -191,6 +191,57 @@ describe("Middleware (integration)", _t => {
         }
       },
     )
+
+    testAsync(
+      "injects React Scan for debug requests",
+      async t => {
+        let req = Helpers.makeGetRequest("http://localhost/frontman?debug=1")
+        let result = await Helpers.middleware(req)
+
+        switch result {
+        | Some(response) =>
+          let body = await response->WebAPI.Response.text
+          t
+          ->expect(body->String.includes("react-scan@0.5.3/dist/auto.global.js"))
+          ->Expect.toBe(true)
+        | None => failwith("Expected Some(response) for GET /frontman?debug=1")
+        }
+      },
+    )
+
+    testAsync(
+      "omits React Scan without debug param",
+      async t => {
+        let req = Helpers.makeGetRequest("http://localhost/frontman")
+        let result = await Helpers.middleware(req)
+
+        switch result {
+        | Some(response) =>
+          let body = await response->WebAPI.Response.text
+          t
+          ->expect(body->String.includes("react-scan@0.5.3/dist/auto.global.js"))
+          ->Expect.toBe(false)
+        | None => failwith("Expected Some(response) for GET /frontman")
+        }
+      },
+    )
+
+    testAsync(
+      "injects React Scan for suffix debug requests",
+      async t => {
+        let req = Helpers.makeGetRequest("http://localhost/products/123/frontman?debug=1")
+        let result = await Helpers.middleware(req)
+
+        switch result {
+        | Some(response) =>
+          let body = await response->WebAPI.Response.text
+          t
+          ->expect(body->String.includes("react-scan@0.5.3/dist/auto.global.js"))
+          ->Expect.toBe(true)
+        | None => failwith("Expected Some(response) for GET /products/123/frontman?debug=1")
+        }
+      },
+    )
   })
 
   describe("GET /frontman/tools", _t => {

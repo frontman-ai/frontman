@@ -31,7 +31,7 @@ let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string 
 
   let entrypointTemplate =
     config.entrypointUrl->Option.mapOr("", url =>
-      `<script type="template" id="frontman-entrypoint-url">${url->escapeHtmlAttribute}</script>`
+      `<span id="frontman-entrypoint-url" hidden>${url->escapeHtmlAttribute}</span>`
     )
 
   let runtimeConfigScript = {

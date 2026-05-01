@@ -73,7 +73,11 @@ describe("UIShell", _t => {
         ->expect(html->String.includes("http://cdn.example.com/style.css?x=1&amp;bad=&#39;&gt;"))
         ->Expect.toBe(true)
         t
-        ->expect(html->String.includes("http://localhost:3000/page?x=1&amp;bad=&lt;/script&gt;"))
+        ->expect(
+          html->String.includes(
+            "<span id=\"frontman-entrypoint-url\" hidden>http://localhost:3000/page?x=1&amp;bad=&lt;/script&gt;</span>",
+          ),
+        )
         ->Expect.toBe(true)
       },
     )
@@ -114,6 +118,9 @@ describe("UIShell", _t => {
         t
         ->expect(html->String.includes("id=\"frontman-entrypoint-url\""))
         ->Expect.toBe(true)
+        t
+        ->expect(html->String.includes("<script type=\"template\" id=\"frontman-entrypoint-url\""))
+        ->Expect.toBe(false)
         t
         ->expect(html->String.includes("http://localhost:3000"))
         ->Expect.toBe(true)
