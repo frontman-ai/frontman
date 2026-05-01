@@ -1,4 +1,3 @@
-%%raw("import '@radix-ui/themes/styles.css'")
 %%raw("import './index.css'")
 
 FrontmanLogs.Logs.setLogLevel(

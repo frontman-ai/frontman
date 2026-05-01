@@ -16,7 +16,6 @@ let make = (~apiBaseUrl: string) => {
   React.useEffect(() => {
     switch connectionState {
     | Connected | SessionActive(_) =>
-      Client__Debug.init()
       Client__State.Actions.setAcpSession(
         ~sendPrompt,
         ~cancelPrompt,

@@ -87,11 +87,6 @@ frontman/
 - Test files are named `*.test.res.mjs`.
 - Assertion style: `t->expect(value)->Expect.toEqual(expected)`.
 
-### Stories (Storybook)
-
-- Story files are co-located with components: `Client__MyComponent.story.res`.
-- Run `cd libs/client && make storybook` to start Storybook.
-
 ## Pull Request Process
 
 1. Fill out the PR template (description, related issues, testing checklist).

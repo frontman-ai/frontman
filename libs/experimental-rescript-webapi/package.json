@@ -28,22 +28,10 @@
   "type": "module",
   "scripts": {
     "test": "node tests/index.js",
-    "build": "rescript --dev",
-    "format": "rescript format && prettier --write ./tests/index.js ./package.json ./docs/pages",
-    "docs": "astro dev",
-    "prebuild:docs": "node docs/llm.js",
-    "build:docs": "astro build"
+    "build": "rescript --dev"
   },
   "license": "MIT",
   "dependencies": {
     "rescript": "^12.0.0-rc.3"
-  },
-  "devDependencies": {
-    "@astrojs/starlight": "0.38.4",
-    "astro": "^6.1.6",
-    "micromark": "^4.0.1",
-    "prettier": "^3.3.3",
-    "prettier-plugin-astro": "^0.14.1",
-    "sharp": "^0.34.0"
   }
 }

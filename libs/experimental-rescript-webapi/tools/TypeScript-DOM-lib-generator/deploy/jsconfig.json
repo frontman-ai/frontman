@@ -1,9 +1,0 @@
-{
-  "compilerOptions": {
-    "target": "es2020",
-    "module": "esnext", // es2022
-    "moduleResolution": "node",
-    "strict": true,
-    "resolveJsonModule": true
-  }
-}

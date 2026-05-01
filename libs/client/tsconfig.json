@@ -20,7 +20,7 @@
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true,
 
-		/* Path aliases for shadcn */
+		/* Path aliases for local TS wrappers */
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"]

@@ -279,7 +279,6 @@ wt-urls: ## Show service URLs for a worktree (BRANCH=...)
 	printf "  $(GREEN)Phoenix$(RESET)     https://$$HASH.api.frontman.local\n"; \
 	printf "  $(GREEN)Vite$(RESET)        https://$$HASH.vite.frontman.local\n"; \
 	printf "  $(GREEN)Next.js$(RESET)     https://$$HASH.nextjs.frontman.local/frontman\n"; \
-	printf "  $(GREEN)Storybook$(RESET)   https://$$HASH.storybook.frontman.local\n"; \
 	printf "  $(GREEN)Marketing$(RESET)   https://$$HASH.marketing.frontman.local\n"; \
 	echo ""
 

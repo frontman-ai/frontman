@@ -96,7 +96,6 @@ base = (0xHASH % 5000) + 10000
 Phoenix:   base + 0
 Vite:      base + 1
 Next.js:   base + 2
-Storybook: base + 3
 Marketing: base + 4
 ```
 

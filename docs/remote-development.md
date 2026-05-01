@@ -53,7 +53,6 @@ Services per worktree:
 - `{hash}.nextjs.frontman.local` - Next.js dev server (port 3000) - access at `/frontman`
 - `{hash}.vite.frontman.local` - Vite client dev server (port 5173)
 - `{hash}.api.frontman.local` - Phoenix server (port 4000)
-- `{hash}.storybook.frontman.local` - Storybook (port 6006)
 
 **Important:** The URL format `{hash}.{service}.frontman.local` is required for WorkOS OAuth redirects to work correctly. WorkOS needs consistent redirect URIs, and this subdomain pattern allows multiple development environments while maintaining OAuth compatibility.
 
@@ -130,7 +129,6 @@ cat > /opt/homebrew/etc/dnsmasq.d/frontman.conf << 'EOF'
 #   - ea0c.api.frontman.local -> DEVPOD_SERVER
 #   - ea0c.nextjs.frontman.local -> DEVPOD_SERVER
 #   - ea0c.vite.frontman.local -> DEVPOD_SERVER
-#   - ea0c.storybook.frontman.local -> DEVPOD_SERVER
 
 # All *.api.frontman.local
 address=/api.frontman.local/DEVPOD_SERVER
@@ -141,8 +139,6 @@ address=/nextjs.frontman.local/DEVPOD_SERVER
 # All *.vite.frontman.local
 address=/vite.frontman.local/DEVPOD_SERVER
 
-# All *.storybook.frontman.local
-address=/storybook.frontman.local/DEVPOD_SERVER
 EOF
 ```
 
@@ -153,7 +149,7 @@ macOS uses `/etc/resolver/` to delegate DNS queries for specific domains to cust
 ```bash
 sudo mkdir -p /etc/resolver
 
-for service in api nextjs vite storybook; do
+for service in api nextjs vite; do
   echo "nameserver 127.0.0.1" | sudo tee /etc/resolver/${service}.frontman.local > /dev/null
 done
 ```
@@ -253,7 +249,6 @@ Then open in your browser:
 - `https://xxxx.nextjs.frontman.local/frontman` - Next.js (Frontman UI)
 - `https://xxxx.vite.frontman.local` - Vite client
 - `https://xxxx.api.frontman.local` - Phoenix server
-- `https://xxxx.storybook.frontman.local` - Storybook
 
 The services are routed through Caddy reverse proxy on the server, which handles SSL termination.
 

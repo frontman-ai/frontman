@@ -36,24 +36,6 @@
 }
 
 /* ============================================================================
- * Active Tool Glow - Pulsing border for running tools
- * ============================================================================ */
-
-@keyframes frontman-active-pulse {
-	0%,
-	100% {
-		box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
-	}
-	50% {
-		box-shadow: 0 0 12px 2px rgba(59, 130, 246, 0.15);
-	}
-}
-
-.frontman-tool-active {
-	animation: frontman-active-pulse 2s ease-in-out infinite;
-}
-
-/* ============================================================================
  * Collapse Transition - Smooth height animation
  * ============================================================================ */
 
@@ -63,55 +45,6 @@
 		opacity 0.15s ease-in-out,
 		padding 0.15s ease-in-out,
 		margin 0.15s ease-in-out;
-}
-
-/* ============================================================================
- * Chevron Animation - Fade in and rotation
- * ============================================================================ */
-
-@keyframes frontman-chevron-fade-in {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
-	}
-}
-
-.chevron-animate {
-	animation: frontman-chevron-fade-in 0.1s ease-in forwards;
-}
-
-/* ============================================================================
- * Tool Group Styles
- * ============================================================================ */
-
-/* Subtle background for expanded group children area */
-.frontman-group-children {
-	background: linear-gradient(
-		to right,
-		rgba(63, 63, 70, 0.3) 0px,
-		rgba(63, 63, 70, 0.1) 4px,
-		transparent 4px
-	);
-}
-
-/* ============================================================================
- * Task Block Styles
- * ============================================================================ */
-
-/* Task header hover state */
-.frontman-task-header:hover {
-	background-color: rgba(63, 63, 70, 0.5);
-}
-
-/* Task preview area */
-.frontman-task-preview {
-	background: linear-gradient(
-		to bottom,
-		rgba(39, 39, 42, 0.8),
-		rgba(39, 39, 42, 1)
-	);
 }
 
 /* ============================================================================
@@ -145,61 +78,6 @@
 .frontman-scroll-anchor {
 	overflow-anchor: auto;
 	height: 1px;
-}
-
-/* ============================================================================
- * Utility Classes
- * ============================================================================ */
-
-/* Background color not available in Tailwind by default */
-.bg-zinc-750 {
-	background-color: rgb(48, 48, 54);
-}
-
-.bg-zinc-850 {
-	background-color: rgb(32, 32, 36);
-}
-
-/* Hover variant for bg-zinc-750 */
-.hover\:bg-zinc-750:hover {
-	background-color: rgb(48, 48, 54);
-}
-
-/* ============================================================================
- * Scan Animation - Horizontal scanning line for selected element during agent run
- * ============================================================================ */
-
-@keyframes frontman-scan {
-	0% {
-		transform: translateX(-100%);
-	}
-	100% {
-		transform: translateX(100%);
-	}
-}
-
-.frontman-scanning {
-	position: relative;
-	overflow: hidden;
-}
-
-.frontman-scanning::after {
-	content: "";
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background: linear-gradient(
-		90deg,
-		transparent 0%,
-		rgba(152, 93, 247, 0.2) 40%,
-		rgba(152, 93, 247, 0.5) 50%,
-		rgba(152, 93, 247, 0.2) 60%,
-		transparent 100%
-	);
-	animation: frontman-scan 1.5s ease-in-out infinite;
-	pointer-events: none;
 }
 
 /* ============================================================================

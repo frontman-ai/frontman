@@ -36,17 +36,12 @@
 	"files": [
 		"dist"
 	],
-	"scripts": {
-		"storybook": "storybook dev -p 6006",
-		"build-storybook": "storybook build"
-	},
 	"devDependencies": {
 		"@babel/core": "^7.29.0",
 		"@biomejs/biome": "^2.3.5",
 		"@frontman-ai/astro-browser": "workspace:*",
 		"@frontman-ai/frontman-client": "workspace:*",
 		"@frontman-ai/frontman-protocol": "workspace:*",
-		"@frontman-ai/nextjs": "workspace:*",
 		"@frontman-ai/react-statestore": "workspace:*",
 		"@frontman/bindings": "workspace:*",
 		"@frontman/logs": "workspace:*",
@@ -57,16 +52,8 @@
 		"@radix-ui/react-select": "^2.2.6",
 		"@radix-ui/react-slot": "^1.2.4",
 		"@radix-ui/react-tooltip": "^1.2.8",
-		"@radix-ui/themes": "^3.2.1",
 		"@rescript/react": "^0.14.0",
 		"@rescript/webapi": "*",
-		"@storybook/addon-essentials": "^8.6.17",
-		"@storybook/addon-interactions": "^8.6.17",
-		"@storybook/addon-links": "^8.6.17",
-		"@storybook/csf-tools": "8.6.17",
-		"@storybook/react": "^8.6.17",
-		"@storybook/react-vite": "^8.6.17",
-		"@storybook/test": "^8.6.17",
 		"@tailwindcss/vite": "^4.1.16",
 		"@types/babel__core": "^7",
 		"@types/react": "^19.2.2",
@@ -81,8 +68,6 @@
 		"react-dom": "^19.2.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"shadcn": "^3.5.0",
-		"storybook": "^8.6.17",
 		"streamdown": "^1.4.0",
 		"sury": "catalog:",
 		"sury-ppx": "^11.0.0-alpha.2",
@@ -95,5 +80,9 @@
 	"dependencies": {
 		"@radix-ui/react-alert-dialog": "^1.1.15",
 		"canvas-confetti": "^1.9.4"
+	},
+	"peerDependencies": {
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
 	}
 }

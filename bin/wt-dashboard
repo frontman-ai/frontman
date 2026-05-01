@@ -181,12 +181,11 @@ print_worktree() {
       local base_port
       base_port=$(hash_base_port "$hash")
       printf "  ${DIM}%-12s${RESET} %s containers running\n" "Containers:" "$pod_containers"
-      printf "  ${DIM}%-12s${RESET} %s–%s\n" "Ports:" "$base_port" "$((base_port + 5))"
+      printf "  ${DIM}%-12s${RESET} %s–%s\n" "Ports:" "$base_port" "$((base_port + 4))"
       printf "  ${DIM}URLs:${RESET}\n"
       printf "       ${GREEN}Phoenix${RESET}     https://%s.api.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$base_port"
       printf "       ${GREEN}Vite${RESET}        https://%s.vite.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 1))"
       printf "       ${GREEN}Next.js${RESET}     https://%s.nextjs.frontman.local/frontman  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 2))"
-      printf "       ${GREEN}Storybook${RESET}   https://%s.storybook.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 3))"
       printf "       ${GREEN}Marketing${RESET}   https://%s.marketing.frontman.local  ${DIM}(:%s)${RESET}\n" "$hash" "$((base_port + 4))"
       echo ""
       printf "  ${DIM}Actions:${RESET}     make wt-dev BRANCH=%s\n" "$branch"

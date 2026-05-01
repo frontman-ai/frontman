@@ -6,8 +6,7 @@
   "schedule": ["before 6am on Monday"],
   "labels": ["dependencies"],
   "ignorePaths": [
-    "libs/frontman-nextjs/test/cli/fixtures/**",
-    "libs/experimental-rescript-webapi/tools/**"
+    "libs/frontman-nextjs/test/cli/fixtures/**"
   ],
   "packageRules": [
     {

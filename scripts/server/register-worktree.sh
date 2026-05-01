@@ -59,10 +59,6 @@ $WT_ID-api.local {
     }
 }
 
-$WT_ID-storybook.local {
-    tls /etc/caddy/certs/worktree.pem /etc/caddy/certs/worktree-key.pem
-    reverse_proxy $CONTAINER_IP:6006
-}
 EOF
 
 echo "Created /etc/caddy/worktrees/$WT_ID.caddy"
@@ -90,7 +86,6 @@ echo "URLs for $WORKTREE_NAME:"
 echo "  Next.js:   https://$WT_ID-nextjs.local/frontman"
 echo "  Vite:      https://$WT_ID-vite.local"
 echo "  Phoenix:   https://$WT_ID-api.local"
-echo "  Storybook: https://$WT_ID-storybook.local"
 echo ""
 echo "Add to /etc/hosts on your Mac:"
-echo "127.0.0.1 $WT_ID-nextjs.local $WT_ID-vite.local $WT_ID-api.local $WT_ID-storybook.local"
+echo "127.0.0.1 $WT_ID-nextjs.local $WT_ID-vite.local $WT_ID-api.local"

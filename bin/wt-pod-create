@@ -9,8 +9,7 @@
 # Caddy runs on --network=host and routes to localhost:<port>.
 # Port range per worktree is derived from the 4-char hex hash:
 #   base = (0xHASH % 5000) + 10000   → range 10000–14999
-#   Phoenix: base+0, Vite: base+1, Next.js: base+2,
-#   Storybook: base+3, Marketing: base+4
+#   Phoenix: base+0, Vite: base+1, Next.js: base+2, Marketing: base+4
 
 set -euo pipefail
 
@@ -29,7 +28,6 @@ BASE_PORT=$(( (16#${HASH} % 1000) * 5 + 10000 ))
 PORT_PHOENIX=$((BASE_PORT))
 PORT_VITE=$((BASE_PORT + 1))
 PORT_NEXTJS=$((BASE_PORT + 2))
-PORT_STORYBOOK=$((BASE_PORT + 3))
 PORT_MARKETING=$((BASE_PORT + 4))
 
 printf "${CYAN}Creating containerized worktree${RESET}\n"
@@ -86,7 +84,6 @@ podman pod create --name "$POD_NAME" \
   -p "${PORT_PHOENIX}:4000" \
   -p "${PORT_VITE}:5173" \
   -p "${PORT_NEXTJS}:3000" \
-  -p "${PORT_STORYBOOK}:6006" \
   -p "${PORT_MARKETING}:4321"
 echo ""
 
@@ -112,7 +109,6 @@ podman run -d \
   -e "WORKTREE_PORT_PHOENIX=${PORT_PHOENIX}" \
   -e "WORKTREE_PORT_VITE=${PORT_VITE}" \
   -e "WORKTREE_PORT_NEXTJS=${PORT_NEXTJS}" \
-  -e "WORKTREE_PORT_STORYBOOK=${PORT_STORYBOOK}" \
   -e "WORKTREE_PORT_MARKETING=${PORT_MARKETING}" \
   -v "${WT_DIR}:/workspaces/frontman" \
   -v "worktree-${HASH}-node-modules:/workspaces/frontman/node_modules" \
@@ -157,12 +153,10 @@ echo "URLs (via Caddy):"
 echo "  Phoenix:   https://${HASH}.api.frontman.local"
 echo "  Vite:      https://${HASH}.vite.frontman.local"
 echo "  Next.js:   https://${HASH}.nextjs.frontman.local/frontman"
-echo "  Storybook: https://${HASH}.storybook.frontman.local"
 echo "  Marketing: https://${HASH}.marketing.frontman.local"
 echo ""
 echo "Direct ports (localhost):"
 echo "  Phoenix:   localhost:${PORT_PHOENIX}"
 echo "  Vite:      localhost:${PORT_VITE}"
 echo "  Next.js:   localhost:${PORT_NEXTJS}"
-echo "  Storybook: localhost:${PORT_STORYBOOK}"
 echo "  Marketing: localhost:${PORT_MARKETING}"

@@ -59,7 +59,6 @@ else
         PORT_PHOENIX=$((BASE_PORT))
         PORT_VITE=$((BASE_PORT + 1))
         PORT_NEXTJS=$((BASE_PORT + 2))
-        PORT_STORYBOOK=$((BASE_PORT + 3))
         PORT_MARKETING=$((BASE_PORT + 4))
 
         # Generate route blocks for this worktree
@@ -82,11 +81,6 @@ ${HASH}.vite.frontman.local {
 ${HASH}.nextjs.frontman.local {
     tls internal
     reverse_proxy 127.0.0.1:${PORT_NEXTJS}
-}
-
-${HASH}.storybook.frontman.local {
-    tls internal
-    reverse_proxy 127.0.0.1:${PORT_STORYBOOK}
 }
 
 ${HASH}.marketing.frontman.local {

@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test test-coverage lint format dev dev-hot build build-lib clean serve preview check storybook storybook-build
+.PHONY: help install test test-coverage lint format dev dev-hot build build-lib clean serve preview check
 
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
@@ -58,9 +58,3 @@ publish:
 	npm publish
 
 check: lint ## Run all checks (lint + test)
-
-storybook: ## Start Storybook development server
-	yarn storybook
-
-storybook-build: build ## Build Storybook for production
-	yarn build-storybook
