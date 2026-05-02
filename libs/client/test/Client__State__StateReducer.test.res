@@ -1432,14 +1432,11 @@ describe("Client State Reducer - Annotations on Messages", () => {
       }
     }
 
-    let _providers: array<Reducer.apiKeyProvider> = [OpenRouter, Anthropic, Fireworks]
-
-    let _providerId = (provider: Reducer.apiKeyProvider) =>
-      switch provider {
-      | OpenRouter => "openrouter"
-      | Anthropic => "anthropic"
-      | Fireworks => "fireworks"
-      }
+    let _providerCases: array<(Reducer.apiKeyProvider, string)> = [
+      (OpenRouter, "openrouter"),
+      (Anthropic, "anthropic"),
+      (Fireworks, "fireworks"),
+    ]
 
     let _settingsForProvider = (
       state: Client__State__Types.state,
@@ -1454,8 +1451,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
     test(
       "FetchApiKeySettings queues the provider-specific effect",
       t => {
-        _providers->Array.forEach(
-          provider => {
+        _providerCases->Array.forEach(
+          ((provider, _expectedProviderId)) => {
             let (_nextState, effects) = Reducer.next(
               _makeStateWithSession(),
               FetchApiKeySettings({provider: provider}),
@@ -1477,8 +1474,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
     test(
       "SaveApiKey queues the save effect and pending auto-select for each provider",
       t => {
-        _providers->Array.forEach(
-          provider => {
+        _providerCases->Array.forEach(
+          ((provider, expectedProviderId)) => {
             let (nextState, effects) = Reducer.next(
               _makeStateWithSession(),
               SaveApiKey({provider, key: "sk-test-key"}),
@@ -1486,7 +1483,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
             t
             ->expect(nextState.pendingProviderAutoSelect)
-            ->Expect.toEqual(Some(_providerId(provider)))
+            ->Expect.toEqual(Some(expectedProviderId))
             t->expect(effects->Array.length)->Expect.toBe(1)
 
             switch effects->Array.get(0) {
@@ -1505,8 +1502,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
     test(
       "API key save lifecycle updates only the targeted provider",
       t => {
-        _providers->Array.forEach(
-          provider => {
+        _providerCases->Array.forEach(
+          ((provider, expectedProviderId)) => {
             let state = _makeStateWithSession()
             let (savingState, _effects) = Reducer.next(
               state,
@@ -1529,7 +1526,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
             }
 
             let (failedState, _effects) = Reducer.next(
-              {...savingState, pendingProviderAutoSelect: Some(_providerId(provider))},
+              {...savingState, pendingProviderAutoSelect: Some(expectedProviderId)},
               ApiKeySaveError({provider, error: "boom"}),
             )
 
@@ -1551,8 +1548,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
     test(
       "SaveApiKey without ACP session sets provider-specific error",
       t => {
-        _providers->Array.forEach(
-          provider => {
+        _providerCases->Array.forEach(
+          ((provider, _expectedProviderId)) => {
             let (nextState, effects) = Reducer.next(
               Reducer.defaultState,
               SaveApiKey({provider, key: "sk-test-key"}),

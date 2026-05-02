@@ -940,9 +940,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           ~init={
             method: "POST",
             credentials: Include,
-            headers: WebAPI.HeadersInit.fromDict(
-              Dict.fromArray([("Content-Type", "application/json")]),
-            ),
+            headers: jsonContentHeaders(),
             body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
           },
         )
@@ -1032,9 +1030,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           ~init={
             method: "POST",
             credentials: Include,
-            headers: WebAPI.HeadersInit.fromDict(
-              Dict.fromArray([("Content-Type", "application/json")]),
-            ),
+            headers: jsonContentHeaders(),
           },
         )
         if response.ok {
@@ -1099,9 +1095,7 @@ let handleEffect = (effect, state: state, dispatch) => {
               ~init={
                 method: "POST",
                 credentials: Include,
-                headers: WebAPI.HeadersInit.fromDict(
-                  Dict.fromArray([("Content-Type", "application/json")]),
-                ),
+                headers: jsonContentHeaders(),
                 body: WebAPI.BodyInit.fromString(body),
               },
             )
