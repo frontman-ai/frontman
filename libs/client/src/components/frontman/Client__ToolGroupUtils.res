@@ -26,19 +26,35 @@ module TodoUtils = Client__TodoUtils
 // Tool Classification (using substring matching like ToolLabels)
 // ============================================================================
 
+let includesAny = (name, needles) => needles->Array.some(needle => String.includes(name, needle))
+
+let browserActionNeedles = ["click", "type", "hover", "select", "press_key", "resize"]
+let browserExplorationNeedles = ["snapshot", "screenshot", "console", "network"]
+let groupableToolNeedles = ["read", "get", "fetch", "list", "search", "grep", "find"]
+let groupingBreakerNeedles = [
+  "edit",
+  "write",
+  "create",
+  "delete",
+  "remove",
+  "terminal",
+  "command",
+  "run",
+  "shell",
+  "task",
+]
+let searchToolNeedles = ["search", "grep", "find"]
+let definitionToolNeedles = ["definition", "symbol"]
+let directoryToolNeedles = ["list", "dir"]
+let browserSnapshotNeedles = ["snapshot", "screenshot"]
+
 /**
  * Check if tool is a browser action (not exploration)
  * Browser actions mutate state (clicking, typing, navigating)
  */
 let isBrowserAction = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
-  String.includes(name, "click") ||
-  String.includes(name, "type") ||
-  String.includes(name, "hover") ||
-  String.includes(name, "select") ||
-  String.includes(name, "press_key") ||
-  String.includes(name, "resize") ||
-  name == "execute_js"
+  includesAny(name, browserActionNeedles) || name == "execute_js"
 }
 
 /**
@@ -47,10 +63,7 @@ let isBrowserAction = (toolName: string): bool => {
  */
 let isBrowserExploration = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
-  String.includes(name, "snapshot") ||
-  String.includes(name, "screenshot") ||
-  String.includes(name, "console") ||
-  String.includes(name, "network")
+  includesAny(name, browserExplorationNeedles)
 }
 
 /**
@@ -60,22 +73,9 @@ let isBrowserExploration = (toolName: string): bool => {
 let isGroupableTool = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
 
-  // File/content reading
-  String.includes(name, "read") ||
-  String.includes(name, "get") ||
-  String.includes(name, "fetch") ||
-  // Directory listing
-  String.includes(name, "list") ||
-  // Search operations
-  String.includes(name, "search") ||
-  String.includes(name, "grep") ||
-  String.includes(name, "find") ||
-  // Definition/symbol lookup
-  String.includes(name, "definition") ||
-  String.includes(name, "symbol") ||
-  // Lint reading (not fixing)
+  includesAny(name, groupableToolNeedles) ||
+  includesAny(name, definitionToolNeedles) ||
   String.includes(name, "lint") && String.includes(name, "read") ||
-  // Browser exploration (not actions)
   isBrowserExploration(name)
 }
 
@@ -86,24 +86,9 @@ let isGroupableTool = (toolName: string): bool => {
 let breaksGrouping = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
 
-  // File mutations
-  String.includes(name, "edit") ||
-  String.includes(name, "write") ||
-  String.includes(name, "create") ||
-  String.includes(name, "delete") ||
-  String.includes(name, "remove") ||
-  // Terminal/command execution — avoid bare "exec" which would also match
-  // browser tool "execute_js" (already caught by isBrowserAction below).
-  String.includes(name, "terminal") ||
-  String.includes(name, "command") ||
-  String.includes(name, "run") ||
-  String.includes(name, "shell") ||
-  // Browser actions (clicking, typing, etc.)
+  includesAny(name, groupingBreakerNeedles) ||
   isBrowserAction(name) ||
-  // Task/agent spawning
-  String.includes(name, "task") ||
-  (// Fix operations (lint fix, etc.)
-  String.includes(name, "fix") && !String.includes(name, "prefix"))
+  (String.includes(name, "fix") && !String.includes(name, "prefix"))
 }
 
 /**
@@ -137,6 +122,20 @@ let getGroupType = (toolName: string): Types.groupType => {
 let extractFilePath = (input: option<JSON.t>): option<string> => {
   ToolLabels.extractTargetFromInput(input)
 }
+
+let appendPath = (items, path) => path->Option.mapOr(items, p => Array.concat(items, [p]))
+
+let incrementIf = (count, condition) =>
+  switch condition {
+  | true => count + 1
+  | false => count
+  }
+
+let isFileReadTool = name => String.includes(name, "read") && !String.includes(name, "lint")
+let isDirectoryListingTool = name => includesAny(name, directoryToolNeedles)
+let isSearchTool = name => includesAny(name, searchToolNeedles)
+let isDefinitionTool = name => includesAny(name, definitionToolNeedles)
+let isBrowserSnapshotTool = name => includesAny(name, browserSnapshotNeedles)
 
 /**
  * Extract todo statistics from a todo_write tool's input
@@ -198,45 +197,27 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
     let path = extractFilePath(tool.input)
 
     // File reads
-    let files = if String.includes(name, "read") && !String.includes(name, "lint") {
-      path->Option.mapOr(acc.files, p => Array.concat(acc.files, [p]))
+    let files = if isFileReadTool(name) {
+      appendPath(acc.files, path)
     } else {
       acc.files
     }
 
     // Directory listings
-    let directories = if String.includes(name, "list") || String.includes(name, "dir") {
-      path->Option.mapOr(acc.directories, p => Array.concat(acc.directories, [p]))
+    let directories = if isDirectoryListingTool(name) {
+      appendPath(acc.directories, path)
     } else {
       acc.directories
     }
 
     // Searches (grep, search, find)
-    let searches = if (
-      String.includes(name, "search") ||
-      String.includes(name, "grep") ||
-      String.includes(name, "find")
-    ) {
-      acc.searches + 1
-    } else {
-      acc.searches
-    }
+    let searches = incrementIf(acc.searches, isSearchTool(name))
 
     // Definition/symbol lookups
-    let definitions = if String.includes(name, "definition") || String.includes(name, "symbol") {
-      acc.definitions + 1
-    } else {
-      acc.definitions
-    }
+    let definitions = incrementIf(acc.definitions, isDefinitionTool(name))
 
     // Browser snapshots/screenshots
-    let browserSnapshots = if (
-      String.includes(name, "snapshot") || String.includes(name, "screenshot")
-    ) {
-      acc.browserSnapshots + 1
-    } else {
-      acc.browserSnapshots
-    }
+    let browserSnapshots = incrementIf(acc.browserSnapshots, isBrowserSnapshotTool(name))
 
     // Todo operations
     let (
@@ -524,20 +505,8 @@ let groupToolCalls = (
   }
 
   // Check if this specific tool call should be grouped (for main agent)
-  let shouldGroupToolCall = (tc: Message.toolCall): bool => {
-    // Error states are NEVER grouped - failures should be visible
-    if hasError(tc) {
-      false
-    } // Check if it breaks grouping first (mutations)
-    else if breaksGrouping(tc.toolName) {
-      false
-    } // Check if it's a groupable tool
-    else if isGroupableTool(tc.toolName) {
-      true
-    } else {
-      false
-    }
-  }
+  let shouldGroupToolCall = (tc: Message.toolCall): bool =>
+    !hasError(tc) && !breaksGrouping(tc.toolName) && isGroupableTool(tc.toolName)
 
   toolCalls->Array.forEach(tc => {
     let isSubagent = isSubagentToolCall(tc)
