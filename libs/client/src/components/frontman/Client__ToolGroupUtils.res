@@ -75,7 +75,6 @@ let isGroupableTool = (toolName: string): bool => {
 
   includesAny(name, groupableToolNeedles) ||
   includesAny(name, definitionToolNeedles) ||
-  String.includes(name, "lint") && String.includes(name, "read") ||
   isBrowserExploration(name)
 }
 
@@ -130,12 +129,6 @@ let incrementIf = (count, condition) =>
   | true => count + 1
   | false => count
   }
-
-let isFileReadTool = name => String.includes(name, "read") && !String.includes(name, "lint")
-let isDirectoryListingTool = name => includesAny(name, directoryToolNeedles)
-let isSearchTool = name => includesAny(name, searchToolNeedles)
-let isDefinitionTool = name => includesAny(name, definitionToolNeedles)
-let isBrowserSnapshotTool = name => includesAny(name, browserSnapshotNeedles)
 
 /**
  * Extract todo statistics from a todo_write tool's input
@@ -197,27 +190,30 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
     let path = extractFilePath(tool.input)
 
     // File reads
-    let files = if isFileReadTool(name) {
+    let files = if String.includes(name, "read") && !String.includes(name, "lint") {
       appendPath(acc.files, path)
     } else {
       acc.files
     }
 
     // Directory listings
-    let directories = if isDirectoryListingTool(name) {
+    let directories = if includesAny(name, directoryToolNeedles) {
       appendPath(acc.directories, path)
     } else {
       acc.directories
     }
 
     // Searches (grep, search, find)
-    let searches = incrementIf(acc.searches, isSearchTool(name))
+    let searches = incrementIf(acc.searches, includesAny(name, searchToolNeedles))
 
     // Definition/symbol lookups
-    let definitions = incrementIf(acc.definitions, isDefinitionTool(name))
+    let definitions = incrementIf(acc.definitions, includesAny(name, definitionToolNeedles))
 
     // Browser snapshots/screenshots
-    let browserSnapshots = incrementIf(acc.browserSnapshots, isBrowserSnapshotTool(name))
+    let browserSnapshots = incrementIf(
+      acc.browserSnapshots,
+      includesAny(name, browserSnapshotNeedles),
+    )
 
     // Todo operations
     let (
@@ -413,14 +409,6 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
   }
 }
 
-/**
- * Generate a single combined summary label
- * e.g., "1 directory · 2 files · 3 searches"
- */
-let generateSummaryLabel = (summary: Types.toolsSummary): string => {
-  generateSummaryLabels(summary)->Array.join(" · ")
-}
-
 // ============================================================================
 // Grouping Logic
 // ============================================================================
@@ -562,29 +550,6 @@ let groupToolCalls = (
   flushGroup()
 
   result
-}
-
-/**
- * Check if a sequence of messages should potentially be grouped
- * This is useful for determining if grouping UI is relevant
- */
-let shouldGroupMessages = (messages: array<Message.t>, ~minConsecutive: int=2): bool => {
-  let consecutiveGroupable = ref(0)
-  let maxConsecutive = ref(0)
-
-  messages->Array.forEach(msg => {
-    switch msg {
-    | Message.ToolCall(tc) if isGroupableTool(tc.toolName) && !hasError(tc) => {
-        consecutiveGroupable := consecutiveGroupable.contents + 1
-        if consecutiveGroupable.contents > maxConsecutive.contents {
-          maxConsecutive := consecutiveGroupable.contents
-        }
-      }
-    | _ => consecutiveGroupable := 0
-    }
-  })
-
-  maxConsecutive.contents >= minConsecutive
 }
 
 /**
