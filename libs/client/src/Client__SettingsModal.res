@@ -20,14 +20,6 @@ let badgeClass = tone =>
 let renderBadge = (~label, ~tone) =>
   <span className={badgeClass(tone)}> {React.string(label)} </span>
 
-let saveStatusDisplay = saveStatus =>
-  switch saveStatus {
-  | Types.Idle => ("", "mt-2 text-xs text-zinc-400")
-  | Types.Saving => ("Saving...", "mt-2 text-xs text-zinc-400")
-  | Types.Saved => ("Saved", "mt-2 text-xs text-emerald-300")
-  | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
-  }
-
 let apiKeyPlaceholder = (source, emptyText) =>
   switch source {
   | Types.UserOverride => "Key saved - enter new key to replace"
@@ -46,10 +38,18 @@ let saveApiKey = (~key, ~save, ~clear) => {
   }
 }
 
-let renderSaveStatus = ((label, className)) =>
-  switch label {
-  | "" => React.null
-  | label => <div className={className}> {React.string(label)} </div>
+let renderSaveStatus = saveStatus =>
+  switch saveStatus {
+  | Types.Idle => React.null
+  | Types.Saving => <div className="mt-2 text-xs text-zinc-400"> {React.string("Saving...")} </div>
+  | Types.Saved => <div className="mt-2 text-xs text-emerald-300"> {React.string("Saved")} </div>
+  | Types.SaveError(msg) => <div className="mt-2 text-xs text-red-400"> {React.string(msg)} </div>
+  }
+
+let saveButtonLabel = saveStatus =>
+  switch saveStatus {
+  | Types.Saving => "Saving..."
+  | Types.Idle | Types.Saved | Types.SaveError(_) => "Save"
   }
 
 let renderSourceBadge = (source: Types.apiKeySource) =>
@@ -82,7 +82,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
 
-  // When the dialog opens with an initialTab, switch to it
   React.useEffect2(() => {
     switch (open_, initialTab) {
     | (true, Some(tab)) => setActiveTab(_ => tab)
@@ -97,21 +96,13 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let userProfile = State.useSelector(State.Selectors.userProfile)
   let userEmail = userProfile->Option.map(p => p.email)
 
-  // Get ACP session for apiBaseUrl
   let acpSession = State.useSelector(State.Selectors.acpSession)
-
-  // Get API key settings from state
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
   let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
   let fireworksKeySettings = State.useSelector(State.Selectors.fireworksKeySettings)
-
-  // Get Anthropic OAuth status from state
   let anthropicOAuthStatus = State.useSelector(State.Selectors.anthropicOAuthStatus)
-
-  // Get ChatGPT OAuth status from state
   let chatgptOAuthStatus = State.useSelector(State.Selectors.chatgptOAuthStatus)
 
-  // Fetch API key settings and user info when modal opens (or when ACP session becomes active)
   React.useEffect2(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
@@ -132,10 +123,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     None
   }, (open_, acpSession))
 
-  let openrouterSaveStatus = saveStatusDisplay(keySettings.saveStatus)
-  let anthropicSaveStatus = saveStatusDisplay(anthropicKeySettings.saveStatus)
-  let fireworksSaveStatus = saveStatusDisplay(fireworksKeySettings.saveStatus)
-
   let placeholder = apiKeyPlaceholder(keySettings.source, "Enter OpenRouter API key")
   let anthropicPlaceholder = apiKeyPlaceholder(
     anthropicKeySettings.source,
@@ -145,33 +132,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     fireworksKeySettings.source,
     "Enter Fireworks API key",
   )
-
-  let handleSave = () => {
-    saveApiKey(
-      ~key=openrouterKey,
-      ~save=key => State.Actions.saveOpenRouterKey(~key),
-      ~clear=() => setOpenrouterKey(_ => ""),
-    )
-  }
-
-  let handleAnthropicSave = () => {
-    saveApiKey(
-      ~key=anthropicKey,
-      ~save=key => State.Actions.saveAnthropicKey(~key),
-      ~clear=() => setAnthropicKey(_ => ""),
-    )
-  }
-
-  let handleFireworksSave = () => {
-    saveApiKey(
-      ~key=fireworksKey,
-      ~save=key => State.Actions.saveFireworksKey(~key),
-      ~clear=() => setFireworksKey(_ => ""),
-    )
-  }
-
-  let sourceBadge = renderSourceBadge(keySettings.source)
-  let fireworksSourceBadge = renderSourceBadge(fireworksKeySettings.source)
 
   <Dialog.Dialog open_={open_} onOpenChange={onOpenChange}>
     <Dialog.DialogContent
@@ -217,7 +177,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
           <div className="flex-1 overflow-y-auto px-6 pb-6 pr-6">
             {activeTab == "general"
               ? <div className="space-y-6">
-                  // Account section
                   <div>
                     <div className="text-sm font-medium text-zinc-400">
                       {React.string("Account")}
@@ -274,7 +233,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       </div>
                     </div>
                   </div>
-                  // Framework detection
                   <div>
                     <div className="text-sm font-medium text-zinc-400">
                       {React.string("Environment")}
@@ -287,7 +245,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                   </div>
                 </div>
               : <div className="space-y-6">
-                  // Anthropic OAuth Section
                   <div className="text-sm text-zinc-400">
                     {React.string("Connect your account")}
                   </div>
@@ -408,7 +365,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       }}
                     </div>
 
-                    // Anthropic API Key (alternative to OAuth) — hidden during active OAuth flow
                     {switch anthropicOAuthStatus {
                     | Types.Authorizing(_) | Types.Exchanging => React.null
                     | _ =>
@@ -450,22 +406,22 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           />
                           <Button.Button
                             variant=#secondary
-                            onClick={_ => handleAnthropicSave()}
+                            onClick={_ =>
+                              saveApiKey(
+                                ~key=anthropicKey,
+                                ~save=key => State.Actions.saveAnthropicKey(~key),
+                                ~clear=() => setAnthropicKey(_ => ""),
+                              )}
                             disabled={anthropicKeySettings.saveStatus == Types.Saving}
                           >
-                            {React.string(
-                              anthropicKeySettings.saveStatus == Types.Saving
-                                ? "Saving..."
-                                : "Save",
-                            )}
+                            {React.string(saveButtonLabel(anthropicKeySettings.saveStatus))}
                           </Button.Button>
                         </div>
-                        {renderSaveStatus(anthropicSaveStatus)}
+                        {renderSaveStatus(anthropicKeySettings.saveStatus)}
                       </div>
                     }}
                   </div>
 
-                  // ChatGPT OAuth Section
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -552,7 +508,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     </div>
                   </div>
 
-                  // OpenRouter API Key Section
                   <div className="text-sm text-zinc-400">
                     {React.string("Bring your own key")}
                   </div>
@@ -562,7 +517,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                         <span className="text-sm font-semibold text-zinc-100">
                           {React.string("Fireworks AI")}
                         </span>
-                        {fireworksSourceBadge}
+                        {renderSourceBadge(fireworksKeySettings.source)}
                       </div>
 
                       <a
@@ -593,15 +548,18 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       />
                       <Button.Button
                         variant=#secondary
-                        onClick={_ => handleFireworksSave()}
+                        onClick={_ =>
+                          saveApiKey(
+                            ~key=fireworksKey,
+                            ~save=key => State.Actions.saveFireworksKey(~key),
+                            ~clear=() => setFireworksKey(_ => ""),
+                          )}
                         disabled={fireworksKeySettings.saveStatus == Types.Saving}
                       >
-                        {React.string(
-                          fireworksKeySettings.saveStatus == Types.Saving ? "Saving..." : "Save",
-                        )}
+                        {React.string(saveButtonLabel(fireworksKeySettings.saveStatus))}
                       </Button.Button>
                     </div>
-                    {renderSaveStatus(fireworksSaveStatus)}
+                    {renderSaveStatus(fireworksKeySettings.saveStatus)}
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
                     <div className="flex items-center justify-between">
@@ -609,7 +567,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                         <span className="text-sm font-semibold text-zinc-100">
                           {React.string("OpenRouter")}
                         </span>
-                        {sourceBadge}
+                        {renderSourceBadge(keySettings.source)}
                       </div>
 
                       <a
@@ -635,15 +593,18 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       />
                       <Button.Button
                         variant=#secondary
-                        onClick={_ => handleSave()}
+                        onClick={_ =>
+                          saveApiKey(
+                            ~key=openrouterKey,
+                            ~save=key => State.Actions.saveOpenRouterKey(~key),
+                            ~clear=() => setOpenrouterKey(_ => ""),
+                          )}
                         disabled={keySettings.saveStatus == Types.Saving}
                       >
-                        {React.string(
-                          keySettings.saveStatus == Types.Saving ? "Saving..." : "Save",
-                        )}
+                        {React.string(saveButtonLabel(keySettings.saveStatus))}
                       </Button.Button>
                     </div>
-                    {renderSaveStatus(openrouterSaveStatus)}
+                    {renderSaveStatus(keySettings.saveStatus)}
                   </div>
                 </div>}
           </div>
