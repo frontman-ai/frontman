@@ -1415,7 +1415,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
   })
 
-  describe("Fireworks API key actions", () => {
+  describe("API key provider actions", () => {
     let _makeStateWithSession = () => {
       {
         ...Reducer.defaultState,
@@ -1432,45 +1432,152 @@ describe("Client State Reducer - Annotations on Messages", () => {
       }
     }
 
+    let _providers: array<Reducer.apiKeyProvider> = [OpenRouter, Anthropic, Fireworks]
+
+    let _providerId = (provider: Reducer.apiKeyProvider) =>
+      switch provider {
+      | OpenRouter => "openrouter"
+      | Anthropic => "anthropic"
+      | Fireworks => "fireworks"
+      }
+
+    let _settingsForProvider = (
+      state: Client__State__Types.state,
+      provider: Reducer.apiKeyProvider,
+    ) =>
+      switch provider {
+      | OpenRouter => state.openrouterKeySettings
+      | Anthropic => state.anthropicKeySettings
+      | Fireworks => state.fireworksKeySettings
+      }
+
     test(
-      "SaveFireworksKey queues the save effect and pending auto-select",
+      "FetchApiKeySettings queues the provider-specific effect",
       t => {
-        let (nextState, effects) = Reducer.next(
-          _makeStateWithSession(),
-          SaveFireworksKey({key: "sk-fireworks-test-key"}),
+        _providers->Array.forEach(
+          provider => {
+            let (_nextState, effects) = Reducer.next(
+              _makeStateWithSession(),
+              FetchApiKeySettings({provider: provider}),
+            )
+
+            t->expect(effects->Array.length)->Expect.toBe(1)
+            switch effects->Array.get(0) {
+            | Some(FetchApiKeySettingsEffect({apiBaseUrl, provider: effectProvider})) => {
+                t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
+                t->expect(effectProvider)->Expect.toEqual(provider)
+              }
+            | _ => JsExn.throw("Expected FetchApiKeySettingsEffect")
+            }
+          },
         )
-
-        t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("fireworks"))
-        t->expect(effects->Array.length)->Expect.toBe(1)
-
-        switch effects->Array.get(0) {
-        | Some(SaveFireworksKeyEffect({apiBaseUrl, key})) => {
-            t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
-            t->expect(key)->Expect.toBe("sk-fireworks-test-key")
-          }
-        | _ => JsExn.throw("Expected SaveFireworksKeyEffect")
-        }
       },
     )
 
     test(
-      "Fireworks save lifecycle updates save status and clears pending auto-select on error",
+      "SaveApiKey queues the save effect and pending auto-select for each provider",
       t => {
-        let state = _makeStateWithSession()
-        let (savingState, _effects) = Reducer.next(state, FireworksKeySaveStarted)
+        _providers->Array.forEach(
+          provider => {
+            let (nextState, effects) = Reducer.next(
+              _makeStateWithSession(),
+              SaveApiKey({provider, key: "sk-test-key"}),
+            )
 
-        t->expect(savingState.fireworksKeySettings.saveStatus)->Expect.toEqual(Saving)
+            t
+            ->expect(nextState.pendingProviderAutoSelect)
+            ->Expect.toEqual(Some(_providerId(provider)))
+            t->expect(effects->Array.length)->Expect.toBe(1)
 
-        let (failedState, _effects) = Reducer.next(
-          {...savingState, pendingProviderAutoSelect: Some("fireworks")},
-          FireworksKeySaveError({error: "boom"}),
+            switch effects->Array.get(0) {
+            | Some(SaveApiKeyEffect({apiBaseUrl, provider: effectProvider, key})) => {
+                t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
+                t->expect(effectProvider)->Expect.toEqual(provider)
+                t->expect(key)->Expect.toBe("sk-test-key")
+              }
+            | _ => JsExn.throw("Expected SaveApiKeyEffect")
+            }
+          },
+        )
+      },
+    )
+
+    test(
+      "API key save lifecycle updates only the targeted provider",
+      t => {
+        _providers->Array.forEach(
+          provider => {
+            let state = _makeStateWithSession()
+            let (savingState, _effects) = Reducer.next(
+              state,
+              ApiKeySaveStarted({provider: provider}),
+            )
+
+            t
+            ->expect(_settingsForProvider(savingState, provider).saveStatus)
+            ->Expect.toEqual(Saving)
+
+            let (savedState, effects) = Reducer.next(savingState, ApiKeySaved({provider: provider}))
+
+            t
+            ->expect(_settingsForProvider(savedState, provider).source)
+            ->Expect.toEqual(UserOverride)
+            t->expect(_settingsForProvider(savedState, provider).saveStatus)->Expect.toEqual(Saved)
+            switch provider {
+            | OpenRouter => t->expect(effects->Array.length)->Expect.toBe(1)
+            | Anthropic | Fireworks => t->expect(effects->Array.length)->Expect.toBe(0)
+            }
+
+            let (failedState, _effects) = Reducer.next(
+              {...savingState, pendingProviderAutoSelect: Some(_providerId(provider))},
+              ApiKeySaveError({provider, error: "boom"}),
+            )
+
+            t->expect(failedState.pendingProviderAutoSelect)->Expect.toEqual(None)
+            t
+            ->expect(_settingsForProvider(failedState, provider).saveStatus)
+            ->Expect.toEqual(SaveError("boom"))
+
+            let (resetState, _effects) = Reducer.next(
+              failedState,
+              ResetApiKeySaveStatus({provider: provider}),
+            )
+            t->expect(_settingsForProvider(resetState, provider).saveStatus)->Expect.toEqual(Idle)
+          },
+        )
+      },
+    )
+
+    test(
+      "SaveApiKey without ACP session sets provider-specific error",
+      t => {
+        _providers->Array.forEach(
+          provider => {
+            let (nextState, effects) = Reducer.next(
+              Reducer.defaultState,
+              SaveApiKey({provider, key: "sk-test-key"}),
+            )
+
+            t->expect(effects->Array.length)->Expect.toBe(0)
+            t
+            ->expect(_settingsForProvider(nextState, provider).saveStatus)
+            ->Expect.toEqual(SaveError("No active ACP session"))
+          },
+        )
+      },
+    )
+
+    test(
+      "ApiKeySettingsReceived updates only the targeted provider",
+      t => {
+        let (nextState, _effects) = Reducer.next(
+          Reducer.defaultState,
+          ApiKeySettingsReceived({provider: Anthropic, source: FromEnv}),
         )
 
-        t->expect(failedState.pendingProviderAutoSelect)->Expect.toEqual(None)
-        t->expect(failedState.fireworksKeySettings.saveStatus)->Expect.toEqual(SaveError("boom"))
-
-        let (resetState, _effects) = Reducer.next(failedState, ResetFireworksKeySaveStatus)
-        t->expect(resetState.fireworksKeySettings.saveStatus)->Expect.toEqual(Idle)
+        t->expect(nextState.openrouterKeySettings.source)->Expect.toEqual(Client__State__Types.None)
+        t->expect(nextState.anthropicKeySettings.source)->Expect.toEqual(FromEnv)
+        t->expect(nextState.fireworksKeySettings.source)->Expect.toEqual(Client__State__Types.None)
       },
     )
   })

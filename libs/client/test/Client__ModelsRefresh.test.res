@@ -193,26 +193,35 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("openai"))
   })
 
-  test("SaveOpenRouterKey sets pendingProviderAutoSelect to openrouter", t => {
+  test("SaveApiKey OpenRouter sets pendingProviderAutoSelect to openrouter", t => {
     let state = _makeState()
 
-    let (nextState, _effects) = Reducer.next(state, SaveOpenRouterKey({key: "test-key"}))
+    let (nextState, _effects) = Reducer.next(
+      state,
+      SaveApiKey({provider: OpenRouter, key: "test-key"}),
+    )
 
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("openrouter"))
   })
 
-  test("SaveAnthropicKey sets pendingProviderAutoSelect to anthropic", t => {
+  test("SaveApiKey Anthropic sets pendingProviderAutoSelect to anthropic", t => {
     let state = _makeState()
 
-    let (nextState, _effects) = Reducer.next(state, SaveAnthropicKey({key: "test-key"}))
+    let (nextState, _effects) = Reducer.next(
+      state,
+      SaveApiKey({provider: Anthropic, key: "test-key"}),
+    )
 
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("anthropic"))
   })
 
-  test("SaveFireworksKey sets pendingProviderAutoSelect to fireworks", t => {
+  test("SaveApiKey Fireworks sets pendingProviderAutoSelect to fireworks", t => {
     let state = _makeState()
 
-    let (nextState, _effects) = Reducer.next(state, SaveFireworksKey({key: "test-key"}))
+    let (nextState, _effects) = Reducer.next(
+      state,
+      SaveApiKey({provider: Fireworks, key: "test-key"}),
+    )
 
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("fireworks"))
   })

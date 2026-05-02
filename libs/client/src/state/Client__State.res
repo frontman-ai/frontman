@@ -204,28 +204,34 @@ module Actions = {
     )
 
   // API key settings action creators
-  let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
+  let fetchApiKeySettings = () =>
+    Client__State__Store.dispatch(FetchApiKeySettings({provider: OpenRouter}))
 
-  let saveOpenRouterKey = (~key) => Client__State__Store.dispatch(SaveOpenRouterKey({key: key}))
+  let saveOpenRouterKey = (~key) =>
+    Client__State__Store.dispatch(SaveApiKey({provider: OpenRouter, key}))
 
   let resetOpenRouterKeySaveStatus = () =>
-    Client__State__Store.dispatch(ResetOpenRouterKeySaveStatus)
+    Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: OpenRouter}))
 
   // Anthropic API key settings action creators
   let fetchAnthropicApiKeySettings = () =>
-    Client__State__Store.dispatch(FetchAnthropicApiKeySettings)
+    Client__State__Store.dispatch(FetchApiKeySettings({provider: Anthropic}))
 
-  let saveAnthropicKey = (~key) => Client__State__Store.dispatch(SaveAnthropicKey({key: key}))
+  let saveAnthropicKey = (~key) =>
+    Client__State__Store.dispatch(SaveApiKey({provider: Anthropic, key}))
 
-  let resetAnthropicKeySaveStatus = () => Client__State__Store.dispatch(ResetAnthropicKeySaveStatus)
+  let resetAnthropicKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Anthropic}))
 
   // Fireworks API key settings action creators
   let fetchFireworksApiKeySettings = () =>
-    Client__State__Store.dispatch(FetchFireworksApiKeySettings)
+    Client__State__Store.dispatch(FetchApiKeySettings({provider: Fireworks}))
 
-  let saveFireworksKey = (~key) => Client__State__Store.dispatch(SaveFireworksKey({key: key}))
+  let saveFireworksKey = (~key) =>
+    Client__State__Store.dispatch(SaveApiKey({provider: Fireworks, key}))
 
-  let resetFireworksKeySaveStatus = () => Client__State__Store.dispatch(ResetFireworksKeySaveStatus)
+  let resetFireworksKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Fireworks}))
 
   // ACP session config option action creators
   let configOptionsReceived = (~configOptions) =>
