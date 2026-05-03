@@ -1,7 +1,7 @@
 # =============================================================================
 # Build stage — prebuilt Erlang+Elixir, no compilation from source
 # =============================================================================
-FROM hexpm/elixir:1.19.3-erlang-28.1-debian-bookworm-20260202-slim AS builder
+FROM hexpm/elixir:1.20.0-rc.4-erlang-29.0-rc3-debian-bookworm-20260421-slim AS builder
 
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends build-essential git curl xz-utils ca-certificates \

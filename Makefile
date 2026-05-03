@@ -106,7 +106,7 @@ dev-marketing: ## Start development server for marketing site
 # Build & Quality
 # ============================================================================
 ## BUILD_START
-.PHONY: install build rescript-watch rescript-build clean hooks-install
+.PHONY: install build rescript-watch rescript-build clean hooks-install setup-elixir-tools verify-toolchain-pins
 
 install: ## Install dependencies
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -121,6 +121,33 @@ hooks-install: ## Install git pre-commit hooks via Lefthook
 	else \
 		printf "$(YELLOW)lefthook not found — run 'mise install' first.$(RESET)\n"; \
 	fi
+
+setup-elixir-tools: ## Install Hex/Rebar for the active mise Elixir
+	@printf "$(YELLOW)Installing Hex/Rebar for mise Elixir...$(RESET)\n"
+	@if ! mise exec -- mix hex.info >/dev/null 2>&1; then \
+		mise exec -- mix archive.install github hexpm/hex branch latest --force; \
+	fi
+	@tmp=$$(mktemp -t rebar3.XXXXXX); \
+	curl -fsSL "https://s3.amazonaws.com/rebar3/rebar3" -o "$$tmp"; \
+	chmod +x "$$tmp"; \
+	mise exec -- mix local.rebar rebar3 "$$tmp" --force; \
+	rm -f "$$tmp"
+	@printf "$(GREEN)Hex/Rebar ready.$(RESET)\n"
+
+verify-toolchain-pins: ## Verify Docker Elixir image matches mise.toml
+	@elixir_tool=$$(awk -F'"' '/^elixir *=/ {print $$2}' mise.toml); \
+	erlang_tool=$$(awk -F'"' '/^erlang *=/ {print $$2}' mise.toml); \
+	docker_image=$$(awk '/^FROM hexpm\/elixir:/ {print $$2; exit}' apps/frontman_server/Dockerfile); \
+	elixir_version="$${elixir_tool%%-otp-*}"; \
+	expected="hexpm/elixir:$${elixir_version}-erlang-$${erlang_tool}"; \
+	if [ -z "$$elixir_tool" ] || [ -z "$$erlang_tool" ] || [ -z "$$docker_image" ]; then \
+		printf "$(YELLOW)Could not read mise.toml or Dockerfile toolchain pins.$(RESET)\n"; \
+		exit 1; \
+	fi; \
+	case "$$docker_image" in \
+		$$expected*) printf "$(GREEN)Toolchain pins match: $$docker_image$(RESET)\n" ;; \
+		*) printf "$(YELLOW)Toolchain pin mismatch: expected Docker image prefix '$$expected', got '$$docker_image'.$(RESET)\n"; exit 1 ;; \
+	esac
 
 build: ## Build ReScript project
 	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"

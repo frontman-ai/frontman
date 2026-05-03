@@ -40,8 +40,6 @@ defmodule FrontmanServer.Tasks do
       {MessageOptimizer, []}
     ]
 
-  require Logger
-
   alias FrontmanServer.Accounts
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo

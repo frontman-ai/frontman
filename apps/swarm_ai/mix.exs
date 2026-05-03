@@ -40,7 +40,7 @@ defmodule SwarmAi.MixProject do
       {:typedstruct, "~> 0.5"},
       {:jason, "~> 1.2"},
       {:uuidv7, "~> 1.0"},
-      {:telemetry, "~> 1.0"},
+      {:telemetry, "~> 1.4"},
       {:req_llm, "~> 1.10"},
       # Dev/Test
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},

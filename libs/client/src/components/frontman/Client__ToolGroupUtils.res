@@ -432,14 +432,6 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
   }
 }
 
-/**
- * Generate a single combined summary label
- * e.g., "1 directory · 2 files · 3 searches"
- */
-let generateSummaryLabel = (summary: Types.toolsSummary): string => {
-  generateSummaryLabels(summary)->Array.join(" · ")
-}
-
 // ============================================================================
 // Grouping Logic
 // ============================================================================
@@ -593,29 +585,6 @@ let groupToolCalls = (
   flushGroup()
 
   result
-}
-
-/**
- * Check if a sequence of messages should potentially be grouped
- * This is useful for determining if grouping UI is relevant
- */
-let shouldGroupMessages = (messages: array<Message.t>, ~minConsecutive: int=2): bool => {
-  let consecutiveGroupable = ref(0)
-  let maxConsecutive = ref(0)
-
-  messages->Array.forEach(msg => {
-    switch msg {
-    | Message.ToolCall(tc) if isGroupableTool(tc.toolName) && !hasError(tc) => {
-        consecutiveGroupable := consecutiveGroupable.contents + 1
-        if consecutiveGroupable.contents > maxConsecutive.contents {
-          maxConsecutive := consecutiveGroupable.contents
-        }
-      }
-    | _ => consecutiveGroupable := 0
-    }
-  })
-
-  maxConsecutive.contents >= minConsecutive
 }
 
 /**

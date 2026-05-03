@@ -286,34 +286,6 @@ describe("getExpandedTextFromEditable", () => {
   })
 })
 
-describe("getTextFromEditable", () => {
-  test("extracts plain text and skips all chip types", t => {
-    let el = editable([
-      text("Hello "),
-      pasteChip("p1"),
-      text(" World "),
-      fileChip("f1"),
-      text(" End"),
-    ])
-    t->expect(PromptInput.getTextFromEditable(el->asDomElement))->Expect.toBe("Hello  World  End")
-  })
-
-  test("returns empty string for empty editable", t => {
-    let el = editable([])
-    t->expect(PromptInput.getTextFromEditable(el->asDomElement))->Expect.toBe("")
-  })
-
-  test("handles BR as newline", t => {
-    let el = editable([text("a"), br(), text("b")])
-    t->expect(PromptInput.getTextFromEditable(el->asDomElement))->Expect.toBe("a\nb")
-  })
-
-  test("handles DIV line wrapping", t => {
-    let el = editable([div([text("line 1")]), div([text("line 2")])])
-    t->expect(PromptInput.getTextFromEditable(el->asDomElement))->Expect.toBe("line 1\nline 2")
-  })
-})
-
 describe("insertNodeAtCursor", () => {
   test("inserts plain text at the current caret position", t => {
     let existingText = text("Hello ")
@@ -324,7 +296,9 @@ describe("insertNodeAtCursor", () => {
     PromptInput.insertNodeAtCursor(text("world"))
 
     t->expect(el->asNode->_getTextContentOrThrow)->Expect.toBe("Hello world")
-    t->expect(PromptInput.getTextFromEditable(el->asDomElement))->Expect.toBe("Hello world")
+    t
+    ->expect(PromptInput.getExpandedTextFromEditable(el->asDomElement, makeMap([])))
+    ->Expect.toBe("Hello world")
   })
 
   test("inserts clipboard HTML as literal text, not rich content", t => {

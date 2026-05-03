@@ -513,6 +513,9 @@ jobs:
           install: true
           cache: true
 
+      - name: Install Hex/Rebar
+        run: make setup-elixir-tools
+
       - name: Cache deps
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
@@ -593,6 +596,12 @@ jobs:
           install: true
           cache: true
 
+      - name: Verify toolchain pins
+        run: make verify-toolchain-pins
+
+      - name: Install Hex/Rebar
+        run: make setup-elixir-tools
+
       - name: Cache deps
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
@@ -666,6 +675,9 @@ jobs:
           install: true
           cache: true
 
+      - name: Install Hex/Rebar
+        run: make setup-elixir-tools
+
       - name: Cache deps
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
@@ -716,6 +728,9 @@ jobs:
         with:
           install: true
           cache: true
+
+      - name: Install Hex/Rebar
+        run: make setup-elixir-tools
 
       - name: Cache deps
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3

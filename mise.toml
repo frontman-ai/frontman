@@ -1,8 +1,8 @@
 [tools]
 node="24.9.0"
 yarn="4.10.3"
-elixir="1.19.3-otp-28"
-erlang="28.1.1"
+elixir="1.20.0-rc.4-otp-29"
+erlang="29.0-rc3"
 elixir-ls="0.30.0"
 mprocs="0.7.1"
 mkcert="1.4.4"
