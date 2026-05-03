@@ -2,6 +2,7 @@ pre-commit:
   parallel: true
   commands:
     biome-lint:
+      root: "libs/client/"
       glob: "libs/client/**/*.{ts,tsx,js,jsx,mjs}"
       run: npx biome check --no-errors-on-unmatched {staged_files}
 

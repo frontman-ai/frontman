@@ -13,9 +13,8 @@ defmodule FrontmanServer.Observability.OtelHandler do
   """
 
   require Logger
-  require OpenTelemetry.Tracer, as: Tracer
-
   alias FrontmanServer.Observability.Events
+  alias OpenTelemetry.Tracer
 
   @tables [
     :frontman_spans_task

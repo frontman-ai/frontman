@@ -18,7 +18,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   alias FrontmanServer.Tasks.ExecutionEvent
 
   setup do
-    Sentry.Test.start_collecting_sentry_reports()
+    Sentry.Test.setup_sentry(dedup_events: false)
 
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)

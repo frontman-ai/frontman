@@ -16,8 +16,6 @@ defmodule SwarmAi.ParallelExecutor do
     deadline fired; all remaining tasks cancelled; first deadline wins
   """
 
-  require Logger
-
   alias SwarmAi.{ToolCall, ToolExecution, ToolResult}
 
   @type halt_reason :: {:pause_agent, String.t(), String.t(), pos_integer()}

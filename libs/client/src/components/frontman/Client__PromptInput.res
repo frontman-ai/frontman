@@ -108,16 +108,20 @@ let insertNodeAtCursor: WebAPI.DOMAPI.node => unit = %raw(`
   }
 `)
 
-// Create an inline chip DOM element for a file attachment
-let createFileChipElement: (string, string, string, bool) => WebAPI.DOMAPI.node = %raw(`
-  function(id, name, mediaType, isImage) {
+let imageChipIconPath = "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+
+let clipboardChipIconPath = "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+
+// Create an inline chip DOM element for pasted text or file attachments.
+let createChipElement: (string, string, string, string) => WebAPI.DOMAPI.node = %raw(`
+  function(id, chipType, labelText, iconPath) {
     var chip = document.createElement('span');
     chip.setAttribute('contenteditable', 'false');
     chip.setAttribute('data-chip-id', id);
-    chip.setAttribute('data-chip-type', 'file');
+    chip.setAttribute('data-chip-type', chipType);
     chip.className = 'inline-flex items-center gap-1 mx-0.5 px-2 py-0.5 rounded-md bg-violet-900/60 border border-violet-600/50 text-violet-200 text-xs align-middle cursor-default select-none';
     
-    if (isImage) {
+    if (iconPath) {
       var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       icon.setAttribute('width', '12');
       icon.setAttribute('height', '12');
@@ -127,15 +131,13 @@ let createFileChipElement: (string, string, string, bool) => WebAPI.DOMAPI.node 
       icon.setAttribute('stroke-width', '2');
       icon.setAttribute('class', 'flex-shrink-0');
       var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z');
+      path.setAttribute('d', iconPath);
       icon.appendChild(path);
       chip.appendChild(icon);
     }
     
     var label = document.createElement('span');
-    // Truncate long filenames
-    var displayName = name.length > 20 ? name.substring(0, 17) + '...' : name;
-    label.textContent = displayName;
+    label.textContent = labelText;
     chip.appendChild(label);
     
     // Remove button (x)
@@ -149,71 +151,19 @@ let createFileChipElement: (string, string, string, bool) => WebAPI.DOMAPI.node 
   }
 `)
 
-// Create an inline chip DOM element for pasted text
-let createPastedTextChipElement: (string, int) => WebAPI.DOMAPI.node = %raw(`
-  function(id, lineCount) {
-    var chip = document.createElement('span');
-    chip.setAttribute('contenteditable', 'false');
-    chip.setAttribute('data-chip-id', id);
-    chip.setAttribute('data-chip-type', 'paste');
-    chip.className = 'inline-flex items-center gap-1 mx-0.5 px-2 py-0.5 rounded-md bg-violet-900/60 border border-violet-600/50 text-violet-200 text-xs align-middle cursor-default select-none';
-    
-    // Clipboard icon
-    var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('width', '12');
-    icon.setAttribute('height', '12');
-    icon.setAttribute('viewBox', '0 0 24 24');
-    icon.setAttribute('fill', 'none');
-    icon.setAttribute('stroke', 'currentColor');
-    icon.setAttribute('stroke-width', '2');
-    icon.setAttribute('class', 'flex-shrink-0');
-    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2');
-    icon.appendChild(path);
-    chip.appendChild(icon);
-    
-    var label = document.createElement('span');
-    label.textContent = 'Pasted ~' + lineCount + ' lines';
-    chip.appendChild(label);
-    
-    // Remove button (x)
-    var removeBtn = document.createElement('span');
-    removeBtn.className = 'ml-0.5 cursor-pointer hover:text-red-300 text-violet-400';
-    removeBtn.textContent = '×';
-    removeBtn.setAttribute('data-remove-chip', id);
-    chip.appendChild(removeBtn);
-    
-    return chip;
+let _truncateChipLabel = label =>
+  switch String.length(label) > 20 {
+  | true => label->String.slice(~start=0, ~end=17) ++ "..."
+  | false => label
   }
-`)
 
-// Extract text content (without chips) from contentEditable
-// Properly recurses into block elements while skipping chip nodes
-let getTextFromEditable: Dom.element => string = %raw(`
-  function getTextFromEditable(el) {
-    var text = '';
-    var nodes = el.childNodes;
-    for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      if (node.nodeType === 3) {
-        text += node.textContent;
-      } else if (node.nodeType === 1) {
-        if (node.getAttribute && node.getAttribute('data-chip-id')) {
-          continue;
-        } else if (node.tagName === 'BR') {
-          text += '\n';
-        } else {
-          if (i > 0 && (node.tagName === 'DIV' || node.tagName === 'P')) {
-            text += '\n';
-          }
-          // Recurse into child nodes to skip nested chips
-          text += getTextFromEditable(node);
-        }
-      }
-    }
-    return text;
-  }
-`)
+let createFileChipElement = (id: string, name: string, isImage: bool): WebAPI.DOMAPI.node => {
+  createChipElement(id, "file", _truncateChipLabel(name), isImage ? imageChipIconPath : "")
+}
+
+let createPastedTextChipElement = (id: string, lineCount: int): WebAPI.DOMAPI.node => {
+  createChipElement(id, "paste", `Pasted ~${Int.toString(lineCount)} lines`, clipboardChipIconPath)
+}
 
 // Extract text from contentEditable with pasted-text chips expanded inline
 // Walks DOM nodes in order: text nodes become text, pasted-text chips are replaced
@@ -413,8 +363,6 @@ module ModelSelector = {
   }
 }
 
-module RadixUI__Icons = Bindings__RadixUI__Icons
-
 // Select element button — three visual states:
 // resting: zinc, label visible
 // selecting: violet pulse dot, shows "Selecting…"
@@ -458,66 +406,6 @@ module SelectElementButton = {
       | _ => React.null
       }}
     </button>
-  }
-}
-
-// Overflow button — ··· trigger revealing the model selector in a panel above the toolbar
-module OverflowButton = {
-  @react.component
-  let make = (
-    ~modelConfigOption: option<
-      FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption,
-    >,
-    ~isModelsConfigLoading: bool,
-    ~selectedModelValue: option<
-      FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId,
-    >,
-    ~onModelChange: string => unit,
-  ) => {
-    let (isOpen, setIsOpen) = React.useState(() => false)
-
-    <div className="relative flex-shrink-0">
-      <button
-        type_="button"
-        onClick={_ => setIsOpen(prev => !prev)}
-        className="inline-flex items-center justify-center w-8 h-8 rounded-md
-                   text-zinc-400 hover:text-zinc-200 hover:bg-white/6
-                   transition-colors cursor-pointer"
-        title="More options"
-      >
-        <span className="flex gap-[3px] items-center">
-          <span className="w-1 h-1 rounded-full bg-current" />
-          <span className="w-1 h-1 rounded-full bg-current" />
-          <span className="w-1 h-1 rounded-full bg-current" />
-        </span>
-      </button>
-      {isOpen
-        ? <div
-            className="absolute bottom-10 left-0 z-50 min-w-[180px]
-                       bg-zinc-900 border border-white/10 rounded-lg shadow-xl p-2"
-          >
-            <div className="text-[10px] text-zinc-500 px-2 pb-1 uppercase tracking-wide">
-              {React.string("Model")}
-            </div>
-            {switch (isModelsConfigLoading, modelConfigOption) {
-            | (true, _) =>
-              <div className="px-2 py-1 text-xs text-zinc-500"> {React.string("Loading...")} </div>
-            | (false, Some(configOption)) =>
-              <div className="w-full">
-                <ModelSelector
-                  configOption
-                  selectedValue={selectedModelValue->Option.getOr("")}
-                  onModelChange={v => {
-                    onModelChange(v)
-                    setIsOpen(_ => false)
-                  }}
-                />
-              </div>
-            | (false, None) => React.null
-            }}
-          </div>
-        : React.null}
-    </div>
   }
 }
 
@@ -635,6 +523,18 @@ let make = (
     })
   }
 
+  let insertChipAtCursor = (~focus=false, chipEl) => {
+    editableRef.current
+    ->Nullable.toOption
+    ->Option.forEach(el => {
+      if focus {
+        focusAtEnd(el)
+      }
+      insertNodeAtCursor(chipEl)
+      syncHasContent()
+    })
+  }
+
   // Debounced version for the hot input path — avoids triggering a React
   // re-render on every single keystroke just to toggle placeholder/submit state.
   let syncHasContentTimerRef = React.useRef(None)
@@ -710,18 +610,8 @@ let make = (
           })
           setInputItems(prev => Array.concat(prev, [newItem]))
 
-          // Insert chip at cursor position in the editable
-          editableRef.current
-          ->Nullable.toOption
-          ->Option.forEach(
-            el => {
-              let chipEl = createFileChipElement(id, file.name, file.type_, isImage)
-              // Ensure editable is focused before inserting
-              focusAtEnd(el)
-              insertNodeAtCursor(chipEl)
-              syncHasContent()
-            },
-          )
+          let chipEl = createFileChipElement(id, file.name, isImage)
+          insertChipAtCursor(~focus=true, chipEl)
 
           Promise.resolve()
         })
@@ -872,14 +762,8 @@ let make = (
       })
       setInputItems(prev => Array.concat(prev, [newItem]))
 
-      // Insert chip at cursor position
-      editableRef.current
-      ->Nullable.toOption
-      ->Option.forEach(_el => {
-        let chipEl = createPastedTextChipElement(id, lineCount)
-        insertNodeAtCursor(chipEl)
-        syncHasContent()
-      })
+      let chipEl = createPastedTextChipElement(id, lineCount)
+      insertChipAtCursor(chipEl)
     | (false, _, false) =>
       ReactEvent.Clipboard.preventDefault(e)
       insertNodeAtCursor(

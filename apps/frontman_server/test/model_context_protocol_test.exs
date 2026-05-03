@@ -1,8 +1,6 @@
 defmodule ModelContextProtocolTest do
   use ExUnit.Case, async: true
 
-  require Logger
-
   describe "initialize_params/0" do
     test "returns params for MCP initialize request" do
       params = ModelContextProtocol.initialize_params()
