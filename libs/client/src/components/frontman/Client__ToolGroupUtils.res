@@ -28,7 +28,37 @@ module TodoUtils = Client__TodoUtils
 
 let includesAny = (name, needles) => needles->Array.some(needle => String.includes(name, needle))
 
-let browserActionNeedles = ["click", "type", "hover", "select", "press_key", "resize"]
+module BrowserAction = {
+  type t = [#click | #typeText | #hover | #select | #pressKey | #resize | #executeJs]
+
+  let all: array<t> = [#click, #typeText, #hover, #select, #pressKey, #resize, #executeJs]
+
+  let toolName = (action: t): string =>
+    switch action {
+    | #click => "click"
+    | #typeText => "type"
+    | #hover => "hover"
+    | #select => "select"
+    | #pressKey => "press_key"
+    | #resize => "resize"
+    | #executeJs => "execute_js"
+    }
+
+  let matchesLowercaseToolName = (name: string, action: t): bool => {
+    switch action {
+    | #executeJs => name == toolName(action)
+    | #click | #typeText | #hover | #select | #pressKey | #resize =>
+      String.includes(name, toolName(action))
+    }
+  }
+
+  let fromLowercaseToolName = (name: string): option<t> =>
+    all->Array.find(action => matchesLowercaseToolName(name, action))
+
+  let fromToolName = (toolNameToMatch: string): option<t> =>
+    toolNameToMatch->String.toLowerCase->fromLowercaseToolName
+}
+
 let browserExplorationNeedles = ["snapshot", "screenshot", "console", "network"]
 let groupableToolNeedles = ["read", "get", "fetch", "list", "search", "grep", "find"]
 let groupingBreakerNeedles = [
@@ -47,15 +77,6 @@ let searchToolNeedles = ["search", "grep", "find"]
 let definitionToolNeedles = ["definition", "symbol"]
 let directoryToolNeedles = ["list", "dir"]
 let browserSnapshotNeedles = ["snapshot", "screenshot"]
-
-/**
- * Check if tool is a browser action (not exploration)
- * Browser actions mutate state (clicking, typing, navigating)
- */
-let isBrowserAction = (toolName: string): bool => {
-  let name = String.toLowerCase(toolName)
-  includesAny(name, browserActionNeedles) || name == "execute_js"
-}
 
 /**
  * Check if tool is browser exploration (not action)
@@ -86,7 +107,7 @@ let breaksGrouping = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
 
   includesAny(name, groupingBreakerNeedles) ||
-  isBrowserAction(name) ||
+  BrowserAction.fromLowercaseToolName(name)->Option.isSome ||
   (String.includes(name, "fix") && !String.includes(name, "prefix"))
 }
 
