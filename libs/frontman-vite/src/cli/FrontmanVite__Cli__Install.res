@@ -8,6 +8,7 @@ module Process = Bindings.Process
 module Detect = FrontmanVite__Cli__Detect
 module Templates = FrontmanVite__Cli__Templates
 module Style = FrontmanVite__Cli__Style
+module PackageManager = FrontmanAiFrontmanCore.FrontmanCore__Cli__PackageManager
 
 type installOptions = {
   server: string,
@@ -30,10 +31,7 @@ let installDependencies = async (
   let pm = Detect.getPackageManagerCommand(packageManager)
   let args = Detect.getInstallArgs(packageManager)
   let packages = ["@frontman-ai/vite"]
-  let packages = switch packageManager {
-  | Deno => packages->Array.map(p => "npm:" ++ p)
-  | _ => packages
-  }
+  let packages = PackageManager.npmPackages(packageManager, packages)
   let cmd = `${pm} ${args->Array.join(" ")} ${packages->Array.join(" ")}`
 
   switch dryRun {

@@ -133,52 +133,6 @@ let extractTodosFromToolResult = (resultJson: JSON.t): option<array<todoItem>> =
 }
 
 /**
- * Calculate summary stats for a TODO list
- */
-type todoStats = {
-  total: int,
-  pending: int,
-  inProgress: int,
-  completed: int,
-  cancelled: int,
-}
-
-let calculateStats = (todos: array<todoItem>): todoStats => {
-  let initial = {total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0}
-
-  todos->Array.reduce(initial, (acc, todo) => {
-    let base = {...acc, total: acc.total + 1}
-    switch todo.status {
-    | #pending => {...base, pending: base.pending + 1}
-    | #in_progress => {...base, inProgress: base.inProgress + 1}
-    | #completed => {...base, completed: base.completed + 1}
-    | #cancelled => {...base, cancelled: base.cancelled + 1}
-    }
-  })
-}
-
-/**
- * Generate a summary label for TODO stats
- * e.g., "Completed 2 of 5 to-dos"
- */
-let generateSummaryLabel = (stats: todoStats): string => {
-  if stats.total == 0 {
-    // No todos - return empty, caller should use operation label
-    ""
-  } else if stats.completed > 0 && stats.completed < stats.total {
-    `Completed ${Int.toString(stats.completed)} of ${Int.toString(stats.total)} to-dos`
-  } else if stats.completed == stats.total && stats.total > 0 {
-    `Completed all ${Int.toString(stats.total)} to-dos`
-  } else if stats.inProgress > 0 {
-    `${Int.toString(stats.inProgress)} to-do${stats.inProgress > 1 ? "s" : ""} in progress`
-  } else if stats.pending > 0 {
-    `${Int.toString(stats.pending)} to-do${stats.pending > 1 ? "s" : ""} pending`
-  } else {
-    `${Int.toString(stats.total)} to-do${stats.total != 1 ? "s" : ""}`
-  }
-}
-
-/**
  * Extract TODO items from tool INPUT (for todo_write)
  * The input contains the todos array being written
  */

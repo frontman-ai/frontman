@@ -152,57 +152,6 @@ let incrementIf = (count, condition) =>
   }
 
 /**
- * Extract todo statistics from a todo_write tool's input
- * The input contains the todos array with status changes
- */
-let extractTodoStatsFromInput = (input: option<JSON.t>): (int, int, int, int, int) => {
-  // Returns: (total, created, completed, started, cancelled)
-  switch input {
-  | Some(json) =>
-    switch JSON.Decode.object(json) {
-    | Some(obj) =>
-      // Check for "todos" array in input
-      let todosField = obj->Dict.get("todos")
-      switch todosField {
-      | Some(todosJson) =>
-        switch JSON.Decode.array(todosJson) {
-        | Some(arr) =>
-          let (created, completed, started, cancelled) = arr->Array.reduce((0, 0, 0, 0), (
-            (c, comp, s, can),
-            item,
-          ) => {
-            switch JSON.Decode.object(item) {
-            | Some(itemObj) =>
-              let status =
-                itemObj
-                ->Dict.get("status")
-                ->Option.flatMap(JSON.Decode.string)
-                ->Option.getOr("")
-                ->String.toLowerCase
-
-              // Count by status
-              switch status {
-              | "completed" | "complete" | "done" => (c, comp + 1, s, can)
-              | "in_progress" | "in-progress" | "started" | "running" => (c, comp, s + 1, can)
-              | "cancelled" | "canceled" | "removed" => (c, comp, s, can + 1)
-              | "pending" => (c + 1, comp, s, can) // New pending = created
-              | _ => (c, comp, s, can)
-              }
-            | None => (c, comp, s, can)
-            }
-          })
-          (Array.length(arr), created, completed, started, cancelled)
-        | None => (0, 0, 0, 0, 0)
-        }
-      | None => (0, 0, 0, 0, 0)
-      }
-    | None => (0, 0, 0, 0, 0)
-    }
-  | None => (0, 0, 0, 0, 0)
-  }
-}
-
-/**
  * Calculate summary statistics from grouped tool calls
  */
 let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
@@ -236,32 +185,6 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
       includesAny(name, browserSnapshotNeedles),
     )
 
-    // Todo operations
-    let (
-      todos,
-      todosNewlyCreated,
-      todosNewlyCompleted,
-      todosNewlyStarted,
-      todosNewlyCancelled,
-    ) = if TodoUtils.isTodoTool(tool.toolName) {
-      let (total, created, completed, started, cancelled) = extractTodoStatsFromInput(tool.input)
-      (
-        acc.todos + total,
-        acc.todosNewlyCreated + created,
-        acc.todosNewlyCompleted + completed,
-        acc.todosNewlyStarted + started,
-        acc.todosNewlyCancelled + cancelled,
-      )
-    } else {
-      (
-        acc.todos,
-        acc.todosNewlyCreated,
-        acc.todosNewlyCompleted,
-        acc.todosNewlyStarted,
-        acc.todosNewlyCancelled,
-      )
-    }
-
     {
       files,
       directories,
@@ -269,11 +192,6 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
       definitions,
       browserSnapshots,
       tools: Array.concat(acc.tools, [tool.toolName]),
-      todos,
-      todosNewlyCreated,
-      todosNewlyCompleted,
-      todosNewlyStarted,
-      todosNewlyCancelled,
     }
   })
 }
@@ -296,61 +214,6 @@ let unique = (arr: array<string>): array<string> => {
 }
 
 /**
- * Generate a nice label for todo changes
- * Returns labels like:
- * - "completed 2 to-dos"
- * - "started 1 to-do"
- * - "created 3 to-dos, completed 2"
- */
-let generateTodoLabel = (summary: Types.toolsSummary): option<string> => {
-  let parts = []
-
-  // Created todos
-  let parts = if summary.todosNewlyCreated > 0 {
-    let label = `created ${Int.toString(
-        summary.todosNewlyCreated,
-      )} to-do${summary.todosNewlyCreated == 1 ? "" : "s"}`
-    Array.concat(parts, [label])
-  } else {
-    parts
-  }
-
-  // Completed todos
-  let parts = if summary.todosNewlyCompleted > 0 {
-    let label = `completed ${Int.toString(summary.todosNewlyCompleted)}`
-    Array.concat(parts, [label])
-  } else {
-    parts
-  }
-
-  // Started todos (in_progress)
-  let parts = if summary.todosNewlyStarted > 0 {
-    let label = `started ${Int.toString(summary.todosNewlyStarted)}`
-    Array.concat(parts, [label])
-  } else {
-    parts
-  }
-
-  // Cancelled todos
-  let parts = if summary.todosNewlyCancelled > 0 {
-    let label = `cancelled ${Int.toString(summary.todosNewlyCancelled)}`
-    Array.concat(parts, [label])
-  } else {
-    parts
-  }
-
-  // If we have any parts, join them
-  if Array.length(parts) > 0 {
-    Some(Array.join(parts, ", "))
-  } else if summary.todos > 0 {
-    // Fallback: just show total count if we have todos but no specific actions
-    Some(`${Int.toString(summary.todos)} to-do${summary.todos == 1 ? "" : "s"}`)
-  } else {
-    None
-  }
-}
-
-/**
  * Generate summary labels from statistics
  * Returns an array like ["1 directory", "2 files", "3 searches"]
  * 
@@ -359,8 +222,7 @@ let generateTodoLabel = (summary: Types.toolsSummary): option<string> => {
  * 2. file → "N file(s)"  
  * 3. search → "N search(es)"
  * 4. definition → "found N definition(s)"
- * 5. todo → "completed N to-dos, started N"
- * 6. snapshot → "N snapshot(s)"
+ * 5. snapshot → "N snapshot(s)"
  */
 let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
   let labels = []
@@ -405,13 +267,7 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 
-  // 5. Todos
-  let labels = switch generateTodoLabel(summary) {
-  | Some(todoLabel) => Array.concat(labels, [todoLabel])
-  | None => labels
-  }
-
-  // 6. Browser snapshots
+  // 5. Browser snapshots
   let labels = if summary.browserSnapshots > 0 {
     let label = `${Int.toString(summary.browserSnapshots)} snapshot${summary.browserSnapshots == 1
         ? ""

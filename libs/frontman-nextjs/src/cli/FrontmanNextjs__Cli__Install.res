@@ -9,6 +9,7 @@ module Detect = FrontmanNextjs__Cli__Detect
 module Files = FrontmanNextjs__Cli__Files
 module Templates = FrontmanNextjs__Cli__Templates
 module Style = FrontmanNextjs__Cli__Style
+module PackageManager = FrontmanAiFrontmanCore.FrontmanCore__Cli__PackageManager
 
 type installOptions = {
   server: string,
@@ -31,11 +32,7 @@ let installDependencies = async (
   let pm = Detect.getPackageManagerCommand(packageManager)
   let args = Detect.getInstallArgs(packageManager)
   let packages = ["@frontman-ai/nextjs", "@opentelemetry/sdk-node"]
-  // Deno requires npm: prefix for npm packages (otherwise it looks them up on JSR)
-  let packages = switch packageManager {
-  | Deno => packages->Array.map(p => "npm:" ++ p)
-  | _ => packages
-  }
+  let packages = PackageManager.npmPackages(packageManager, packages)
   let cmd = `${pm} ${args->Array.join(" ")} ${packages->Array.join(" ")}`
 
   switch dryRun {

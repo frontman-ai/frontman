@@ -9,41 +9,16 @@ type tool = module(Tool.Tool)
 
 type t = {tools: array<tool>}
 
-// Create empty registry
-let make = (): t => {
-  tools: [],
-}
-
-let coreBrowserTools = (): t => {
-  tools: [
-    module(Client__Tool__TakeScreenshot),
-    module(Client__Tool__ExecuteJs),
-    module(Client__Tool__SetDeviceMode),
-    module(Client__Tool__GetInteractiveElements),
-    module(Client__Tool__InteractWithElement),
-    module(Client__Tool__GetDom),
-    module(Client__Tool__SearchText),
-    module(Client__Tool__Question),
-  ],
-}
-
-// Add tools to registry
-let addTools = (registry: t, newTools: array<tool>): t => {
-  tools: Array.concat(registry.tools, newTools),
-}
-
-// Merge two registries
-let merge = (a: t, b: t): t => {
-  tools: Array.concat(a.tools, b.tools),
-}
-
-// Get tool by name
-let getToolByName = (registry: t, name: string): option<tool> => {
-  registry.tools->Array.find(m => {
-    module T = unpack(m)
-    T.name == name
-  })
-}
+let coreBrowserTools: array<tool> = [
+  module(Client__Tool__TakeScreenshot),
+  module(Client__Tool__ExecuteJs),
+  module(Client__Tool__SetDeviceMode),
+  module(Client__Tool__GetInteractiveElements),
+  module(Client__Tool__InteractWithElement),
+  module(Client__Tool__GetDom),
+  module(Client__Tool__SearchText),
+  module(Client__Tool__Question),
+]
 
 // Register all tools from registry into an MCP server
 let registerAll = (registry: t, mcpServer: MCPServer.t): MCPServer.t => {
@@ -52,20 +27,16 @@ let registerAll = (registry: t, mcpServer: MCPServer.t): MCPServer.t => {
   )
 }
 
-// Get count of tools
-let count = (registry: t): int => {
-  registry.tools->Array.length
-}
-
 // Build a registry with core browser tools + framework-specific tools
 let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
-  let base = coreBrowserTools()
-  switch framework {
+  let tools = switch framework {
   | Astro =>
     let getPreviewDoc = Client__Tool__ElementResolver.getPreviewDoc
-    base->addTools(
+    Array.concat(
+      coreBrowserTools,
       FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry.browserTools(~getPreviewDoc),
     )
-  | Nextjs | Vite | Wordpress => base
+  | Nextjs | Vite | Wordpress => coreBrowserTools
   }
+  {tools: tools}
 }
