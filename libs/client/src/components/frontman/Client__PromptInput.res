@@ -4,7 +4,6 @@
  * Features:
  * - Text input with auto-resize
  * - File/image attachments with drag-drop, paste, file picker
- * - Multi-line paste collapse (3+ lines or >150 chars) as inline chips
  * - Chips inserted at cursor position (opencode-style inline UX)
  * - Inline thumbnail previews with lightbox
  * - 10MB file size limit
@@ -24,13 +23,11 @@ let acceptedTypesString = acceptedFileTypes->Array.join(",")
 let maxFileSizeBytes = 10 * 1024 * 1024 // 10MB
 
 // Unified input item type
-type inputItem =
-  | FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
-  | PastedText({id: string, text: string, lineCount: int})
+type inputItem = FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
 
 let getItemId = (item: inputItem): string =>
   switch item {
-  | FileAttachment({id}) | PastedText({id}) => id
+  | FileAttachment({id}) => id
   }
 
 // Generate unique ID
@@ -82,12 +79,6 @@ let getClipboardText: {..} => string = %raw(`
   }
 `)
 
-// Count lines in text
-let countLines = (text: string): int => {
-  let lines = text->String.split("\n")
-  Array.length(lines)
-}
-
 // ============================================================================
 // ContentEditable helpers (raw JS for DOM manipulation)
 // ============================================================================
@@ -110,9 +101,7 @@ let insertNodeAtCursor: WebAPI.DOMAPI.node => unit = %raw(`
 
 let imageChipIconPath = "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
 
-let clipboardChipIconPath = "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-
-// Create an inline chip DOM element for pasted text or file attachments.
+// Create an inline chip DOM element for file attachments.
 let createChipElement: (string, string, string, string) => WebAPI.DOMAPI.node = %raw(`
   function(id, chipType, labelText, iconPath) {
     var chip = document.createElement('span');
@@ -161,16 +150,9 @@ let createFileChipElement = (id: string, name: string, isImage: bool): WebAPI.DO
   createChipElement(id, "file", _truncateChipLabel(name), isImage ? imageChipIconPath : "")
 }
 
-let createPastedTextChipElement = (id: string, lineCount: int): WebAPI.DOMAPI.node => {
-  createChipElement(id, "paste", `Pasted ~${Int.toString(lineCount)} lines`, clipboardChipIconPath)
-}
-
-// Extract text from contentEditable with pasted-text chips expanded inline
-// Walks DOM nodes in order: text nodes become text, pasted-text chips are replaced
-// with their full content from the provided Map, file chips are skipped.
-// This preserves the user's intended ordering of typed text and pasted content.
-let getExpandedTextFromEditable: (Dom.element, Map.t<string, string>) => string = %raw(`
-  function getExpandedTextFromEditable(el, itemsMap) {
+// Extract text from contentEditable while skipping file chips.
+let getTextFromEditable: Dom.element => string = %raw(`
+  function getTextFromEditable(el) {
     var text = '';
     var nodes = el.childNodes;
     for (var i = 0; i < nodes.length; i++) {
@@ -180,10 +162,6 @@ let getExpandedTextFromEditable: (Dom.element, Map.t<string, string>) => string 
       } else if (node.nodeType === 1) {
         var chipId = node.getAttribute && node.getAttribute('data-chip-id');
         if (chipId) {
-          var chipType = node.getAttribute('data-chip-type');
-          if (chipType === 'paste' && itemsMap.has(chipId)) {
-            text += itemsMap.get(chipId);
-          }
           // file chips are skipped — handled separately as fileParts
         } else if (node.tagName === 'BR') {
           text += '\n';
@@ -191,7 +169,7 @@ let getExpandedTextFromEditable: (Dom.element, Map.t<string, string>) => string 
           if (i > 0 && (node.tagName === 'DIV' || node.tagName === 'P')) {
             text += '\n';
           }
-          text += getExpandedTextFromEditable(node, itemsMap);
+          text += getTextFromEditable(node);
         }
       }
     }
@@ -678,7 +656,6 @@ let make = (
             if id == chipId && acceptedImageTypes->Array.some(t => t == mediaType) {
               setPreviewSrc(_ => Some(dataUrl))
             }
-          | PastedText(_) => ()
           }
         })
       })
@@ -734,7 +711,7 @@ let make = (
     addFiles(files)
   }
 
-  // Paste handler - handles image paste and multi-line text collapse
+  // Paste handler - handles image/PDF paste and forces plain text for text paste.
   let handlePaste = (e: ReactEvent.Clipboard.t) => {
     let clipboardData: {..} = (e->Obj.magic)["clipboardData"]
 
@@ -743,28 +720,13 @@ let make = (
     let acceptedFiles =
       files->Array.filter(file => acceptedFileTypes->Array.some(t => t == file.type_))
     let text = getClipboardText(clipboardData)
-    let lineCount = countLines(text)
-    let charCount = String.length(text)
-    let isLongTextPaste = lineCount >= 3 || charCount > 150
 
-    switch (Array.length(acceptedFiles) > 0, text, isLongTextPaste) {
-    | (true, _, _) =>
+    switch (Array.length(acceptedFiles) > 0, text) {
+    | (true, _) =>
       ReactEvent.Clipboard.preventDefault(e)
       addFiles(acceptedFiles)
-    | (false, "", _) => ()
-    | (false, _, true) =>
-      ReactEvent.Clipboard.preventDefault(e)
-      let id = generateId()
-      let newItem = PastedText({
-        id,
-        text,
-        lineCount,
-      })
-      setInputItems(prev => Array.concat(prev, [newItem]))
-
-      let chipEl = createPastedTextChipElement(id, lineCount)
-      insertChipAtCursor(chipEl)
-    | (false, _, false) =>
+    | (false, "") => ()
+    | (false, _) =>
       ReactEvent.Clipboard.preventDefault(e)
       insertNodeAtCursor(
         WebAPI.Global.document->WebAPI.Document.createTextNode(text)->WebAPI.Text.asNode,
@@ -799,16 +761,7 @@ let make = (
     ->Nullable.toOption
     ->Option.forEach(el => {
       let items = itemsRef.current
-      // Build a Map of pasted-text chip id → text for inline expansion
-      let pastedTextMap = Map.make()
-      items->Array.forEach(item =>
-        switch item {
-        | PastedText({id, text: pastedText}) => pastedTextMap->Map.set(id, pastedText)
-        | FileAttachment(_) => ()
-        }
-      )
-      // Walk the DOM in order, expanding pasted-text chips inline at their position
-      let text = getExpandedTextFromEditable(el, pastedTextMap)
+      let text = getTextFromEditable(el)
       if String.trim(text) != "" || Array.length(items) > 0 || hasAnnotations {
         onSubmit(~text=String.trim(text), ~inputItems=items)
         clearEditable(el)

@@ -7,11 +7,6 @@ module ReloadIcon = {
   external make: (~className: string=?, ~style: {..}=?) => React.element = "ReloadIcon"
 }
 
-module CopyIcon = {
-  @module("@radix-ui/react-icons") @react.component
-  external make: (~className: string=?, ~style: {..}=?) => React.element = "CopyIcon"
-}
-
 module GlobeIcon = {
   @module("@radix-ui/react-icons") @react.component
   external make: (~className: string=?, ~style: {..}=?) => React.element = "GlobeIcon"
