@@ -21,13 +21,19 @@ let appendChildren = (parent: WebAPI.DOMAPI.element, children: array<WebAPI.DOMA
   parent
 }
 
-let fileChip = id => {
+let makeChip = (~id: string, ~chipType: string, ~label: string) => {
   let chip = WebAPI.Global.document->WebAPI.Document.createElement("span")
   chip->WebAPI.Element.setAttribute(~qualifiedName="contenteditable", ~value="false")
   chip->WebAPI.Element.setAttribute(~qualifiedName="data-chip-id", ~value=id)
-  chip->WebAPI.Element.setAttribute(~qualifiedName="data-chip-type", ~value="file")
-  chip->WebAPI.Element.asNode->WebAPI.Node.appendChild(text("screenshot.png"))->ignore
+  chip->WebAPI.Element.setAttribute(~qualifiedName="data-chip-type", ~value=chipType)
+  chip->WebAPI.Element.asNode->WebAPI.Node.appendChild(text(label))->ignore
   chip->asNode
+}
+
+let pasteChip = id => makeChip(~id, ~chipType="paste", ~label="Pasted chip " ++ id)
+
+let fileChip = id => {
+  makeChip(~id, ~chipType="file", ~label="screenshot.png")
 }
 
 let br = () => WebAPI.Global.document->WebAPI.Document.createElement("br")->asNode
@@ -64,6 +70,16 @@ let setSelectionRange = (node: WebAPI.DOMAPI.node, start: int, end_: int) => {
   selection->WebAPI.Selection.addRange(range)
 }
 
+let makeMap = (entries: array<(string, string)>) => {
+  let map: Map.t<string, string> = Map.make()
+  entries->Array.forEach(entry =>
+    switch entry {
+    | (key, value) => map->Map.set(key, value)
+    }
+  )
+  map
+}
+
 afterEach(() => {
   body().innerHTML = ""
   selectionOrThrow()->WebAPI.Selection.removeAllRanges
@@ -80,6 +96,21 @@ describe("getTextFromEditable", () => {
     t
     ->expect(PromptInput.getTextFromEditable(el->asDomElement))
     ->Expect.toBe("text before  text after")
+  })
+
+  test("expands pasted-text chips inline", t => {
+    let el = editable([text("Before "), pasteChip("p1"), text(" after")])
+    let pastedTextById = makeMap([("p1", "line 1\nline 2\nline 3")])
+    t
+    ->expect(PromptInput.getExpandedTextFromEditable(el->asDomElement, pastedTextById))
+    ->Expect.toBe("Before line 1\nline 2\nline 3 after")
+  })
+
+  test("skips paste chips missing from the submitted item map", t => {
+    let el = editable([text("before "), pasteChip("orphan"), text(" after")])
+    t
+    ->expect(PromptInput.getExpandedTextFromEditable(el->asDomElement, makeMap([])))
+    ->Expect.toBe("before  after")
   })
 
   test("handles BR elements as newlines", t => {

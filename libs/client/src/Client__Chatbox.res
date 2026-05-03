@@ -190,6 +190,7 @@ let make = () => {
       switch item {
       | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
         Some((id, name, mediaType, dataUrl))
+      | Client__PromptInput.PastedText(_) => None
       }
     )
 
