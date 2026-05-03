@@ -42,8 +42,6 @@ type snapshotImage = {src: string}
 type captureResult = {
   url: string,
   toRaw: unit => string,
-  @deprecated("Use toSvg instead")
-  toImg: captureOptions => promise<snapshotImage>,
   toSvg: captureOptions => promise<snapshotImage>,
   toCanvas: captureOptions => promise<WebAPI.DOMAPI.htmlCanvasElement>,
   toBlob: blobOptions => promise<WebAPI.FileAPI.blob>,
@@ -57,8 +55,3 @@ type captureResult = {
 // Returns a captureResult with methods to export in various formats
 @module("@zumer/snapdom")
 external snapdom: WebAPI.DOMAPI.element => promise<captureResult> = "snapdom"
-
-// With options variant
-@module("@zumer/snapdom")
-external snapdomWithOptions: (WebAPI.DOMAPI.element, captureOptions) => promise<captureResult> =
-  "snapdom"

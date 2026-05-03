@@ -438,7 +438,7 @@ let make = () => {
         />
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
-    <Client__PlanDisplay entries=planEntries />
+    <Client__PlanList entries=planEntries />
     {switch (usageInfo, hasAnyKey) {
     | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
       <div className="px-4 pb-1 text-xs text-zinc-400 shrink-0">

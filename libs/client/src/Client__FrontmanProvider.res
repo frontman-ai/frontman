@@ -129,12 +129,10 @@ let () = Client__TextDeltaBuffer.flushUserMessageBuffer := _flushUserMessageBuff
 
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
-type mcpState = Reducer.Selectors.mcpStatus
 
 // Context value type
 type contextValue = {
   connectionState: connectionState,
-  mcpState: mcpState,
   isSendingPrompt: bool,
   session: option<ACP.session>,
   relay: option<Relay.t>,
@@ -156,7 +154,6 @@ type contextValue = {
 // Default context value
 let defaultContextValue: contextValue = {
   connectionState: Disconnected,
-  mcpState: MCPDisconnected,
   isSendingPrompt: false,
   session: None,
   relay: None,
@@ -437,7 +434,6 @@ module Provider = {
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
-      mcpState: Reducer.Selectors.getMCPStatus(state),
       isSendingPrompt: state.isSendingPrompt,
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,

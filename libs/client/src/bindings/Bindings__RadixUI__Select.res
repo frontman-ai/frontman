@@ -146,36 +146,6 @@ module ItemText = {
   ) => React.element = "ItemText"
 }
 
-module ItemIndicator = {
-  @module("@radix-ui/react-select") @react.component
-  external make: (
-    ~asChild: bool=?,
-    ~className: string=?,
-    ~style: {..}=?,
-    ~children: React.element=?,
-  ) => React.element = "ItemIndicator"
-}
-
-module ScrollUpButton = {
-  @module("@radix-ui/react-select") @react.component
-  external make: (
-    ~asChild: bool=?,
-    ~className: string=?,
-    ~style: {..}=?,
-    ~children: React.element=?,
-  ) => React.element = "ScrollUpButton"
-}
-
-module ScrollDownButton = {
-  @module("@radix-ui/react-select") @react.component
-  external make: (
-    ~asChild: bool=?,
-    ~className: string=?,
-    ~style: {..}=?,
-    ~children: React.element=?,
-  ) => React.element = "ScrollDownButton"
-}
-
 module Separator = {
   @module("@radix-ui/react-select") @react.component
   external make: (~asChild: bool=?, ~className: string=?, ~style: {..}=?) => React.element =
