@@ -141,7 +141,9 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     do: prompt <> "\n" <> nextjs_guidance()
 
   defp append_framework_guidance(prompt, %Framework{id: :vite}), do: prompt
-  defp append_framework_guidance(prompt, %Framework{id: :astro}), do: prompt
+
+  defp append_framework_guidance(prompt, %Framework{id: :astro}),
+    do: prompt <> "\n" <> astro_guidance()
 
   defp append_framework_guidance(prompt, %Framework{id: :wordpress}),
     do: prompt <> "\n" <> wordpress_guidance()
@@ -157,7 +159,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   defp append_project_structure(prompt, ""), do: prompt
 
   defp append_project_structure(prompt, summary) when is_binary(summary) do
-    prompt <> "\n\n## Project Structure\n\n" <> summary
+    prompt <> "\n\n## Project Structure\n\n" <> summary <> "\n" <> package_manager_guidance()
   end
 
   # Append project rules (AGENTS.md, etc.) to the system prompt
@@ -329,6 +331,28 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     ## Attachments
 
     Use `write_file` with `image_ref` only when the user asks to use an attachment; then reference the saved file. Do not save unused attachments.
+    """
+  end
+
+  defp package_manager_guidance do
+    """
+    ## Package Manager And Workspaces
+
+    - Use the nearest relevant `package.json` as the source of truth for declared dependencies.
+    - Prefer the lockfile that actually exists (`yarn.lock`, `pnpm-lock.yaml`, `package-lock.json`, etc.) instead of assuming one.
+    - Do not assume dependencies exist under local `node_modules`; workspaces, Yarn PnP, hoisting, or containers can make that false.
+    """
+  end
+
+  defp astro_guidance do
+    """
+    ## Astro
+
+    - Astro integrations are configured in `astro.config.*`; read the actual config before changing integration wiring.
+    - Global CSS is usually imported through a shared layout or the project's existing global stylesheet pattern; read the actual layout before adding stylesheet imports.
+    - Layouts are commonly under `src/layouts/*.astro`, but use the project's actual layout file names instead of assuming `BaseLayout.astro` exists.
+    - When an Astro package documents generated project files, create or edit the documented local project file instead of guessing an upstream package source path.
+    - Preserve the existing Astro config/import style and integration array structure.
     """
   end
 
