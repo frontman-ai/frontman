@@ -4,6 +4,7 @@ import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
 import frontman from "@frontman-ai/astro";
 import brokenLinksChecker from "astro-broken-links-checker";
+import astroConsent from "astro-consent";
 import path from "node:path";
 import fs from "node:fs";
 import hcStarlight from 'hc-starlight';
@@ -33,6 +34,28 @@ const monorepoRoot = path.resolve(appRoot, "../..");
 // Validate that all docs pages have a description in their frontmatter.
 // Runs at build start so missing descriptions fail fast instead of silently
 // producing pages with empty meta tags.
+function stripMarketingConsentCategory() {
+  return {
+    name: "strip-marketing-consent-category",
+    hooks: {
+      "astro:config:setup": ({ injectScript }) => {
+        injectScript("page", `
+(() => {
+  const consent = window.astroConsent;
+  if (!consent) return;
+
+  const originalSet = consent.set;
+  consent.set = (categories) => {
+    const { marketing, ...allowedCategories } = categories;
+    originalSet(allowedCategories);
+  };
+})();
+`);
+      },
+    },
+  };
+}
+
 function validateDocsDescriptions() {
   const docsRoot = path.resolve(appRoot, "src/content/docs");
 
@@ -180,7 +203,7 @@ export default defineConfig({
           ],
         },
       ],
-      customCss: ["./src/styles/starlight.css"],
+      customCss: ["./src/styles/starlight.css", "./src/cookiebanner/styles.css"],
       editLink: {
         baseUrl:
           "https://github.com/frontman-ai/frontman/edit/main/apps/marketing/",
@@ -189,6 +212,25 @@ export default defineConfig({
         Head: "./src/components/starlight/Head.astro",
       },
     }),
+    astroConsent({
+      siteName: "Frontman",
+      headline: "Manage cookie preferences for Frontman",
+      description:
+        "We use cookies to understand site traffic and improve Frontman. Essential cookies are always on.",
+      acceptLabel: "Accept all",
+      rejectLabel: "Reject optional",
+      manageLabel: "Manage preferences",
+      cookiePolicyUrl: "/privacy/",
+      privacyPolicyUrl: "/privacy/",
+      displayUntilIdle: true,
+      displayIdleDelayMs: 1000,
+      presentation: "banner",
+      consent: {
+        days: 180,
+        storageKey: "frontman-cookie-consent",
+      },
+    }),
+    stripMarketingConsentCategory(),
     frontman({
     projectRoot: appRoot,
     sourceRoot: monorepoRoot,
