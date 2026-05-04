@@ -77,7 +77,7 @@ To exercise any of these rights, please contact us at [support@frontman.sh](mail
 
 ## Cookies and Tracking
 
-We use cookies and similar tracking technologies to collect usage information and improve our services. You can control cookie preferences through your browser settings. Disabling cookies may affect the functionality of certain features.
+We use essential local storage for site functionality and consent preferences. With your permission, we also use Google Analytics to understand aggregate website usage, such as pages visited and interactions with marketing links. Analytics is optional and only loads after you consent through the cookie banner. You can change your choice by clearing the `frontman-cookie-consent` item from your browser local storage or by using your browser privacy controls.
 
 ## Third-Party Links
 
