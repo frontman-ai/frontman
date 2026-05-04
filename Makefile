@@ -106,7 +106,7 @@ dev-marketing: ## Start development server for marketing site
 # Build & Quality
 # ============================================================================
 ## BUILD_START
-.PHONY: install build rescript-watch rescript-build clean hooks-install setup-elixir-tools verify-toolchain-pins
+.PHONY: install build rescript-watch rescript-build reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins
 
 install: ## Install dependencies
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -160,6 +160,10 @@ rescript-watch: ## Watch and rebuild ReScript on changes
 rescript-build: ## Build ReScript project (one-shot)
 	@printf "$(YELLOW)Starting ReScript build...$(RESET)\n"
 	yarn rescript build
+
+reanalyze: ## Run ReScript dead code analysis
+	@printf "$(YELLOW)Running ReScript dead code analysis...$(RESET)\n"
+	yarn rescript-tools reanalyze
 
 clean: ## Clean ReScript build artifacts
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
