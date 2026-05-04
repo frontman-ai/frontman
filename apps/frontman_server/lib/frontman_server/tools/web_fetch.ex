@@ -110,7 +110,7 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp fetch(url, [user_agent | remaining_agents], redirects) do
     headers = [
-      {"accept", "text/markdown, text/html;q=0.9, text/plain;q=0.8"},
+      {"accept", "application/json, text/markdown;q=0.9, text/html;q=0.8, text/plain;q=0.7"},
       {"user-agent", user_agent}
     ]
 

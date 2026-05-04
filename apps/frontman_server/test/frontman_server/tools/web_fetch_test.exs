@@ -393,7 +393,14 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
 
     test "allows application/json responses", %{context: ctx} do
-      stub_resp(200, "application/json", ~s({"key": "value"}))
+      Req.Test.stub(:web_fetch, fn conn ->
+        accept = Plug.Conn.get_req_header(conn, "accept") |> List.first("")
+        assert accept =~ "application/json"
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(200, ~s({"key": "value"}))
+      end)
 
       assert {:ok, _} = execute("https://example.com/api", ctx)
     end
