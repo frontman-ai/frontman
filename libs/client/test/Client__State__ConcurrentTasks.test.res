@@ -17,13 +17,10 @@ module TestSetup = {
   ): StateReducer.state => {
     let tasks = Dict.make()
     taskIds->Array.forEach(id => {
-      let task = Task.makeLoaded(
-        ~id,
-        ~title=`Task ${id}`,
-        ~previewUrl="http://localhost:3000",
-        ~createdAt=Date.now(),
-        ~isAgentRunning,
-      )
+      let task =
+        Task.makeNew(~previewUrl="http://localhost:3000")
+        ->Task.newToLoaded(~id, ~title=`Task ${id}`)
+        ->Task.updateLoadedData(data => {...data, isAgentRunning})
       tasks->Dict.set(id, task)
     })
 
@@ -42,7 +39,7 @@ module TestSetup = {
 
 // Helper to get messages from a task's loadedData
 let getTaskMessages = (task: Task.t) => {
-  Task.getLoadedData(task)->Option.mapOr([], data => data.messages)
+  Task.getMessages(task)
 }
 
 // Helper to get current task ID

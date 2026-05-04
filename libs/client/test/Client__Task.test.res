@@ -6,7 +6,9 @@ module TaskReducer = Client__Task__Reducer
 
 module TestHelpers = {
   let makeLoadedTask = (~id="test-task-1", ~messages=[], ~previewUrl="http://localhost:3000") => {
-    Task.makeLoaded(~id, ~title="Test Task", ~previewUrl, ~createdAt=Date.now(), ~messages)
+    Task.makeNew(~previewUrl)
+    ->Task.newToLoaded(~id, ~title="Test Task")
+    ->Task.updateLoadedData(data => {...data, messages})
   }
 
   let makeUnloadedTask = (~id="test-task-1") => {
@@ -20,7 +22,7 @@ module TestHelpers = {
       ~createdAt=Date.now(),
       ~updatedAt=Date.now(),
     )
-    Task.startLoading(unloaded, ~previewUrl)
+    TaskReducer.next(unloaded, LoadStarted({previewUrl: previewUrl}))->Pair.first
   }
 
   // Helper to get messages from loaded tasks (unwraps the option)

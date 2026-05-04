@@ -13,7 +13,6 @@ module ACPTypes = Client__Task__Types.ACPTypes
 let stripFileUriPrefix = Client__Task__Types.stripFileUriPrefix
 let makeAnnotationMeta = Client__Task__Types.makeAnnotationMeta
 let annotationToContentBlocks = Client__Task__Types.annotationToContentBlocks
-let taskToContentBlocks = Client__Task__Types.taskToContentBlocks
 let taskToPageContextBlocks = Client__Task__Types.taskToPageContextBlocks
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks
 

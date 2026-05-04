@@ -30,13 +30,10 @@ describe("Load Session Then Stream", () => {
     ->Expect.toBe(Some(taskId))
 
     // 2. State: create a loaded task directly (simulates task creation via AddUserMessage)
-    let loadedTask = Task.makeLoaded(
-      ~id=taskId,
-      ~title="Loaded Task",
-      ~previewUrl="http://localhost:3000",
-      ~createdAt=Date.now(),
-      ~isAgentRunning=true,
-    )
+    let loadedTask =
+      Task.makeNew(~previewUrl="http://localhost:3000")
+      ->Task.newToLoaded(~id=taskId, ~title="Loaded Task")
+      ->Task.updateLoadedData(data => {...data, isAgentRunning: true})
     let tasks = Dict.make()
     tasks->Dict.set(taskId, loadedTask)
     let appState: State.state = {
@@ -59,7 +56,7 @@ describe("Load Session Then Stream", () => {
     )
 
     let task = finalState.tasks->Dict.get(taskId)->Option.getOrThrow
-    let messages = Task.getLoadedData(task)->Option.mapOr([], d => d.messages)
+    let messages = Task.getMessages(task)
     t->expect(messages->Array.length)->Expect.toBe(1)
   })
 })

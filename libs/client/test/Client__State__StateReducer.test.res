@@ -1,11 +1,24 @@
 open Vitest
 
 module Reducer = Client__State__StateReducer
+module TaskReducer = Client__Task__Reducer
 module Task = Client__State__Types.Task
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module TestHelpers = {
+  let makeLoadedTask = (
+    ~id,
+    ~title,
+    ~previewUrl,
+    ~createdAt as _,
+    ~messages=[],
+    ~isAgentRunning=false,
+  ) =>
+    Task.makeNew(~previewUrl)
+    ->Task.newToLoaded(~id, ~title)
+    ->Task.updateLoadedData(data => {...data, messages, isAgentRunning})
+
   let makeStateWithTask = (
     ~taskId="test-task-1",
     ~messages=[],
@@ -13,7 +26,7 @@ module TestHelpers = {
     ~previewUrl="http://localhost:3000",
     ~isAgentRunning=false,
   ) => {
-    let task = Task.makeLoaded(
+    let task = makeLoadedTask(
       ~id=taskId,
       ~title="Test Task",
       ~previewUrl,
@@ -695,7 +708,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
 
 describe("Client State Reducer - Task Management Actions", () => {
   test("SwitchTask restores task messages", t => {
-    let task1 = Task.makeLoaded(
+    let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
       ~previewUrl="http://localhost:3000",
@@ -710,7 +723,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       ],
     )
 
-    let task2 = Task.makeLoaded(
+    let task2 = TestHelpers.makeLoadedTask(
       ~id="task-2",
       ~title="Task 2",
       ~previewUrl="http://localhost:3000",
@@ -792,7 +805,7 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 
   test("DeleteTask switches to New when deleting only task", t => {
-    let task1 = Task.makeLoaded(
+    let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
       ~previewUrl="http://localhost:3000",
@@ -844,7 +857,7 @@ describe("Client State Reducer - Task Management Actions", () => {
 
   test("AddUserMessage after deleting last task creates new task", t => {
     // Start with a single task
-    let task1 = Task.makeLoaded(
+    let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
       ~previewUrl="http://localhost:3000",
@@ -934,7 +947,7 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 
   test("Tasks maintain independent state across switches", t => {
-    let task1 = Task.makeLoaded(
+    let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
       ~previewUrl="http://localhost:3000",
@@ -1056,7 +1069,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
   test("SessionsLoadSuccess does not overwrite existing tasks", t => {
     // Create state with an existing task
-    let existingTask = Task.makeLoaded(
+    let existingTask = TestHelpers.makeLoadedTask(
       ~id="session-1",
       ~title="Existing Task",
       ~previewUrl="http://localhost:3000",
@@ -1171,7 +1184,8 @@ describe("Client State Reducer - Session Loading Actions", () => {
       ~createdAt=1000.0,
       ~updatedAt=1000.0,
     )
-    let loadingTask = Task.startLoading(task, ~previewUrl="http://localhost:3000")
+    let loadingTask =
+      TaskReducer.next(task, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
 
     let tasks = Dict.make()
     tasks->Dict.set("task-123", loadingTask)
