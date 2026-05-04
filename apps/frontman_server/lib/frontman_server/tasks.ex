@@ -47,6 +47,7 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Tasks.{
     Execution,
+    Execution.Framework,
     Interaction,
     InteractionSchema,
     Task,
@@ -160,7 +161,7 @@ defmodule FrontmanServer.Tasks do
     %Task{
       task_id: schema.id,
       short_desc: schema.short_desc,
-      framework: schema.framework,
+      framework: Framework.from_string(schema.framework),
       interactions: interactions
     }
   end
