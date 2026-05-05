@@ -30,6 +30,7 @@ defmodule FrontmanServer.Tasks do
       InteractionSchema,
       Execution,
       Execution.Framework,
+      Execution.LLMProvider,
       ExecutionEvent,
       RetryCoordinator,
       StreamCleanup,

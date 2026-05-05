@@ -218,11 +218,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     mcp_tools = socket.assigns[:mcp_tools] || []
     all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
 
-    opts =
-      build_execution_opts(socket,
-        model: model,
-        mcp_tool_defs: mcp_tools
-      )
+    opts = execution_opts(socket, model, mcp_tools)
 
     Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
   end
@@ -485,11 +481,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
 
-    opts =
-      build_execution_opts(socket,
-        model: model,
-        mcp_tool_defs: mcp_tools
-      )
+    opts = execution_opts(socket, model, mcp_tools)
 
     case Tasks.submit_user_message(scope, task_id, prompt.content, all_tools, opts) do
       {:error, :already_running} ->
@@ -527,15 +519,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp enrich_scope_from_params(scope, _), do: scope
 
-  # Builds execution opts, forwarding an injected agent if present in socket assigns.
-  # In production, :agent_override is never set. Tests can assign it to avoid real
-  # LLM calls — see FrontmanServer.Testing.BlockingAgent.
-  defp build_execution_opts(socket, base_opts) do
-    case socket.assigns[:agent_override] do
-      nil -> base_opts
-      agent -> [{:agent, agent} | base_opts]
-    end
-  end
+  defp execution_opts(_socket, model, mcp_tools), do: [model: model, mcp_tool_defs: mcp_tools]
 
   defp extract_model_from_params(params) when is_map(params) do
     case Model.from_client_params(get_in(params, ["_meta", "model"])) do

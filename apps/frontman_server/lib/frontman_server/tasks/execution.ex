@@ -60,8 +60,6 @@ defmodule FrontmanServer.Tasks.Execution do
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
   - `:model` - LLM model spec (defaults to provider default)
-  - `:agent` - Custom agent struct implementing SwarmAi.Agent (for testing)
-
   ## Returns
   - `{:ok, pid}` - Execution started successfully
   - `{:ok, :already_running}` - An execution is already running for this task
@@ -79,7 +77,7 @@ defmodule FrontmanServer.Tasks.Execution do
       {:ok, api_key_info} ->
         task_id = task.task_id
         framework = Framework.from_string(task.framework)
-        agent = build_agent(task, tools, opts, api_key_info, framework)
+        agent = build_agent(task, tools, api_key_info, framework)
 
         messages =
           task.interactions
@@ -197,42 +195,36 @@ defmodule FrontmanServer.Tasks.Execution do
   defp tool_execution_mode(%Framework{id: :wordpress}), do: :serial
   defp tool_execution_mode(_framework), do: :parallel
 
-  defp build_agent(%Task{} = task, tools, opts, %ResolvedKey{} = resolved_key, fw) do
-    case Keyword.get(opts, :agent) do
-      nil ->
-        has_typescript_react = Framework.has_typescript_react?(fw)
+  defp build_agent(%Task{} = task, tools, %ResolvedKey{} = resolved_key, fw) do
+    has_typescript_react = Framework.has_typescript_react?(fw)
 
-        # Derive prompt data from task interactions
-        project_rules =
-          task.interactions
-          |> Enum.filter(&match?(%Interaction.DiscoveredProjectRule{}, &1))
+    # Derive prompt data from task interactions
+    project_rules =
+      task.interactions
+      |> Enum.filter(&match?(%Interaction.DiscoveredProjectRule{}, &1))
 
-        project_structure =
-          task.interactions
-          |> Enum.find(&match?(%Interaction.DiscoveredProjectStructure{}, &1))
-          |> case do
-            nil -> nil
-            struct -> struct.summary
-          end
+    project_structure =
+      task.interactions
+      |> Enum.find(&match?(%Interaction.DiscoveredProjectStructure{}, &1))
+      |> case do
+        nil -> nil
+        struct -> struct.summary
+      end
 
-        max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
-        {model_spec, llm_opts} = Providers.to_llm_args(resolved_key, max_tokens: max_tokens)
-        llm_opts = maybe_disable_parallel_tool_calls(fw, llm_opts)
+    max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
+    {model_spec, llm_opts} = Providers.to_llm_args(resolved_key, max_tokens: max_tokens)
+    llm_opts = maybe_disable_parallel_tool_calls(fw, llm_opts)
 
-        RootAgent.new(
-          tools: tools,
-          has_annotations: Interaction.has_annotations?(task.interactions),
-          has_typescript_react: has_typescript_react,
-          framework: fw,
-          model: model_spec,
-          llm_opts: llm_opts,
-          project_rules: project_rules,
-          project_structure: project_structure
-        )
-
-      custom_agent ->
-        custom_agent
-    end
+    RootAgent.new(
+      tools: tools,
+      has_annotations: Interaction.has_annotations?(task.interactions),
+      has_typescript_react: has_typescript_react,
+      framework: fw,
+      model: model_spec,
+      llm_opts: llm_opts,
+      project_rules: project_rules,
+      project_structure: project_structure
+    )
   end
 
   # Providers that declare a max_image_dimension hard-reject images exceeding

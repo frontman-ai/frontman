@@ -96,8 +96,4 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
 
     LLMClient.new(opts)
   end
-
-  def init(_agent), do: {:ok, %{}, []}
-
-  def should_terminate?(_agent, _loop, _state), do: false
 end

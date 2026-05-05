@@ -12,8 +12,10 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   use SwarmAi.Testing, async: false
 
+  import Mox
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Testing.LLMProviderHelpers
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
@@ -36,23 +38,21 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       task_id: task_id,
       scope: scope
     } do
-      # StreamErrorLLM returns {:ok, stream} where the stream raises when
+      # The provider returns {:ok, stream} where the stream raises when
       # consumed — matching the real LLMClient behavior when ReqLLM emits an
       # error chunk (e.g., HTTP 400 for oversized images). The try/rescue in
       # execute_llm_call catches the raise and routes it through
       # Loop.handle_error → {:failed, ...} instead of crashing the process.
-      error_llm = %StreamErrorLLM{
-        error_message: "LLM API error: image exceeds the maximum allowed size"
-      }
+      verify_on_exit!(%{})
 
-      agent = test_agent(error_llm, "ErrorPropTestAgent")
+      expect_llm_responses([
+        {:stream_raise, "LLM API error: image exceeds the maximum allowed size"}
+      ])
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
 
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Take a screenshot"), [],
-          agent: agent
-        )
+        Tasks.submit_user_message(scope, task_id, user_content("Take a screenshot"), [])
 
       # Stream errors are now caught and surfaced as graceful failures
       assert_receive {:execution_event,
@@ -67,13 +67,13 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       task_id: task_id,
       scope: scope
     } do
-      # ErrorLLM always returns {:error, reason}
-      agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "AlwaysErrorAgent")
+      verify_on_exit!(%{})
+      expect_llm_responses([{:error, :llm_api_failure}])
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
 
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [])
 
       # Should receive a failed event broadcast
       assert_receive {:execution_event,

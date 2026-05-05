@@ -37,8 +37,6 @@ defmodule SwarmAi.Testing do
   defimpl SwarmAi.Agent, for: SwarmAi.Testing.TestAgent do
     def system_prompt(%{name: name}), do: "You are #{name}"
     def llm(%{llm: llm}), do: llm
-    def init(%{tools: tools}), do: {:ok, %{}, tools}
-    def should_terminate?(_, _, _), do: false
   end
 
   # --- Test LLM Implementations ---

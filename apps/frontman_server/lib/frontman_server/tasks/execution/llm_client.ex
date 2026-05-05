@@ -83,6 +83,7 @@ end
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMError
+  alias FrontmanServer.Tasks.Execution.LLMProvider
   alias FrontmanServer.Tasks.{MessageOptimizer, StreamCleanup, StreamStallTimeout}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
@@ -117,7 +118,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       |> maybe_prepend_identity(identity_override)
       |> MessageOptimizer.optimize()
 
-    case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
+    case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
         stall_timeout_ms =
           Application.fetch_env!(:frontman_server, :stream_stall_timeout_ms)

@@ -5,4 +5,15 @@ Logger.put_module_level(ReqLLM.StreamServer, :none)
 Logger.put_module_level(ReqLLM.StreamResponse.MetadataHandle, :none)
 
 ExUnit.start()
+
+Mox.defmock(
+  FrontmanServer.Tasks.Execution.LLMProviderMock,
+  for: FrontmanServer.Tasks.Execution.LLMProvider
+)
+
+Mox.stub_with(
+  FrontmanServer.Tasks.Execution.LLMProviderMock,
+  FrontmanServer.Testing.LLMProviderStub
+)
+
 Ecto.Adapters.SQL.Sandbox.mode(FrontmanServer.Repo, :manual)

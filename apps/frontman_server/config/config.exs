@@ -42,6 +42,7 @@ config :req_llm,
 config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
+  llm_provider: FrontmanServer.Tasks.Execution.ReqLLMProvider,
   # Default usage limit for server-provided API keys
   user_key_usage_limit: 10,
   # Max time to wait for the next LLM stream chunk before declaring a stall.
