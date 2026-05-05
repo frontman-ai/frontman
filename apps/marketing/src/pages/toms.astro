@@ -1,0 +1,11 @@
+---
+import tomsContent from '../data/markdown-files/toms.md?raw'
+import LegalDocument from '../components/legal/LegalDocument.astro'
+
+const SEO = {
+	title: 'Frontman | Technical and Organizational Measures',
+	description: 'Technical and organizational security measures used by Frontman.'
+}
+---
+
+<LegalDocument title={SEO.title} description={SEO.description} heading="Technical and Organizational Measures" content={tomsContent} />

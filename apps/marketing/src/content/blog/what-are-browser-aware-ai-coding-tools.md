@@ -98,7 +98,7 @@ Chrome DevTools MCP (Google) and Tidewave (Phoenix/Rails) use this approach.
 
 [frontman.sh](https://frontman.sh) | Deep integration | Apache 2.0 / AGPL-3.0
 
-Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter)—no account required, no prompt limits, no per-seat pricing. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it ([Getting Started with Frontman](/blog/getting-started/) covers the process), and it only works with the three supported frameworks.
+Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter). Self-hosting remains available under the open-source licenses, while hosted Frontman plans are moving to paid subscriptions. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it ([Getting Started with Frontman](/blog/getting-started/) covers the process), and it only works with the three supported frameworks.
 
 *I built this.*
 
@@ -135,7 +135,7 @@ If your engineering team already uses Cursor, this is the lowest-friction option
 | Click-to-edit | Yes | Yes | No | No | Yes |
 | Usable by designers | After dev setup | Yes (standalone) | No | No | No |
 | Works with any framework | No (Next/Astro/Vite) | Yes | Yes | No (Phoenix) | No (React/Next) |
-| Cost for a team | Free (BYOK) | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
+| Cost for a team | Free self-hosting; paid hosted plans coming | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
 | Account required | No | Yes | No | Yes | Yes (Cursor) |
 | Component source mapping | Exact | Best-effort | No | No | Unknown |
 | Open source | Yes | Yes | Yes | Yes | No |

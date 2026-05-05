@@ -78,11 +78,11 @@ const faqs: FAQ[] = [
     answer:
       'Frontman integrates with your framework (Next.js, Astro, Vite) as middleware and runs a browser-side MCP server. It sees your real app\'s live DOM, computed CSS, component tree with props and state, server-side routes and logs, and actual viewport behavior. v0 works in a sandboxed environment — it sees its own generated preview but has no access to your existing codebase\'s runtime, component tree, or server-side context.',
   },
-  {
-    question: 'Is Frontman really free compared to v0?',
-    answer:
-      'Yes. v0\'s free tier gives you $5 of credits per month with a 7-message daily limit. Premium is $20/month, Team is $30/user/month. Frontman is completely free to self-host — you bring your own API keys and pay your LLM provider directly. There are no message limits, no credit system, and no monthly subscription from Frontman itself.',
-  },
+	{
+		question: 'How does Frontman pricing compare to v0?',
+		answer:
+			'v0\'s free tier gives you $5 of credits per month with a 7-message daily limit. Premium is $20/month, Team is $30/user/month. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys and pay your LLM provider directly.',
+	},
   {
     question: 'Which tool is better for designers?',
     answer:
@@ -138,7 +138,7 @@ const alternatives: Alternative[] = [
     <p><strong>Your real codebase, not a sandbox.</strong> When you use Frontman, you're editing the actual source files in your project. The AI sees the component tree, the CSS as the browser computed it, routing, and server state. Changes show up via hot module replacement in your actual dev server. With v0, you're working in a sandboxed environment that generates fresh code — which then needs to be integrated into your real project.</p>
     <p><strong>Framework middleware integration.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to your component tree at the framework level (React fiber nodes, Vue reactivity, Svelte components), computed CSS from your actual stylesheets, server-side routes and logs, and source map resolution to find the exact file and line for any rendered element.</p>
     <p>v0's sandbox doesn't know about your design system, your existing component library, your server endpoints, or your real responsive behavior at different viewports. Frontman sees all of this because it's running inside your actual app. When you ask "make this card match the other cards on the page," Frontman can inspect the other cards' actual styles.</p>
-    <p><strong>Open source and BYOK.</strong> v0 is a proprietary SaaS with credit-based pricing. Frontman's client libraries are Apache 2.0 and the server is AGPL-3.0. You bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API including local models. No credits, no message limits, no monthly fees from Frontman.</p>
+	<p><strong>Open source and BYOK.</strong> v0 is a proprietary SaaS with credit-based pricing. Frontman's client libraries are Apache 2.0 and the server is AGPL-3.0. Self-hosting remains available, and you bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API including local models.</p>
     <p><strong>Works with any component library.</strong> v0 is optimized for shadcn/ui and Tailwind. Frontman is component-library agnostic — it sees whatever your app actually renders, whether that's MUI, Chakra, Radix, custom components, or plain CSS. The browser doesn't care what library generated the DOM.</p>
   </Fragment>
 
@@ -161,7 +161,7 @@ const alternatives: Alternative[] = [
       <li><strong>Frontend developers on established projects</strong> — your app already exists and you need to edit it with AI that understands the context</li>
       <li><strong>Teams where designers make UI changes</strong> — click elements in the running app, describe changes, review code diffs</li>
       <li><strong>Any component library or CSS approach</strong> — MUI, Chakra, Tailwind, CSS Modules, styled-components — Frontman sees what renders, not what you typed</li>
-      <li><strong>Open source and vendor-independent</strong> — no cloud dependency, no credit system, BYOK, self-hostable</li>
+		<li><strong>Open source and vendor-independent</strong> — BYOK and self-hostable for teams that want control</li>
       <li><strong>Server-side context matters</strong> — routes, server logs, and server-side state alongside visual editing</li>
     </ul>
     <p>A natural workflow: use v0 to generate initial UI, bring it into your project, then use Frontman to iterate and refine visually with full browser context.</p>

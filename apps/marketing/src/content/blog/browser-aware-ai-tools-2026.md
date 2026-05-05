@@ -24,7 +24,7 @@ Runtime-aware tools try to close this gap — what we call [the runtime context 
 
 Framework middleware for Next.js, Astro, and Vite. Installs _inside_ the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
 
-**Strengths:** Deepest framework integration. Fully free, no prompt limits, no account. BYOK — connect Claude, OpenAI, or OpenRouter directly. Open source with permissive client library licensing.
+**Strengths:** Deepest framework integration. BYOK — connect Claude, OpenAI, or OpenRouter directly. Open source with permissive client library licensing and self-hosting available.
 
 **Weaknesses:** Early stage. Rough edges, incomplete documentation, small community. Limited to supported frameworks. Source mapping breaks on deeply abstracted component libraries.
 

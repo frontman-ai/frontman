@@ -49,7 +49,7 @@ OpenRouter gives access to the widest range of models through a single API key. 
 
 ### Free tier models
 
-Available without an API key. Limited to **10 requests** per user — no sign-up required.
+Available through supported provider configuration. Connect your own provider account before relying on this model in Frontman.
 
 | Model | ID |
 |-------|----|

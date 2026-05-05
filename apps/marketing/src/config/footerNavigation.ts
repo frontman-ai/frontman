@@ -68,10 +68,6 @@ export const footerNavigationData: FooterData = {
 					subCategoryLink: '/features/'
 				},
 				{
-					subCategory: 'Pricing',
-					subCategoryLink: '/pricing/'
-				},
-				{
 					subCategory: 'Design System',
 					subCategoryLink: '/design-system/'
 				},
@@ -201,10 +197,14 @@ export const footerNavigationData: FooterData = {
 		}
 	],
 	subFooter: {
-		copywriteText: `© ${new Date().getFullYear()} Frontman. All rights reserved.`,
+		copywriteText: `© ${new Date().getFullYear()} Boilerplate Ventures UG (haftungsbeschränkt). Frontman is a product of Boilerplate Ventures UG.`,
 		links: [
-			{ label: 'Terms of Service', href: '/terms/' },
-			{ label: 'Privacy Policy', href: '/privacy/' }
+			{ label: 'Terms', href: '/terms/' },
+			{ label: 'Privacy', href: '/privacy/' },
+			{ label: 'DPA', href: '/dpa/' },
+			{ label: 'Subprocessors', href: '/subprocessors/' },
+			{ label: 'TOMs', href: '/toms/' },
+			{ label: 'Impressum', href: '/impressum/' }
 		]
 	}
 }

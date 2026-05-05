@@ -1,0 +1,11 @@
+---
+import impressumContent from '../data/markdown-files/impressum.md?raw'
+import LegalDocument from '../components/legal/LegalDocument.astro'
+
+const SEO = {
+	title: 'Frontman | Impressum',
+	description: 'Legal provider information for Frontman and Boilerplate Ventures UG (haftungsbeschraenkt).'
+}
+---
+
+<LegalDocument title={SEO.title} description={SEO.description} heading="Impressum" content={impressumContent} />

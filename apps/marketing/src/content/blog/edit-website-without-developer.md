@@ -71,7 +71,7 @@ Your design system stays intact because you're editing the real components, not 
 
 ## A Real Workflow Example
 
-Your marketing site is running a campaign. The hero section has a CTA button that says "Start Free Trial." Legal has asked that it say "Start Free Beta" until the paid tier launches.
+Your marketing site is running a campaign. The hero section has a CTA button that says "Start Free Trial." Legal has asked that it say "Start Trial" before paid checkout launches.
 
 **Before Frontman:**
 
@@ -89,7 +89,7 @@ Total: 5 days, ~20 minutes of engineering time spread across context switches
 ```text
 11:00am: PM opens staging environment in browser
 11:01am: PM clicks the CTA button in Frontman
-11:01am: PM types "Change this to 'Start Free Beta'"
+11:01am: PM types "Change this to 'Start Trial'"
 11:01am: Frontman edits the component, hot-reload confirms
 11:02am: PM opens PR
 11:30am: Engineer reviews the one-line diff, approves

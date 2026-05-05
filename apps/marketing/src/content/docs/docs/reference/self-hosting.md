@@ -460,7 +460,7 @@ Multi-tenancy is implemented via `organization_id` foreign keys + Ecto query sco
 ### Cost Estimates
 
 #### Hosted (api.frontman.sh)
-- **Free** — no subscription fees, no usage limits
+- **Paid hosted service** — hosted plans are moving to paid subscriptions
 - **BYOK** — you pay your LLM provider directly (Anthropic, OpenAI, OpenRouter) at standard API rates
 
 #### Self-Hosted (estimated monthly costs)

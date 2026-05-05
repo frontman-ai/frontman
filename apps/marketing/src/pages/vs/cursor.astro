@@ -70,10 +70,10 @@ const faqs: FAQ[] = [
     question: "What does Frontman see that Cursor doesn't?",
     answer: "Frontman integrates with your framework as a plugin and runs a browser-side MCP server that inspects the live DOM tree, computed CSS styles (not just class names), viewport layout and spacing, and can take screenshots and emulate different devices. The framework plugin captures console logs, build errors, and resolves source locations via source maps. Cursor reads your source files and doesn't natively see what they render — though it can connect to browser tools via MCP servers, that requires additional setup.",
   },
-  {
-    question: 'How does pricing work for a team with designers, PMs, and engineers?',
-    answer: "Frontman is free while in beta. We plan to introduce per-seat team pricing — details are coming soon. The client libraries are Apache 2.0 and the server is AGPL-3.0, so self-hosting will always be an option. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with your Claude or ChatGPT subscription via OAuth.",
-  },
+	{
+		question: 'How does pricing work for a team with designers, PMs, and engineers?',
+		answer: "Self-hosting remains available under Frontman's open-source licenses. Hosted Frontman plans are moving to paid subscriptions. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with your Claude or ChatGPT subscription via OAuth.",
+	},
 ]
 
 const alternatives: Alternative[] = [
@@ -177,7 +177,7 @@ const alternatives: Alternative[] = [
     <p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its source location, its styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card.</p>
     <p><strong>Hot reload closes the feedback loop.</strong> Frontman edits actual source files, and the framework's built-in HMR handles live reloading automatically. Edit, see result, edit again happens in the browser without switching windows. A designer can iterate through three variations in the time it takes to write one Jira ticket.</p>
     <p><strong>Real code, not overrides.</strong> Every change Frontman makes is a source file edit — the same code your engineers write by hand. No visual-editor CSS overrides, no separate layer to maintain. Changes go through your existing review process and ship like any other commit. Your design system stays clean.</p>
-    <p><strong>Open source and BYOK.</strong> Frontman is free while in beta, with per-seat team pricing coming soon. The client libraries are Apache 2.0 and the server is AGPL-3.0 — self-hosting will always be an option. You bring your own API keys to Anthropic, OpenAI, or OpenRouter — or sign in with your Claude or ChatGPT subscription via OAuth.</p>
+	<p><strong>Open source and BYOK.</strong> The client libraries are Apache 2.0 and the server is AGPL-3.0, so self-hosting remains available. Hosted Frontman plans are moving to paid subscriptions. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with your Claude or ChatGPT subscription via OAuth.</p>
   </Fragment>
 
   <!-- Who Should Use Cursor -->

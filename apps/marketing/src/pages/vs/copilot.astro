@@ -113,11 +113,11 @@ const faqs: FAQ[] = [
     answer:
       'Frontman integrates with your framework as a plugin and runs a browser-side MCP server. It sees the live DOM tree, computed CSS styles (actual pixel values, not just class names), the component tree with props and state, viewport layout and responsive behavior, and server-side routes and logs. Copilot reads your source files in the IDE. It knows what your code says but not what it renders. When a PM asks "make this card match the design system spacing," Frontman can measure the actual rendered spacing and fix it. Copilot would have to guess from class names.',
   },
-  {
-    question: 'Is Frontman free? How does pricing compare to Copilot?',
-    answer:
-      'Yes. Copilot Free gives you 50 chat requests and 2,000 completions per month. Copilot Pro is $10/month per seat, Business is $19/user/month. Frontman is free to self-host with no per-seat pricing and no usage limits. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly. For a growing team where you want to give designers and PMs access too, there is no marginal cost per additional user.',
-  },
+	{
+		question: 'How does Frontman pricing compare to Copilot?',
+		answer:
+			'Copilot Free gives you 50 chat requests and 2,000 completions per month. Copilot Pro is $10/month per seat, Business is $19/user/month. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly.',
+	},
 ]
 ---
 
@@ -156,7 +156,7 @@ const faqs: FAQ[] = [
     <p><strong>The AI sees what is actually rendered.</strong> IDE-based tools like Copilot read source files but never see the browser. Frontman\'s browser-side MCP server inspects the live DOM, computed CSS (actual pixel values, not just class names), the component tree, and viewport behavior. When someone says "this card does not match the design system," Frontman can measure the gap between what is rendered and what should be.</p>
     <p><strong>Click-to-edit, not file-to-edit.</strong> Instead of knowing which file to open, you point at the element. Frontman resolves the source location via source maps — the exact file, component, and line. This is the interaction model that makes it accessible to non-developers.</p>
     <p><strong>Design system consistency at scale.</strong> When multiple teams ship UI against a shared design system, drift is inevitable. Frontman lets the people who own the system — not just the developers who implement it — spot and fix inconsistencies directly. No ticket, no sprint, no context loss.</p>
-    <p><strong>Open source, no per-seat cost.</strong> Apache 2.0 client, AGPL-3.0 server. You connect your own API keys to Claude, ChatGPT, or OpenRouter. No per-user pricing means you can give access to your whole product team without a procurement conversation for every new seat.</p>
+	<p><strong>Open source and BYOK.</strong> Apache 2.0 client, AGPL-3.0 server. Self-hosting remains available, and you connect your own API keys to Claude, ChatGPT, or OpenRouter. Hosted Frontman plans are moving to paid subscriptions.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">

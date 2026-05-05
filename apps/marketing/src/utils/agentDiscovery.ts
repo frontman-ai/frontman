@@ -1,7 +1,6 @@
 export const agentLinkHeader = [
   '</docs/>; rel="service-doc"; title="Frontman documentation"',
   '</how-it-works/>; rel="about"; title="How Frontman works"',
-  '</pricing/>; rel="pricing"; title="Frontman pricing"',
   '</changelog/>; rel="version-history"; title="Frontman changelog"',
   '</compare/>; rel="related"; title="AI coding tools comparison"',
   '</contact/>; rel="contact"; title="Contact Frontman"',
@@ -15,7 +14,7 @@ Frontman lets you click any element in your live product, describe the change in
 ## Why agents can use this site
 
 - The site supports markdown responses for agents.
-- It links to Frontman documentation, pricing, changelog, comparisons, and contact resources.
+- It links to Frontman documentation, changelog, comparisons, and contact resources.
 - It exposes lightweight browser tools for on-site navigation through WebMCP when supported.
 
 ## Key resources
@@ -23,7 +22,6 @@ Frontman lets you click any element in your live product, describe the change in
 - Documentation: [/docs/](/docs/)
 - Installation: [/docs/installation/](/docs/installation/)
 - How it works: [/how-it-works/](/how-it-works/)
-- Pricing: [/pricing/](/pricing/)
 - Changelog: [/changelog/](/changelog/)
 - Comparisons: [/compare/](/compare/)
 - Integrations: [/integrations/](/integrations/)
