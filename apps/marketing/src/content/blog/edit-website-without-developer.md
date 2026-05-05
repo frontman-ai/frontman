@@ -107,4 +107,4 @@ After setup, you get access to the staging environment in your browser and start
 
 Read about [how the code review workflow protects your codebase](/blog/security/), or see [how designers and PMs use Frontman alongside engineers](/blog/team-collaboration/).
 
-[Try Frontman](https://frontman.sh) — open source, free during beta.
+[Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon.
