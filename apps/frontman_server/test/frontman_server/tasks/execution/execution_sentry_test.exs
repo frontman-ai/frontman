@@ -7,11 +7,10 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   - Crashed event triggers Sentry report with exception/stacktrace when available
   """
 
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.ExecutionCase
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.Testing.LLMProviderHelpers
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope

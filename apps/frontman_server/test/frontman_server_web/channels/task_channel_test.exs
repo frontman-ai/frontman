@@ -4,7 +4,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.Testing.LLMProviderHelpers
+  import FrontmanServer.Test.Fixtures.LLMProvider
 
   alias AgentClientProtocol.Content.{ContentItem, TextBlock}
   alias FrontmanServer.Tasks

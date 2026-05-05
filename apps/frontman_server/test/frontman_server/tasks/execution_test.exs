@@ -6,14 +6,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   and terminal events through the channel layer. These exercise the Tasks
   facade, SwarmDispatcher, and TaskChannel together.
   """
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.ExecutionCase
   use Oban.Testing, repo: FrontmanServer.Repo
 
   import Phoenix.ChannelTest
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.Testing.LLMProviderHelpers
 
   import FrontmanServer.Test.Fixtures.Tools,
     only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]

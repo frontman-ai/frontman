@@ -10,11 +10,10 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   instead of crashing the task process.
   """
 
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.ExecutionCase
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.Testing.LLMProviderHelpers
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope

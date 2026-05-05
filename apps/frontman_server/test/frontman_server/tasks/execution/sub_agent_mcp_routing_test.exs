@@ -15,12 +15,11 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
   This ensures MCP tools work correctly for both main agents and sub-agents.
   """
 
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.ExecutionCase
   use FrontmanServerWeb.ChannelCase
 
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.Testing.LLMProviderHelpers
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.RootAgent
