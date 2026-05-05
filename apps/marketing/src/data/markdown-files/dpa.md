@@ -1,6 +1,6 @@
 ## Parties and Scope
 
-This Data Processing Agreement ("DPA") forms part of the Terms of Use or other agreement between the customer ("Controller") and Boilerplate Ventures UG (haftungsbeschränkt), Galenusstraße 63D, 13187 Berlin, Germany, registered with the commercial register of Amtsgericht Charlottenburg under HRB 273526 B ("Processor", "we", "us") for the hosted Frontman service.
+This Data Processing Agreement ("DPA") forms part of the Terms of Use or other agreement between the customer ("Controller") and {{company.name}}, {{company.fullAddress}}, registered with the commercial register of {{company.registerCourt}} under {{company.registerNumber}} ("Processor", "we", "us") for the hosted Frontman service.
 
 This DPA applies where we process personal data on behalf of the Controller in connection with the hosted Frontman service. It is intended to satisfy Article 28 GDPR.
 

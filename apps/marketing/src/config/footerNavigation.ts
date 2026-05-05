@@ -1,6 +1,8 @@
 // Footer Navigation
 // ------------
 // Description: The footer navigation data for the website.
+import { legalInfo } from '../data/legalInfo'
+
 export interface Logo {
 	src: string
 	alt: string
@@ -197,7 +199,7 @@ export const footerNavigationData: FooterData = {
 		}
 	],
 	subFooter: {
-		copywriteText: `© ${new Date().getFullYear()} Boilerplate Ventures UG (haftungsbeschränkt). Frontman is a product of Boilerplate Ventures UG.`,
+		copywriteText: `© ${new Date().getFullYear()} ${legalInfo.companyName}. ${legalInfo.brandName} is a product of ${legalInfo.shortCompanyName}.`,
 		links: [
 			{ label: 'Terms', href: '/terms/' },
 			{ label: 'Privacy', href: '/privacy/' },

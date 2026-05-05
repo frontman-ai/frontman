@@ -1,6 +1,7 @@
 ---
 import { marked } from 'marked'
 import Layout from '../../layouts/Layout.astro'
+import { applyLegalPlaceholders } from '../../data/legalInfo'
 
 interface Props {
 	title: string
@@ -10,8 +11,9 @@ interface Props {
 }
 
 const { title, description, heading, content } = Astro.props
-const html = await marked.parse(content)
-const updatedAtMatch = content.match(/_Last updated:\s*(.+)_/)
+const resolvedContent = applyLegalPlaceholders(content)
+const html = await marked.parse(resolvedContent)
+const updatedAtMatch = resolvedContent.match(/_Last updated:\s*(.+)_/)
 const updatedAt = updatedAtMatch?.[1] ?? null
 const contentHtml = html.replace(/<p><em>Last updated:[\s\S]*?<\/em><\/p>\s*$/u, '')
 ---

@@ -2,9 +2,9 @@
 
 These Terms of Use govern access to and use of the hosted Frontman service, website, applications, plugins, APIs, and related services provided under the Frontman brand.
 
-Frontman is operated by Boilerplate Ventures UG (haftungsbeschränkt), Galenusstraße 63D, 13187 Berlin, Germany, registered with the commercial register of Amtsgericht Charlottenburg under HRB 273526 B, represented by its managing director Fridland Dimitri.
+Frontman is operated by {{company.name}}, {{company.fullAddress}}, registered with the commercial register of {{company.registerCourt}} under {{company.registerNumber}}, represented by its managing director {{company.managingDirector}}.
 
-In these Terms, "Frontman", "we", "us", and "our" mean Boilerplate Ventures UG (haftungsbeschränkt). "Customer", "you", and "your" mean the business, organization, freelancer, or professional using the hosted Frontman service.
+In these Terms, "Frontman", "we", "us", and "our" mean {{company.name}}. "Customer", "you", and "your" mean the business, organization, freelancer, or professional using the hosted Frontman service.
 
 ## Business Customers Only
 
@@ -24,7 +24,7 @@ If these Terms conflict with an applicable open-source license for open-source c
 
 You must provide accurate and complete account, business, and billing information and keep it up to date. You are responsible for maintaining the confidentiality of your login credentials and for all activity under your account.
 
-You must notify us promptly at [support@frontman.sh](mailto:support@frontman.sh) if you become aware of unauthorized account access or credential misuse.
+You must notify us promptly at {{company.supportMailto}} if you become aware of unauthorized account access or credential misuse.
 
 Accounts are currently personal to the registered user. Team and organization features may be added later and may be subject to additional terms.
 
@@ -44,7 +44,7 @@ Paid subscriptions may be processed through Stripe Managed Payments. For eligibl
 
 Stripe or Link may handle payment collection, receipts, invoices, certain subscription communications, fraud prevention, disputes, transaction-level customer support, refunds, and applicable indirect tax compliance. You may also be able to manage payment methods, billing address, order history, and subscription cancellation through Link or Stripe-hosted interfaces.
 
-Boilerplate Ventures UG (haftungsbeschränkt) remains the provider and operator of Frontman and remains responsible for product access, product-level support, hosted service operation, and these Terms. Where Stripe Managed Payments does not apply or does not assume responsibility for tax compliance in a jurisdiction, we may remain responsible for applicable tax obligations.
+{{company.name}} remains the provider and operator of Frontman and remains responsible for product access, product-level support, hosted service operation, and these Terms. Where Stripe Managed Payments does not apply or does not assume responsibility for tax compliance in a jurisdiction, we may remain responsible for applicable tax obligations.
 
 ## Service Description
 
@@ -101,7 +101,7 @@ You must not use Frontman to:
 
 We do not provide an uptime commitment or service-level agreement unless expressly agreed in a separate written contract. The service may be unavailable, interrupted, degraded, or changed from time to time due to maintenance, incidents, provider outages, security issues, infrastructure changes, or product changes.
 
-Support is provided by email at [support@frontman.sh](mailto:support@frontman.sh). We do not guarantee any specific support response or resolution time.
+Support is provided by email at {{company.supportMailto}}. We do not guarantee any specific support response or resolution time.
 
 We may modify, suspend, discontinue, or replace service features. For material changes that negatively affect paid hosted subscriptions, we will provide reasonable notice where practicable.
 
@@ -157,7 +157,7 @@ If you are a merchant, legal entity under public law, or special fund under publ
 
 ## Contact
 
-For legal, billing, privacy, or support questions, contact us at [support@frontman.sh](mailto:support@frontman.sh).
+For legal, billing, privacy, or support questions, contact us at {{company.supportMailto}}.
 
 ## Final Provisions
 

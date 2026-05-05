@@ -1,34 +1,34 @@
 ## Information According to Section 5 DDG
 
-Boilerplate Ventures UG (haftungsbeschränkt)  
-Galenusstraße 63D  
-13187 Berlin  
-Germany
+{{company.name}}  
+{{company.streetAddress}}  
+{{company.postalCode}} {{company.city}}  
+{{company.country}}
 
 ## Represented By
 
-Managing Director: Fridland Dimitri
+Managing Director: {{company.managingDirector}}
 
 ## Commercial Register
 
-Registered with the commercial register of Amtsgericht Charlottenburg.  
-Register number: HRB 273526 B
+Registered with the commercial register of {{company.registerCourt}}.  
+Register number: {{company.registerNumber}}
 
 ## Contact
 
-Email: [support@frontman.sh](mailto:support@frontman.sh)
+Email: {{company.supportMailto}}
 
 ## VAT Identification Number
 
-VAT identification number according to Section 27a of the German VAT Act: not yet issued.
+VAT identification number according to Section 27a of the German VAT Act: {{company.vatId}}.
 
 ## Responsible for Content
 
-Fridland Dimitri  
-Boilerplate Ventures UG (haftungsbeschränkt)  
-Galenusstraße 63D  
-13187 Berlin  
-Germany
+{{company.managingDirector}}  
+{{company.name}}  
+{{company.streetAddress}}  
+{{company.postalCode}} {{company.city}}  
+{{company.country}}
 
 ## Dispute Resolution
 

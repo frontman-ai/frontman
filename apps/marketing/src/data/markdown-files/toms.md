@@ -1,6 +1,6 @@
 ## Overview
 
-This document summarizes the technical and organizational measures used by Boilerplate Ventures UG (haftungsbeschränkt) to protect personal data processed through Frontman.
+This document summarizes the technical and organizational measures used by {{company.name}} to protect personal data processed through Frontman.
 
 These measures are designed for a small B2B SaaS startup and may evolve as Frontman grows.
 

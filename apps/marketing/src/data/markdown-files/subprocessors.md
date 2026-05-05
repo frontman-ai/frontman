@@ -1,6 +1,6 @@
 ## Overview
 
-This page lists subprocessors and service providers used by Boilerplate Ventures UG (haftungsbeschränkt) to provide, secure, analyze, bill, and support Frontman.
+This page lists subprocessors and service providers used by {{company.name}} to provide, secure, analyze, bill, and support Frontman.
 
 Capitalized terms used here have the meanings given in the [Data Processing Agreement](/dpa/).
 
@@ -42,7 +42,7 @@ Frontman uses a bring-your-own-key model. Customers choose and connect third-par
 
 When a customer selects an AI provider, Frontman transmits prompts, code context, screenshots, logs, tool results, generated output, and other Customer Content to that provider as instructed by the customer.
 
-Customer-selected AI providers are selected and controlled by the customer. Depending on the specific processing role and provider relationship, they may act as independent providers to the customer rather than ordinary subprocessors of Boilerplate Ventures UG. Customers are responsible for reviewing and accepting the terms, privacy notices, and data processing terms of their selected AI providers.
+Customer-selected AI providers are selected and controlled by the customer. Depending on the specific processing role and provider relationship, they may act as independent providers to the customer rather than ordinary subprocessors of {{company.shortName}}. Customers are responsible for reviewing and accepting the terms, privacy notices, and data processing terms of their selected AI providers.
 
 ## Changes
 

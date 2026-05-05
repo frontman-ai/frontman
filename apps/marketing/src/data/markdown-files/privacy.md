@@ -1,8 +1,8 @@
 ## Controller
 
-This Privacy Policy explains how Boilerplate Ventures UG (haftungsbeschränkt), Galenusstraße 63D, 13187 Berlin, Germany, registered with the commercial register of Amtsgericht Charlottenburg under HRB 273526 B, represented by its managing director Fridland Dimitri, processes personal data in connection with Frontman.
+This Privacy Policy explains how {{company.name}}, {{company.fullAddress}}, registered with the commercial register of {{company.registerCourt}} under {{company.registerNumber}}, represented by its managing director {{company.managingDirector}}, processes personal data in connection with Frontman.
 
-You can contact us at [support@frontman.sh](mailto:support@frontman.sh).
+You can contact us at {{company.supportMailto}}.
 
 ## Scope
 
@@ -110,7 +110,7 @@ Typical retention periods include:
 
 Subject to legal requirements, you may have the right to request access, rectification, erasure, restriction, portability, and objection to processing of your personal data. Where processing is based on consent, you may withdraw consent at any time with effect for the future.
 
-You may exercise your rights by contacting [support@frontman.sh](mailto:support@frontman.sh).
+You may exercise your rights by contacting {{company.supportMailto}}.
 
 You also have the right to lodge a complaint with a data protection supervisory authority. The supervisory authority responsible for Berlin is the Berliner Beauftragte fuer Datenschutz und Informationsfreiheit.
 
@@ -130,6 +130,6 @@ We may update this Privacy Policy from time to time. We will update the "Last up
 
 ## Contact
 
-For privacy questions or requests, contact us at [support@frontman.sh](mailto:support@frontman.sh).
+For privacy questions or requests, contact us at {{company.supportMailto}}.
 
 _Last updated: May 5, 2026_
