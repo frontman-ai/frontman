@@ -18,7 +18,6 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
   use SwarmAi.Testing, async: false
   use FrontmanServerWeb.ChannelCase
 
-  import Mox
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Testing.LLMProviderHelpers
@@ -89,7 +88,6 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
         timeout_ms: 60_000
       }
 
-      verify_on_exit!(%{})
       expect_llm_responses([{:tool_calls, [mcp_tool_call], ""}, "Component implemented!"])
 
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]

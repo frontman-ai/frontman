@@ -17,7 +17,6 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   """
   use SwarmAi.Testing, async: false
 
-  import Mox
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
@@ -76,7 +75,6 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       # Run a real agent with a tool call through production code
       tool_call = swarm_tool_call("todo_write")
 
-      verify_on_exit!(%{})
       expect_llm_responses([{:tool_calls, [tool_call], ""}, "Here are your todos"])
 
       {:ok, _} =
@@ -172,7 +170,6 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
     end
 
     test "simple text response creates expected spans", %{task_id: task_id, scope: scope} do
-      verify_on_exit!(%{})
       expect_llm_responses(["Hello!"])
 
       {:ok, _} =

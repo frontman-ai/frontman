@@ -9,7 +9,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
   use SwarmAi.Testing, async: false
 
-  import Mox
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Testing.LLMProviderHelpers
@@ -37,7 +36,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      verify_on_exit!(%{})
       expect_llm_responses([{:error, :llm_api_failure}])
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
@@ -75,7 +73,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       # The provider returns {:ok, stream} where the stream raises when consumed.
       # The try/rescue in execute_llm_call catches the raise and routes it through
       # Loop.handle_error → {:failed, ...} → Sentry.capture_message (not crash).
-      verify_on_exit!(%{})
       expect_llm_responses([{:stream_raise, "Sentry test: simulated stream error"}])
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})

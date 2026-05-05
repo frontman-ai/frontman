@@ -39,7 +39,7 @@ defmodule FrontmanServer do
   ]
 
   @exports (case Mix.env() do
-              :test -> @base_exports ++ [DataCase]
+              :test -> @base_exports ++ [DataCase, Testing.LLMProviderHelpers]
               _ -> @base_exports
             end)
 

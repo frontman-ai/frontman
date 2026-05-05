@@ -20,6 +20,7 @@ defmodule FrontmanServerWeb.ChannelCase do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Testing.LLMProviderHelpers
 
   using do
     quote do
@@ -209,10 +210,7 @@ defmodule FrontmanServerWeb.ChannelCase do
       raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"
     end
 
-    Mox.stub_with(
-      FrontmanServer.Tasks.Execution.LLMProviderMock,
-      FrontmanServer.Testing.LLMProviderStub
-    )
+    LLMProviderHelpers.stub_llm_response("Test response")
 
     shared = tags[:shared_sandbox] || not tags[:async]
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)

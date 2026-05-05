@@ -31,7 +31,7 @@ defmodule SwarmAi.Testing do
 
   defmodule TestAgent do
     @moduledoc false
-    defstruct [:name, :llm, tools: []]
+    defstruct [:name, :llm]
   end
 
   defimpl SwarmAi.Agent, for: SwarmAi.Testing.TestAgent do
@@ -326,13 +326,9 @@ defmodule SwarmAi.Testing do
 
   @doc """
   Creates a test agent with the given LLM client.
-
-  ## Options
-
-  - `:tools` - List of `SwarmAi.Tool.t()` the agent can use (default: [])
   """
-  def test_agent(llm, name \\ "TestBot", opts \\ []) do
-    %TestAgent{name: name, llm: llm, tools: Keyword.get(opts, :tools, [])}
+  def test_agent(llm, name \\ "TestBot") do
+    %TestAgent{name: name, llm: llm}
   end
 
   @doc """

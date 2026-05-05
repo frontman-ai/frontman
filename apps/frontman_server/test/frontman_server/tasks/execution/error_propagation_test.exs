@@ -12,7 +12,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   use SwarmAi.Testing, async: false
 
-  import Mox
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Testing.LLMProviderHelpers
@@ -43,8 +42,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       # error chunk (e.g., HTTP 400 for oversized images). The try/rescue in
       # execute_llm_call catches the raise and routes it through
       # Loop.handle_error → {:failed, ...} instead of crashing the process.
-      verify_on_exit!(%{})
-
       expect_llm_responses([
         {:stream_raise, "LLM API error: image exceeds the maximum allowed size"}
       ])
@@ -67,7 +64,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       task_id: task_id,
       scope: scope
     } do
-      verify_on_exit!(%{})
       expect_llm_responses([{:error, :llm_api_failure}])
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})

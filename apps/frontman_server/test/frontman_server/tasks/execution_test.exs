@@ -9,11 +9,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   use SwarmAi.Testing, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
 
-  import Mox
   import Phoenix.ChannelTest
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Testing.LLMProviderHelpers
 
   import FrontmanServer.Test.Fixtures.Tools,
     only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
@@ -21,15 +21,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.{ExecutionEvent, Interaction}
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Workers.GenerateTitle
 
   @endpoint FrontmanServerWeb.Endpoint
   @acp_message AgentClientProtocol.event_acp_message()
-
-  setup :verify_on_exit!
 
   # -- Helpers ---------------------------------------------------------------
 
@@ -75,7 +72,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp setup_user(_context) do
-    {:ok, scope: user_scope_fixture()}
+    scope = user_scope_fixture() |> Scope.with_env_api_keys(%{"openrouter" => "sk-or-test"})
+    {:ok, scope: scope}
   end
 
   defp setup_task(%{scope: scope}) do
@@ -94,87 +92,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     {:ok, socket: socket}
   end
-
-  defp setup_llm_provider_mock(context) do
-    verify_on_exit!(context)
-
-    case context do
-      %{scope: scope} ->
-        {:ok, scope: Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})}
-
-      _ ->
-        :ok
-    end
-  end
-
-  defp expect_llm_responses(responses) do
-    {:ok, response_agent} = Elixir.Agent.start_link(fn -> responses end)
-
-    expect(LLMProviderMock, :stream_text, length(responses), fn _model, _messages, _opts ->
-      response =
-        Elixir.Agent.get_and_update(response_agent, fn
-          [response | rest] -> {response, rest}
-          [] -> raise "unexpected LLM provider call"
-        end)
-
-      provider_response(response)
-    end)
-  end
-
-  defp provider_response({:delay, content, delay_ms}) do
-    Process.sleep(delay_ms)
-    {:ok, reqllm_response(content)}
-  end
-
-  defp provider_response({:tool_calls, tool_calls, content}) do
-    {:ok, reqllm_tool_response(tool_calls, content)}
-  end
-
-  defp provider_response({:error, reason}), do: {:error, reason}
-  defp provider_response({:raise, message}), do: raise(message)
-  defp provider_response({:exit, reason}), do: exit(reason)
-  defp provider_response(content) when is_binary(content), do: {:ok, reqllm_response(content)}
-
-  defp reqllm_response(content) do
-    %{
-      stream: [
-        ReqLLM.StreamChunk.text(content),
-        ReqLLM.StreamChunk.meta(%{usage: %{input_tokens: 10, output_tokens: 5}}),
-        ReqLLM.StreamChunk.meta(%{finish_reason: :stop})
-      ],
-      cancel: fn -> :ok end
-    }
-  end
-
-  defp reqllm_tool_response(tool_calls, content) do
-    chunks =
-      [ReqLLM.StreamChunk.text(content)] ++
-        Enum.map(Enum.with_index(tool_calls), fn {tool_call, index} ->
-          ReqLLM.StreamChunk.tool_call(tool_call.name, tool_call_args(tool_call), %{
-            id: tool_call.id,
-            index: index
-          })
-        end)
-
-    %{
-      stream:
-        chunks ++
-          [
-            ReqLLM.StreamChunk.meta(%{usage: %{input_tokens: 10, output_tokens: 5}}),
-            ReqLLM.StreamChunk.meta(%{finish_reason: :stop})
-          ],
-      cancel: fn -> :ok end
-    }
-  end
-
-  defp tool_call_args(%SwarmAi.ToolCall{arguments: arguments}) when is_map(arguments),
-    do: arguments
-
-  defp tool_call_args(%SwarmAi.ToolCall{arguments: arguments}) when is_binary(arguments) do
-    Jason.decode!(arguments)
-  end
-
-  defp tool_call_args(_tool_call), do: %{}
 
   # -- Cancel (low-level) ----------------------------------------------------
 
@@ -207,7 +124,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Cancel (end-to-end) ---------------------------------------------------
 
   describe "cancel_execution/2 (end-to-end)" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "cancel dispatches cancelled event via PubSub", %{
       task_id: task_id,
@@ -231,7 +148,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Concurrent execution prevention ----------------------------------------
 
   describe "concurrent execution prevention" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "second submit returns :already_running while agent is executing", %{
       task_id: task_id,
@@ -270,7 +187,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Consecutive messages --------------------------------------------------
 
   describe "consecutive messages" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "processes second message after first message completes", %{
       task_id: task_id,
@@ -331,7 +248,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Interactive tool (question) with blocking receive ----------------------
 
   describe "interactive tool (question) blocking" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "question tool blocks until result arrives, then agent completes", %{
       task_id: task_id,
@@ -385,7 +302,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Title generation enqueue on first message -----------------------------
 
   describe "title generation enqueue" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "first message enqueues a title generation job", %{
       task_id: task_id,
@@ -441,7 +358,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- MCP tool timeout — DB invariant (bug 7) ---------------------------------
 
   describe "interactive tool timeout — ToolResult DB persistence" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "ToolResult is persisted in DB when question tool times out", %{
       task_id: task_id,
@@ -493,7 +410,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- MCP tool timeout with on_timeout: :error — DB invariant -------------------
 
   describe "MCP tool timeout with on_timeout: :error" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "ToolResult is persisted in DB when MCP tool times out (on_timeout: :error)", %{
       task_id: task_id,
@@ -589,7 +506,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool execution — regression: parallel executor missing backend tool_defs ------
 
   describe "backend tool execution — Tasks facade level" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     # Regression: execution.ex passes `tool_defs: mcp_tools` to Runtime.run, where
     # `mcp_tools` only contains the agent's MCP (SwarmAi.Tool.t()) entries.
@@ -634,8 +551,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_sandbox,
       :setup_user,
       :setup_task_only,
-      :setup_channel,
-      :setup_llm_provider_mock
+      :setup_channel
     ]
 
     test "todo_write executes through the full channel → executor pipeline", %{
@@ -714,8 +630,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_sandbox,
       :setup_user,
       :setup_task_only,
-      :setup_channel,
-      :setup_llm_provider_mock
+      :setup_channel
     ]
 
     test "session/update agent_turn_complete is pushed when backend tool raises", %{
@@ -756,8 +671,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_sandbox,
       :setup_user,
       :setup_task_only,
-      :setup_channel,
-      :setup_llm_provider_mock
+      :setup_channel
     ]
 
     test "session/update agent_turn_complete is pushed when ParallelExecutor deadline fires", %{
@@ -796,8 +710,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_sandbox,
       :setup_user,
       :setup_task_only,
-      :setup_channel,
-      :setup_llm_provider_mock
+      :setup_channel
     ]
 
     test "terminated event persists error, fires telemetry, and pushes cancelled to client", %{
@@ -860,8 +773,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_sandbox,
       :setup_user,
       :setup_task_only,
-      :setup_channel,
-      :setup_llm_provider_mock
+      :setup_channel
     ]
 
     test "crashed event persists error, fires telemetry, and pushes agent_turn_complete to client",
@@ -924,8 +836,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_sandbox,
       :setup_user,
       :setup_task_only,
-      :setup_channel,
-      :setup_llm_provider_mock
+      :setup_channel
     ]
 
     test "failed event persists classified error, fires telemetry, and pushes agent_turn_complete to client",
@@ -984,7 +895,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool crash — DB invariant ----------------------------------------
 
   describe "backend tool crash — ToolResult DB persistence" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "ToolResult is persisted when backend tool raises", %{
       task_id: task_id,
@@ -1025,7 +936,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   # -- Backend tool timeout (ParallelExecutor) — DB invariant -------------------
 
   describe "backend tool timeout (ParallelExecutor) — ToolResult DB persistence" do
-    setup [:setup_sandbox, :setup_user, :setup_task, :setup_llm_provider_mock]
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     test "ToolResult is persisted when ParallelExecutor deadline fires before tool returns", %{
       task_id: task_id,

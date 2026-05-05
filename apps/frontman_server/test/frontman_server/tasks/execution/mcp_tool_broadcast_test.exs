@@ -8,7 +8,6 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
   use SwarmAi.Testing, async: false
 
-  import Mox
   import FrontmanServer.InteractionCase.Helpers
 
   import FrontmanServer.Test.Fixtures.Accounts
@@ -47,7 +46,6 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         )
 
       # Create an LLM that returns a tool call on first turn, then completes
-      verify_on_exit!(%{})
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
       {:ok, _} =
@@ -118,7 +116,6 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
           on_timeout: :pause_agent
         )
 
-      verify_on_exit!(%{})
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
       {:ok, _} =

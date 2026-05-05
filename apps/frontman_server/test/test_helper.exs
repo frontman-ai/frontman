@@ -11,9 +11,4 @@ Mox.defmock(
   for: FrontmanServer.Tasks.Execution.LLMProvider
 )
 
-Mox.stub_with(
-  FrontmanServer.Tasks.Execution.LLMProviderMock,
-  FrontmanServer.Testing.LLMProviderStub
-)
-
 Ecto.Adapters.SQL.Sandbox.mode(FrontmanServer.Repo, :manual)
