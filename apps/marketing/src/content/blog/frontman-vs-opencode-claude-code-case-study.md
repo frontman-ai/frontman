@@ -15,7 +15,7 @@ faq:
     answer: 'Frontman is integrated into the running Astro dev server and browser preview. It already knew it was operating inside an Astro site, had access to the app structure through the integration, and could verify the banner visually through screenshots and browser-side JavaScript.'
 ---
 
-We recently ran a small internal case study: give the same real frontend task to three coding agents and compare what happened.
+We recently ran the same real frontend task through three coding agents and compared the traces afterward.
 
 The agents were:
 
@@ -23,13 +23,11 @@ The agents were:
 - **OpenCode**, running GPT-5.5 with medium thinking
 - **Claude Code**, running Claude Opus 4.7
 
-The task was deliberately mundane. No heroic refactor. No architecture rewrite. No contrived benchmark prompt. We wanted something that looked like real product work on our own marketing site.
+The task was intentionally ordinary: install a consent-banner package on our marketing site and make it work with the analytics code already there. We wanted normal product work, not a benchmark stunt.
 
 The task: integrate [`astro-consent`](https://github.com/velohost/astro-consent) into the Frontman marketing site, which already had Google Analytics configured.
 
-All three agents completed it. All three produced essentially the same first implementation. The difference was not code quality.
-
-The difference was how much work each agent needed to get there.
+All three agents completed it. The first implementation was essentially the same in each run. The traces differed in how much exploration and verification happened before completion.
 
 ## The Result
 
@@ -48,9 +46,7 @@ On this task, Frontman used:
 - **61% lower reported cost than OpenCode**
 - **75% lower reported cost than Claude Code**
 
-Treat the cost numbers carefully. Model pricing, cache accounting, provider routing, and model choice can all change. Claude Code also used a different model. The more durable signal is the request and token profile: Frontman needed fewer agent turns to reach the same outcome.
-
-That is the point of the case study.
+Treat the cost numbers carefully. Model pricing, cache accounting, provider routing, and model choice can all change. Claude Code also used a different model. The request and token counts are the safer comparison: Frontman needed fewer agent turns to reach the same outcome.
 
 ## The Task
 
@@ -70,21 +66,19 @@ The site already had Google Analytics. The agents needed to install and configur
 
 The user-visible behavior was simple: a new visitor should see a consent banner until they accept or reject it. After that choice, the banner should not keep appearing.
 
-## The Important Part: All Three Finished
+## All Three Finished
 
 This is not a dunk on OpenCode or Claude Code. Both completed the task. Claude Code was especially comprehensive and read broadly through the marketing app to understand the surrounding pages and conventions. OpenCode behaved similarly to Frontman once it had enough context.
 
-The first implementation quality was roughly the same across all three.
-
-That matters, because the honest conclusion is not:
+The first implementation quality was roughly the same across all three. We would not summarize the run as:
 
 > Frontman wrote better code.
 
-The honest conclusion is:
+The more accurate summary is:
 
 > Frontman reached and verified the same result with fewer agent turns because it started with more relevant runtime and framework context.
 
-For frontend work, that distinction is the product.
+For frontend work, a lot of the cost is not typing the final diff. It is finding the right part of the app, checking the visible result, and iterating without losing context.
 
 ## Why Frontman Needed Less Exploration
 
@@ -92,7 +86,7 @@ OpenCode and Claude Code had to discover the application from the filesystem. Th
 
 Frontman already had a running browser session attached to the marketing app. More importantly, the Frontman Astro integration is not a generic file browser. It is installed inside the Astro dev server.
 
-In this repo, the marketing site uses the Frontman Astro integration directly in `apps/marketing/astro.config.mjs`:
+In this repo, the marketing site uses the Frontman Astro integration directly in [`apps/marketing/astro.config.mjs`](https://github.com/frontman-ai/frontman/blob/main/apps/marketing/astro.config.mjs):
 
 ```js
 frontman({
@@ -103,11 +97,11 @@ frontman({
 })
 ```
 
-That gives the agent a much narrower starting point. It is not asking, "what is this repo?" It is operating inside a known Astro app with a live preview, framework tools, and browser tools already registered.
+The agent starts from a narrower state. It is not starting with "what is this repo?" It is already inside a known Astro app, with a live preview and the relevant tool set registered.
 
-The Astro integration itself is designed around that idea. It only activates in dev mode, installs middleware into Astro's Vite server, registers a Frontman dev toolbar app, captures source annotations, and exposes Astro-aware tools for routes and logs.
+The Astro integration only activates in dev mode. It installs middleware into Astro's Vite server, registers a Frontman dev toolbar app, captures source annotations, and exposes Astro-aware tools for routes and logs.
 
-From `libs/frontman-astro/src/FrontmanAstro__Integration.res`, the integration does several important things:
+From [`libs/frontman-astro/src/FrontmanAstro__Integration.res`](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-astro/src/FrontmanAstro__Integration.res), the integration does several important things:
 
 - Registers Frontman middleware before Astro page routing, so `/frontman` and tool routes work inside the dev server.
 - Injects annotation capture into page heads, so selected DOM elements can be associated with source context where Astro exposes it.
@@ -115,19 +109,19 @@ From `libs/frontman-astro/src/FrontmanAstro__Integration.res`, the integration d
 - Initializes log capture, so the agent can see dev-server output and post-edit errors.
 - Uses Astro's resolved routes hook on Astro 5 and newer for route discovery.
 
-That is what we mean by "deep integration." It is not only a chat box next to an iframe. The dev server, browser, and agent loop are wired together.
+In this task, that wiring saved discovery work. Frontman did not need to infer from scratch that `apps/marketing` was an Astro app or where the browser-visible result should be checked.
 
 ## Browser Verification Changed the Workflow
 
-The verification behavior differed too.
+Verification differed too.
 
 OpenCode ran `make build` and stopped. Claude Code did the same. That is a valid baseline for many code tasks: if the build passes, the integration probably compiles.
 
 Frontman also verified through the browser. It checked that the consent banner was visible, then interacted with the banner using browser-side JavaScript to confirm the buttons worked.
 
-That verification path exists because Frontman registers browser-side tools in the client, including screenshots and JavaScript execution against the live preview iframe.
+Frontman can do that because it registers browser-side tools in the client, including screenshots and JavaScript execution against the live preview iframe.
 
-The relevant tools are not abstract. In `libs/client/src/Client__ToolRegistry.res`, Frontman registers browser tools such as:
+In [`libs/client/src/Client__ToolRegistry.res`](https://github.com/frontman-ai/frontman/blob/main/libs/client/src/Client__ToolRegistry.res), Frontman registers browser tools such as:
 
 - `take_screenshot`
 - `execute_js`
@@ -138,21 +132,19 @@ The relevant tools are not abstract. In `libs/client/src/Client__ToolRegistry.re
 - `search_text`
 - `question`
 
-For this task, the browser-specific value was straightforward: the acceptance criterion was not only "Astro builds." The acceptance criterion was "a new user sees a banner, can accept or reject it, and does not keep seeing it after making a choice."
+For this task, `make build` was necessary but incomplete. The visible behavior mattered: a new user sees the banner, can accept or reject it, and does not keep seeing it after making a choice. Frontman checked the first two pieces in the browser instead of stopping at compile success.
 
-A build can tell you the first half only indirectly. A browser can tell you directly.
+## Where the Extra Turns Went
 
-## Why This Matters for Iteration
-
-The first implementation is only part of frontend work. The expensive part is often the loop after the implementation:
+The first implementation is only part of frontend work. The slow part is often the loop after the code compiles:
 
 ```text
 try it -> look at it -> notice something off -> adjust -> verify again
 ```
 
-We did not formally measure that second phase in this case study, so we are not including it in the table. But qualitatively, the same pattern held. Minor banner adjustments were faster in Frontman because the agent could operate from the rendered page and immediately verify the change in the browser.
+We did not formally measure that second phase, so it is not in the table. During follow-up banner tweaks, though, the workflow difference was obvious: Frontman could look at the rendered banner and act on it directly. The other tools needed the operator to translate the visible issue back into file-oriented instructions.
 
-That is where browser-aware agents become interesting. The advantage is not that they are smarter. It is that they remove a pile of translation work.
+That is a smaller claim than "browser agents are better," and it fits the data better.
 
 Without browser context, the user or the agent has to translate visual state into filesystem instructions:
 
@@ -160,17 +152,15 @@ Without browser context, the user or the agent has to translate visual state int
 The banner is on the marketing site. It is Astro. The analytics script is over here. The config is over there. The consent package should wrap this. The banner should appear on first visit. Now run the build.
 ```
 
-With Frontman, some of that context is already part of the harness. The agent starts closer to the task.
+With Frontman, some of that context is already present before the first model call. The agent starts closer to the part of the problem that actually changed.
 
-## The Architecture Claim
+## What the Architecture Bought Us
 
-The result supports a specific architectural claim:
+The useful claim from this run is narrow: runtime and framework context reduced wasted turns.
 
-> Runtime and framework context are efficiency features.
+They did not make the model write a better consent integration. They reduced how much of the conversation was spent locating the app, understanding the framework setup, and checking whether the browser behavior matched the request.
 
-They do not magically make the model more intelligent. They reduce the amount of exploration, prompting, and verification the model has to spend tokens on.
-
-This is especially visible in frontend work because the source code is not the only source of truth. The rendered DOM, computed CSS, viewport, local storage, cookies, client-side state, dev-server logs, and route table all matter.
+Frontend tasks expose this quickly because the source code is not the only source of truth. The rendered DOM, computed CSS, viewport, local storage, cookies, client-side state, dev-server logs, and route table all matter.
 
 Frontman connects those surfaces through the browser and framework integration:
 
@@ -185,15 +175,13 @@ Frontman server
   -> agent loop, provider calls, tool routing, persisted task history
 ```
 
-That architecture is more setup than a pure terminal agent. It is also less general. Frontman is not the tool we would choose for a deep backend refactor, a large migration, or a task where visual/runtime feedback does not matter.
+This architecture costs more setup than a pure terminal agent and it is less general. Frontman is not the tool we would choose for a deep backend refactor, a large migration, or a task where visual/runtime feedback does not matter.
 
-But for a frontend task whose correctness is visible in the browser, the integration pays for itself.
+For this task, though, the extra wiring removed work that the other agents had to do through exploration.
 
-## Caveats
+## What This Does Not Prove
 
-This was a case study, not a scientific benchmark.
-
-The caveats are real:
+This was a case study, not a scientific benchmark:
 
 - It was one task on one repo.
 - The repo was Frontman's own marketing app, which means the setup naturally favored Frontman's harness.
@@ -203,18 +191,14 @@ The caveats are real:
 - OpenCode had browser tooling available but did not use it during this run.
 - Browser context matters much less for backend work, pure refactors, or tasks where build/test output is the main source of truth.
 
-Those caveats do not make the result meaningless. They make the conclusion narrower and more useful.
+We would call it evidence for one narrow thing: on a real frontend integration task, browser and framework context reduced the number of agent turns needed to reach and verify the same result.
 
-This case study does not prove that Frontman is universally better than OpenCode or Claude Code. It shows that, for a real visual/frontend integration task, deep browser and framework integration reduced the number of agent turns needed to reach and verify the same result.
+## What We Took From The Run
 
-## The Takeaway
+The result changed how we talk about Frontman internally. We should not claim that browser context automatically produces better code. This run did not show that.
 
-The interesting result is not that Frontman completed the task. So did the other agents.
+It showed something more practical: when the task depends on a running frontend, the agent wastes fewer turns if the running frontend is part of its normal working environment.
 
-The interesting result is that Frontman completed it with fewer requests, fewer tokens, and browser-level verification built into the workflow.
-
-That is what we are building Frontman around: not a bigger model, not a new prompting trick, but a better execution environment for frontend work.
-
-If the task is visual, the agent should be able to see it. If the app is running, the agent should be able to inspect it. If the result matters in the browser, verification should happen in the browser.
+The model still matters. The prompt still matters. For frontend work, this run suggests the environment around the model matters too.
 
 [Try Frontman](https://frontman.sh/#install) on your own frontend task and compare the loop yourself.
