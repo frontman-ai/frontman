@@ -9,14 +9,17 @@ let make: (
 ) => t<'state, 'action, 'effect>
 let getState: t<'state, 'action, 'effect> => 'state
 let dispatch: (t<'state, 'action, 'effect>, 'action) => unit
+@@live
 let subscribe: (t<'state, 'action, 'effect>, unit => unit, unit) => unit
 
+@@live
 let useSelector: (
   ~compare: option<('selection, 'selection) => bool>=?,
   t<'state, 'action, 'effect>,
   'state => 'selection,
 ) => 'selection
 
+@@live
 let forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll: (
   t<'state, 'action, 'effect>,
   'state,

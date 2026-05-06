@@ -524,8 +524,8 @@ let sendMessageToAPIImpl = (
   state: state,
   dispatch,
   ~message,
-  ~attachments: array<Client__Message.fileAttachmentData>=[],
-  ~annotations: array<Client__Message.MessageAnnotation.t>=[],
+  ~attachments: array<Client__Message.fileAttachmentData>,
+  ~annotations: array<Client__Message.MessageAnnotation.t>,
   ~taskId,
 ) => {
   switch state.acpSession {

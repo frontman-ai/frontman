@@ -309,10 +309,10 @@ module Task = {
     ~title: string,
     ~previewUrl: string,
     ~createdAt: float,
-    ~updatedAt: option<float>=?,
+    ~updatedAt: float,
   ): t => {
     let _ = previewUrl
-    makeUnloaded(~id, ~title, ~createdAt, ~updatedAt=updatedAt->Option.getOr(createdAt))
+    makeUnloaded(~id, ~title, ~createdAt, ~updatedAt)
   }
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
