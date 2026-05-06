@@ -4,7 +4,11 @@ defmodule FrontmanServer.Tools.WebFetchTest do
   alias FrontmanServer.Tools.WebFetch
 
   setup do
-    Application.put_env(:frontman_server, :web_fetch_req_options, plug: {Req.Test, :web_fetch})
+    Application.put_env(:frontman_server, :web_fetch_req_options,
+      plug: {Req.Test, :web_fetch},
+      retry_delay: fn _ -> 0 end,
+      retry_log_level: false
+    )
 
     on_exit(fn ->
       Application.delete_env(:frontman_server, :web_fetch_req_options)
@@ -242,6 +246,31 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
   end
 
+  describe "execute/2 — transport retries" do
+    test "retries closed transport errors for safe GET requests", %{context: ctx} do
+      call_count = :counters.new(1, [:atomics])
+
+      Req.Test.stub(:web_fetch, fn conn ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        case count < 4 do
+          true ->
+            Req.Test.transport_error(conn, :closed)
+
+          false ->
+            conn
+            |> Plug.Conn.put_resp_content_type("text/plain")
+            |> Plug.Conn.send_resp(200, "Recovered after closed socket")
+        end
+      end)
+
+      assert {:ok, result} = execute("https://example.com/closed-repeatedly", ctx)
+      assert result["content"] =~ "Recovered after closed socket"
+      assert :counters.get(call_count, 1) == 5
+    end
+  end
+
   describe "execute/2 — pagination" do
     setup do
       body = Enum.map_join(1..10, "\n", fn i -> "Line #{i}" end)
@@ -364,7 +393,14 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
 
     test "allows application/json responses", %{context: ctx} do
-      stub_resp(200, "application/json", ~s({"key": "value"}))
+      Req.Test.stub(:web_fetch, fn conn ->
+        accept = Plug.Conn.get_req_header(conn, "accept") |> List.first("")
+        assert accept =~ "application/json"
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(200, ~s({"key": "value"}))
+      end)
 
       assert {:ok, _} = execute("https://example.com/api", ctx)
     end

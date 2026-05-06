@@ -33,6 +33,7 @@ apt-get update -y
 apt-get upgrade -y
 apt-get install -y \
   curl \
+  git \
   unzip \
   fail2ban \
   ufw \

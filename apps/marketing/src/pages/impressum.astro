@@ -1,0 +1,12 @@
+---
+import impressumContent from '../data/markdown-files/impressum.md?raw'
+import LegalDocument from '../components/legal/LegalDocument.astro'
+import { legalInfo } from '../data/legalInfo'
+
+const SEO = {
+	title: 'Frontman | Impressum',
+	description: `Legal provider information for ${legalInfo.brandName} and ${legalInfo.companyNameAscii}.`
+}
+---
+
+<LegalDocument title={SEO.title} description={SEO.description} heading="Impressum" content={impressumContent} />

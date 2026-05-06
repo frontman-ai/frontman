@@ -162,7 +162,7 @@ Zero install friction (no changes to your codebase), and the IDE agent bridge le
 
 Frontman is an open-source AI coding agent that hooks into your dev server as framework middleware for Next.js, Astro, and Vite (React, Vue, Svelte). Because it installs inside the framework, it has access to things the proxy approach can't reach: component tree, computed styles, server-side routes, server logs, and compiled modules, all exposed via MCP. Click any element, describe the change, get a source code edit with hot reload.
 
-Fully free, no prompt limits, no account required. BYOK with Claude, OpenAI, or OpenRouter. Designers and PMs can make visual changes without touching an IDE — see [Frontman vs. Cursor vs. Claude Code](/blog/frontman-vs-cursor-vs-claude-code/) for a detailed breakdown.
+Self-hostable under open-source licenses, with BYOK for Claude, OpenAI, or OpenRouter. Hosted Frontman plans are moving to paid subscriptions. Designers and PMs can make visual changes without touching an IDE — see [Frontman vs. Cursor vs. Claude Code](/blog/frontman-vs-cursor-vs-claude-code/) for a detailed breakdown.
 
 It's early stage: small community, incomplete documentation, rough edges. Only three frameworks supported (Next.js, Astro, Vite). Source mapping breaks on deeply abstracted component libraries. 131 stars means limited real-world validation. [Getting Started with Frontman](/blog/getting-started/) covers the install process. Frontman is also available as an [OpenClaw skill](/blog/frontman-openclaw-skill/) for teams that use OpenClaw as their AI agent — see the [comparison](/vs/openclaw/).
 

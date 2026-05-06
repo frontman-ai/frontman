@@ -13,7 +13,7 @@ import type {
 const seo: SEOInfo = {
   title: 'Frontman vs Stagewise (2026) — Which Browser AI Tool Is Worth It?',
   description:
-    'Both let you click UI elements and edit code with AI. Frontman is free with BYOK and no limits. Stagewise costs €20/mo for 100 prompts/day. Side-by-side feature breakdown.',
+    'Both let you click UI elements and edit code with AI. Frontman focuses on local framework integration and BYOK model support. Stagewise offers a hosted standalone agent and IDE bridge. Side-by-side feature breakdown.',
 }
 
 const competitor: CompetitorInfo = {
@@ -42,7 +42,7 @@ const features: ComparisonFeature[] = [
   { name: 'Natural language code edits', frontman: 'yes', competitor: 'yes', frontmanNote: 'Self-contained agent', competitorNote: 'Built-in agent or IDE agent bridge' },
   { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Instant via HMR', competitorNote: 'Instant via HMR' },
   { name: 'Deep framework middleware', frontman: 'yes', competitor: 'no', frontmanNote: 'Component tree, props, server state', competitorNote: 'DOM-level only' },
-  { name: 'Truly unlimited and free', frontman: 'yes', competitor: 'no', frontmanNote: 'BYOK, no prompt limits', competitorNote: '10 prompts/day free, 100/day for €20/mo' },
+  { name: 'Free self-hosting', frontman: 'yes', competitor: 'yes', frontmanNote: 'Open-source self-hosting with BYOK', competitorNote: '10 prompts/day free, 100/day for €20/mo hosted plan' },
   { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'partial', frontmanNote: 'Any LLM provider directly', competitorNote: 'Via IDE agent bridge only' },
   { name: 'Zero codebase install', frontman: 'no', competitor: 'yes', frontmanNote: 'Requires framework adapter', competitorNote: 'npx stagewise@latest — nothing installed' },
   { name: 'IDE agent bridge', frontman: 'no', competitor: 'yes', competitorNote: 'Cursor, Copilot, Windsurf, Cline, etc.' },
@@ -59,12 +59,12 @@ const faqs: FAQ[] = [
   {
     question: 'What is the difference between Frontman and Stagewise?',
     answer:
-      'Both tools let you click elements in your running app and describe changes in natural language. The key difference is architecture: Stagewise is a CLI overlay that injects a toolbar into your browser and can bridge to IDE agents like Cursor. Frontman installs as framework middleware (Next.js, Astro, Vite) and runs its own self-contained agent with deep access to the component tree, props, server state, and computed styles. Stagewise is faster to try (zero install), but Frontman gives deeper context and is fully free with no prompt limits.',
+      'Both tools let you click elements in your running app and describe changes in natural language. The key difference is architecture: Stagewise is a CLI overlay that injects a toolbar into your browser and can bridge to IDE agents like Cursor. Frontman installs as framework middleware (Next.js, Astro, Vite) and runs its own self-contained agent with deep access to the component tree, props, server state, and computed styles. Stagewise is faster to try (zero install), while Frontman gives deeper framework context and remains self-hostable.',
   },
   {
-    question: 'Is Frontman a free alternative to Stagewise?',
+    question: 'Is Frontman a self-hostable alternative to Stagewise?',
     answer:
-      'Yes. Stagewise\'s free tier is limited to 10 prompts per day. Their Pro plan costs €20/month for 100 prompts/day. Frontman is completely free — you bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly. There are no prompt limits, no subscription fees, and no usage caps. The client libraries are Apache 2.0 and the server is AGPL-3.0.',
+      'Yes. Frontman can be self-hosted under its open-source licenses, and you bring your own API keys to Claude, ChatGPT, or OpenRouter. Hosted Frontman plans are moving to paid subscriptions, while self-hosting remains available.',
   },
   {
     question: 'Can I use Stagewise and Frontman together?',
@@ -125,9 +125,9 @@ const frontmanPricingFeatures = [
     <p>
       <strong>Stagewise</strong> is a YC-backed CLI tool that injects a toolbar into your browser. It captures DOM context and routes it to its own built-in agent or bridges to IDE agents like Cursor, Copilot, and Windsurf. Framework-agnostic with zero codebase changes, but limited to 10 free prompts/day (€20/month for 100/day).
     </p>
-    <p class="summary-emphasis">
-      The core tradeoff: Stagewise is faster to try and bridges to your existing IDE. Frontman goes deeper into the framework runtime and is fully free with no prompt limits.
-    </p>
+	<p class="summary-emphasis">
+		The core tradeoff: Stagewise is faster to try and bridges to your existing IDE. Frontman goes deeper into the framework runtime and remains self-hostable with BYOK.
+	</p>
   </Fragment>
 
   <Fragment slot="competitor-strengths">
@@ -141,7 +141,7 @@ const frontmanPricingFeatures = [
   <Fragment slot="frontman-differentiators">
     <p>Frontman and Stagewise look similar on the surface — both let you click elements and describe changes. The difference is depth. Stagewise injects a toolbar on top of your app. Frontman wires into the app itself.</p>
     <p><strong>Framework middleware vs CLI overlay.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to information a CLI overlay can't reach: the React fiber tree, Vue reactivity graph, component props, server-side routes, server logs, and query timing. When you click a button, Frontman knows not just what DOM element it is, but which component rendered it, what props it received, and what server endpoint it calls.</p>
-    <p><strong>Fully free, no prompt limits.</strong> Stagewise's free tier caps you at 10 prompts per day. Their Pro plan is €20/month for 100 prompts/day. Frontman has no prompt limits, no subscription, and no usage-based pricing. You bring your own API keys (Claude, ChatGPT, or OpenRouter) and pay your LLM provider directly at their standard rates. For a team of 3 developers using AI coding tools daily, the cost difference is significant: €0/month vs €60/month for Stagewise Pro.</p>
+	<p><strong>Self-hostable and BYOK.</strong> Stagewise's free tier caps you at 10 prompts per day. Their Pro plan is €20/month for 100 prompts/day. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys and pay your LLM provider directly.</p>
     <p><strong>Self-contained agent.</strong> Frontman runs its own AI agent — it doesn't need Cursor, Copilot, or any IDE running alongside it. The agent has full access to the framework runtime context and generates code edits directly. This means faster iteration (no roundtrip through an IDE agent) and simpler architecture (one tool instead of two).</p>
     <p>Because Frontman is framework middleware, it sees both sides: the client-side DOM and the server-side context. It knows your routes, sees server logs, and can access server-side state. Stagewise operates purely on the client side.</p>
     <p><strong>True BYOK.</strong> Frontman connects directly to any LLM provider — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. Stagewise's "bring your own model" works through IDE agent bridges, not direct API key input.</p>
@@ -163,7 +163,7 @@ const frontmanPricingFeatures = [
       <li><strong>Daily frontend development</strong> — 10 prompts/day isn't enough and you don't want to pay €20/month for a cap of 100</li>
       <li><strong>Next.js, Astro, or Vite projects</strong> — Frontman's middleware gives you deeper context than any CLI overlay</li>
       <li><strong>Teams with designers or PMs</strong> — non-technical team members can make visual changes without an IDE or a Cursor subscription</li>
-      <li><strong>Open-source and vendor-independent</strong> — you want full control with no SaaS dependency, no prompt caps, and no monthly fees</li>
+		<li><strong>Open-source and vendor-independent</strong> — you want full control, BYOK, and a self-hostable development workflow</li>
       <li><strong>Server-side context matters</strong> — you need the AI to understand routes, server logs, and server-side state alongside the visual UI</li>
     </ul>
     <p>If you hit Stagewise's prompt limits or need deeper framework context, Frontman is worth evaluating.</p>

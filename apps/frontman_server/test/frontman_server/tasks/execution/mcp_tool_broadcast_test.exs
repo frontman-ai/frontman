@@ -6,7 +6,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   from SwarmCase, catching issues like duplicate tool call broadcasts.
   """
 
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.ExecutionCase
 
   import FrontmanServer.InteractionCase.Helpers
 
@@ -45,13 +45,14 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         )
 
       # Create an LLM that returns a tool call on first turn, then completes
-      llm = tool_then_complete_llm([mcp_tool_call], "Done!")
-      agent = test_agent(llm, "MCPToolTestAgent", tools: [some_mcp_tool_def])
+      expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
-      # Start agent via submit_user_message with custom agent
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Please call the MCP tool"), [],
-          agent: agent
+        Tasks.submit_user_message(
+          scope,
+          task_id,
+          user_content("Please call the MCP tool"),
+          [some_mcp_tool_def]
         )
 
       # Collect all tool call interactions broadcast via PubSub
@@ -114,12 +115,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
           on_timeout: :pause_agent
         )
 
-      llm = tool_then_complete_llm([mcp_tool_call], "Done!")
-      agent = test_agent(llm, "TestAgent", tools: [mcp_tool_def])
+      expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
-      # Start agent via submit_user_message with custom agent
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Call tool"), [], agent: agent)
+        Tasks.submit_user_message(scope, task_id, user_content("Call tool"), [mcp_tool_def])
 
       # Wait for the interaction broadcast
       assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id}},

@@ -18,6 +18,9 @@
 	"jsx": {
 		"version": 4
 	},
+	"reanalyze": {
+		"suppress": ["libs/bindings"]
+	},
 	"gentypeconfig": {
 		"language": "typescript",
 		"module": "esmodule",

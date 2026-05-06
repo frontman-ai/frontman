@@ -1,0 +1,11 @@
+---
+import dpaContent from '../data/markdown-files/dpa.md?raw'
+import LegalDocument from '../components/legal/LegalDocument.astro'
+
+const SEO = {
+	title: 'Frontman | Data Processing Agreement',
+	description: 'Data Processing Agreement for business customers using the hosted Frontman service.'
+}
+---
+
+<LegalDocument title={SEO.title} description={SEO.description} heading="Data Processing Agreement" content={dpaContent} />

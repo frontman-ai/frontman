@@ -66,8 +66,7 @@ defmodule FrontmanServer.ProvidersFixtures do
     rk_opts =
       Keyword.take(merged, [
         :auth_mode,
-        :requires_mcp_prefix,
-        :identity_override,
+        :with_claude_subscription,
         :chatgpt_account_id,
         :codex_endpoint
       ])

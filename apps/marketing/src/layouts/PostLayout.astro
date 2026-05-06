@@ -148,6 +148,113 @@ const videoJsonLd = frontmatter.video
 		@apply mx-auto max-w-3xl px-6 py-12 lg:py-24;
 	}
 
+	.post-body :global(table) {
+		@apply block max-w-full overflow-x-auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.post-body :global(.metric-comparison) {
+		margin: 32px 0;
+		padding: 22px;
+		border: 1px solid #27272a;
+		border-radius: 24px;
+		background: linear-gradient(180deg, rgba(39, 39, 42, 0.5), rgba(24, 24, 27, 0.35));
+		display: grid;
+		gap: 22px;
+	}
+	.post-body :global(.metric-comparison__header) {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 16px;
+		padding-bottom: 18px;
+		border-bottom: 1px solid rgba(63, 63, 70, 0.72);
+	}
+	.post-body :global(.metric-comparison__title) {
+		margin: 0;
+		color: #fafafa;
+		font-size: 20px;
+		font-weight: 800;
+		letter-spacing: -0.03em;
+	}
+	.post-body :global(.metric-comparison__note) {
+		margin: 6px 0 0;
+		color: #a1a1aa;
+		font-size: 13px;
+		line-height: 1.5;
+	}
+	.post-body :global(.metric-comparison__winner-key) {
+		flex: 0 0 auto;
+		border: 1px solid rgba(16, 185, 129, 0.35);
+		border-radius: 999px;
+		padding: 6px 10px;
+		background: rgba(16, 185, 129, 0.12);
+		color: #6ee7b7;
+		font-size: 12px;
+		font-weight: 700;
+	}
+	.post-body :global(.metric-comparison__grid) {
+		display: grid;
+		gap: 18px;
+	}
+	.post-body :global(.metric-comparison__category) {
+		display: grid;
+		gap: 12px;
+	}
+	.post-body :global(.metric-comparison__category-title) {
+		margin: 0;
+		color: #fafafa;
+		font-size: 15px;
+		font-weight: 800;
+		letter-spacing: -0.01em;
+	}
+	.post-body :global(.metric-comparison__agents) {
+		display: grid;
+		gap: 10px;
+	}
+	.post-body :global(.metric-comparison__agent) {
+		--bar-width: 0%;
+		--bar-color: rgba(113, 113, 122, 0.38);
+		position: relative;
+		isolation: isolate;
+		overflow: hidden;
+		padding: 12px 14px;
+		border: 1px solid rgba(63, 63, 70, 0.75);
+		border-radius: 14px;
+		background: rgba(9, 9, 11, 0.72);
+		display: grid;
+		grid-template-columns: minmax(120px, 1fr) auto;
+		align-items: center;
+		gap: 12px;
+	}
+	.post-body :global(.metric-comparison__agent::before) {
+		content: "";
+		position: absolute;
+		inset: 0 auto 0 0;
+		z-index: -1;
+		width: var(--bar-width);
+		background: linear-gradient(90deg, var(--bar-color), transparent);
+	}
+	.post-body :global(.metric-comparison__agent--winner) {
+		--bar-color: rgba(16, 185, 129, 0.42);
+		border-color: rgba(16, 185, 129, 0.5);
+		box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.12) inset;
+	}
+	.post-body :global(.metric-comparison__agent-name) {
+		color: #e4e4e7;
+		font-size: 14px;
+		font-weight: 700;
+	}
+	.post-body :global(.metric-comparison__agent--winner .metric-comparison__agent-name) {
+		color: #6ee7b7;
+	}
+	.post-body :global(.metric-comparison__agent-value) {
+		color: #fafafa;
+		font-size: 15px;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
+	}
+
 	.post-faq {
 		background: #09090b;
 		color: #fafafa;
@@ -217,12 +324,111 @@ const videoJsonLd = frontmatter.video
 	}
 
 	@media (max-width: 768px) {
+		.post-body :global(.metric-comparison) {
+			padding: 16px;
+			border-radius: 20px;
+		}
+		.post-body :global(.metric-comparison__header) {
+			flex-direction: column;
+		}
+		.post-body :global(.metric-comparison__winner-key) {
+			align-self: flex-start;
+		}
+		.post-body :global(.metric-comparison__agent) {
+			grid-template-columns: 1fr;
+			gap: 6px;
+		}
+		.post-body :global(.metric-comparison__agent-value) {
+			font-size: 17px;
+		}
 		.post-faq { padding: 40px 20px; }
 		.post-faq__title { font-size: 24px; }
 	}
 </style>
 
 <script>
+	function initMetricComparisons() {
+		document.querySelectorAll<HTMLUListElement>('.post-body ul').forEach((list) => {
+			const items = Array.from(list.querySelectorAll<HTMLLIElement>(':scope > li'));
+			const isMetricSummaryList = items.length > 0 && items.every((item) => {
+				const text = item.textContent ?? '';
+				return /^\s*\d+%/.test(text) && /\b(fewer|lower)\b/i.test(text);
+			});
+			if (!isMetricSummaryList || list.dataset.metricComparisonRendered === 'true') return;
+
+			const table = list.previousElementSibling?.matches('table')
+				? list.previousElementSibling as HTMLTableElement
+				: list.parentElement?.querySelector<HTMLTableElement>('table');
+			if (!table) return;
+
+			const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>('tbody tr')).map((row) => {
+				const cells = Array.from(row.querySelectorAll<HTMLTableCellElement>('td')).map((cell) => cell.textContent?.trim() ?? '');
+				return {
+					agent: cells[0],
+					requests: Number(cells[1]?.replace(/,/g, '')),
+					totalTokens: Number(cells[5]?.replace(/,/g, '')),
+					cost: Number(cells[8]?.replace(/[$,]/g, '')),
+					costLabel: cells[8],
+				};
+			}).filter((row) => row.agent && Number.isFinite(row.requests) && Number.isFinite(row.totalTokens) && Number.isFinite(row.cost));
+			if (rows.length === 0) return;
+
+			const categories = [
+				{ title: 'Number of requests', key: 'requests', format: (value: number) => value.toLocaleString() },
+				{ title: 'Total tokens', key: 'totalTokens', format: (value: number) => value.toLocaleString() },
+				{ title: 'Cost', key: 'cost', format: (_value: number, row: typeof rows[number]) => row.costLabel },
+			] as const;
+
+			const card = document.createElement('section');
+			card.className = 'metric-comparison';
+			card.setAttribute('aria-label', 'Agent efficiency comparison');
+			card.innerHTML = `
+				<div class="metric-comparison__header">
+					<div>
+						<h3 class="metric-comparison__title">Efficiency comparison</h3>
+						<p class="metric-comparison__note">Lower is better. Each category shows Frontman, OpenCode, and Claude Code side by side.</p>
+					</div>
+					<span class="metric-comparison__winner-key">Winner highlighted</span>
+				</div>
+				<div class="metric-comparison__grid"></div>
+			`;
+
+			const grid = card.querySelector<HTMLDivElement>('.metric-comparison__grid');
+			if (!grid) return;
+
+			categories.forEach((category) => {
+				const values = rows.map((row) => row[category.key]);
+				const minValue = Math.min(...values);
+				const maxValue = Math.max(...values);
+				const section = document.createElement('section');
+				section.className = 'metric-comparison__category';
+				section.innerHTML = `<h4 class="metric-comparison__category-title">${category.title}</h4>`;
+
+				const agents = document.createElement('div');
+				agents.className = 'metric-comparison__agents';
+				rows.forEach((row) => {
+					const value = row[category.key];
+					const barWidth = maxValue > 0 ? Math.max(8, (value / maxValue) * 100) : 0;
+					const isWinner = value === minValue;
+					const agent = document.createElement('div');
+					agent.className = `metric-comparison__agent${isWinner ? ' metric-comparison__agent--winner' : ''}`;
+					agent.style.setProperty('--bar-width', `${barWidth}%`);
+					agent.innerHTML = `
+						<span class="metric-comparison__agent-name">${row.agent}</span>
+						<span class="metric-comparison__agent-value">${category.format(value, row)}</span>
+					`;
+					agents.appendChild(agent);
+				});
+
+				section.appendChild(agents);
+				grid.appendChild(section);
+			});
+
+			list.dataset.metricComparisonRendered = 'true';
+			list.replaceWith(card);
+		});
+	}
+
 	function initCodeCopyButtons() {
 		document.querySelectorAll<HTMLPreElement>('pre.astro-code').forEach((pre) => {
 			if (pre.querySelector('.code-copy-btn')) return;
@@ -249,6 +455,10 @@ const videoJsonLd = frontmatter.video
 		});
 	}
 
+	initMetricComparisons();
 	initCodeCopyButtons();
-	document.addEventListener('astro:after-swap', initCodeCopyButtons);
+	document.addEventListener('astro:after-swap', () => {
+		initMetricComparisons();
+		initCodeCopyButtons();
+	});
 </script>

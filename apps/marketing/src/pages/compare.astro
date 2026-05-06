@@ -128,8 +128,8 @@ const faqs = [
 		answer: 'If you primarily do frontend work on Next.js, Astro, or Vite projects and want the AI to see what the page looks like: Frontman. If you need a full IDE with autocomplete for any language: Cursor or Windsurf. If you want a terminal-native agent for complex multi-file tasks: Claude Code. If you want inline autocomplete integrated into GitHub: Copilot. These tools are better together than alone.'
 	},
 	{
-		question: 'Is Frontman really free?',
-		answer: 'Yes. The client libraries are Apache 2.0 and the server is AGPL-3.0. You self-host and bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. You pay those providers directly at their standard rates. There are no prompt caps, no credit system, no monthly subscription from Frontman. Paid hosted tiers are planned but the open-source core will stay free.'
+		question: 'Is Frontman free?',
+		answer: 'Self-hosting remains free under the open-source licenses. The client libraries are Apache 2.0 and the server is AGPL-3.0. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider and pay those providers directly. Hosted Frontman plans are moving to paid subscriptions.'
 	}
 ]
 
@@ -339,7 +339,7 @@ const linkCardClass =
 		<div class="w-full max-w-[800px]">
 			<h2 class={darkSectionTitleClass}>Detailed Comparisons</h2>
 			<p class={darkSectionIntroClass}>
-				Each page below has a full feature table, prose analysis, pricing breakdown, and FAQ with structured data for search engines.
+				Each page below has a full feature table, prose analysis, workflow breakdown, and FAQ with structured data for search engines.
 			</p>
 			<div class="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4 max-md:grid-cols-1">
 				{tools.filter(t => t.slug !== '').map((tool) => (
@@ -389,7 +389,7 @@ const linkCardClass =
 	<section class="flex justify-center border-t border-zinc-800 bg-[#09090b] px-5 py-20 text-zinc-50 md:px-6 max-md:py-12">
 		<div class="w-full max-w-[720px]">
 			<h2 class="mb-2 text-[28px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[36px]">Try Frontman</h2>
-			<p class="mb-8 text-[17px] text-zinc-300">One command. No account. No credit card.</p>
+			<p class="mb-8 text-[17px] text-zinc-300">One command for self-hosted local development. Hosted plans are coming soon.</p>
 			<div class="mb-8 flex flex-col gap-3">
 				<div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
 					<code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>

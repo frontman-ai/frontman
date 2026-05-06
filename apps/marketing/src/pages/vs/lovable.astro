@@ -136,7 +136,7 @@ const features: ComparisonFeature[] = [
     name: 'BYOK (bring your own key)',
     frontman: 'yes',
     competitor: 'no',
-    frontmanNote: 'Any LLM provider — no per-seat fees from Frontman',
+	frontmanNote: 'Any LLM provider; self-hosting remains available',
     competitorNote: 'Uses their models',
   },
   { name: 'Self-hostable', frontman: 'yes', competitor: 'no' },
@@ -174,11 +174,11 @@ const faqs: FAQ[] = [
     answer:
       'Frontman bridges the gap between design and engineering. Designers and PMs can make UI changes directly in the running product, and engineers review those changes as normal code diffs. No more design-to-dev handoff delays, no more "can you move this 2px left" tickets. Everyone works on the same codebase.',
   },
-  {
-    question: 'How does pricing work for a growing team?',
-    answer:
-      'Frontman is free while in beta. We plan to introduce per-seat team pricing — details are coming soon. The client libraries are Apache 2.0 and the server is AGPL-3.0, so self-hosting will always be an option. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with a Claude or ChatGPT subscription via OAuth. Lovable\'s credit-based pricing starts at $25/month and scales to $2,250/month for heavy use — plus every interaction costs credits.',
-  },
+	{
+		question: 'How does pricing work for a growing team?',
+		answer:
+			'Self-hosting remains available under Frontman\'s open-source licenses. Hosted Frontman plans are moving to paid subscriptions, and you bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with a Claude or ChatGPT subscription via OAuth. Lovable\'s credit-based pricing starts at $25/month and scales to $2,250/month for heavy use — plus every interaction costs credits.',
+	},
   {
     question: 'Which supports more frameworks?',
     answer:
@@ -226,7 +226,7 @@ const faqs: FAQ[] = [
     <p><strong>Click-to-edit instead of chat-to-generate.</strong> Lovable\'s interface is chat-first — you describe what you want and it generates entire apps. Frontman is visual-first — a designer or PM clicks an element in the running product, describes the change, and the AI edits the source with full context.</p>
     <p><strong>Bridges design and engineering.</strong> Frontman lets designers and PMs make UI changes directly, with engineers reviewing the diffs like normal code. No more screenshot-annotated design comments that get lost.</p>
     <p><strong>Multi-framework support.</strong> Lovable generates React + Tailwind only. No Vue, Svelte, Astro, or Next.js server components. Frontman works with Next.js, Astro, and Vite — covering React, Vue, and Svelte.</p>
-    <p><strong>Open source and BYOK.</strong> Lovable is proprietary SaaS with credit-based pricing. Frontman\'s client libraries are Apache 2.0, server is AGPL-3.0. You bring your own API keys — no per-seat fees, no token limits, no monthly subscription.</p>
+	<p><strong>Open source and BYOK.</strong> Lovable is proprietary SaaS with credit-based pricing. Frontman\'s client libraries are Apache 2.0, server is AGPL-3.0. Self-hosting remains available, and you bring your own API keys for model usage.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">
@@ -249,7 +249,7 @@ const faqs: FAQ[] = [
       <li><strong>Teams with an existing design system</strong> — Frontman sees your actual tokens, components, and styles, so changes respect your system instead of reinventing it</li>
       <li><strong>Multi-team orgs reducing design-to-dev bottlenecks</strong> — designers and PMs contribute changes that engineers review as normal code diffs</li>
       <li><strong>Any component library or CSS approach</strong> — MUI, Chakra, Tailwind, CSS Modules, styled-components — Frontman sees what renders, not what you typed</li>
-      <li><strong>Growing teams watching costs</strong> — open source, BYOK, no per-seat fees — scales with your team without scaling your bill</li>
+		<li><strong>Teams that want open-source control</strong> — self-hostable, BYOK, and integrated into your existing development workflow</li>
     </ul>
     <p>A natural workflow: generate your starting point with Lovable, export to GitHub, add Frontman middleware, and let your whole team iterate visually from there.</p>
     <p>Also see: <a href="/vs/bolt/" class="text-link">Frontman vs Bolt.new</a> and <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a> for comparisons with other tools in this space.</p>

@@ -26,20 +26,57 @@ module TodoUtils = Client__TodoUtils
 // Tool Classification (using substring matching like ToolLabels)
 // ============================================================================
 
-/**
- * Check if tool is a browser action (not exploration)
- * Browser actions mutate state (clicking, typing, navigating)
- */
-let isBrowserAction = (toolName: string): bool => {
-  let name = String.toLowerCase(toolName)
-  String.includes(name, "click") ||
-  String.includes(name, "type") ||
-  String.includes(name, "hover") ||
-  String.includes(name, "select") ||
-  String.includes(name, "press_key") ||
-  String.includes(name, "resize") ||
-  name == "execute_js"
+let includesAny = (name, needles) => needles->Array.some(needle => String.includes(name, needle))
+
+module BrowserAction = {
+  type t = [#click | #typeText | #hover | #select | #pressKey | #resize | #executeJs]
+
+  let all: array<t> = [#click, #typeText, #hover, #select, #pressKey, #resize, #executeJs]
+
+  let toolName = (action: t): string =>
+    switch action {
+    | #click => "click"
+    | #typeText => "type"
+    | #hover => "hover"
+    | #select => "select"
+    | #pressKey => "press_key"
+    | #resize => "resize"
+    | #executeJs => "execute_js"
+    }
+
+  let matchesLowercaseToolName = (name: string, action: t): bool => {
+    switch action {
+    | #executeJs => name == toolName(action)
+    | #click | #typeText | #hover | #select | #pressKey | #resize =>
+      String.includes(name, toolName(action))
+    }
+  }
+
+  let fromLowercaseToolName = (name: string): option<t> =>
+    all->Array.find(action => matchesLowercaseToolName(name, action))
+
+  let fromToolName = (toolNameToMatch: string): option<t> =>
+    toolNameToMatch->String.toLowerCase->fromLowercaseToolName
 }
+
+let browserExplorationNeedles = ["snapshot", "screenshot", "console", "network"]
+let groupableToolNeedles = ["read", "get", "fetch", "list", "search", "grep", "find"]
+let groupingBreakerNeedles = [
+  "edit",
+  "write",
+  "create",
+  "delete",
+  "remove",
+  "terminal",
+  "command",
+  "run",
+  "shell",
+  "task",
+]
+let searchToolNeedles = ["search", "grep", "find"]
+let definitionToolNeedles = ["definition", "symbol"]
+let directoryToolNeedles = ["list", "dir"]
+let browserSnapshotNeedles = ["snapshot", "screenshot"]
 
 /**
  * Check if tool is browser exploration (not action)
@@ -47,10 +84,7 @@ let isBrowserAction = (toolName: string): bool => {
  */
 let isBrowserExploration = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
-  String.includes(name, "snapshot") ||
-  String.includes(name, "screenshot") ||
-  String.includes(name, "console") ||
-  String.includes(name, "network")
+  includesAny(name, browserExplorationNeedles)
 }
 
 /**
@@ -60,22 +94,8 @@ let isBrowserExploration = (toolName: string): bool => {
 let isGroupableTool = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
 
-  // File/content reading
-  String.includes(name, "read") ||
-  String.includes(name, "get") ||
-  String.includes(name, "fetch") ||
-  // Directory listing
-  String.includes(name, "list") ||
-  // Search operations
-  String.includes(name, "search") ||
-  String.includes(name, "grep") ||
-  String.includes(name, "find") ||
-  // Definition/symbol lookup
-  String.includes(name, "definition") ||
-  String.includes(name, "symbol") ||
-  // Lint reading (not fixing)
-  String.includes(name, "lint") && String.includes(name, "read") ||
-  // Browser exploration (not actions)
+  includesAny(name, groupableToolNeedles) ||
+  includesAny(name, definitionToolNeedles) ||
   isBrowserExploration(name)
 }
 
@@ -86,24 +106,9 @@ let isGroupableTool = (toolName: string): bool => {
 let breaksGrouping = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
 
-  // File mutations
-  String.includes(name, "edit") ||
-  String.includes(name, "write") ||
-  String.includes(name, "create") ||
-  String.includes(name, "delete") ||
-  String.includes(name, "remove") ||
-  // Terminal/command execution — avoid bare "exec" which would also match
-  // browser tool "execute_js" (already caught by isBrowserAction below).
-  String.includes(name, "terminal") ||
-  String.includes(name, "command") ||
-  String.includes(name, "run") ||
-  String.includes(name, "shell") ||
-  // Browser actions (clicking, typing, etc.)
-  isBrowserAction(name) ||
-  // Task/agent spawning
-  String.includes(name, "task") ||
-  (// Fix operations (lint fix, etc.)
-  String.includes(name, "fix") && !String.includes(name, "prefix"))
+  includesAny(name, groupingBreakerNeedles) ||
+  BrowserAction.fromLowercaseToolName(name)->Option.isSome ||
+  (String.includes(name, "fix") && !String.includes(name, "prefix"))
 }
 
 /**
@@ -138,56 +143,13 @@ let extractFilePath = (input: option<JSON.t>): option<string> => {
   ToolLabels.extractTargetFromInput(input)
 }
 
-/**
- * Extract todo statistics from a todo_write tool's input
- * The input contains the todos array with status changes
- */
-let extractTodoStatsFromInput = (input: option<JSON.t>): (int, int, int, int, int) => {
-  // Returns: (total, created, completed, started, cancelled)
-  switch input {
-  | Some(json) =>
-    switch JSON.Decode.object(json) {
-    | Some(obj) =>
-      // Check for "todos" array in input
-      let todosField = obj->Dict.get("todos")
-      switch todosField {
-      | Some(todosJson) =>
-        switch JSON.Decode.array(todosJson) {
-        | Some(arr) =>
-          let (created, completed, started, cancelled) = arr->Array.reduce((0, 0, 0, 0), (
-            (c, comp, s, can),
-            item,
-          ) => {
-            switch JSON.Decode.object(item) {
-            | Some(itemObj) =>
-              let status =
-                itemObj
-                ->Dict.get("status")
-                ->Option.flatMap(JSON.Decode.string)
-                ->Option.getOr("")
-                ->String.toLowerCase
+let appendPath = (items, path) => path->Option.mapOr(items, p => Array.concat(items, [p]))
 
-              // Count by status
-              switch status {
-              | "completed" | "complete" | "done" => (c, comp + 1, s, can)
-              | "in_progress" | "in-progress" | "started" | "running" => (c, comp, s + 1, can)
-              | "cancelled" | "canceled" | "removed" => (c, comp, s, can + 1)
-              | "pending" => (c + 1, comp, s, can) // New pending = created
-              | _ => (c, comp, s, can)
-              }
-            | None => (c, comp, s, can)
-            }
-          })
-          (Array.length(arr), created, completed, started, cancelled)
-        | None => (0, 0, 0, 0, 0)
-        }
-      | None => (0, 0, 0, 0, 0)
-      }
-    | None => (0, 0, 0, 0, 0)
-    }
-  | None => (0, 0, 0, 0, 0)
+let incrementIf = (count, condition) =>
+  switch condition {
+  | true => count + 1
+  | false => count
   }
-}
 
 /**
  * Calculate summary statistics from grouped tool calls
@@ -199,70 +161,29 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
 
     // File reads
     let files = if String.includes(name, "read") && !String.includes(name, "lint") {
-      path->Option.mapOr(acc.files, p => Array.concat(acc.files, [p]))
+      appendPath(acc.files, path)
     } else {
       acc.files
     }
 
     // Directory listings
-    let directories = if String.includes(name, "list") || String.includes(name, "dir") {
-      path->Option.mapOr(acc.directories, p => Array.concat(acc.directories, [p]))
+    let directories = if includesAny(name, directoryToolNeedles) {
+      appendPath(acc.directories, path)
     } else {
       acc.directories
     }
 
     // Searches (grep, search, find)
-    let searches = if (
-      String.includes(name, "search") ||
-      String.includes(name, "grep") ||
-      String.includes(name, "find")
-    ) {
-      acc.searches + 1
-    } else {
-      acc.searches
-    }
+    let searches = incrementIf(acc.searches, includesAny(name, searchToolNeedles))
 
     // Definition/symbol lookups
-    let definitions = if String.includes(name, "definition") || String.includes(name, "symbol") {
-      acc.definitions + 1
-    } else {
-      acc.definitions
-    }
+    let definitions = incrementIf(acc.definitions, includesAny(name, definitionToolNeedles))
 
     // Browser snapshots/screenshots
-    let browserSnapshots = if (
-      String.includes(name, "snapshot") || String.includes(name, "screenshot")
-    ) {
-      acc.browserSnapshots + 1
-    } else {
-      acc.browserSnapshots
-    }
-
-    // Todo operations
-    let (
-      todos,
-      todosNewlyCreated,
-      todosNewlyCompleted,
-      todosNewlyStarted,
-      todosNewlyCancelled,
-    ) = if TodoUtils.isTodoTool(tool.toolName) {
-      let (total, created, completed, started, cancelled) = extractTodoStatsFromInput(tool.input)
-      (
-        acc.todos + total,
-        acc.todosNewlyCreated + created,
-        acc.todosNewlyCompleted + completed,
-        acc.todosNewlyStarted + started,
-        acc.todosNewlyCancelled + cancelled,
-      )
-    } else {
-      (
-        acc.todos,
-        acc.todosNewlyCreated,
-        acc.todosNewlyCompleted,
-        acc.todosNewlyStarted,
-        acc.todosNewlyCancelled,
-      )
-    }
+    let browserSnapshots = incrementIf(
+      acc.browserSnapshots,
+      includesAny(name, browserSnapshotNeedles),
+    )
 
     {
       files,
@@ -271,11 +192,6 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
       definitions,
       browserSnapshots,
       tools: Array.concat(acc.tools, [tool.toolName]),
-      todos,
-      todosNewlyCreated,
-      todosNewlyCompleted,
-      todosNewlyStarted,
-      todosNewlyCancelled,
     }
   })
 }
@@ -298,61 +214,6 @@ let unique = (arr: array<string>): array<string> => {
 }
 
 /**
- * Generate a nice label for todo changes
- * Returns labels like:
- * - "completed 2 to-dos"
- * - "started 1 to-do"
- * - "created 3 to-dos, completed 2"
- */
-let generateTodoLabel = (summary: Types.toolsSummary): option<string> => {
-  let parts = []
-
-  // Created todos
-  let parts = if summary.todosNewlyCreated > 0 {
-    let label = `created ${Int.toString(
-        summary.todosNewlyCreated,
-      )} to-do${summary.todosNewlyCreated == 1 ? "" : "s"}`
-    Array.concat(parts, [label])
-  } else {
-    parts
-  }
-
-  // Completed todos
-  let parts = if summary.todosNewlyCompleted > 0 {
-    let label = `completed ${Int.toString(summary.todosNewlyCompleted)}`
-    Array.concat(parts, [label])
-  } else {
-    parts
-  }
-
-  // Started todos (in_progress)
-  let parts = if summary.todosNewlyStarted > 0 {
-    let label = `started ${Int.toString(summary.todosNewlyStarted)}`
-    Array.concat(parts, [label])
-  } else {
-    parts
-  }
-
-  // Cancelled todos
-  let parts = if summary.todosNewlyCancelled > 0 {
-    let label = `cancelled ${Int.toString(summary.todosNewlyCancelled)}`
-    Array.concat(parts, [label])
-  } else {
-    parts
-  }
-
-  // If we have any parts, join them
-  if Array.length(parts) > 0 {
-    Some(Array.join(parts, ", "))
-  } else if summary.todos > 0 {
-    // Fallback: just show total count if we have todos but no specific actions
-    Some(`${Int.toString(summary.todos)} to-do${summary.todos == 1 ? "" : "s"}`)
-  } else {
-    None
-  }
-}
-
-/**
  * Generate summary labels from statistics
  * Returns an array like ["1 directory", "2 files", "3 searches"]
  * 
@@ -361,8 +222,7 @@ let generateTodoLabel = (summary: Types.toolsSummary): option<string> => {
  * 2. file → "N file(s)"  
  * 3. search → "N search(es)"
  * 4. definition → "found N definition(s)"
- * 5. todo → "completed N to-dos, started N"
- * 6. snapshot → "N snapshot(s)"
+ * 5. snapshot → "N snapshot(s)"
  */
 let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
   let labels = []
@@ -407,13 +267,7 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 
-  // 5. Todos
-  let labels = switch generateTodoLabel(summary) {
-  | Some(todoLabel) => Array.concat(labels, [todoLabel])
-  | None => labels
-  }
-
-  // 6. Browser snapshots
+  // 5. Browser snapshots
   let labels = if summary.browserSnapshots > 0 {
     let label = `${Int.toString(summary.browserSnapshots)} snapshot${summary.browserSnapshots == 1
         ? ""
@@ -516,20 +370,8 @@ let groupToolCalls = (
   }
 
   // Check if this specific tool call should be grouped (for main agent)
-  let shouldGroupToolCall = (tc: Message.toolCall): bool => {
-    // Error states are NEVER grouped - failures should be visible
-    if hasError(tc) {
-      false
-    } // Check if it breaks grouping first (mutations)
-    else if breaksGrouping(tc.toolName) {
-      false
-    } // Check if it's a groupable tool
-    else if isGroupableTool(tc.toolName) {
-      true
-    } else {
-      false
-    }
-  }
+  let shouldGroupToolCall = (tc: Message.toolCall): bool =>
+    !hasError(tc) && !breaksGrouping(tc.toolName) && isGroupableTool(tc.toolName)
 
   toolCalls->Array.forEach(tc => {
     let isSubagent = isSubagentToolCall(tc)

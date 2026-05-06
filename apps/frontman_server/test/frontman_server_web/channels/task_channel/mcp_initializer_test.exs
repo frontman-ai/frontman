@@ -6,7 +6,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
 
   setup do
-    Sentry.Test.start_collecting_sentry_reports()
+    Sentry.Test.setup_sentry(dedup_events: false)
     :ok
   end
 

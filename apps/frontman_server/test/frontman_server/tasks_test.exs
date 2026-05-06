@@ -6,6 +6,7 @@ defmodule FrontmanServer.TasksTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.Framework
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
@@ -28,7 +29,7 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.task_id == task_id
-      assert task.framework == framework
+      assert task.framework == Framework.from_string(framework)
     end
   end
 
@@ -75,9 +76,7 @@ defmodule FrontmanServer.TasksTest do
       task_id = task_fixture(scope)
 
       # Add a user message
-      Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      Tasks.add_user_message(scope, task_id, user_content("Hello"))
 
       # Add responses
       Tasks.add_agent_response(scope, task_id, "Response from agent", %{})
@@ -100,13 +99,7 @@ defmodule FrontmanServer.TasksTest do
       tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
 
       {:ok, _} =
-        Tasks.submit_user_message(
-          scope,
-          task_id,
-          user_content("What is 2+2?"),
-          [],
-          agent: %FrontmanServer.Testing.BlockingAgent{}
-        )
+        Tasks.add_user_message(scope, task_id, user_content("What is 2+2?"))
 
       {:ok, _} =
         Tasks.add_agent_response(scope, task_id, "Let me calculate that.", %{
@@ -229,9 +222,7 @@ defmodule FrontmanServer.TasksTest do
       task_id = task_fixture(scope)
 
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("msg1"), [],
-          agent: %FrontmanServer.Testing.BlockingAgent{}
-        )
+        Tasks.add_user_message(scope, task_id, user_content("msg1"))
 
       {:ok, _} = Tasks.add_agent_response(scope, task_id, "response1")
 
@@ -402,9 +393,7 @@ defmodule FrontmanServer.TasksTest do
 
       Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
 
-      Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      Tasks.add_user_message(scope, task_id, user_content("Hello"))
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       messages = Tasks.Interaction.to_llm_messages(task.interactions)
@@ -420,9 +409,7 @@ defmodule FrontmanServer.TasksTest do
 
       Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
 
-      Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      Tasks.add_user_message(scope, task_id, user_content("Hello"))
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       messages = Tasks.Interaction.to_llm_messages(task.interactions)
@@ -450,9 +437,7 @@ defmodule FrontmanServer.TasksTest do
       ]
 
       {:ok, _interaction} =
-        Tasks.submit_user_message(scope, task_id, content_blocks, [],
-          agent: %FrontmanServer.Testing.BlockingAgent{}
-        )
+        Tasks.add_user_message(scope, task_id, content_blocks)
 
       # Retrieve via LLM conversion (exercises the full JSONB round-trip)
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -587,9 +572,7 @@ defmodule FrontmanServer.TasksTest do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
-      Tasks.submit_user_message(scope, task_id, [%{"type" => "text", "text" => "Hi"}], [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "Hi"}])
 
       {:ok, _} = Tasks.add_agent_paused(scope, task_id, "question", 120_000)
 

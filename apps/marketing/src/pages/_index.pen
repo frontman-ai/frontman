@@ -55,7 +55,7 @@
                     {
                       "type": "text",
                       "id": "badge-text",
-                      "content": "Open Source  •  Free Beta",
+                      "content": "Open Source  •  Apache 2.0 / AGPL-3.0",
                       "fontSize": 14,
                       "fill": "#FFEB99",
                       "fontWeight": "500"

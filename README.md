@@ -42,7 +42,7 @@ Most AI coding tools work from source files and never see the running applicatio
 | **What it edits** | Your existing codebase | Your existing codebase | Your existing codebase | Generates new code |
 | **Sees rendered output** | Yes (framework middleware) | No | No | Own sandbox only |
 | **Open source** | Yes (Apache 2.0 / AGPL-3.0) | No | No | No |
-| **Pricing** | Free (BYOK) | $20/mo Pro | $10/mo Pro | $20/mo Premium |
+| **Pricing** | Free self-hosting (BYOK); hosted service moving to paid plans | $20/mo Pro | $10/mo Pro | $20/mo Premium |
 | **Best for** | Visual frontend editing, designer/PM collaboration | Full-stack IDE replacement | Autocomplete, code review | Generating new UI from scratch |
 
 Frontman and these tools are complementary. Many developers use Cursor or Copilot for backend work and general refactoring, then switch to Frontman when they need to see what they're editing in the browser.
@@ -113,7 +113,7 @@ Frontman uses BYOK (bring your own key). Connect any LLM provider:
 - **OpenAI** (ChatGPT) — direct API key or OAuth with your ChatGPT subscription
 - **OpenRouter** — access to Claude, GPT, Llama, Mistral, and hundreds of other models
 
-You pay your LLM provider directly at their standard rates. There are no prompt limits, usage caps, or subscription fees from Frontman.
+You pay your LLM provider directly at their standard rates. Self-hosting remains free under the project's open-source licenses; hosted Frontman service plans are moving to paid subscriptions.
 
 ## Architecture
 

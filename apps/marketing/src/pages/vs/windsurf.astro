@@ -15,7 +15,7 @@ import type {
 const seo: SEOInfo = {
   title: 'Frontman vs Windsurf: Open-Source Alternative (2026)',
   description:
-    'Frontman is browser middleware that sees your running app. Windsurf is a VS Code fork with preview. Free, open source. Compare features and pricing.',
+    'Frontman is browser middleware that sees your running app. Windsurf is a VS Code fork with preview. Compare features and architecture.',
 }
 
 const competitor: CompetitorInfo = {
@@ -74,11 +74,11 @@ const faqs: FAQ[] = [
     answer:
       'Yes. Use Windsurf as your IDE for general coding, refactoring, and backend work. Use Frontman in the browser for visual frontend editing where you want to click UI elements and make changes with full runtime context. They edit the same source files and don\'t conflict.',
   },
-  {
-    question: 'Is Frontman free compared to Windsurf?',
-    answer:
-      'Yes. Windsurf Free gives you 25 Cascade credits per month. Pro is $15/month for 500 credits. Frontman is free to self-host with no limits. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly. No credit system, no monthly subscription from Frontman itself.',
-  },
+	{
+		question: 'How does Frontman pricing compare to Windsurf?',
+		answer:
+			'Windsurf Free gives you 25 Cascade credits per month. Pro is $15/month for 500 credits. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly.',
+	},
   {
     question: 'What happened to Codeium / who owns Windsurf now?',
     answer:
@@ -161,7 +161,7 @@ const frontmanPricingFeatures = [
       <li><strong>Frontend developers who want the AI to see the actual rendered page.</strong> Computed styles, component tree, responsive behavior, and server logs in addition to source files.</li>
       <li><strong>Teams where designers or PMs make UI changes.</strong> Click elements in the browser, describe changes, review code diffs. No IDE required.</li>
       <li><strong>Next.js, Astro, or Vite projects</strong> where framework middleware gives the AI agent more context than file reading alone.</li>
-      <li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable, no credit system.</li>
+		<li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable.</li>
       <li><strong>Developers who don't want to switch IDEs.</strong> Frontman works with whatever editor you already use. It only needs the browser.</li>
     </ul>
     <p>Many developers will use both. Windsurf (or Cursor, or your preferred IDE) for general coding, and Frontman in the browser for visual frontend work where the AI needs to see what's rendered.</p>
@@ -172,7 +172,7 @@ const frontmanPricingFeatures = [
     <section class="flex justify-center border-t border-zinc-800 bg-zinc-950 px-6 py-20 max-md:px-5 max-md:py-12">
       <div class="w-full max-w-[720px]">
         <h2 class="mb-2 text-4xl font-bold tracking-tight text-zinc-50 max-md:text-[28px]">Try Frontman</h2>
-        <p class="mb-8 text-[17px] text-zinc-300">One command. No account. No credit card. No credit limits.</p>
+		<p class="mb-8 text-[17px] text-zinc-300">One command for self-hosted local development. Hosted plans are coming soon.</p>
         <div class="mb-8 flex flex-col gap-3">
           <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
             <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>

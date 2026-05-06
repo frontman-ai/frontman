@@ -121,17 +121,14 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   end
 
   describe "build/1 UI and layout guidance" do
-    test "base prompt includes UI & Layout Changes section with before/after workflow" do
+    test "base prompt includes UI & Layout Changes section with structured-first workflow" do
       prompt = Prompts.build([])
 
       assert prompt =~ "## UI & Layout Changes"
       assert prompt =~ "get_dom"
       assert prompt =~ "take_screenshot"
-      # Before editing
-      assert prompt =~ "Before editing"
-      # After editing
-      assert prompt =~ "After editing"
-      assert prompt =~ "verify the result visually"
+      assert prompt =~ "cheap structured inspection first"
+      assert prompt =~ "only when appearance cannot be verified structurally"
     end
 
     test "base prompt includes structural over cosmetic preference" do

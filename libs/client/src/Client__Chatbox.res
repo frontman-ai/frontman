@@ -32,12 +32,12 @@ module ErrorBanner = Client__ErrorBanner
 
 // Display item for grouped rendering
 type displayItem =
-  | UserMsg(Message.t, int) // Message, originalIndex
-  | AssistantMsg(Message.t, int)
-  | SingleToolCall(Message.toolCall, int)
-  | ToolGroup(ToolGroupTypes.toolGroup, int) // First tool's original index
-  | TodoToolCall(Message.toolCall, int)
-  | ErrorMsg(Message.t, int)
+  | UserMsg(Message.t)
+  | AssistantMsg(Message.t)
+  | SingleToolCall(Message.toolCall)
+  | ToolGroup(ToolGroupTypes.toolGroup)
+  | TodoToolCall(Message.toolCall)
+  | ErrorMsg(Message.t)
 
 /**
  * Transform messages into display items, grouping consecutive tool calls
@@ -50,29 +50,25 @@ type displayItem =
  */
 let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   let result: array<displayItem> = []
-  let pendingToolCalls: ref<array<(Message.toolCall, int)>> = ref([])
+  let pendingToolCalls: ref<array<Message.toolCall>> = ref([])
 
   // Flush pending tool calls by grouping them
   let flushToolCalls = () => {
     let pending = pendingToolCalls.contents
     if Array.length(pending) > 0 {
-      // Extract just the tool calls for grouping
-      let toolCalls = pending->Array.map(((tc, _)) => tc)
-      let firstIndex = pending->Array.getUnsafe(0)->Pair.second
-
       // Use the grouping utility - it handles what to group vs not
-      let grouped = ToolGroupUtils.groupToolCalls(toolCalls, ~minGroupSize=1)
+      let grouped = ToolGroupUtils.groupToolCalls(pending, ~minGroupSize=1)
 
       grouped->Array.forEach(item => {
         switch item {
         | ToolGroupTypes.SingleTool(tc) =>
           // Check if it's a TODO tool - render with special component
           if TodoUtils.isTodoTool(tc.toolName) {
-            result->Array.push(TodoToolCall(tc, firstIndex))
+            result->Array.push(TodoToolCall(tc))
           } else {
-            result->Array.push(SingleToolCall(tc, firstIndex))
+            result->Array.push(SingleToolCall(tc))
           }
-        | ToolGroupTypes.ToolGroup(group) => result->Array.push(ToolGroup(group, firstIndex))
+        | ToolGroupTypes.ToolGroup(group) => result->Array.push(ToolGroup(group))
         }
       })
 
@@ -80,18 +76,18 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
     }
   }
 
-  messages->Array.forEachWithIndex((msg, index) => {
+  messages->Array.forEach(msg => {
     switch msg {
-    | Message.ToolCall(tc) => pendingToolCalls.contents->Array.push((tc, index))
+    | Message.ToolCall(tc) => pendingToolCalls.contents->Array.push(tc)
     | Message.User(_) =>
       flushToolCalls()
-      result->Array.push(UserMsg(msg, index))
+      result->Array.push(UserMsg(msg))
     | Message.Assistant(_) =>
       flushToolCalls()
-      result->Array.push(AssistantMsg(msg, index))
+      result->Array.push(AssistantMsg(msg))
     | Message.Error(_) =>
       flushToolCalls()
-      result->Array.push(ErrorMsg(msg, index))
+      result->Array.push(ErrorMsg(msg))
     }
   })
 
@@ -248,7 +244,7 @@ let make = () => {
 
     let stableItems = items->Array.map(item => {
       switch item {
-      | ToolGroup(group, idx) =>
+      | ToolGroup(group) =>
         let stableGroup: ToolGroupTypes.toolGroup = switch prevCache->Dict.get(group.id) {
         | Some(prev)
           if Array.length(prev.toolCalls) == Array.length(group.toolCalls) &&
@@ -260,7 +256,7 @@ let make = () => {
         | _ => group
         }
         newCache->Dict.set(stableGroup.id, stableGroup)
-        ToolGroup(stableGroup, idx)
+        ToolGroup(stableGroup)
       | other => other
       }
     })
@@ -274,7 +270,7 @@ let make = () => {
   // This is used to determine which group should show "Exploring..." state
   let lastToolGroupIndex = displayItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
     switch item {
-    | ToolGroup(_, _) => idx
+    | ToolGroup(_) => idx
     | _ => acc
     }
   })
@@ -285,7 +281,7 @@ let make = () => {
     let isLastToolGroup = itemIndex == lastToolGroupIndex
 
     switch item {
-    | UserMsg(Message.User({id, content, annotations, _}), _) =>
+    | UserMsg(Message.User({id, content, annotations, _})) =>
       // Use stable message ID for key
       // frontman-content-auto: browser skips layout/paint for off-screen messages
       let messageId = `user-${id}`
@@ -293,7 +289,7 @@ let make = () => {
         <UserMessage content annotations messageId isNew={isLastItem} />
       </div>
 
-    | AssistantMsg(Message.Assistant(Streaming({id, textBuffer, _})), _) =>
+    | AssistantMsg(Message.Assistant(Streaming({id, textBuffer, _}))) =>
       // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
@@ -302,7 +298,7 @@ let make = () => {
         />
       </div>
 
-    | AssistantMsg(Message.Assistant(Completed({id, content, _})), _) =>
+    | AssistantMsg(Message.Assistant(Completed({id, content, _}))) =>
       // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
@@ -338,7 +334,7 @@ let make = () => {
         ->React.array}
       </div>
 
-    | SingleToolCall(tc, _) =>
+    | SingleToolCall(tc) =>
       // Use stable tool call ID for key
       let messageId = `tool-${tc.id}`
       <div key={messageId} className="frontman-content-auto">
@@ -354,7 +350,7 @@ let make = () => {
         />
       </div>
 
-    | ToolGroup(group, _) =>
+    | ToolGroup(group) =>
       // group.id is now stable (based on first tool call's ID)
       // Pass both isLastToolGroup and isLastItem - group is "open" only if both are true
       // This ensures groups close when items (like assistant messages) appear after them
@@ -362,7 +358,7 @@ let make = () => {
         <ToolGroupBlock group messageId={group.id} isLastToolGroup isLastItem isAgentRunning />
       </div>
 
-    | TodoToolCall(tc, _) =>
+    | TodoToolCall(tc) =>
       // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
       let todos = TodoUtils.extractTodos(~input=tc.input, ~result=tc.result)
@@ -375,7 +371,7 @@ let make = () => {
         <TodoListBlock todos isLoading messageId />
       </div>
 
-    | ErrorMsg(Message.Error(err), _) =>
+    | ErrorMsg(Message.Error(err)) =>
       <div key={`error-${Message.ErrorMessage.id(err)}`} className="frontman-content-auto">
         <ErrorBanner
           error={Message.ErrorMessage.error(err)}
@@ -390,7 +386,7 @@ let make = () => {
       </div>
 
     // Handle any unexpected message types
-    | UserMsg(_, _) | AssistantMsg(_, _) | ErrorMsg(_, _) => React.null
+    | UserMsg(_) | AssistantMsg(_) | ErrorMsg(_) => React.null
     }
   }
 
@@ -438,7 +434,7 @@ let make = () => {
         />
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
-    <Client__PlanDisplay entries=planEntries />
+    <Client__PlanList entries=planEntries />
     {switch (usageInfo, hasAnyKey) {
     | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
       <div className="px-4 pb-1 text-xs text-zinc-400 shrink-0">

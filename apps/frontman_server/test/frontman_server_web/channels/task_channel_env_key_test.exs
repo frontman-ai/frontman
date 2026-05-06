@@ -17,6 +17,20 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
     assert_receive {:interaction, %Tasks.Interaction.UserMessage{}}
     refute_push("acp:message", %{"error" => %{"code" => -32_000}})
     assert Process.alive?(socket.channel_pid)
+    wait_for_execution_idle(socket)
+  end
+
+  defp wait_for_execution_idle(socket, attempts \\ 20) do
+    %{assigns: %{scope: scope, task_id: task_id}} = :sys.get_state(socket.channel_pid)
+
+    case Tasks.Execution.running?(scope, task_id) do
+      false ->
+        :ok
+
+      true when attempts > 0 ->
+        Process.sleep(25)
+        wait_for_execution_idle(socket, attempts - 1)
+    end
   end
 
   describe "env key extraction through channel" do
@@ -99,6 +113,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
       # Fire the retry — this reads scope from socket.assigns.scope
       send(socket.channel_pid, :fire_retry)
       :sys.get_state(socket.channel_pid)
+      wait_for_execution_idle(socket)
 
       # The scope on the socket must still carry the env key after the retry fires
       %{assigns: %{scope: scope_after_retry}} = :sys.get_state(socket.channel_pid)
@@ -125,6 +140,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
 
       send(socket.channel_pid, :fire_retry)
       :sys.get_state(socket.channel_pid)
+      wait_for_execution_idle(socket)
 
       %{assigns: %{scope: scope_after_retry}} = :sys.get_state(socket.channel_pid)
       assert scope_after_retry.env_api_keys["fireworks"] == "sk-fireworks-retry-test"

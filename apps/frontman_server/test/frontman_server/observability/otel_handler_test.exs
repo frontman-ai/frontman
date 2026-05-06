@@ -15,7 +15,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
           └── tool (TOOL)
   ```
   """
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.ExecutionCase
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.InteractionCase.Helpers
@@ -74,15 +74,14 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
       # Run a real agent with a tool call through production code
       tool_call = swarm_tool_call("todo_write")
 
-      agent = test_agent(tool_then_complete_llm([tool_call], "Here are your todos"), "TestAgent")
+      expect_llm_responses([{:tool_calls, [tool_call], ""}, "Here are your todos"])
 
       {:ok, _} =
         Tasks.submit_user_message(
           scope,
           task_id,
           [%{"type" => "text", "text" => "Show my todos"}],
-          [],
-          agent: agent
+          []
         )
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
@@ -170,15 +169,14 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
     end
 
     test "simple text response creates expected spans", %{task_id: task_id, scope: scope} do
-      agent_mod = test_agent(mock_llm("Hello!"), "SimpleAgent")
+      expect_llm_responses(["Hello!"])
 
       {:ok, _} =
         Tasks.submit_user_message(
           scope,
           task_id,
           [%{"type" => "text", "text" => "Hi"}],
-          [],
-          agent: agent_mod
+          []
         )
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000

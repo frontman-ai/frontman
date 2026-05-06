@@ -4,6 +4,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.LLMProvider
 
   alias AgentClientProtocol.Content.{ContentItem, TextBlock}
   alias FrontmanServer.Tasks
@@ -817,6 +818,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
+      stub_llm_response({:delay, "Too late", 250})
+
       # Send a prompt to set pending_prompt
       push(socket, "acp:message", build_prompt_request(id: 99))
       :sys.get_state(socket.channel_pid)
@@ -930,13 +933,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
       reqllm_tc = question_tool_call(tool_call_id, "Test", "A")
 
-      Tasks.submit_user_message(
-        scope,
-        task_id,
-        [%{"type" => "text", "text" => "ask me a question"}],
-        [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "ask me a question"}])
 
       Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [reqllm_tc]})
       Tasks.add_tool_call(scope, task_id, reqllm_tc)
@@ -1308,29 +1305,20 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
-      push(socket, "acp:message", build_prompt_request(id: 99))
-      :sys.get_state(socket.channel_pid)
-
       error = %FrontmanServer.Tasks.Execution.LLMError{
         message: "Rate limited",
         category: "rate_limit",
         retryable: true
       }
 
-      # Cycle through all 5 attempts: the first error starts the coordinator,
-      # then each fire_retry + error pair increments the attempt until exhausted.
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        Tasks.topic(task_id),
-        execution_failed(error)
-      )
+      stub_llm_response({:error, error})
 
+      push(socket, "acp:message", build_prompt_request(id: 99))
       :sys.get_state(socket.channel_pid)
 
+      # The prompt path creates the first transient failure. Drive the remaining
+      # failures directly; retry scheduling is not the behavior under test here.
       Enum.each(1..5, fn _ ->
-        send(socket.channel_pid, :fire_retry)
-        :sys.get_state(socket.channel_pid)
-
         Phoenix.PubSub.broadcast(
           FrontmanServer.PubSub,
           Tasks.topic(task_id),

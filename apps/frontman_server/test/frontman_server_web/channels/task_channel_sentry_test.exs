@@ -12,7 +12,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   import FrontmanServer.InteractionCase.Helpers
 
   setup %{scope: scope} do
-    Sentry.Test.start_collecting_sentry_reports()
+    Sentry.Test.setup_sentry(dedup_events: false)
 
     {socket, task_id} = join_task_channel(scope, framework: "nextjs")
     complete_mcp_handshake(socket)

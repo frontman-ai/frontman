@@ -1,5 +1,4 @@
 ---
-import type { APIRoute } from 'astro'
 import Layout from '../layouts/Layout.astro'
 import Hero from '../components/blocks/hero/HomeCTA.astro'
 import FullContextSection from '../components/blocks/context/FullContextSection.astro'
@@ -10,7 +9,6 @@ import ComparisonTable from '../components/blocks/comparison/ComparisonTable.ast
 import InstallSteps from '../components/blocks/install/InstallSteps.astro'
 import HomeFAQ from '../components/blocks/FAQ/HomeFAQ.astro'
 import FinalCTA from '../components/blocks/CTA/FinalCTA.astro'
-import { agentLinkHeader, homeMarkdown, markdownTokenCount } from '../utils/agentDiscovery'
 
 // Data
 import faqData from '../data/json-files/faqData.json'
@@ -20,7 +18,7 @@ import faqData from '../data/json-files/faqData.json'
 const SEO = {
 	title: 'Frontman: Visual AI Agent for Your Running App',
 	description:
-		'Click any element, describe changes in plain English, get real code edits. Frontman sees your live DOM and running app. Open-source core with BYOK pricing.'
+		'Click any element, describe changes in plain English, get real code edits. Frontman sees your live DOM and running app. Open-source core with BYOK model support.'
 }
 
 // FAQPage JSON-LD
@@ -37,19 +35,6 @@ const faqJsonLd = {
 	}))
 }
 
-const acceptsMarkdown = Astro.request.headers.get('accept')?.includes('text/markdown') ?? false
-
-if (acceptsMarkdown) {
-	return new Response(homeMarkdown, {
-		headers: {
-			'Content-Type': 'text/markdown; charset=utf-8',
-			Link: agentLinkHeader,
-			'x-markdown-tokens': String(markdownTokenCount)
-		}
-	})
-}
-
-Astro.response.headers.set('Link', agentLinkHeader)
 ---
 
 <Layout title={SEO.title} description={SEO.description}>

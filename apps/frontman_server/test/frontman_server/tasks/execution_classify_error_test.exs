@@ -34,22 +34,22 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
     test "StreamStallTimeout.Error returns overload, retryable" do
       err = %StreamStallTimeout.Error{}
       {msg, "overload", true} = ExecutionEvent.classify_error(err)
-      assert is_binary(msg) and String.length(msg) > 0
+      assert String.length(msg) > 0
     end
 
     test ":genserver_call_timeout returns overload, retryable" do
       {msg, "overload", true} = ExecutionEvent.classify_error(:genserver_call_timeout)
-      assert is_binary(msg) and String.length(msg) > 0
+      assert String.length(msg) > 0
     end
 
     test ":stream_timeout returns overload, retryable" do
       {msg, "overload", true} = ExecutionEvent.classify_error(:stream_timeout)
-      assert is_binary(msg) and String.length(msg) > 0
+      assert String.length(msg) > 0
     end
 
     test ":output_truncated returns output_truncated, not retryable" do
       {msg, "output_truncated", false} = ExecutionEvent.classify_error(:output_truncated)
-      assert is_binary(msg) and String.length(msg) > 0
+      assert String.length(msg) > 0
     end
 
     test "{:exit, reason} returns unknown, not retryable" do

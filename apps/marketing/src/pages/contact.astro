@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro'
+import { legalInfo } from '../data/legalInfo'
 
 const SEO = {
 	title: 'Contact Frontman',
@@ -12,8 +13,8 @@ const contactOptions = [
 		title: 'Email support',
 		description:
 			'Best for installation help, account questions, self-hosting questions, and anything you want to send privately.',
-		href: 'mailto:support@frontman.sh',
-		label: 'support@frontman.sh'
+		href: `mailto:${legalInfo.supportEmail}`,
+		label: legalInfo.supportEmail
 	},
 	{
 		title: 'Read the docs',
@@ -41,8 +42,7 @@ const contactOptions = [
 const faqs = [
 	{
 		question: 'Where should I report a bug?',
-		answer:
-			'If you can share reproduction steps publicly, GitHub is the best place. If the issue includes private project details, email support@frontman.sh instead.'
+		answer: `If you can share reproduction steps publicly, GitHub is the best place. If the issue includes private project details, email ${legalInfo.supportEmail} instead.`
 	},
 	{
 		question: 'What should I include when asking for help?',
@@ -51,8 +51,7 @@ const faqs = [
 	},
 	{
 		question: 'Can I ask about self-hosting or team rollout?',
-		answer:
-			'Yes. Email support@frontman.sh with your environment details and goals, and include links to any docs pages you already checked so the conversation starts with context.'
+		answer: `Yes. Email ${legalInfo.supportEmail} with your environment details and goals, and include links to any docs pages you already checked so the conversation starts with context.`
 	}
 ]
 
@@ -66,13 +65,13 @@ const jsonLd = {
 		},
 		{
 			'@type': 'Organization',
-			name: 'Frontman',
+			name: legalInfo.brandName,
 			url: 'https://frontman.sh/',
 			contactPoint: [
 				{
 					'@type': 'ContactPoint',
 					contactType: 'customer support',
-					email: 'support@frontman.sh'
+					email: legalInfo.supportEmail
 				}
 			],
 			sameAs: ['https://github.com/frontman-ai/frontman', 'https://discord.gg/xk8uXJSvhC']

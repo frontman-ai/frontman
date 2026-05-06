@@ -120,4 +120,4 @@ Generated code from tools like v0 or Bolt creates a parallel codebase you have t
 
 If you have a Next.js project running locally, setup takes under two minutes. Follow the [Next.js integration guide](/docs/integrations/nextjs/) for the full walkthrough, or read about [how Frontman connects to your framework](/blog/frontman-launch/).
 
-[Try Frontman](https://frontman.sh) — open source, free during beta.
+[Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon.

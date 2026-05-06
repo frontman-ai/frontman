@@ -122,4 +122,4 @@ You tried the AI coding agents. They are powerful, but they were not built for h
 
 Frontman is the tool that meets you where you are. Click what needs to change. Describe what you want. Review the result in the browser. Open a PR. Your engineering team stays focused on engineering. Your design system stays consistent. And you stop waiting three sprints for a padding fix.
 
-[Try Frontman](https://frontman.sh) — open source, free during beta. [Install in one command](/blog/getting-started/), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).
+[Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon. [Install in one command](/blog/getting-started/), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).

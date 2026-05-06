@@ -31,7 +31,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
     field(:has_typescript_react, boolean(), default: false)
     field(:framework, Framework.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
-    # May also include :requires_mcp_prefix and :identity_override for OAuth
+    # May also include :with_claude_subscription for OAuth
     field(:llm_opts, keyword(), default: [])
     field(:model, String.t() | nil, default: nil)
     # Discovered project rules (AGENTS.md, etc.) to append to system prompt
@@ -48,8 +48,8 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   - `:tools` - List of SwarmAi.Tool structs available to the agent
   - `:has_annotations` - Whether the user has annotated elements in the UI
   - `:framework` - `Framework.t()` struct for framework-specific guidance
-  - `:llm_opts` - LLM options, must include `:api_key`. May include `:requires_mcp_prefix`
-    and `:identity_override` for OAuth transformations (handled by LLMClient).
+  - `:llm_opts` - LLM options, must include `:api_key`. May include
+    `:with_claude_subscription` for OAuth transformations.
   - `:model` - LLM model spec (defaults to LLMClient default)
   - `:project_rules` - List of discovered project rules (AGENTS.md, etc.)
   - `:project_structure` - Discovered project structure summary (from list_tree)
@@ -96,8 +96,4 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
 
     LLMClient.new(opts)
   end
-
-  def init(_agent), do: {:ok, %{}, []}
-
-  def should_terminate?(_agent, _loop, _state), do: false
 end

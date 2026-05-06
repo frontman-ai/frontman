@@ -149,7 +149,7 @@ The trade-off is managing your own API costs. Cline shows real-time usage and es
 
 | Tool | Type | Price | Browser access | Open source | Best for |
 |------|------|-------|---------------|-------------|----------|
-| [Frontman](https://frontman.sh) | Browser agent | Free (BYOK) | Yes, full DOM | Yes (Apache 2.0) | Designers & PMs making visual changes |
+| [Frontman](https://frontman.sh) | Browser agent | Free self-hosting; paid hosted plans coming | Yes, full DOM | Yes (Apache 2.0) | Designers & PMs making visual changes |
 | [Cursor](https://cursor.sh) | VS Code fork | Credit-based | Limited | No | Deepest AI-native IDE experience |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | CLI | Usage-based | No | No | Terminal-native, massive context |
 | [Windsurf](https://windsurf.com) | VS Code fork | $15/mo | No | No | Flow awareness across sessions |

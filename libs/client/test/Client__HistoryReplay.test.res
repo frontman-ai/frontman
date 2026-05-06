@@ -33,7 +33,7 @@ module TestHelpers = {
       ~createdAt=Date.now(),
       ~updatedAt=Date.now(),
     )
-    Task.startLoading(unloaded, ~previewUrl="http://localhost:3000")
+    TaskReducer.next(unloaded, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
   }
 
   let getMessages = (task: Task.t): array<Message.t> => {

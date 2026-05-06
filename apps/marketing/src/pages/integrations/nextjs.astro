@@ -45,7 +45,7 @@ const faqs = [
 	},
 	{
 		question: 'What AI models can I use with Frontman?',
-		answer: 'Any LLM provider via BYOK (bring your own key). Connect Claude, ChatGPT, or any OpenAI-compatible API through OpenRouter. You pay your LLM provider directly at their standard rates. There are no prompt limits or usage caps on the Frontman side.'
+		answer: 'Any LLM provider via BYOK (bring your own key). Connect Claude, ChatGPT, or any OpenAI-compatible API through OpenRouter. You pay your LLM provider directly at their standard rates. Self-hosting remains free; hosted Frontman plans are moving to paid subscriptions.'
 	},
 	{
 		question: 'Does Frontman modify my production build?',
@@ -165,14 +165,14 @@ const faqJsonLd = {
 
 		<p><a href="/vs/v0/" class="text-link">v0</a> generates new UI in a sandbox from text prompts. It's a different use case: v0 creates new components, Frontman edits your existing running application.</p>
 
-		<p>See our <a href="/vs/" class="text-link">comparison pages</a> for feature tables and pricing breakdowns.</p>
+		<p>See our <a href="/vs/" class="text-link">comparison pages</a> for feature tables and architecture breakdowns.</p>
 	</IntegrationContentSection>
 
 	<IntegrationFAQ faqs={faqs} />
 
 	<IntegrationCTA
 		title="Add Frontman to Your Next.js Project"
-		description="One command. 60 seconds. No account required."
+		description="One command. 60 seconds. Built for local development and self-hosted workflows."
 		installCommand="npx @frontman-ai/nextjs install"
 	/>
 </Layout>

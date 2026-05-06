@@ -1,0 +1,84 @@
+---
+import { marked } from 'marked'
+import Layout from '../../layouts/Layout.astro'
+import { applyLegalPlaceholders } from '../../data/legalInfo'
+
+interface Props {
+	title: string
+	description: string
+	heading: string
+	content: string
+}
+
+const { title, description, heading, content } = Astro.props
+const resolvedContent = applyLegalPlaceholders(content)
+const html = await marked.parse(resolvedContent)
+const updatedAtMatch = resolvedContent.match(/_Last updated:\s*(.+)_/)
+const updatedAt = updatedAtMatch?.[1] ?? null
+const contentHtml = html.replace(/<p><em>Last updated:[\s\S]*?<\/em><\/p>\s*$/u, '')
+---
+
+<Layout title={title} description={description}>
+	<div class="flex min-h-screen justify-center bg-zinc-950 px-6 pb-28 pt-20 text-zinc-50 max-sm:px-5 max-sm:pb-20 max-sm:pt-12">
+		<div class="w-full max-w-[720px]">
+			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-zinc-500">Legal</p>
+			<h1 class="mb-3 text-[42px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 max-sm:text-[32px]">{heading}</h1>
+			{updatedAt && <p class="mb-16 text-sm text-zinc-500 max-sm:mb-12">Last updated: {updatedAt}</p>}
+
+			<div class="legal-content" set:html={contentHtml}></div>
+		</div>
+	</div>
+</Layout>
+
+<style>
+	@reference "../../styles/global.css";
+
+	.legal-content :global(h2) {
+		@apply mb-4 mt-12 text-[22px] font-semibold tracking-[-0.01em] text-zinc-50;
+	}
+
+	.legal-content :global(h2:first-child) {
+		@apply mt-0;
+	}
+
+	.legal-content :global(h3) {
+		@apply mb-2 mt-6 text-[17px] font-semibold text-zinc-300;
+	}
+
+	.legal-content :global(p) {
+		@apply mb-3 max-w-[620px] text-[15px] leading-[1.7] text-zinc-400;
+	}
+
+	.legal-content :global(a) {
+		@apply text-primary-400 underline underline-offset-2 transition-colors;
+	}
+
+	.legal-content :global(a:hover) {
+		@apply text-primary-300;
+	}
+
+	.legal-content :global(ul),
+	.legal-content :global(ol) {
+		@apply mb-3 pl-6;
+	}
+
+	.legal-content :global(ul) {
+		@apply list-disc;
+	}
+
+	.legal-content :global(ol) {
+		@apply list-decimal;
+	}
+
+	.legal-content :global(li) {
+		@apply mb-1 text-[15px] leading-[1.7] text-zinc-400;
+	}
+
+	.legal-content :global(strong) {
+		@apply font-semibold text-zinc-300;
+	}
+
+	.legal-content :global(hr) {
+		@apply hidden;
+	}
+</style>

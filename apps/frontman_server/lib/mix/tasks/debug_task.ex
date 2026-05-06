@@ -209,22 +209,73 @@ defmodule Mix.Tasks.DebugTask do
   end
 
   defp show_originating_call(task_id, tool_call_id) do
-    call =
+    case find_originating_tool_call(task_id, tool_call_id) do
+      {:tool_call, call} ->
+        Mix.shell().info("\n#{bold("  Originating tool_call (seq #{call.sequence})")}\n")
+        Mix.shell().info(format_json(call.data))
+
+      {:agent_response, response, call} ->
+        Mix.shell().info(
+          "\n#{bold("  Originating tool_call from agent_response metadata (seq #{response.sequence})")}\n"
+        )
+
+        Mix.shell().info(format_json(format_embedded_tool_call(call)))
+
+      nil ->
+        Mix.shell().info(dim("\n  (originating tool_call not found for #{tool_call_id})"))
+    end
+  end
+
+  defp find_originating_tool_call(task_id, tool_call_id) do
+    stored_call =
       InteractionSchema
       |> InteractionSchema.for_task(task_id)
       |> where([i], i.type == "tool_call")
       |> where([i], fragment("?->>'tool_call_id' = ?", i.data, ^tool_call_id))
       |> Repo.one()
 
-    case call do
-      nil ->
-        Mix.shell().info(dim("\n  (originating tool_call not found for #{tool_call_id})"))
-
-      c ->
-        Mix.shell().info("\n#{bold("  Originating tool_call (seq #{c.sequence})")}\n")
-        Mix.shell().info(format_json(c.data))
+    case stored_call do
+      nil -> find_embedded_tool_call(task_id, tool_call_id)
+      call -> {:tool_call, call}
     end
   end
+
+  defp find_embedded_tool_call(task_id, tool_call_id) do
+    responses =
+      InteractionSchema
+      |> InteractionSchema.for_task(task_id)
+      |> where([i], i.type == "agent_response")
+      |> InteractionSchema.ordered()
+      |> Repo.all()
+
+    Enum.find_value(responses, fn response ->
+      tool_calls = get_in(response.data, ["metadata", "tool_calls"]) || []
+
+      case Enum.find(tool_calls, &(&1["id"] == tool_call_id)) do
+        nil -> nil
+        call -> {:agent_response, response, call}
+      end
+    end)
+  end
+
+  defp format_embedded_tool_call(%{"function" => function} = call) do
+    %{
+      "arguments" => decode_embedded_tool_arguments(function["arguments"]),
+      "tool_call_id" => call["id"],
+      "tool_name" => function["name"]
+    }
+  end
+
+  defp format_embedded_tool_call(call), do: call
+
+  defp decode_embedded_tool_arguments(arguments) when is_binary(arguments) do
+    case Jason.decode(arguments) do
+      {:ok, decoded} -> decoded
+      _ -> arguments
+    end
+  end
+
+  defp decode_embedded_tool_arguments(arguments), do: arguments
 
   # ── query filters ─────────────────────────────────────────────
 

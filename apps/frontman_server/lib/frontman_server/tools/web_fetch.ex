@@ -20,6 +20,7 @@ defmodule FrontmanServer.Tools.WebFetch do
   @honest_ua "Frontman/1.0 (+https://frontman.ai)"
   @max_response_bytes 5_242_880
   @max_redirects 10
+  @max_retries 5
 
   @impl true
   @spec name() :: String.t()
@@ -109,7 +110,7 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp fetch(url, [user_agent | remaining_agents], redirects) do
     headers = [
-      {"accept", "text/markdown, text/html;q=0.9, text/plain;q=0.8"},
+      {"accept", "application/json, text/markdown;q=0.9, text/html;q=0.8, text/plain;q=0.7"},
       {"user-agent", user_agent}
     ]
 
@@ -118,7 +119,10 @@ defmodule FrontmanServer.Tools.WebFetch do
         url: url,
         headers: headers,
         receive_timeout: 30_000,
-        retry: false,
+        retry: :safe_transient,
+        max_retries: @max_retries,
+        retry_delay: &retry_delay/1,
+        retry_log_level: :debug,
         decode_body: false,
         redirect: false
       ] ++ req_options()
@@ -126,6 +130,10 @@ defmodule FrontmanServer.Tools.WebFetch do
     req_opts
     |> Req.get()
     |> handle_response(url, remaining_agents, redirects)
+  end
+
+  defp retry_delay(retry_count) do
+    Integer.pow(2, retry_count) * 500 + :rand.uniform(500)
   end
 
   defp handle_response(

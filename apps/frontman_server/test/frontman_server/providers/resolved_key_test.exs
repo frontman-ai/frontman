@@ -19,8 +19,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       assert llm_opts[:api_key] == "sk-ant-123"
       assert llm_opts[:max_tokens] == 16_384
       refute Keyword.has_key?(llm_opts, :auth_mode)
-      assert llm_opts[:requires_mcp_prefix] == false
-      assert llm_opts[:identity_override] == nil
+      refute Keyword.has_key?(llm_opts, :with_claude_subscription)
       refute Keyword.has_key?(llm_opts, :base_url)
     end
   end
@@ -31,8 +30,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
         resolved_key_fixture("anthropic",
           api_key: "oauth-access-token",
           key_source: :oauth_token,
-          requires_mcp_prefix: true,
-          identity_override: "You are Claude Code",
+          with_claude_subscription: true,
           auth_mode: :oauth
         )
 
@@ -41,8 +39,7 @@ defmodule FrontmanServer.Providers.ResolvedKeyTest do
       assert model_spec == "anthropic:claude-sonnet-4-5"
       assert llm_opts[:access_token] == "oauth-access-token"
       assert llm_opts[:auth_mode] == :oauth
-      assert llm_opts[:requires_mcp_prefix] == true
-      assert llm_opts[:identity_override] == "You are Claude Code"
+      assert llm_opts[:with_claude_subscription] == true
       assert llm_opts[:max_tokens] == 16_384
       refute Keyword.has_key?(llm_opts, :api_key)
     end

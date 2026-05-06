@@ -15,13 +15,14 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
   This ensures MCP tools work correctly for both main agents and sub-agents.
   """
 
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.ExecutionCase
   use FrontmanServerWeb.ChannelCase
 
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.RootAgent
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServerWeb.UserSocket
@@ -75,7 +76,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
       task_id: task_id,
       scope: scope
     } do
-      # Integration test using full Swarm execution with a test LLM that returns an MCP tool call
+      # Integration test using full Swarm execution with a provider response that returns an MCP tool call
       mcp_tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#content"}))
 
       mcp_tool_def = %FrontmanServer.Tools.MCP{
@@ -86,8 +87,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
         timeout_ms: 60_000
       }
 
-      llm = tool_then_complete_llm([mcp_tool_call], "Component implemented!")
-      agent = test_agent(llm, "ComponentImplementAgent")
+      expect_llm_responses([{:tool_calls, [mcp_tool_call], ""}, "Component implemented!"])
 
       llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
 
@@ -113,6 +113,8 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
 
       executor_task =
         Task.async(fn ->
+          agent = RootAgent.new(llm_opts: llm_opts)
+
           SwarmAi.run_streaming(agent, [SwarmAi.Message.user("Implement the component")],
             tool_executor: executor
           )

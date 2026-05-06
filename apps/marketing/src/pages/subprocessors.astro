@@ -1,0 +1,11 @@
+---
+import subprocessorsContent from '../data/markdown-files/subprocessors.md?raw'
+import LegalDocument from '../components/legal/LegalDocument.astro'
+
+const SEO = {
+	title: 'Frontman | Subprocessors',
+	description: 'Current subprocessors and service providers used by Frontman.'
+}
+---
+
+<LegalDocument title={SEO.title} description={SEO.description} heading="Subprocessors" content={subprocessorsContent} />

@@ -7112,6 +7112,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"astro-consent@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "astro-consent@npm:2.0.0"
+  peerDependencies:
+    astro: ^4.0.0 || ^5.0.0 || ^6.0.0
+  bin:
+    astro-consent: dist/cli.cjs
+  checksum: 10c0/c9bf3477d86a90f9626cc025f4c0efde982992dc6b5057d2831218370dba82e8b7fc0523edaeb5604e82b0dea030bdd7de32043b008557b8e46e14b5ecae15a1
+  languageName: node
+  linkType: hard
+
 "astro-expressive-code@npm:^0.41.6":
   version: 0.41.7
   resolution: "astro-expressive-code@npm:0.41.7"
@@ -11925,6 +11936,7 @@ __metadata:
     "@tailwindcss/vite": "npm:^4.2.2"
     astro: "npm:^6.1.6"
     astro-broken-links-checker: "npm:^1.0.7"
+    astro-consent: "npm:^2.0.0"
     astro-icon: "npm:^1.1.5"
     hc-starlight: "npm:^0.0.8"
     marked: "npm:^16.2.1"

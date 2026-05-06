@@ -24,7 +24,7 @@ Runtime-aware tools try to close this gap — what we call [the runtime context 
 
 Framework middleware for Next.js, Astro, and Vite. Installs _inside_ the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
 
-**Strengths:** Deepest framework integration. Fully free, no prompt limits, no account. BYOK — connect Claude, OpenAI, or OpenRouter directly. Open source with permissive client library licensing.
+**Strengths:** Deepest framework integration. BYOK — connect Claude, OpenAI, or OpenRouter directly. Open source with permissive client library licensing and self-hosting available.
 
 **Weaknesses:** Early stage. Rough edges, incomplete documentation, small community. Limited to supported frameworks. Source mapping breaks on deeply abstracted component libraries.
 
@@ -86,7 +86,7 @@ Google's experimental MCP server exposing DevTools state to AI agents. Your agen
 
 **Want the most polished UX and don't mind paying:** Stagewise. The YC backing shows.
 
-**Want free + deep framework integration + full control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-browser-aware-ai-coding-tools/). No prompt limits, no account, BYOK, open source. The tradeoff is that it's early-stage with rougher edges.
+**Want deep framework integration + local control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-browser-aware-ai-coding-tools/). Open-source core, BYOK for local development, and hosted plans coming soon. The tradeoff is that it's early-stage with rougher edges.
 
 **Want to add browser context to your existing agent:** Chrome DevTools MCP. Bare-bones but framework-agnostic and free.
 

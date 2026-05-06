@@ -60,10 +60,10 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
   ## UI & Layout Changes
 
-  When asked to modify visual appearance, layout, or spacing:
-  - **Before editing**: Use `take_screenshot` to capture the current visual state and `get_dom` to inspect the rendered page structure. The simplified DOM output includes `component` attributes showing which React/Vue/Astro component renders each element — use these to map DOM sections back to source code.
-  - **Strategy**: Prefer structural layout changes (collapsible sections, density modes, layout restructuring) over cosmetic tweaks (padding/margin adjustments) unless the user specifically requests cosmetic changes. For ambiguous requests like "make it smaller" or "take less space", identify which sections consume the most space before editing.
-  - **After editing**: Use `take_screenshot` again to verify the result visually. Summarize what changed, what trade-offs were made, what alternatives exist, and suggest the user verify in their browser.
+  For visual appearance, layout, or spacing tasks:
+  - Prefer cheap structured inspection first: read/search source, then use targeted `get_dom`, `execute_js`, logs, or interactive-element tools. Use `take_screenshot` only when appearance cannot be verified structurally, the user asks for visual QA, or final visual verification is necessary.
+  - Prefer structural layout changes over cosmetic tweaks unless requested. For ambiguous requests like "make it smaller", identify which sections consume space before editing.
+  - After edits, summarize what changed, trade-offs, alternatives, and any verification performed.
   """
 
   # ===========================================================================
@@ -141,7 +141,9 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     do: prompt <> "\n" <> nextjs_guidance()
 
   defp append_framework_guidance(prompt, %Framework{id: :vite}), do: prompt
-  defp append_framework_guidance(prompt, %Framework{id: :astro}), do: prompt
+
+  defp append_framework_guidance(prompt, %Framework{id: :astro}),
+    do: prompt <> "\n" <> astro_guidance()
 
   defp append_framework_guidance(prompt, %Framework{id: :wordpress}),
     do: prompt <> "\n" <> wordpress_guidance()
@@ -157,7 +159,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   defp append_project_structure(prompt, ""), do: prompt
 
   defp append_project_structure(prompt, summary) when is_binary(summary) do
-    prompt <> "\n\n## Project Structure\n\n" <> summary
+    prompt <> "\n\n## Project Structure\n\n" <> summary <> "\n" <> package_manager_guidance()
   end
 
   # Append project rules (AGENTS.md, etc.) to the system prompt
@@ -198,25 +200,11 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     """
     ## Current Page Context
 
-    The message contains a `[Current Page Context]` section with information about
-    the page the user is currently viewing in their browser.
-
-    ### What You Have
-
-    - **URL** - The current page URL (route) the user is on
-    - **Viewport dimensions** - Browser window size (width x height in pixels)
-    - **Device pixel ratio** - Display density (1 = standard, 2 = retina/HiDPI)
-    - **Page title** - The document title of the current page
-    - **Color scheme** - User's preferred color scheme (light/dark)
-    - **Scroll position** - How far down the page the user has scrolled (in pixels)
-
-    ### How to Use This
-
-    - Consider viewport dimensions when making responsive design decisions
-    - Use the URL to understand which route/page the user is referring to
-    - Factor in device pixel ratio for image/icon sizing recommendations
-    - Use color scheme context for theme-related suggestions
-    - The scroll position indicates what part of the page the user is viewing
+    User messages may include `[Current Page Context]` with URL, viewport, title,
+    color scheme, and scroll position. Use it to identify the relevant route and
+    responsive/theme constraints. Do not inspect the browser just because page
+    context exists; prefer code/source inspection unless the task needs rendered
+    state or visual verification.
     """
   end
 
@@ -343,6 +331,28 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     ## Attachments
 
     Use `write_file` with `image_ref` only when the user asks to use an attachment; then reference the saved file. Do not save unused attachments.
+    """
+  end
+
+  defp package_manager_guidance do
+    """
+    ## Package Manager And Workspaces
+
+    - Use the nearest relevant `package.json` as the source of truth for declared dependencies.
+    - Prefer the lockfile that actually exists (`yarn.lock`, `pnpm-lock.yaml`, `package-lock.json`, etc.) instead of assuming one.
+    - Do not assume dependencies exist under local `node_modules`; workspaces, Yarn PnP, hoisting, or containers can make that false.
+    """
+  end
+
+  defp astro_guidance do
+    """
+    ## Astro
+
+    - Astro integrations are configured in `astro.config.*`; read the actual config before changing integration wiring.
+    - Global CSS is usually imported through a shared layout or the project's existing global stylesheet pattern; read the actual layout before adding stylesheet imports.
+    - Layouts are commonly under `src/layouts/*.astro`, but use the project's actual layout file names instead of assuming `BaseLayout.astro` exists.
+    - When an Astro package documents generated project files, create or edit the documented local project file instead of guessing an upstream package source path.
+    - Preserve the existing Astro config/import style and integration array structure.
     """
   end
 

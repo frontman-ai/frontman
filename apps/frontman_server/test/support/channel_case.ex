@@ -20,6 +20,7 @@ defmodule FrontmanServerWeb.ChannelCase do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Test.Fixtures.LLMProvider
 
   using do
     quote do
@@ -140,8 +141,9 @@ defmodule FrontmanServerWeb.ChannelCase do
       {:ok, _reply, socket} =
         FrontmanServerWeb.UserSocket
         |> socket("user_id", %{scope: scope})
-        |> Phoenix.Socket.assign(:agent_override, %FrontmanServer.Testing.BlockingAgent{})
         |> subscribe_and_join("task:#{task_id}", %{})
+
+      Mox.allow(FrontmanServer.Tasks.Execution.LLMProviderMock, self(), socket.channel_pid)
 
       {socket, task_id}
     end
@@ -207,6 +209,8 @@ defmodule FrontmanServerWeb.ChannelCase do
     if tags[:shared_sandbox] && tags[:async] do
       raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"
     end
+
+    LLMProvider.stub_llm_response("Test response")
 
     shared = tags[:shared_sandbox] || not tags[:async]
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)

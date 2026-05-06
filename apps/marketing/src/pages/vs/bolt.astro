@@ -127,13 +127,13 @@ const features: ComparisonFeature[] = [
     frontmanNote: 'Apache 2.0 client / AGPL-3.0 server',
     competitorNote: 'bolt.diy is MIT but WebContainers needs commercial license',
   },
-  {
-    name: 'BYOK (bring your own key)',
-    frontman: 'yes',
-    competitor: 'partial',
-    frontmanNote: 'Any LLM provider — no per-seat fees from Frontman',
-    competitorNote: 'Commercial Bolt locked to Anthropic; bolt.diy supports 19+ providers',
-  },
+	{
+		name: 'BYOK (bring your own key)',
+		frontman: 'yes',
+		competitor: 'partial',
+		frontmanNote: 'Any LLM provider; self-hosting remains available',
+		competitorNote: 'Commercial Bolt locked to Anthropic; bolt.diy supports 19+ providers',
+	},
   {
     name: 'Self-hostable',
     frontman: 'yes',
@@ -164,11 +164,11 @@ const faqs: FAQ[] = [
     answer:
       'Yes. Because Frontman sees your actual running app — the real DOM, computed styles, and component tree — it understands your design system tokens, component library, and CSS approach. MUI, Chakra, Tailwind, CSS Modules, styled-components — Frontman sees what renders, not what you typed.',
   },
-  {
-    question: 'Is Frontman really free compared to Bolt\'s token system?',
-    answer:
-      'Yes. Frontman is completely free with BYOK — you bring your own API keys and pay your LLM provider directly. No per-seat fees, no token limits, no monthly subscription from Frontman. Bolt\'s free tier caps you at 300K tokens per day. Heavy Bolt usage costs $25 to $2,250 per month depending on your plan.',
-  },
+	{
+		question: 'How does Frontman pricing compare to Bolt\'s token system?',
+		answer:
+			'Bolt\'s free tier caps you at 300K tokens per day. Heavy Bolt usage costs $25 to $2,250 per month depending on your plan. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys and pay your LLM provider directly.',
+	},
   {
     question: 'How does Frontman fit into a multi-team workflow?',
     answer:
@@ -221,7 +221,7 @@ const faqs: FAQ[] = [
     <p><strong>Built for teams with an existing design system.</strong> Bolt\'s sandbox does not know about your design tokens, component conventions, or how your UI actually behaves across breakpoints. Frontman sees all of this because it runs inside your real app. Changes respect your existing patterns instead of inventing new ones.</p>
     <p><strong>Click-to-edit instead of chat-to-generate.</strong> Bolt\'s interface is chat-first — you describe what you want and it generates entire files. Frontman is visual-first — a designer or PM clicks an element in the running product, describes the change, and the AI edits the source with full context. No need to describe where something is or what it looks like.</p>
     <p><strong>Bridges design and engineering.</strong> Frontman lets designers and PMs make UI changes directly, with engineers reviewing the diffs like normal code. No more "can you move this 2px" tickets. No more screenshot-annotated Figma comments that get lost. Changes happen in the same codebase, through the same review process.</p>
-    <p><strong>Open source and BYOK.</strong> Bolt.new is a proprietary SaaS with per-seat token pricing. Frontman\'s client libraries are Apache 2.0, server is AGPL-3.0. You bring your own API keys — no per-seat fees, no token limits, no monthly subscription from Frontman. For a growing team, the cost difference compounds fast.</p>
+	<p><strong>Open source and BYOK.</strong> Bolt.new is a proprietary SaaS with per-seat token pricing. Frontman\'s client libraries are Apache 2.0, server is AGPL-3.0. Self-hosting remains available, and you bring your own API keys for model usage.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">
@@ -244,7 +244,7 @@ const faqs: FAQ[] = [
       <li><strong>Teams with an existing design system</strong> — Frontman sees your actual tokens, components, and styles, so changes respect your system instead of reinventing it</li>
       <li><strong>Multi-team orgs reducing design-to-dev bottlenecks</strong> — designers and PMs contribute changes that engineers review as normal code diffs</li>
       <li><strong>Any component library or CSS approach</strong> — MUI, Chakra, Tailwind, CSS Modules, styled-components — Frontman sees what renders, not what you typed</li>
-      <li><strong>Growing teams watching costs</strong> — open source, BYOK, no per-seat fees — scales with your team without scaling your bill</li>
+		<li><strong>Teams that want open-source control</strong> — self-hostable, BYOK, and integrated into your existing development workflow</li>
     </ul>
     <p>A natural workflow: use Bolt to generate an initial prototype, clone it locally, add Frontman middleware, and let your whole team iterate visually from there.</p>
   </Fragment>

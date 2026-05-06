@@ -31,14 +31,12 @@ defmodule SwarmAi.Testing do
 
   defmodule TestAgent do
     @moduledoc false
-    defstruct [:name, :llm, tools: []]
+    defstruct [:name, :llm]
   end
 
   defimpl SwarmAi.Agent, for: SwarmAi.Testing.TestAgent do
     def system_prompt(%{name: name}), do: "You are #{name}"
     def llm(%{llm: llm}), do: llm
-    def init(%{tools: tools}), do: {:ok, %{}, tools}
-    def should_terminate?(_, _, _), do: false
   end
 
   # --- Test LLM Implementations ---
@@ -328,13 +326,9 @@ defmodule SwarmAi.Testing do
 
   @doc """
   Creates a test agent with the given LLM client.
-
-  ## Options
-
-  - `:tools` - List of `SwarmAi.Tool.t()` the agent can use (default: [])
   """
-  def test_agent(llm, name \\ "TestBot", opts \\ []) do
-    %TestAgent{name: name, llm: llm, tools: Keyword.get(opts, :tools, [])}
+  def test_agent(llm, name \\ "TestBot") do
+    %TestAgent{name: name, llm: llm}
   end
 
   @doc """

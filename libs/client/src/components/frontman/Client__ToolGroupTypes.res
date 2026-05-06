@@ -6,14 +6,6 @@
  */
 module Message = Client__State__Types.Message
 
-// Tool categories for grouping purposes
-type toolCategory =
-  | Exploration // read, list, search, grep, go-to-definition
-  | Action // edit, write, terminal, browser actions
-  | Todo // todo operations
-  | Task // subagent/nested tasks
-  | Other
-
 // Summary statistics for grouped tools
 type toolsSummary = {
   files: array<string>, // Files read
@@ -22,12 +14,6 @@ type toolsSummary = {
   definitions: int, // Definitions found
   browserSnapshots: int, // Browser snapshots taken
   tools: array<string>, // All tool names in group
-  // Todo tracking
-  todos: int, // Total todos in result
-  todosNewlyCreated: int, // Todos created in this group
-  todosNewlyCompleted: int, // Todos marked complete in this group
-  todosNewlyStarted: int, // Todos started (in_progress) in this group
-  todosNewlyCancelled: int, // Todos cancelled in this group
 }
 
 // Empty summary for initialization
@@ -38,17 +24,7 @@ let emptySummary: toolsSummary = {
   definitions: 0,
   browserSnapshots: 0,
   tools: [],
-  todos: 0,
-  todosNewlyCreated: 0,
-  todosNewlyCompleted: 0,
-  todosNewlyStarted: 0,
-  todosNewlyCancelled: 0,
 }
-
-// Group visual state
-type toolGroupState =
-  | Collapsed
-  | Expanded
 
 // Group type determines the prefix label
 type groupType =
