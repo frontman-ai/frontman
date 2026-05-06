@@ -145,13 +145,12 @@ module Actions = {
     ~taskId: string,
     ~error: string,
     ~timestamp: string,
-    ~retryable: bool,
     ~category: string,
   ) =>
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: AgentError({error, timestamp, retryable, category}),
+        action: AgentError({error, timestamp, category}),
       }),
     )
 

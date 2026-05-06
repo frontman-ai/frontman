@@ -50,7 +50,6 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
-        isAnimationFrozen: bool,
       })
     // Unloaded: persisted but only metadata loaded
     | Unloaded({id: string, title: string, createdAt: float, updatedAt: float})
@@ -65,7 +64,6 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
-        isAnimationFrozen: bool,
       })
     // Loaded: fully interactive
     // clientId is preserved from New state during promotion to maintain iframe identity
@@ -80,7 +78,6 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
-        isAnimationFrozen: bool,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
         turnError: option<turnErrorInfo>,
@@ -136,12 +133,6 @@ module Task = {
     | Unloaded({title}) | Loading({title}) | Loaded({title}) => Some(title)
     }
 
-  let getCreatedAt = (task: t): option<float> =>
-    switch task {
-    | New(_) => None
-    | Unloaded({createdAt}) | Loading({createdAt}) | Loaded({createdAt}) => Some(createdAt)
-    }
-
   let getUpdatedAt = (task: t): option<float> =>
     switch task {
     | New(_) => None
@@ -187,13 +178,6 @@ module Task = {
     | Unloaded(_) => None
     | Loading({activePopupAnnotationId})
     | Loaded({activePopupAnnotationId}) => activePopupAnnotationId
-    }
-
-  let getIsAnimationFrozen = (task: t): bool =>
-    switch task {
-    | New({isAnimationFrozen}) => isAnimationFrozen
-    | Unloaded(_) => false
-    | Loading({isAnimationFrozen}) | Loaded({isAnimationFrozen}) => isAnimationFrozen
     }
 
   let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
@@ -266,7 +250,6 @@ module Task = {
       annotationMode: Annotation.Off,
       annotations: [],
       activePopupAnnotationId: None,
-      isAnimationFrozen: false,
     })
   }
 
@@ -285,14 +268,7 @@ module Task = {
   // Preserves clientId for stable React keying (prevents iframe remount)
   let newToLoaded = (task: t, ~id: string, ~title: string): t => {
     switch task {
-    | New({
-        clientId,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-      }) =>
+    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) =>
       let timestamp = Date.now()
       Loaded({
         id,
@@ -305,7 +281,6 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        isAnimationFrozen,
         isAgentRunning: false,
         planEntries: [],
         turnError: None,
@@ -323,7 +298,6 @@ module Task = {
     annotationMode: Annotation.annotationMode,
     annotations: array<Annotation.t>,
     activePopupAnnotationId: option<string>,
-    isAnimationFrozen: bool,
     isAgentRunning: bool,
     planEntries: array<ACPTypes.planEntry>,
     turnError: option<turnErrorInfo>,
@@ -354,7 +328,6 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        isAnimationFrozen,
         isAgentRunning,
         planEntries,
         turnError,
@@ -367,7 +340,6 @@ module Task = {
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAnimationFrozen,
           isAgentRunning,
           planEntries,
           turnError,
@@ -385,7 +357,6 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAnimationFrozen: updated.isAnimationFrozen,
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
           turnError: updated.turnError,
@@ -404,14 +375,12 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        isAnimationFrozen,
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAnimationFrozen,
           isAgentRunning: false,
           planEntries: [],
           turnError: None,
@@ -428,23 +397,14 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAnimationFrozen: updated.isAnimationFrozen,
         })
       }
-    | New({
-        clientId,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-      }) => {
+    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) => {
         let data = {
           messages: [],
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAnimationFrozen,
           isAgentRunning: false,
           planEntries: [],
           turnError: None,
@@ -457,7 +417,6 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAnimationFrozen: updated.isAnimationFrozen,
         })
       }
     | Unloaded(_) => task

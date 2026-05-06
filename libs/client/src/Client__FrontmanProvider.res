@@ -379,7 +379,6 @@ module Provider = {
             ~taskId,
             ~error=message,
             ~timestamp,
-            ~retryable=false,
             ~category=category->Option.getOr("unknown"),
           )
         }

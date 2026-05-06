@@ -397,7 +397,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         error: "Rate limit exceeded",
         timestamp: "2025-01-15T10:30:00Z",
-        retryable: false,
         category: "unknown",
       }),
     )
@@ -431,7 +430,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
-        retryable: false,
         category: "unknown",
       }),
     )
@@ -467,7 +465,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         error: "Error occurred",
         timestamp: "2025-01-15T10:30:00Z",
-        retryable: false,
         category: "unknown",
       }),
     )
@@ -489,7 +486,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         error: "Error",
         timestamp: "2025-01-15T10:30:00Z",
-        retryable: false,
         category: "unknown",
       }),
     )
@@ -508,7 +504,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
-        retryable: false,
         category: "unknown",
       }),
     )
@@ -542,7 +537,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         error: "Previous error",
         timestamp: "2025-01-15T10:30:00Z",
-        retryable: false,
         category: "unknown",
       }),
     )
@@ -695,7 +689,6 @@ describe("Task - CancelTurn", () => {
       AgentError({
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
-        retryable: false,
         category: "unknown",
       }),
     )

@@ -29,13 +29,6 @@ module EventHelpers = {
         ->Option.ignore
       })
     )
-  let getIframeDoc = (iframeRef: Nullable.t<WebAPI.DOMAPI.element>) =>
-    iframeRef
-    ->Nullable.toOption
-    ->Option.flatMap(iframe =>
-      WebAPI.Element.unsafeAsHTMLIFrameElement(iframe)->WebAPI.HTMLIFrameElement.contentDocument
-    )
-
   // Shared hook: subscribes a handler to a DOM event on a document and all its
   // same-origin iframes, and tears everything down on cleanup.
   //

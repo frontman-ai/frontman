@@ -1,12 +1,12 @@
 /**
  * ToolGroupUtils - Logic for grouping consecutive tool calls
- * 
+ *
  * Groups consecutive "exploration" tools (read, list, search, grep)
  * into collapsible "Explored" summaries while keeping "action" tools separate.
- * 
+ *
  * Uses substring-based pattern matching to handle various tool naming conventions
  * (MCP tools, backend tools, etc.)
- * 
+ *
  * Key rules:
  * - Read-only operations are grouped → Reduces noise
  * - Mutations break groups → Important changes are always visible
@@ -54,9 +54,6 @@ module BrowserAction = {
 
   let fromLowercaseToolName = (name: string): option<t> =>
     all->Array.find(action => matchesLowercaseToolName(name, action))
-
-  let fromToolName = (toolNameToMatch: string): option<t> =>
-    toolNameToMatch->String.toLowerCase->fromLowercaseToolName
 }
 
 let browserExplorationNeedles = ["snapshot", "screenshot", "console", "network"]
@@ -216,10 +213,10 @@ let unique = (arr: array<string>): array<string> => {
 /**
  * Generate summary labels from statistics
  * Returns an array like ["1 directory", "2 files", "3 searches"]
- * 
+ *
  * Activity Order:
  * 1. list → "N director(y|ies)"
- * 2. file → "N file(s)"  
+ * 2. file → "N file(s)"
  * 3. search → "N search(es)"
  * 4. definition → "found N definition(s)"
  * 5. snapshot → "N snapshot(s)"
@@ -300,7 +297,7 @@ let hasError = (tc: Message.toolCall): bool => {
 
 /**
  * Group consecutive tool calls into display items
- * 
+ *
  * Algorithm:
  * 1. For each message, check if it's groupable
  * 2. If groupable AND no error → add to current group

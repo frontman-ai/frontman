@@ -187,20 +187,6 @@ let apiKeyProviderId = provider =>
   | Fireworks => "fireworks"
   }
 
-let apiKeyProviderLabel = provider =>
-  switch provider {
-  | OpenRouter => "OpenRouter"
-  | Anthropic => "Anthropic"
-  | Fireworks => "Fireworks"
-  }
-
-let apiKeySourceToString = source =>
-  switch source {
-  | Client__State__Types.None => "None"
-  | Client__State__Types.FromEnv => "FromEnv"
-  | Client__State__Types.UserOverride => "UserOverride"
-  }
-
 let apiKeyUsagePath = provider =>
   switch provider {
   | OpenRouter => "/api/user/api-key-usage"

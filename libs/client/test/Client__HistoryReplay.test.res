@@ -440,7 +440,6 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
       AgentError({
         error: "Rate limit exceeded",
         timestamp: "2025-01-10T10:00:10Z",
-        retryable: false,
         category: "unknown",
       }),
     )
