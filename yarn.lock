@@ -2265,7 +2265,7 @@ __metadata:
     clsx: "npm:^2.1.1"
     dom-accessibility-api: "npm:^0.5.16"
     dom-element-to-component-source: "npm:^0.5.0"
-    lucide-react: "npm:^0.548.0"
+    lucide-react: "npm:^1.7.0"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
     rescript: "catalog:"
@@ -11810,12 +11810,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^0.548.0":
-  version: 0.548.0
-  resolution: "lucide-react@npm:0.548.0"
+"lucide-react@npm:^1.7.0":
+  version: 1.14.0
+  resolution: "lucide-react@npm:1.14.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/4b3416982927622a8aad49edd3ed53c7a7c202e7357188f56b8dd582e8f22d33b30fda736440a2e640e0faf9baa724a06d0d3c1de5ecf42d2844eb6b24ddefdd
+  checksum: 10c0/25c5dd878945842ffb519532f1a66f59f2d461e7be7bd322091b0ecd3cd32561c1ae3d9b50161432d39a72bf8c8f1a039268f2f20a035e520dd3f49dd46ffaf2
   languageName: node
   linkType: hard
 
