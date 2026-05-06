@@ -4,7 +4,7 @@ Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.16.1
+Stable tag: 0.17.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -96,6 +96,9 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 1. The Frontman chat interface alongside your WordPress site
 
 == Changelog ==
+
+= 0.17.0 =
+* Remove direct filesystem tools from the WordPress plugin while keeping WordPress API-based content editing tools
 
 = 0.16.1 =
 * Fix image attachment uploads for WordPress media replacement workflows

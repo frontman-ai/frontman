@@ -480,10 +480,10 @@ release: ## Create a release PR from pending changesets
 package-wordpress-plugin: ## Build WordPress ZIP and WordPress.org bundle
 	@VERSION=$(VERSION) bash ./scripts/package-wordpress-plugin.sh
 
-test-wordpress-core-tools: ## Run PHP tests for WordPress core tool implementations
-	@php libs/frontman-wordpress/tests/CoreToolsTest.php
+test-wordpress-core-tools: ## Run PHP tests for WordPress tool implementations
+	@php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
 	@php libs/frontman-wordpress/tests/ElementorToolsTest.php
-	@php libs/frontman-wordpress/tests/ManagedThemeToolsTest.php
+	@php libs/frontman-wordpress/tests/MediaToolsTest.php
 	@php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
 	@php libs/frontman-wordpress/tests/RouterTest.php
 

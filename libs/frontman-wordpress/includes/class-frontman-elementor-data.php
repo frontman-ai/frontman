@@ -429,15 +429,10 @@ class Frontman_Elementor_Data {
             $plugin->files_manager->clear_cache();
         }
 
-        if ( $post_id > 0 ) {
-            delete_post_meta( $post_id, '_elementor_css' );
-            $upload_dir = wp_upload_dir();
-            $css_path   = trailingslashit( $upload_dir['basedir'] ?? '' ) . 'elementor/css/post-' . $post_id . '.css';
-            if ( file_exists( $css_path ) ) {
-                wp_delete_file( $css_path );
-            }
-        }
-    }
+		if ( $post_id > 0 ) {
+			delete_post_meta( $post_id, '_elementor_css' );
+		}
+	}
 
     private static function summarize_element( array $element ): array {
         $summary = [

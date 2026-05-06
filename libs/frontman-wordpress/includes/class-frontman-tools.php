@@ -322,7 +322,7 @@ class Frontman_Tools {
 		}
 
 		if ( 'content' === $field_name ) {
-			return in_array( $tool_name, [ 'wp_update_template', 'wp_write_managed_theme_file', 'wp_upload_media' ], true ) ? $value : wp_kses_post( $value );
+			return in_array( $tool_name, [ 'wp_update_template', 'wp_upload_media' ], true ) ? $value : wp_kses_post( $value );
 		}
 
 		if ( 0 === strpos( $tool_name, 'wp_elementor_' ) ) {
