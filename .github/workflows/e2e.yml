@@ -95,7 +95,7 @@ jobs:
 
       # ── Elixir/Erlang via mise ──────────────────────────────────────────
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3.6.1
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: true
           cache: true
@@ -105,7 +105,7 @@ jobs:
 
       # ── Node.js ─────────────────────────────────────────────────────────
       - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: "24.4.1"
 
@@ -114,14 +114,14 @@ jobs:
 
       # ── Caches ──────────────────────────────────────────────────────────
       - name: Cache Yarn
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
           restore-keys: yarn-
 
       - name: Cache Mix deps
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
@@ -131,7 +131,7 @@ jobs:
       # MIX_ENV=dev. Keep a dedicated "build-e2e-" cache prefix so the two
       # environments never share compile artifacts.
       - name: Cache Mix _build
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-e2e-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
@@ -156,7 +156,7 @@ jobs:
       # ReScript to skip recompilation, leaving tsup unable to resolve
       # imports like @frontman-ai/frontman-core/src/FrontmanCore__Hosts.res.mjs.
       - name: Cache JS build artifacts
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         id: js-build-cache
         with:
           path: libs/*/dist
@@ -193,7 +193,7 @@ jobs:
 
       # ── Install Playwright browser ──────────────────────────────────────
       - name: Cache Playwright browsers
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
