@@ -25,7 +25,7 @@ defmodule FrontmanServer.Providers.ResolvedKey do
   - `:key_source` - Where the key came from (`:user_key`, `:env_key`, `:server_key`, `:oauth_token`)
   - `:model` - The full model string (e.g., "openrouter:openai/gpt-4")
   - `:requires_mcp_prefix` - Whether tool names need `mcp_` prefix (for Claude Code OAuth)
-  - `:identity_override` - Optional identity string to prepend to system messages (for Claude Code OAuth)
+  - `:with_claude_subscription` - Enables Claude Pro/Max subscription compatibility in ReqLLM
   - `:auth_mode` - Authentication mode: `:api_key` (default) or `:oauth` (Bearer token)
   """
 
@@ -42,7 +42,7 @@ defmodule FrontmanServer.Providers.ResolvedKey do
     field(:model, String.t(), enforce: true)
     # LLM transformation hints (for Claude Code OAuth)
     field(:requires_mcp_prefix, boolean(), default: false)
-    field(:identity_override, String.t() | nil, default: nil)
+    field(:with_claude_subscription, boolean(), default: false)
     # Authentication mode — :api_key (default) or :oauth (Bearer token)
     field(:auth_mode, atom(), default: :api_key)
     # ChatGPT-specific fields (for Codex API)
@@ -56,7 +56,7 @@ defmodule FrontmanServer.Providers.ResolvedKey do
   ## Options
 
   - `:requires_mcp_prefix` - Whether tool names need `mcp_` prefix (default: false)
-  - `:identity_override` - Identity string to prepend to system messages (default: nil)
+  - `:with_claude_subscription` - Enables Claude Pro/Max subscription compatibility (default: false)
   - `:auth_mode` - Authentication mode: `:api_key` (default) or `:oauth`
   - `:chatgpt_account_id` - ChatGPT account ID for Codex API (default: nil)
   - `:codex_endpoint` - Codex API endpoint URL (default: nil)
@@ -68,7 +68,7 @@ defmodule FrontmanServer.Providers.ResolvedKey do
       key_source: key_source,
       model: model,
       requires_mcp_prefix: Keyword.get(opts, :requires_mcp_prefix, false),
-      identity_override: Keyword.get(opts, :identity_override),
+      with_claude_subscription: Keyword.get(opts, :with_claude_subscription, false),
       auth_mode: Keyword.get(opts, :auth_mode, :api_key),
       chatgpt_account_id: Keyword.get(opts, :chatgpt_account_id),
       codex_endpoint: Keyword.get(opts, :codex_endpoint)
@@ -84,7 +84,7 @@ defmodule FrontmanServer.Providers.ResolvedKey do
     * For Codex (ChatGPT OAuth): normalizes the model alias, patches the
       base URL and routes through the `openai_codex` provider
     * For all providers: sets `api_key` (or `auth_mode` + `access_token` for OAuth), `requires_mcp_prefix`,
-      and `identity_override`
+      and `with_claude_subscription`
 
   Caller-provided `extra_opts` (e.g., `max_tokens: 30`) are merged in and
   can be overridden by provider-specific requirements (Codex strips `max_tokens`).
@@ -102,17 +102,16 @@ defmodule FrontmanServer.Providers.ResolvedKey do
           [
             auth_mode: :oauth,
             access_token: key.api_key,
-            requires_mcp_prefix: key.requires_mcp_prefix,
-            identity_override: key.identity_override
+            requires_mcp_prefix: key.requires_mcp_prefix
           ]
 
         :api_key ->
           [
             api_key: key.api_key,
-            requires_mcp_prefix: key.requires_mcp_prefix,
-            identity_override: key.identity_override
+            requires_mcp_prefix: key.requires_mcp_prefix
           ]
       end
+      |> put_claude_subscription(key)
       |> Keyword.merge(extra_opts)
 
     case key.codex_endpoint do
@@ -126,4 +125,10 @@ defmodule FrontmanServer.Providers.ResolvedKey do
         {key.model, base_opts}
     end
   end
+
+  defp put_claude_subscription(opts, %{with_claude_subscription: true}) do
+    Keyword.put(opts, :with_claude_subscription, true)
+  end
+
+  defp put_claude_subscription(opts, _key), do: opts
 end

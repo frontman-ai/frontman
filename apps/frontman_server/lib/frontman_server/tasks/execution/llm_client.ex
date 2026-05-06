@@ -93,7 +93,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   def stream(client, messages, _opts) do
     requires_mcp_prefix? = LLMClient.requires_mcp_prefix?(client.llm_opts)
-    identity_override = Keyword.get(client.llm_opts, :identity_override)
 
     # Convert tools, applying mcp_ prefix if required
     reqllm_tools =
@@ -106,8 +105,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       |> Keyword.put_new(:parallel_tool_calls, true)
       |> Keyword.reject(fn {_k, v} -> v == [] end)
 
-    # Convert messages, applying mcp_ prefix to tool names if required
-    # For OAuth with identity_override, prepend identity as first content block.
+    # Convert messages, applying mcp_ prefix to tool names if required.
     # Run MessageOptimizer here (not just at task startup) so that tool results
     # accumulated inside the swarm loop are also truncated. Without this, long
     # tool-calling chains accumulate dozens of full-size tool results and the
@@ -115,7 +113,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     reqllm_messages =
       messages
       |> Enum.map(&to_reqllm_message(&1, requires_mcp_prefix?))
-      |> maybe_prepend_identity(identity_override)
       |> MessageOptimizer.optimize()
 
     case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do
@@ -291,22 +288,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       message: "LLM stream error: #{text}",
       category: "unknown",
       retryable: false
-  end
-
-  # Log per-call message sizes to help diagnose large-request transport errors.
-  # Prepend identity override as the first content block of system messages
-  # This is used for Claude Code OAuth to inject "You are Claude Code..." identity
-  defp maybe_prepend_identity(messages, nil), do: messages
-
-  defp maybe_prepend_identity(messages, identity) when is_binary(identity) do
-    Enum.map(messages, fn
-      %ReqLLM.Message{role: :system, content: content} = msg ->
-        identity_part = ReqLLM.Message.ContentPart.text(identity)
-        %{msg | content: [identity_part | content]}
-
-      msg ->
-        msg
-    end)
   end
 
   # --- SwarmAi.Message -> ReqLLM.Message conversion ---

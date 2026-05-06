@@ -357,15 +357,12 @@ defmodule FrontmanServer.Providers do
     resolve_env_or_server_key(provider, %{})
   end
 
-  # Claude Code identity for Anthropic OAuth
-  @claude_code_identity "You are Claude Code, Anthropic's official CLI for Claude."
-
   # Check for OAuth token - returns provider-specific transformation options
   defp maybe_resolve_oauth_token(scope, "anthropic") do
     case get_valid_oauth_token(scope, "anthropic") do
       {:ok, access_token} ->
         {:oauth_token, access_token,
-         requires_mcp_prefix: true, identity_override: @claude_code_identity, auth_mode: :oauth}
+         requires_mcp_prefix: true, with_claude_subscription: true, auth_mode: :oauth}
 
       {:error, _} ->
         :no_oauth_token

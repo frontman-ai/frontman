@@ -167,7 +167,7 @@ defmodule FrontmanServer.Providers.ProvidersOAuthTest do
       # OAuth returns 3-tuple with transformation options for Claude Code
       assert {:oauth_token, "oauth_access", opts} = result
       assert Keyword.get(opts, :requires_mcp_prefix) == true
-      assert Keyword.get(opts, :identity_override) =~ "Claude Code"
+      assert Keyword.get(opts, :with_claude_subscription) == true
     end
 
     test "falls back to user_key when no OAuth token" do

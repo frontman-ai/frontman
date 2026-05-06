@@ -31,7 +31,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
     field(:has_typescript_react, boolean(), default: false)
     field(:framework, Framework.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
-    # May also include :requires_mcp_prefix and :identity_override for OAuth
+    # May also include :requires_mcp_prefix and :with_claude_subscription for OAuth
     field(:llm_opts, keyword(), default: [])
     field(:model, String.t() | nil, default: nil)
     # Discovered project rules (AGENTS.md, etc.) to append to system prompt
@@ -49,7 +49,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   - `:has_annotations` - Whether the user has annotated elements in the UI
   - `:framework` - `Framework.t()` struct for framework-specific guidance
   - `:llm_opts` - LLM options, must include `:api_key`. May include `:requires_mcp_prefix`
-    and `:identity_override` for OAuth transformations (handled by LLMClient).
+    and `:with_claude_subscription` for OAuth transformations.
   - `:model` - LLM model spec (defaults to LLMClient default)
   - `:project_rules` - List of discovered project rules (AGENTS.md, etc.)
   - `:project_structure` - Discovered project structure summary (from list_tree)
