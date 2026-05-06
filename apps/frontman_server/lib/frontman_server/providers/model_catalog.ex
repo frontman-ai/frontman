@@ -92,7 +92,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   ## Examples
 
       iex> ModelCatalog.models("openai", :full) |> length()
-      3
+      4
 
       iex> ModelCatalog.models("openrouter", :free) |> length()
       4

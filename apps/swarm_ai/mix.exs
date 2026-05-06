@@ -41,7 +41,7 @@ defmodule SwarmAi.MixProject do
       {:jason, "~> 1.2"},
       {:uuidv7, "~> 1.0"},
       {:telemetry, "~> 1.4"},
-      {:req_llm, "~> 1.10"},
+      {:req_llm, github: "itayadler/req_llm", branch: "fix/openai-codex-token-limit"},
       # Dev/Test
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
