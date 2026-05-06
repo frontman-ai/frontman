@@ -2198,7 +2198,7 @@ __metadata:
   resolution: "@frontman-ai/astro-browser@workspace:libs/frontman-astro-browser"
   dependencies:
     "@frontman-ai/frontman-protocol": "workspace:*"
-    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/runtime": "npm:12.2.0"
     "@rescript/webapi": "npm:*"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -2216,7 +2216,7 @@ __metadata:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@frontman/bindings": "npm:*"
-    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/runtime": "npm:12.2.0"
     "@rescript/webapi": "npm:*"
     chrome-launcher: "npm:^1.1.2"
     dom-element-to-component-source: "npm:0.5.0"
@@ -2252,7 +2252,7 @@ __metadata:
     "@radix-ui/react-select": "npm:^2.2.6"
     "@radix-ui/react-slot": "npm:^1.2.4"
     "@radix-ui/react-tooltip": "npm:^1.2.8"
-    "@rescript/react": "npm:^0.14.0"
+    "@rescript/react": "npm:^0.14.2"
     "@rescript/webapi": "npm:*"
     "@tailwindcss/vite": "npm:^4.1.16"
     "@types/babel__core": "npm:^7"
@@ -2306,7 +2306,7 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-protocol": "npm:0.6.0"
     "@frontman/bindings": "npm:0.3.1"
-    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/runtime": "npm:12.2.0"
     "@rescript/webapi": "npm:*"
     "@vscode/ripgrep": "npm:^1.15.0"
     chrome-launcher: "npm:^1.1.2"
@@ -2338,7 +2338,7 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
-    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/runtime": "npm:12.2.0"
     "@rescript/webapi": "npm:*"
     "@sentry/nextjs": "npm:^9.0.0"
     chrome-launcher: "npm:^1.1.2"
@@ -2373,7 +2373,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman-ai/react-statestore@workspace:libs/react-statestore"
   dependencies:
-    "@rescript/react": "npm:^0.14.0"
+    "@rescript/react": "npm:^0.14.2"
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/react": "npm:^16.3.0"
     jsdom: "npm:^28.0.0"
@@ -2396,7 +2396,7 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
-    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/runtime": "npm:12.2.0"
     "@rescript/webapi": "npm:*"
     chrome-launcher: "npm:^1.1.2"
     dom-element-to-component-source: "npm:0.5.0"
@@ -2418,7 +2418,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/bindings@workspace:libs/bindings"
   dependencies:
-    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/runtime": "npm:12.2.0"
     dom-element-to-component-source: "npm:^0.5.0"
     rescript: "catalog:"
     sentry-testkit: "npm:^6.0.0"
@@ -2490,7 +2490,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/logs@workspace:libs/logs"
   dependencies:
-    "@rescript/runtime": "npm:12.0.0-beta.14"
+    "@rescript/runtime": "npm:12.2.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     vite: "catalog:"
@@ -4685,9 +4685,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/darwin-arm64@npm:12.0.0-rc.3":
-  version: 12.0.0-rc.3
-  resolution: "@rescript/darwin-arm64@npm:12.0.0-rc.3"
+"@rescript/darwin-arm64@npm:12.2.0":
+  version: 12.2.0
+  resolution: "@rescript/darwin-arm64@npm:12.2.0"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
@@ -4699,9 +4699,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/darwin-x64@npm:12.0.0-rc.3":
-  version: 12.0.0-rc.3
-  resolution: "@rescript/darwin-x64@npm:12.0.0-rc.3"
+"@rescript/darwin-x64@npm:12.2.0":
+  version: 12.2.0
+  resolution: "@rescript/darwin-x64@npm:12.2.0"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
@@ -4713,9 +4713,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/linux-arm64@npm:12.0.0-rc.3":
-  version: 12.0.0-rc.3
-  resolution: "@rescript/linux-arm64@npm:12.0.0-rc.3"
+"@rescript/linux-arm64@npm:12.2.0":
+  version: 12.2.0
+  resolution: "@rescript/linux-arm64@npm:12.2.0"
   conditions: os=linux & cpu=arm64
   languageName: node
   linkType: hard
@@ -4727,20 +4727,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/linux-x64@npm:12.0.0-rc.3":
-  version: 12.0.0-rc.3
-  resolution: "@rescript/linux-x64@npm:12.0.0-rc.3"
+"@rescript/linux-x64@npm:12.2.0":
+  version: 12.2.0
+  resolution: "@rescript/linux-x64@npm:12.2.0"
   conditions: os=linux & cpu=x64
   languageName: node
   linkType: hard
 
-"@rescript/react@npm:^0.14.0":
-  version: 0.14.0
-  resolution: "@rescript/react@npm:0.14.0"
+"@rescript/react@npm:^0.14.2":
+  version: 0.14.2
+  resolution: "@rescript/react@npm:0.14.2"
   peerDependencies:
-    react: ">=19.0.0"
-    react-dom: ">=19.0.0"
-  checksum: 10c0/9463eb027df1d28aab60879d3779f0832270580b381fc7b980387ffe080b821548242fef419cfe0a625d9d9866c4f7d676ed77f500374c22b2affd83ebd8bbaa
+    react: ">=19.1.0"
+    react-dom: ">=19.1.0"
+  checksum: 10c0/6fbc0614ac4e4e5ad37abe474dcc137dc8cb7c3351dbc9afa4de92f080614e78809278a034c52da1676e89c299ab07154760d8b80f68f0a5cfd284e22035f713
   languageName: node
   linkType: hard
 
@@ -4751,10 +4751,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/runtime@npm:12.0.0-rc.3":
-  version: 12.0.0-rc.3
-  resolution: "@rescript/runtime@npm:12.0.0-rc.3"
-  checksum: 10c0/b492d3f700a44b08b472b756a0cca3e3e9f1ab20b6b05eb566a000ca58c0e1afc13772ad46448a2afff99cb28f1147557c2c30c3213d825c9c3586b78182154a
+"@rescript/runtime@npm:12.2.0":
+  version: 12.2.0
+  resolution: "@rescript/runtime@npm:12.2.0"
+  checksum: 10c0/59c0194ae52fbbaadc736bbf1cfac1ed6ffde92b2346e36b9f1a29bb136e38b7ef203c780647203912fa657d293eab5c4e208f04dd65ed4bf47d53843980f7e1
   languageName: node
   linkType: hard
 
@@ -4762,7 +4762,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rescript/webapi@workspace:libs/experimental-rescript-webapi"
   dependencies:
-    rescript: "npm:^12.0.0-rc.3"
+    rescript: "npm:^12.2.0"
   languageName: unknown
   linkType: soft
 
@@ -4773,9 +4773,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/win32-x64@npm:12.0.0-rc.3":
-  version: 12.0.0-rc.3
-  resolution: "@rescript/win32-x64@npm:12.0.0-rc.3"
+"@rescript/win32-x64@npm:12.2.0":
+  version: 12.2.0
+  resolution: "@rescript/win32-x64@npm:12.2.0"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
@@ -14802,16 +14802,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rescript@npm:^12.0.0-rc.3":
-  version: 12.0.0-rc.3
-  resolution: "rescript@npm:12.0.0-rc.3"
+"rescript@npm:^12.2.0":
+  version: 12.2.0
+  resolution: "rescript@npm:12.2.0"
   dependencies:
-    "@rescript/darwin-arm64": "npm:12.0.0-rc.3"
-    "@rescript/darwin-x64": "npm:12.0.0-rc.3"
-    "@rescript/linux-arm64": "npm:12.0.0-rc.3"
-    "@rescript/linux-x64": "npm:12.0.0-rc.3"
-    "@rescript/runtime": "npm:12.0.0-rc.3"
-    "@rescript/win32-x64": "npm:12.0.0-rc.3"
+    "@rescript/darwin-arm64": "npm:12.2.0"
+    "@rescript/darwin-x64": "npm:12.2.0"
+    "@rescript/linux-arm64": "npm:12.2.0"
+    "@rescript/linux-x64": "npm:12.2.0"
+    "@rescript/runtime": "npm:12.2.0"
+    "@rescript/win32-x64": "npm:12.2.0"
   dependenciesMeta:
     "@rescript/darwin-arm64":
       optional: true
@@ -14829,7 +14829,7 @@ __metadata:
     rescript: cli/rescript.js
     rescript-legacy: cli/rescript-legacy.js
     rescript-tools: cli/rescript-tools.js
-  checksum: 10c0/5bd4e451b00b33165bc521ed8f10745a3c2272b2d962f33f2cc58401c6c8befeab46d95c94cd6b1caa19cd9f6e7e32fee973f108a15194b38ccef7aac514c9bc
+  checksum: 10c0/7650a77a66e2f2ba2523eac54fd930f0b70bad922e9b498678e701e842a56c7b6facd0daf1ef9c7b71d344d9483a0293d17db72a67515a22d07856bdfc34fb46
   languageName: node
   linkType: hard
 

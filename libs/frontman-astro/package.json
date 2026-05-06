@@ -65,7 +65,7 @@
 		"@frontman-ai/frontman-core": "*",
 		"@frontman-ai/frontman-protocol": "*",
 		"@frontman/bindings": "*",
-		"@rescript/runtime": "12.0.0-beta.14",
+		"@rescript/runtime": "12.2.0",
 		"@rescript/webapi": "*",
 		"dom-element-to-component-source": "0.5.0",
 		"rescript": "catalog:",

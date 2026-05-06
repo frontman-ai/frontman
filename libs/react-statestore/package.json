@@ -37,7 +37,7 @@
 		"access": "public"
 	},
 	"dependencies": {
-		"@rescript/react": "^0.14.0",
+		"@rescript/react": "^0.14.2",
 		"use-sync-external-store": "^1.6.0"
 	},
 	"peerDependencies": {
