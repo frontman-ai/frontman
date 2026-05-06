@@ -30,7 +30,7 @@ describe("Relay.connect", _t => {
 
   testAsync("sets state to Error when server is unreachable", async t => {
     let relay = Relay.make(~baseUrl="http://localhost:19999")
-    let _result = await Relay.connect(relay)
+    let _ = await Relay.connect(relay)
 
     switch Relay.getState(relay) {
     | Error(_) => t->expect(true)->Expect.toBe(true)

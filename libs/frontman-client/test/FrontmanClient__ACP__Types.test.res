@@ -14,7 +14,7 @@ describe("ACP Types encoding/decoding", _t => {
       clientInfo: Some({name: "test-client", version: "1.0.0", title: None, _meta: None}),
     }
 
-    let _encoded = params->S.reverseConvertToJsonOrThrow(Types.initializeParamsSchema)
+    params->S.reverseConvertToJsonOrThrow(Types.initializeParamsSchema)->ignore
   })
 
   test("initializeParams should encode correct JSON structure", t => {

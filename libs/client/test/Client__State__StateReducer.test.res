@@ -22,7 +22,6 @@ module TestHelpers = {
   let makeStateWithTask = (
     ~taskId="test-task-1",
     ~messages=[],
-    ~timestamp=1000.0,
     ~previewUrl="http://localhost:3000",
     ~isAgentRunning=false,
   ) => {
@@ -30,7 +29,7 @@ module TestHelpers = {
       ~id=taskId,
       ~title="Test Task",
       ~previewUrl,
-      ~createdAt=timestamp,
+      ~createdAt=1000.0,
       ~messages,
       ~isAgentRunning,
     )

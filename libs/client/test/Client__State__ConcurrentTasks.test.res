@@ -13,7 +13,7 @@ module Task = Client__State__Types.Task
 module TestSetup = {
   let createStateWithLoadedTasks = (
     ~taskIds: array<string>,
-    ~isAgentRunning=false,
+    ~isAgentRunning,
   ): StateReducer.state => {
     let tasks = Dict.make()
     taskIds->Array.forEach(id => {

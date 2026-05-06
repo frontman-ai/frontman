@@ -61,8 +61,8 @@ describe("OpenTelemetry Integration", _t => {
   })
 
   test("processors can be created individually", t => {
-    let _logProc: logProcessor = OpenTelemetry.makeLogRecordProcessor()->Obj.magic
-    let _spanProc: spanProcessor = OpenTelemetry.makeSpanProcessor()->Obj.magic
+    let _: logProcessor = OpenTelemetry.makeLogRecordProcessor()->Obj.magic
+    let _: spanProcessor = OpenTelemetry.makeSpanProcessor()->Obj.magic
     // If we get here without throwing, both processors were created successfully
     t->expect(true)->Expect.toBe(true)
   })

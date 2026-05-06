@@ -18,11 +18,9 @@ let makeTestInstance: (
   ~name: string=?,
   ~scriptName: string=?,
   ~templateLine: int=?,
-  ~props: Js.Nullable.t<Dict.t<JSON.t>>=?,
-  ~parent: Js.Nullable.t<Vue.vueComponentInstance>=?,
   unit,
 ) => Vue.vueComponentInstance = %raw(`
-  function(file, name, scriptName, templateLine, props, parent) {
+  function(file, name, scriptName, templateLine) {
     return {
       type: {
         __file: file,
@@ -30,8 +28,8 @@ let makeTestInstance: (
         name: name,
         __frontman_templateLine: templateLine,
       },
-      props: props !== undefined ? props : null,
-      parent: parent !== undefined ? parent : null,
+      props: null,
+      parent: null,
     }
   }
 `)

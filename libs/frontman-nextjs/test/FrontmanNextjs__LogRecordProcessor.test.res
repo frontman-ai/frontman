@@ -21,7 +21,7 @@ describe("LogRecordProcessor", _t => {
     test(
       "make creates processor without errors",
       t => {
-        let _proc: processor = LogRecordProcessor.make()->Obj.magic
+        let _: processor = LogRecordProcessor.make()->Obj.magic
         // If we get here without throwing, the processor was created successfully
         t->expect(true)->Expect.toBe(true)
       },

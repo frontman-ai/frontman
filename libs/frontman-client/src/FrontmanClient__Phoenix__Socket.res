@@ -19,7 +19,7 @@ external make: (~endpoint: string, ~opts: socketOptions=?) => t = "Socket"
 @send external disconnect: (t, ~callback: unit => unit=?) => unit = "disconnect"
 
 @send
-external channel: (t, ~topic: string, ~params: Js.Dict.t<JSON.t>=?) => channel = "channel"
+external channel: (t, ~topic: string, ~params: dict<JSON.t>=?) => channel = "channel"
 
 @send external onOpen: (t, ~callback: unit => unit) => unit = "onOpen"
 

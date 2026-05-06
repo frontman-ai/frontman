@@ -196,7 +196,7 @@ module MouseClick = {
 
 module Scroll = {
   let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture=false, ()) => {
-    let (scrollTimestamp, setScrollTimestamp) = React.useState(() => Js.Date.now())
+    let (scrollTimestamp, setScrollTimestamp) = React.useState(() => Date.now())
     let rafIdRef = React.useRef(None)
     let isScheduledRef = React.useRef(false)
 
@@ -207,7 +207,7 @@ module Scroll = {
       | false =>
         isScheduledRef.current = true
         let rafId = WebAPI.Global.requestAnimationFrame(_timestamp => {
-          setScrollTimestamp(_ => Js.Date.now())
+          setScrollTimestamp(_ => Date.now())
           isScheduledRef.current = false
         })
         rafIdRef.current = Some(rafId)
@@ -330,13 +330,13 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
 
 module DOMmutations = {
   let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ()) => {
-    let (mutationTimestamp, setMutationTimestamp) = React.useState(() => Js.Date.now())
+    let (mutationTimestamp, setMutationTimestamp) = React.useState(() => Date.now())
 
     React.useEffect(() => {
       document
       ->Option.map(doc => {
         let onMutation = (_mutations: array<FrontmanBindings.MutationObserver.mutationRecord>) => {
-          setMutationTimestamp(_ => Js.Date.now())
+          setMutationTimestamp(_ => Date.now())
         }
 
         let observer = FrontmanBindings.MutationObserver.make(onMutation)

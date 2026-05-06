@@ -21,8 +21,8 @@ let defaultConfig: CoreMiddlewareConfig.t = {
 }
 
 // Build middleware from a registry (caller decides which tools are active).
-let makeMiddleware = (~registry: ToolRegistry.t, ~config=defaultConfig) =>
-  CoreMiddleware.createMiddleware(~config, ~registry)
+let makeMiddleware = (~registry: ToolRegistry.t) =>
+  CoreMiddleware.createMiddleware(~config=defaultConfig, ~registry)
 
 // POST /frontman/tools/call with a JSON body and return the full SSE response text.
 let callTool = async (middleware, ~name: string, ~arguments: JSON.t): string => {

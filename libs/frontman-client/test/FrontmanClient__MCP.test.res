@@ -6,7 +6,7 @@ module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 
 // Mock channel that captures push calls
 module MockChannel = {
-  type pushCall = {event: string, payload: JSON.t}
+  type pushCall = {payload: JSON.t}
 
   let make = () => {
     let calls: ref<array<pushCall>> = ref([])
@@ -26,19 +26,10 @@ module MockChannel = {
 }
 
 // Build a tools/call JSON-RPC request payload
-let buildToolsCallPayload = (
-  ~id: int,
-  ~name: string,
-  ~callId: string,
-  ~arguments: option<JSON.t>=?,
-) => {
+let buildToolsCallPayload = (~id: int, ~name: string, ~callId: string) => {
   let params = Dict.make()
   params->Dict.set("name", JSON.Encode.string(name))
   params->Dict.set("callId", JSON.Encode.string(callId))
-  switch arguments {
-  | Some(args) => params->Dict.set("arguments", args)
-  | None => ()
-  }
 
   let msg = Dict.make()
   msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))

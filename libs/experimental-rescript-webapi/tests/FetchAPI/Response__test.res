@@ -1,6 +1,6 @@
-let response = Response.fromNull(~init={status: 204})
+Response.fromNull(~init={status: 204})->ignore
 
-let response1 = Response.fromString(
+Response.fromString(
   "pong",
   ~init={status: 200, headers: HeadersInit.fromDict(dict{"X-Fruit": "Peach"})},
-)
+)->ignore

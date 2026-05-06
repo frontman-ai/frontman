@@ -10,4 +10,4 @@ params3
 ->Iterator.toArray
 ->Array.forEach(((key, value)) => Console.log2(key, value))
 
-let paramStr = params3->URLSearchParams.toString
+params3->URLSearchParams.toString->ignore

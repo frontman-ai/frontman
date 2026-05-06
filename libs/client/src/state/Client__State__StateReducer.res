@@ -1119,7 +1119,7 @@ let handleEffect = (effect, state: state, dispatch) => {
               | _ =>
                 // "pending" — wait and try again
                 await Promise.make((resolve, _) => {
-                  let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
+                  let _ = setTimeout(() => resolve(), intervalMs)
                 })
                 await pollLoop(attempt + 1)
               }
@@ -1132,14 +1132,14 @@ let handleEffect = (effect, state: state, dispatch) => {
               )
             } else {
               await Promise.make((resolve, _) => {
-                let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
+                let _ = setTimeout(() => resolve(), intervalMs)
               })
               await pollLoop(attempt + 1)
             }
           } catch {
           | _ =>
             await Promise.make((resolve, _) => {
-              let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
+              let _ = setTimeout(() => resolve(), intervalMs)
             })
             await pollLoop(attempt + 1)
           }

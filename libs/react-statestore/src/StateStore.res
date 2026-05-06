@@ -50,7 +50,7 @@ let addSubscription = (store, sub) => Array.push(store.subscriptions.contents, s
 let removeSubscription = (t, sub) => {
   let subIdx = Array.indexOf(t.subscriptions.contents, sub)
   if subIdx >= 0 {
-    let _ = Js.Array2.spliceInPlace(t.subscriptions.contents, ~pos=subIdx, ~remove=1, ~add=[])
+    let _ = Array.splice(t.subscriptions.contents, ~start=subIdx, ~remove=1, ~insert=[])
   }
 }
 let subscribe = (t, sub) => {

@@ -19,14 +19,7 @@ let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 let _apiBaseUrl = "http://localhost:4000"
 
 // Helper: base state with an active ACP session (needed to emit effects)
-let _makeState = (
-  ~anthropicOAuthStatus=Types.NotConnected,
-  ~chatgptOAuthStatus=Types.ChatGPTNotConnected,
-  ~openrouterKeySettings={Types.source: Types.None, saveStatus: Types.Idle},
-  ~fireworksKeySettings={Types.source: Types.None, saveStatus: Types.Idle},
-  ~selectedModelValue=None,
-  ~pendingProviderAutoSelect=None,
-): Types.state => {
+let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
   {
     tasks: Dict.make(),
     currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
@@ -41,14 +34,14 @@ let _makeState = (
     sessionInitialized: true,
     usageInfo: None,
     userProfile: None,
-    openrouterKeySettings,
+    openrouterKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     anthropicKeySettings: {
       source: Types.None,
       saveStatus: Types.Idle,
     },
-    fireworksKeySettings,
-    anthropicOAuthStatus,
-    chatgptOAuthStatus,
+    fireworksKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
+    anthropicOAuthStatus: Types.NotConnected,
+    chatgptOAuthStatus: Types.ChatGPTNotConnected,
     configOptions: None,
     selectedModelValue,
     pendingProviderAutoSelect,
