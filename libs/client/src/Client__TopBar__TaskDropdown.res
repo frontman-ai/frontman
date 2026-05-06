@@ -1,7 +1,7 @@
-module Icons = Bindings__RadixUI__Icons
-module AlertDialog = Bindings__UI__AlertDialog
-module DropdownMenu = Bindings__UI__DropdownMenu
-module Tooltip = Bindings__UI__Tooltip
+module Icons = FrontmanBindings.Bindings__RadixUI__Icons
+module AlertDialog = FrontmanBindings.Bindings__UI__AlertDialog
+module DropdownMenu = FrontmanBindings.Bindings__UI__DropdownMenu
+module Tooltip = FrontmanBindings.Bindings__UI__Tooltip
 
 @react.component
 let make = (~onNewTask: unit => unit) => {

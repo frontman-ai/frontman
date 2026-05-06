@@ -20,6 +20,6 @@
 			"suffix": ".res.mjs"
 		}
 	],
-	"dependencies": ["@rescript/webapi"],
+	"dependencies": ["@rescript/react", "@rescript/webapi"],
 	"compiler-flags": []
 }

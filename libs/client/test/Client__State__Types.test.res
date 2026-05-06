@@ -47,8 +47,6 @@ let makeTestAnnotation = (
   boundingBox,
   nearbyText,
   elementorContext: None,
-  position: {xPercent: 50.0, yAbsolute: 100.0},
-  timestamp: 0.0,
   enrichmentStatus: Enriched,
 }
 
@@ -259,8 +257,6 @@ describe("Client__State__Types", () => {
           boundingBox: None,
           nearbyText: None,
           elementorContext: None,
-          position: {xPercent: 50.0, yAbsolute: 100.0},
-          timestamp: 0.0,
           enrichmentStatus: Enriched,
         }
 
@@ -317,8 +313,6 @@ describe("Client__State__Types", () => {
             documentType: Some("wp-page"),
             editHint: "Use Elementor tools",
           }),
-          position: {xPercent: 50.0, yAbsolute: 100.0},
-          timestamp: 0.0,
           enrichmentStatus: Enriched,
         }
 
@@ -486,8 +480,6 @@ describe("MessageAnnotation.fromAnnotation", () => {
       boundingBox: None,
       nearbyText: None,
       elementorContext: None,
-      position: {xPercent: 0.0, yAbsolute: 0.0},
-      timestamp: 0.0,
       enrichmentStatus: Enriched,
     }
 

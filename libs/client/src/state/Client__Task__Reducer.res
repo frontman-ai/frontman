@@ -173,18 +173,6 @@ module Selectors = {
     }
   }
 
-  // Get annotation mode
-  // None = Unloaded (we don't know)
-  let annotationMode = (task: Task.t): option<Annotation.annotationMode> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | Task.New({annotationMode})
-    | Task.Loading({annotationMode})
-    | Task.Loaded({annotationMode}) =>
-      Some(annotationMode)
-    }
-  }
-
   // Derive webPreviewIsSelecting from annotationMode
   let webPreviewIsSelecting = (task: Task.t): option<bool> => {
     switch task {
@@ -198,14 +186,6 @@ module Selectors = {
     annotations(task)->Option.map(anns =>
       anns->Array.some(a => a.enrichmentStatus == Annotation.Enriching)
     )
-  }
-
-  // Get animation frozen state
-  let isAnimationFrozen = (task: Task.t): option<bool> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | _ => Some(Task.getIsAnimationFrozen(task))
-    }
   }
 
   // Get active popup annotation ID
@@ -231,16 +211,6 @@ module Selectors = {
     switch task {
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
     | Task.Loaded({planEntries}) => Some(planEntries)
-    }
-  }
-
-  // Get preview frame
-  // None = Unloaded (we don't know)
-  let previewFrame = (task: Task.t): option<Task.previewFrame> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | Task.New({previewFrame}) | Task.Loading({previewFrame}) | Task.Loaded({previewFrame}) =>
-      Some(previewFrame)
     }
   }
 
@@ -328,7 +298,6 @@ module Selectors = {
 // Element data for batch annotation (drag selection)
 type annotationElement = {
   element: WebAPI.DOMAPI.element,
-  position: Annotation.position,
   tagName: string,
 }
 
@@ -350,12 +319,8 @@ type action =
   // Annotation actions — unified selection mode
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
-  | ToggleAnnotation({
-      element: WebAPI.DOMAPI.element,
-      position: Annotation.position,
-      tagName: string,
-    })
-  | AddAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
+  | ToggleAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
+  | AddAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
@@ -700,10 +665,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Toggle annotation: click already-annotated element removes it, click new element adds it
   | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
-  | (
-      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
-      ToggleAnnotation({element, position, tagName}),
-    ) => {
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({element, tagName})) => {
       let existing = Annotation.findByElement(Task.getAnnotations(task), element)
       switch existing {
       | Some(ann) =>
@@ -714,7 +676,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         (updated, [])
       | None =>
         // New element — add annotation immediately, open popup, fetch details
-        let annotation = Annotation.make(~element, ~position, ~tagName)
+        let annotation = Annotation.make(~element, ~tagName)
         let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
         let effects = [
           FetchAnnotationDetails({
@@ -733,11 +695,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // AddAnnotation: always adds without toggle semantics (used for tree navigation)
   | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
-  | (
-      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
-      AddAnnotation({element, position, tagName}),
-    ) => {
-      let annotation = Annotation.make(~element, ~position, ~tagName)
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
+      let annotation = Annotation.make(~element, ~tagName)
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let effects = [
         FetchAnnotationDetails({
@@ -788,9 +747,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let newAnnotations =
-        elements->Array.map(el =>
-          Annotation.make(~element=el.element, ~position=el.position, ~tagName=el.tagName)
-        )
+        elements->Array.map(el => Annotation.make(~element=el.element, ~tagName=el.tagName))
       let effects = newAnnotations->Array.map(annotation => FetchAnnotationDetails({
         id: annotation.id,
         element: annotation.element,
@@ -1414,7 +1371,7 @@ let fetchAnnotationDetails = (
   let selectorPromise =
     Promise.resolve()
     ->Promise.then(_ => {
-      let selector = Bindings__Finder.finder(
+      let selector = FrontmanBindings.Bindings__Finder.finder(
         ~element,
         ~options={
           root: document
@@ -1445,7 +1402,7 @@ let fetchAnnotationDetails = (
     let limits = Client__ImageLimits.conservative
     let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
 
-    Bindings__Snapdom.snapdom(element)
+    FrontmanBindings.Bindings__Snapdom.snapdom(element)
     ->Promise.then(captureResult => {
       captureResult.toJpg({scale, quality: limits.quality})->Promise.then(img => {
         Promise.resolve(Ok(Some(img)))

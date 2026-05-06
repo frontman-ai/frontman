@@ -21,9 +21,6 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text, timestamp})}),
     )
 
-  let streamingStarted = (~taskId) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: StreamingStarted}))
-
   // TOOLS
   let toolCallReceived = (~taskId, ~toolCall) =>
     Client__State__Store.dispatch(
@@ -56,11 +53,6 @@ module Actions = {
       TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
     )
 
-  let setAnnotationMode = (~mode) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetAnnotationMode({mode: mode})}),
-    )
-
   // Device mode action creators
   let setDeviceMode = (~deviceMode) =>
     Client__State__Store.dispatch(
@@ -79,15 +71,15 @@ module Actions = {
   let toggleWebPreviewSelection = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
 
-  let toggleAnnotation = (~element, ~position, ~tagName) =>
+  let toggleAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: ToggleAnnotation({element, position, tagName})}),
+      TaskAction({target: CurrentTask, action: ToggleAnnotation({element, tagName})}),
     )
 
   // Unconditionally adds an annotation (no toggle semantics — used for tree navigation)
-  let addAnnotation = (~element, ~position, ~tagName) =>
+  let addAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: AddAnnotation({element, position, tagName})}),
+      TaskAction({target: CurrentTask, action: AddAnnotation({element, tagName})}),
     )
 
   let addAnnotations = (~elements) =>
@@ -108,18 +100,10 @@ module Actions = {
       TaskAction({target: CurrentTask, action: UpdateAnnotationComment({id, comment})}),
     )
 
-  let setActivePopupAnnotationId = (~id) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: id})}),
-    )
-
   let closeAnnotationPopup = () =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: None})}),
     )
-
-  let toggleAnimationFrozen = () =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnimationFrozen}))
 
   // Task management action creators
   // Note: Tasks are created implicitly when user sends first message (lazy session creation)
@@ -151,12 +135,6 @@ module Actions = {
     )
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
-
-  // Task loading action creators (ForTask)
-  let taskLoadError = (~taskId, ~error) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: LoadError({error: error})}),
-    )
 
   // Turn completion action creators (ForTask)
   let turnCompleted = (~taskId: string) =>
@@ -193,9 +171,6 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: RetryTurn({retriedErrorId: errorId})}),
     )
   }
-
-  let clearTurnError = (~taskId: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ClearTurnError}))
 
   // Plan action creators (ForTask)
   let planReceived = (~taskId: string, ~entries) =>

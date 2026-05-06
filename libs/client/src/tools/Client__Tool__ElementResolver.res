@@ -141,7 +141,8 @@ let hasShadowRoot = (el: WebAPI.DOMAPI.element): bool => el.shadowRoot->Null.toO
 // Used consistently for filtering, resolution, and output so the agent can target
 // elements by the same role value shown in discovery.
 let effectiveRole = (el: WebAPI.DOMAPI.element): string => {
-  let rawRole = Bindings__DomAccessibilityApi.getRole(el)->Null.toOption->Option.getOr("")
+  let rawRole =
+    FrontmanBindings.Bindings__DomAccessibilityApi.getRole(el)->Null.toOption->Option.getOr("")
   let tag = el.tagName->String.toLowerCase
   switch rawRole {
   | "" => tag
@@ -151,14 +152,14 @@ let effectiveRole = (el: WebAPI.DOMAPI.element): string => {
 
 // Extract optional ARIA role, returning None for empty strings or absent roles.
 let getOptionalRole = (el: WebAPI.DOMAPI.element): option<string> =>
-  switch Bindings__DomAccessibilityApi.getRole(el)->Null.toOption {
+  switch FrontmanBindings.Bindings__DomAccessibilityApi.getRole(el)->Null.toOption {
   | Some("") | None => None
   | some => some
   }
 
 // Extract optional accessible name, returning None for empty strings.
 let getOptionalAccessibleName = (el: WebAPI.DOMAPI.element): option<string> =>
-  switch Bindings__DomAccessibilityApi.computeAccessibleName(el) {
+  switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el) {
   | "" => None
   | n => Some(n)
   }
@@ -225,10 +226,11 @@ let hasZeroDimensions = (el: WebAPI.DOMAPI.element): bool => {
 // display:none, etc.) or has zero dimensions. Single predicate for the visibility
 // guard used across all tool element walks.
 let isEffectivelyHidden = (el: WebAPI.DOMAPI.element): bool =>
-  Bindings__DomAccessibilityApi.isInaccessible(el) || hasZeroDimensions(el)
+  FrontmanBindings.Bindings__DomAccessibilityApi.isInaccessible(el) || hasZeroDimensions(el)
 
 // Truncate text to a reasonable length for LLM context
-let truncateText = (text: string, ~maxLen: int=80): option<string> => {
+let truncateText = (text: string): option<string> => {
+  let maxLen = 80
   let trimmed = text->String.trim
   switch trimmed {
   | "" => None
@@ -308,7 +310,7 @@ let collectInteractiveElements = (
   ~contentWindow: WebAPI.DOMAPI.window,
   ~roleFilter: option<string>=?,
   ~nameFilter: option<string>=?,
-  ~maxElements: int=50,
+  ~maxElements: int,
 ): array<resolvedElement> => {
   let allElements = document->WebAPI.Document.querySelectorAll("*")->nodeListToElements
   let results: array<resolvedElement> = []
@@ -321,7 +323,8 @@ let collectInteractiveElements = (
     switch isEffectivelyHidden(el) {
     | true => ()
     | false =>
-      let rawRole = Bindings__DomAccessibilityApi.getRole(el)->Null.toOption->Option.getOr("")
+      let rawRole =
+        FrontmanBindings.Bindings__DomAccessibilityApi.getRole(el)->Null.toOption->Option.getOr("")
       let tag = el.tagName->String.toLowerCase
       let role = switch rawRole {
       | "" => tag
@@ -331,7 +334,7 @@ let collectInteractiveElements = (
       switch detectInteractivity(~contentWindow, ~el, ~rawRole) {
       | None => ()
       | Some(detectionMethod) =>
-        let name = Bindings__DomAccessibilityApi.computeAccessibleName(el)
+        let name = FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el)
         switch passesFilters(~role, ~name, ~roleFilter, ~nameFilter) {
         | false => ()
         | true =>
@@ -359,7 +362,7 @@ let resolveByRoleAndName = (
   ~document: WebAPI.DOMAPI.document,
   ~role: string,
   ~name: string,
-  ~index: int=0,
+  ~index: int,
 ): (option<WebAPI.DOMAPI.element>, int) => {
   let lowerRole = role->String.toLowerCase
   let lowerName = name->String.toLowerCase
@@ -374,7 +377,7 @@ let resolveByRoleAndName = (
       | false =>
         let elRole = effectiveRole(el)->String.toLowerCase
         elRole === lowerRole &&
-          Bindings__DomAccessibilityApi.computeAccessibleName(el)
+          FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el)
           ->String.toLowerCase
           ->String.includes(lowerName)
       }
@@ -431,7 +434,7 @@ let findMatchingElements = (~root: WebAPI.DOMAPI.element, ~query: string): array
 
 // Resolve an element by visible text content.
 // Walks all elements, matches by innerText substring.
-let resolveByText = (~document: WebAPI.DOMAPI.document, ~text: string, ~index: int=0): (
+let resolveByText = (~document: WebAPI.DOMAPI.document, ~text: string, ~index: int): (
   option<WebAPI.DOMAPI.element>,
   int,
 ) => {
@@ -451,7 +454,7 @@ let generateSelector = (
     | Some(doc) => doc.documentElement->WebAPI.HTMLElement.asElement
     | None => element
     }
-    let selector = Bindings__Finder.finder(
+    let selector = FrontmanBindings.Bindings__Finder.finder(
       ~element,
       ~options={
         root,
@@ -471,7 +474,7 @@ let generateSelector = (
 // Format: "role 'name'" or "tag 'name'" or "tag" if no name.
 let describeElement = (el: WebAPI.DOMAPI.element): string => {
   let label = effectiveRole(el)
-  let name = Bindings__DomAccessibilityApi.computeAccessibleName(el)
+  let name = FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el)
 
   switch name {
   | "" => label

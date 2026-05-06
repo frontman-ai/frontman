@@ -12,6 +12,7 @@
 		"dom-element-to-component-source": "^0.5.0"
 	},
 	"devDependencies": {
+		"@rescript/react": "^0.14.0",
 		"rescript": "catalog:",
 		"sentry-testkit": "^6.0.0"
 	}

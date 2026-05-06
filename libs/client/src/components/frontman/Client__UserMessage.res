@@ -76,7 +76,6 @@ let make = (
         ? <div className="flex flex-wrap gap-1.5 mb-2">
             {annotations
             ->Array.mapWithIndex((annotation, i) => {
-              let key = `${messageId}-ann-${Int.toString(i)}`
               let badge = _getBadge(i)
               let label = switch annotation.cssClasses {
               | Some(classes) =>
@@ -86,7 +85,7 @@ let make = (
                   : `<${annotation.tagName}>`
               | None => `<${annotation.tagName}>`
               }
-              <div key className="flex flex-col gap-0.5">
+              <div key={`${messageId}-ann-${Int.toString(i)}`} className="flex flex-col gap-0.5">
                 <div
                   className="flex items-center gap-1 px-2 py-0.5 rounded-md
                              bg-violet-500/60 text-violet-100 text-xs font-mono"
@@ -114,10 +113,9 @@ let make = (
         ? <div className="flex flex-wrap gap-2 mb-2">
             {imageParts
             ->Array.mapWithIndex(((src, _mediaType), i) => {
-              let key = `${messageId}-img-${Int.toString(i)}`
               let isImage = !(src->String.includes("application/pdf"))
               <div
-                key
+                key={`${messageId}-img-${Int.toString(i)}`}
                 className={`w-12 h-12 rounded-lg overflow-hidden border border-white/20
                            transition-colors ${isImage
                     ? "cursor-pointer hover:border-white/50"
@@ -150,9 +148,8 @@ let make = (
         ? <div className="flex flex-wrap gap-1.5 mb-2">
             {fileParts
             ->Array.mapWithIndex((file, i) => {
-              let key = `${messageId}-file-${Int.toString(i)}`
               <div
-                key
+                key={`${messageId}-file-${Int.toString(i)}`}
                 className="flex items-center gap-1.5 px-2 py-1 rounded-md
                            bg-violet-700/50 text-violet-100 text-xs"
               >
@@ -168,8 +165,11 @@ let make = (
       <div className="text-[14px] leading-relaxed text-white font-semibold">
         {textParts
         ->Array.mapWithIndex((text, i) => {
-          let key = `${messageId}-text-${Int.toString(i)}`
-          <div key className="whitespace-pre-wrap break-words"> {React.string(text)} </div>
+          <div
+            key={`${messageId}-text-${Int.toString(i)}`} className="whitespace-pre-wrap break-words"
+          >
+            {React.string(text)}
+          </div>
         })
         ->React.array}
       </div>

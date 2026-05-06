@@ -238,7 +238,7 @@ let focusAtEnd: Dom.element => unit = %raw(`
 // Model selector dropdown - consumes ACP SessionConfigOption (type: "select")
 // Uses Radix UI Select for consistent dark theme styling across all platforms (including Linux)
 module ModelSelector = {
-  module Select = Bindings__RadixUI__Select
+  module Select = FrontmanBindings.Bindings__RadixUI__Select
   module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
   // Get the display name for the currently selected value from config option

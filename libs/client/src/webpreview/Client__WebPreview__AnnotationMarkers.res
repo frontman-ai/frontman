@@ -8,7 +8,7 @@
  * Tree nav control top-right: ↑/↓ to walk to parent/first-child.
  */
 module Annotation = Client__Annotation__Types
-module RadixUI__Icons = Bindings__RadixUI__Icons
+module RadixUI__Icons = FrontmanBindings.Bindings__RadixUI__Icons
 
 // Walk to parent element, stopping at body/html
 let getParentEl = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element> =>

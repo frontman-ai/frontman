@@ -1,6 +1,6 @@
 module Icons = Client__ToolIcons
 module Annotation = Client__Annotation__Types
-module RadixUI__Icons = Bindings__RadixUI__Icons
+module RadixUI__Icons = FrontmanBindings.Bindings__RadixUI__Icons
 
 // Single annotation row with inline comment editing
 module AnnotationRow = {

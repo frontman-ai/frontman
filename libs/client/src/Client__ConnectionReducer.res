@@ -20,7 +20,6 @@ type initConfig = {
   loginUrl: string,
   clientName: string,
   clientVersion: string,
-  baseUrl: string,
   onACPMessage: (ACP.messageDirection, JSON.t) => unit,
   // _meta to pass in ACP clientInfo (framework, env key detection, etc.)
   _meta: JSON.t,

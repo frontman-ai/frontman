@@ -2,7 +2,7 @@
 // Renders inside the chatbox panel as an absolute overlay, covering
 // the message list and input but allowing task-tab switching.
 
-module Icons = Bindings__RadixUI__Icons
+module Icons = FrontmanBindings.Bindings__RadixUI__Icons
 
 // Individual option button with checkbox/radio indicator
 module OptionButton = {

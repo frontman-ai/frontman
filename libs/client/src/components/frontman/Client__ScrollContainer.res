@@ -86,15 +86,15 @@ let make = (~className: option<string>=?, ~children: React.element) => {
   React.useEffect0(() => {
     switch (sentinelRef.current->Nullable.toOption, containerRef.current->Nullable.toOption) {
     | (Some(sentinel), Some(container)) =>
-      let observer = Bindings__IntersectionObserver.make(entries => {
+      let observer = FrontmanBindings.Bindings__IntersectionObserver.make(entries => {
         entries->Array.forEach(
           entry => {
             setIsAtBottom(_ => entry.isIntersecting)
           },
         )
       }, {root: container, rootMargin: "10px", threshold: [0.0]})
-      observer->Bindings__IntersectionObserver.observe(sentinel)
-      Some(() => Bindings__IntersectionObserver.disconnect(observer))
+      observer->FrontmanBindings.Bindings__IntersectionObserver.observe(sentinel)
+      Some(() => FrontmanBindings.Bindings__IntersectionObserver.disconnect(observer))
     | _ => None
     }
   })
@@ -102,7 +102,8 @@ let make = (~className: option<string>=?, ~children: React.element) => {
   let scrollToBottom = React.useCallback0(() => {
     switch sentinelRef.current->Nullable.toOption {
     | None => ()
-    | Some(sentinel) => sentinel->Bindings__DomScrollIntoView.scrollIntoView({behavior: "smooth"})
+    | Some(sentinel) =>
+      sentinel->FrontmanBindings.Bindings__DomScrollIntoView.scrollIntoView({behavior: "smooth"})
     }
   })
 

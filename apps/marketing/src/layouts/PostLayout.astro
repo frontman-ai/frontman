@@ -146,11 +146,36 @@ const videoJsonLd = frontmatter.video
 	@reference "../styles/global.css";
 	.post-body {
 		@apply mx-auto max-w-3xl px-6 py-12 lg:py-24;
+		overflow-x: clip;
 	}
 
-	.post-body :global(table) {
-		@apply block max-w-full overflow-x-auto;
+	.post-body :global(.table-scroll) {
+		max-width: 100%;
+		margin: 32px 0;
+		overflow-x: auto;
+		overflow-y: hidden;
 		-webkit-overflow-scrolling: touch;
+		border-radius: 16px;
+	}
+	.post-body :global(.table-scroll table) {
+		width: max-content;
+		min-width: 100%;
+		margin: 0;
+	}
+	.post-body :global(.table-scroll::-webkit-scrollbar) {
+		height: 10px;
+	}
+	.post-body :global(.table-scroll::-webkit-scrollbar-track) {
+		background: rgba(39, 39, 42, 0.45);
+		border-radius: 999px;
+	}
+	.post-body :global(.table-scroll::-webkit-scrollbar-thumb) {
+		background: rgba(113, 113, 122, 0.8);
+		border-radius: 999px;
+		border: 2px solid rgba(39, 39, 42, 0.45);
+	}
+	.post-body :global(.table-scroll::-webkit-scrollbar-thumb:hover) {
+		background: rgba(161, 161, 170, 0.9);
 	}
 
 	.post-body :global(.metric-comparison) {
@@ -347,6 +372,20 @@ const videoJsonLd = frontmatter.video
 </style>
 
 <script>
+	function initScrollableTables() {
+		document.querySelectorAll<HTMLTableElement>('.post-body table').forEach((table) => {
+			if (table.parentElement?.classList.contains('table-scroll')) return;
+
+			const wrapper = document.createElement('div');
+			wrapper.className = 'table-scroll';
+			wrapper.setAttribute('role', 'region');
+			wrapper.setAttribute('aria-label', 'Scrollable table');
+			wrapper.setAttribute('tabindex', '0');
+			table.before(wrapper);
+			wrapper.appendChild(table);
+		});
+	}
+
 	function initMetricComparisons() {
 		document.querySelectorAll<HTMLUListElement>('.post-body ul').forEach((list) => {
 			const items = Array.from(list.querySelectorAll<HTMLLIElement>(':scope > li'));
@@ -455,9 +494,11 @@ const videoJsonLd = frontmatter.video
 		});
 	}
 
+	initScrollableTables();
 	initMetricComparisons();
 	initCodeCopyButtons();
 	document.addEventListener('astro:after-swap', () => {
+		initScrollableTables();
 		initMetricComparisons();
 		initCodeCopyButtons();
 	});

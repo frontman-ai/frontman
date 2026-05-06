@@ -249,7 +249,6 @@ module Provider = {
         loginUrl,
         clientName,
         clientVersion,
-        baseUrl,
         onACPMessage: logACPMessage,
         _meta,
         onTitleUpdated: Some(

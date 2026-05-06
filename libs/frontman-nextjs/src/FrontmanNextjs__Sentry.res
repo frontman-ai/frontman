@@ -1,7 +1,7 @@
 // Frontman Sentry integration for Next.js library
 // Reports errors to Frontman's own Sentry project
 
-module Bindings = FrontmanNextjs__Sentry__Bindings
+module Bindings = FrontmanBindings.Sentry__Nextjs
 module SentryConfig = FrontmanBindings.Sentry__Config
 module SentryFilter = FrontmanBindings.Sentry__Filter
 

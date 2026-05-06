@@ -12,15 +12,10 @@ module T: {
 
   // Reading
   let toArray: t => array<Message.t>
-  let get: (t, string) => option<Message.t>
-  let find: (t, Message.t => bool) => option<Message.t>
-  let length: t => int
-  let isEmpty: t => bool
 
   // Updating (returns new store)
   let update: (t, string, Message.t => Message.t) => t
   let insert: (t, Message.t) => t
-  let concat: (t, array<Message.t>) => t
   let map: (t, Message.t => Message.t) => t
 
   // Sorting
@@ -46,19 +41,6 @@ module T: {
   }
 
   let toArray = store => store.list
-  let length = store => Array.length(store.list)
-  let isEmpty = store => Array.length(store.list) == 0
-
-  let get = (store, id) => {
-    switch store.byId->Dict.get(id) {
-    | Some(idx) => store.list->Array.get(idx)
-    | None => None
-    }
-  }
-
-  let find = (store, predicate) => {
-    store.list->Array.find(predicate)
-  }
 
   let update = (store, id, fn) => {
     switch store.byId->Dict.get(id) {
@@ -80,12 +62,6 @@ module T: {
     {list: store.list->Array.concat([msg]), byId: newById}
   }
 
-  let concat = (store, messages) => {
-    let newList = store.list->Array.concat(messages)
-    // Rebuild index to include new messages
-    {list: newList, byId: buildIndex(newList)}
-  }
-
   let map = (store, fn) => {
     let newList = store.list->Array.map(fn)
     // Rebuild index in case IDs changed (defensive)
@@ -103,12 +79,7 @@ type t = T.t
 let make = T.make
 let fromArray = T.fromArray
 let toArray = T.toArray
-let get = T.get
-let find = T.find
-let length = T.length
-let isEmpty = T.isEmpty
 let update = T.update
 let insert = T.insert
-let concat = T.concat
 let map = T.map
 let toSorted = T.toSorted

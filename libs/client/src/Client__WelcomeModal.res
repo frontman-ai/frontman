@@ -1,8 +1,8 @@
 // Welcome modal shown to first-time unauthenticated users
 // Auto-redirects to the login page after a countdown
 
-module Dialog = Bindings__UI__Dialog
-module Button = Bindings__UI__Button
+module Dialog = FrontmanBindings.Bindings__UI__Dialog
+module Button = FrontmanBindings.Bindings__UI__Button
 
 let redirectDelaySec = 4
 

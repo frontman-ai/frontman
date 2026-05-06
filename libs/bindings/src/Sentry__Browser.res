@@ -1,10 +1,7 @@
-// Sentry SDK bindings for ReScript
-// Using @sentry/browser for browser client
-// Types are shared via FrontmanBindings.Sentry__Types
+// Sentry SDK bindings for browser clients.
 
-module Types = FrontmanBindings.Sentry__Types
+module Types = Sentry__Types
 
-// Re-export shared types for convenience
 type severity = Types.severity
 type breadcrumb = Types.breadcrumb
 type eventHint = Types.eventHint
@@ -24,7 +21,6 @@ type initOptions = {
   beforeSend?: (sentryEvent, eventHint) => Nullable.t<sentryEvent>,
 }
 
-// Main Sentry functions from @sentry/browser
 @module("@sentry/browser") external init: initOptions => unit = "init"
 @module("@sentry/browser")
 external captureException: (exn, ~hint: eventHint=?) => string = "captureException"
@@ -38,7 +34,6 @@ external captureMessage: (string, ~level: severity=?) => string = "captureMessag
 @module("@sentry/browser") external addBreadcrumb: breadcrumb => unit = "addBreadcrumb"
 @module("@sentry/browser") external isInitialized: unit => bool = "isInitialized"
 
-// Scope manipulation
 type scope
 @module("@sentry/browser") external withScope: (scope => 'a) => 'a = "withScope"
 @send external scopeSetTag: (scope, string, string) => unit = "setTag"

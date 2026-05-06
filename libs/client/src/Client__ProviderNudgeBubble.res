@@ -1,8 +1,8 @@
 // Nudge bubble shown near the settings icon urging first-time users to connect an AI provider
 // Dismissible per session, re-appears on page reload until a provider is configured
 
-module Button = Bindings__UI__Button
-module Icons = Bindings__RadixUI__Icons
+module Button = FrontmanBindings.Bindings__UI__Button
+module Icons = FrontmanBindings.Bindings__RadixUI__Icons
 
 @react.component
 let make = (~onOpenSettings: unit => unit, ~onDismiss: unit => unit) => {

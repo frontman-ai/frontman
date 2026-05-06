@@ -19,7 +19,11 @@
 		"version": 4
 	},
 	"reanalyze": {
-		"suppress": ["libs/bindings"]
+		"suppress": [
+			"libs/bindings",
+			"libs/experimental-rescript-webapi",
+			"libs/frontman-protocol"
+		]
 	},
 	"gentypeconfig": {
 		"language": "typescript",

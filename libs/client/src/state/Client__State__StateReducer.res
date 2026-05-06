@@ -37,7 +37,6 @@ type action =
   // Cancel current turn
   | CancelTurn
   // Task management actions
-  | CreateTask
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask // Used when clicking "+" to start a new task - clears selection so next message creates new task
@@ -269,69 +268,6 @@ let defaultState: state = {
   updateBannerDismissed: false,
 }
 
-let actionToString = action => {
-  switch action {
-  | TaskAction({target, action}) =>
-    let targetStr = switch target {
-    | CurrentTask => "CurrentTask"
-    | ForTask(id) => `ForTask(${id})`
-    }
-    `TaskAction(${targetStr}, ${TaskReducer.actionToString(action)})`
-  | AddUserMessage({id, sessionId}) => `AddUserMessage(${id}, session=${sessionId})`
-  | CancelTurn => `CancelTurn`
-  | CreateTask => `CreateTask`
-  | SwitchTask({taskId}) => `SwitchTask(${taskId})`
-  | DeleteTask({taskId}) => `DeleteTask(${taskId})`
-  | ClearCurrentTask => `ClearCurrentTask`
-  | UpdateTaskTitle({taskId, title}) => `UpdateTaskTitle(${taskId}, "${title}")`
-  | SetAcpSession(_) => `SetAcpSession`
-  | ClearAcpSession => `ClearAcpSession`
-  | UsageInfoReceived(_) => `UsageInfoReceived`
-  | FetchApiKeySettings({provider}) => `FetchApiKeySettings(${apiKeyProviderLabel(provider)})`
-  | ApiKeySettingsReceived({provider, source}) =>
-    `ApiKeySettingsReceived(${apiKeyProviderLabel(provider)}, ${apiKeySourceToString(source)})`
-  | SaveApiKey({provider}) => `SaveApiKey(${apiKeyProviderLabel(provider)})`
-  | ApiKeySaveStarted({provider}) => `ApiKeySaveStarted(${apiKeyProviderLabel(provider)})`
-  | ApiKeySaved({provider}) => `ApiKeySaved(${apiKeyProviderLabel(provider)})`
-  | ApiKeySaveError({provider, error}) =>
-    `ApiKeySaveError(${apiKeyProviderLabel(provider)}, ${error})`
-  | ResetApiKeySaveStatus({provider}) => `ResetApiKeySaveStatus(${apiKeyProviderLabel(provider)})`
-  | ConfigOptionsReceived(_) => `ConfigOptionsReceived`
-  | SetSelectedModelValue({value}) => `SetSelectedModelValue(${value})`
-  | FetchAnthropicOAuthStatus => `FetchAnthropicOAuthStatus`
-  | AnthropicOAuthStatusReceived({connected}) =>
-    `AnthropicOAuthStatusReceived(connected=${connected->string_of_bool})`
-  | InitiateAnthropicOAuth => `InitiateAnthropicOAuth`
-  | AnthropicOAuthUrlReceived(_) => `AnthropicOAuthUrlReceived`
-  | ExchangeAnthropicOAuthCode(_) => `ExchangeAnthropicOAuthCode`
-  | AnthropicOAuthConnected({expiresAt}) => `AnthropicOAuthConnected(${expiresAt})`
-  | AnthropicOAuthError({error}) => `AnthropicOAuthError(${error})`
-  | DisconnectAnthropicOAuth => `DisconnectAnthropicOAuth`
-  | AnthropicOAuthDisconnected => `AnthropicOAuthDisconnected`
-  | ResetAnthropicOAuthError => `ResetAnthropicOAuthError`
-  | CancelAnthropicOAuth => `CancelAnthropicOAuth`
-  | FetchChatGPTOAuthStatus => `FetchChatGPTOAuthStatus`
-  | ChatGPTOAuthStatusReceived({connected}) =>
-    `ChatGPTOAuthStatusReceived(connected=${connected->string_of_bool})`
-  | InitiateChatGPTOAuth => `InitiateChatGPTOAuth`
-  | ChatGPTDeviceCodeReceived({userCode}) => `ChatGPTDeviceCodeReceived(userCode=${userCode})`
-  | ChatGPTOAuthConnected({expiresAt}) => `ChatGPTOAuthConnected(expiresAt=${expiresAt})`
-  | ChatGPTOAuthError({error}) => `ChatGPTOAuthError(error=${error})`
-  | DisconnectChatGPTOAuth => `DisconnectChatGPTOAuth`
-  | ChatGPTOAuthDisconnected => `ChatGPTOAuthDisconnected`
-  | ResetChatGPTOAuthError => `ResetChatGPTOAuthError`
-  | UserProfileReceived(_) => `UserProfileReceived`
-  | SessionsLoadStarted => `SessionsLoadStarted`
-  | SessionsLoadSuccess({sessions}) =>
-    `SessionsLoadSuccess(${sessions->Array.length->Int.toString} sessions)`
-  | SessionsLoadError({error}) => `SessionsLoadError(${error})`
-  | CheckForUpdate({npmPackage}) => `CheckForUpdate(${npmPackage})`
-  | UpdateInfoReceived({updateInfo}) =>
-    `UpdateInfoReceived(${updateInfo.npmPackage} ${updateInfo.installedVersion} -> ${updateInfo.latestVersion})`
-  | DismissUpdateBanner => `DismissUpdateBanner`
-  }
-}
-
 module Selectors = {
   let getMessageId = Message.getId
 
@@ -361,12 +297,6 @@ module Selectors = {
 
   // State predicates
   let isNewTask = (state: state): bool => Task.isNew(currentTask(state))
-  let isCurrentTaskUnloaded = (state: state): bool => Task.isUnloaded(currentTask(state))
-  let isCurrentTaskLoading = (state: state): bool => Task.isLoading(currentTask(state))
-  let isCurrentTaskLoaded = (state: state): bool => Task.isLoaded(currentTask(state))
-
-  // Delegate to Task helpers
-  let getMessageCreatedAt = TaskReducer.Selectors.getMessageCreatedAt
 
   let messages = (state: state): array<Message.t> => {
     Task.getMessages(currentTask(state))
@@ -378,10 +308,6 @@ module Selectors = {
 
   let previewFrame = (state: state): Task.previewFrame => {
     Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl())
-  }
-
-  let annotationMode = (state: state): Client__Annotation__Types.annotationMode => {
-    Task.getAnnotationMode(currentTask(state))
   }
 
   let annotations = (state: state): array<Client__Annotation__Types.t> => {
@@ -398,10 +324,6 @@ module Selectors = {
 
   let activePopupAnnotationId = (state: state): option<string> => {
     Task.getActivePopupAnnotationId(currentTask(state))
-  }
-
-  let isAnimationFrozen = (state: state): bool => {
-    Task.getIsAnimationFrozen(currentTask(state))
   }
 
   let isAgentRunning = (state: state): bool => {
@@ -434,24 +356,6 @@ module Selectors = {
     ->Dict.get(taskId)
     ->Option.flatMap(task => Task.getImageAttachments(task)->Dict.get(uri))
     ->Option.map(Message.resolveAttachmentImage)
-  }
-
-  // Derived selectors (use messages from above)
-  let completedMessages = (state: state) =>
-    messages(state)->Array.filter(msg => {
-      switch msg {
-      | User(_) => true
-      | Assistant(Completed(_)) => true
-      | Assistant(Streaming(_)) => false
-      | ToolCall({state: OutputAvailable | OutputError, _}) => true
-      | ToolCall(_) => false
-      | Error(_) => true
-      }
-    })
-
-  let lastMessage = (state: state) => {
-    let msgs = messages(state)
-    msgs->Array.get(Array.length(msgs) - 1)
   }
 
   let previewUrl = (state: state): string => {
@@ -1301,11 +1205,6 @@ let next = (state: state, action) => {
   // ============================================================================
   // Task management actions
   // ============================================================================
-  | CreateTask =>
-    {
-      ...state,
-      currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
-    }->StateReducer.update
   | SwitchTask({taskId}) => {
       let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
       let needsLoad = Task.isUnloaded(task)

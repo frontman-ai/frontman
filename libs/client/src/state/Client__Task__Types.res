@@ -11,61 +11,6 @@ module AssistantContentPart = Client__Message.AssistantContentPart
 module Message = Client__Message
 
 module Annotation = Client__Annotation__Types
-
-// Todo - single source of truth for todo state (updated by reducer)
-module Todo = {
-  type status =
-    | Pending
-    | InProgress
-    | Completed
-
-  type t = {
-    id: string,
-    content: string,
-    activeForm: string,
-    status: status,
-    createdAt: float,
-    updatedAt: float,
-  }
-
-  let parseStatus = (statusStr: string): status => {
-    switch String.toLowerCase(statusStr) {
-    | "in_progress" | "in-progress" | "inprogress" => InProgress
-    | "completed" | "complete" | "done" => Completed
-    | _ => Pending
-    }
-  }
-
-  // Parse a Todo from JSON tool result
-  let fromResult = (json: JSON.t): t => {
-    let statusSchema = S.string->S.transform(_ => {
-      parser: str => parseStatus(str),
-      serializer: status =>
-        switch status {
-        | Pending => "pending"
-        | InProgress => "in_progress"
-        | Completed => "completed"
-        },
-    })
-
-    let schema = S.object(s => (
-      s.field("id", S.string),
-      s.field("content", S.string),
-      s.field("active_form", S.string),
-      s.field("status", statusSchema),
-    ))
-
-    let (id, content, activeForm, status) = S.parseOrThrow(json, schema)
-    let now = Date.now()
-    {id, content, activeForm, status, createdAt: now, updatedAt: now}
-  }
-
-  // Extract todo ID from a remove result
-  let idFromResult = (json: JSON.t): string => {
-    S.parseOrThrow(json, S.object(s => s.field("id", S.string)))
-  }
-}
-
 // Re-export ACP types for convenience
 module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 

@@ -7,7 +7,7 @@
 // When ~error is provided (JsExn.t), uses captureException for proper
 // stack traces and Sentry issue grouping.  Otherwise uses captureMessage.
 
-module Bindings = FrontmanClient__Sentry__Bindings
+module Bindings = FrontmanBindings.Sentry__Browser
 module Sentry = FrontmanClient__Sentry
 
 let run = (~component, ~stacktrace as _, ~level, message, _ctx, error) => {

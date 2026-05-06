@@ -907,7 +907,6 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       task1,
       ToggleAnnotation({
         element: el1,
-        position: {xPercent: 50.0, yAbsolute: 100.0},
         tagName: "button",
       }),
     )
@@ -915,7 +914,6 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       task2,
       ToggleAnnotation({
         element: el2,
-        position: {xPercent: 30.0, yAbsolute: 200.0},
         tagName: "div",
       }),
     )
@@ -1303,7 +1301,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
       task1,
       ToggleAnnotation({
         element: el,
-        position: {xPercent: 50.0, yAbsolute: 100.0},
         tagName: "button",
       }),
     )
@@ -1493,7 +1490,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
       task1,
       ToggleAnnotation({
         element: el1,
-        position: {xPercent: 50.0, yAbsolute: 100.0},
         tagName: "button",
       }),
     )
@@ -1501,7 +1497,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
       task2,
       ToggleAnnotation({
         element: el2,
-        position: {xPercent: 30.0, yAbsolute: 200.0},
         tagName: "div",
       }),
     )

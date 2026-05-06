@@ -5,13 +5,10 @@ S.enableJson()
 module UserContentPart = Client__Task__Types.UserContentPart
 module AssistantContentPart = Client__Task__Types.AssistantContentPart
 module Message = Client__Task__Types.Message
-module Todo = Client__Task__Types.Todo
 module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
 
 // Re-export content block builders
-let stripFileUriPrefix = Client__Task__Types.stripFileUriPrefix
-let makeAnnotationMeta = Client__Task__Types.makeAnnotationMeta
 let annotationToContentBlocks = Client__Task__Types.annotationToContentBlocks
 let taskToPageContextBlocks = Client__Task__Types.taskToPageContextBlocks
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks

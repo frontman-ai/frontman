@@ -142,7 +142,7 @@ let execute = async (
             let limits = Client__ImageLimits.forProvider(provider)
             let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
 
-            let captureResult = await Bindings__Snapdom.snapdom(element)
+            let captureResult = await FrontmanBindings.Bindings__Snapdom.snapdom(element)
 
             switch viewportCrop {
             | Some((viewportW, viewportH, scrollX, scrollY)) =>
