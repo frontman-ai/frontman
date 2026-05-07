@@ -2429,6 +2429,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/bindings@workspace:libs/bindings"
   dependencies:
+    "@rescript/react": "npm:^0.14.0"
     "@rescript/runtime": "npm:12.2.0"
     dom-element-to-component-source: "npm:^0.5.0"
     rescript: "catalog:"
