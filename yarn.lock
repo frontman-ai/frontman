@@ -4761,7 +4761,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/react@npm:^0.14.2":
+"@rescript/react@npm:^0.14.0, @rescript/react@npm:^0.14.2":
   version: 0.14.2
   resolution: "@rescript/react@npm:0.14.2"
   peerDependencies:
