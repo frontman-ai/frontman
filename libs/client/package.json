@@ -54,7 +54,7 @@
 		"@radix-ui/react-tooltip": "^1.2.8",
 		"@rescript/react": "^0.14.2",
 		"@rescript/webapi": "*",
-		"@tailwindcss/vite": "^4.1.16",
+		"@tailwindcss/vite": "^4.2.2",
 		"@types/babel__core": "^7",
 		"@types/react": "^19.2.2",
 		"@zumer/snapdom": "^1.9.14",
