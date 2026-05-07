@@ -49,6 +49,7 @@ type parsed = {
   sourceRoot: option<string>,
 }
 
+@@live
 type t = {
   framework: frameworkId,
   basePath: string,

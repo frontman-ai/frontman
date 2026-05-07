@@ -22,6 +22,7 @@ type mcpHandler<'server> = {
 }
 
 // Incoming message variants
+@@live
 type mcpMessage =
   | Request({id: int, method: string, params: option<JSON.t>})
   | Notification({method: string, params: option<JSON.t>})
@@ -179,6 +180,7 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
 }
 
 // Attach MCP handler to a session channel with a server interface
+@@live
 let attach = (
   ~channel: Channel.t,
   ~sessionId: string,
@@ -195,6 +197,7 @@ let attach = (
 }
 
 // Detach MCP handler from channel
+@@live
 let detach = (handler: mcpHandler<'server>): unit => {
   handler.channel->Channel.off(~event=#"mcp:message")
 }

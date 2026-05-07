@@ -2,11 +2,6 @@ open FrontmanNextjs__OpenTelemetry__Bindings
 
 module LogCapture = FrontmanNextjs__LogCapture
 
-let hrTimeToISO = ((seconds, nanos): hrTime): string => {
-  let ms = seconds *. 1000.0 +. nanos /. 1_000_000.0
-  ms->Date.fromTime->Date.toISOString
-}
-
 let calculateDuration = (span: Trace.readableSpan): float => {
   let (startSec, startNano) = span->Trace.startTime
   let (endSec, endNano) = span->Trace.endTime
@@ -88,9 +83,6 @@ let make = (): Trace.spanProcessor => {
                 ),
                 ("duration.ms", durationMs->JSON.Encode.float),
               ])->JSON.Encode.object
-
-            let (endSec, endNano) = span->Trace.endTime
-            let _timestamp = (endSec, endNano)->hrTimeToISO
 
             let state = LogCapture.getInstance()
             LogCapture.addLog(state, level, message, ~attributes=logAttrs)

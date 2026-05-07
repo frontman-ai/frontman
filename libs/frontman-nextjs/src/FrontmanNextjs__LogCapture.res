@@ -9,6 +9,7 @@ let defaultConfig: config = {
 
 let getInstance = (): state => getOrCreateInstance(~config=defaultConfig)
 
+@@live
 let initialize = (~config: config=defaultConfig, ()): unit => {
   CoreLogCapture.initialize(~config, ())
 }

@@ -131,6 +131,7 @@ let () = Client__TextDeltaBuffer.flushUserMessageBuffer := _flushUserMessageBuff
 type connectionState = Reducer.Selectors.connectionStatus
 
 // Context value type
+@@live
 type contextValue = {
   connectionState: connectionState,
   isSendingPrompt: bool,

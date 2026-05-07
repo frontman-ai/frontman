@@ -56,21 +56,23 @@ type input = {
 
 @schema
 type output = {
-  @s.describe("Whether the DOM query succeeded")
+  @s.describe("Whether the DOM query succeeded") @live
   success: bool,
   @s.describe(
     "The DOM content: pruned text in simplified mode, raw HTML in full mode. Absent when the subtree is too large."
   )
+  @live
   html: option<string>,
-  @s.describe("Number of element nodes in the returned subtree")
+  @s.describe("Number of element nodes in the returned subtree") @live
   nodeCount: option<int>,
-  @s.describe("Size of the returned content in bytes")
+  @s.describe("Size of the returned content in bytes") @live
   byteSize: option<int>,
   @s.describe(
     "Guidance for the next query: lists direct children when a request is rejected, or suggests narrower selectors."
   )
+  @live
   hint: option<string>,
-  @s.describe("Error message if the query failed")
+  @s.describe("Error message if the query failed") @live
   error: option<string>,
 }
 
@@ -347,7 +349,7 @@ let errorResult = (~error: string, ~hint: option<string>=?, ~nodeCount: option<i
   error: Some(error),
 })
 
-let successResult = (~html: string, ~nodeCount: option<int>=?, ~hint: option<string>=?): result<
+let successResult = (~html: string, ~nodeCount: option<int>, ~hint: option<string>=?): result<
   output,
   _,
 > => {
@@ -418,7 +420,7 @@ let execute = async (
                   ~nodeCount=descendantCount,
                 )
               } else {
-                successResult(~html=raw, ~nodeCount=descendantCount)
+                successResult(~html=raw, ~nodeCount=Some(descendantCount))
               }
             }
 
@@ -468,7 +470,7 @@ let execute = async (
                   )
                 | false => None
                 }
-                successResult(~html=state.output, ~nodeCount=state.nodeCount, ~hint?)
+                successResult(~html=state.output, ~nodeCount=Some(state.nodeCount), ~hint?)
               }
             }
           }

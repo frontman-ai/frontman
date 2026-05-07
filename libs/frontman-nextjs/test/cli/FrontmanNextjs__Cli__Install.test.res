@@ -737,27 +737,16 @@ describe("Batched Auto-Edit Collection", _t => {
   test("getPendingAutoEdit returns Some for NeedsManualEdit", t => {
     let result = Files.getPendingAutoEdit(
       ~existingFile=Detect.NeedsManualEdit,
-      ~filePath="/tmp/middleware.ts",
       ~fileName="middleware.ts",
-      ~fileType=AutoEdit.Middleware,
-      ~manualDetails="manual details",
     )
     switch result {
-    | Some(p) =>
-      t->expect(p.fileName)->Expect.toBe("middleware.ts")
-      t->expect(p.filePath)->Expect.toBe("/tmp/middleware.ts")
+    | Some(p) => t->expect(p.fileName)->Expect.toBe("middleware.ts")
     | None => t->expect("should")->Expect.toBe("return Some")
     }
   })
 
   test("getPendingAutoEdit returns None for NotFound", t => {
-    let result = Files.getPendingAutoEdit(
-      ~existingFile=Detect.NotFound,
-      ~filePath="/tmp/middleware.ts",
-      ~fileName="middleware.ts",
-      ~fileType=AutoEdit.Middleware,
-      ~manualDetails="manual details",
-    )
+    let result = Files.getPendingAutoEdit(~existingFile=Detect.NotFound, ~fileName="middleware.ts")
     switch result {
     | None => t->expect(true)->Expect.toBe(true)
     | Some(_) => t->expect("should")->Expect.toBe("return None for NotFound")
@@ -767,10 +756,7 @@ describe("Batched Auto-Edit Collection", _t => {
   test("getPendingAutoEdit returns None for HasFrontman", t => {
     let result = Files.getPendingAutoEdit(
       ~existingFile=Detect.HasFrontman({host: "test.host"}),
-      ~filePath="/tmp/middleware.ts",
       ~fileName="middleware.ts",
-      ~fileType=AutoEdit.Middleware,
-      ~manualDetails="manual details",
     )
     switch result {
     | None => t->expect(true)->Expect.toBe(true)
@@ -787,12 +773,7 @@ describe("Batched Auto-Edit Collection", _t => {
       hasSrcDir: false,
       packageManager: Detect.Npm,
     }
-    let pending = Install.collectPendingAutoEdits(
-      ~projectDir="/tmp",
-      ~host="test.host",
-      ~info,
-      ~isNext16Plus=false,
-    )
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=false)
     t->expect(pending->Array.length)->Expect.toBe(1)
     t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("middleware.ts")
   })
@@ -806,12 +787,7 @@ describe("Batched Auto-Edit Collection", _t => {
       hasSrcDir: false,
       packageManager: Detect.Npm,
     }
-    let pending = Install.collectPendingAutoEdits(
-      ~projectDir="/tmp",
-      ~host="test.host",
-      ~info,
-      ~isNext16Plus=false,
-    )
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=false)
     t->expect(pending->Array.length)->Expect.toBe(2)
     let fileNames = pending->Array.map(p => p.fileName)
     t->expect(fileNames->Array.includes("middleware.ts"))->Expect.toBe(true)
@@ -827,12 +803,7 @@ describe("Batched Auto-Edit Collection", _t => {
       hasSrcDir: false,
       packageManager: Detect.Npm,
     }
-    let pending = Install.collectPendingAutoEdits(
-      ~projectDir="/tmp",
-      ~host="test.host",
-      ~info,
-      ~isNext16Plus=true,
-    )
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=true)
     t->expect(pending->Array.length)->Expect.toBe(1)
     t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("proxy.ts")
   })
@@ -846,12 +817,7 @@ describe("Batched Auto-Edit Collection", _t => {
       hasSrcDir: true,
       packageManager: Detect.Npm,
     }
-    let pending = Install.collectPendingAutoEdits(
-      ~projectDir="/tmp",
-      ~host="test.host",
-      ~info,
-      ~isNext16Plus=false,
-    )
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=false)
     t->expect(pending->Array.length)->Expect.toBe(1)
     t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("src/instrumentation.ts")
   })
@@ -865,12 +831,7 @@ describe("Batched Auto-Edit Collection", _t => {
       hasSrcDir: false,
       packageManager: Detect.Npm,
     }
-    let pending = Install.collectPendingAutoEdits(
-      ~projectDir="/tmp",
-      ~host="test.host",
-      ~info,
-      ~isNext16Plus=false,
-    )
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=false)
     t->expect(pending->Array.length)->Expect.toBe(0)
   })
 })

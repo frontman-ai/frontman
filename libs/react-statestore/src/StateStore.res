@@ -159,6 +159,7 @@ let compareFn = Some(isEqual)
 // small. This allows us to have at least the same performance as redux with a very
 // minimal implementation (and maintenance) overhead, and have a rescript friendly
 // interface.
+@@live
 let useSelector:
   type selection. (
     ~compare: option<(selection, selection) => bool>=?,

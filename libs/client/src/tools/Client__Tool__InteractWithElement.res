@@ -54,15 +54,15 @@ type input = {
 
 @schema
 type output = {
-  @s.describe("Whether the interaction was performed successfully")
+  @s.describe("Whether the interaction was performed successfully") @live
   success: bool,
-  @s.describe("Description of the element that was interacted with")
+  @s.describe("Description of the element that was interacted with") @live
   interactedElement: option<string>,
-  @s.describe("The action that was performed: 'clicked', 'hovered', or 'focused'")
+  @s.describe("The action that was performed: 'clicked', 'hovered', or 'focused'") @live
   action: option<string>,
-  @s.describe("Total number of elements that matched the targeting criteria")
+  @s.describe("Total number of elements that matched the targeting criteria") @live
   matchCount: option<int>,
-  @s.describe("Error message if the interaction failed")
+  @s.describe("Error message if the interaction failed") @live
   error: option<string>,
 }
 

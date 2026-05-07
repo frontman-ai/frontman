@@ -57,6 +57,7 @@ let captureProtocolError = (message: string, ~protocol: protocol, ~operation: st
   }
 }
 
+@@live
 let captureException = (error: exn, ~operation: option<string>=?) => {
   if isEnabled() {
     Bindings.withScope(scope => {

@@ -34,17 +34,19 @@ type input = {
 // Per-question answer in the tool output
 @schema
 type questionAnswerOutput = {
+  @live
   question: string,
+  @live
   answer: option<array<string>>,
 }
 
 @schema
 type output = {
-  @s.describe("Array of per-question answers")
+  @s.describe("Array of per-question answers") @live
   answers: array<questionAnswerOutput>,
-  @s.describe("True if the user skipped all questions")
+  @s.describe("True if the user skipped all questions") @live
   skippedAll: bool,
-  @s.describe("True if the user cancelled (stopped the agent)")
+  @s.describe("True if the user cancelled (stopped the agent)") @live
   cancelled: bool,
 }
 

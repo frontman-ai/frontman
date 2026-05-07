@@ -14,12 +14,18 @@ Parameters: None
 Returns array of route paths based on file-system routing conventions.`
 
 @schema
-type input = {placeholder?: bool}
+type input = {
+  @live
+  placeholder?: bool,
+}
 
 @schema
 type route = {
+  @live
   path: string,
+  @live
   file: string,
+  @live
   isDynamic: bool,
 }
 

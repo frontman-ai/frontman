@@ -17,6 +17,7 @@ let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | None => Hosts.apiHost
 }
 
+@@live
 type t = {
   isDev: bool,
   projectRoot: string,

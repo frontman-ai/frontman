@@ -22,9 +22,9 @@ type input = {
 
 @schema
 type output = {
-  @s.describe("Base64-encoded JPEG image data URL (data:image/jpeg;base64,...)")
+  @s.describe("Base64-encoded JPEG image data URL (data:image/jpeg;base64,...)") @live
   screenshot: option<string>,
-  @s.describe("Error message if the screenshot could not be taken")
+  @s.describe("Error message if the screenshot could not be taken") @live
   error: option<string>,
 }
 

@@ -55,4 +55,5 @@ let app: toolbarAppConfig = {
   },
 }
 
+@@live
 let default = defineToolbarApp(app)

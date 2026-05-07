@@ -33,6 +33,7 @@ module MessageAnnotation = {
     height: float,
   }
 
+  @@live
   type rec sourceLocation = {
     componentName: option<string>,
     tagName: string,
@@ -95,6 +96,7 @@ module MessageAnnotation = {
 
 // Content part types for messages (simplified from Vercel AI SDK)
 module UserContentPart = {
+  @@live
   type t =
     | Text({text: string})
     | Image({id: option<string>, image: string, mediaType: option<string>, name: option<string>})
@@ -104,6 +106,7 @@ module UserContentPart = {
 }
 
 module AssistantContentPart = {
+  @@live
   type t =
     | Text({text: string})
     | ToolCall({toolCallId: string, toolName: string, input: JSON.t})

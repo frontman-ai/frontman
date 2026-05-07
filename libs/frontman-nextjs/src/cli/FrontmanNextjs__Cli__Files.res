@@ -53,10 +53,7 @@ let writeFile = async (path: string, content: string): result<unit, string> => {
 
 // Info about a file that needs auto-editing (collected before prompting)
 type pendingAutoEdit = {
-  filePath: string,
   fileName: string,
-  fileType: AutoEdit.fileType,
-  manualDetails: string,
 }
 
 // Handle the NeedsManualEdit case — when autoEdit is true, perform the edit;
@@ -98,15 +95,11 @@ let handleNeedsManualEdit = async (
 }
 
 // Check if a file handler would need auto-editing (without prompting)
-let getPendingAutoEdit = (
-  ~existingFile: Detect.existingFile,
-  ~filePath: string,
-  ~fileName: string,
-  ~fileType: AutoEdit.fileType,
-  ~manualDetails: string,
-): option<pendingAutoEdit> => {
+let getPendingAutoEdit = (~existingFile: Detect.existingFile, ~fileName: string): option<
+  pendingAutoEdit,
+> => {
   switch existingFile {
-  | NeedsManualEdit => Some({filePath, fileName, fileType, manualDetails})
+  | NeedsManualEdit => Some({fileName: fileName})
   | NotFound | HasFrontman(_) => None
   }
 }
@@ -117,7 +110,7 @@ let handleMiddleware = async (
   ~host: string,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
-  ~autoEdit: bool=false,
+  ~autoEdit: bool,
 ): result<fileResult, string> => {
   let filePath = Path.join([projectDir, "middleware.ts"])
   let fileName = "middleware.ts"
@@ -172,7 +165,7 @@ let handleProxy = async (
   ~host: string,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
-  ~autoEdit: bool=false,
+  ~autoEdit: bool,
 ): result<fileResult, string> => {
   let filePath = Path.join([projectDir, "proxy.ts"])
   let fileName = "proxy.ts"
@@ -228,7 +221,7 @@ let handleInstrumentation = async (
   ~hasSrcDir: bool,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
-  ~autoEdit: bool=false,
+  ~autoEdit: bool,
 ): result<fileResult, string> => {
   let filePath = switch hasSrcDir {
   | true => Path.join([projectDir, "src", "instrumentation.ts"])
@@ -284,13 +277,5 @@ let formatResult = (result: fileResult): string => {
   | Skipped(fileName) => Templates.SuccessMessages.fileSkipped(fileName)
   | ManualEditRequired({fileName, _}) => Templates.SuccessMessages.manualEditRequired(fileName)
   | AutoEdited(fileName) => Templates.SuccessMessages.fileAutoEdited(fileName)
-  }
-}
-
-// Check if result is an error that requires manual intervention
-let isManualEditRequired = (result: fileResult): bool => {
-  switch result {
-  | ManualEditRequired(_) => true
-  | Created(_) | Updated(_) | Skipped(_) | AutoEdited(_) => false
   }
 }

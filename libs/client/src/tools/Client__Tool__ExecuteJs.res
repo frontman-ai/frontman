@@ -35,13 +35,13 @@ type input = {
 
 @schema
 type output = {
-  @s.describe("Whether the execution completed without error")
+  @s.describe("Whether the execution completed without error") @live
   success: bool,
-  @s.describe("JSON-serialized return value (absent on error)")
+  @s.describe("JSON-serialized return value (absent on error)") @live
   result: option<string>,
-  @s.describe("Error message if execution failed")
+  @s.describe("Error message if execution failed") @live
   error: option<string>,
-  @s.describe("Captured console.log/warn/error output during execution")
+  @s.describe("Captured console.log/warn/error output during execution") @live
   logs: array<string>,
 }
 

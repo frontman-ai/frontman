@@ -38,10 +38,10 @@ type t = {
   enrichmentStatus: enrichmentStatus,
 }
 
-let make = (~element: WebAPI.DOMAPI.element, ~tagName: string, ~comment: option<string>=?): t => {
+let make = (~element: WebAPI.DOMAPI.element, ~tagName: string): t => {
   id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
   element,
-  comment,
+  comment: None,
   selector: Ok(None),
   screenshot: Ok(None),
   sourceLocation: Ok(None),

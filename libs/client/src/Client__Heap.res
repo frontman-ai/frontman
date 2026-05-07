@@ -2,6 +2,7 @@
 // Dev env ID: 349428408
 // Prod env ID: 218974947
 
+@@live
 let envId = if Client__Env.isDev {
   "349428408"
 } else {

@@ -43,6 +43,7 @@ let normalizeHost = (host: string): string => {
   }
 }
 
+@@live
 type t = {
   isDev: bool,
   basePath: string,
@@ -59,6 +60,7 @@ type t = {
 }
 
 // Internal make function with labeled parameters (for ReScript callers)
+@@live
 let make = (
   ~isDev=None,
   ~basePath=None,

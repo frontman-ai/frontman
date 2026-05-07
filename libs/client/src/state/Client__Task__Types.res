@@ -506,6 +506,7 @@ let rec parentLocationToJson = (loc: parentLocationMeta): JSON.t => {
 // because the recursive parentLocationMeta cannot use S.recursive with S.dict(S.json).
 type annotationMeta = {
   annotation: bool,
+  @live
   annotationIndex: int,
   annotationId: string,
   tagName: string,
@@ -573,6 +574,7 @@ let nearbyTextWithElementorHint = (
 
 type screenshotMeta = {
   annotationScreenshot: bool,
+  @live
   annotationIndex: int,
   annotationId: string,
 }

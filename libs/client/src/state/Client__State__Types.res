@@ -66,7 +66,9 @@ type usageInfo = {
 
 @schema
 type userApiKeySaveRequest = {
+  @live
   provider: string,
+  @live
   key: string,
 }
 

@@ -91,7 +91,7 @@ module EventHelpers = {
 }
 
 module MouseMove = {
-  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture=false, ()) => {
+  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture: bool, ()) => {
     let (state, setState) = React.useState(() => None)
     let stateRef = React.useRef(state)
     let rafIdRef = React.useRef(None)
@@ -147,11 +147,10 @@ module MouseClick = {
 
   let useIFrameDocument = (
     ~document: option<WebAPI.DOMAPI.document>,
-    ~withCapture=false,
-    ~preventDefault=false,
-    ~stopPropagation=false,
-    ~stopImmediatePropagation=false,
-    ~isRightClick=false,
+    ~withCapture: bool,
+    ~preventDefault: bool,
+    ~stopPropagation: bool,
+    ~stopImmediatePropagation: bool,
     (),
   ) => {
     let (state, setState) = React.useState(() => None)
@@ -176,19 +175,14 @@ module MouseClick = {
       setState(_ => Some({target, clickId: id}))
     }
 
-    let event = switch isRightClick {
-    | true => "contextmenu"
-    | false => "click"
-    }
-
-    EventHelpers.useDocumentEvent(~document, ~event, ~withCapture, ~handler=onClick, ())
+    EventHelpers.useDocumentEvent(~document, ~event="click", ~withCapture, ~handler=onClick, ())
 
     state
   }
 }
 
 module Scroll = {
-  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture=false, ()) => {
+  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture: bool, ()) => {
     let (scrollTimestamp, setScrollTimestamp) = React.useState(() => Date.now())
     let rafIdRef = React.useRef(None)
     let isScheduledRef = React.useRef(false)

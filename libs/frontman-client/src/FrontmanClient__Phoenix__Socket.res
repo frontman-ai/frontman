@@ -4,6 +4,7 @@ type t
 
 type channel
 
+@@live
 type socketOptions = {
   timeout?: int,
   heartbeatIntervalMs?: int,

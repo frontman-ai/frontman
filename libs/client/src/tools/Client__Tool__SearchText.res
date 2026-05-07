@@ -36,31 +36,32 @@ type input = {
 
 @schema
 type searchMatch = {
-  @s.describe("Position in the results list (0-based)")
+  @s.describe("Position in the results list (0-based)") @live
   index: int,
   @s.describe("The matched text with surrounding context. Match is wrapped in >> and << markers.")
+  @live
   text: string,
-  @s.describe("CSS selector for targeting this element (absent if generation failed)")
+  @s.describe("CSS selector for targeting this element (absent if generation failed)") @live
   selector: option<string>,
-  @s.describe("HTML tag name")
+  @s.describe("HTML tag name") @live
   tag: string,
-  @s.describe("ARIA role, if any")
+  @s.describe("ARIA role, if any") @live
   role: option<string>,
-  @s.describe("Accessible name, if any")
+  @s.describe("Accessible name, if any") @live
   accessibleName: option<string>,
 }
 
 @schema
 type output = {
-  @s.describe("Whether the search completed successfully")
+  @s.describe("Whether the search completed successfully") @live
   success: bool,
-  @s.describe("Elements whose visible text contains the query")
+  @s.describe("Elements whose visible text contains the query") @live
   matches: option<array<searchMatch>>,
-  @s.describe("Total matches found (before truncation)")
+  @s.describe("Total matches found (before truncation)") @live
   totalCount: option<int>,
-  @s.describe("True if results were capped and more matches exist")
+  @s.describe("True if results were capped and more matches exist") @live
   truncated: option<bool>,
-  @s.describe("Error message if the search failed")
+  @s.describe("Error message if the search failed") @live
   error: option<string>,
 }
 
