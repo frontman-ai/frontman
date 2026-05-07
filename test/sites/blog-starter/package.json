@@ -15,7 +15,7 @@
 		"@opentelemetry/sdk-node": "^0.52.0",
 		"@opentelemetry/sdk-trace-base": "^2.6.1",
 		"classnames": "^2.5.1",
-		"date-fns": "^3.6.0",
+		"date-fns": "^4.1.0",
 		"gray-matter": "^4.0.3",
 		"next": "~15.5.15",
 		"react": "19.0.0-rc-02c0e824-20241028",
