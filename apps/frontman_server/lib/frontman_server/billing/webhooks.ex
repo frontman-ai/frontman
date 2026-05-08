@@ -190,7 +190,7 @@ defmodule FrontmanServer.Billing.Webhooks do
       stripe_customer_id: subscription["customer"],
       stripe_customer_account_id: subscription["customer_account"],
       status: subscription["status"],
-      interval: get_in(price || %{}, ["recurring", "interval"]),
+      interval: subscription_interval(get_in(price || %{}, ["recurring", "interval"])),
       price_id: (price || %{})["id"],
       current_period_end: unix_to_datetime(subscription["current_period_end"]),
       trial_end: unix_to_datetime(subscription["trial_end"]),
@@ -202,6 +202,10 @@ defmodule FrontmanServer.Billing.Webhooks do
   defp event_object(event), do: get_in(event, ["data", "object"])
 
   defp attr_value(attrs, key), do: attrs[key] || attrs[Atom.to_string(key)]
+
+  defp subscription_interval("month"), do: :monthly
+  defp subscription_interval("year"), do: :yearly
+  defp subscription_interval(interval), do: interval
 
   defp unix_to_datetime(nil), do: nil
 

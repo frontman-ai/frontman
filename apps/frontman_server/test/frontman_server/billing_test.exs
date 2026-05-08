@@ -38,18 +38,19 @@ defmodule FrontmanServer.BillingTest do
     end
   end
 
-  describe "create_checkout_session/2" do
+  describe "start_checkout/3" do
     test "creates a yearly managed-payments subscription checkout with trial" do
       user = AccountsFixtures.user_fixture()
       scope = Scope.for_user(user)
 
       expect(
         FrontmanServer.Billing.ClientMock,
-        :create_checkout_session,
-        fn checkout_user, customer, interval, return_urls ->
+        :start_checkout,
+        fn checkout_user, customer, interval, return_urls, opts ->
           assert checkout_user.id == user.id
           assert customer == nil
           assert interval == :yearly
+          assert opts == [trial_eligible: true]
 
           assert return_urls == %{
                    success_url: "https://billing.test/success?session_id={CHECKOUT_SESSION_ID}",
@@ -61,10 +62,96 @@ defmodule FrontmanServer.BillingTest do
       )
 
       assert {:ok, %{"id" => "cs_test_123"}} =
-               Billing.create_checkout_session(scope, :yearly, %{
+               Billing.start_checkout(scope, :yearly, %{
                  success_url: "https://billing.test/success?session_id={CHECKOUT_SESSION_ID}",
                  cancel_url: "https://billing.test/cancel"
                })
+    end
+
+    test "starts checkout without a trial after the user has consumed one" do
+      user = AccountsFixtures.user_fixture()
+      scope = Scope.for_user(user)
+
+      {:ok, customer} =
+        Billing.create_customer(scope, %{stripe_customer_id: "cus_checkout_trial_used"})
+
+      {:ok, _subscription} =
+        Billing.create_subscription(scope, %{
+          billing_customer_id: customer.id,
+          stripe_subscription_id: "sub_checkout_trial_used",
+          stripe_customer_id: "cus_checkout_trial_used",
+          status: "active",
+          interval: :monthly,
+          price_id: "price_monthly_test",
+          trial_end: ~U[2026-01-01 00:00:00Z]
+        })
+
+      expect(
+        FrontmanServer.Billing.ClientMock,
+        :start_checkout,
+        fn checkout_user, ^customer, interval, _return_urls, opts ->
+          assert checkout_user.id == user.id
+          assert interval == :monthly
+          assert opts == [trial_eligible: false]
+
+          {:ok, %{"id" => "cs_test_no_trial", "url" => "https://checkout.stripe.test/session"}}
+        end
+      )
+
+      assert {:ok, %{"id" => "cs_test_no_trial"}} =
+               Billing.start_checkout(scope, :monthly, %{
+                 success_url: "https://billing.test/success?session_id={CHECKOUT_SESSION_ID}",
+                 cancel_url: "https://billing.test/cancel"
+               })
+    end
+  end
+
+  describe "trial_eligible?/1" do
+    test "returns true when the user has never had a trial" do
+      user = AccountsFixtures.user_fixture()
+
+      assert Billing.trial_eligible?(Scope.for_user(user))
+    end
+
+    test "returns false when the user has a trialing subscription" do
+      user = AccountsFixtures.user_fixture()
+      scope = Scope.for_user(user)
+
+      {:ok, customer} =
+        Billing.create_customer(scope, %{stripe_customer_id: "cus_trialing_test"})
+
+      {:ok, _subscription} =
+        Billing.create_subscription(scope, %{
+          billing_customer_id: customer.id,
+          stripe_subscription_id: "sub_trialing_test",
+          stripe_customer_id: "cus_trialing_test",
+          status: "trialing",
+          interval: :monthly,
+          price_id: "price_monthly_test"
+        })
+
+      refute Billing.trial_eligible?(scope)
+    end
+
+    test "returns false when the user has any subscription with a trial end" do
+      user = AccountsFixtures.user_fixture()
+      scope = Scope.for_user(user)
+
+      {:ok, customer} =
+        Billing.create_customer(scope, %{stripe_customer_id: "cus_trial_end_test"})
+
+      {:ok, _subscription} =
+        Billing.create_subscription(scope, %{
+          billing_customer_id: customer.id,
+          stripe_subscription_id: "sub_trial_end_test",
+          stripe_customer_id: "cus_trial_end_test",
+          status: "active",
+          interval: :yearly,
+          price_id: "price_yearly_test",
+          trial_end: ~U[2026-01-01 00:00:00Z]
+        })
+
+      refute Billing.trial_eligible?(scope)
     end
   end
 
@@ -88,7 +175,7 @@ defmodule FrontmanServer.BillingTest do
           stripe_subscription_id: "sub_status_test",
           stripe_customer_id: "cus_status_test",
           status: "trialing",
-          interval: "month",
+          interval: :monthly,
           price_id: "price_monthly_test"
         })
 
@@ -159,7 +246,7 @@ defmodule FrontmanServer.BillingTest do
       customer = Repo.get_by!(Customer, user_id: user.id)
       assert subscription.billing_customer_id == customer.id
       assert subscription.status == "trialing"
-      assert subscription.interval == "month"
+      assert subscription.interval == :monthly
       assert subscription.price_id == "price_monthly_test"
     end
 

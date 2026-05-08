@@ -12,11 +12,12 @@ defmodule FrontmanServer.Billing.Client do
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Billing.Customer
 
-  @callback create_checkout_session(
+  @callback start_checkout(
               User.t(),
               Customer.t() | nil,
               FrontmanServer.Billing.interval(),
-              %{success_url: String.t(), cancel_url: String.t()}
+              %{success_url: String.t(), cancel_url: String.t()},
+              trial_eligible: boolean()
             ) :: {:ok, map()} | {:error, term()}
 
   @callback construct_webhook_event(binary(), String.t()) :: {:ok, map()} | {:error, term()}

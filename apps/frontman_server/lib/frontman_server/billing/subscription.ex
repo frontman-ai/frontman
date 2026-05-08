@@ -5,6 +5,8 @@ defmodule FrontmanServer.Billing.Subscription do
 
   alias FrontmanServer.Billing.Customer
 
+  @intervals [:monthly, :yearly]
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "billing_subscriptions" do
@@ -12,7 +14,7 @@ defmodule FrontmanServer.Billing.Subscription do
     field :stripe_customer_id, :string
     field :stripe_customer_account_id, :string
     field :status, :string
-    field :interval, :string
+    field :interval, Ecto.Enum, values: @intervals
     field :price_id, :string
     field :current_period_end, :utc_datetime
     field :trial_end, :utc_datetime
@@ -29,6 +31,11 @@ defmodule FrontmanServer.Billing.Subscription do
       join: c in Customer,
       on: c.id == s.billing_customer_id,
       where: c.user_id == ^user_id
+  end
+
+  def trial_consumed(query \\ __MODULE__) do
+    from s in query,
+      where: s.status == "trialing" or not is_nil(s.trial_end)
   end
 
   @doc false

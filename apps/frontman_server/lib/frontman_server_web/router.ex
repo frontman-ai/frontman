@@ -119,7 +119,7 @@ defmodule FrontmanServerWeb.Router do
     get("/user/api-keys", UserApiKeyController, :index)
     post("/user/api-keys", UserApiKeyController, :create)
     get("/user/api-key-usage", UserApiKeyController, :usage)
-    post("/billing/checkout-session", BillingController, :create_checkout_session)
+    post("/billing/checkout", BillingController, :checkout)
     get("/billing/status", BillingController, :status)
 
     # Anthropic OAuth routes

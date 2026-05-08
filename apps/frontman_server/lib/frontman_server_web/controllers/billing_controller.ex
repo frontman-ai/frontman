@@ -10,27 +10,24 @@ defmodule FrontmanServerWeb.BillingController do
   alias FrontmanServer.Billing
   alias FrontmanServer.Billing.Subscription
 
-  @checkout_intervals [:monthly, :yearly]
-  @checkout_interval_params Enum.map(@checkout_intervals, &Atom.to_string/1)
+  def checkout(conn, %{"interval" => "monthly"}) do
+    checkout_with_interval(conn, :monthly)
+  end
 
-  def create_checkout_session(conn, %{"interval" => interval}) do
+  def checkout(conn, %{"interval" => "yearly"}) do
+    checkout_with_interval(conn, :yearly)
+  end
+
+  defp checkout_with_interval(conn, interval) do
     scope = conn.assigns.current_scope
 
-    with {:ok, interval} <- parse_checkout_interval(interval),
-         {:ok, %{"url" => url, "id" => session_id}} <-
-           Billing.create_checkout_session(scope, interval, checkout_return_urls(conn)) do
-      json(conn, %{id: session_id, url: url})
-    else
-      {:error, :invalid_interval} ->
-        invalid_interval(conn)
+    case Billing.start_checkout(scope, interval, checkout_return_urls(conn)) do
+      {:ok, %{"url" => url, "id" => session_id}} ->
+        json(conn, %{id: session_id, url: url})
 
       {:error, reason} ->
         checkout_error(conn, reason)
     end
-  end
-
-  def create_checkout_session(conn, _params) do
-    invalid_interval(conn)
   end
 
   def status(conn, _params) do
@@ -81,21 +78,9 @@ defmodule FrontmanServerWeb.BillingController do
     end
   end
 
-  defp invalid_interval(conn) do
-    conn
-    |> put_status(:unprocessable_entity)
-    |> json(%{error: "invalid_interval"})
-  end
-
   defp checkout_error(conn, reason) do
     conn
     |> put_status(:bad_gateway)
     |> json(%{error: "stripe_checkout_session_failed", reason: inspect(reason)})
   end
-
-  defp parse_checkout_interval(interval) when interval in @checkout_interval_params do
-    {:ok, String.to_existing_atom(interval)}
-  end
-
-  defp parse_checkout_interval(_interval), do: {:error, :invalid_interval}
 end

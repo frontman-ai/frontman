@@ -14,8 +14,8 @@ defmodule FrontmanServer.Billing.StripeClient do
   alias FrontmanServer.Billing.{Customer, StripeWebhookSignature}
 
   @impl true
-  def create_checkout_session(user, customer, interval, return_urls) do
-    params = checkout_session_params(user, customer, interval, return_urls)
+  def start_checkout(user, customer, interval, return_urls, opts) do
+    params = checkout_session_params(user, customer, interval, return_urls, opts)
 
     case Req.post(new(), url: "/checkout/sessions", form: params) do
       {:ok, %{status: status, body: body}} when status in 200..299 ->
@@ -52,7 +52,7 @@ defmodule FrontmanServer.Billing.StripeClient do
     )
   end
 
-  defp checkout_session_params(user, customer, interval, return_urls) do
+  defp checkout_session_params(user, customer, interval, return_urls, opts) do
     base_params = [
       {"mode", "subscription"},
       {"line_items[0][price]", price_id!(interval)},
@@ -62,14 +62,20 @@ defmodule FrontmanServer.Billing.StripeClient do
       {"cancel_url", Map.fetch!(return_urls, :cancel_url)},
       {"client_reference_id", user.id},
       {"customer_email", user.email},
-      {"subscription_data[trial_period_days]", Integer.to_string(trial_days!())},
       {"subscription_data[metadata][user_id]", user.id},
       {"subscription_data[metadata][interval]", Atom.to_string(interval)},
       {"metadata[user_id]", user.id},
       {"metadata[interval]", Atom.to_string(interval)}
     ]
 
-    customer_params(customer) ++ base_params
+    customer_params(customer) ++ trial_params(opts) ++ base_params
+  end
+
+  defp trial_params(opts) do
+    case Keyword.fetch!(opts, :trial_eligible) do
+      true -> [{"subscription_data[trial_period_days]", Integer.to_string(trial_days!())}]
+      false -> []
+    end
   end
 
   defp customer_params(%Customer{stripe_customer_account_id: customer_account_id})

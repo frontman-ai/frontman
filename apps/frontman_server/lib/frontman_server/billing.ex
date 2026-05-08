@@ -18,27 +18,36 @@ defmodule FrontmanServer.Billing do
   alias FrontmanServer.Billing.{Customer, Subscription}
   alias FrontmanServer.Repo
 
-  @checkout_intervals [:monthly, :yearly]
-
   @type interval :: :monthly | :yearly
 
-  def checkout_interval?(interval), do: interval in @checkout_intervals
-
   @doc """
-  Creates a Stripe Checkout Session for the scoped user.
+  Starts provider checkout for the scoped user.
   """
-  @spec create_checkout_session(Scope.t(), interval(), %{
+  @spec start_checkout(Scope.t(), interval(), %{
           success_url: String.t(),
           cancel_url: String.t()
         }) ::
           {:ok, map()} | {:error, term()}
-  def create_checkout_session(%Scope{} = scope, interval, return_urls)
+  def start_checkout(%Scope{} = scope, interval, return_urls)
       when is_map(return_urls) do
-    true = checkout_interval?(interval)
     user = Accounts.scope_user(scope)
     customer = Customer |> Customer.for_user(user.id) |> Repo.one()
+    trial_eligible = trial_eligible?(scope)
 
-    billing_client().create_checkout_session(user, customer, interval, return_urls)
+    billing_client().start_checkout(user, customer, interval, return_urls,
+      trial_eligible: trial_eligible
+    )
+  end
+
+  @doc """
+  Returns whether the scoped user can receive their lifetime trial.
+  """
+  @spec trial_eligible?(Scope.t()) :: boolean()
+  def trial_eligible?(%Scope{} = scope) do
+    scope
+    |> trial_consumed_query()
+    |> Repo.exists?()
+    |> Kernel.not()
   end
 
   @doc """
@@ -129,6 +138,12 @@ defmodule FrontmanServer.Billing do
 
   defp scoped_subscription_query(scope) do
     Subscription.for_user(Subscription, Accounts.scope_user_id(scope))
+  end
+
+  defp trial_consumed_query(scope) do
+    scope
+    |> scoped_subscription_query()
+    |> Subscription.trial_consumed()
   end
 
   defp billing_client do

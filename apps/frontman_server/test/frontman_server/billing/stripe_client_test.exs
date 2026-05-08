@@ -6,7 +6,7 @@ defmodule FrontmanServer.Billing.StripeClientTest do
   alias FrontmanServer.Billing.StripeWebhookSignature
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
-  describe "create_checkout_session/4" do
+  describe "start_checkout/4" do
     setup do
       bypass = Bypass.open()
       stripe_config = Application.fetch_env!(:frontman_server, :stripe)
@@ -61,10 +61,16 @@ defmodule FrontmanServer.Billing.StripeClientTest do
       end)
 
       assert {:ok, %{"id" => "cs_test_123"}} =
-               StripeClient.create_checkout_session(user, customer, :yearly, %{
-                 success_url: "https://billing.test/success",
-                 cancel_url: "https://billing.test/cancel"
-               })
+               StripeClient.start_checkout(
+                 user,
+                 customer,
+                 :yearly,
+                 %{
+                   success_url: "https://billing.test/success",
+                   cancel_url: "https://billing.test/cancel"
+                 },
+                 trial_eligible: true
+               )
     end
 
     test "prefers customer account ids when present", %{bypass: bypass} do
@@ -81,6 +87,7 @@ defmodule FrontmanServer.Billing.StripeClientTest do
 
         assert params["customer_account"] == "acct_existing"
         refute Map.has_key?(params, "customer")
+        refute Map.has_key?(params, "subscription_data[trial_period_days]")
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
@@ -88,10 +95,16 @@ defmodule FrontmanServer.Billing.StripeClientTest do
       end)
 
       assert {:ok, %{"id" => "cs_test_account"}} =
-               StripeClient.create_checkout_session(user, customer, :monthly, %{
-                 success_url: "https://billing.test/success",
-                 cancel_url: "https://billing.test/cancel"
-               })
+               StripeClient.start_checkout(
+                 user,
+                 customer,
+                 :monthly,
+                 %{
+                   success_url: "https://billing.test/success",
+                   cancel_url: "https://billing.test/cancel"
+                 },
+                 trial_eligible: false
+               )
     end
   end
 
