@@ -31,7 +31,22 @@ defmodule FrontmanServerWeb.BillingController do
   end
 
   def status(conn, _params) do
-    json(conn, status_response(Billing.get_status(conn.assigns.current_scope)))
+    scope = conn.assigns.current_scope
+
+    response =
+      scope
+      |> Billing.get_status()
+      |> status_response()
+      |> Map.merge(access_response(scope))
+
+    json(conn, response)
+  end
+
+  defp access_response(scope) do
+    %{
+      access_state: scope |> Billing.access_state() |> Atom.to_string(),
+      access_allowed: Billing.access_allowed?(scope)
+    }
   end
 
   defp status_response(%Subscription{} = subscription) do

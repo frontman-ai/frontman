@@ -15,6 +15,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2]
 
+  import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
@@ -29,6 +30,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       on_exit(fn -> Sandbox.stop_owner(pid) end)
 
       scope = user_scope_fixture()
+      subscription_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope, framework: "nextjs").id
 
       {:ok, task_id: task_id, scope: scope}

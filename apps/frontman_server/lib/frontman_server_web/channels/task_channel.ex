@@ -649,6 +649,10 @@ defmodule FrontmanServerWeb.TaskChannel do
             Logger.error("Failed to add user message: #{message}")
             reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
 
+          {:error, :billing_inactive} ->
+            Logger.info("Rejected prompt: billing inactive for task #{task_id}")
+            reply_acp_error(socket, id, -32_000, "Finish billing setup to start using Frontman.")
+
           {:error, reason} ->
             Logger.error("Failed to add user message: #{inspect(reason)}")
             reply_acp_error(socket, id, -32_000, inspect(reason))

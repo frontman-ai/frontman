@@ -155,6 +155,44 @@ defmodule FrontmanServer.BillingTest do
     end
   end
 
+  describe "access_state/1" do
+    test "returns pre_trial when the user has no subscription" do
+      user = AccountsFixtures.user_fixture()
+      scope = Scope.for_user(user)
+
+      assert Billing.access_state(scope) == :pre_trial
+      refute Billing.access_allowed?(scope)
+    end
+
+    test "returns trial_active for trialing subscriptions" do
+      scope = billing_scope_with_subscription("trialing")
+
+      assert Billing.access_state(scope) == :trial_active
+      assert Billing.access_allowed?(scope)
+    end
+
+    test "returns subscription_active for active subscriptions" do
+      scope = billing_scope_with_subscription("active")
+
+      assert Billing.access_state(scope) == :subscription_active
+      assert Billing.access_allowed?(scope)
+    end
+
+    test "returns subscription_active for past_due subscriptions" do
+      scope = billing_scope_with_subscription("past_due")
+
+      assert Billing.access_state(scope) == :subscription_active
+      assert Billing.access_allowed?(scope)
+    end
+
+    test "returns inactive for canceled subscriptions" do
+      scope = billing_scope_with_subscription("canceled")
+
+      assert Billing.access_state(scope) == :inactive
+      refute Billing.access_allowed?(scope)
+    end
+  end
+
   describe "get_status/1" do
     test "returns nil when the scoped user has no subscription" do
       user = AccountsFixtures.user_fixture()
@@ -300,5 +338,26 @@ defmodule FrontmanServer.BillingTest do
       assert %Subscription{stripe_subscription_id: "sub_retryable"} =
                Repo.get_by!(Subscription, stripe_subscription_id: "sub_retryable")
     end
+  end
+
+  defp billing_scope_with_subscription(status) do
+    user = AccountsFixtures.user_fixture()
+    scope = Scope.for_user(user)
+    unique = System.unique_integer([:positive])
+
+    {:ok, customer} =
+      Billing.create_customer(scope, %{stripe_customer_id: "cus_access_#{unique}"})
+
+    {:ok, _subscription} =
+      Billing.create_subscription(scope, %{
+        billing_customer_id: customer.id,
+        stripe_subscription_id: "sub_access_#{unique}",
+        stripe_customer_id: customer.stripe_customer_id,
+        status: status,
+        interval: :monthly,
+        price_id: "price_monthly_test"
+      })
+
+    scope
   end
 end

@@ -19,6 +19,7 @@ defmodule FrontmanServer.Billing do
   alias FrontmanServer.Repo
 
   @type interval :: :monthly | :yearly
+  @type access_state :: :pre_trial | :trial_active | :subscription_active | :inactive
 
   @doc """
   Starts provider checkout for the scoped user.
@@ -48,6 +49,24 @@ defmodule FrontmanServer.Billing do
     |> trial_consumed_query()
     |> Repo.exists?()
     |> Kernel.not()
+  end
+
+  @doc """
+  Returns the user's billing access state.
+  """
+  @spec access_state(Scope.t()) :: access_state()
+  def access_state(%Scope{} = scope) do
+    scope
+    |> get_status()
+    |> subscription_access_state()
+  end
+
+  @doc """
+  Returns whether the scoped user has active Frontman access.
+  """
+  @spec access_allowed?(Scope.t()) :: boolean()
+  def access_allowed?(%Scope{} = scope) do
+    access_state(scope) in [:trial_active, :subscription_active]
   end
 
   @doc """
@@ -145,6 +164,14 @@ defmodule FrontmanServer.Billing do
     |> scoped_subscription_query()
     |> Subscription.trial_consumed()
   end
+
+  defp subscription_access_state(nil), do: :pre_trial
+  defp subscription_access_state(%Subscription{status: "trialing"}), do: :trial_active
+
+  defp subscription_access_state(%Subscription{status: status})
+       when status in ["active", "past_due"], do: :subscription_active
+
+  defp subscription_access_state(%Subscription{}), do: :inactive
 
   defp billing_client do
     Application.fetch_env!(:frontman_server, :billing_client)

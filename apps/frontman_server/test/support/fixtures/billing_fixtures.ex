@@ -10,6 +10,41 @@ defmodule FrontmanServer.BillingFixtures do
   alias FrontmanServer.Test.Fixtures.Accounts
 
   @doc """
+  Generate a subscription for an existing user scope.
+  """
+  def subscription_for_scope_fixture(scope, attrs \\ %{}) do
+    unique = System.unique_integer([:positive])
+
+    {:ok, customer} =
+      Billing.create_customer(scope, %{
+        stripe_customer_account_id: "acct_#{unique}",
+        stripe_customer_id: "cus_#{unique}"
+      })
+
+    {:ok, subscription} =
+      attrs
+      |> Enum.into(%{
+        billing_customer_id: customer.id,
+        stripe_customer_account_id: customer.stripe_customer_account_id,
+        stripe_customer_id: customer.stripe_customer_id,
+        stripe_subscription_id: "sub_#{unique}",
+        status: "active",
+        interval: :monthly,
+        price_id: "price_monthly_test"
+      })
+      |> then(&Billing.create_subscription(scope, &1))
+
+    subscription
+  end
+
+  @doc """
+  Ensures an existing user scope has a subscription fixture.
+  """
+  def ensure_subscription_for_scope_fixture(scope) do
+    Billing.get_status(scope) || subscription_for_scope_fixture(scope)
+  end
+
+  @doc """
   Generate a customer.
   """
   def customer_fixture(attrs \\ %{}) do

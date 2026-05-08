@@ -24,6 +24,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       text_block: 1
     ]
 
+  import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
@@ -113,6 +114,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp setup_user(_context) do
     scope = user_scope_fixture()
+    subscription_for_scope_fixture(scope)
     {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
     {:ok, scope: scope}
   end

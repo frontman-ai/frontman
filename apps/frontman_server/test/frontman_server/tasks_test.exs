@@ -2,6 +2,8 @@ defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.BillingFixtures
+  import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Migration.Runner
@@ -44,6 +46,33 @@ defmodule FrontmanServer.TasksTest do
       :ok = Tasks.apply_title_suggestion(scope, task_id, "Second Title")
 
       assert {:ok, %{short_desc: "First Title"}} = Tasks.get_task(scope, task_id)
+    end
+  end
+
+  describe "submit_user_message/4 billing access" do
+    test "blocks prompt persistence when billing setup is not complete", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      :ok = Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+
+      assert {:error, :billing_inactive} =
+               Tasks.submit_user_message(scope, task_id, user_content("Hello"), execution_request_fixture())
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      assert task.interactions == []
+      refute_receive {:interaction, %Interaction.UserMessage{}, _turn_number}
+    end
+
+    test "blocks prompt persistence when entitlement has ended", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      subscription_for_scope_fixture(scope, %{status: "canceled"})
+      :ok = Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+
+      assert {:error, :billing_inactive} =
+               Tasks.submit_user_message(scope, task_id, user_content("Hello"), execution_request_fixture())
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      assert task.interactions == []
+      refute_receive {:interaction, %Interaction.UserMessage{}, _turn_number}
     end
   end
 

@@ -183,6 +183,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "session/prompt" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.ensure_subscription_for_scope_fixture(scope)
       {socket, task_id} = join_task_channel(scope)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -338,6 +339,34 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_state_update_idle(task_id)
       assert_state_update_running_then_idle(task_id)
+    end
+  end
+
+  describe "session/prompt billing access" do
+    test "rejects inactive billing before persisting prompt or enqueuing title generation", %{
+      scope: scope
+    } do
+      task_id = Ecto.UUID.generate()
+      {:ok, _task} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      ref = push(socket, "acp:message", build_prompt_request(id: 42))
+
+      assert_reply(ref, :ok, %{
+        "acp:message" => %{
+          "error" => %{"message" => "Finish billing setup to start using Frontman."}
+        }
+      })
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      assert task.interactions == []
+      refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
   end
 

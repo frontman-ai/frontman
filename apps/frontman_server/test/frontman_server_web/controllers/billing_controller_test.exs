@@ -81,7 +81,12 @@ defmodule FrontmanServerWeb.BillingControllerTest do
 
     test "returns none before subscription exists", %{conn: conn} do
       conn = get(conn, ~p"/api/billing/status")
-      assert %{"status" => "none"} = json_response(conn, 200)
+
+      assert %{
+               "status" => "none",
+               "access_state" => "pre_trial",
+               "access_allowed" => false
+             } = json_response(conn, 200)
     end
 
     test "returns subscription status", %{conn: conn, scope: scope} do
@@ -103,7 +108,9 @@ defmodule FrontmanServerWeb.BillingControllerTest do
       assert %{
                "status" => "trialing",
                "interval" => "monthly",
-               "price_id" => "price_monthly_test"
+               "price_id" => "price_monthly_test",
+               "access_state" => "trial_active",
+               "access_allowed" => true
              } = json_response(conn, 200)
     end
   end
