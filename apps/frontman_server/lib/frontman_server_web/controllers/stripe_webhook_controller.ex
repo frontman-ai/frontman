@@ -7,6 +7,8 @@
 defmodule FrontmanServerWeb.StripeWebhookController do
   use FrontmanServerWeb, :controller
 
+  require Logger
+
   alias FrontmanServer.Billing.Webhooks
 
   def create(conn, _params) do
@@ -18,9 +20,11 @@ defmodule FrontmanServerWeb.StripeWebhookController do
       json(conn, %{status: "ok", result: result})
     else
       {:error, reason} ->
+        Logger.warning("stripe webhook rejected: #{inspect(reason)}")
+
         conn
         |> put_status(:bad_request)
-        |> json(%{error: "invalid_stripe_webhook", reason: inspect(reason)})
+        |> json(%{error: "invalid_stripe_webhook"})
     end
   end
 

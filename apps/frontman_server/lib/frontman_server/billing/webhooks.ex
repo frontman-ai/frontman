@@ -9,6 +9,8 @@ defmodule FrontmanServer.Billing.Webhooks do
   Stripe webhook ingestion for billing lifecycle events.
   """
 
+  require Logger
+
   alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
   alias FrontmanServer.Repo
 
@@ -17,25 +19,68 @@ defmodule FrontmanServer.Billing.Webhooks do
   """
   @spec process_event(map()) :: {:ok, :processed | :ignored | :duplicate} | {:error, term()}
   def process_event(%{"id" => event_id, "type" => type} = event) do
-    case Repo.get_by(StripeEvent, stripe_event_id: event_id) do
-      %StripeEvent{} ->
-        {:ok, :duplicate}
+    result =
+      Repo.transaction(fn -> process_event_in_transaction(event_id, type, event) end)
+      |> case do
+        {:ok, {:ok, result}} -> {:ok, result}
+        {:error, reason} -> {:error, reason}
+      end
 
-      nil ->
-        attrs = %{
-          stripe_event_id: event_id,
-          type: type,
-          processed_at: DateTime.utc_now(:second),
-          payload: event
-        }
+    log_event_result(event_id, type, result)
 
-        %StripeEvent{}
-        |> StripeEvent.changeset(attrs)
-        |> Repo.insert()
-        |> case do
-          {:ok, _stripe_event} -> handle_event(type, event)
-          {:error, changeset} -> {:error, changeset}
-        end
+    result
+  end
+
+  defp process_event_in_transaction(event_id, type, event) do
+    case insert_event(event_id, type, event) do
+      {:ok, :duplicate} -> {:ok, :duplicate}
+      {:ok, :inserted} -> process_inserted_event(event_id, type, event)
+    end
+  end
+
+  defp process_inserted_event(event_id, type, event) do
+    Logger.info("stripe webhook processing event_id=#{event_id} type=#{type}")
+
+    case handle_event(type, event) do
+      {:ok, result} -> {:ok, result}
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp log_event_result(event_id, type, {:ok, result}) do
+    Logger.info("stripe webhook #{result} event_id=#{event_id} type=#{type}")
+  end
+
+  defp log_event_result(event_id, type, {:error, reason}) do
+    Logger.warning(
+      "stripe webhook failed event_id=#{event_id} type=#{type} reason=#{inspect(reason)}"
+    )
+  end
+
+  defp insert_event(event_id, type, event) do
+    now = DateTime.utc_now(:second)
+
+    {count, _rows} =
+      Repo.insert_all(
+        StripeEvent,
+        [
+          %{
+            id: Ecto.UUID.generate(),
+            stripe_event_id: event_id,
+            type: type,
+            processed_at: now,
+            payload: event,
+            inserted_at: now,
+            updated_at: now
+          }
+        ],
+        on_conflict: :nothing,
+        conflict_target: :stripe_event_id
+      )
+
+    case count do
+      0 -> {:ok, :duplicate}
+      1 -> {:ok, :inserted}
     end
   end
 
@@ -92,13 +137,14 @@ defmodule FrontmanServer.Billing.Webhooks do
         {:ok, :ignored}
 
       user_id ->
-        upsert_customer(%{
-          user_id: user_id,
-          stripe_customer_id: session["customer"],
-          stripe_customer_account_id: session["customer_account"]
-        })
-
-        {:ok, :processed}
+        with {:ok, _customer} <-
+               upsert_customer(%{
+                 user_id: user_id,
+                 stripe_customer_id: session["customer"],
+                 stripe_customer_account_id: session["customer_account"]
+               }) do
+          {:ok, :processed}
+        end
     end
   end
 

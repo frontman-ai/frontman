@@ -173,5 +173,45 @@ defmodule FrontmanServer.BillingTest do
       assert {:ok, :ignored} = Webhooks.process_event(event)
       assert {:ok, :duplicate} = Webhooks.process_event(event)
     end
+
+    test "failed events are retryable and not treated as duplicates" do
+      user = AccountsFixtures.user_fixture()
+
+      bad_event = %{
+        "id" => "evt_retryable",
+        "type" => "customer.subscription.updated",
+        "data" => %{
+          "object" => %{
+            "id" => "sub_retryable",
+            "customer" => "cus_retryable",
+            "customer_account" => nil,
+            "status" => nil,
+            "current_period_end" => nil,
+            "trial_end" => nil,
+            "cancel_at" => nil,
+            "canceled_at" => nil,
+            "metadata" => %{"user_id" => user.id},
+            "items" => %{"data" => []}
+          }
+        }
+      }
+
+      assert {:error, _reason} = Webhooks.process_event(bad_event)
+
+      assert Repo.get_by(FrontmanServer.Billing.StripeEvent, stripe_event_id: "evt_retryable") ==
+               nil
+
+      good_event =
+        put_in(
+          bad_event,
+          ["data", "object", "status"],
+          "trialing"
+        )
+
+      assert {:ok, :processed} = Webhooks.process_event(good_event)
+
+      assert %Subscription{stripe_subscription_id: "sub_retryable"} =
+               Repo.get_by!(Subscription, stripe_subscription_id: "sub_retryable")
+    end
   end
 end

@@ -39,6 +39,9 @@ defmodule FrontmanServerWeb.StripeWebhookControllerTest do
       |> put_req_header("content-type", "application/json")
       |> post(~p"/api/stripe/webhook", Jason.encode!(%{"id" => "evt_bad"}))
 
-    assert %{"error" => "invalid_stripe_webhook"} = json_response(conn, 400)
+    response = json_response(conn, 400)
+
+    assert response["error"] == "invalid_stripe_webhook"
+    refute Map.has_key?(response, "reason")
   end
 end

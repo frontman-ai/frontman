@@ -16,7 +16,8 @@ defmodule FrontmanServer.Billing.StripeEvent do
   @doc false
   def changeset(stripe_event, attrs) do
     stripe_event
-    |> cast(attrs, [:stripe_event_id, :type, :processed_at, :payload])
+    |> cast(attrs, [:stripe_event_id, :type, :payload])
+    |> put_change(:processed_at, DateTime.utc_now(:second))
     |> validate_required([:stripe_event_id, :type, :processed_at])
     |> unique_constraint(:stripe_event_id)
   end
