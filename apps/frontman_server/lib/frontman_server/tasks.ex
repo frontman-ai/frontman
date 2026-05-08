@@ -523,7 +523,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp guard_billing_access(scope) do
-    if Billing.access_allowed?(scope), do: :ok, else: {:error, :billing_inactive}
+    if Billing.allow_access?(scope), do: :ok, else: {:error, :billing_inactive}
   end
 
   defp accepted_user_message_count(task_id) do

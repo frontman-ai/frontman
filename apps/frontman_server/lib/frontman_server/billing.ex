@@ -19,7 +19,6 @@ defmodule FrontmanServer.Billing do
   alias FrontmanServer.Repo
 
   @type interval :: :monthly | :yearly
-  @type access_state :: :pre_trial | :trial_active | :subscription_active | :inactive
 
   @doc """
   Starts provider checkout for the scoped user.
@@ -52,28 +51,20 @@ defmodule FrontmanServer.Billing do
   end
 
   @doc """
-  Returns the user's billing access state.
+  Returns whether billing allows access for the scoped user.
   """
-  @spec access_state(Scope.t()) :: access_state()
-  def access_state(%Scope{} = scope) do
+  @spec allow_access?(Scope.t()) :: boolean()
+  def allow_access?(%Scope{} = scope) do
     scope
-    |> get_status()
-    |> subscription_access_state()
-  end
-
-  @doc """
-  Returns whether the scoped user has active Frontman access.
-  """
-  @spec access_allowed?(Scope.t()) :: boolean()
-  def access_allowed?(%Scope{} = scope) do
-    access_state(scope) in [:trial_active, :subscription_active]
+    |> get_current_subscription()
+    |> Subscription.allow_access?()
   end
 
   @doc """
   Returns the current billing subscription for the scoped user.
   """
-  @spec get_status(Scope.t()) :: Subscription.t() | nil
-  def get_status(%Scope{} = scope) do
+  @spec get_current_subscription(Scope.t()) :: Subscription.t() | nil
+  def get_current_subscription(%Scope{} = scope) do
     user_id = Accounts.scope_user_id(scope)
 
     Subscription
@@ -81,13 +72,13 @@ defmodule FrontmanServer.Billing do
     |> Repo.one()
   end
 
+  def get_customer!(%Scope{} = scope, id), do: scoped_customer_query(scope) |> Repo.get!(id)
+
   def list_billing_customers(%Scope{} = scope) do
     Customer
     |> Customer.for_user(Accounts.scope_user_id(scope))
     |> Repo.all()
   end
-
-  def get_customer!(%Scope{} = scope, id), do: scoped_customer_query(scope) |> Repo.get!(id)
 
   def create_customer(%Scope{} = scope, attrs) do
     %Customer{user_id: Accounts.scope_user_id(scope)}
@@ -164,14 +155,6 @@ defmodule FrontmanServer.Billing do
     |> scoped_subscription_query()
     |> Subscription.trial_consumed()
   end
-
-  defp subscription_access_state(nil), do: :pre_trial
-  defp subscription_access_state(%Subscription{status: "trialing"}), do: :trial_active
-
-  defp subscription_access_state(%Subscription{status: status})
-       when status in ["active", "past_due"], do: :subscription_active
-
-  defp subscription_access_state(%Subscription{}), do: :inactive
 
   defp billing_client do
     Application.fetch_env!(:frontman_server, :billing_client)

@@ -62,9 +62,9 @@ defmodule FrontmanServer.TasksTest do
       refute_receive {:interaction, %Interaction.UserMessage{}, _turn_number}
     end
 
-    test "blocks prompt persistence when entitlement has ended", %{scope: scope} do
+    test "blocks prompt persistence when subscription has ended", %{scope: scope} do
       task_id = task_fixture(scope).id
-      subscription_for_scope_fixture(scope, %{status: "canceled"})
+      block_access_for_scope_fixture(scope)
       :ok = Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
       assert {:error, :billing_inactive} =

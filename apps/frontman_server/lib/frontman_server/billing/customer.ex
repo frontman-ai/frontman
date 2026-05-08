@@ -8,6 +8,8 @@ defmodule FrontmanServer.Billing.Customer do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
+  @type t :: %__MODULE__{}
+
   schema "billing_customers" do
     field :stripe_customer_id, :string
     field :stripe_customer_account_id, :string

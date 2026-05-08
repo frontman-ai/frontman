@@ -9,6 +9,8 @@ defmodule FrontmanServer.Billing.Subscription do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
+  @type t :: %__MODULE__{}
+
   schema "billing_subscriptions" do
     field :stripe_subscription_id, :string
     field :stripe_customer_id, :string
@@ -37,6 +39,14 @@ defmodule FrontmanServer.Billing.Subscription do
     from s in query,
       where: s.status == "trialing" or not is_nil(s.trial_end)
   end
+
+  def allow_access?(%__MODULE__{status: "trialing"}), do: true
+
+  def allow_access?(%__MODULE__{status: status}) when status in ["active", "past_due"],
+    do: true
+
+  def allow_access?(nil), do: false
+  def allow_access?(%__MODULE__{}), do: false
 
   @doc false
   def changeset(subscription, attrs) do

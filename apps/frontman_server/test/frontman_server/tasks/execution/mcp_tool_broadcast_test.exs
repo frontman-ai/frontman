@@ -8,6 +8,8 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
   use FrontmanServer.ExecutionCase
 
+  @moduletag :capture_log
+
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2, swarm_tool_call: 1, swarm_tool_call: 2]
 

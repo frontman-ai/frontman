@@ -9,6 +9,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2]
 

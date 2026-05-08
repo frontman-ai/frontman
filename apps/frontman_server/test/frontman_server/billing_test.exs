@@ -3,6 +3,8 @@ defmodule FrontmanServer.BillingTest do
 
   import Mox
 
+  import FrontmanServer.BillingFixtures
+
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Billing
   alias FrontmanServer.Billing.{Customer, Subscription}
@@ -155,49 +157,44 @@ defmodule FrontmanServer.BillingTest do
     end
   end
 
-  describe "access_state/1" do
-    test "returns pre_trial when the user has no subscription" do
+  describe "allow_access?/1" do
+    test "returns false when the user has no subscription" do
       user = AccountsFixtures.user_fixture()
       scope = Scope.for_user(user)
 
-      assert Billing.access_state(scope) == :pre_trial
-      refute Billing.access_allowed?(scope)
+      refute Billing.allow_access?(scope)
     end
 
-    test "returns trial_active for trialing subscriptions" do
-      scope = billing_scope_with_subscription("trialing")
+    test "returns true for trialing subscriptions" do
+      scope = scope_with_subscription_fixture("trialing")
 
-      assert Billing.access_state(scope) == :trial_active
-      assert Billing.access_allowed?(scope)
+      assert Billing.allow_access?(scope)
     end
 
-    test "returns subscription_active for active subscriptions" do
-      scope = billing_scope_with_subscription("active")
+    test "returns true for active subscriptions" do
+      scope = scope_with_subscription_fixture("active")
 
-      assert Billing.access_state(scope) == :subscription_active
-      assert Billing.access_allowed?(scope)
+      assert Billing.allow_access?(scope)
     end
 
-    test "returns subscription_active for past_due subscriptions" do
-      scope = billing_scope_with_subscription("past_due")
+    test "returns true for past_due subscriptions" do
+      scope = scope_with_subscription_fixture("past_due")
 
-      assert Billing.access_state(scope) == :subscription_active
-      assert Billing.access_allowed?(scope)
+      assert Billing.allow_access?(scope)
     end
 
-    test "returns inactive for canceled subscriptions" do
-      scope = billing_scope_with_subscription("canceled")
+    test "returns false for canceled subscriptions" do
+      scope = scope_with_subscription_fixture("canceled")
 
-      assert Billing.access_state(scope) == :inactive
-      refute Billing.access_allowed?(scope)
+      refute Billing.allow_access?(scope)
     end
   end
 
-  describe "get_status/1" do
+  describe "get_current_subscription/1" do
     test "returns nil when the scoped user has no subscription" do
       user = AccountsFixtures.user_fixture()
 
-      assert Billing.get_status(Scope.for_user(user)) == nil
+      assert Billing.get_current_subscription(Scope.for_user(user)) == nil
     end
 
     test "returns the scoped user's subscription" do
@@ -217,7 +214,7 @@ defmodule FrontmanServer.BillingTest do
           price_id: "price_monthly_test"
         })
 
-      assert Billing.get_status(Scope.for_user(user)).id == subscription.id
+      assert Billing.get_current_subscription(Scope.for_user(user)).id == subscription.id
     end
   end
 
@@ -299,6 +296,7 @@ defmodule FrontmanServer.BillingTest do
       assert {:ok, :duplicate} = Webhooks.process_event(event)
     end
 
+    @tag :capture_log
     test "failed events are retryable and not treated as duplicates" do
       user = AccountsFixtures.user_fixture()
 
@@ -338,26 +336,5 @@ defmodule FrontmanServer.BillingTest do
       assert %Subscription{stripe_subscription_id: "sub_retryable"} =
                Repo.get_by!(Subscription, stripe_subscription_id: "sub_retryable")
     end
-  end
-
-  defp billing_scope_with_subscription(status) do
-    user = AccountsFixtures.user_fixture()
-    scope = Scope.for_user(user)
-    unique = System.unique_integer([:positive])
-
-    {:ok, customer} =
-      Billing.create_customer(scope, %{stripe_customer_id: "cus_access_#{unique}"})
-
-    {:ok, _subscription} =
-      Billing.create_subscription(scope, %{
-        billing_customer_id: customer.id,
-        stripe_subscription_id: "sub_access_#{unique}",
-        stripe_customer_id: customer.stripe_customer_id,
-        status: status,
-        interval: :monthly,
-        price_id: "price_monthly_test"
-      })
-
-    scope
   end
 end

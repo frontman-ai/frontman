@@ -32,21 +32,14 @@ defmodule FrontmanServerWeb.BillingController do
 
   def status(conn, _params) do
     scope = conn.assigns.current_scope
+    subscription = Billing.get_current_subscription(scope)
 
     response =
-      scope
-      |> Billing.get_status()
+      subscription
       |> status_response()
-      |> Map.merge(access_response(scope))
+      |> Map.put(:allow_access, Subscription.allow_access?(subscription))
 
     json(conn, response)
-  end
-
-  defp access_response(scope) do
-    %{
-      access_state: scope |> Billing.access_state() |> Atom.to_string(),
-      access_allowed: Billing.access_allowed?(scope)
-    }
   end
 
   defp status_response(%Subscription{} = subscription) do

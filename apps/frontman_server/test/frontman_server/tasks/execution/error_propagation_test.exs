@@ -12,6 +12,8 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   use FrontmanServer.ExecutionCase
 
+  @moduletag :capture_log
+
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2]
 

@@ -28,6 +28,7 @@ defmodule FrontmanServerWeb.StripeWebhookControllerTest do
     assert %StripeEvent{} = Repo.get_by(StripeEvent, stripe_event_id: "evt_webhook")
   end
 
+  @tag :capture_log
   test "rejects invalid webhook signatures", %{conn: conn} do
     expect(FrontmanServer.Billing.ClientMock, :construct_webhook_event, fn _raw_body,
                                                                            _signature ->

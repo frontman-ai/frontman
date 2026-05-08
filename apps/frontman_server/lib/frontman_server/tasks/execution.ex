@@ -15,6 +15,8 @@ defmodule FrontmanServer.Tasks.Execution do
   """
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Billing
+  alias FrontmanServer.Billing.Subscription
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
@@ -274,4 +276,21 @@ defmodule FrontmanServer.Tasks.Execution do
 
   defp to_swarm_content_part(%{"type" => "image", "data" => data, "mimeType" => mime_type}),
     do: ContentPart.image(Base.decode64!(data), mime_type)
+
+  @doc false
+  def error_message(%Scope{}, :no_api_key),
+    do: "No API key available for this request."
+
+  def error_message(%Scope{}, :registration_timeout),
+    do: "Agent failed to start. Please try again."
+
+  def error_message(%Scope{} = scope, :billing_inactive) do
+    case Billing.get_current_subscription(scope) do
+      nil -> "Finish billing setup to start using Frontman."
+      %Subscription{} -> "Your Frontman access has ended. Start a subscription to continue."
+    end
+  end
+
+  def error_message(%Scope{}, reason),
+    do: inspect(reason)
 end

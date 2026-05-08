@@ -84,8 +84,7 @@ defmodule FrontmanServerWeb.BillingControllerTest do
 
       assert %{
                "status" => "none",
-               "access_state" => "pre_trial",
-               "access_allowed" => false
+               "allow_access" => false
              } = json_response(conn, 200)
     end
 
@@ -109,8 +108,7 @@ defmodule FrontmanServerWeb.BillingControllerTest do
                "status" => "trialing",
                "interval" => "monthly",
                "price_id" => "price_monthly_test",
-               "access_state" => "trial_active",
-               "access_allowed" => true
+               "allow_access" => true
              } = json_response(conn, 200)
     end
   end

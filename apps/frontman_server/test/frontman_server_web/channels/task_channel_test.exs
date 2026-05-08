@@ -2,6 +2,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
 
+  @moduletag :capture_log
+
   import FrontmanServer.InteractionCase.Helpers,
     only: [agent_error: 2, agent_error: 4, interaction_event: 2, tool_call: 2, tool_call: 3]
 
@@ -183,7 +185,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "session/prompt" do
     setup %{scope: scope} do
-      FrontmanServer.BillingFixtures.ensure_subscription_for_scope_fixture(scope)
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       {socket, task_id} = join_task_channel(scope)
       {:ok, socket: socket, task_id: task_id}
     end

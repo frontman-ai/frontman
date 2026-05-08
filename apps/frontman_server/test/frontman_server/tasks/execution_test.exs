@@ -9,6 +9,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   use FrontmanServer.ExecutionCase
   use Oban.Testing, repo: FrontmanServer.Repo
 
+  @moduletag :capture_log
+
   import Mox
   import Phoenix.ChannelTest
 
