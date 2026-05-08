@@ -472,6 +472,8 @@ release: ## Create a release PR from pending changesets
 		exit 1; \
 	fi; \
 	printf "$(GREEN)Found $$CHANGESETS pending changeset(s)$(RESET)\n"
+	@printf "$(CYAN)Validating changesets...$(RESET)\n"
+	@yarn changeset status
 	@printf "$(YELLOW)Triggering release workflow...$(RESET)\n"
 	@gh workflow run release-pr.yml --ref main
 	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
