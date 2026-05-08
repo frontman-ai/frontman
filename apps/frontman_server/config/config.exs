@@ -23,6 +23,9 @@ config :frontman_server, :scopes,
 config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
+  billing_client: FrontmanServer.Billing.StripeClient,
+  # Default usage limit for server-provided API keys
+  user_key_usage_limit: 10,
   # Max time to wait for the next LLM stream chunk before declaring a stall.
   # Anthropic ping keepalives now flow through as meta chunks, resetting this
   # timer during long-thinking requests (see issue #731).
@@ -47,6 +50,12 @@ config :frontman_server, FrontmanServer.Providers.AnthropicOAuth,
   token_url: "https://console.anthropic.com/v1/oauth/token",
   redirect_uri: "https://console.anthropic.com/oauth/code/callback",
   scopes: "org:create_api_key user:profile user:inference"
+
+config :frontman_server, :stripe,
+  api_base_url: "https://api.stripe.com",
+  api_version: "2025-03-31.basil",
+  signature_tolerance_seconds: 300,
+  trial_days: 14
 
 # Configures the endpoint
 config :frontman_server, FrontmanServerWeb.Endpoint,

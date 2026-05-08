@@ -61,6 +61,7 @@ defmodule FrontmanServerWeb.Endpoint do
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
+    body_reader: {FrontmanServerWeb.Plugs.RawBodyReader, :read_body, []},
     json_decoder: Phoenix.json_library()
   )
 

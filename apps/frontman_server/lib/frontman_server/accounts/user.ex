@@ -26,6 +26,8 @@ defmodule FrontmanServer.Accounts.User do
     has_many(:memberships, FrontmanServer.Organizations.Membership)
     has_many(:organizations, through: [:memberships, :organization])
     has_many(:identities, FrontmanServer.Accounts.UserIdentity)
+    has_one(:billing_customer, FrontmanServer.Billing.Customer)
+    has_one(:billing_subscription, through: [:billing_customer, :subscription])
 
     timestamps(type: :utc_datetime)
   end

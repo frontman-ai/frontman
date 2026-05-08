@@ -32,6 +32,17 @@ config :frontman_server, FrontmanServer.Mailer,
 # Oban: inline execution for tests (no async workers)
 config :frontman_server, Oban, testing: :manual
 
+config :frontman_server,
+  billing_client: FrontmanServer.Billing.ClientMock
+
+config :frontman_server, :stripe,
+  api_base_url: "https://stripe.test",
+  secret_key: "sk_test_123",
+  webhook_secret: "whsec_test_123",
+  monthly_price_id: "price_monthly_test",
+  yearly_price_id: "price_yearly_test",
+  trial_days: 14
+
 # Discord webhook URL for test assertions
 config :frontman_server, discord_new_users_webhook_url: "https://discord.test/webhook"
 

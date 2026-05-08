@@ -22,4 +22,20 @@ defmodule FrontmanServerWeb.PageController do
       redirect(conn, external: "https://frontman.sh")
     end
   end
+
+  def billing_success(conn, _params) do
+    redirect_to_billing_landing(conn)
+  end
+
+  def billing_cancel(conn, _params) do
+    redirect_to_billing_landing(conn)
+  end
+
+  defp redirect_to_billing_landing(conn) do
+    if conn.assigns[:current_scope] do
+      redirect(conn, to: ~p"/users/settings")
+    else
+      redirect(conn, to: ~p"/users/log-in")
+    end
+  end
 end

@@ -38,6 +38,8 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:browser)
 
     get("/", PageController, :home)
+    get("/billing/success", PageController, :billing_success)
+    get("/billing/cancel", PageController, :billing_cancel)
 
     delete("/users/log-out", UserSessionController, :delete)
     # GET logout renders a CSRF-protected confirmation page that auto-submits.
@@ -100,6 +102,7 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:api)
 
     get("/integrations/latest-versions", IntegrationsController, :latest_versions)
+    post("/stripe/webhook", StripeWebhookController, :create)
   end
 
   # API endpoint for socket token (uses browser pipeline for session cookie)
@@ -115,6 +118,9 @@ defmodule FrontmanServerWeb.Router do
     get("/user/me", UserMeController, :show)
     get("/user/api-keys", UserApiKeyController, :index)
     post("/user/api-keys", UserApiKeyController, :create)
+    get("/user/api-key-usage", UserApiKeyController, :usage)
+    post("/billing/checkout-session", BillingController, :create_checkout_session)
+    get("/billing/status", BillingController, :status)
 
     # Anthropic OAuth routes
     get("/oauth/anthropic/authorize-url", AnthropicOAuthController, :authorize_url)
