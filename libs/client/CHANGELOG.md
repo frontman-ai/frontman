@@ -1,5 +1,41 @@
 # @frontman-ai/client
 
+## 0.10.0
+
+### Minor Changes
+
+- [#875](https://github.com/frontman-ai/frontman/pull/875) [`0d53ccc`](https://github.com/frontman-ai/frontman/commit/0d53ccc5a3552f3665db198deb80f817535546b2) Thanks [@itayadler](https://github.com/itayadler)! - Add Fireworks Fire Pass support, including Fireworks API key setup and Kimi K2.5 Turbo in the provider picker.
+
+### Patch Changes
+
+- [`17116b2`](https://github.com/frontman-ai/frontman/commit/17116b203da5608000090031aa301a4c7026245b) Thanks [@itayadler](https://github.com/itayadler)! - Add GPT-5.4 Mini to the OpenAI model picker.
+
+- [#908](https://github.com/frontman-ai/frontman/pull/908) [`c3a6814`](https://github.com/frontman-ai/frontman/commit/c3a6814bd6d237c136defc57e57f390564634f97) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Append the detected framework to auth-required login redirects and thread it through OAuth signup so new-user Discord notifications include the framework used at signup.
+
+- [#930](https://github.com/frontman-ai/frontman/pull/930) [`223e1cc`](https://github.com/frontman-ai/frontman/commit/223e1cce94aefa620076a6d8c5c0f369cac55627) Thanks [@itayadler](https://github.com/itayadler)! - Add Elementor selected-element context and WordPress Elementor tools so agents can inspect and edit Elementor-backed selections directly.
+
+- [#932](https://github.com/frontman-ai/frontman/pull/932) [`e624c70`](https://github.com/frontman-ai/frontman/commit/e624c70f6f848b7424a5dbd4f1677ea44f1414c6) Thanks [@itayadler](https://github.com/itayadler)! - Add a WordPress media upload tool that resolves user-attached images into Media Library attachments for use in posts and Elementor elements.
+
+- [`af82814`](https://github.com/frontman-ai/frontman/commit/af828141eda8291b78f0801413c1285f351abc47) Thanks [@itayadler](https://github.com/itayadler)! - Carry Elementor-selected annotation context through existing nearby text metadata so agents can route edits to Elementor tools without backend-specific prompt changes.
+
+- [#954](https://github.com/frontman-ai/frontman/pull/954) [`6cb67cf`](https://github.com/frontman-ai/frontman/commit/6cb67cf253aa30f9e8a04f2451f6dc2b90c2b447) Thanks [@itayadler](https://github.com/itayadler)! - Remove unused client UI wrappers and redundant frontend dependencies.
+
+- [#890](https://github.com/frontman-ai/frontman/pull/890) [`05942f0`](https://github.com/frontman-ai/frontman/commit/05942f0bdaf3a60710a903542ec68200a58be6aa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Centralize path normalization and filename pattern matching to shared helpers across core and framework packages. This removes duplicate `toForwardSlashes` logic from client/Next.js/Astro path conversion and moves search/file matching logic into reusable frontman-core utilities, while adding focused regression tests for mixed separators and wildcard/case-insensitive pattern matching.
+
+- [#948](https://github.com/frontman-ai/frontman/pull/948) [`e43a490`](https://github.com/frontman-ai/frontman/commit/e43a49049a36f6eeeea04f1008da0923087c0a48) Thanks [@itayadler](https://github.com/itayadler)! - Fix WordPress page duplication to copy Elementor/page metadata and preserve post-backed navigation item metadata during menu updates.
+
+- [#879](https://github.com/frontman-ai/frontman/pull/879) [`5f4fe05`](https://github.com/frontman-ai/frontman/commit/5f4fe05004dba00f613a44641ce8404007bf7ca8) Thanks [@itayadler](https://github.com/itayadler)! - Escape embedding iframes for hosted auth and logout redirects so Frontman can sign in correctly inside shells like WordPress Playground.
+
+- [`3f374c7`](https://github.com/frontman-ai/frontman/commit/3f374c770e028393b39beac6738babe9e5d4ccb8) Thanks [@itayadler](https://github.com/itayadler)! - Preserve previous Elementor data as private rollback snapshots when updating, removing, or replacing Elementor content.
+
+- [#965](https://github.com/frontman-ai/frontman/pull/965) [`7334070`](https://github.com/frontman-ai/frontman/commit/7334070e166f30659feda38f7b64f52a222aba40) Thanks [@itayadler](https://github.com/itayadler)! - Remove unused client bindings, icons, and legacy connection reducer transitions.
+
+- [#957](https://github.com/frontman-ai/frontman/pull/957) [`67516ac`](https://github.com/frontman-ai/frontman/commit/67516ac5ee501dd9c3553795e92d9b112a16a12c) Thanks [@itayadler](https://github.com/itayadler)! - Remove the client Storybook setup and debug-state snapshot tooling.
+
+- [#944](https://github.com/frontman-ai/frontman/pull/944) [`0efccec`](https://github.com/frontman-ai/frontman/commit/0efccec4dd26e10d307b8eee0535c9b1efc92312) Thanks [@itayadler](https://github.com/itayadler)! - Run WordPress Elementor edits serially and pass Elementor target metadata so the update tool can choose settings versus HTML-fragment edits deterministically.
+
+- [#967](https://github.com/frontman-ai/frontman/pull/967) [`8adb8e4`](https://github.com/frontman-ai/frontman/commit/8adb8e45e2d476a912f71cd60539f642ee37d19f) Thanks [@itayadler](https://github.com/itayadler)! - Trim duplicated CLI package-manager helpers and remove stale client tool summary helpers.
+
 ## 0.9.0
 
 ### Minor Changes

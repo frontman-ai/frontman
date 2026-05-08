@@ -1,5 +1,27 @@
 # @frontman-ai/frontman-core
 
+## 0.6.0
+
+### Minor Changes
+
+- [#875](https://github.com/frontman-ai/frontman/pull/875) [`0d53ccc`](https://github.com/frontman-ai/frontman/commit/0d53ccc5a3552f3665db198deb80f817535546b2) Thanks [@itayadler](https://github.com/itayadler)! - Add Fireworks Fire Pass support, including Fireworks API key setup and Kimi K2.5 Turbo in the provider picker.
+
+### Patch Changes
+
+- [#890](https://github.com/frontman-ai/frontman/pull/890) [`05942f0`](https://github.com/frontman-ai/frontman/commit/05942f0bdaf3a60710a903542ec68200a58be6aa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Centralize path normalization and filename pattern matching to shared helpers across core and framework packages. This removes duplicate `toForwardSlashes` logic from client/Next.js/Astro path conversion and moves search/file matching logic into reusable frontman-core utilities, while adding focused regression tests for mixed separators and wildcard/case-insensitive pattern matching.
+
+- [#966](https://github.com/frontman-ai/frontman/pull/966) [`de43db7`](https://github.com/frontman-ai/frontman/commit/de43db75fcaacd66af39ca000c037e3d90880c76) Thanks [@itayadler](https://github.com/itayadler)! - Consolidate duplicated framework log capture and edit-file log checking through shared core helpers.
+
+- [#953](https://github.com/frontman-ai/frontman/pull/953) [`b2aef53`](https://github.com/frontman-ai/frontman/commit/b2aef533a79fcd0d96291eb40f812b5e926eec9e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable React Scan in Frontman UI shells when requested with `?debug=1` and keep the shell in dark mode consistently.
+
+- [#890](https://github.com/frontman-ai/frontman/pull/890) [`05942f0`](https://github.com/frontman-ai/frontman/commit/05942f0bdaf3a60710a903542ec68200a58be6aa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Harden tool-call path handling for discovery workflows by adding a per-source-root path hints cache, a zero-result guardrail between `search_files` and `read_file`, nearest-parent recovery for missing paths, and structured `search_files` backend error payloads (command, cwd, exit code, stderr, target path). Add T1-T4 taxonomy regression tests plus a replay test modeled on the 3addabc6 failure sequence.
+
+- [#920](https://github.com/frontman-ai/frontman/pull/920) [`d25da4c`](https://github.com/frontman-ai/frontman/commit/d25da4c32611a4e79df49a44ee86234cd982e9bf) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Refactor Swarm and Frontman streaming to consume ReqLLM chunk shapes end-to-end, removing the Swarm-specific chunk reconstruction layer. Preserve early tool-call announcements in channel streaming, keep deterministic malformed/dropped tool-argument handling, and align test mocks/fixtures with ReqLLM stream chunks.
+
+- [#967](https://github.com/frontman-ai/frontman/pull/967) [`8adb8e4`](https://github.com/frontman-ai/frontman/commit/8adb8e45e2d476a912f71cd60539f642ee37d19f) Thanks [@itayadler](https://github.com/itayadler)! - Trim duplicated CLI package-manager helpers and remove stale client tool summary helpers.
+
+- [#976](https://github.com/frontman-ai/frontman/pull/976) [`5585afb`](https://github.com/frontman-ai/frontman/commit/5585afb0f0a1e715133ede2fa97f0d32abc3b648) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update the ReScript compiler and runtime dependencies to 12.2.0 across the workspace.
+
 ## 0.5.5
 
 ### Patch Changes
