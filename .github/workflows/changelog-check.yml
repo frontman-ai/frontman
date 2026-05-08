@@ -37,7 +37,7 @@ jobs:
         run: yarn install --immutable
 
       - name: Validate changesets
-        run: yarn changeset status
+        run: yarn changeset status --since=origin/main
 
       - name: Check changesets cover all changed packages
         run: |
