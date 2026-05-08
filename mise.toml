@@ -14,6 +14,7 @@ mkcert="1.4.4"
 "npm:@biomejs/biome"="latest"
 "npm:typescript-language-server" = "latest"
 lefthook="latest"
+"github:expert-lsp/expert" = { version = "0.1.4", exe = "expert_darwin_arm64" }
 
 [env]
 MIX_OS_DEPS_COMPILE_PARTITION_COUNT = "1"
