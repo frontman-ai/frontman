@@ -23,6 +23,22 @@ jobs:
         with:
           node-version: 20
 
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Cache dependencies
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Validate changesets
+        run: yarn changeset status
+
       - name: Check changesets cover all changed packages
         run: |
           set -eo pipefail
