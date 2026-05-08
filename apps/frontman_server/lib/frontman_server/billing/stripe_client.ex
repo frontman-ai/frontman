@@ -35,8 +35,8 @@ defmodule FrontmanServer.Billing.StripeClient do
            StripeWebhookSignature.verify(
              raw_body,
              signature_header,
-             webhook_secret!(),
-             signature_tolerance_seconds!()
+             stripe_config!(:webhook_secret),
+             stripe_config!(:signature_tolerance_seconds)
            ) do
       Jason.decode(raw_body)
     end
@@ -44,10 +44,10 @@ defmodule FrontmanServer.Billing.StripeClient do
 
   defp new do
     Req.new(
-      base_url: stripe_api_base_url(),
-      auth: {:bearer, secret_key!()},
+      base_url: stripe_config!(:api_base_url),
+      auth: {:bearer, stripe_config!(:secret_key)},
       headers: [
-        {"stripe-version", api_version!()}
+        {"stripe-version", stripe_config!(:api_version)}
       ]
     )
   end
@@ -55,7 +55,7 @@ defmodule FrontmanServer.Billing.StripeClient do
   defp checkout_session_params(user, customer, interval, return_urls, opts) do
     base_params = [
       {"mode", "subscription"},
-      {"line_items[0][price]", price_id!(interval)},
+      {"line_items[0][price]", stripe_config!(price_id_key(interval))},
       {"line_items[0][quantity]", "1"},
       {"managed_payments[enabled]", "true"},
       {"success_url", Map.fetch!(return_urls, :success_url)},
@@ -73,8 +73,11 @@ defmodule FrontmanServer.Billing.StripeClient do
 
   defp trial_params(opts) do
     case Keyword.fetch!(opts, :trial_eligible) do
-      true -> [{"subscription_data[trial_period_days]", Integer.to_string(trial_days!())}]
-      false -> []
+      true ->
+        [{"subscription_data[trial_period_days]", Integer.to_string(stripe_config!(:trial_days))}]
+
+      false ->
+        []
     end
   end
 
@@ -89,54 +92,11 @@ defmodule FrontmanServer.Billing.StripeClient do
 
   defp customer_params(_customer), do: []
 
-  defp stripe_api_base_url do
-    stripe_config()
-    |> Keyword.fetch!(:api_base_url)
-    |> URI.merge("/v1")
-    |> URI.to_string()
-  end
+  defp price_id_key(:monthly), do: :monthly_price_id
+  defp price_id_key(:yearly), do: :yearly_price_id
 
-  defp secret_key!, do: fetch_stripe_string_config!(:secret_key)
-  defp webhook_secret!, do: fetch_stripe_string_config!(:webhook_secret)
-  defp api_version!, do: fetch_stripe_string_config!(:api_version)
-
-  defp signature_tolerance_seconds!,
-    do: fetch_stripe_integer_config!(:signature_tolerance_seconds)
-
-  defp price_id!(:monthly), do: fetch_stripe_string_config!(:monthly_price_id)
-  defp price_id!(:yearly), do: fetch_stripe_string_config!(:yearly_price_id)
-
-  defp trial_days!, do: fetch_stripe_integer_config!(:trial_days)
-
-  defp stripe_config do
+  defp stripe_config!(key) do
     Application.fetch_env!(:frontman_server, :stripe)
-  end
-
-  defp fetch_stripe_config!(key) do
-    value = Keyword.fetch!(stripe_config(), key)
-
-    case value do
-      nil -> raise "missing Stripe config: #{key}"
-      "" -> raise "missing Stripe config: #{key}"
-      value -> value
-    end
-  end
-
-  defp fetch_stripe_string_config!(key) do
-    value = fetch_stripe_config!(key)
-
-    case value do
-      value when is_binary(value) -> value
-      _value -> raise "Stripe config must be a string: #{key}"
-    end
-  end
-
-  defp fetch_stripe_integer_config!(key) do
-    value = fetch_stripe_config!(key)
-
-    case value do
-      value when is_integer(value) -> value
-      _value -> raise "Stripe config must be an integer: #{key}"
-    end
+    |> Keyword.fetch!(key)
   end
 end

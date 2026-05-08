@@ -52,7 +52,7 @@ config :frontman_server, FrontmanServer.Providers.AnthropicOAuth,
   scopes: "org:create_api_key user:profile user:inference"
 
 config :frontman_server, :stripe,
-  api_base_url: "https://api.stripe.com",
+  api_base_url: "https://api.stripe.com/v1",
   api_version: "2025-03-31.basil",
   signature_tolerance_seconds: 300,
   trial_days: 14

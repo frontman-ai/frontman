@@ -63,8 +63,8 @@ if config_env() != :test do
   config :frontman_server,
     stripe:
       Keyword.merge(stripe_config,
-        secret_key: env!("STRIPE_SECRET_KEY", :string, nil),
-        webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string, nil)
+        secret_key: env!("STRIPE_SECRET_KEY", :string!),
+        webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string!)
       )
 end
 

@@ -36,7 +36,7 @@ config :frontman_server,
   billing_client: FrontmanServer.Billing.ClientMock
 
 config :frontman_server, :stripe,
-  api_base_url: "https://stripe.test",
+  api_base_url: "https://stripe.test/v1",
   secret_key: "sk_test_123",
   webhook_secret: "whsec_test_123",
   monthly_price_id: "price_monthly_test",
