@@ -7,17 +7,18 @@ defmodule FrontmanServerWeb.BillingControllerTest do
 
   setup :verify_on_exit!
 
-  describe "POST /api/billing/checkout-session" do
+  describe "POST /api/billing/checkout" do
     setup :register_and_log_in_user
 
-    test "creates checkout session for monthly plan", %{conn: conn, user: current_user} do
+    test "starts checkout for monthly plan", %{conn: conn, user: current_user} do
       expect(
         FrontmanServer.Billing.ClientMock,
-        :create_checkout_session,
-        fn user, customer, interval, return_urls ->
+        :start_checkout,
+        fn user, customer, interval, return_urls, opts ->
           assert user.id == current_user.id
           assert customer == nil
           assert interval == :monthly
+          assert opts == [trial_eligible: true]
 
           assert return_urls == %{
                    success_url:
@@ -30,7 +31,7 @@ defmodule FrontmanServerWeb.BillingControllerTest do
       )
 
       conn =
-        post(conn, ~p"/api/billing/checkout-session", %{
+        post(conn, ~p"/api/billing/checkout", %{
           "interval" => "monthly"
         })
 
@@ -40,14 +41,34 @@ defmodule FrontmanServerWeb.BillingControllerTest do
       assert response["url"] == "https://checkout.stripe.test/monthly"
     end
 
-    test "rejects invalid interval", %{conn: conn} do
-      conn = post(conn, ~p"/api/billing/checkout-session", %{"interval" => "weekly"})
-      assert %{"error" => "invalid_interval"} = json_response(conn, 422)
+    test "starts checkout for yearly plan", %{conn: conn, user: current_user} do
+      expect(
+        FrontmanServer.Billing.ClientMock,
+        :start_checkout,
+        fn user, customer, interval, _return_urls, opts ->
+          assert user.id == current_user.id
+          assert customer == nil
+          assert interval == :yearly
+          assert opts == [trial_eligible: true]
+
+          {:ok, %{"id" => "cs_test_yearly", "url" => "https://checkout.stripe.test/yearly"}}
+        end
+      )
+
+      conn =
+        post(conn, ~p"/api/billing/checkout", %{
+          "interval" => "yearly"
+        })
+
+      response = json_response(conn, 200)
+
+      assert response["id"] == "cs_test_yearly"
+      assert response["url"] == "https://checkout.stripe.test/yearly"
     end
 
     test "returns unauthorized without user" do
       conn =
-        post(build_conn(), ~p"/api/billing/checkout-session", %{
+        post(build_conn(), ~p"/api/billing/checkout", %{
           "interval" => "monthly"
         })
 
@@ -73,7 +94,7 @@ defmodule FrontmanServerWeb.BillingControllerTest do
           stripe_subscription_id: "sub_status_test",
           stripe_customer_id: "cus_status_test",
           status: "trialing",
-          interval: "month",
+          interval: :monthly,
           price_id: "price_monthly_test"
         })
 
@@ -81,7 +102,7 @@ defmodule FrontmanServerWeb.BillingControllerTest do
 
       assert %{
                "status" => "trialing",
-               "interval" => "month",
+               "interval" => "monthly",
                "price_id" => "price_monthly_test"
              } = json_response(conn, 200)
     end
