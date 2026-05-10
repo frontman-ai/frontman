@@ -172,6 +172,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_structure_and_get_element();
 		$this->test_update_rejects_empty_and_noop_settings();
 		$this->test_update_duplicate_and_flush();
+		$this->test_update_shortcut_fields();
 		$this->test_remove_preserves_private_rollback();
 		$this->test_removed_rollback_refuses_same_id_conflict();
 		$this->test_save_page_data_rejects_invalid_tree();
@@ -494,7 +495,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 
 	private function test_update_rejects_empty_and_noop_settings(): void {
 		$empty_error = $this->call_error( 'wp_elementor_update_element', [ 'post_id' => 42, 'element_id' => 'head2222', 'settings' => [] ] );
-		$this->assert_true( false !== strpos( $empty_error, 'at least one changed setting' ), 'Update rejects empty settings' );
+		$this->assert_true( false !== strpos( $empty_error, 'settings is empty' ), 'Update rejects empty settings' );
 
 		$noop_error = $this->call_error( 'wp_elementor_update_element', [ 'post_id' => 42, 'element_id' => 'head2222', 'settings' => [ 'title' => 'Hello' ] ] );
 		$this->assert_true( false !== strpos( $noop_error, 'do not change' ), 'Update rejects no-op settings' );
@@ -530,6 +531,46 @@ class Frontman_Elementor_Tools_Test_Runner {
 
 		$flushed = $this->call_success( 'wp_elementor_flush_css', [ 'post_id' => 42 ] );
 		$this->assert_same( 'post-42', $flushed['scope'], 'Flush reports post scope' );
+	}
+
+	private function test_update_shortcut_fields(): void {
+		$this->call_success(
+			'wp_elementor_update_element',
+			[
+				'post_id'               => 42,
+				'element_id'            => 'root1111',
+				'background_image_id'   => 30275,
+				'background_image_url'  => 'https://example.test/rocket.png',
+				'background_size'       => 'cover',
+				'background_position'   => 'center center',
+				'background_repeat'     => 'no-repeat',
+			]
+		);
+
+		$data = Frontman_Elementor_Data::get_page_data( 42 );
+		$this->assert_same( 30275, $data[0]['settings']['background_image']['id'], 'Shortcut updates background image ID' );
+		$this->assert_same( 'https://example.test/rocket.png', $data[0]['settings']['background_image']['url'], 'Shortcut updates background image URL' );
+		$this->assert_same( 'library', $data[0]['settings']['background_image']['source'], 'Shortcut defaults background image source' );
+		$this->assert_same( 'cover', $data[0]['settings']['background_size'], 'Shortcut updates background size' );
+		$this->assert_same( 'center center', $data[0]['settings']['background_position'], 'Shortcut updates background position' );
+		$this->assert_same( 'no-repeat', $data[0]['settings']['background_repeat'], 'Shortcut updates background repeat' );
+
+		$this->call_success(
+			'wp_elementor_update_element',
+			[
+				'post_id'                      => 42,
+				'element_id'                   => 'head2222',
+				'heading_html'                 => '<p>Ready to Launch? Let\'s Talk.</p>',
+				'title_color'                  => '#FFFFFF',
+				'title_typography_font_family' => 'Poppins',
+			]
+		);
+
+		$data = Frontman_Elementor_Data::get_page_data( 42 );
+		$this->assert_same( '<p>Ready to Launch? Let\'s Talk.</p>', $data[0]['elements'][0]['settings']['heading'], 'Shortcut updates heading HTML' );
+		$this->assert_same( '#FFFFFF', $data[0]['elements'][0]['settings']['title_color'], 'Shortcut updates heading title color' );
+		$this->assert_same( 'Poppins', $data[0]['elements'][0]['settings']['title_typography_font_family'], 'Shortcut updates heading font family' );
+		$this->assert_same( 'custom', $data[0]['elements'][0]['settings']['title_typography_typography'], 'Shortcut enables custom heading typography' );
 	}
 
 	private function test_remove_preserves_private_rollback(): void {

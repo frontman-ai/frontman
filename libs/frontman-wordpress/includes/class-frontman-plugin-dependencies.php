@@ -20,8 +20,6 @@ class Frontman_Plugin_Dependencies {
 			return true;
 		}
 
-		self::load_plugin_functions();
-
 		if ( function_exists( 'is_plugin_active' ) && is_plugin_active( $plugin_file ) ) {
 			return true;
 		}
@@ -30,20 +28,16 @@ class Frontman_Plugin_Dependencies {
 			return true;
 		}
 
+		$active_plugins = function_exists( 'get_option' ) ? get_option( 'active_plugins', [] ) : [];
+		if ( is_array( $active_plugins ) && in_array( $plugin_file, $active_plugins, true ) ) {
+			return true;
+		}
+
+		$network_plugins = function_exists( 'get_site_option' ) ? get_site_option( 'active_sitewide_plugins', [] ) : [];
+		if ( is_array( $network_plugins ) && isset( $network_plugins[ $plugin_file ] ) ) {
+			return true;
+		}
+
 		return false;
-	}
-
-	/**
-	 * Load WordPress plugin helper functions when running outside wp-admin.
-	 */
-	private static function load_plugin_functions(): void {
-		if ( function_exists( 'is_plugin_active' ) && function_exists( 'is_plugin_active_for_network' ) ) {
-			return;
-		}
-
-		$plugin_helpers = ABSPATH . 'wp-admin/includes/plugin.php';
-		if ( file_exists( $plugin_helpers ) ) {
-			require_once $plugin_helpers;
-		}
 	}
 }

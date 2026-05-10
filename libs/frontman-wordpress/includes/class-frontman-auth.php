@@ -61,16 +61,30 @@ class Frontman_Auth {
 	}
 
 	/**
+	 * Get the nonce action shared by UI generation and request validation.
+	 */
+	public static function nonce_action(): string {
+		return self::NONCE_ACTION;
+	}
+
+	/**
+	 * Read the browser nonce from the X-WP-Nonce request header.
+	 */
+	public static function request_nonce(): string {
+		if ( ! isset( $_SERVER['HTTP_X_WP_NONCE'] ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) );
+	}
+
+	/**
 	 * Verify the request nonce sent by the browser client.
 	 *
 	 * @return true|\WP_Error
 	 */
 	public static function verify_nonce() {
-		$nonce = '';
-
-		if ( isset( $_SERVER['HTTP_X_WP_NONCE'] ) ) {
-			$nonce = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) );
-		}
+		$nonce = self::request_nonce();
 
 		if ( empty( $nonce ) ) {
 			return new \WP_Error(
@@ -100,13 +114,12 @@ class Frontman_Auth {
 	 * @param bool      $is_api  Whether this is an API request (JSON) or page request (redirect).
 	 */
 	public static function send_error( \WP_Error $error, bool $is_api = true ): void {
-		$status = $error->get_error_data()['status'] ?? 403;
+		$error_data = $error->get_error_data();
+		$status     = is_array( $error_data ) && isset( $error_data['status'] ) ? (int) $error_data['status'] : 403;
 
 		if ( $is_api ) {
-			status_header( $status );
-			header( 'Content-Type: application/json; charset=utf-8' );
-			echo wp_json_encode( [ 'error' => $error->get_error_message() ] );
-			exit;
+			wp_send_json( [ 'error' => $error->get_error_message() ], $status );
+			return;
 		}
 
 		// For page requests (the UI), redirect to login.

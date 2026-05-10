@@ -124,6 +124,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Address WordPress.org plugin review findings by tightening Frontman route nonce validation, removing flagged inline UI assets, and avoiding direct admin plugin helper includes.
 - Bootstrap the WordPress file API before managed-theme writes so `wp_create_managed_theme` works in runtimes like WordPress Playground where `FS_CHMOD_FILE` is not pre-defined.
 
 ## [0.15.0] - 2026-04-08

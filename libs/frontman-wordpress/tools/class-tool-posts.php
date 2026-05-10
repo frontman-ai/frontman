@@ -142,7 +142,7 @@ class Frontman_Tool_Posts {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_post',
-			'Updates an existing post or page. Only the fields you provide will be changed.',
+			'Updates an existing post or page. Only the fields you provide will be changed. Do not use content on Elementor-managed pages; use wp_elementor_* tools for Elementor content/layout changes.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -350,6 +350,9 @@ class Frontman_Tool_Posts {
 		$before = $this->read_post( [ 'id' => $id ] );
 
 		$post_data = [ 'ID' => $id ];
+		if ( isset( $input['content'] ) && class_exists( 'Frontman_Elementor_Data' ) && Frontman_Elementor_Data::post_uses_elementor( $id ) ) {
+			throw new Frontman_Tool_Error( 'Refusing to update post_content for Elementor-managed page ' . $id . '. Use wp_elementor_update_element, wp_elementor_save_page_data, or wp_elementor_restore_rollback for Elementor content/layout changes. wp_update_post may still update title, status, or excerpt without content.' );
+		}
 
 		if ( isset( $input['title'] ) ) {
 			$post_data['post_title'] = sanitize_text_field( $input['title'] );

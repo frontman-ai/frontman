@@ -83,10 +83,7 @@ class Frontman_Router {
 					exit;
 
 				default:
-					status_header( 404 );
-					header( 'Content-Type: application/json; charset=utf-8' );
-					echo wp_json_encode( [ 'error' => 'Not found' ] );
-					exit;
+					wp_send_json( [ 'error' => 'Not found' ], 404 );
 			}
 		}
 
@@ -262,14 +259,57 @@ class Frontman_Router {
 	 * destination tool schema before dispatch in handle_tool_call().
 	 */
 	private function read_json_body(): array {
-		$raw  = file_get_contents( 'php://input' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			Frontman_Auth::send_error(
+				new \WP_Error(
+					'frontman_forbidden',
+					__( 'Insufficient permissions. Administrator access required.', 'frontman-agentic-ai-editor' ),
+					[ 'status' => 403 ]
+				),
+				true
+			);
+		}
+
+		$nonce = Frontman_Auth::request_nonce();
+		if ( '' === $nonce || ! wp_verify_nonce( $nonce, Frontman_Auth::nonce_action() ) ) {
+			Frontman_Auth::send_error(
+				new \WP_Error(
+					'frontman_invalid_nonce',
+					__( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
+					[ 'status' => 403 ]
+				),
+				true
+			);
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- php://input is the JSON request body stream.
+		$raw = file_get_contents( 'php://input' );
 		if ( ! is_string( $raw ) || '' === $raw ) {
 			return [];
 		}
 
-		$raw  = wp_check_invalid_utf8( $raw );
+		$raw  = wp_check_invalid_utf8( $raw, true );
 		$data = json_decode( $raw, true );
-		return is_array( $data ) ? $data : [];
+		return is_array( $data ) ? $this->sanitize_json_body( $data ) : [];
+	}
+
+	/**
+	 * Validate the supported top-level JSON shape without altering tool content.
+	 */
+	private function sanitize_json_body( array $data ): array {
+		$body = [
+			'name' => sanitize_key( $data['name'] ?? '' ),
+		];
+
+		if ( isset( $data['arguments'] ) && is_array( $data['arguments'] ) ) {
+			$body['arguments'] = $data['arguments'];
+		}
+
+		if ( isset( $data['input'] ) && is_array( $data['input'] ) ) {
+			$body['input'] = $data['input'];
+		}
+
+		return $body;
 	}
 
 	/**
@@ -278,16 +318,17 @@ class Frontman_Router {
 	private function handle_get_tools(): void {
 		$all_tools = $this->tools->all_definitions();
 
-		status_header( 200 );
-		header( 'Content-Type: application/json; charset=utf-8' );
-		echo wp_json_encode( [
-			'tools'           => $all_tools,
-			'serverInfo'      => [
-				'name'    => 'frontman-wordpress',
-				'version' => FRONTMAN_VERSION,
+		wp_send_json(
+			[
+				'tools'           => $all_tools,
+				'serverInfo'      => [
+					'name'    => 'frontman-wordpress',
+					'version' => FRONTMAN_VERSION,
+				],
+				'protocolVersion' => '1.0',
 			],
-			'protocolVersion' => '1.0',
-		] );
+			200
+		);
 	}
 
 	/**
@@ -328,19 +369,25 @@ class Frontman_Router {
 		header( 'Content-Type: text/event-stream' );
 		header( 'Cache-Control: no-cache' );
 		header( 'X-Accel-Buffering: no' );
-		echo "event: result\ndata: " . wp_json_encode( $result ) . "\n\n";
+
+		$payload = wp_json_encode( $result, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
+		if ( ! is_string( $payload ) ) {
+			$payload = '{}';
+		}
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- SSE sends machine-readable JSON encoded by wp_json_encode().
+		echo "event: result\ndata: " . $payload . "\n\n";
 	}
 
 	/**
 	 * POST /frontman/resolve-source-location — not supported in WordPress PHP mode.
 	 */
 	private function handle_resolve_source_location(): void {
-		status_header( 501 );
-		header( 'Content-Type: application/json; charset=utf-8' );
-		echo wp_json_encode(
+		wp_send_json(
 			[
 				'error' => 'Source location resolution is not supported by the WordPress PHP tool runtime yet.',
-			]
+			],
+			501
 		);
 	}
 }

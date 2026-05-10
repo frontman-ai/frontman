@@ -231,13 +231,13 @@ class Frontman_Tool_Media {
 
 	private function update_attachment_metadata( int $attachment_id, string $file_path ): void {
 		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
-			$image_api_path = ABSPATH . 'wp-admin/includes/image.php';
-			if ( file_exists( $image_api_path ) ) {
-				require_once $image_api_path;
+			if ( function_exists( 'wp_maybe_generate_attachment_metadata' ) && function_exists( 'get_post' ) ) {
+				$attachment = get_post( $attachment_id );
+				if ( $attachment ) {
+					wp_maybe_generate_attachment_metadata( $attachment );
+				}
 			}
-		}
 
-		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
 			return;
 		}
 

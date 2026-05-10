@@ -4,7 +4,7 @@ Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.16.0
+Stable tag: 0.17.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -96,6 +96,12 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 1. The Frontman chat interface alongside your WordPress site
 
 == Changelog ==
+
+= 0.17.2 =
+* Improve Elementor editing tool guidance and recovery errors for non-empty settings diffs and full-tree updates
+
+= 0.17.1 =
+* Sync the Frontman plugin release with Frontman v0.17.1
 
 = 0.16.0 =
 * Sync the Frontman plugin release with Frontman v0.16.0

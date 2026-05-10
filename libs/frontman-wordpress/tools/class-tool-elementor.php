@@ -43,7 +43,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_save_page_data',
-			'Replaces the full Elementor element tree for a post after saving the previous tree as a private rollback snapshot. Ask the user for confirmation first and only call with confirm=true after approval. Use granular element tools when possible; call wp_elementor_flush_css after visual changes.',
+			'Replaces the full Elementor element tree for a post after saving the previous tree as a private rollback snapshot. Ask the user for confirmation first and only call with confirm=true after approval. Use granular element tools when possible; call wp_elementor_flush_css after visual changes. Do not pass partial data like [{}]; data must be the complete Elementor tree returned by wp_elementor_get_page_data with targeted edits applied.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -74,7 +74,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_update_element',
-			'Updates one Elementor element after saving a private rollback snapshot. For normal Elementor elements, merge changed settings. For Elementor HTML widgets, provide old_html and new_html to replace an exact fragment inside settings.html; the tool inspects the element type and applies the correct update path.',
+			'Updates one Elementor element after saving a private rollback snapshot. Prefer top-level fields for common edits: background_image_id/background_image_url plus background_size/background_position/background_repeat for containers; heading_html for heading widgets; text_editor_html for text-editor widgets; title_color and title_typography_font_family for heading styles. Use settings only for other Elementor settings and never call with settings: {}. If changing a child widget inside a selected container, update the child element_id directly. For Elementor HTML widgets, provide old_html and new_html to replace an exact fragment inside settings.html.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -87,6 +87,15 @@ class Frontman_Tool_Elementor {
 						'additionalProperties' => true,
 						'properties'           => new \stdClass(),
 					],
+					'background_image_id'            => [ 'type' => 'integer', 'description' => 'Media attachment ID for an Elementor container background image.' ],
+					'background_image_url'           => [ 'type' => 'string', 'description' => 'URL for an Elementor container background image.' ],
+					'background_size'                => [ 'type' => 'string', 'description' => 'Elementor background_size, for example cover.' ],
+					'background_position'            => [ 'type' => 'string', 'description' => 'Elementor background_position, for example center center.' ],
+					'background_repeat'              => [ 'type' => 'string', 'description' => 'Elementor background_repeat, for example no-repeat.' ],
+					'heading_html'                   => [ 'type' => 'string', 'description' => 'Replacement value for a heading widget settings.heading field, including any desired HTML wrapper.' ],
+					'text_editor_html'               => [ 'type' => 'string', 'description' => 'Replacement value for a text-editor widget settings.editor field. Use an empty string to clear it.' ],
+					'title_color'                    => [ 'type' => 'string', 'description' => 'Replacement heading title color, for example #FFFFFF.' ],
+					'title_typography_font_family'   => [ 'type' => 'string', 'description' => 'Replacement heading font family.' ],
 					'old_html'   => [ 'type' => 'string', 'description' => 'Exact HTML fragment currently present in an Elementor HTML widget settings.html.' ],
 					'new_html'   => [ 'type' => 'string', 'description' => 'Replacement HTML fragment for an Elementor HTML widget. Use an empty string to remove the exact fragment.' ],
 					'occurrence' => [ 'type' => 'integer', 'description' => '1-based occurrence to replace when old_html appears more than once.' ],
@@ -337,8 +346,9 @@ class Frontman_Tool_Elementor {
 		$has_old_html = array_key_exists( 'old_html', $input );
 		$has_new_html = array_key_exists( 'new_html', $input );
 		$has_fragment = $has_old_html || $has_new_html;
+		$has_shortcut = $this->has_update_shortcut( $input );
 
-		if ( ! $has_settings && ! $has_fragment ) {
+		if ( ! $has_settings && ! $has_fragment && ! $has_shortcut ) {
 			throw new Frontman_Tool_Error( 'Provide settings or old_html/new_html changes.' );
 		}
 		if ( $has_settings && ! is_array( $input['settings'] ) ) {
@@ -349,6 +359,7 @@ class Frontman_Tool_Elementor {
 		}
 
 		$settings = $has_settings ? $input['settings'] : [];
+		$settings = $this->merge_update_shortcuts( $settings, $input );
 		$old_html = $has_old_html ? (string) $input['old_html'] : '';
 		$new_html = $has_new_html ? (string) $input['new_html'] : '';
 
@@ -359,7 +370,7 @@ class Frontman_Tool_Elementor {
 			throw new Frontman_Tool_Error( 'Use either settings or old_html/new_html in one update call.' );
 		}
 		if ( ! $has_fragment && [] === $settings ) {
-			throw new Frontman_Tool_Error( 'settings must include at least one changed setting.' );
+			throw new Frontman_Tool_Error( 'settings is empty. Do not retry with {}. Inspect the element and pass a non-empty diff of Elementor settings. If changing a child widget, call wp_elementor_update_element with that child element_id.' );
 		}
 
 		$data    = $this->require_page_data( $post_id );
@@ -396,6 +407,68 @@ class Frontman_Tool_Elementor {
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
 		$this->save_elementor_data( $post_id, $data );
 		return [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'rollback_id' => $rollback['rollback_id'] ];
+	}
+
+	private function has_update_shortcut( array $input ): bool {
+		foreach ( $this->update_shortcut_keys() as $key ) {
+			if ( array_key_exists( $key, $input ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function update_shortcut_keys(): array {
+		return [
+			'background_image_id',
+			'background_image_url',
+			'background_size',
+			'background_position',
+			'background_repeat',
+			'heading_html',
+			'text_editor_html',
+			'title_color',
+			'title_typography_font_family',
+		];
+	}
+
+	private function merge_update_shortcuts( array $settings, array $input ): array {
+		if ( array_key_exists( 'background_image_id', $input ) || array_key_exists( 'background_image_url', $input ) ) {
+			$background_image = isset( $settings['background_image'] ) && is_array( $settings['background_image'] ) ? $settings['background_image'] : [];
+			if ( array_key_exists( 'background_image_id', $input ) ) {
+				$background_image['id'] = absint( $input['background_image_id'] );
+			}
+			if ( array_key_exists( 'background_image_url', $input ) ) {
+				$background_image['url'] = esc_url_raw( (string) $input['background_image_url'] );
+			}
+			if ( ! array_key_exists( 'source', $background_image ) ) {
+				$background_image['source'] = 'library';
+			}
+			$settings['background_image'] = $background_image;
+		}
+
+		$shortcut_map = [
+			'background_size'              => 'background_size',
+			'background_position'          => 'background_position',
+			'background_repeat'            => 'background_repeat',
+			'heading_html'                 => 'heading',
+			'text_editor_html'             => 'editor',
+			'title_color'                  => 'title_color',
+			'title_typography_font_family' => 'title_typography_font_family',
+		];
+
+		foreach ( $shortcut_map as $input_key => $setting_key ) {
+			if ( array_key_exists( $input_key, $input ) ) {
+				$settings[ $setting_key ] = (string) $input[ $input_key ];
+			}
+		}
+
+		if ( array_key_exists( 'title_typography_font_family', $input ) && ! array_key_exists( 'title_typography_typography', $settings ) ) {
+			$settings['title_typography_typography'] = 'custom';
+		}
+
+		return $settings;
 	}
 
 	private function update_html_fragment( int $post_id, array &$data, string $element_id, array $element, string $old_html, string $new_html, array $input ): array {
@@ -656,7 +729,7 @@ class Frontman_Tool_Elementor {
 
 			$id = $element['id'] ?? '';
 			if ( ! is_string( $id ) || '' === trim( $id ) ) {
-				throw new Frontman_Tool_Error( $element_path . '.id is required.' );
+				throw new Frontman_Tool_Error( $element_path . '.id is required. You passed an incomplete Elementor tree. Do not use placeholder objects; call wp_elementor_get_page_data and pass the complete returned data array with targeted modifications.' );
 			}
 			if ( isset( $seen_ids[ $id ] ) ) {
 				throw new Frontman_Tool_Error( 'Duplicate Elementor element ID: ' . $id );
