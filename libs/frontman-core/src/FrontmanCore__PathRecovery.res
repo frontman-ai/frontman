@@ -4,6 +4,7 @@ module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module FsUtils = FrontmanCore__FsUtils
 module PathContext = FrontmanCore__PathContext
+module ProjectPath = FrontmanCore__ProjectPath
 
 type recovery = {
   nearestDir: string,
@@ -14,14 +15,14 @@ type recovery = {
 let normalize = (path: string): string => Path.normalize(path)
 
 let isUnderSourceRoot = (~candidate: string, ~sourceRoot: string): bool => {
-  switch sourceRoot {
-  | "/" => candidate->String.startsWith("/")
-  | root => candidate == root || candidate->String.startsWith(root ++ "/")
-  }
+  ProjectPath.isUnderRoot(
+    ~candidate=normalize(candidate),
+    ~root=ProjectPath.normalizeRoot(sourceRoot),
+  )
 }
 
 let rec nearestExistingDir = async (~sourceRoot: string, ~startPath: string): option<string> => {
-  let normalizedRoot = sourceRoot->normalize
+  let normalizedRoot = ProjectPath.normalizeRoot(sourceRoot)
   let candidate = startPath->normalize
 
   switch await FsUtils.dirExists(candidate) {

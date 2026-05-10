@@ -10,6 +10,7 @@ let () = if typeof(packageVersion) == #undefined {
 
 module Bindings = FrontmanBindings
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
+module ConfigRoots = FrontmanAiFrontmanCore.FrontmanCore__ConfigRoots
 
 // Default host can be overridden via FRONTMAN_HOST env var for development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
@@ -88,8 +89,9 @@ let makeFromObject = (config: jsConfigInput): t => {
       ->Option.orElse(Bindings.Process.env->Dict.get("PWD")),
     )
     ->Option.getOr(".")
+    ->ConfigRoots.normalizeProjectRoot
 
-  let sourceRoot = config.sourceRoot->Option.getOr(projectRoot)
+  let sourceRoot = ConfigRoots.sourceRootOrProjectRoot(~projectRoot, config.sourceRoot)
   let basePath = config.basePath->Option.getOr("frontman")
   let serverName = config.serverName->Option.getOr("frontman-vite")
   let serverVersion = config.serverVersion->Option.getOr(packageVersion)

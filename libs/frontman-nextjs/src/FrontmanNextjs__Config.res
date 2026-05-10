@@ -8,6 +8,7 @@ let () = if typeof(packageVersion) == #undefined {
 
 module Bindings = FrontmanBindings
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
+module ConfigRoots = FrontmanAiFrontmanCore.FrontmanCore__ConfigRoots
 
 // Default host can be overridden via env vars for development.
 // Priority:
@@ -91,9 +92,10 @@ let make = (
       ->Option.orElse(Bindings.Process.env->Dict.get("PWD")),
     )
     ->Option.getOr(".")
+    ->ConfigRoots.normalizeProjectRoot
 
   // sourceRoot defaults to projectRoot if not specified
-  let sourceRoot = sourceRoot->Option.getOr(projectRoot)
+  let sourceRoot = ConfigRoots.sourceRootOrProjectRoot(~projectRoot, sourceRoot)
 
   // Client URL can be overridden via FRONTMAN_CLIENT_URL env var for remote development
   let clientUrl = clientUrl->Option.getOr({

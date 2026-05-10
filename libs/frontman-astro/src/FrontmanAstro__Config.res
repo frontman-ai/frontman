@@ -10,6 +10,7 @@ let () = if typeof(packageVersion) == #undefined {
 
 module Bindings = FrontmanBindings
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
+module ConfigRoots = FrontmanAiFrontmanCore.FrontmanCore__ConfigRoots
 
 // Default host can be overridden via FRONTMAN_HOST env var for remote development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
@@ -67,8 +68,9 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
       ->Option.orElse(Bindings.Process.env->Dict.get("PWD")),
     )
     ->Option.getOr(".")
+    ->ConfigRoots.normalizeProjectRoot
 
-  let sourceRoot = config.sourceRoot->Option.getOr(projectRoot)
+  let sourceRoot = ConfigRoots.sourceRootOrProjectRoot(~projectRoot, config.sourceRoot)
   // Normalize basePath: strip leading/trailing slashes so URL construction
   // (e.g. `/${basePath}/`) never produces protocol-relative URLs like //frontman/
   let basePath = {

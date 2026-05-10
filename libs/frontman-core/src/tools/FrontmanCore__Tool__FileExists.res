@@ -1,7 +1,7 @@
 // File exists tool - checks if a file or directory exists
 
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
-module SafePath = FrontmanCore__SafePath
+module ProjectPath = FrontmanCore__ProjectPath
 module FsUtils = FrontmanCore__FsUtils
 
 let name = Tool.ToolNames.fileExists
@@ -20,10 +20,10 @@ type input = {path: string}
 type output = bool
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
-  switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
+  switch ProjectPath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
   | Error(msg) => Error(msg)
-  | Ok(safePath) =>
-    let exists = await FsUtils.pathExists(SafePath.toString(safePath))
+  | Ok(projectPath) =>
+    let exists = await FsUtils.pathExists(ProjectPath.toString(projectPath))
     Ok(exists)
   }
 }

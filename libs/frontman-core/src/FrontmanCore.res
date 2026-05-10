@@ -5,8 +5,10 @@ module FsUtils = FrontmanCore__FsUtils
 module ToolRegistry = FrontmanCore__ToolRegistry
 module SSE = FrontmanCore__SSE
 module Server = FrontmanCore__Server
-module SafePath = FrontmanCore__SafePath
+module ProjectPath = FrontmanCore__ProjectPath
 module PathContext = FrontmanCore__PathContext
+module ConfigRoots = FrontmanCore__ConfigRoots
+module Path = FrontmanCore__Path
 
 // Shared middleware layer
 module CORS = FrontmanCore__CORS

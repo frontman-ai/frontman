@@ -3,7 +3,7 @@
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
-module SafePath = FrontmanCore__SafePath
+module ProjectPath = FrontmanCore__ProjectPath
 
 let name = Tool.ToolNames.loadAgentInstructions
 let visibleToAgent = false
@@ -123,19 +123,20 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   // Validate startPath is under sourceRoot (prevents starting from arbitrary locations)
   let inputPath = input.startPath->Option.getOr(".")
 
-  switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath) {
+  switch ProjectPath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath) {
   | Error(msg) => Error(msg)
-  | Ok(safePath) =>
+  | Ok(projectPath) =>
     try {
       // Start from the validated path and walk up to find instruction files
       // Note: walkUpDirectories intentionally goes above sourceRoot - that's by design
       // for finding CLAUDE.md files in parent directories
-      let startPath = SafePath.toString(safePath)
+      let startPath = ProjectPath.toString(projectPath)
       let results = await walkUpDirectories(startPath, [])
       Ok(results)
     } catch {
     | exn =>
-      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
       Error(`Failed to load agent instructions: ${msg}`)
     }
   }

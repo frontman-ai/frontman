@@ -1,16 +1,17 @@
 // PathContext - Agent-facing path utilities with helpful errors and context
 //
-// This module wraps SafePath and provides:
+// This module wraps ProjectPath and provides:
 // - Rich error messages with path confusion detection
 // - Path conversion utilities (relative/absolute)
 // - Response context generation for tool outputs
 //
 // Architecture:
-// - SafePath: Low-level security (traversal prevention)
+// - ProjectPath: Low-level security (traversal prevention)
 // - PathContext: Developer experience (helpful errors, context)
 
-module SafePath = FrontmanCore__SafePath
+module ProjectPath = FrontmanCore__ProjectPath
 module Path = FrontmanBindings.Path
+module CorePath = FrontmanCore__Path
 module PathStringUtils = FrontmanCore__PathStringUtils
 
 // ============================================
@@ -18,7 +19,7 @@ module PathStringUtils = FrontmanCore__PathStringUtils
 // ============================================
 
 type resolveResult = {
-  safePath: SafePath.t,
+  projectPath: ProjectPath.t,
   sourceRoot: string,
   resolvedPath: string,
   relativePath: string,
@@ -46,23 +47,28 @@ let endsWithSep = (path: string): bool => {
   path->String.endsWith("/") || path->String.endsWith("\\")
 }
 
+let normalizeRoot = (sourceRoot: string): string => ProjectPath.normalizeRoot(sourceRoot)
+
+let normalizeInputPath = (path: string): string => path->PathStringUtils.toForwardSlashes
+
 // Convert absolute path to relative (relative to sourceRoot)
 let toRelativePath = (~sourceRoot: string, ~absolutePath: string): string => {
+  let normalizedRoot = normalizeRoot(sourceRoot)
+  let normalizedPath = absolutePath->normalizeInputPath->Path.normalize
   // Use Path.sep for cross-platform compatibility (/ on Unix, \ on Windows)
-  let normalizedRoot = if endsWithSep(sourceRoot) {
-    sourceRoot
+  let rootWithSep = if endsWithSep(normalizedRoot) {
+    normalizedRoot
   } else {
-    sourceRoot ++ Path.sep
+    normalizedRoot ++ Path.sep
   }
 
-  if absolutePath->String.startsWith(normalizedRoot) {
-    absolutePath->String.slice(
-      ~start=normalizedRoot->String.length,
-      ~end=absolutePath->String.length,
+  if normalizedPath->String.startsWith(rootWithSep) {
+    normalizedPath->String.slice(
+      ~start=rootWithSep->String.length,
+      ~end=normalizedPath->String.length,
     )
-  } else if absolutePath->String.startsWith(sourceRoot) {
-    // Handle case where path matches exactly without trailing separator
-    absolutePath->String.slice(~start=sourceRoot->String.length, ~end=absolutePath->String.length)
+  } else if normalizedPath == normalizedRoot {
+    ""
   } else {
     absolutePath
   }
@@ -76,18 +82,12 @@ let toRelativePath = (~sourceRoot: string, ~absolutePath: string): string => {
 // Returns sourceRoot if no path provided, otherwise validates path is under sourceRoot
 let resolveSearchPath = (~sourceRoot: string, ~inputPath: option<string>): string => {
   switch inputPath {
-  | None => sourceRoot
+  | None => normalizeRoot(sourceRoot)
   | Some(path) =>
-    if Path.isAbsolute(path) {
-      let normalizedPath = Path.normalize(path)
-      let normalizedRoot = Path.normalize(sourceRoot)
-      if normalizedPath->String.startsWith(normalizedRoot) {
-        normalizedPath
-      } else {
-        sourceRoot // Fallback to sourceRoot if outside
-      }
-    } else {
-      Path.join([sourceRoot, path])
+    let parsedPath = CorePath.fromString(path)
+    switch ProjectPath.resolveParsed(~sourceRoot, ~inputPath=parsedPath) {
+    | Ok(projectPath) => ProjectPath.toString(projectPath)
+    | Error(_) => normalizeRoot(sourceRoot)
     }
   }
 }
@@ -150,7 +150,7 @@ let detectPathConfusion = (~sourceRoot: string, ~requestedPath: string): option<
 // Get the parent directory of a resolved path
 // Safe because the parent of a validated path is always under sourceRoot (or equal to it)
 let dirname = (result: resolveResult): string => {
-  SafePath.dirname(result.safePath)
+  ProjectPath.dirname(result.projectPath)
 }
 
 // ============================================
@@ -158,11 +158,12 @@ let dirname = (result: resolveResult): string => {
 // ============================================
 
 let resolve = (~sourceRoot: string, ~inputPath: string): result<resolveResult, resolveError> => {
-  switch SafePath.resolve(~sourceRoot, ~inputPath) {
-  | Ok(safePath) =>
-    let resolvedPath = SafePath.toString(safePath)
+  let parsedPath = CorePath.fromString(inputPath)
+  switch ProjectPath.resolveParsed(~sourceRoot, ~inputPath=parsedPath) {
+  | Ok(projectPath) =>
+    let resolvedPath = ProjectPath.toString(projectPath)
     Ok({
-      safePath,
+      projectPath,
       sourceRoot,
       resolvedPath,
       relativePath: toRelativePath(~sourceRoot, ~absolutePath=resolvedPath),
