@@ -11609,6 +11609,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"marked@npm:^18.0.0":
+  version: 18.0.3
+  resolution: "marked@npm:18.0.3"
+  bin:
+    marked: bin/marked.js
+  checksum: 10c0/f2943a439acf17942058f8e4c51373e0f8aa88194b55625ffa22db7955b9c2752fe9bdd4a31498f667d30e5667bab2c27e3f2f56a1045f53b693f000a6199840
+  languageName: node
+  linkType: hard
+
 "marketing@workspace:apps/marketing":
   version: 0.0.0-use.local
   resolution: "marketing@workspace:apps/marketing"
@@ -11629,7 +11638,7 @@ __metadata:
     astro-consent: "npm:^2.0.0"
     astro-icon: "npm:^1.1.5"
     hc-starlight: "npm:^0.0.8"
-    marked: "npm:^16.2.1"
+    marked: "npm:^18.0.0"
     prettier: "npm:^3.3.2"
     prettier-plugin-astro: "npm:^0.14.0"
     prettier-plugin-tailwindcss: "npm:^0.6.4"
