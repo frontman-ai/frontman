@@ -48,6 +48,7 @@ let endsWithSep = (path: string): bool => {
 
 // Convert absolute path to relative (relative to sourceRoot)
 let toRelativePath = (~sourceRoot: string, ~absolutePath: string): string => {
+  let sourceRoot = Path.resolve(sourceRoot)
   // Use Path.sep for cross-platform compatibility (/ on Unix, \ on Windows)
   let normalizedRoot = if endsWithSep(sourceRoot) {
     sourceRoot
