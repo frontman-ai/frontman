@@ -7,6 +7,7 @@ module type Interface = {
   let handleEffect: (effect, state, action => unit) => unit
 }
 
+@@live
 let update: (~sideEffect: 'a=?, ~sideEffects: array<'a>=?, 'b) => ('b, array<'a>)
 
 let useReducer: (

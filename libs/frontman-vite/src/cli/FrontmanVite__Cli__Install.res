@@ -19,7 +19,7 @@ type installOptions = {
 
 type installResult =
   | Success
-  | PartialSuccess({manualStepsRequired: array<string>})
+  | PartialSuccess({@live manualStepsRequired: array<string>})
   | Failure(string)
 
 // Install dependencies using detected package manager

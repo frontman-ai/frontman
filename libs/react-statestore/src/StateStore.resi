@@ -1,4 +1,5 @@
 type t<'state, 'action, 'effect>
+@@live
 let make: (
   module(StateReducer.Interface with
     type state = 'state
@@ -7,7 +8,9 @@ let make: (
   ),
   'state,
 ) => t<'state, 'action, 'effect>
+@@live
 let getState: t<'state, 'action, 'effect> => 'state
+@@live
 let dispatch: (t<'state, 'action, 'effect>, 'action) => unit
 @@live
 let subscribe: (t<'state, 'action, 'effect>, unit => unit, unit) => unit
