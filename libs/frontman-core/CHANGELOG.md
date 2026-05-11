@@ -1,5 +1,11 @@
 # @frontman-ai/frontman-core
 
+## 0.6.1
+
+### Patch Changes
+
+- [#1013](https://github.com/frontman-ai/frontman/pull/1013) [`70dff99`](https://github.com/frontman-ai/frontman/commit/70dff99ade62f96071e0d20e362a181860d442de) Thanks [@itayadler](https://github.com/itayadler)! - Fix path validation when Vite reports `sourceRoot: "."` so normal project-relative paths like `src/main.tsx` can be read and edited.
+
 ## 0.6.0
 
 ### Minor Changes
