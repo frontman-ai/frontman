@@ -23,6 +23,7 @@ module type Interface = {
   let handleEffect: (effect, state, action => unit) => unit
 }
 
+@@live
 let update = (~sideEffect=?, ~sideEffects=?, state) =>
   switch (sideEffect, sideEffects) {
   | (Some(sideEffect), Some(xs)) => (state, [...xs, sideEffect])

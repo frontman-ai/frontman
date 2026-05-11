@@ -28,6 +28,18 @@ describe("Vue + Vite E2E", () => {
     await stopFramework(server);
   });
 
+  it("should render pages without breaking", async () => {
+    page = await context.newPage();
+    const response = await page.goto(`http://127.0.0.1:${PORT}/`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    expect(response?.status()).toBe(200);
+    await page
+      .getByRole("heading", { name: "Hello World" })
+      .waitFor({ state: "visible" });
+  });
+
   it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
