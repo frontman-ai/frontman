@@ -64,7 +64,7 @@
 		"dom-accessibility-api": "^0.5.16",
 		"dom-element-to-component-source": "^0.5.0",
 		"lucide-react": "^1.7.0",
-		"react": "^19.2.0",
+		"react": "^19.2.5",
 		"react-dom": "^19.2.5",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
@@ -82,7 +82,7 @@
 		"canvas-confetti": "^1.9.4"
 	},
 	"peerDependencies": {
-		"react": "^19.2.0",
+		"react": "^19.2.5",
 		"react-dom": "^19.2.5"
 	}
 }

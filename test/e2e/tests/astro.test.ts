@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { startAstro, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
-import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
+import { hasChatGptTokens, openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installAstro } from "../helpers/installer.js";
 
 const PORT = 3011;
@@ -66,7 +66,7 @@ describe("Astro E2E", () => {
     expect(indexRoute.file).toContain("index.astro");
   });
 
-  it("should make a text change via AI prompt", async () => {
+  it.skipIf(!hasChatGptTokens())("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
     // Navigate to the Frontman UI (handles login redirect)

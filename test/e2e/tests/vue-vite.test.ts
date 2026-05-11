@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { startVueVite, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
-import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
+import { hasChatGptTokens, openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installVueVite } from "../helpers/installer.js";
 
 const PORT = 3013;
@@ -28,7 +28,14 @@ describe("Vue + Vite E2E", () => {
     await stopFramework(server);
   });
 
-  it("should make a text change via AI prompt", async () => {
+  it("should render pages without breaking", async () => {
+    const res = await fetch(`http://127.0.0.1:${PORT}/`);
+    const html = await res.text();
+    expect(res.status).toBe(200);
+    expect(html).toContain("Hello World");
+  });
+
+  it.skipIf(!hasChatGptTokens())("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
     // Navigate to the Frontman UI (handles login redirect)
