@@ -38,7 +38,7 @@
 	],
 	"devDependencies": {
 		"@babel/core": "^7.29.0",
-		"@biomejs/biome": "^2.4.10",
+		"@biomejs/biome": "^2.4.11",
 		"@frontman-ai/astro-browser": "workspace:*",
 		"@frontman-ai/frontman-client": "workspace:*",
 		"@frontman-ai/frontman-protocol": "workspace:*",
