@@ -42,7 +42,9 @@ let normalizeHost = (host: string): string => {
   }
 }
 
+@@live
 type t = {
+  @live
   isDev: bool,
   projectRoot: string,
   // sourceRoot: root for resolving file paths
@@ -51,6 +53,7 @@ type t = {
   basePath: string,
   serverName: string,
   serverVersion: string,
+  @live
   host: string,
   clientUrl: string,
   clientCssUrl: option<string>,

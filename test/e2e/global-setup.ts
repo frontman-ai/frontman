@@ -146,7 +146,7 @@ export async function setup() {
   // ── 5. Wait for readiness ──────────────────────────────────────────────────
   await Promise.all([
     waitForServer(`https://localhost:${PHOENIX_PORT}/users/log-in`, "Phoenix"),
-    waitForServer(`http://localhost:${CLIENT_PORT}`, "Client Vite"),
+    waitForServer(`http://localhost:${CLIENT_PORT}/src/Main.res.mjs`, "Client Vite"),
   ]);
 
   console.log("[e2e] Global setup complete.\n");

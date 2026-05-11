@@ -28,14 +28,16 @@ type nodeBuffer
 // ── Vite server types ──────────────────────────────────────────────────
 
 type connectMiddleware = (incomingMessage, serverResponse, unit => unit) => unit
-type connectServer = {use: connectMiddleware => unit}
+type connectServer = {@live use: connectMiddleware => unit}
 @send external useMiddleware: (connectServer, connectMiddleware) => unit = "use"
 
 type viteDevServer = {middlewares: connectServer}
 
 // Vite Plugin type (minimal subset)
 type plugin = {
+  @live
   name: string,
+  @live
   configureServer: viteDevServer => unit,
 }
 

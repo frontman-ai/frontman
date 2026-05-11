@@ -6,6 +6,7 @@ type t<'state, 'action, 'effect> = {
   state: ref<'state>,
 }
 
+@@live
 let rec dispatch = (t, action) => {
   let (newState, newEffects) = t.next(t.state.contents, action)
   t.effects.contents = Array.concat(t.effects.contents, newEffects)
@@ -24,6 +25,7 @@ let forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll = (t, newState) => {
   t.subscriptions.contents->Array.forEach(s => s())
 }
 
+@@live
 let make:
   type state action effect. (
     module(StateReducer.Interface with
@@ -44,6 +46,7 @@ let make:
     storeCreator(Reducer.next, initialState)
   }
 
+@@live
 let getState = store => store.state.contents
 let addSubscription = (store, sub) => Array.push(store.subscriptions.contents, sub)->ignore
 
