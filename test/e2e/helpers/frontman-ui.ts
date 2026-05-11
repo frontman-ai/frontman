@@ -12,13 +12,6 @@ import type { Page } from "playwright";
 
 const PHOENIX_ORIGIN = "https://localhost:4002";
 
-export function hasChatGptTokens(): boolean {
-  return Boolean(
-    process.env.E2E_CHATGPT_ACCESS_TOKEN?.trim() &&
-      process.env.E2E_CHATGPT_REFRESH_TOKEN?.trim(),
-  );
-}
-
 /** Elapsed time since a reference timestamp, formatted as "Xs". */
 function elapsed(since: number): string {
   return `${((Date.now() - since) / 1000).toFixed(1)}s`;

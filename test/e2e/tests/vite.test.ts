@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { startVite, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
-import { hasChatGptTokens, openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
+import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installVite } from "../helpers/installer.js";
 
 const PORT = 3012;
@@ -40,7 +40,7 @@ describe("Vite E2E", () => {
       .waitFor({ state: "visible" });
   });
 
-  it.skipIf(!hasChatGptTokens())("should make a text change via AI prompt", async () => {
+  it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
     // Navigate to the Frontman UI (handles login redirect)
