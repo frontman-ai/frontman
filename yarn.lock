@@ -258,19 +258,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/preact@npm:^5.0.2":
-  version: 5.0.2
-  resolution: "@astrojs/preact@npm:5.0.2"
+"@astrojs/preact@npm:^5.1.1":
+  version: 5.1.2
+  resolution: "@astrojs/preact@npm:5.1.2"
   dependencies:
-    "@astrojs/internal-helpers": "npm:0.8.0"
-    "@preact/preset-vite": "npm:^2.10.3"
-    "@preact/signals": "npm:^2.8.1"
-    devalue: "npm:^5.6.3"
+    "@astrojs/internal-helpers": "npm:0.9.0"
+    "@preact/preset-vite": "npm:^2.10.5"
+    "@preact/signals": "npm:^2.8.2"
+    devalue: "npm:^5.6.4"
     preact-render-to-string: "npm:^6.6.6"
-    vite: "npm:^7.3.1"
+    vite: "npm:^7.3.2"
   peerDependencies:
     preact: ^10.6.5
-  checksum: 10c0/e776ed3450d2a62af73ad742720e001d98f4d505c2aca89d5b5cbc3ea139dda959c6ea1f14ef323a85a6e79af8816a60c42a9ab55ecc4602e31f6676e72b0e84
+  checksum: 10c0/750b2f151ce2e6eb8340b8b85e71a9e38d28bb08d5eb19ca674bf0d7ae1f56bbe199afede07e465716a99d18c66e64dfc538ad6b073ae074c665a571ea07b92e
   languageName: node
   linkType: hard
 
@@ -3887,7 +3887,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@preact/preset-vite@npm:^2.10.3":
+"@preact/preset-vite@npm:^2.10.5":
   version: 2.10.5
   resolution: "@preact/preset-vite@npm:2.10.5"
   dependencies:
@@ -3915,14 +3915,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@preact/signals@npm:^2.8.1":
-  version: 2.8.2
-  resolution: "@preact/signals@npm:2.8.2"
+"@preact/signals@npm:^2.8.2":
+  version: 2.9.0
+  resolution: "@preact/signals@npm:2.9.0"
   dependencies:
     "@preact/signals-core": "npm:^1.14.0"
   peerDependencies:
     preact: ">= 10.25.0 || >=11.0.0-0"
-  checksum: 10c0/c41dd250e67a7747c9c619c1cfa41a5a9aa88da50a952ccb0098559c77d20e4da5338d56689e338c36652c2cc2130146de8f2f6a19ccbc9b1f08ea2967788881
+  checksum: 10c0/d1265246a3bf7b90a8c6c2adedcda9d926aa621421edcaa00eb6d8360cc426dd8ff866c129e2256e060a460ef5b60070433bc82a3b369a52ac449650bb55870e
   languageName: node
   linkType: hard
 
@@ -11623,7 +11623,7 @@ __metadata:
   resolution: "marketing@workspace:apps/marketing"
   dependencies:
     "@astrojs/check": "npm:^0.9.8"
-    "@astrojs/preact": "npm:^5.0.2"
+    "@astrojs/preact": "npm:^5.1.1"
     "@astrojs/rss": "npm:^4.0.17"
     "@astrojs/sitemap": "npm:^3.7.2"
     "@astrojs/starlight": "npm:^0.38.2"
