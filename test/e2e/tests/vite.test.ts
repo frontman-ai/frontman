@@ -29,10 +29,15 @@ describe("Vite E2E", () => {
   });
 
   it("should render pages without breaking", async () => {
-    const res = await fetch(`http://127.0.0.1:${PORT}/`);
-    const html = await res.text();
-    expect(res.status).toBe(200);
-    expect(html).toContain("Hello World");
+    page = await context.newPage();
+    const response = await page.goto(`http://127.0.0.1:${PORT}/`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    expect(response?.status()).toBe(200);
+    await page
+      .getByRole("heading", { name: "Hello World" })
+      .waitFor({ state: "visible" });
   });
 
   it.skipIf(!hasChatGptTokens())("should make a text change via AI prompt", async () => {
