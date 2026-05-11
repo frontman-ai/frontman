@@ -10,7 +10,7 @@
 		"test:vue-vite": "vitest run tests/vue-vite.test.ts"
 	},
 	"devDependencies": {
-		"playwright": "^1.52.0",
+		"playwright": "^1.59.1",
 		"vitest": "catalog:"
 	}
 }
