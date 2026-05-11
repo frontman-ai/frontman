@@ -2423,7 +2423,7 @@ __metadata:
     "@rescript/runtime": "npm:12.2.0"
     dom-element-to-component-source: "npm:^0.5.0"
     rescript: "catalog:"
-    sentry-testkit: "npm:^6.0.0"
+    sentry-testkit: "npm:^6.4.0"
   languageName: unknown
   linkType: soft
 
@@ -14894,13 +14894,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sentry-testkit@npm:^6.0.0":
-  version: 6.2.2
-  resolution: "sentry-testkit@npm:6.2.2"
+"sentry-testkit@npm:^6.4.0":
+  version: 6.4.1
+  resolution: "sentry-testkit@npm:6.4.1"
   dependencies:
     body-parser: "npm:^1.20.3"
     express: "npm:^4.21.2"
-  checksum: 10c0/adf5cad67430263680653bd4be7148201ad0eb9c49ffd8c0be897e8b6fe4486367febadab690c07e7999d9d3967593a55edc002a4f516b751684219ec5fbb09d
+  checksum: 10c0/3b143d3c579b12d3389df25b5f565b327f28b64064a02627387bf903ec4d583297f97db36d87575da1e306b8f4095fd92ddaf8422e9299a07e202fe3df51ca93
   languageName: node
   linkType: hard
 

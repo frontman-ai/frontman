@@ -14,6 +14,6 @@
 	"devDependencies": {
 		"@rescript/react": "^0.14.0",
 		"rescript": "catalog:",
-		"sentry-testkit": "^6.0.0"
+		"sentry-testkit": "^6.4.0"
 	}
 }
