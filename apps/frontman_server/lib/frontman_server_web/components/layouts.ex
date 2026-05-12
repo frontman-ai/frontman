@@ -53,7 +53,7 @@ defmodule FrontmanServerWeb.Layouts do
       </header>
 
       <main class="flex-1 flex items-center justify-center px-4 py-12">
-        <div class="w-full max-w-sm space-y-6">
+        <div class="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
           {render_slot(@inner_block)}
         </div>
       </main>
