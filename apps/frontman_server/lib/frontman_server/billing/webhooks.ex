@@ -11,8 +11,8 @@ defmodule FrontmanServer.Billing.Webhooks do
 
   require Logger
 
+  alias Ecto.Multi
   alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
-  alias FrontmanServer.Repo
 
   @doc """
   Processes a verified Stripe webhook event idempotently.
@@ -20,10 +20,12 @@ defmodule FrontmanServer.Billing.Webhooks do
   @spec process_event(map()) :: {:ok, :processed | :ignored | :duplicate} | {:error, term()}
   def process_event(%{"id" => event_id, "type" => type} = event) do
     result =
-      Repo.transaction(fn -> process_event_in_transaction(event_id, type, event) end)
+      event_id
+      |> process_event_multi(type, event)
+      |> FrontmanServer.Repo.transact()
       |> case do
-        {:ok, {:ok, result}} -> {:ok, result}
-        {:error, reason} -> {:error, reason}
+        {:ok, %{result: result}} -> {:ok, result}
+        {:error, _operation, reason, _changes} -> {:error, reason}
       end
 
     log_event_result(event_id, type, result)
@@ -31,20 +33,24 @@ defmodule FrontmanServer.Billing.Webhooks do
     result
   end
 
-  defp process_event_in_transaction(event_id, type, event) do
-    case insert_event(event_id, type, event) do
-      {:ok, :duplicate} -> {:ok, :duplicate}
-      {:ok, :inserted} -> process_inserted_event(event_id, type, event)
-    end
+  defp process_event_multi(event_id, type, event) do
+    Multi.new()
+    |> Multi.run(:stripe_event, fn repo, _changes -> insert_event(repo, event_id, type, event) end)
+    |> Multi.run(:result, fn repo, %{stripe_event: stripe_event} ->
+      process_stripe_event(repo, stripe_event, event_id, type, event)
+    end)
   end
 
-  defp process_inserted_event(event_id, type, event) do
+  defp process_stripe_event(_repo, :duplicate, _event_id, _type, _event), do: {:ok, :duplicate}
+
+  defp process_stripe_event(repo, :inserted, event_id, type, event) do
+    process_inserted_event(repo, event_id, type, event)
+  end
+
+  defp process_inserted_event(repo, event_id, type, event) do
     Logger.info("stripe webhook processing event_id=#{event_id} type=#{type}")
 
-    case handle_event(type, event) do
-      {:ok, result} -> {:ok, result}
-      {:error, reason} -> Repo.rollback(reason)
-    end
+    handle_event(repo, type, event)
   end
 
   defp log_event_result(event_id, type, {:ok, result}) do
@@ -57,37 +63,33 @@ defmodule FrontmanServer.Billing.Webhooks do
     )
   end
 
-  defp insert_event(event_id, type, event) do
-    now = DateTime.utc_now(:second)
+  defp insert_event(repo, event_id, type, event) do
+    %StripeEvent{}
+    |> StripeEvent.changeset(%{stripe_event_id: event_id, type: type, payload: event})
+    # Unique constraint violations abort PostgreSQL transactions without a savepoint.
+    |> repo.insert(mode: :savepoint)
+    |> case do
+      {:ok, _stripe_event} ->
+        {:ok, :inserted}
 
-    {count, _rows} =
-      Repo.insert_all(
-        StripeEvent,
-        [
-          %{
-            id: Ecto.UUID.generate(),
-            stripe_event_id: event_id,
-            type: type,
-            processed_at: now,
-            payload: event,
-            inserted_at: now,
-            updated_at: now
-          }
-        ],
-        on_conflict: :nothing,
-        conflict_target: :stripe_event_id
-      )
-
-    case count do
-      0 -> {:ok, :duplicate}
-      1 -> {:ok, :inserted}
+      {:error, changeset} ->
+        case unique_constraint_error?(changeset, :stripe_event_id) do
+          true -> {:ok, :duplicate}
+          false -> {:error, changeset}
+        end
     end
   end
 
-  defp upsert_customer(attrs) do
+  defp unique_constraint_error?(%Ecto.Changeset{errors: errors}, field) do
+    errors
+    |> Keyword.get_values(field)
+    |> Enum.any?(fn {_message, opts} -> opts[:constraint] == :unique end)
+  end
+
+  defp upsert_customer(repo, attrs) do
     %Customer{user_id: attr_value(attrs, :user_id)}
     |> Customer.changeset(attrs)
-    |> Repo.insert(
+    |> repo.insert(
       on_conflict: [
         set: [
           stripe_customer_id: attr_value(attrs, :stripe_customer_id),
@@ -100,10 +102,10 @@ defmodule FrontmanServer.Billing.Webhooks do
     )
   end
 
-  defp upsert_subscription(attrs) do
+  defp upsert_subscription(repo, attrs) do
     %Subscription{billing_customer_id: attr_value(attrs, :billing_customer_id)}
     |> Subscription.changeset(attrs)
-    |> Repo.insert(
+    |> repo.insert(
       on_conflict: [
         set: subscription_conflict_updates(attrs)
       ],
@@ -128,7 +130,7 @@ defmodule FrontmanServer.Billing.Webhooks do
     ]
   end
 
-  defp handle_event("checkout.session.completed", event) do
+  defp handle_event(repo, "checkout.session.completed", event) do
     session = event_object(event)
     user_id = session["client_reference_id"] || get_in(session, ["metadata", "user_id"])
 
@@ -138,7 +140,7 @@ defmodule FrontmanServer.Billing.Webhooks do
 
       user_id ->
         with {:ok, _customer} <-
-               upsert_customer(%{
+               upsert_customer(repo, %{
                  user_id: user_id,
                  stripe_customer_id: session["customer"],
                  stripe_customer_account_id: session["customer_account"]
@@ -148,7 +150,7 @@ defmodule FrontmanServer.Billing.Webhooks do
     end
   end
 
-  defp handle_event("customer.subscription." <> action, event)
+  defp handle_event(repo, "customer.subscription." <> action, event)
        when action in ["created", "updated", "deleted", "paused", "resumed"] do
     subscription = event_object(event)
     user_id = get_in(subscription, ["metadata", "user_id"])
@@ -159,19 +161,19 @@ defmodule FrontmanServer.Billing.Webhooks do
 
       user_id ->
         with {:ok, customer} <-
-               upsert_customer(%{
+               upsert_customer(repo, %{
                  user_id: user_id,
                  stripe_customer_id: subscription["customer"],
                  stripe_customer_account_id: subscription["customer_account"]
                }),
              {:ok, _subscription} <-
-               upsert_subscription(subscription_attrs(subscription, customer.id)) do
+               upsert_subscription(repo, subscription_attrs(subscription, customer.id)) do
           {:ok, :processed}
         end
     end
   end
 
-  defp handle_event(_type, _event), do: {:ok, :ignored}
+  defp handle_event(_repo, _type, _event), do: {:ok, :ignored}
 
   defp subscription_attrs(subscription, billing_customer_id) do
     first_item =
