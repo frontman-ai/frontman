@@ -35,15 +35,14 @@ defmodule FrontmanServer.Billing.Subscription do
       where: c.user_id == ^user_id
   end
 
-  def trial_consumed(query \\ __MODULE__) do
+  def with_consumed_trial(query \\ __MODULE__) do
     from s in query,
       where: s.status == "trialing" or not is_nil(s.trial_end)
   end
 
-  def allow_access?(%__MODULE__{status: "trialing"}), do: true
-
-  def allow_access?(%__MODULE__{status: status}) when status in ["active", "past_due"],
-    do: true
+  def allow_access?(%__MODULE__{status: status})
+      when status in ["trialing", "active", "past_due"],
+      do: true
 
   def allow_access?(nil), do: false
   def allow_access?(%__MODULE__{}), do: false

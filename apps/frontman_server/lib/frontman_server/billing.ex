@@ -153,7 +153,7 @@ defmodule FrontmanServer.Billing do
   defp trial_consumed_query(scope) do
     scope
     |> scoped_subscription_query()
-    |> Subscription.trial_consumed()
+    |> Subscription.with_consumed_trial()
   end
 
   defp billing_client do
