@@ -1,10 +1,12 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
   <div class="space-y-8">
     <div class="text-center space-y-2">
-      <h1 class="text-2xl font-semibold text-white tracking-tight">Verify your email</h1>
-      <p class="text-sm text-white/50">
+      <h1 class="font-headings text-2xl font-semibold text-base-content tracking-tight">
+        Verify your email
+      </h1>
+      <p class="text-sm text-base-content/50">
         <%= if @email do %>
-          We sent a verification code to <span class="text-white/70 font-medium"><%= @email %></span>.
+          We sent a verification code to <span class="text-base-content/70 font-medium"><%= @email %></span>.
         <% else %>
           We sent a verification code to your email address.
         <% end %>
@@ -14,7 +16,7 @@
 
     <.form for={%{}} action={~p"/auth/verify-email"} method="post" class="space-y-4">
       <div>
-        <label for="code" class="block text-sm font-medium text-white/70 mb-1.5">
+        <label for="code" class="block text-sm font-medium text-base-content/70 mb-1.5">
           Verification code
         </label>
         <input
@@ -30,20 +32,20 @@
           pattern="[0-9]*"
           maxlength="6"
           class={[
-            "w-full rounded-lg border border-white/[0.12] bg-white/[0.04]",
-            "px-4 py-3 text-sm text-white placeholder-white/30",
+            "w-full rounded-lg border fm-field",
+            "px-4 py-3 text-sm",
             "outline-none transition-all duration-150",
-            "focus:border-white/[0.25] focus:ring-1 focus:ring-white/[0.15]"
+            "focus:outline-none"
           ]}
         />
       </div>
       <button
         type="submit"
         class={[
-          "w-full rounded-lg bg-white px-4 py-3",
-          "text-sm font-medium text-[#0a0a0a]",
+          "w-full rounded-lg bg-primary px-4 py-3",
+          "text-sm font-medium text-primary-content",
           "transition-all duration-150",
-          "hover:bg-white/90 active:scale-[0.98]"
+          "hover:bg-primary-600 active:scale-[0.98]"
         ]}
       >
         Verify and sign in
@@ -53,7 +55,7 @@
     <div class="text-center">
       <.link
         href={~p"/users/log-in"}
-        class="text-sm text-white/40 hover:text-white/60 transition-colors"
+        class="text-sm text-base-content/40 hover:text-base-content/60 transition-colors"
       >
         &larr; Back to sign in
       </.link>

@@ -42,11 +42,11 @@ defmodule FrontmanServerWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div class="min-h-screen flex flex-col bg-[#0a0a0a]">
-      <header class="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
+    <div class="min-h-screen flex flex-col bg-base-100">
+      <header class="flex items-center justify-between px-6 py-4 border-b border-base-content/10">
         <a href="/" class="flex items-center gap-2.5 group">
           <img src={~p"/images/frontman-logo.svg"} width="28" height="28" alt="Frontman" />
-          <span class="text-[15px] font-semibold text-white/90 tracking-tight group-hover:text-white transition-colors">
+          <span class="text-[15px] font-semibold text-base-content/90 tracking-tight group-hover:text-base-content transition-colors">
             Frontman
           </span>
         </a>
@@ -59,7 +59,7 @@ defmodule FrontmanServerWeb.Layouts do
       </main>
 
       <footer class="py-6 text-center">
-        <p class="text-xs text-white/30">
+        <p class="text-xs text-base-content/30">
           &copy; {DateTime.utc_now().year} Frontman. All rights reserved.
         </p>
       </footer>

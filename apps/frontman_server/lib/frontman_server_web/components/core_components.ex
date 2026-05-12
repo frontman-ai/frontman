@@ -496,13 +496,13 @@ defmodule FrontmanServerWeb.CoreComponents do
     assigns = assign(assigns, :identity, identity)
 
     ~H"""
-    <div class="flex items-center justify-between px-5 py-4 border border-white/[0.08] bg-white/[0.02] rounded-lg">
+    <div class="flex items-center justify-between px-5 py-4 border fm-surface-muted rounded-lg">
       <div class="flex items-center gap-3">
-        <span class="text-white/70">{render_slot(@inner_block)}</span>
+        <span class="text-base-content/70">{render_slot(@inner_block)}</span>
         <div>
-          <p class="text-sm font-medium text-white/90">{@label}</p>
-          <p :if={@identity} class="text-xs text-white/50">{@identity.provider_email}</p>
-          <p :if={!@identity} class="text-xs text-white/40">Not connected</p>
+          <p class="text-sm font-medium text-base-content/90">{@label}</p>
+          <p :if={@identity} class="text-xs text-base-content/50">{@identity.provider_email}</p>
+          <p :if={!@identity} class="text-xs text-base-content/40">Not connected</p>
         </div>
       </div>
       <.link
@@ -510,10 +510,10 @@ defmodule FrontmanServerWeb.CoreComponents do
         href={~p"/auth/#{@provider}/unlink"}
         method="delete"
         class={[
-          "rounded-lg border border-white/[0.12] bg-white/[0.04]",
-          "px-3 py-1.5 text-xs font-medium text-white/70",
+          "rounded-lg border fm-surface-button",
+          "px-3 py-1.5 text-xs font-medium",
           "transition-all duration-150",
-          "hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
+          "hover:text-error"
         ]}
       >
         Disconnect
@@ -522,10 +522,10 @@ defmodule FrontmanServerWeb.CoreComponents do
         :if={!@identity}
         href={~p"/auth/#{@provider}/link"}
         class={[
-          "rounded-lg border border-white/[0.12] bg-white/[0.04]",
-          "px-3 py-1.5 text-xs font-medium text-white/70",
+          "rounded-lg border fm-surface-button",
+          "px-3 py-1.5 text-xs font-medium",
           "transition-all duration-150",
-          "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white"
+          "hover:text-base-content"
         ]}
       >
         Connect

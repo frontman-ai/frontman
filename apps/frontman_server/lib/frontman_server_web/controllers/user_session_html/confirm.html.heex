@@ -1,8 +1,10 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
   <div class="space-y-8">
     <div class="text-center space-y-2">
-      <h1 class="text-2xl font-semibold text-white tracking-tight">Welcome back</h1>
-      <p class="text-sm text-white/50">{@user.email}</p>
+      <h1 class="font-headings text-2xl font-semibold text-base-content tracking-tight">
+        Welcome back
+      </h1>
+      <p class="text-sm text-base-content/50">{@user.email}</p>
     </div>
 
     <.form
@@ -19,10 +21,10 @@
         name={@form[:remember_me].name}
         value="true"
         class={[
-          "w-full rounded-lg bg-white px-4 py-3",
-          "text-sm font-medium text-[#0a0a0a]",
+          "w-full rounded-lg bg-primary px-4 py-3",
+          "text-sm font-medium text-primary-content",
           "transition-all duration-150",
-          "hover:bg-white/90 active:scale-[0.98]"
+          "hover:bg-primary-600 active:scale-[0.98]"
         ]}
       >
         Confirm and stay logged in
@@ -30,10 +32,9 @@
       <button
         type="submit"
         class={[
-          "w-full rounded-lg border border-white/[0.12] bg-white/[0.04]",
-          "px-4 py-3 text-sm font-medium text-white/90",
+          "w-full rounded-lg border fm-surface-button",
+          "px-4 py-3 text-sm font-medium",
           "transition-all duration-150",
-          "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
           "active:scale-[0.98]"
         ]}
       >
@@ -54,10 +55,10 @@
         <button
           type="submit"
           class={[
-            "w-full rounded-lg bg-white px-4 py-3",
-            "text-sm font-medium text-[#0a0a0a]",
+            "w-full rounded-lg bg-primary px-4 py-3",
+            "text-sm font-medium text-primary-content",
             "transition-all duration-150",
-            "hover:bg-white/90 active:scale-[0.98]"
+            "hover:bg-primary-600 active:scale-[0.98]"
           ]}
         >
           Log in
@@ -68,10 +69,10 @@
           name={@form[:remember_me].name}
           value="true"
           class={[
-            "w-full rounded-lg bg-white px-4 py-3",
-            "text-sm font-medium text-[#0a0a0a]",
+            "w-full rounded-lg bg-primary px-4 py-3",
+            "text-sm font-medium text-primary-content",
             "transition-all duration-150",
-            "hover:bg-white/90 active:scale-[0.98]"
+            "hover:bg-primary-600 active:scale-[0.98]"
           ]}
         >
           Keep me logged in on this device
@@ -79,10 +80,9 @@
         <button
           type="submit"
           class={[
-            "w-full rounded-lg border border-white/[0.12] bg-white/[0.04]",
-            "px-4 py-3 text-sm font-medium text-white/90",
+            "w-full rounded-lg border fm-surface-button",
+            "px-4 py-3 text-sm font-medium",
             "transition-all duration-150",
-            "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
             "active:scale-[0.98]"
           ]}
         >
@@ -93,7 +93,7 @@
 
     <p
       :if={!@user.confirmed_at}
-      class="text-center text-xs text-white/30 leading-relaxed rounded-lg border border-white/[0.08] bg-white/[0.02] px-4 py-3"
+      class="text-center text-xs text-base-content/30 leading-relaxed rounded-lg border fm-surface-muted px-4 py-3"
     >
       Tip: If you prefer passwords, you can enable them in the user settings.
     </p>

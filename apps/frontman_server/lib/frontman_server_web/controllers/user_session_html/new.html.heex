@@ -2,14 +2,14 @@
   <div class="space-y-8">
     <%!-- Header --%>
     <div class="text-center space-y-2">
-      <h1 class="text-2xl font-semibold text-white tracking-tight">
+      <h1 class="font-headings text-2xl font-semibold text-base-content tracking-tight">
         <%= if @current_scope do %>
           Reauthenticate
         <% else %>
           Sign in to Frontman
         <% end %>
       </h1>
-      <p class="text-sm text-white/50">
+      <p class="text-sm text-base-content/50">
         <%= if @current_scope do %>
           Please reauthenticate to perform sensitive actions on your account.
         <% else %>
@@ -24,10 +24,9 @@
         href={~p"/auth/github"}
         class={[
           "group relative flex items-center justify-center gap-3 w-full",
-          "rounded-lg border border-white/[0.12] bg-white/[0.04]",
-          "px-4 py-3 text-sm font-medium text-white/90",
+          "rounded-lg border fm-surface-button",
+          "px-4 py-3 text-sm font-medium",
           "transition-all duration-150",
-          "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
           "active:scale-[0.98]"
         ]}
       >
@@ -41,10 +40,9 @@
         href={~p"/auth/google"}
         class={[
           "group relative flex items-center justify-center gap-3 w-full",
-          "rounded-lg border border-white/[0.12] bg-white/[0.04]",
-          "px-4 py-3 text-sm font-medium text-white/90",
+          "rounded-lg border fm-surface-button",
+          "px-4 py-3 text-sm font-medium",
           "transition-all duration-150",
-          "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
           "active:scale-[0.98]"
         ]}
       >
@@ -72,18 +70,20 @@
 
     <%!-- Divider --%>
     <div class="flex items-center gap-3">
-      <div class="flex-1 h-px bg-white/[0.08]"></div>
-      <span class="text-xs text-white/30 select-none">Secure authentication via WorkOS</span>
-      <div class="flex-1 h-px bg-white/[0.08]"></div>
+      <div class="flex-1 h-px fm-divider-line"></div>
+      <span class="text-xs text-base-content/30 select-none">
+        Secure authentication via WorkOS
+      </span>
+      <div class="flex-1 h-px fm-divider-line"></div>
     </div>
 
     <%!-- Dev/E2E email+password login form (only in dev/e2e, never production) --%>
     <%= if Application.get_env(:frontman_server, :dev_routes) do %>
       <div class="space-y-3">
         <div class="flex items-center gap-3">
-          <div class="flex-1 h-px bg-white/[0.08]"></div>
-          <span class="text-xs text-white/30 select-none">Dev login</span>
-          <div class="flex-1 h-px bg-white/[0.08]"></div>
+          <div class="flex-1 h-px fm-divider-line"></div>
+          <span class="text-xs text-base-content/30 select-none">Dev login</span>
+          <div class="flex-1 h-px fm-divider-line"></div>
         </div>
 
         <.form for={@form} action={~p"/users/log-in"} id="login-form" class="space-y-3">
@@ -92,24 +92,23 @@
             type="email"
             placeholder="Email"
             required
-            class="w-full rounded-lg border border-white/[0.12] bg-white/[0.04] px-4 py-3 text-sm text-white/90 placeholder-white/30 focus:border-white/[0.24] focus:outline-none focus:ring-1 focus:ring-white/[0.12]"
+            class="w-full rounded-lg border fm-field px-4 py-3 text-sm focus:outline-none"
           />
           <.input
             field={@form[:password]}
             type="password"
             placeholder="Password"
             required
-            class="w-full rounded-lg border border-white/[0.12] bg-white/[0.04] px-4 py-3 text-sm text-white/90 placeholder-white/30 focus:border-white/[0.24] focus:outline-none focus:ring-1 focus:ring-white/[0.12]"
+            class="w-full rounded-lg border fm-field px-4 py-3 text-sm focus:outline-none"
           />
           <button
             type="submit"
             id="login-submit"
             class={[
               "flex items-center justify-center w-full",
-              "rounded-lg border border-white/[0.12] bg-white/[0.04]",
-              "px-4 py-3 text-sm font-medium text-white/90",
+              "rounded-lg border fm-surface-button",
+              "px-4 py-3 text-sm font-medium",
               "transition-all duration-150",
-              "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
               "active:scale-[0.98]"
             ]}
           >
@@ -120,17 +119,17 @@
     <% end %>
 
     <%!-- Terms --%>
-    <p class="text-center text-xs text-white/30 leading-relaxed">
+    <p class="text-center text-xs text-base-content/30 leading-relaxed">
       By signing in, you agree to our
       <a
         href="https://frontman.sh/terms"
-        class="text-white/50 hover:text-white/70 underline underline-offset-2 transition-colors"
+        class="text-base-content/50 hover:text-base-content/70 underline underline-offset-2 transition-colors"
       >
         Terms of Service
       </a>
       and <a
         href="https://frontman.sh/privacy"
-        class="text-white/50 hover:text-white/70 underline underline-offset-2 transition-colors"
+        class="text-base-content/50 hover:text-base-content/70 underline underline-offset-2 transition-colors"
       >Privacy Policy</a>.
     </p>
   </div>
