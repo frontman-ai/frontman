@@ -1,5 +1,11 @@
 # @frontman-ai/client
 
+## 0.10.1
+
+### Patch Changes
+
+- [#1012](https://github.com/frontman-ai/frontman/pull/1012) [`9b645f8`](https://github.com/frontman-ai/frontman/commit/9b645f85e286e9a65e7ca0de3a43767ddb7aab51) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align React and ReactDOM dependency ranges for the ReactDOM update.
+
 ## 0.10.0
 
 ### Minor Changes

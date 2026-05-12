@@ -3,6 +3,37 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [0.17.0] - 2026-05-12
+
+
+#### @frontman-ai/client
+
+
+### Patch Changes
+
+- [#1012](https://github.com/frontman-ai/frontman/pull/1012) [`9b645f8`](https://github.com/frontman-ai/frontman/commit/9b645f85e286e9a65e7ca0de3a43767ddb7aab51) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align React and ReactDOM dependency ranges for the ReactDOM update.
+
+#### @frontman-ai/frontman-core
+
+
+### Patch Changes
+
+- [#1013](https://github.com/frontman-ai/frontman/pull/1013) [`70dff99`](https://github.com/frontman-ai/frontman/commit/70dff99ade62f96071e0d20e362a181860d442de) Thanks [@itayadler](https://github.com/itayadler)! - Fix path validation when Vite reports `sourceRoot: "."` so normal project-relative paths like `src/main.tsx` can be read and edited.
+
+#### @frontman-ai/vite
+
+
+### Patch Changes
+
+- [#1013](https://github.com/frontman-ai/frontman/pull/1013) [`70dff99`](https://github.com/frontman-ai/frontman/commit/70dff99ade62f96071e0d20e362a181860d442de) Thanks [@itayadler](https://github.com/itayadler)! - Fix path validation when Vite reports `sourceRoot: "."` so normal project-relative paths like `src/main.tsx` can be read and edited.
+
+#### @frontman-ai/react-statestore
+
+
+### Patch Changes
+
+- [#1012](https://github.com/frontman-ai/frontman/pull/1012) [`9b645f8`](https://github.com/frontman-ai/frontman/commit/9b645f85e286e9a65e7ca0de3a43767ddb7aab51) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align React and ReactDOM dependency ranges for the ReactDOM update.
+
 ## [0.16.0] - 2026-05-08
 
 
