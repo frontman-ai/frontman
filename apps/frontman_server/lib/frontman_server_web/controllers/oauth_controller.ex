@@ -81,6 +81,13 @@ defmodule FrontmanServerWeb.OAuthController do
     end
   end
 
+  def dev_verify_email_preview(conn, _params) do
+    conn
+    |> put_session(:pending_auth_token, "dev-preview-token")
+    |> put_session(:pending_auth_email, "founder@frontman.sh")
+    |> redirect(to: ~p"/auth/verify-email")
+  end
+
   def verify_email(conn, %{"code" => code}) do
     token = get_session(conn, :pending_auth_token)
     signup_framework = get_session(conn, :signup_framework)

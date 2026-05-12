@@ -496,37 +496,27 @@ defmodule FrontmanServerWeb.CoreComponents do
     assigns = assign(assigns, :identity, identity)
 
     ~H"""
-    <div class="flex items-center justify-between px-5 py-4 border fm-surface-muted rounded-lg">
+    <div class="flex items-center justify-between gap-4 rounded-box border border-base-300 bg-base-100/60 px-5 py-4">
       <div class="flex items-center gap-3">
         <span class="text-base-content/70">{render_slot(@inner_block)}</span>
         <div>
-          <p class="text-sm font-medium text-base-content/90">{@label}</p>
-          <p :if={@identity} class="text-xs text-base-content/50">{@identity.provider_email}</p>
-          <p :if={!@identity} class="text-xs text-base-content/40">Not connected</p>
+          <p class="text-sm font-medium text-base-content">{@label}</p>
+          <p :if={@identity} class="text-xs text-base-content/60">{@identity.provider_email}</p>
+          <p :if={!@identity} class="text-xs text-base-content/50">Not connected</p>
         </div>
       </div>
       <.link
         :if={@identity}
         href={~p"/auth/#{@provider}/unlink"}
         method="delete"
-        class={[
-          "rounded-lg border fm-surface-button",
-          "px-3 py-1.5 text-xs font-medium",
-          "transition-all duration-150",
-          "hover:text-error"
-        ]}
+        class="btn btn-error btn-outline btn-sm"
       >
         Disconnect
       </.link>
       <.link
         :if={!@identity}
         href={~p"/auth/#{@provider}/link"}
-        class={[
-          "rounded-lg border fm-surface-button",
-          "px-3 py-1.5 text-xs font-medium",
-          "transition-all duration-150",
-          "hover:text-base-content"
-        ]}
+        class="btn btn-secondary btn-sm"
       >
         Connect
       </.link>

@@ -20,24 +20,11 @@
         type="submit"
         name={@form[:remember_me].name}
         value="true"
-        class={[
-          "w-full rounded-lg bg-primary px-4 py-3",
-          "text-sm font-medium text-primary-content",
-          "transition-all duration-150",
-          "hover:bg-primary-600 active:scale-[0.98]"
-        ]}
+        class="btn btn-secondary btn-lg btn-block"
       >
         Confirm and stay logged in
       </button>
-      <button
-        type="submit"
-        class={[
-          "w-full rounded-lg border fm-surface-button",
-          "px-4 py-3 text-sm font-medium",
-          "transition-all duration-150",
-          "active:scale-[0.98]"
-        ]}
-      >
+      <button type="submit" class="btn btn-ghost btn-lg btn-block">
         Confirm and log in only this time
       </button>
     </.form>
@@ -52,15 +39,7 @@
     >
       <input type="hidden" name={@form[:token].name} value={@form[:token].value} />
       <%= if @current_scope do %>
-        <button
-          type="submit"
-          class={[
-            "w-full rounded-lg bg-primary px-4 py-3",
-            "text-sm font-medium text-primary-content",
-            "transition-all duration-150",
-            "hover:bg-primary-600 active:scale-[0.98]"
-          ]}
-        >
+        <button type="submit" class="btn btn-secondary btn-lg btn-block">
           Log in
         </button>
       <% else %>
@@ -68,24 +47,11 @@
           type="submit"
           name={@form[:remember_me].name}
           value="true"
-          class={[
-            "w-full rounded-lg bg-primary px-4 py-3",
-            "text-sm font-medium text-primary-content",
-            "transition-all duration-150",
-            "hover:bg-primary-600 active:scale-[0.98]"
-          ]}
+          class="btn btn-secondary btn-lg btn-block"
         >
           Keep me logged in on this device
         </button>
-        <button
-          type="submit"
-          class={[
-            "w-full rounded-lg border fm-surface-button",
-            "px-4 py-3 text-sm font-medium",
-            "transition-all duration-150",
-            "active:scale-[0.98]"
-          ]}
-        >
+        <button type="submit" class="btn btn-ghost btn-lg btn-block">
           Log me in only this time
         </button>
       <% end %>
