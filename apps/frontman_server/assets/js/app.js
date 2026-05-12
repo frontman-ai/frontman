@@ -33,9 +33,13 @@ const liveSocket = new LiveSocket("/live", Socket, {
 })
 
 // Show progress bar on live navigation and form submits
+const rootStyles = getComputedStyle(document.documentElement)
+const topbarColor = rootStyles.getPropertyValue("--color-primary").trim() || "#a259ff"
+const topbarShadowColor = rootStyles.getPropertyValue("--color-base-100").trim() || "#020617"
+
 topbar.config({
-  barColors: {0: "var(--color-primary)"},
-  shadowColor: "color-mix(in oklab, var(--color-base-100) 70%, transparent)",
+  barColors: {0: topbarColor},
+  shadowColor: topbarShadowColor,
 })
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
