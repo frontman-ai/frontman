@@ -14,8 +14,6 @@ import '../cookiebanner/styles.css'
 // Fonts
 import '@fontsource-variable/inter'
 import '@fontsource-variable/outfit'
-// Data
-import { configData } from '../config/config'
 
 // Props
 type Props = {
@@ -35,14 +33,9 @@ const { title, description, ogImage, noindex, classes, article } = Astro.props
 ---
 
 <!doctype html>
-<html lang="en" class="scroll-animation relative">
+<html lang="en" class="relative">
 	<Header title={title} description={description} ogImage={ogImage} noindex={noindex} article={article} />
-	<body
-		class:list={[
-			{ ['scroll-animation']: configData.scrollAnimations },
-			{ [`${classes}`]: classes }
-		]}
-	>
+	<body class:list={[{ [`${classes}`]: classes }]}>
 		<NavigationBar />
 		<Main>
 			<slot />
