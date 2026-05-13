@@ -516,6 +516,30 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
 // Helper to get task ID for error messages
 let getTaskIdForError = (task: Task.t): string => Task.getId(task)->Option.getOr("(no id)")
 
+let setAnnotationModeClosingPopup = (task: Task.t, mode: Annotation.annotationMode): Task.t => {
+  let updated = Lens.setAnnotationMode(task, mode)
+  switch mode {
+  | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
+  | _ => updated
+  }
+}
+
+let addAnnotationAndFetch = (task: Task.t, annotation: Annotation.t): (Task.t, array<effect>) => {
+  let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+  let effects = [
+    FetchAnnotationDetails({
+      id: annotation.id,
+      element: annotation.element,
+      document: previewFrame.contentDocument,
+      contentWindow: previewFrame.contentWindow,
+    }),
+  ]
+  let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
+  let updated = Lens.setAnnotations(task, allAnnotations)
+  let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
+  (updated, effects)
+}
+
 // ============================================================================
 // Question helpers - shared logic for question tool state mutations
 // ============================================================================
@@ -641,39 +665,23 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       task,
       [],
     )
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
-      let updated = Lens.setAnnotationMode(task, mode)
-      // Close popup when switching to Off
-      let updated = switch mode {
-      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
-      | _ => updated
-      }
-      (updated, [])
-    }
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => (
+      setAnnotationModeClosingPopup(task, mode),
+      [],
+    )
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotationMode) => {
       let newMode = switch Task.getAnnotationMode(task) {
       | Annotation.Off => Annotation.Selecting
       | _ => Annotation.Off
       }
-      let updated = Lens.setAnnotationMode(task, newMode)
-      // Close popup when toggling off
-      let updated = switch newMode {
-      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
-      | _ => updated
-      }
-      (updated, [])
+      (setAnnotationModeClosingPopup(task, newMode), [])
     }
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), TogglePenAnnotationMode) => {
       let newMode = switch Task.getAnnotationMode(task) {
       | Annotation.Drawing => Annotation.Off
       | _ => Annotation.Drawing
       }
-      let updated = Lens.setAnnotationMode(task, newMode)
-      let updated = switch newMode {
-      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
-      | _ => updated
-      }
-      (updated, [])
+      (setAnnotationModeClosingPopup(task, newMode), [])
     }
 
   // Toggle annotation: click already-annotated element removes it, click new element adds it
@@ -690,19 +698,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | None =>
         // New element — add annotation immediately, open popup, fetch details
         let annotation = Annotation.make(~element, ~tagName)
-        let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-        let effects = [
-          FetchAnnotationDetails({
-            id: annotation.id,
-            element,
-            document: previewFrame.contentDocument,
-            contentWindow: previewFrame.contentWindow,
-          }),
-        ]
-        let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-        let updated = Lens.setAnnotations(task, allAnnotations)
-        let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
-        (updated, effects)
+        addAnnotationAndFetch(task, annotation)
       }
     }
 
@@ -710,19 +706,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
       let annotation = Annotation.make(~element, ~tagName)
-      let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-      let effects = [
-        FetchAnnotationDetails({
-          id: annotation.id,
-          element,
-          document: previewFrame.contentDocument,
-          contentWindow: previewFrame.contentWindow,
-        }),
-      ]
-      let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-      let updated = Lens.setAnnotations(task, allAnnotations)
-      let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
-      (updated, effects)
+      addAnnotationAndFetch(task, annotation)
     }
 
   | (Task.Unloaded(_), AddPenAnnotation(_)) => (task, [])
@@ -733,19 +717,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         ~points=pen.points,
         ~boundingBox=pen.boundingBox,
       )
-      let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-      let effects = [
-        FetchAnnotationDetails({
-          id: annotation.id,
-          element: annotation.element,
-          document: previewFrame.contentDocument,
-          contentWindow: previewFrame.contentWindow,
-        }),
-      ]
-      let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-      let updated = Lens.setAnnotations(task, allAnnotations)
-      let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
-      (updated, effects)
+      addAnnotationAndFetch(task, annotation)
     }
 
   // Async annotation fetch completed after task transitioned to Unloaded — discard silently

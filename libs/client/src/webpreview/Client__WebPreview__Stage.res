@@ -69,6 +69,40 @@ let shouldAppendPoint = (points: array<Annotation.point>, point: Annotation.poin
   }
 }
 
+let pointFromMouse = (mouseEv: WebAPI.UIEventsAPI.mouseEvent): Annotation.point => {
+  x: mouseEv.clientX->Int.toFloat,
+  y: mouseEv.clientY->Int.toFloat,
+}
+
+let addMouseListeners = (doc: WebAPI.DOMAPI.document, ~onMouseDown, ~onMouseMove, ~onMouseUp) => {
+  WebAPI.Document.addEventListener(doc, Custom("mousedown"), onMouseDown, ~options={capture: true})
+  WebAPI.Document.addEventListener(doc, Custom("mousemove"), onMouseMove, ~options={capture: true})
+  WebAPI.Document.addEventListener(doc, Custom("mouseup"), onMouseUp, ~options={capture: true})
+
+  () => {
+    WebAPI.Document.removeEventListener(
+      doc,
+      Custom("mousedown"),
+      onMouseDown,
+      ~options={capture: true},
+    )
+    WebAPI.Document.removeEventListener(
+      doc,
+      Custom("mousemove"),
+      onMouseMove,
+      ~options={capture: true},
+    )
+    WebAPI.Document.removeEventListener(doc, Custom("mouseup"), onMouseUp, ~options={capture: true})
+  }
+}
+
+let removeCursorStyle = (doc: WebAPI.DOMAPI.document) => {
+  doc
+  ->WebAPI.Document.querySelector("[data-frontman-cursor]")
+  ->Null.toOption
+  ->Option.forEach(el => el->WebAPI.Element.remove)
+}
+
 // Find meaningful elements within a drag rectangle
 // Returns elements whose bounding rect overlaps the selection rect
 let _findElementsInRect: (
@@ -130,14 +164,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let document = Some(document)
   let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
   let webPreviewIsSelecting = annotationMode != Annotation.Off
-  let isSelectingElements = switch annotationMode {
-  | Annotation.Selecting => true
-  | _ => false
-  }
-  let isDrawingShape = switch annotationMode {
-  | Annotation.Drawing => true
-  | _ => false
-  }
+  let isSelectingElements = annotationMode == Annotation.Selecting
+  let isDrawingShape = annotationMode == Annotation.Drawing
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
 
   let lastProcessedClickId = React.useRef(-1)
@@ -296,47 +324,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           }
         }
 
-        WebAPI.Document.addEventListener(
-          doc,
-          Custom("mousedown"),
-          onMouseDown,
-          ~options={capture: true},
-        )
-        WebAPI.Document.addEventListener(
-          doc,
-          Custom("mousemove"),
-          onMouseMove,
-          ~options={capture: true},
-        )
-        WebAPI.Document.addEventListener(
-          doc,
-          Custom("mouseup"),
-          onMouseUp,
-          ~options={capture: true},
-        )
-
-        Some(
-          () => {
-            WebAPI.Document.removeEventListener(
-              doc,
-              Custom("mousedown"),
-              onMouseDown,
-              ~options={capture: true},
-            )
-            WebAPI.Document.removeEventListener(
-              doc,
-              Custom("mousemove"),
-              onMouseMove,
-              ~options={capture: true},
-            )
-            WebAPI.Document.removeEventListener(
-              doc,
-              Custom("mouseup"),
-              onMouseUp,
-              ~options={capture: true},
-            )
-          },
-        )
+        Some(addMouseListeners(doc, ~onMouseDown, ~onMouseMove, ~onMouseUp))
       }
     | _ => None
     }
@@ -346,11 +334,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   React.useEffect(() => {
     switch (document, isDrawingShape) {
     | (Some(doc), true) => {
-        let pointFromMouse = (mouseEv: WebAPI.UIEventsAPI.mouseEvent): Annotation.point => {
-          x: mouseEv.clientX->Int.toFloat,
-          y: mouseEv.clientY->Int.toFloat,
-        }
-
         let penAnnotationFromPoints = (points: array<Annotation.point>): option<
           Client__Task__Reducer.penAnnotation,
         > => {
@@ -421,47 +404,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           }
         }
 
-        WebAPI.Document.addEventListener(
-          doc,
-          Custom("mousedown"),
-          onMouseDown,
-          ~options={capture: true},
-        )
-        WebAPI.Document.addEventListener(
-          doc,
-          Custom("mousemove"),
-          onMouseMove,
-          ~options={capture: true},
-        )
-        WebAPI.Document.addEventListener(
-          doc,
-          Custom("mouseup"),
-          onMouseUp,
-          ~options={capture: true},
-        )
-
-        Some(
-          () => {
-            WebAPI.Document.removeEventListener(
-              doc,
-              Custom("mousedown"),
-              onMouseDown,
-              ~options={capture: true},
-            )
-            WebAPI.Document.removeEventListener(
-              doc,
-              Custom("mousemove"),
-              onMouseMove,
-              ~options={capture: true},
-            )
-            WebAPI.Document.removeEventListener(
-              doc,
-              Custom("mouseup"),
-              onMouseUp,
-              ~options={capture: true},
-            )
-          },
-        )
+        Some(addMouseListeners(doc, ~onMouseDown, ~onMouseMove, ~onMouseUp))
       }
     | _ => None
     }
@@ -530,28 +473,14 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       })
     | false =>
       document->Option.forEach(doc => {
-        doc
-        ->WebAPI.Document.querySelector("[data-frontman-cursor]")
-        ->Null.toOption
-        ->Option.forEach(
-          el => {
-            el->WebAPI.Element.remove
-          },
-        )
+        removeCursorStyle(doc)
       })
     }
 
     Some(
       () => {
         document->Option.forEach(doc => {
-          doc
-          ->WebAPI.Document.querySelector("[data-frontman-cursor]")
-          ->Null.toOption
-          ->Option.forEach(
-            el => {
-              el->WebAPI.Element.remove
-            },
-          )
+          removeCursorStyle(doc)
         })
       },
     )
@@ -600,24 +529,10 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   }
 
   let drawOverlay = switch drawPoints {
-  | Some(points) => {
-      let pointsAttr =
-        points
-        ->Array.map(point => `${point.x->Float.toString},${point.y->Float.toString}`)
-        ->Array.join(" ")
-      <svg className="absolute inset-0 pointer-events-none z-[9998] overflow-visible">
-        <polyline
-          points={pointsAttr}
-          fill="none"
-          stroke="white"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          style={mixBlendMode: "difference"}
-        />
-      </svg>
-    }
+  | Some(points) =>
+    <svg className="absolute inset-0 pointer-events-none z-[9998] overflow-visible">
+      <Client__WebPreview__PenPolyline points />
+    </svg>
   | None => React.null
   }
 
@@ -658,15 +573,20 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     }
   }
 
-  switch viewportStyle {
-  | None =>
-    <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full isolate">
+  let overlays =
+    <>
       selectionModeIndicator
       hoverOverlay
       dragOverlay
       drawOverlay
       annotationMarkersOverlay
       annotationPopupOverlay
+    </>
+
+  switch viewportStyle {
+  | None =>
+    <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full isolate">
+      overlays
     </div>
   | Some((deviceWidth, deviceHeight, scale)) =>
     let widthPx = Int.toString(deviceWidth) ++ "px"
@@ -689,12 +609,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           transformOrigin: "top center",
         }
       >
-        selectionModeIndicator
-        hoverOverlay
-        dragOverlay
-        drawOverlay
-        annotationMarkersOverlay
-        annotationPopupOverlay
+        overlays
       </div>
     </div>
   }
