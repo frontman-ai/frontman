@@ -26,10 +26,21 @@ let make = (
 
   // Position popup relative to the annotated element
   React.useEffect(() => {
-    let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
-    setRect(_ => Some(boundingRect))
+    let boundingBox = switch annotation.penShape {
+    | Some(shape) => shape.boundingBox
+    | None => {
+        let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
+        {
+          Annotation.x: boundingRect.left,
+          y: boundingRect.top,
+          width: boundingRect.width,
+          height: boundingRect.height,
+        }
+      }
+    }
+    setRect(_ => Some(boundingBox))
     None
-  }, (annotation.element, scrollTimestamp, mutationTimestamp))
+  }, (annotation.element, annotation.penShape, scrollTimestamp, mutationTimestamp))
 
   // Auto-focus the input once it renders (rect must be Some for the input to exist)
   React.useEffect(() => {
@@ -60,8 +71,8 @@ let make = (
 
   switch rect {
   | Some(rect) => {
-      let top = rect.top +. rect.height +. 8.0
-      let left = rect.left
+      let top = rect.y +. rect.height +. 8.0
+      let left = rect.x
 
       <div
         className="absolute z-[10000] pointer-events-auto"
@@ -82,7 +93,10 @@ let make = (
               {React.int(index + 1)}
             </div>
             <span className="text-[11px] text-gray-500 font-medium">
-              {React.string(`<${annotation.tagName}>`)}
+              {switch annotation.penShape {
+              | Some(_) => React.string(`Pen mark in <${annotation.tagName}>`)
+              | None => React.string(`<${annotation.tagName}>`)
+              }}
             </span>
           </div>
           <div className="flex items-center gap-1">

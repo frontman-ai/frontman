@@ -187,6 +187,29 @@ module CursorClickIcon = {
   }
 }
 
+module PenIcon = {
+  @react.component
+  let make = (~size: int=defaultSize, ~className: string="") => {
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="none"
+      width={Int.toString(size)}
+      height={Int.toString(size)}
+      className={className}
+    >
+      <path
+        d="M12.7 3.1L16.9 7.3L7.4 16.8L3.2 17.8L4.2 13.6L12.7 3.1Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M11.5 4.6L15.4 8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  }
+}
+
 module UploadIcon = {
   @react.component
   let make = (~size: int=defaultSize, ~className: string="") => {

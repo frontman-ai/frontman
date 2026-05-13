@@ -2,14 +2,72 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #WebPreviewStage
 })
 
+module Annotation = Client__Annotation__Types
+
 // Typed externals for event casting and missing DOM APIs
 external asKeyboardEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.keyboardEvent = "%identity"
 external asMouseEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.mouseEvent = "%identity"
-external elementFromPoint: (
-  WebAPI.DOMAPI.document,
-  ~x: int,
-  ~y: int,
-) => Nullable.t<WebAPI.DOMAPI.element> = "elementFromPoint"
+@send
+external elementFromPoint: (WebAPI.DOMAPI.document, int, int) => Nullable.t<WebAPI.DOMAPI.element> =
+  "elementFromPoint"
+
+let elementContainsBox = (element: WebAPI.DOMAPI.element, bb: Annotation.boundingBox): bool => {
+  let rect = WebAPI.Element.getBoundingClientRect(element)
+  rect.left <= bb.x &&
+  rect.top <= bb.y &&
+  rect.left +. rect.width >= bb.x +. bb.width &&
+  rect.top +. rect.height >= bb.y +. bb.height
+}
+
+let rec closestContainingElement = (
+  element: WebAPI.DOMAPI.element,
+  bb: Annotation.boundingBox,
+): WebAPI.DOMAPI.element => {
+  switch elementContainsBox(element, bb) {
+  | true => element
+  | false =>
+    element.parentElement
+    ->Null.toOption
+    ->Option.mapOr(element, parent => closestContainingElement(parent->Obj.magic, bb))
+  }
+}
+
+let boundingBoxFromPoints = (points: array<Annotation.point>): option<Annotation.boundingBox> => {
+  switch points->Array.get(0) {
+  | None => None
+  | Some(first) => {
+      let minX = ref(first.x)
+      let minY = ref(first.y)
+      let maxX = ref(first.x)
+      let maxY = ref(first.y)
+
+      points->Array.forEach(point => {
+        minX.contents = Math.min(minX.contents, point.x)
+        minY.contents = Math.min(minY.contents, point.y)
+        maxX.contents = Math.max(maxX.contents, point.x)
+        maxY.contents = Math.max(maxY.contents, point.y)
+      })
+
+      Some({
+        x: minX.contents,
+        y: minY.contents,
+        width: maxX.contents -. minX.contents,
+        height: maxY.contents -. minY.contents,
+      })
+    }
+  }
+}
+
+let shouldAppendPoint = (points: array<Annotation.point>, point: Annotation.point): bool => {
+  switch points->Array.get(Array.length(points) - 1) {
+  | Some(last) => {
+      let dx = point.x -. last.x
+      let dy = point.y -. last.y
+      dx *. dx +. dy *. dy >= 4.0
+    }
+  | None => true
+  }
+}
 
 // Find meaningful elements within a drag rectangle
 // Returns elements whose bounding rect overlaps the selection rect
@@ -70,14 +128,23 @@ type dragState =
 @react.component
 let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let document = Some(document)
-  let webPreviewIsSelecting = Client__State.useSelector(
-    Client__State.Selectors.webPreviewIsSelecting,
-  )
+  let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
+  let webPreviewIsSelecting = annotationMode != Annotation.Off
+  let isSelectingElements = switch annotationMode {
+  | Annotation.Selecting => true
+  | _ => false
+  }
+  let isDrawingShape = switch annotationMode {
+  | Annotation.Drawing => true
+  | _ => false
+  }
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
 
   let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
   let (dragState, setDragState) = React.useState(() => Idle)
+  let (drawPoints, setDrawPoints) = React.useState((): option<array<Annotation.point>> => None)
+  let drawPointsRef: React.ref<array<Annotation.point>> = React.useRef([])
   // Track whether a drag gesture occurred so the click handler can skip it
   let wasDragging = React.useRef(false)
   // Stash elements to dispatch after setDragState updater completes (React purity)
@@ -129,7 +196,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
 
   // Drag selection event listeners (available in Selecting mode with modifier key)
   React.useEffect(() => {
-    switch (document, webPreviewIsSelecting) {
+    switch (document, isSelectingElements) {
     | (Some(doc), true) => {
         let onMouseDown = ev => {
           let mouseEv = ev->asMouseEvent
@@ -199,7 +266,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                   // Cmd+Shift+Click (no drag): add single element directly
                   wasDragging.current = true
                   let elementAtPoint =
-                    doc->elementFromPoint(~x=startX->Float.toInt, ~y=startY->Float.toInt)
+                    doc->elementFromPoint(startX->Float.toInt, startY->Float.toInt)
                   elementAtPoint
                   ->Nullable.toOption
                   ->Option.forEach(
@@ -273,7 +340,132 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       }
     | _ => None
     }
-  }, (document, webPreviewIsSelecting))
+  }, (document, isSelectingElements))
+
+  // Pen drawing event listeners. Coordinates are viewport-relative, matching DOMRect.
+  React.useEffect(() => {
+    switch (document, isDrawingShape) {
+    | (Some(doc), true) => {
+        let pointFromMouse = (mouseEv: WebAPI.UIEventsAPI.mouseEvent): Annotation.point => {
+          x: mouseEv.clientX->Int.toFloat,
+          y: mouseEv.clientY->Int.toFloat,
+        }
+
+        let penAnnotationFromPoints = (points: array<Annotation.point>): option<
+          Client__Task__Reducer.penAnnotation,
+        > => {
+          switch boundingBoxFromPoints(points) {
+          | Some(bb) =>
+            switch bb.width >= 3.0 || bb.height >= 3.0 {
+            | true =>
+              let centerX = (bb.x +. bb.width /. 2.0)->Float.toInt
+              let centerY = (bb.y +. bb.height /. 2.0)->Float.toInt
+              let element =
+                doc
+                ->elementFromPoint(centerX, centerY)
+                ->Nullable.toOption
+                ->Option.mapOr(doc.body->WebAPI.HTMLElement.asElement, el =>
+                  closestContainingElement(el, bb)
+                )
+              Some({
+                Client__Task__Reducer.element,
+                tagName: element.tagName,
+                points,
+                boundingBox: bb,
+              })
+            | false => None
+            }
+          | None => None
+          }
+        }
+
+        let onMouseDown = ev => {
+          WebAPI.Event.preventDefault(ev)
+          WebAPI.Event.stopPropagation(ev)
+          let mouseEv = ev->asMouseEvent
+          let point = pointFromMouse(mouseEv)
+          drawPointsRef.current = [point]
+          setDrawPoints(_ => Some([point]))
+        }
+
+        let onMouseMove = ev => {
+          let mouseEv = ev->asMouseEvent
+          let point = pointFromMouse(mouseEv)
+          let points = drawPointsRef.current
+          switch Array.length(points) > 0 && shouldAppendPoint(points, point) {
+          | true =>
+            let nextPoints = Array.concat(points, [point])
+            drawPointsRef.current = nextPoints
+            setDrawPoints(_ => Some(nextPoints))
+          | false => ()
+          }
+        }
+
+        let onMouseUp = ev => {
+          WebAPI.Event.preventDefault(ev)
+          WebAPI.Event.stopPropagation(ev)
+          let mouseEv = ev->asMouseEvent
+          let point = pointFromMouse(mouseEv)
+          let points = drawPointsRef.current
+          let finalPoints = switch shouldAppendPoint(points, point) {
+          | true => Array.concat(points, [point])
+          | false => points
+          }
+
+          drawPointsRef.current = []
+          setDrawPoints(_ => None)
+
+          switch penAnnotationFromPoints(finalPoints) {
+          | Some(annotation) => Client__State.Actions.addPenAnnotation(~annotation)
+          | None => ()
+          }
+        }
+
+        WebAPI.Document.addEventListener(
+          doc,
+          Custom("mousedown"),
+          onMouseDown,
+          ~options={capture: true},
+        )
+        WebAPI.Document.addEventListener(
+          doc,
+          Custom("mousemove"),
+          onMouseMove,
+          ~options={capture: true},
+        )
+        WebAPI.Document.addEventListener(
+          doc,
+          Custom("mouseup"),
+          onMouseUp,
+          ~options={capture: true},
+        )
+
+        Some(
+          () => {
+            WebAPI.Document.removeEventListener(
+              doc,
+              Custom("mousedown"),
+              onMouseDown,
+              ~options={capture: true},
+            )
+            WebAPI.Document.removeEventListener(
+              doc,
+              Custom("mousemove"),
+              onMouseMove,
+              ~options={capture: true},
+            )
+            WebAPI.Document.removeEventListener(
+              doc,
+              Custom("mouseup"),
+              onMouseUp,
+              ~options={capture: true},
+            )
+          },
+        )
+      }
+    | _ => None
+    }
+  }, (document, isDrawingShape))
 
   // Split effect: Handle mode transitions separately from click handling
   // This prevents unnecessary effect runs when only clickedElement changes
@@ -295,7 +487,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
 
   // Separate effect for handling clicks in selection mode
   React.useEffect(() => {
-    switch webPreviewIsSelecting {
+    switch isSelectingElements {
     | true =>
       clickedElement->Option.forEach(({target, clickId}) => {
         switch clickId > lastProcessedClickId.current {
@@ -322,7 +514,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     | false => ()
     }
     None
-  }, (clickedElement, webPreviewIsSelecting))
+  }, (clickedElement, isSelectingElements))
 
   // Set crosshair cursor on all iframe elements during selection mode.
   // Uses an injected <style> tag with `* { cursor: crosshair !important; }` so that
@@ -379,7 +571,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   }
 
   // Hover highlight (only when in selection mode, but not during drag)
-  let hoverOverlay = switch (webPreviewIsSelecting, dragState) {
+  let hoverOverlay = switch (isSelectingElements, dragState) {
   | (true, Idle) =>
     <Client__WebPreview__HoveredElement
       key="hover" element={hoveredElement} scrollTimestamp={scrollTimestamp}
@@ -405,6 +597,28 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       />
     }
   | Idle => React.null
+  }
+
+  let drawOverlay = switch drawPoints {
+  | Some(points) => {
+      let pointsAttr =
+        points
+        ->Array.map(point => `${point.x->Float.toString},${point.y->Float.toString}`)
+        ->Array.join(" ")
+      <svg className="absolute inset-0 pointer-events-none z-[9998] overflow-visible">
+        <polyline
+          points={pointsAttr}
+          fill="none"
+          stroke="white"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          style={mixBlendMode: "difference"}
+        />
+      </svg>
+    }
+  | None => React.null
   }
 
   // Annotation markers for all confirmed annotations
@@ -450,6 +664,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       selectionModeIndicator
       hoverOverlay
       dragOverlay
+      drawOverlay
       annotationMarkersOverlay
       annotationPopupOverlay
     </div>
@@ -477,6 +692,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         selectionModeIndicator
         hoverOverlay
         dragOverlay
+        drawOverlay
         annotationMarkersOverlay
         annotationPopupOverlay
       </div>
