@@ -313,10 +313,6 @@ module Selectors = {
     Task.getAnnotationMode(currentTask(state))
   }
 
-  let webPreviewIsSelecting = (state: state): bool => {
-    Task.getWebPreviewIsSelecting(currentTask(state))
-  }
-
   let hasEnrichingAnnotations = (state: state): bool => {
     TaskReducer.Selectors.hasEnrichingAnnotations(currentTask(state))->Option.getOr(false)
   }

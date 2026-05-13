@@ -481,13 +481,11 @@ let pointMetaSchema: S.t<pointMeta> = S.object(s => {
 })
 
 type penShapeMeta = {
-  coordinateSpace: string,
   points: array<pointMeta>,
   boundingBox: boundingBoxMeta,
 }
 
 let penShapeMetaSchema: S.t<penShapeMeta> = S.object(s => {
-  coordinateSpace: s.field("coordinate_space", S.string),
   points: s.field("points", S.array(pointMetaSchema)),
   boundingBox: s.field("bounding_box", boundingBoxMetaSchema),
 })
@@ -584,7 +582,6 @@ let boundingBoxToMeta = (bb: Annotation.boundingBox): boundingBoxMeta => {
 }
 
 let penShapeToMeta = (shape: Annotation.penShape): penShapeMeta => {
-  coordinateSpace: "viewport",
   points: shape.points->Array.map(point => {x: point.x, y: point.y}),
   boundingBox: boundingBoxToMeta(shape.boundingBox),
 }

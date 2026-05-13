@@ -416,14 +416,6 @@ describe("Client__State__Types", () => {
         let points =
           penShape->Dict.get("points")->Option.flatMap(JSON.Decode.array)->Option.getOrThrow
 
-        t
-        ->expect(
-          penShape
-          ->Dict.get("coordinate_space")
-          ->Option.flatMap(JSON.Decode.string)
-          ->Option.getOrThrow,
-        )
-        ->Expect.toBe("viewport")
         t->expect(points->Array.length)->Expect.toBe(2)
 
         switch embeddedResource.resource {
