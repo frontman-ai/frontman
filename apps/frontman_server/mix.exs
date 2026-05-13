@@ -98,6 +98,7 @@ defmodule FrontmanServer.MixProject do
       # WorkOS for OAuth (GitHub, Google)
       {:workos, "~> 1.1"},
       # ==================DEV/Test=========================
+      {:paper_tiger, "~> 1.0"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
