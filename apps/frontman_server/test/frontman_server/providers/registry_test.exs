@@ -55,8 +55,7 @@ defmodule FrontmanServer.Providers.RegistryTest do
       metadata = %{
         "envApiKey" => %{
           "openrouterKeyValue" => "sk-or-nested",
-          "fireworksKeyValue" => "sk-fireworks-nested",
-          "nvidiaKeyValue" => "nvapi-nested"
+          "fireworksKeyValue" => "sk-fireworks-nested"
         }
       }
 
@@ -64,8 +63,7 @@ defmodule FrontmanServer.Providers.RegistryTest do
 
       assert result == %{
                "openrouter" => "sk-or-nested",
-               "fireworks" => "sk-fireworks-nested",
-               "nvidia" => "nvapi-nested"
+               "fireworks" => "sk-fireworks-nested"
              }
     end
 

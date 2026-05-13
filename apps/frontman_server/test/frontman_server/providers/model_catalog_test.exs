@@ -33,10 +33,14 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
     test "includes latest OpenRouter OSS models" do
       models = ModelCatalog.models("openrouter", :full)
 
-      assert %{displayName: "Kimi K2.6", value: "moonshotai/kimi-k2.6"} in models
-      assert %{displayName: "MiniMax M2.7", value: "minimax/minimax-m2.7"} in models
-
-      assert %{displayName: "Qwen3 Coder 480B", value: "qwen/qwen3-coder-480b-a35b-instruct"} in models
+      assert Enum.all?(
+               [
+                 %{displayName: "Kimi K2.6", value: "moonshotai/kimi-k2.6"},
+                 %{displayName: "MiniMax M2.7", value: "minimax/minimax-m2.7"},
+                 %{displayName: "Qwen3 Coder 480B", value: "qwen/qwen3-coder-480b-a35b-instruct"}
+               ],
+               &(&1 in models)
+             )
     end
 
     test "excludes retired GPT-5.2 and older GPT-5 family models" do
@@ -72,28 +76,20 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
       assert ModelCatalog.models("fireworks", :free) == expected
     end
 
-    test "returns NVIDIA models" do
-      assert ModelCatalog.models("nvidia", :full) == [
-               %{displayName: "Nemotron 3 Super", value: "nvidia/nemotron-3-super-120b-a12b"}
-             ]
+    test "returns NVIDIA model" do
+      expected = %{displayName: "Nemotron 3 Super", value: "nvidia/nemotron-3-super-120b-a12b"}
+
+      assert ModelCatalog.models("nvidia", :full) == [expected]
+      assert ModelCatalog.pick_default(["nvidia"]) == %{provider: "nvidia", value: expected.value}
     end
   end
 
   describe "catalog_providers/0" do
     test "providers are ordered by configured priority" do
       providers = ModelCatalog.catalog_providers()
+      expected = ~w[openai anthropic openrouter fireworks nvidia]
 
-      assert Enum.filter(
-               providers,
-               &(&1 in ["openai", "anthropic", "openrouter", "fireworks", "nvidia"])
-             ) ==
-               [
-                 "openai",
-                 "anthropic",
-                 "openrouter",
-                 "fireworks",
-                 "nvidia"
-               ]
+      assert Enum.filter(providers, &(&1 in expected)) == expected
     end
   end
 
@@ -113,12 +109,6 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
       default = ModelCatalog.pick_default(["fireworks"])
       assert default.provider == "fireworks"
       assert default.value == "accounts/fireworks/routers/kimi-k2p5-turbo"
-    end
-
-    test "picks nvidia when it is the only available provider" do
-      default = ModelCatalog.pick_default(["nvidia"])
-      assert default.provider == "nvidia"
-      assert default.value == "nvidia/nemotron-3-super-120b-a12b"
     end
 
     test "falls back to openrouter for empty list" do
