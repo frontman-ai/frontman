@@ -11,8 +11,8 @@ defmodule FrontmanServer.Billing.Webhooks do
 
   require Logger
 
-  alias Ecto.Multi
   alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
+  alias FrontmanServer.Repo
 
   @doc """
   Processes a verified Stripe webhook event idempotently.
@@ -20,25 +20,20 @@ defmodule FrontmanServer.Billing.Webhooks do
   @spec process_event(map()) :: {:ok, :processed | :ignored | :duplicate} | {:error, term()}
   def process_event(%{"id" => event_id, "type" => type} = event) do
     result =
-      event_id
-      |> process_event_multi(type, event)
-      |> FrontmanServer.Repo.transact()
+      Repo.transact(fn ->
+        case insert_event(Repo, event_id, type, event) do
+          {:ok, stripe_event} -> process_stripe_event(Repo, stripe_event, event_id, type, event)
+          {:error, reason} -> {:error, reason}
+        end
+      end)
       |> case do
-        {:ok, %{result: result}} -> {:ok, result}
-        {:error, _operation, reason, _changes} -> {:error, reason}
+        {:ok, result} -> {:ok, result}
+        {:error, reason} -> {:error, reason}
       end
 
     log_event_result(event_id, type, result)
 
     result
-  end
-
-  defp process_event_multi(event_id, type, event) do
-    Multi.new()
-    |> Multi.run(:stripe_event, fn repo, _changes -> insert_event(repo, event_id, type, event) end)
-    |> Multi.run(:result, fn repo, %{stripe_event: stripe_event} ->
-      process_stripe_event(repo, stripe_event, event_id, type, event)
-    end)
   end
 
   defp process_stripe_event(_repo, :duplicate, _event_id, _type, _event), do: {:ok, :duplicate}
