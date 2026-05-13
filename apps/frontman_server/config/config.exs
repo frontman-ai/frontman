@@ -229,6 +229,21 @@ config :llm_db,
         }
       }
     ],
+    nvidia: [
+      models: %{
+        "moonshotai/kimi-k2.6" => %{
+          name: "Kimi K2.6",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            streaming: %{tool_calls: true},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 262_144, output: 65_536},
+          modalities: %{input: [:text, :image], output: [:text]}
+        }
+      }
+    ],
     anthropic: [
       models: %{
         "claude-opus-4-6" => %{

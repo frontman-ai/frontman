@@ -36,8 +36,7 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
       assert Enum.all?(
                [
                  %{displayName: "Kimi K2.6", value: "moonshotai/kimi-k2.6"},
-                 %{displayName: "MiniMax M2.7", value: "minimax/minimax-m2.7"},
-                 %{displayName: "Qwen3 Coder 480B", value: "qwen/qwen3-coder-480b-a35b-instruct"}
+                 %{displayName: "MiniMax M2.7", value: "minimax/minimax-m2.7"}
                ],
                &(&1 in models)
              )
@@ -78,8 +77,10 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
 
     test "returns NVIDIA models" do
       expected = [
-        %{displayName: "Kimi K2.5", value: "moonshotai/kimi-k2.5"},
-        %{displayName: "MiniMax M2.7", value: "minimaxai/minimax-m2.7"}
+        %{displayName: "Kimi K2.6", value: "moonshotai/kimi-k2.6"},
+        %{displayName: "DeepSeek V4 Flash", value: "deepseek-ai/deepseek-v4-flash"},
+        %{displayName: "MiniMax M2.7", value: "minimaxai/minimax-m2.7"},
+        %{displayName: "Qwen3 Coder 480B", value: "qwen/qwen3-coder-480b-a35b-instruct"}
       ]
 
       assert ModelCatalog.models("nvidia", :full) == expected
