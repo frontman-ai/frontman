@@ -6,7 +6,6 @@ defmodule FrontmanServer.Repo.Migrations.CreateBillingSubscriptions do
       add :id, :binary_id, primary_key: true
       add :stripe_subscription_id, :string, null: false
       add :stripe_customer_id, :string
-      add :stripe_customer_account_id, :string
       add :status, :string, null: false
       add :interval, :string
       add :price_id, :string
@@ -25,7 +24,6 @@ defmodule FrontmanServer.Repo.Migrations.CreateBillingSubscriptions do
     create unique_index(:billing_subscriptions, [:billing_customer_id])
     create index(:billing_subscriptions, [:status])
     create index(:billing_subscriptions, [:stripe_customer_id])
-    create index(:billing_subscriptions, [:stripe_customer_account_id])
     create unique_index(:billing_subscriptions, [:stripe_subscription_id])
   end
 end

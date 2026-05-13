@@ -18,7 +18,6 @@ defmodule FrontmanServer.BillingFixtures do
     {:ok, customer} =
       attrs
       |> Enum.into(%{
-        stripe_customer_account_id: "acct_#{unique}",
         stripe_customer_id: "cus_#{unique}"
       })
       |> then(&Billing.create_customer(scope, &1))
@@ -36,7 +35,6 @@ defmodule FrontmanServer.BillingFixtures do
       attrs
       |> Enum.into(%{
         billing_customer_id: customer.id,
-        stripe_customer_account_id: customer.stripe_customer_account_id,
         stripe_customer_id: customer.stripe_customer_id,
         stripe_subscription_id: "sub_#{unique}",
         status: "active",

@@ -93,7 +93,6 @@ defmodule FrontmanServer.Billing.Webhooks do
       on_conflict: [
         set: [
           stripe_customer_id: attr_value(attrs, :stripe_customer_id),
-          stripe_customer_account_id: attr_value(attrs, :stripe_customer_account_id),
           updated_at: DateTime.utc_now(:second)
         ]
       ],
@@ -118,7 +117,6 @@ defmodule FrontmanServer.Billing.Webhooks do
     [
       stripe_subscription_id: attr_value(attrs, :stripe_subscription_id),
       stripe_customer_id: attr_value(attrs, :stripe_customer_id),
-      stripe_customer_account_id: attr_value(attrs, :stripe_customer_account_id),
       status: attr_value(attrs, :status),
       interval: attr_value(attrs, :interval),
       price_id: attr_value(attrs, :price_id),
@@ -142,8 +140,7 @@ defmodule FrontmanServer.Billing.Webhooks do
         with {:ok, _customer} <-
                upsert_customer(repo, %{
                  user_id: user_id,
-                 stripe_customer_id: session["customer"],
-                 stripe_customer_account_id: session["customer_account"]
+                 stripe_customer_id: session["customer"]
                }) do
           {:ok, :processed}
         end
@@ -163,8 +160,7 @@ defmodule FrontmanServer.Billing.Webhooks do
         with {:ok, customer} <-
                upsert_customer(repo, %{
                  user_id: user_id,
-                 stripe_customer_id: subscription["customer"],
-                 stripe_customer_account_id: subscription["customer_account"]
+                 stripe_customer_id: subscription["customer"]
                }),
              {:ok, _subscription} <-
                upsert_subscription(repo, subscription_attrs(subscription, customer.id)) do
@@ -190,7 +186,6 @@ defmodule FrontmanServer.Billing.Webhooks do
       billing_customer_id: billing_customer_id,
       stripe_subscription_id: subscription["id"],
       stripe_customer_id: subscription["customer"],
-      stripe_customer_account_id: subscription["customer_account"],
       status: subscription["status"],
       interval: subscription_interval(get_in(price || %{}, ["recurring", "interval"])),
       price_id: (price || %{})["id"],

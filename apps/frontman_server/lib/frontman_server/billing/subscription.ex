@@ -14,7 +14,6 @@ defmodule FrontmanServer.Billing.Subscription do
   schema "billing_subscriptions" do
     field :stripe_subscription_id, :string
     field :stripe_customer_id, :string
-    field :stripe_customer_account_id, :string
     field :status, :string
     field :interval, Ecto.Enum, values: @intervals
     field :price_id, :string
@@ -53,7 +52,6 @@ defmodule FrontmanServer.Billing.Subscription do
     |> cast(attrs, [
       :stripe_subscription_id,
       :stripe_customer_id,
-      :stripe_customer_account_id,
       :status,
       :interval,
       :price_id,

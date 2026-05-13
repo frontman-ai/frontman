@@ -81,11 +81,6 @@ defmodule FrontmanServer.Billing.StripeClient do
     end
   end
 
-  defp customer_params(%Customer{stripe_customer_account_id: customer_account_id})
-       when is_binary(customer_account_id) do
-    [{"customer_account", customer_account_id}]
-  end
-
   defp customer_params(%Customer{stripe_customer_id: customer_id}) when is_binary(customer_id) do
     [{"customer", customer_id}]
   end

@@ -5,7 +5,6 @@ defmodule FrontmanServer.Repo.Migrations.CreateBillingCustomers do
     create table(:billing_customers, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :stripe_customer_id, :string
-      add :stripe_customer_account_id, :string
       add :user_id, references(:users, on_delete: :delete_all, type: :binary_id), null: false
 
       timestamps(type: :utc_datetime)
@@ -15,10 +14,6 @@ defmodule FrontmanServer.Repo.Migrations.CreateBillingCustomers do
 
     create unique_index(:billing_customers, [:stripe_customer_id],
              where: "stripe_customer_id IS NOT NULL"
-           )
-
-    create unique_index(:billing_customers, [:stripe_customer_account_id],
-             where: "stripe_customer_account_id IS NOT NULL"
            )
   end
 end

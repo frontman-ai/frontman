@@ -24,19 +24,6 @@ defmodule FrontmanServer.BillingTest do
 
       assert customer.user_id == user.id
       assert customer.stripe_customer_id == "cus_test"
-      assert customer.stripe_customer_account_id == nil
-    end
-
-    test "create_customer/2 accepts Accounts v2 customer account ids" do
-      user = AccountsFixtures.user_fixture()
-      scope = Scope.for_user(user)
-
-      assert {:ok, %Customer{} = customer} =
-               Billing.create_customer(scope, %{stripe_customer_account_id: "acct_test"})
-
-      assert customer.user_id == user.id
-      assert customer.stripe_customer_id == nil
-      assert customer.stripe_customer_account_id == "acct_test"
     end
   end
 
@@ -229,7 +216,6 @@ defmodule FrontmanServer.BillingTest do
           "object" => %{
             "client_reference_id" => user.id,
             "customer" => "cus_test_123",
-            "customer_account" => nil,
             "metadata" => %{"user_id" => user.id}
           }
         }
@@ -251,7 +237,6 @@ defmodule FrontmanServer.BillingTest do
           "object" => %{
             "id" => "sub_test_123",
             "customer" => "cus_test_123",
-            "customer_account" => nil,
             "status" => "trialing",
             "current_period_end" => 1_767_225_600,
             "trial_end" => 1_767_225_600,
@@ -307,7 +292,6 @@ defmodule FrontmanServer.BillingTest do
           "object" => %{
             "id" => "sub_retryable",
             "customer" => "cus_retryable",
-            "customer_account" => nil,
             "status" => nil,
             "current_period_end" => nil,
             "trial_end" => nil,

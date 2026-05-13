@@ -72,40 +72,6 @@ defmodule FrontmanServer.Billing.StripeClientTest do
                  trial_eligible: true
                )
     end
-
-    test "prefers customer account ids when present", %{bypass: bypass} do
-      user = AccountsFixtures.user_fixture()
-
-      customer = %Customer{
-        stripe_customer_id: "cus_existing",
-        stripe_customer_account_id: "acct_existing"
-      }
-
-      Bypass.expect(bypass, "POST", "/v1/checkout/sessions", fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn)
-        params = URI.decode_query(body)
-
-        assert params["customer_account"] == "acct_existing"
-        refute Map.has_key?(params, "customer")
-        refute Map.has_key?(params, "subscription_data[trial_period_days]")
-
-        conn
-        |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.resp(200, Jason.encode!(%{"id" => "cs_test_account"}))
-      end)
-
-      assert {:ok, %{"id" => "cs_test_account"}} =
-               StripeClient.start_checkout(
-                 user,
-                 customer,
-                 :monthly,
-                 %{
-                   success_url: "https://billing.test/success",
-                   cancel_url: "https://billing.test/cancel"
-                 },
-                 trial_eligible: false
-               )
-    end
   end
 
   describe "construct_webhook_event/2" do
