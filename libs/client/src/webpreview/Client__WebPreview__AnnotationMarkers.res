@@ -35,19 +35,7 @@ module Marker = {
     let (rect, setRect) = React.useState(() => None)
 
     React.useEffect(() => {
-      let boundingBox = switch annotation.penShape {
-      | Some(shape) => shape.boundingBox
-      | None => {
-          let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
-          {
-            Annotation.x: boundingRect.left,
-            y: boundingRect.top,
-            width: boundingRect.width,
-            height: boundingRect.height,
-          }
-        }
-      }
-      setRect(_ => Some(boundingBox))
+      setRect(_ => Some(Client__WebPreview__AnnotationGeometry.boundingBox(annotation)))
       None
     }, (annotation.element, annotation.penShape, scrollTimestamp, mutationTimestamp))
 
@@ -90,26 +78,12 @@ module Marker = {
         // Border highlight
         <div className={borderClass} />
         {switch annotation.penShape {
-        | Some(shape) => {
-            let pointsAttr =
-              shape.points
-              ->Array.map(point =>
-                `${(point.x -. rect.x)->Float.toString},${(point.y -. rect.y)->Float.toString}`
-              )
-              ->Array.join(" ")
-            <svg className="absolute inset-0 overflow-visible pointer-events-none">
-              <polyline
-                points={pointsAttr}
-                fill="none"
-                stroke="white"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-                style={mixBlendMode: "difference"}
-              />
-            </svg>
-          }
+        | Some(shape) =>
+          <svg className="absolute inset-0 overflow-visible pointer-events-none">
+            <Client__WebPreview__PenPolyline
+              points={shape.points} offsetX={rect.x} offsetY={rect.y}
+            />
+          </svg>
         | None => React.null
         }}
         // Number badge — top-left, click to deselect

@@ -26,19 +26,7 @@ let make = (
 
   // Position popup relative to the annotated element
   React.useEffect(() => {
-    let boundingBox = switch annotation.penShape {
-    | Some(shape) => shape.boundingBox
-    | None => {
-        let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
-        {
-          Annotation.x: boundingRect.left,
-          y: boundingRect.top,
-          width: boundingRect.width,
-          height: boundingRect.height,
-        }
-      }
-    }
-    setRect(_ => Some(boundingBox))
+    setRect(_ => Some(Client__WebPreview__AnnotationGeometry.boundingBox(annotation)))
     None
   }, (annotation.element, annotation.penShape, scrollTimestamp, mutationTimestamp))
 
@@ -53,10 +41,7 @@ let make = (
 
   let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
     switch ReactEvent.Keyboard.key(e) {
-    | "Enter" =>
-      ReactEvent.Keyboard.preventDefault(e)
-      onClose()
-    | "Escape" =>
+    | "Enter" | "Escape" =>
       ReactEvent.Keyboard.preventDefault(e)
       onClose()
     | _ => ()
