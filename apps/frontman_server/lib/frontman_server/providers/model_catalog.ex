@@ -66,7 +66,6 @@ defmodule FrontmanServer.Providers.ModelCatalog do
   ]
 
   @nvidia_models [
-    %{displayName: "Nemotron 3 Super", value: "nvidia/nemotron-3-super-120b-a12b"},
     %{displayName: "Kimi K2.5", value: "moonshotai/kimi-k2.5"},
     %{displayName: "MiniMax M2.7", value: "minimaxai/minimax-m2.7"}
   ]
@@ -90,7 +89,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     "openrouter" => %{provider: "openrouter", value: "google/gemini-3-flash-preview"},
     "anthropic" => %{provider: "anthropic", value: "claude-sonnet-4-5"},
     "fireworks" => %{provider: "fireworks", value: "accounts/fireworks/routers/kimi-k2p5-turbo"},
-    "nvidia" => %{provider: "nvidia", value: "nvidia/nemotron-3-super-120b-a12b"},
+    "nvidia" => %{provider: "nvidia", value: "moonshotai/kimi-k2.5"},
     "openai" => %{provider: "openai", value: "gpt-5.5"}
   }
 

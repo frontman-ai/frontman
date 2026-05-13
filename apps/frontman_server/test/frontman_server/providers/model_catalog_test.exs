@@ -78,7 +78,6 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
 
     test "returns NVIDIA models" do
       expected = [
-        %{displayName: "Nemotron 3 Super", value: "nvidia/nemotron-3-super-120b-a12b"},
         %{displayName: "Kimi K2.5", value: "moonshotai/kimi-k2.5"},
         %{displayName: "MiniMax M2.7", value: "minimaxai/minimax-m2.7"}
       ]
