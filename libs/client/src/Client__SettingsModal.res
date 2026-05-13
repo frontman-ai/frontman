@@ -568,7 +568,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     ~title="NVIDIA",
                     ~manageHref="https://build.nvidia.com/settings/api-keys",
                     ~emptyPlaceholder="Enter NVIDIA API key",
-                    ~description="Use your NVIDIA API key to access Nemotron models.",
+                    ~description="Use your NVIDIA API key to access NVIDIA-hosted models.",
                     ~settings=nvidiaKeySettings,
                     ~apiKey=nvidiaKey,
                     ~setApiKey=setNvidiaKey,

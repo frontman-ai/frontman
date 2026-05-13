@@ -76,11 +76,19 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
       assert ModelCatalog.models("fireworks", :free) == expected
     end
 
-    test "returns NVIDIA model" do
-      expected = %{displayName: "Nemotron 3 Super", value: "nvidia/nemotron-3-super-120b-a12b"}
+    test "returns NVIDIA models" do
+      expected = [
+        %{displayName: "Nemotron 3 Super", value: "nvidia/nemotron-3-super-120b-a12b"},
+        %{displayName: "Kimi K2.5", value: "moonshotai/kimi-k2.5"},
+        %{displayName: "MiniMax M2.7", value: "minimaxai/minimax-m2.7"}
+      ]
 
-      assert ModelCatalog.models("nvidia", :full) == [expected]
-      assert ModelCatalog.pick_default(["nvidia"]) == %{provider: "nvidia", value: expected.value}
+      assert ModelCatalog.models("nvidia", :full) == expected
+
+      assert ModelCatalog.pick_default(["nvidia"]) == %{
+               provider: "nvidia",
+               value: hd(expected).value
+             }
     end
   end
 
