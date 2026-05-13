@@ -298,6 +298,13 @@ type annotationElement = {
   tagName: string,
 }
 
+type penAnnotation = {
+  element: WebAPI.DOMAPI.element,
+  tagName: string,
+  points: array<Annotation.point>,
+  boundingBox: Annotation.boundingBox,
+}
+
 type action =
   // Streaming actions
   | StreamingStarted
@@ -316,8 +323,10 @@ type action =
   // Annotation actions — unified selection mode
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
+  | TogglePenAnnotationMode
   | ToggleAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
   | AddAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
+  | AddPenAnnotation(penAnnotation)
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
@@ -422,8 +431,10 @@ let actionToString = (action: action): string =>
   | ToolErrorReceived(_) => "ToolErrorReceived"
   | SetAnnotationMode(_) => "SetAnnotationMode"
   | ToggleAnnotationMode => "ToggleAnnotationMode"
+  | TogglePenAnnotationMode => "TogglePenAnnotationMode"
   | ToggleAnnotation(_) => "ToggleAnnotation"
   | AddAnnotation(_) => "AddAnnotation"
+  | AddPenAnnotation(_) => "AddPenAnnotation"
   | AnnotationDetailsResolved(_) => "AnnotationDetailsResolved"
   | AddAnnotations(_) => "AddAnnotations"
   | RemoveAnnotation(_) => "RemoveAnnotation"
@@ -626,7 +637,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (Lens.setDeviceMode(task, newDeviceMode), [])
 
   // Annotation actions — unified selection mode
-  | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
+  | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode | TogglePenAnnotationMode) => (
+      task,
+      [],
+    )
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
       let updated = Lens.setAnnotationMode(task, mode)
       // Close popup when switching to Off
@@ -643,6 +657,18 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
       let updated = Lens.setAnnotationMode(task, newMode)
       // Close popup when toggling off
+      let updated = switch newMode {
+      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
+      | _ => updated
+      }
+      (updated, [])
+    }
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), TogglePenAnnotationMode) => {
+      let newMode = switch Task.getAnnotationMode(task) {
+      | Annotation.Drawing => Annotation.Off
+      | _ => Annotation.Drawing
+      }
+      let updated = Lens.setAnnotationMode(task, newMode)
       let updated = switch newMode {
       | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
       | _ => updated
@@ -699,6 +725,29 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (updated, effects)
     }
 
+  | (Task.Unloaded(_), AddPenAnnotation(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddPenAnnotation(pen)) => {
+      let annotation = Annotation.makePenShape(
+        ~element=pen.element,
+        ~tagName=pen.tagName,
+        ~points=pen.points,
+        ~boundingBox=pen.boundingBox,
+      )
+      let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+      let effects = [
+        FetchAnnotationDetails({
+          id: annotation.id,
+          element: annotation.element,
+          document: previewFrame.contentDocument,
+          contentWindow: previewFrame.contentWindow,
+        }),
+      ]
+      let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
+      let updated = Lens.setAnnotations(task, allAnnotations)
+      let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
+      (updated, effects)
+    }
+
   // Async annotation fetch completed after task transitioned to Unloaded — discard silently
   | (Task.Unloaded(_), AnnotationDetailsResolved(_)) => (task, [])
 
@@ -723,7 +772,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         sourceLocation,
         cssClasses,
         nearbyText,
-        boundingBox,
+        boundingBox: switch a.penShape {
+        | Some(_) => a.boundingBox
+        | None => boundingBox
+        },
         elementorContext,
         enrichmentStatus,
       }),

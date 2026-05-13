@@ -309,6 +309,10 @@ module Selectors = {
     Task.getAnnotations(currentTask(state))
   }
 
+  let annotationMode = (state: state): Client__Annotation__Types.annotationMode => {
+    Task.getAnnotationMode(currentTask(state))
+  }
+
   let webPreviewIsSelecting = (state: state): bool => {
     Task.getWebPreviewIsSelecting(currentTask(state))
   }

@@ -45,6 +45,7 @@ let makeTestAnnotation = (
   tagName,
   cssClasses,
   boundingBox,
+  penShape: None,
   nearbyText,
   elementorContext: None,
   enrichmentStatus: Enriched,
@@ -255,6 +256,7 @@ describe("Client__State__Types", () => {
           tagName: "div",
           cssClasses: None,
           boundingBox: None,
+          penShape: None,
           nearbyText: None,
           elementorContext: None,
           enrichmentStatus: Enriched,
@@ -304,6 +306,7 @@ describe("Client__State__Types", () => {
           tagName: "h2",
           cssClasses: Some("elementor-heading-title"),
           boundingBox: None,
+          penShape: None,
           nearbyText: Some("Hero title"),
           elementorContext: Some({
             postId: Some(42),
@@ -384,6 +387,52 @@ describe("Client__State__Types", () => {
 
         let metaObj = meta->JSON.Decode.object->Option.getOrThrow
         t->expect(metaObj->Dict.get("bounding_box")->Option.isNone)->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "serializes pen shape coordinates in _meta and resource text",
+      t => {
+        let shapeBox: Annotation.boundingBox = {x: 10.0, y: 20.0, width: 30.0, height: 40.0}
+        let annotation = {
+          ...makeTestAnnotation(
+            ~file="file:///home/user/project/src/Component.tsx",
+            ~line=42,
+            ~column=5,
+            ~tagName="section",
+            ~selector="section.hero",
+            ~boundingBox=shapeBox,
+          ),
+          penShape: Some({
+            points: [{Annotation.x: 10.0, y: 20.0}, {x: 40.0, y: 60.0}],
+            boundingBox: shapeBox,
+          }),
+        }
+
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let embeddedResource = getEmbeddedResource(blocks->Array.getUnsafe(0))
+        let meta = getMeta(blocks->Array.getUnsafe(0))
+        let penShape = getMetaObject(meta, "pen_shape")
+        let points =
+          penShape->Dict.get("points")->Option.flatMap(JSON.Decode.array)->Option.getOrThrow
+
+        t
+        ->expect(
+          penShape
+          ->Dict.get("coordinate_space")
+          ->Option.flatMap(JSON.Decode.string)
+          ->Option.getOrThrow,
+        )
+        ->Expect.toBe("viewport")
+        t->expect(points->Array.length)->Expect.toBe(2)
+
+        switch embeddedResource.resource {
+        | TextResourceContents(textResource) =>
+          t->expect(textResource.uri)->Expect.toBe("pen-shape://test-annotation-id")
+          t->expect(textResource.text->String.includes("Annotated pen mark"))->Expect.toBe(true)
+          t->expect(textResource.text->String.includes("section.hero"))->Expect.toBe(true)
+        | _ => failwith("Expected text resource")
+        }
       },
     )
   })
@@ -478,6 +527,7 @@ describe("MessageAnnotation.fromAnnotation", () => {
       tagName: "span",
       cssClasses: None,
       boundingBox: None,
+      penShape: None,
       nearbyText: None,
       elementorContext: None,
       enrichmentStatus: Enriched,
@@ -518,6 +568,7 @@ describe("messageAnnotationsToContentBlocks", () => {
           }),
         ),
         boundingBox: None,
+        penShape: None,
         nearbyText: Some("Submit"),
         elementorContext: None,
       },
@@ -547,6 +598,7 @@ describe("messageAnnotationsToContentBlocks", () => {
         screenshot: Ok(None),
         sourceLocation: Ok(None),
         boundingBox: None,
+        penShape: None,
         nearbyText: Some("I agree to the terms and conditions"),
         elementorContext: Some({
           postId: Some(22744),
@@ -581,6 +633,7 @@ describe("messageAnnotationsToContentBlocks", () => {
         screenshot: Ok(Some("data:image/jpeg;base64,abc123")),
         sourceLocation: Ok(None),
         boundingBox: None,
+        penShape: None,
         nearbyText: None,
         elementorContext: None,
       },

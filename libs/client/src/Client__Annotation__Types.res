@@ -7,12 +7,23 @@ module SourceLocation = Client__Types.SourceLocation
 type annotationMode =
   | Off
   | Selecting
+  | Drawing
 
 type boundingBox = {
   x: float,
   y: float,
   width: float,
   height: float,
+}
+
+type point = {
+  x: float,
+  y: float,
+}
+
+type penShape = {
+  points: array<point>,
+  boundingBox: boundingBox,
 }
 
 // Enrichment lifecycle status — tracks the async FetchAnnotationDetails effect
@@ -33,6 +44,7 @@ type t = {
   // Sync enrichment fields — extracted from DOM, cannot fail
   cssClasses: option<string>,
   boundingBox: option<boundingBox>,
+  penShape: option<penShape>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
   enrichmentStatus: enrichmentStatus,
@@ -48,9 +60,21 @@ let make = (~element: WebAPI.DOMAPI.element, ~tagName: string): t => {
   tagName,
   cssClasses: None,
   boundingBox: None,
+  penShape: None,
   nearbyText: None,
   elementorContext: None,
   enrichmentStatus: Enriching,
+}
+
+let makePenShape = (
+  ~element: WebAPI.DOMAPI.element,
+  ~tagName: string,
+  ~points: array<point>,
+  ~boundingBox: boundingBox,
+): t => {
+  ...make(~element, ~tagName),
+  boundingBox: Some(boundingBox),
+  penShape: Some({points, boundingBox}),
 }
 
 // Check if an element is already annotated (by DOM reference equality)

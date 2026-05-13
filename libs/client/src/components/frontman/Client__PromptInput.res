@@ -408,6 +408,35 @@ module SelectElementButton = {
   }
 }
 
+module PenToolButton = {
+  @react.component
+  let make = (~onClick: unit => unit, ~isDrawing: bool, ~showLabel: bool) => {
+    let (extraClass, iconClass) = switch isDrawing {
+    | true => ("text-violet-300 bg-violet-600/20 hover:bg-violet-600/30", "text-violet-300")
+    | false => ("text-zinc-400 hover:text-zinc-200 hover:bg-white/6", "text-zinc-400")
+    }
+
+    <button
+      type_="button"
+      onClick={_ => onClick()}
+      className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium
+                 transition-colors cursor-pointer ${extraClass}`}
+      title={isDrawing ? "Cancel pen mark" : "Draw a shape in the preview"}
+    >
+      {switch isDrawing {
+      | true =>
+        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
+      | false => <Icons.PenIcon size=13 className={iconClass} />
+      }}
+      {showLabel
+        ? <span className="whitespace-nowrap">
+            {React.string(isDrawing ? "Marking\u{2026}" : "Pen")}
+          </span>
+        : React.null}
+    </button>
+  }
+}
+
 // Stop icon - square for cancel button
 module StopIcon = {
   @react.component
@@ -488,7 +517,9 @@ let make = (
   ~disabled: bool=false,
   ~disabledPlaceholder: option<string>=?,
   ~onSelectElement: option<unit => unit>=?,
+  ~onDrawShape: option<unit => unit>=?,
   ~isSelecting: bool=false,
+  ~isDrawing: bool=false,
   ~hasAnnotations: bool=false,
   ~isEnrichingAnnotations: bool=false,
 ) => {
@@ -935,6 +966,12 @@ let make = (
             hasAnnotations={hasAnnotations}
             showLabel={showSelectLabel}
           />
+        | None => React.null
+        }}
+
+        {switch onDrawShape {
+        | Some(handler) =>
+          <PenToolButton onClick={handler} isDrawing={isDrawing} showLabel={showSelectLabel} />
         | None => React.null
         }}
 
