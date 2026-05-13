@@ -24,6 +24,10 @@ let _makeState = (~chatgptOAuthStatus: Types.chatgptOAuthStatus): Types.state =>
       source: Types.None,
       saveStatus: Types.Idle,
     },
+    nvidiaKeySettings: {
+      source: Types.None,
+      saveStatus: Types.Idle,
+    },
     anthropicOAuthStatus: Types.NotConnected,
     chatgptOAuthStatus,
     configOptions: None,

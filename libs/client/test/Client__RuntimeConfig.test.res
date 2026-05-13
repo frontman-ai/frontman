@@ -67,6 +67,7 @@ describe("Client__RuntimeConfig", _t => {
       openrouterKeyValue: None,
       anthropicKeyValue: None,
       fireworksKeyValue: None,
+      nvidiaKeyValue: None,
       projectRoot: None,
       sourceRoot: None,
     })
@@ -83,7 +84,7 @@ describe("Client__RuntimeConfig", _t => {
     )
   })
 
-  test("toMeta forwards fireworksKeyValue when present", t => {
+  test("toMeta forwards provider keys when present", t => {
     let meta = Client__RuntimeConfig.toMeta({
       framework: Client__RuntimeConfig.Nextjs,
       basePath: "frontman",
@@ -91,6 +92,7 @@ describe("Client__RuntimeConfig", _t => {
       openrouterKeyValue: None,
       anthropicKeyValue: None,
       fireworksKeyValue: Some("fw-test-123"),
+      nvidiaKeyValue: Some("nvapi-test-123"),
       projectRoot: None,
       sourceRoot: None,
     })
@@ -103,6 +105,7 @@ describe("Client__RuntimeConfig", _t => {
           ("framework", JSON.Encode.string("nextjs")),
           ("basePath", JSON.Encode.string("frontman")),
           ("fireworksKeyValue", JSON.Encode.string("fw-test-123")),
+          ("nvidiaKeyValue", JSON.Encode.string("nvapi-test-123")),
         ]),
       ),
     )

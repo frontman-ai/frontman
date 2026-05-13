@@ -40,6 +40,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
       saveStatus: Types.Idle,
     },
     fireworksKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
+    nvidiaKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     anthropicOAuthStatus: Types.NotConnected,
     chatgptOAuthStatus: Types.ChatGPTNotConnected,
     configOptions: None,

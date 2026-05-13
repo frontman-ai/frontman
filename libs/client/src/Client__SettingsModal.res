@@ -92,6 +92,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
   let (anthropicKey, setAnthropicKey) = React.useState(() => "")
   let (fireworksKey, setFireworksKey) = React.useState(() => "")
+  let (nvidiaKey, setNvidiaKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
   let userProfile = State.useSelector(State.Selectors.userProfile)
   let userEmail = userProfile->Option.map(p => p.email)
@@ -100,6 +101,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
   let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
   let fireworksKeySettings = State.useSelector(State.Selectors.fireworksKeySettings)
+  let nvidiaKeySettings = State.useSelector(State.Selectors.nvidiaKeySettings)
   let anthropicOAuthStatus = State.useSelector(State.Selectors.anthropicOAuthStatus)
   let chatgptOAuthStatus = State.useSelector(State.Selectors.chatgptOAuthStatus)
 
@@ -108,16 +110,19 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
       State.Actions.fetchApiKeySettings()
       State.Actions.fetchAnthropicApiKeySettings()
       State.Actions.fetchFireworksApiKeySettings()
+      State.Actions.fetchNvidiaApiKeySettings()
       State.Actions.fetchAnthropicOAuthStatus()
       State.Actions.fetchChatGPTOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()
       State.Actions.resetAnthropicKeySaveStatus()
       State.Actions.resetFireworksKeySaveStatus()
+      State.Actions.resetNvidiaKeySaveStatus()
       State.Actions.resetAnthropicOAuthError()
       State.Actions.resetChatGPTOAuthError()
       setOpenrouterKey(_ => "")
       setAnthropicKey(_ => "")
       setFireworksKey(_ => "")
+      setNvidiaKey(_ => "")
       setOauthCode(_ => "")
     }
     None
@@ -132,6 +137,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     fireworksKeySettings.source,
     "Enter Fireworks API key",
   )
+  let nvidiaPlaceholder = apiKeyPlaceholder(nvidiaKeySettings.source, "Enter NVIDIA API key")
 
   <Dialog.Dialog open_={open_} onOpenChange={onOpenChange}>
     <Dialog.DialogContent
@@ -510,6 +516,54 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
 
                   <div className="text-sm text-zinc-400">
                     {React.string("Bring your own key")}
+                  </div>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-zinc-100">
+                          {React.string("NVIDIA")}
+                        </span>
+                        {renderSourceBadge(nvidiaKeySettings.source)}
+                      </div>
+
+                      <a
+                        href="https://build.nvidia.com/settings/api-keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-zinc-400 hover:text-zinc-200"
+                      >
+                        {React.string("Manage keys")}
+                      </a>
+                    </div>
+                    <div className="mt-2 text-xs text-zinc-500">
+                      {React.string("Use your NVIDIA API key to access Nemotron models.")}
+                    </div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <Input.Input
+                        type_=#password
+                        placeholder={nvidiaPlaceholder}
+                        value={nvidiaKey}
+                        onChange={e => {
+                          let target = ReactEvent.Form.target(e)
+                          setNvidiaKey(_ => target["value"])
+                          State.Actions.resetNvidiaKeySaveStatus()
+                        }}
+                        className="flex-1 min-w-0"
+                      />
+                      <Button.Button
+                        variant=#secondary
+                        onClick={_ =>
+                          saveApiKey(
+                            ~key=nvidiaKey,
+                            ~save=key => State.Actions.saveNvidiaKey(~key),
+                            ~clear=() => setNvidiaKey(_ => ""),
+                          )}
+                        disabled={nvidiaKeySettings.saveStatus == Types.Saving}
+                      >
+                        {React.string(saveButtonLabel(nvidiaKeySettings.saveStatus))}
+                      </Button.Button>
+                    </div>
+                    {renderSaveStatus(nvidiaKeySettings.saveStatus)}
                   </div>
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
                     <div className="flex items-center justify-between">

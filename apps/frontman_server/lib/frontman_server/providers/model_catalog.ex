@@ -37,12 +37,17 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     %{displayName: "Claude Haiku 4.5", value: "anthropic/claude-haiku-4.5"},
     %{displayName: "Gemini 3 Pro Preview", value: "google/gemini-3-pro-preview"},
     %{displayName: "Gemini 3 Flash Preview", value: "google/gemini-3-flash-preview"},
-    %{displayName: "Gemini 2.5 Pro", value: "google/gemini-2.5-pro"}
+    %{displayName: "Gemini 2.5 Pro", value: "google/gemini-2.5-pro"},
+    %{displayName: "Kimi K2.6", value: "moonshotai/kimi-k2.6"},
+    %{displayName: "MiniMax M2.7", value: "minimax/minimax-m2.7"},
+    %{displayName: "Qwen3 Coder 480B", value: "qwen/qwen3-coder-480b-a35b-instruct"}
   ]
 
   @openrouter_free_models [
     %{displayName: "Gemini 3 Flash", value: "google/gemini-3-flash-preview"},
     %{displayName: "Claude Haiku 4.5", value: "anthropic/claude-haiku-4.5"},
+    %{displayName: "Kimi K2.6", value: "moonshotai/kimi-k2.6"},
+    %{displayName: "MiniMax M2.7", value: "minimax/minimax-m2.7"},
     %{displayName: "Kimi K2.5", value: "moonshotai/kimi-k2.5"},
     %{displayName: "Minimax M2.5", value: "minimax/minimax-m2.5"}
   ]
@@ -60,6 +65,10 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     %{displayName: "Kimi K2.5 Turbo", value: "accounts/fireworks/routers/kimi-k2p5-turbo"}
   ]
 
+  @nvidia_models [
+    %{displayName: "Nemotron 3 Super", value: "nvidia/nemotron-3-super-120b-a12b"}
+  ]
+
   @openai_models [
     %{displayName: "GPT-5.5", value: "gpt-5.5"},
     %{displayName: "GPT-5.4", value: "gpt-5.4"},
@@ -71,6 +80,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     "openrouter" => %{full: @openrouter_models, free: @openrouter_free_models},
     "anthropic" => %{full: @anthropic_models},
     "fireworks" => %{full: @fireworks_models},
+    "nvidia" => %{full: @nvidia_models},
     "openai" => %{full: @openai_models}
   }
 
@@ -78,6 +88,7 @@ defmodule FrontmanServer.Providers.ModelCatalog do
     "openrouter" => %{provider: "openrouter", value: "google/gemini-3-flash-preview"},
     "anthropic" => %{provider: "anthropic", value: "claude-sonnet-4-5"},
     "fireworks" => %{provider: "fireworks", value: "accounts/fireworks/routers/kimi-k2p5-turbo"},
+    "nvidia" => %{provider: "nvidia", value: "nvidia/nemotron-3-super-120b-a12b"},
     "openai" => %{provider: "openai", value: "gpt-5.5"}
   }
 

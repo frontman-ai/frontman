@@ -22,7 +22,7 @@ module TaskReducer = Client__Task__Reducer
 
 type taskTarget = CurrentTask | ForTask(string)
 
-type apiKeyProvider = OpenRouter | Anthropic | Fireworks
+type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 
 type action =
   // Task-scoped actions (routed to task sub-reducer)
@@ -185,6 +185,7 @@ let apiKeyProviderId = provider =>
   | OpenRouter => "openrouter"
   | Anthropic => "anthropic"
   | Fireworks => "fireworks"
+  | Nvidia => "nvidia"
   }
 
 let apiKeyUsagePath = provider =>
@@ -192,6 +193,7 @@ let apiKeyUsagePath = provider =>
   | OpenRouter => "/api/user/api-key-usage"
   | Anthropic => "/api/user/api-key-usage?provider=anthropic"
   | Fireworks => "/api/user/api-key-usage?provider=fireworks"
+  | Nvidia => "/api/user/api-key-usage?provider=nvidia"
   }
 
 let apiKeyFetchLogContext = provider =>
@@ -199,6 +201,7 @@ let apiKeyFetchLogContext = provider =>
   | OpenRouter => "FetchApiKeySettings"
   | Anthropic => "FetchAnthropicApiKeySettings"
   | Fireworks => "FetchFireworksApiKeySettings"
+  | Nvidia => "FetchNvidiaApiKeySettings"
   }
 
 let hasRuntimeApiKey = (runtimeConfig, provider) =>
@@ -206,6 +209,7 @@ let hasRuntimeApiKey = (runtimeConfig, provider) =>
   | OpenRouter => Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
   | Anthropic => Client__RuntimeConfig.hasAnthropicKey(runtimeConfig)
   | Fireworks => Client__RuntimeConfig.hasFireworksKey(runtimeConfig)
+  | Nvidia => Client__RuntimeConfig.hasNvidiaKey(runtimeConfig)
   }
 
 let updateApiKeySettings = (state: state, provider, update) =>
@@ -213,6 +217,7 @@ let updateApiKeySettings = (state: state, provider, update) =>
   | OpenRouter => {...state, openrouterKeySettings: update(state.openrouterKeySettings)}
   | Anthropic => {...state, anthropicKeySettings: update(state.anthropicKeySettings)}
   | Fireworks => {...state, fireworksKeySettings: update(state.fireworksKeySettings)}
+  | Nvidia => {...state, nvidiaKeySettings: update(state.nvidiaKeySettings)}
   }
 
 let setApiKeySource = (state, provider, source) =>
@@ -240,6 +245,10 @@ let defaultState: state = {
     saveStatus: Client__State__Types.Idle,
   },
   fireworksKeySettings: {
+    source: Client__State__Types.None,
+    saveStatus: Client__State__Types.Idle,
+  },
+  nvidiaKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
   },
@@ -410,6 +419,10 @@ module Selectors = {
     state.fireworksKeySettings
   }
 
+  let nvidiaKeySettings = (state: state): Client__State__Types.apiKeySettings => {
+    state.nvidiaKeySettings
+  }
+
   // Get ACP session config options
   let configOptions = (state: state): option<
     array<Client__State__Types.ACPConfig.sessionConfigOption>,
@@ -457,7 +470,7 @@ module Selectors = {
   }
 
   // Whether the user has any API provider configured via state-tracked sources
-  // (DB-stored OpenRouter, Anthropic, or Fireworks key, plus OAuth).
+  // (DB-stored OpenRouter, Anthropic, Fireworks, or NVIDIA key, plus OAuth).
   // Env-injected keys (window.__frontmanRuntime) live outside state — check RuntimeConfig separately.
   let hasAnyProviderConfigured = (state: state): bool => {
     switch state.usageInfo {
@@ -469,12 +482,16 @@ module Selectors = {
         switch state.chatgptOAuthStatus {
         | ChatGPTConnected(_) => true
         | _ =>
-          switch state.fireworksKeySettings.source {
+          switch state.nvidiaKeySettings.source {
           | Client__State__Types.UserOverride | Client__State__Types.FromEnv => true
           | _ =>
-            switch state.anthropicKeySettings.source {
+            switch state.fireworksKeySettings.source {
             | Client__State__Types.UserOverride | Client__State__Types.FromEnv => true
-            | _ => false
+            | _ =>
+              switch state.anthropicKeySettings.source {
+              | Client__State__Types.UserOverride | Client__State__Types.FromEnv => true
+              | _ => false
+              }
             }
           }
         }

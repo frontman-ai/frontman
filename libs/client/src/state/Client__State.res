@@ -207,6 +207,14 @@ module Actions = {
   let resetFireworksKeySaveStatus = () =>
     Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Fireworks}))
 
+  let fetchNvidiaApiKeySettings = () =>
+    Client__State__Store.dispatch(FetchApiKeySettings({provider: Nvidia}))
+
+  let saveNvidiaKey = (~key) => Client__State__Store.dispatch(SaveApiKey({provider: Nvidia, key}))
+
+  let resetNvidiaKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Nvidia}))
+
   // ACP session config option action creators
   let configOptionsReceived = (~configOptions) =>
     Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))

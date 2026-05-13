@@ -57,6 +57,10 @@ module TestHelpers = {
           source: Client__State__Types.None,
           saveStatus: Client__State__Types.Idle,
         },
+        nvidiaKeySettings: {
+          source: Client__State__Types.None,
+          saveStatus: Client__State__Types.Idle,
+        },
         anthropicOAuthStatus: Client__State__Types.NotConnected,
         chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
         configOptions: None,
@@ -760,6 +764,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      nvidiaKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       configOptions: None,
@@ -833,6 +841,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      nvidiaKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       configOptions: None,
@@ -890,6 +902,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         saveStatus: Client__State__Types.Idle,
       },
       fireworksKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      nvidiaKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
@@ -971,6 +987,10 @@ describe("Client State Reducer - Task Management Actions", () => {
         saveStatus: Client__State__Types.Idle,
       },
       fireworksKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      nvidiaKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
@@ -1105,6 +1125,10 @@ describe("Client State Reducer - Session Loading Actions", () => {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
+      nvidiaKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
       anthropicOAuthStatus: Client__State__Types.NotConnected,
       chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
       configOptions: None,
@@ -1205,6 +1229,10 @@ describe("Client State Reducer - Session Loading Actions", () => {
         saveStatus: Client__State__Types.Idle,
       },
       fireworksKeySettings: {
+        source: Client__State__Types.None,
+        saveStatus: Client__State__Types.Idle,
+      },
+      nvidiaKeySettings: {
         source: Client__State__Types.None,
         saveStatus: Client__State__Types.Idle,
       },
@@ -1449,6 +1477,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
       (Fireworks, "fireworks"),
+      (Nvidia, "nvidia"),
     ]
 
     let _settingsForProvider = (
@@ -1459,6 +1488,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       | OpenRouter => state.openrouterKeySettings
       | Anthropic => state.anthropicKeySettings
       | Fireworks => state.fireworksKeySettings
+      | Nvidia => state.nvidiaKeySettings
       }
 
     test(
@@ -1535,7 +1565,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
             t->expect(_settingsForProvider(savedState, provider).saveStatus)->Expect.toEqual(Saved)
             switch provider {
             | OpenRouter => t->expect(effects->Array.length)->Expect.toBe(1)
-            | Anthropic | Fireworks => t->expect(effects->Array.length)->Expect.toBe(0)
+            | Anthropic | Fireworks | Nvidia => t->expect(effects->Array.length)->Expect.toBe(0)
             }
 
             let (failedState, _effects) = Reducer.next(
@@ -1588,6 +1618,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(nextState.openrouterKeySettings.source)->Expect.toEqual(Client__State__Types.None)
         t->expect(nextState.anthropicKeySettings.source)->Expect.toEqual(FromEnv)
         t->expect(nextState.fireworksKeySettings.source)->Expect.toEqual(Client__State__Types.None)
+        t->expect(nextState.nvidiaKeySettings.source)->Expect.toEqual(Client__State__Types.None)
       },
     )
   })

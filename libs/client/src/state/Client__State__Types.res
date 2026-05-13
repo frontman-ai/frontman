@@ -156,6 +156,7 @@ type state = {
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,
+  nvidiaKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   chatgptOAuthStatus: chatgptOAuthStatus,
   // ACP session config options (replaces bespoke modelsConfig/selectedModel).

@@ -47,6 +47,7 @@ let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string 
     let openrouterKey = getEnvKey("OPENROUTER_API_KEY")
     let anthropicKey = getEnvKey("ANTHROPIC_API_KEY")
     let fireworksKey = getEnvKey("FIREWORKS_API_KEY")
+    let nvidiaKey = getEnvKey("NVIDIA_API_KEY")
     // Build JSON payload using proper JSON encoding to handle special characters
     let configObj = Dict.fromArray([
       ("framework", JSON.Encode.string(MiddlewareConfig.frameworkIdToString(config.frameworkId))),
@@ -63,6 +64,9 @@ let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string 
     })
     fireworksKey->Option.forEach(key => {
       configObj->Dict.set("fireworksKeyValue", JSON.Encode.string(key))
+    })
+    nvidiaKey->Option.forEach(key => {
+      configObj->Dict.set("nvidiaKeyValue", JSON.Encode.string(key))
     })
     let payload = JSON.stringify(JSON.Encode.object(configObj))
     `<script>window.__frontmanRuntime=${payload}</script>`

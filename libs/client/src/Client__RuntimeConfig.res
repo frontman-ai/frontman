@@ -45,6 +45,7 @@ type parsed = {
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
   fireworksKeyValue: option<string>,
+  nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
 }
@@ -57,6 +58,7 @@ type t = {
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
   fireworksKeyValue: option<string>,
+  nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
 }
@@ -86,6 +88,7 @@ let read = (): t => {
     openrouterKeyValue: normalizeOptionalString(config.openrouterKeyValue),
     anthropicKeyValue: normalizeOptionalString(config.anthropicKeyValue),
     fireworksKeyValue: normalizeOptionalString(config.fireworksKeyValue),
+    nvidiaKeyValue: normalizeOptionalString(config.nvidiaKeyValue),
     projectRoot: config.projectRoot,
     sourceRoot: config.sourceRoot,
   }
@@ -101,6 +104,9 @@ let toEnvApiKeyDict = (config: t): Dict.t<string> => {
   })
   config.fireworksKeyValue->Option.forEach(key => {
     envApiKey->Dict.set("fireworksKeyValue", key)
+  })
+  config.nvidiaKeyValue->Option.forEach(key => {
+    envApiKey->Dict.set("nvidiaKeyValue", key)
   })
   envApiKey
 }
@@ -118,6 +124,10 @@ let hasAnthropicKey = (config: t): bool => {
 // Check if a Fireworks API key is available from the project environment
 let hasFireworksKey = (config: t): bool => {
   config.fireworksKeyValue->Option.isSome
+}
+
+let hasNvidiaKey = (config: t): bool => {
+  config.nvidiaKeyValue->Option.isSome
 }
 
 let hasAnyProviderKey = (config: t): bool => {
