@@ -2330,8 +2330,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/frontman-server-assets@workspace:apps/frontman_server/assets"
   dependencies:
-    "@fontsource-variable/inter": "npm:^5.0.18"
-    "@fontsource-variable/outfit": "npm:^5.0.13"
     "@frontman-ai/frontman-client": "workspace:*"
   languageName: unknown
   linkType: soft

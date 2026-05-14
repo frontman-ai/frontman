@@ -142,11 +142,5 @@ defmodule FrontmanServerWeb.Router do
       live_dashboard("/dashboard", metrics: FrontmanServerWeb.Telemetry)
       forward("/mailbox", Plug.Swoosh.MailboxPreview)
     end
-
-    scope "/dev", FrontmanServerWeb do
-      pipe_through(:browser)
-
-      get("/verify-email-preview", OAuthController, :dev_verify_email_preview)
-    end
   end
 end
