@@ -1,0 +1,470 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Section from '../components/ui/Section.astro'
+import Row from '../components/ui/Row.astro'
+import Col from '../components/ui/Col.astro'
+import Button from '../components/ui/Button.astro'
+import Card from '../components/ui/cards/partials/Card.astro'
+import Accordion from '../components/ui/Accordion.astro'
+import gridNetBackground from '../assets/grid-net-background.svg'
+
+const SEO = {
+	title: 'Frontman Pro Pricing | Visual AI Frontend Editing for Teams',
+	description:
+		'Frontman Pro pricing for visual AI frontend editing: €15 per seat/month, 14-day free trial, BYOK AI billing, and free self-hosting while available.'
+}
+
+const alwaysIncludes = [
+	{
+		title: 'Visual editing',
+		text: 'Click any element in your live app and describe the UI change you want in plain English.'
+	},
+	{
+		title: 'Real source-file edits',
+		text: 'Frontman turns visual requests into actual code changes your developers can review and ship.'
+	},
+	{
+		title: 'Your AI, your control',
+		text: 'Bring your own Claude, ChatGPT, or OpenRouter key. AI usage is billed separately by your provider.'
+	}
+]
+
+const planFeatures = [
+	'Visual AI editing in your browser',
+	'Real source-file edits, not mockups',
+	'Live DOM, CSS, screenshots, component context, and logs',
+	'Reviewable diffs for your development team',
+	'Unlimited projects within one organization',
+	'Bring your own Claude, ChatGPT, or OpenRouter key'
+]
+
+const comparisonRows = [
+	['Describe changes visually', 'Yes', 'Usually in tickets, comments, or calls'],
+	['Works against the live app', 'Yes', 'Often screenshots or stale mockups'],
+	['Creates source-file edits', 'Yes', 'A developer translates the request from scratch'],
+	['Developer handoff', 'Reviewable diffs', 'Extra clarification and back-and-forth'],
+	['Context included', 'DOM, CSS, screenshots, components, and logs', 'Usually missing or gathered manually'],
+	['Pricing', '€15 per seat / month', 'Hidden engineering time']
+]
+
+const includedFeatures = [
+	{
+		title: 'Visual AI editing',
+		text: 'Point Frontman at the running app, select an element, and describe what should change.'
+	},
+	{
+		title: 'Source-file changes',
+		text: 'Get edits in your project files instead of another mockup, comment thread, or vague ticket.'
+	},
+	{
+		title: 'Live app context',
+		text: 'DOM, CSS, screenshots, component context, and logs help the AI understand what is actually running.'
+	},
+	{
+		title: 'Reviewable handoff',
+		text: 'Designers and PMs can move faster while developers keep control through reviewable diffs.'
+	},
+	{
+		title: 'Bring your own AI key',
+		text: 'Use Claude, ChatGPT, or OpenRouter. Your team controls model choice and provider billing.'
+	},
+	{
+		title: 'Unlimited projects',
+		text: 'One seat can use Frontman Pro across unlimited projects within one organization.'
+	}
+]
+
+const trustLinks = [
+	{
+		title: 'Terms',
+		href: '/terms/',
+		text: 'Review the commercial terms before rolling Frontman Pro into your workflow.'
+	},
+	{
+		title: 'Privacy',
+		href: '/privacy/',
+		text: 'Understand what data Frontman collects and how product data is handled.'
+	},
+	{
+		title: 'DPA',
+		href: '/dpa/',
+		text: 'Use the data processing agreement for vendor and compliance review.'
+	}
+]
+
+const faqs = [
+	{
+		question: 'Is pricing really just one plan?',
+		answer:
+			'Yes. Frontman Pro is one hosted plan: €15/month per seat or €150/year per seat. No tiers, no usage games, and no surprise AI markup.'
+	},
+	{
+		question: 'Is there a free hosted plan?',
+		answer:
+			'No. Frontman Pro includes a 14-day free trial with a credit card. Self-hosting is currently free for teams that want to run Frontman themselves.'
+	},
+	{
+		question: 'Why do you require a credit card for the trial?',
+		answer:
+			'To keep the hosted service focused on real teams and reduce abuse. You can cancel before day 14, and we will send a reminder before billing.'
+	},
+	{
+		question: 'Are AI costs included?',
+		answer:
+			'No. Frontman uses your Claude, ChatGPT, or OpenRouter key. Your AI provider bills usage separately, so your team controls model choice and AI spend.'
+	},
+	{
+		question: 'Can designers and PMs use Frontman?',
+		answer:
+			'Yes. Frontman is built for semi-technical teammates to make visual frontend changes while developers keep control through reviewable source-file diffs.'
+	},
+	{
+		question: 'Does Frontman automatically ship code to production?',
+		answer:
+			'No. Frontman edits source files in your development workflow. Your team reviews and ships changes through Git as usual.'
+	},
+	{
+		question: 'What does one seat include?',
+		answer:
+			'One user can use Frontman Pro across unlimited projects within one organization.'
+	},
+	{
+		question: 'What does self-hosting include?',
+		answer:
+			'Self-hosting is currently free, but your team manages setup, infrastructure, updates, and AI provider keys themselves.'
+	}
+]
+
+const pricingJsonLd = {
+	'@context': 'https://schema.org',
+	'@graph': [
+		{
+			'@type': 'SoftwareApplication',
+			name: 'Frontman Pro',
+			url: 'https://frontman.sh/pricing/',
+			applicationCategory: 'DeveloperApplication',
+			operatingSystem: 'Web',
+			description: SEO.description,
+			author: {
+				'@type': 'Organization',
+				name: 'Frontman',
+				url: 'https://frontman.sh/'
+			},
+			offers: [
+				{
+					'@type': 'Offer',
+					name: 'Frontman Pro monthly seat',
+					price: '15',
+					priceCurrency: 'EUR',
+					availability: 'https://schema.org/PreOrder',
+					url: 'https://frontman.sh/pricing/',
+					category: 'subscription',
+					description: 'Hosted Frontman Pro seat billed monthly. AI provider usage is billed separately.'
+				},
+				{
+					'@type': 'Offer',
+					name: 'Frontman Pro yearly seat',
+					price: '150',
+					priceCurrency: 'EUR',
+					availability: 'https://schema.org/PreOrder',
+					url: 'https://frontman.sh/pricing/',
+					category: 'subscription',
+					description: 'Hosted Frontman Pro seat billed yearly. AI provider usage is billed separately.'
+				}
+			],
+			featureList: planFeatures
+		},
+		{
+			'@type': 'FAQPage',
+			mainEntity: faqs.map((faq) => ({
+				'@type': 'Question',
+				name: faq.question,
+				acceptedAnswer: {
+					'@type': 'Answer',
+					text: faq.answer
+				}
+			}))
+		}
+	]
+}
+
+const darkSectionClass = 'bg-neutral-950'
+const eyebrowClass = 'mb-4 text-sm font-bold uppercase tracking-[0.18em] text-primary-300'
+const valueCardClass = 'group h-full rounded-[1.5rem] border-white/10 bg-white/[0.04] p-6 shadow-none transition-colors hover:border-primary-400/40 hover:bg-white/[0.07] md:p-7'
+const mutedCopyClass = 'text-base leading-relaxed text-neutral-300'
+const checkItemClass =
+	"relative pl-7 text-neutral-200 before:absolute before:left-0 before:top-1 before:h-4 before:w-4 before:rounded-full before:bg-primary-300/20 before:text-center before:text-[10px] before:leading-4 before:text-primary-100 before:content-['✓']"
+const panelClass = 'rounded-[1.5rem] border-white/10 bg-white/[0.04] shadow-none backdrop-blur'
+const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow-neutral-950/20 hover:!bg-primary-50 hover:!text-primary-800 focus:!bg-primary-50 sm:w-auto'
+---
+
+<Layout title={SEO.title} description={SEO.description} noindex={true}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(pricingJsonLd)} />
+	<script is:inline>
+			document.addEventListener('DOMContentLoaded', () => {
+			const billingToggleGroup = document.querySelector('[data-billing-toggle-group]')
+			const billingToggleButtons = document.querySelectorAll('[data-billing-toggle]')
+			const priceAmount = document.querySelector('[data-price-amount]')
+			const priceOriginal = document.querySelector('[data-price-original]')
+			const pricePeriod = document.querySelector('[data-price-period]')
+			const priceNote = document.querySelector('[data-price-note]')
+			const activeBillingClass = 'cursor-pointer whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-bold text-primary-700 shadow-sm'
+			const inactiveBillingClass = 'cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold text-white/70 transition-colors hover:text-white'
+			const billingPlans = {
+				monthly: {
+					amount: '15',
+					original: '€180',
+					period: 'per seat / month',
+					note: 'Billed monthly. Switch to yearly to save 17% per seat.'
+				},
+				yearly: {
+					amount: '150',
+					original: '€180',
+					period: 'per seat / year',
+					note: 'Save €30 per seat each year compared with monthly billing.'
+				}
+			}
+
+			const setBillingPlan = (button) => {
+				const selectedBilling = button.getAttribute('data-billing-toggle')
+				const selectedPlan = billingPlans[selectedBilling]
+
+				priceAmount.textContent = selectedPlan.amount
+				priceOriginal.classList.toggle('hidden', selectedBilling === 'monthly')
+				priceOriginal.classList.toggle('inline-flex', selectedBilling === 'yearly')
+				pricePeriod.textContent = selectedPlan.period
+				priceNote.textContent = selectedPlan.note
+
+				billingToggleButtons.forEach((toggleButton) => {
+					const isActive = toggleButton === button
+					toggleButton.className = isActive ? activeBillingClass : inactiveBillingClass
+					toggleButton.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+				})
+			}
+
+			billingToggleButtons.forEach((button) => {
+				button.addEventListener('click', () => setBillingPlan(button))
+			})
+
+			billingToggleGroup.addEventListener('click', (event) => {
+				if (event.target.closest('[data-billing-toggle]')) {
+					return
+				}
+
+				const activeButton = billingToggleGroup.querySelector('[aria-pressed="true"]')
+				const nextButton = Array.from(billingToggleButtons).find((button) => button !== activeButton)
+				setBillingPlan(nextButton)
+			})
+		})
+	</script>
+
+	<Section classes="z-10 bg-primary-500 pt-20 text-white before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:h-40 before:bg-gradient-to-b before:from-transparent before:to-neutral-950 before:content-[''] lg:pt-32" padding="both">
+		<div aria-hidden="true" class="pointer-events-none absolute inset-0 opacity-25">
+			<img src={gridNetBackground.src} alt="" class="h-full w-full object-cover object-center" width="1440" height="900" />
+		</div>
+		<Row classes="relative z-10">
+			<Col span="10" classes="lg:col-start-2">
+				<div class="relative mx-auto max-w-5xl text-center">
+					<h1 class="mx-auto max-w-4xl text-4xl leading-tight tracking-[-0.04em] text-white md:text-6xl lg:text-7xl">Simple pricing for reviewable frontend code changes.</h1>
+					<p class="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-white/85 md:text-xl">
+						Frontman Pro helps designers, PMs, and product teams turn visual requests into source-file edits your developers can review and ship.
+					</p>
+					<div class="mt-8 flex flex-wrap justify-center gap-3" aria-label="Pricing highlights">
+						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">14-day free trial</span>
+					</div>
+				</div>
+			</Col>
+		</Row>
+	</Section>
+
+	<Section id="plans" classes={darkSectionClass} padding="bottom">
+		<Row classes="relative z-10 gap-y-6 pt-12 lg:pt-16">
+			<Col span="8" classes="lg:col-start-3">
+				<Card classes={`${panelClass} relative overflow-hidden border-primary-300/40 bg-primary-500 p-6 text-white shadow-2xl shadow-primary-950/30 md:p-8`}>
+					<div aria-hidden="true" class="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-white/15 blur-3xl"></div>
+					<div class="relative flex flex-wrap items-start justify-between gap-4">
+						<div>
+							<p class="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-white/75">Frontman Pro</p>
+							<h2 class="block text-3xl leading-tight text-white lg:text-4xl">The simple hosted plan</h2>
+						</div>
+						<p class="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-sm font-bold text-white">Most teams</p>
+					</div>
+					<p class="relative mt-4 max-w-2xl text-lg leading-relaxed text-white/85">
+						For product teams that want visual AI frontend editing without running infrastructure.
+					</p>
+					<div class="mt-6 inline-flex w-fit max-w-full cursor-pointer rounded-full border border-white/20 bg-primary-700/25 p-1" aria-label="Billing frequency" data-billing-toggle-group>
+						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-bold text-primary-700 shadow-sm" data-billing-toggle="monthly" aria-pressed="true">Monthly</button>
+						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold text-white/70 transition-colors hover:text-white" data-billing-toggle="yearly" aria-pressed="false">Yearly · save 17%</button>
+					</div>
+					<div class="mt-7 rounded-[1.25rem] border border-white/20 bg-white/10 p-4 shadow-inner shadow-primary-950/20 sm:p-5">
+						<div class="flex flex-wrap items-end gap-x-4 gap-y-2">
+							<div class="flex flex-wrap items-end gap-x-4">
+								<span class="hidden items-start gap-x-1 text-white/60 line-through decoration-white/70 decoration-2" data-price-original>
+									<span class="pt-3 text-3xl font-bold leading-none">€</span>
+									<span class="text-7xl font-black leading-none tracking-[-0.06em] md:text-8xl">180</span>
+								</span>
+								<span class="inline-flex items-start gap-x-1">
+									<span class="pt-3 text-3xl font-bold leading-none text-white">€</span>
+									<span class="text-7xl font-black leading-none tracking-[-0.06em] text-white md:text-8xl" data-price-amount>15</span>
+								</span>
+							</div>
+							<p class="text-lg font-bold leading-none text-white/90" data-price-period>per seat / month</p>
+						</div>
+						<p class="mt-4 text-sm font-semibold text-white/80" data-price-note>Billed monthly. Switch to yearly to save 17% per seat.</p>
+					</div>
+					<Button type="link" link="/contact/" size="lg" classes={ctaButtonClass}>Contact us about Frontman Pro</Button>
+					<p class="mt-4 text-sm leading-relaxed text-white/70">Credit card required. Cancel before day 14. We’ll send a reminder before billing. Taxes calculated at checkout.</p>
+					<ul class="mt-6 grid gap-3 border-t border-white/20 pt-6">
+						{planFeatures.map((feature) => <li class={checkItemClass}>{feature}</li>)}
+					</ul>
+				</Card>
+			</Col>
+			<Col span="8" classes="lg:col-start-3">
+				<Card classes={`${panelClass} border-primary-300/20 p-5 md:p-6`}>
+					<div class="grid gap-5 md:grid-cols-[1.2fr_0.8fr] md:items-center">
+						<div>
+							<p class={eyebrowClass}>Prefer to run it yourself?</p>
+							<h2 class="text-2xl lg:text-3xl">Self-hosting is currently free</h2>
+							<p class="mt-3 text-base leading-relaxed text-neutral-300">
+								Best for technical teams that want to manage setup, hosting, updates, and AI provider keys themselves.
+							</p>
+						</div>
+						<div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+							<p class="text-4xl font-black tracking-[-0.05em] text-white">Free</p>
+							<p class="mt-2 text-sm leading-relaxed text-neutral-400">Hosted support, uptime, and onboarding are not included.</p>
+						</div>
+						<ul class="grid gap-2 md:col-span-2 md:grid-cols-3">
+							<li class={checkItemClass}>You provide infrastructure</li>
+							<li class={checkItemClass}>You manage updates</li>
+							<li class={checkItemClass}>You bring your own AI provider key</li>
+						</ul>
+					</div>
+				</Card>
+			</Col>
+		</Row>
+	</Section>
+
+	<Section padding="bottom" classes={darkSectionClass}>
+		<Row classes="gap-y-8">
+			<Col span="12" align="center">
+				<div class="mx-auto max-w-2xl">
+					<h2 class="text-3xl tracking-[-0.03em] md:text-4xl">The essentials are part of every seat.</h2>
+					<p class="mt-4 text-lg leading-relaxed text-neutral-400">
+						Frontman Pro keeps the workflow simple: visual requests become real source-file edits your team can review.
+					</p>
+				</div>
+			</Col>
+			{alwaysIncludes.map((item) => (
+				<Col span="4">
+					<Card classes={valueCardClass}>
+						<div class="mb-5 flex h-10 w-10 items-center justify-center rounded-2xl border border-primary-300/25 bg-primary-400/15 text-primary-100 transition-colors group-hover:border-primary-300/40 group-hover:bg-primary-400/25">
+							<span class="h-2 w-2 rounded-full bg-primary-100 shadow-[0_0_18px_rgba(255,255,255,0.7)]"></span>
+						</div>
+						<h3 class="mb-3 text-2xl tracking-[-0.02em]">{item.title}</h3>
+						<p class={mutedCopyClass}>{item.text}</p>
+					</Card>
+				</Col>
+			))}
+		</Row>
+	</Section>
+
+	<Section classes={darkSectionClass} padding="both">
+		<Row>
+			<Col span="12" align="center" classes="mb-10">
+				<p class={eyebrowClass}>Compare the workflow</p>
+				<h2>Frontman Pro vs. the usual frontend handoff</h2>
+				<p class="mx-auto max-w-2xl text-lg leading-relaxed text-neutral-400">
+					Frontman replaces vague UI requests with source-file edits developers can review.
+				</p>
+			</Col>
+			<Col span="12">
+				<div class="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] backdrop-blur" role="table" aria-label="Frontman Pro compared with traditional UI change workflow">
+					<div class="grid gap-0 border-t border-white/10 first:border-t-0 md:grid-cols-3" role="row">
+						<div class="border-t border-white/10 bg-white/[0.05] px-5 py-4 text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-neutral-400 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="columnheader">Workflow</div>
+						<div class="border-t border-white/10 bg-primary-500 px-5 py-4 text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-white first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="columnheader">Frontman Pro</div>
+						<div class="border-t border-white/10 bg-white/[0.05] px-5 py-4 text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-neutral-400 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="columnheader">Traditional UI handoff</div>
+					</div>
+					{comparisonRows.map((row) => (
+						<div class="grid gap-0 border-t border-white/10 first:border-t-0 md:grid-cols-3" role="row">
+							<div class="border-t border-white/10 px-5 py-4 text-sm font-semibold leading-relaxed text-neutral-50 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="cell">{row[0]}</div>
+							<div class="border-t border-white/10 bg-primary-500/10 px-5 py-4 text-sm leading-relaxed text-primary-100 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="cell">{row[1]}</div>
+							<div class="border-t border-white/10 px-5 py-4 text-sm leading-relaxed text-neutral-300 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="cell">{row[2]}</div>
+						</div>
+					))}
+				</div>
+			</Col>
+		</Row>
+	</Section>
+
+	<Section classes={darkSectionClass} padding="both">
+		<Row>
+			<Col span="12" align="center" classes="mb-10">
+				<p class={eyebrowClass}>What’s included?</p>
+				<h2>Everything in Frontman Pro</h2>
+			</Col>
+			{includedFeatures.map((feature) => (
+				<Col span="4">
+					<Card classes={valueCardClass}>
+						<h3 class="text-xl">{feature.title}</h3>
+						<p class={mutedCopyClass}>{feature.text}</p>
+					</Card>
+				</Col>
+			))}
+		</Row>
+	</Section>
+
+	<Section classes={darkSectionClass} padding="both">
+		<Row>
+			<Col span="12" align="center" classes="mb-10">
+				<p class={eyebrowClass}>For vendor review</p>
+				<h2>Clear terms for teams</h2>
+				<p class="mx-auto max-w-2xl text-lg leading-relaxed text-neutral-400">
+					Frontman keeps pricing, AI billing, and legal review paths visible before teams adopt it.
+				</p>
+			</Col>
+			{trustLinks.map((link) => (
+				<Col span="4">
+					<a href={link.href} class={`${valueCardClass} block`}>
+						<h3 class="text-xl">{link.title}</h3>
+						<p class={mutedCopyClass}>{link.text}</p>
+						<p class="mt-5 text-sm font-bold text-primary-300">Read {link.title}</p>
+					</a>
+				</Col>
+			))}
+		</Row>
+	</Section>
+
+	<Section id="FAQ" classes={darkSectionClass} padding="both">
+		<Row>
+			<Col span="12" align="center" classes="mb-10">
+				<p class={eyebrowClass}>FAQs</p>
+				<h2>Simple answers about Frontman pricing</h2>
+			</Col>
+			<Col span="2" />
+			<Col span="8">
+				<Card classes="divide-y divide-white/10 rounded-[1.5rem] border-white/10 bg-white/[0.04] shadow-none backdrop-blur">
+					{faqs.map((faq, index) => (
+						<Accordion title={faq.question} text={faq.answer} open={index === 0} />
+					))}
+				</Card>
+			</Col>
+			<Col span="2" />
+		</Row>
+	</Section>
+
+	<Section classes={darkSectionClass} padding="both">
+		<Row>
+			<Col span="10" classes="lg:col-start-2">
+				<div class="relative overflow-hidden rounded-[1.5rem] border border-white/20 bg-primary-500 p-8 text-center shadow-2xl shadow-primary-950/30 md:p-12">
+					<img src={gridNetBackground.src} alt="" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20" width="1440" height="900" />
+					<div class="relative">
+						<p class="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-white/75">Start visually editing your frontend</p>
+						<h2 class="mx-auto max-w-3xl text-white">One simple hosted plan. 14-day free trial.</h2>
+						<p class="mx-auto max-w-2xl text-lg leading-relaxed text-white/85">Cancel before billing. Bring your own AI key. Give your developers reviewable source-file diffs.</p>
+						<Button type="link" link="/contact/" size="lg" classes={ctaButtonClass}>Contact us about Frontman Pro</Button>
+					</div>
+				</div>
+			</Col>
+		</Row>
+	</Section>
+</Layout>

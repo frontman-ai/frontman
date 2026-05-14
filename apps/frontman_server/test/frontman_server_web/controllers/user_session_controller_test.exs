@@ -14,8 +14,8 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       response = html_response(conn, 200)
       assert response =~ "Sign in to Frontman"
       # OAuth-only login now - shows GitHub and Google options
-      assert response =~ "Continue with GitHub"
-      assert response =~ "Continue with Google"
+      assert response =~ "Login with GitHub"
+      assert response =~ "Login with Google"
     end
 
     test "stores canonical signup framework in session", %{conn: conn} do

@@ -9,8 +9,8 @@ defmodule FrontmanServerWeb.UserRegistrationControllerTest do
       response = html_response(conn, 200)
       # Registration is disabled, /users/register now renders the login page
       assert response =~ "Sign in to Frontman"
-      assert response =~ "Continue with GitHub"
-      assert response =~ "Continue with Google"
+      assert response =~ "Login with GitHub"
+      assert response =~ "Login with Google"
     end
 
     test "redirects if already logged in", %{conn: conn} do

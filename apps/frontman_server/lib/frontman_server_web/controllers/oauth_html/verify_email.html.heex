@@ -1,62 +1,52 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="space-y-8">
-    <div class="text-center space-y-2">
-      <h1 class="text-2xl font-semibold text-white tracking-tight">Verify your email</h1>
-      <p class="text-sm text-white/50">
-        <%= if @email do %>
-          We sent a verification code to <span class="text-white/70 font-medium"><%= @email %></span>.
-        <% else %>
-          We sent a verification code to your email address.
-        <% end %>
-        <br /> Enter the code below to complete sign in.
-      </p>
-    </div>
+  <div class="mx-auto w-full max-w-md">
+    <div class="card card-border bg-base-200 text-base-content shadow-xl">
+      <div class="card-body gap-6">
+        <div class="space-y-2 text-center">
+          <div class="badge badge-primary badge-soft mx-auto">Almost there</div>
+          <h1 class="card-title justify-center font-headings text-2xl tracking-tight">
+            Verify your email
+          </h1>
+          <p class="text-sm leading-6 text-base-content/60">
+            <%= if @email do %>
+              We sent a verification code to <span class="font-medium text-base-content/80"><%= @email %></span>.
+            <% else %>
+              We sent a verification code to your email address.
+            <% end %>
+            <br /> Enter the code below to complete sign in.
+          </p>
+        </div>
 
-    <.form for={%{}} action={~p"/auth/verify-email"} method="post" class="space-y-4">
-      <div>
-        <label for="code" class="block text-sm font-medium text-white/70 mb-1.5">
-          Verification code
-        </label>
-        <input
-          id="code"
-          name="code"
-          type="text"
-          value=""
-          placeholder="Enter 6-digit code"
-          required
-          autofocus
-          autocomplete="one-time-code"
-          inputmode="numeric"
-          pattern="[0-9]*"
-          maxlength="6"
-          class={[
-            "w-full rounded-lg border border-white/[0.12] bg-white/[0.04]",
-            "px-4 py-3 text-sm text-white placeholder-white/30",
-            "outline-none transition-all duration-150",
-            "focus:border-white/[0.25] focus:ring-1 focus:ring-white/[0.15]"
-          ]}
-        />
+        <.form for={%{}} action={~p"/auth/verify-email"} method="post" class="space-y-4">
+          <fieldset class="fieldset">
+            <label for="code" class="label">Verification code</label>
+            <input
+              id="code"
+              name="code"
+              type="text"
+              value=""
+              placeholder="Enter 6-digit code"
+              required
+              autofocus
+              autocomplete="one-time-code"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              maxlength="6"
+              class="input input-lg w-full"
+            />
+          </fieldset>
+
+          <button type="submit" class="btn btn-secondary btn-lg btn-block">
+            Verify and sign in
+          </button>
+        </.form>
+
+        <div class="text-center">
+          <.link href={~p"/users/log-in"} class="link link-hover text-sm text-base-content/60">
+            &larr; Back to sign in
+          </.link>
+        </div>
       </div>
-      <button
-        type="submit"
-        class={[
-          "w-full rounded-lg bg-white px-4 py-3",
-          "text-sm font-medium text-[#0a0a0a]",
-          "transition-all duration-150",
-          "hover:bg-white/90 active:scale-[0.98]"
-        ]}
-      >
-        Verify and sign in
-      </button>
-    </.form>
-
-    <div class="text-center">
-      <.link
-        href={~p"/users/log-in"}
-        class="text-sm text-white/40 hover:text-white/60 transition-colors"
-      >
-        &larr; Back to sign in
-      </.link>
     </div>
   </div>
 </Layouts.app>

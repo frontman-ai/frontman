@@ -18,6 +18,7 @@ defmodule FrontmanServer do
     {Organizations, []},
     {Providers, []},
     {Tasks, []},
+    BrandTokens,
     Repo,
     Vault,
     Image,
