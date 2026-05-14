@@ -1,8 +1,14 @@
 defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   use ExUnit.Case, async: true
 
+  import Mox
+
   alias FrontmanServer.Tasks.Execution.LLMClient
+  alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias ReqLLM.Error.API.{Request, Stream}
+  alias SwarmAi.Message.ContentPart
+
+  setup :verify_on_exit!
 
   describe "ReqLLM stream exception contract" do
     test "ReqLLM.Error.API.Stream carries ReqLLM.Error.API.Request as cause" do
@@ -53,6 +59,61 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
     end
   end
 
+  describe "image modality guard" do
+    test "strips image parts for text-only models" do
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert Enum.map(message.content, & &1.type) == [:text, :text, :text]
+        assert Enum.at(message.content, 0).text == "look"
+        assert Enum.at(message.content, 1).text =~ "Image omitted"
+        assert Enum.at(message.content, 2).text =~ "Image omitted"
+
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "nvidia:deepseek-ai/deepseek-v4-flash",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.User{
+          content: [
+            ContentPart.text("look"),
+            ContentPart.image("image-bytes", "image/png"),
+            ContentPart.image_url("https://example.com/image.png")
+          ]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
+
+    test "preserves image parts for multimodal models" do
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert Enum.map(message.content, & &1.type) == [:text, :image]
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "nvidia:moonshotai/kimi-k2.6",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.User{
+          content: [
+            ContentPart.text("look"),
+            ContentPart.image("image-bytes", "image/png")
+          ]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
+  end
+
   describe "ping keepalive filtering (issue #731)" do
     test "ping meta chunks from ReqLLM are metadata-only chunks" do
       ping_chunk = ReqLLM.StreamChunk.meta(%{ping: true})
@@ -73,5 +134,9 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       refute Map.has_key?(usage.metadata, :ping)
       refute Map.has_key?(finish.metadata, :ping)
     end
+  end
+
+  defp stream_response(chunks) do
+    %{stream: chunks, cancel: fn -> :ok end}
   end
 end

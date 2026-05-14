@@ -92,6 +92,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       messages
       |> Enum.map(&to_reqllm_message/1)
       |> MessageOptimizer.optimize()
+      |> strip_images_unless_supported(client.model)
 
     case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
@@ -298,6 +299,29 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   defp to_reqllm_content_part(%ContentPart{type: :image_url, url: url}) do
     ReqLLM.Message.ContentPart.image_url(url)
   end
+
+  defp strip_images_unless_supported(messages, model) do
+    case ReqLLM.model(model) do
+      {:ok, %{modalities: %{input: input}}} when is_list(input) ->
+        if :image in input, do: messages, else: Enum.map(messages, &strip_message_images/1)
+
+      _ ->
+        messages
+    end
+  end
+
+  defp strip_message_images(%ReqLLM.Message{content: content} = message) do
+    %{message | content: Enum.map(content, &strip_image_part/1)}
+  end
+
+  defp strip_image_part(%ReqLLM.Message.ContentPart{type: type})
+       when type in [:image, :image_url] do
+    ReqLLM.Message.ContentPart.text(
+      "[Image omitted: selected model does not support image input]"
+    )
+  end
+
+  defp strip_image_part(part), do: part
 
   defp to_reqllm_tool_calls([]), do: nil
   defp to_reqllm_tool_calls(nil), do: nil

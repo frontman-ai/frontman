@@ -89,6 +89,11 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
                provider: "nvidia",
                value: hd(expected).value
              }
+
+      Enum.each(expected, fn model ->
+        assert {:ok, reqllm_model} = ReqLLM.model("nvidia:#{model.value}")
+        assert :text in reqllm_model.modalities.input
+      end)
     end
   end
 
