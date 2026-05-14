@@ -1303,7 +1303,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "when all retries are exhausted, the pending prompt is resolved with an error", %{
       socket: socket,
-      task_id: task_id
+      task_id: _task_id
     } do
       error = %FrontmanServer.Tasks.Execution.LLMError{
         message: "Rate limited",
@@ -1311,20 +1311,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         retryable: true
       }
 
-      stub_llm_response({:error, error})
+      :sys.replace_state(socket.channel_pid, fn state ->
+        put_in(state.assigns[:pending_prompt], %{
+          interaction_id: "test-interaction",
+          jsonrpc_id: 99
+        })
+      end)
 
-      push(socket, "acp:message", build_prompt_request(id: 99))
-      :sys.get_state(socket.channel_pid)
-
-      # The prompt path creates the first transient failure. Drive the remaining
-      # failures directly; retry scheduling is not the behavior under test here.
-      Enum.each(1..5, fn _ ->
-        Phoenix.PubSub.broadcast(
-          FrontmanServer.PubSub,
-          Tasks.topic(task_id),
-          execution_failed(error)
-        )
-
+      Enum.each(1..6, fn _ ->
+        send(socket.channel_pid, execution_failed(error))
         :sys.get_state(socket.channel_pid)
       end)
 
