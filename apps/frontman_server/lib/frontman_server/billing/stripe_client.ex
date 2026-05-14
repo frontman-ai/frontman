@@ -46,10 +46,18 @@ defmodule FrontmanServer.Billing.StripeClient do
     Req.new(
       base_url: stripe_config!(:api_base_url),
       auth: {:bearer, stripe_config!(:secret_key)},
-      headers: [
-        {"stripe-version", stripe_config!(:api_version)}
-      ]
+      headers:
+        [
+          {"stripe-version", stripe_config!(:api_version)}
+        ] ++ extra_headers()
     )
+  end
+
+  defp extra_headers do
+    case stripe_config(:extra_headers, []) do
+      {module, function, args} -> apply(module, function, args)
+      headers -> headers
+    end
   end
 
   defp checkout_session_params(user, customer, interval, return_urls, opts) do
@@ -93,5 +101,10 @@ defmodule FrontmanServer.Billing.StripeClient do
   defp stripe_config!(key) do
     Application.fetch_env!(:frontman_server, :stripe)
     |> Keyword.fetch!(key)
+  end
+
+  defp stripe_config(key, default) do
+    Application.fetch_env!(:frontman_server, :stripe)
+    |> Keyword.get(key, default)
   end
 end

@@ -20,9 +20,9 @@ config :frontman_server, FrontmanServer.Repo,
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :frontman_server, FrontmanServerWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
+  http: [ip: {127, 0, 0, 1}, port: 0],
   secret_key_base: "G/GaF+myr6UzSNKYFjTUkCovxv4WghMsXaq4S3O275rp8dLDSEvwkXAn5kbkvUJn",
-  server: false
+  server: true
 
 # In test we don't send emails
 config :frontman_server, FrontmanServer.Mailer,
@@ -33,15 +33,52 @@ config :frontman_server, FrontmanServer.Mailer,
 config :frontman_server, Oban, testing: :manual
 
 config :frontman_server,
-  billing_client: FrontmanServer.Billing.ClientMock
+  billing_client: FrontmanServer.Billing.StripeClient
 
 config :frontman_server, :stripe,
-  api_base_url: "https://stripe.test/v1",
-  secret_key: "sk_test_123",
+  api_base_url: "http://localhost:59001/v1",
+  secret_key: "sk_test_paper_tiger",
   webhook_secret: "whsec_test_123",
+  extra_headers: {PaperTiger.Test, :sandbox_headers, []},
   monthly_price_id: "price_monthly_test",
   yearly_price_id: "price_yearly_test",
   trial_days: 14
+
+config :paper_tiger,
+  start: true,
+  port: 59_001,
+  init_data: %{
+    products: [
+      %{
+        id: "prod_frontman_monthly",
+        name: "Frontman Monthly",
+        active: true,
+        metadata: %{interval: "monthly"}
+      },
+      %{
+        id: "prod_frontman_yearly",
+        name: "Frontman Yearly",
+        active: true,
+        metadata: %{interval: "yearly"}
+      }
+    ],
+    prices: [
+      %{
+        id: "price_monthly_test",
+        product: "prod_frontman_monthly",
+        unit_amount: 2_000,
+        currency: "usd",
+        recurring: %{interval: "month", interval_count: 1}
+      },
+      %{
+        id: "price_yearly_test",
+        product: "prod_frontman_yearly",
+        unit_amount: 20_000,
+        currency: "usd",
+        recurring: %{interval: "year", interval_count: 1}
+      }
+    ]
+  }
 
 # Discord webhook URL for test assertions
 config :frontman_server, discord_new_users_webhook_url: "https://discord.test/webhook"

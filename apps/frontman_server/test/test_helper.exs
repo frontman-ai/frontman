@@ -11,6 +11,4 @@ Mox.defmock(
   for: FrontmanServer.Tasks.Execution.LLMProvider
 )
 
-Mox.defmock(FrontmanServer.Billing.ClientMock, for: FrontmanServer.Billing.Client)
-
 Ecto.Adapters.SQL.Sandbox.mode(FrontmanServer.Repo, :manual)

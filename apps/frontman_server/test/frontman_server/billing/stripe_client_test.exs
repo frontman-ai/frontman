@@ -14,7 +14,10 @@ defmodule FrontmanServer.Billing.StripeClientTest do
       Application.put_env(
         :frontman_server,
         :stripe,
-        Keyword.put(stripe_config, :api_base_url, "http://localhost:#{bypass.port}/v1")
+        Keyword.merge(stripe_config,
+          api_base_url: "http://localhost:#{bypass.port}/v1",
+          secret_key: "sk_test_123"
+        )
       )
 
       on_exit(fn -> Application.put_env(:frontman_server, :stripe, stripe_config) end)
