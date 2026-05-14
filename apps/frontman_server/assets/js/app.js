@@ -34,8 +34,8 @@ const liveSocket = new LiveSocket("/live", Socket, {
 
 // Show progress bar on live navigation and form submits
 const rootStyles = getComputedStyle(document.documentElement)
-const topbarColor = rootStyles.getPropertyValue("--color-primary").trim() || "#a259ff"
-const topbarShadowColor = rootStyles.getPropertyValue("--color-base-100").trim() || "#020617"
+const topbarColor = rootStyles.getPropertyValue("--fm-color-primary").trim()
+const topbarShadowColor = rootStyles.getPropertyValue("--fm-color-neutral-950").trim()
 
 topbar.config({
   barColors: {0: topbarColor},
