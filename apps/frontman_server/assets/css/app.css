@@ -148,41 +148,6 @@
   --noise: 0;
 }
 
-@plugin "../vendor/daisyui-theme" {
-  name: "light";
-  default: false;
-  prefersdark: false;
-  color-scheme: "light";
-  --color-base-100: var(--color-neutral-50);
-  --color-base-200: var(--color-neutral-100);
-  --color-base-300: var(--color-neutral-200);
-  --color-base-content: var(--color-neutral-950);
-  --color-primary: var(--color-primary-500);
-  --color-primary-content: var(--color-primary-50);
-  --color-secondary: var(--fm-color-secondary);
-  --color-secondary-content: var(--fm-color-secondary-content);
-  --color-accent: var(--color-pink-400);
-  --color-accent-content: var(--fm-color-tertiary);
-  --color-neutral: var(--color-neutral-800);
-  --color-neutral-content: var(--color-neutral-50);
-  --color-info: var(--color-purple-400);
-  --color-info-content: var(--color-neutral-950);
-  --color-success: var(--fm-color-success);
-  --color-success-content: var(--color-neutral-950);
-  --color-warning: var(--color-amber-500);
-  --color-warning-content: var(--color-neutral-950);
-  --color-error: var(--fm-color-error);
-  --color-error-content: var(--color-neutral-50);
-  --radius-selector: 0.375rem;
-  --radius-field: 0.75rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.21875rem;
-  --size-field: 0.21875rem;
-  --border: 1px;
-  --depth: 1;
-  --noise: 0;
-}
-
 /* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
@@ -199,47 +164,6 @@ html {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-headings);
-}
-
-.fm-surface {
-  background: color-mix(in oklab, var(--color-base-content) 4%, transparent);
-  border-color: color-mix(in oklab, var(--color-base-content) 12%, transparent);
-}
-
-.fm-surface-muted {
-  background: color-mix(in oklab, var(--color-base-content) 2%, transparent);
-  border-color: color-mix(in oklab, var(--color-base-content) 8%, transparent);
-}
-
-.fm-surface-button {
-  background: color-mix(in oklab, var(--color-base-content) 4%, transparent);
-  border-color: color-mix(in oklab, var(--color-base-content) 12%, transparent);
-  color: color-mix(in oklab, var(--color-base-content) 90%, transparent);
-}
-
-.fm-surface-button:hover {
-  background: color-mix(in oklab, var(--color-base-content) 8%, transparent);
-  border-color: color-mix(in oklab, var(--color-base-content) 18%, transparent);
-  color: var(--color-base-content);
-}
-
-.fm-field {
-  background: color-mix(in oklab, var(--color-base-content) 4%, transparent);
-  border-color: color-mix(in oklab, var(--color-base-content) 12%, transparent);
-  color: color-mix(in oklab, var(--color-base-content) 90%, transparent);
-}
-
-.fm-field::placeholder {
-  color: color-mix(in oklab, var(--color-base-content) 30%, transparent);
-}
-
-.fm-field:focus {
-  border-color: color-mix(in oklab, var(--color-primary) 65%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 30%, transparent);
-}
-
-.fm-divider-line {
-  background: color-mix(in oklab, var(--color-base-content) 8%, transparent);
 }
 
 /* Make LiveView wrapper divs transparent for layout */
