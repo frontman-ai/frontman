@@ -26,11 +26,6 @@ function reactCompilerPlugin(): vite.Plugin {
 
 export default vite.defineConfig({
 	plugins: [reactCompilerPlugin(), tailwindcss()],
-	resolve: {
-		alias: {
-			"@": path.resolve(__dirname, "./src"),
-		},
-	},
 	server: {
 		// Listen on all interfaces for container access
 		host: "0.0.0.0",

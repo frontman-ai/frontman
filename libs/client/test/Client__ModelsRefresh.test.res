@@ -33,6 +33,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     }),
     sessionInitialized: true,
     userProfile: None,
+    settingsModalTab: None,
     openrouterKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     anthropicKeySettings: {
       source: Types.None,

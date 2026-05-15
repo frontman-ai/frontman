@@ -237,9 +237,12 @@ let focusAtEnd: Dom.element => unit = %raw(`
 // ============================================================================
 
 // Model selector dropdown - consumes ACP SessionConfigOption (type: "select")
-// Uses Radix UI Select for consistent dark theme styling across all platforms (including Linux)
+// Uses Base UI Select for consistent dark theme styling across all platforms (including Linux)
 module ModelSelector = {
-  module Select = FrontmanBindings.Bindings__RadixUI__Select
+  module Select = Client__UI__Select
+  module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+
+  let optionClassName = "text-xs text-zinc-200 focus:bg-zinc-700 focus:text-white data-highlighted:bg-zinc-700 data-highlighted:text-white"
 
   // Get the display name for the currently selected value from config option
   let _getSelectedDisplay = (configOption: ACP.sessionConfigOption, selectedValue: string): option<
@@ -279,78 +282,58 @@ module ModelSelector = {
       (configOption, selectedValue),
     )
 
-    <Select.Root value={selectedValue} onValueChange={value => onModelChange(value)}>
+    <Select value={selectedValue} onValueChange={(value, _) => onModelChange(value)}>
       <Select.Trigger
         className="inline-flex items-center gap-1 h-8 pl-2 pr-1.5 text-xs rounded-md
                    bg-transparent text-zinc-400 border-none cursor-pointer
                    hover:text-zinc-200 hover:bg-white/6
                    focus:outline-none focus:ring-0
-                   data-[placeholder]:text-zinc-500"
+                   data-[placeholder]:text-zinc-500 [&_svg]:size-3 [&_svg]:text-zinc-400"
       >
         <span className="truncate max-w-[120px]">
           {React.string(selectedDisplay->Option.getOr("Select model..."))}
         </span>
-        <Select.Icon className="text-zinc-400 flex-shrink-0">
-          <Icons.ChevronDownIcon size=12 />
-        </Select.Icon>
       </Select.Trigger>
-      <Select.Portal>
-        <Select.Content
-          position=#popper
-          sideOffset=4
-          className="z-50 min-w-[180px] max-h-[300px] overflow-hidden
-                     bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
-                     animate-in fade-in-0 zoom-in-95"
-        >
-          <Select.Viewport className="p-1">
-            {switch configOption {
-            | ACP.SelectConfigOption({options}) =>
-              switch options {
-              | ACP.Grouped(groups) =>
-                groups
-                ->Array.map(group => {
-                  <Select.Group key={group.group}>
-                    <Select.Label className="px-2 py-1.5 text-xs font-medium text-zinc-400">
-                      {React.string(group.name)}
-                    </Select.Label>
-                    {group.options
-                    ->Array.map(opt => {
-                      <Select.Item
-                        key={opt.value}
-                        value={opt.value}
-                        className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
-                                   cursor-pointer select-none outline-none
-                                   data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
-                                   data-[disabled]:opacity-50 data-[disabled]:pointer-events-none"
-                      >
-                        <Select.ItemText> {React.string(opt.name)} </Select.ItemText>
-                      </Select.Item>
-                    })
-                    ->React.array}
-                  </Select.Group>
-                })
-                ->React.array
-              | ACP.Ungrouped(opts) =>
-                opts
+      <Select.Content
+        sideOffset=4.
+        className="z-50 min-w-[180px] max-h-[300px] overflow-hidden
+                   bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
+                   animate-in fade-in-0 zoom-in-95"
+      >
+        {switch configOption {
+        | ACP.SelectConfigOption({options}) =>
+          switch options {
+          | ACP.Grouped(groups) =>
+            groups
+            ->Array.map(group => {
+              <Select.Group key={group.group}>
+                <Select.Label className="px-2 py-1.5 text-xs font-medium text-zinc-400">
+                  {React.string(group.name)}
+                </Select.Label>
+                {group.options
                 ->Array.map(opt => {
-                  <Select.Item
-                    key={opt.value}
-                    value={opt.value}
-                    className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
-                               cursor-pointer select-none outline-none
-                               data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
-                               data-[disabled]:opacity-50 data-[disabled]:pointer-events-none"
-                  >
-                    <Select.ItemText> {React.string(opt.name)} </Select.ItemText>
+                  <Select.Item key={opt.value} value={opt.value} className=optionClassName>
+                    {React.string(opt.name)}
                   </Select.Item>
                 })
-                ->React.array
-              }
-            }}
-          </Select.Viewport>
-        </Select.Content>
-      </Select.Portal>
-    </Select.Root>
+                ->React.array}
+              </Select.Group>
+            })
+            ->React.array
+          | ACP.Ungrouped(opts) =>
+            <Select.Group>
+              {opts
+              ->Array.map(opt => {
+                <Select.Item key={opt.value} value={opt.value} className=optionClassName>
+                  {React.string(opt.name)}
+                </Select.Item>
+              })
+              ->React.array}
+            </Select.Group>
+          }
+        }}
+      </Select.Content>
+    </Select>
   }
 }
 

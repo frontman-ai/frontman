@@ -11,6 +11,7 @@ let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
     acpSession: NoAcpSession,
     sessionInitialized: false,
     userProfile: None,
+    settingsModalTab: None,
     openrouterKeySettings: {
       source: Types.None,
       saveStatus: Types.Idle,

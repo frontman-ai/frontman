@@ -35,6 +35,7 @@
 		"@frontman-ai/frontman-client",
 		"@frontman-ai/frontman-protocol",
 		"@frontman-ai/react-statestore",
+		"rescript-base-ui",
 		"sury"
 	],
 	"dev-dependencies": ["rescript-vitest"],

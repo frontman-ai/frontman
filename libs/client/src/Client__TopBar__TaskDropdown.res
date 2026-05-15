@@ -1,10 +1,12 @@
-module Icons = FrontmanBindings.Bindings__RadixUI__Icons
-module AlertDialog = FrontmanBindings.Bindings__UI__AlertDialog
-module DropdownMenu = FrontmanBindings.Bindings__UI__DropdownMenu
-module Tooltip = FrontmanBindings.Bindings__UI__Tooltip
+module Icons = Client__UI__Icons
+module AlertDialog = Client__UI__AlertDialog
+module Badge = Client__UI__Badge
+module DropdownMenu = Client__UI__DropdownMenu
+module Tooltip = Client__UI__Tooltip
 
 @react.component
 let make = (~onNewTask: unit => unit) => {
+  let (menuOpen, setMenuOpen) = React.useState(() => false)
   let (deleteDialogOpen, setDeleteDialogOpen) = React.useState(() => false)
   let (taskToDelete, setTaskToDelete) = React.useState(() => None)
   let (search, setSearch) = React.useState(() => "")
@@ -42,6 +44,7 @@ let make = (~onNewTask: unit => unit) => {
   let handleTaskSwitch = (taskId: string) => {
     Client__State.Actions.switchTask(~taskId)
     setSearch(_ => "")
+    setMenuOpen(_ => false)
   }
 
   let handleDeleteClick = (e: ReactEvent.Mouse.t, taskId: string) => {
@@ -49,6 +52,7 @@ let make = (~onNewTask: unit => unit) => {
     ReactEvent.Mouse.preventDefault(e)
     setTaskToDelete(_ => Some(taskId))
     setDeleteDialogOpen(_ => true)
+    setMenuOpen(_ => false)
   }
 
   let handleDeleteConfirm = (_e: ReactEvent.Mouse.t) => {
@@ -72,19 +76,19 @@ let make = (~onNewTask: unit => unit) => {
 
   <>
     <div className="flex items-center gap-0.5">
-      <DropdownMenu.DropdownMenu>
-        <DropdownMenu.DropdownMenuTrigger asChild=true>
-          <button
+      <DropdownMenu open_={menuOpen} onOpenChange={(open_, _) => setMenuOpen(_ => open_)}>
+        <DropdownMenu.Trigger
+          render={<button
             type_="button"
             className="flex items-center gap-1.5 px-2 h-6 rounded-md text-xs font-medium text-zinc-200 hover:bg-white/5 cursor-pointer max-w-48"
-          >
-            <span className="truncate"> {React.string(currentTaskTitle)} </span>
-            <Icons.ChevronDownIcon
-              style={{"width": "10px", "height": "10px"}} className="text-zinc-500 shrink-0"
-            />
-          </button>
-        </DropdownMenu.DropdownMenuTrigger>
-        <DropdownMenu.DropdownMenuContent align="start" sideOffset=4 className="w-72 p-0">
+          />}
+        >
+          <span className="truncate"> {React.string(currentTaskTitle)} </span>
+          <Icons.ChevronDownIcon
+            style={{width: "10px", height: "10px"}} className="text-zinc-500 shrink-0"
+          />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content align=BaseUi.Types.Align.Start sideOffset=4. className="w-72 p-0">
           // Search bar — only shown when there are tasks to search
           {switch Array.length(tasks) > 0 {
           | false => React.null
@@ -112,83 +116,74 @@ let make = (~onNewTask: unit => unit) => {
                   let taskTitle = Client__Task__Types.Task.getTitle(task)->Option.getOr("Untitled")
                   let isActive = currentTaskId == Some(taskId)
 
-                  <DropdownMenu.DropdownMenuItem
+                  <DropdownMenu.Item
                     key={taskId}
                     className="flex items-center gap-2 cursor-pointer group/item mx-1 rounded"
-                    onSelect={_ => handleTaskSwitch(taskId)}
+                    onClick={_ => handleTaskSwitch(taskId)}
                   >
                     <Icons.ChatBubbleIcon
-                      style={{"width": "12px", "height": "12px"}} className="shrink-0 text-zinc-500"
+                      style={{width: "12px", height: "12px"}} className="shrink-0 text-zinc-500"
                     />
                     <span className="flex-1 truncate text-xs"> {React.string(taskTitle)} </span>
                     {isActive
-                      ? <span
-                          className="text-[10px] text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded shrink-0"
-                        >
-                          {React.string("Current")}
-                        </span>
+                      ? <Badge variant=Badge.Variant.Zinc> {React.string("Current")} </Badge>
                       : React.null}
                     <span
                       className="p-0.5 rounded-sm opacity-40 hover:opacity-100 hover:bg-zinc-700 transition-opacity duration-150 cursor-pointer shrink-0"
                       onClick={e => handleDeleteClick(e, taskId)}
                     >
                       <Icons.TrashIcon
-                        style={{"width": "12px", "height": "12px"}}
+                        style={{width: "12px", height: "12px"}}
                         className="text-zinc-400 hover:text-red-400"
                       />
                     </span>
-                  </DropdownMenu.DropdownMenuItem>
+                  </DropdownMenu.Item>
                 })
                 ->React.array
-              : <DropdownMenu.DropdownMenuLabel className="text-xs text-zinc-500 py-3 text-center">
+              : <DropdownMenu.Label className="text-xs text-zinc-500 py-3 text-center">
                   {React.string(String.trim(search) != "" ? "No matching tasks" : "No tasks yet")}
-                </DropdownMenu.DropdownMenuLabel>}
+                </DropdownMenu.Label>}
           </div>
-        </DropdownMenu.DropdownMenuContent>
-      </DropdownMenu.DropdownMenu>
+        </DropdownMenu.Content>
+      </DropdownMenu>
 
       // "+ New" button
-      <Tooltip.Tooltip>
-        <Tooltip.TooltipTrigger asChild=true>
-          <button
+      <Tooltip>
+        <Tooltip.Trigger
+          render={<button
             type_="button"
             onClick={_ => onNewTask()}
             className="flex items-center justify-center w-6 h-6 rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/5 cursor-pointer"
-          >
-            <Icons.PlusIcon style={{"width": "12px", "height": "12px"}} />
-          </button>
-        </Tooltip.TooltipTrigger>
-        <Tooltip.TooltipContent sideOffset=4> {React.string("New task")} </Tooltip.TooltipContent>
-      </Tooltip.Tooltip>
+          />}
+        >
+          <Icons.PlusIcon style={{width: "12px", height: "12px"}} />
+        </Tooltip.Trigger>
+        <Tooltip.Content sideOffset=4.> {React.string("New task")} </Tooltip.Content>
+      </Tooltip>
     </div>
 
     // Delete confirmation dialog (outside the dropdown to avoid stacking context issues)
-    <AlertDialog.AlertDialog
-      open_={deleteDialogOpen} onOpenChange={open_ => setDeleteDialogOpen(_ => open_)}
+    <AlertDialog
+      open_={deleteDialogOpen} onOpenChange={(open_, _) => setDeleteDialogOpen(_ => open_)}
     >
-      <AlertDialog.AlertDialogContent>
-        <AlertDialog.AlertDialogHeader>
-          <AlertDialog.AlertDialogTitle>
-            {React.string("Delete task?")}
-          </AlertDialog.AlertDialogTitle>
-          <AlertDialog.AlertDialogDescription>
+      <AlertDialog.Content>
+        <AlertDialog.Header>
+          <AlertDialog.Title> {React.string("Delete task?")} </AlertDialog.Title>
+          <AlertDialog.Description>
             {React.string(
               "This will permanently delete this conversation. This action cannot be undone.",
             )}
-          </AlertDialog.AlertDialogDescription>
-        </AlertDialog.AlertDialogHeader>
-        <AlertDialog.AlertDialogFooter>
-          <AlertDialog.AlertDialogCancel onClick={handleDeleteCancel}>
+          </AlertDialog.Description>
+        </AlertDialog.Header>
+        <AlertDialog.Footer>
+          <AlertDialog.Cancel onClick={handleDeleteCancel}>
             {React.string("Cancel")}
-          </AlertDialog.AlertDialogCancel>
-          <AlertDialog.AlertDialogAction
-            onClick={handleDeleteConfirm}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
+          </AlertDialog.Cancel>
+          <AlertDialog.Action onClick={handleDeleteConfirm} variant=AlertDialog.Variant.Destructive>
             {React.string("Delete")}
-          </AlertDialog.AlertDialogAction>
-        </AlertDialog.AlertDialogFooter>
-      </AlertDialog.AlertDialogContent>
-    </AlertDialog.AlertDialog>
+          </AlertDialog.Action>
+        </AlertDialog.Footer>
+      </AlertDialog.Content>
+    </AlertDialog>
   </>
 }

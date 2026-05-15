@@ -33,10 +33,6 @@ let make = (~apiBaseUrl: string) => {
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
-  // Settings modal state
-  let (settingsOpen, setSettingsOpen) = React.useState(() => false)
-  let (settingsInitialTab, setSettingsInitialTab) = React.useState(() => None)
-
   // FTUE state
   let (ftueState, setFtueState) = React.useState(() => Client__FtueState.get())
   let (showCelebration, setShowCelebration) = React.useState(() => false)
@@ -58,19 +54,13 @@ let make = (~apiBaseUrl: string) => {
     None
   }, (connectionState, ftueState))
 
-  // Open settings on providers tab (used by FTUE CTAs)
-  let openSettingsProviders = () => {
-    setSettingsInitialTab(_ => Some("providers"))
-    setSettingsOpen(_ => true)
-  }
-
   let handleCelebrationDismiss = () => {
     setShowCelebration(_ => false)
   }
 
   let handleCelebrationConnectProvider = () => {
     setShowCelebration(_ => false)
-    openSettingsProviders()
+    Client__State.Actions.openSettingsModalOnProviders()
   }
 
   let showNudge = switch (ftueState, hasProviderConfigured, providerNudgeDismissed) {
@@ -86,22 +76,11 @@ let make = (~apiBaseUrl: string) => {
 
   let handleProviderNudgeCta = () => {
     setProviderNudgeDismissed(_ => true)
-    openSettingsProviders()
-  }
-
-  // Reset initialTab after settings modal closes so it doesn't stick
-  let handleSettingsOpenChange = (value: bool) => {
-    setSettingsOpen(_ => value)
-    switch value {
-    | false => setSettingsInitialTab(_ => None)
-    | true => ()
-    }
+    Client__State.Actions.openSettingsModalOnProviders()
   }
 
   <div className="flex flex-col h-screen w-screen bg-background text-foreground">
-    <SettingsModal
-      open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
-    />
+    <SettingsModal />
     // FTUE: Welcome modal for first-time unauthenticated users
     {switch (authRedirectUrl, ftueState) {
     | (Some(loginUrl), Client__FtueState.New) => <Client__WelcomeModal loginUrl />
@@ -118,7 +97,7 @@ let make = (~apiBaseUrl: string) => {
     // Top bar (sits above the panel split)
     <Client__TopBar
       chatboxWidth
-      onSettingsClick={() => setSettingsOpen(_ => true)}
+      onSettingsClick={() => Client__State.Actions.openSettingsModal()}
       showProviderNudgeBubble
       showProviderNudgeBadge
       onProviderNudgeDismiss=handleProviderNudgeDismiss

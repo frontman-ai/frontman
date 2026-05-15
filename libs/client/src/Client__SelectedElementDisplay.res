@@ -1,6 +1,6 @@
 module Icons = Client__ToolIcons
 module Annotation = Client__Annotation__Types
-module RadixUI__Icons = FrontmanBindings.Bindings__RadixUI__Icons
+module UIIcons = Client__UI__Icons
 
 // Single annotation row with inline comment editing
 module AnnotationRow = {
@@ -159,7 +159,7 @@ module AnnotationRow = {
         className="flex-shrink-0 opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
         title="Remove annotation"
       >
-        <RadixUI__Icons.Cross2Icon className="size-3" />
+        <UIIcons.Cross2Icon className="size-3" />
       </button>
     </div>
   }

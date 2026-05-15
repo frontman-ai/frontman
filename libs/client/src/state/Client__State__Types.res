@@ -87,6 +87,10 @@ type apiKeySettings = {
   saveStatus: apiKeySaveStatus,
 }
 
+type settingsTab =
+  | General
+  | Providers
+
 // Re-export ACP session config types used by the client state layer.
 module ACPConfig = {
   type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
@@ -148,6 +152,7 @@ type state = {
   acpSession: acpSession,
   sessionInitialized: bool,
   userProfile: option<userProfile>,
+  settingsModalTab: option<settingsTab>,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,

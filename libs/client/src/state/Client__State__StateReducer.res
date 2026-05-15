@@ -52,6 +52,10 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
+  // Usage info actions
+  | UsageInfoReceived({usageInfo: Client__State__Types.usageInfo})
+  // Settings modal actions
+  | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
   // API key settings actions
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
@@ -236,6 +240,7 @@ let defaultState: state = {
   acpSession: NoAcpSession,
   sessionInitialized: false,
   userProfile: None,
+  settingsModalTab: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -397,6 +402,10 @@ module Selectors = {
   // Get user profile
   let userProfile = (state: state): option<Client__State__Types.userProfile> => {
     state.userProfile
+  }
+
+  let settingsModalTab = (state: state): option<Client__State__Types.settingsTab> => {
+    state.settingsModalTab
   }
 
   // Get OpenRouter API key settings
@@ -1284,6 +1293,13 @@ let next = (state: state, action) => {
     {...state, userProfile: Some(userProfile)}->StateReducer.update(
       ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
     )
+
+  | UsageInfoReceived({usageInfo}) =>
+    // Update usage info in state
+    {...state, usageInfo: Some(usageInfo)}->StateReducer.update
+
+  | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+
   // API key settings actions
   | FetchApiKeySettings =>
     switch state.acpSession {
