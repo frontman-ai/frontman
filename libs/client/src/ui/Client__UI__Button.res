@@ -1,5 +1,7 @@
 @@directive("'use client'")
 
+@@live
+
 @module("tailwind-merge")
 external cn: (string, string, string, option<string>) => string = "twMerge"
 

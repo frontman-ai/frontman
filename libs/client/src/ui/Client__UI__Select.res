@@ -2,6 +2,8 @@
 
 open BaseUi.Types
 
+@@live
+
 @module("tailwind-merge")
 external cn: (string, option<string>) => string = "twMerge"
 

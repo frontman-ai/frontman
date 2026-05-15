@@ -2,6 +2,8 @@
 
 @@directive("'use client'")
 
+@@live
+
 module Variant = Client__UI__Button.Variant
 module Size = Client__UI__Button.Size
 
