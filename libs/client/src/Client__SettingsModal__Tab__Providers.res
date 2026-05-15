@@ -2,7 +2,6 @@ module Button = Client__UI__Button
 module Icons = Client__UI__Icons
 module Badge = Client__UI__Badge
 module Card = Client__UI__Card
-module Item = Client__UI__Item
 module Alert = Client__UI__Alert
 module Spinner = Client__UI__Spinner
 module Field = Client__UI__Field
@@ -96,40 +95,29 @@ let renderOAuthError = (~message, ~retry) =>
     </Alert.Action>
   </Alert>
 
-let renderProviderSummary = (
-  ~name,
-  ~badge,
-  ~description=?,
-  ~manageUrl=?,
-  ~manageLabel="Manage keys",
-) =>
-  <Item>
-    <Item.Content>
-      <Item.Title>
-        {React.string(name)}
-        {badge}
-      </Item.Title>
-      {switch description {
-      | Some(description) => <Item.Description> {React.string(description)} </Item.Description>
-      | None => React.null
-      }}
-    </Item.Content>
-    {switch manageUrl {
-    | Some(href) => <Item.Actions> {renderExternalLink(~href, ~label=manageLabel)} </Item.Actions>
-    | None => React.null
-    }}
-  </Item>
+let renderProviderSummary = (~name, ~badge, ~description=?, ~manageUrl=?) => <>
+  {switch manageUrl {
+  | Some(href) => <Card.Action> {renderExternalLink(~href, ~label="Manage keys")} </Card.Action>
+  | None => React.null
+  }}
+  <Card.Title className="flex items-center gap-2">
+    {React.string(name)}
+    {badge}
+  </Card.Title>
+  {switch description {
+  | Some(description) => <Card.Description> {React.string(description)} </Card.Description>
+  | None => React.null
+  }}
+</>
 
 let renderApiKeySummary = (~badge, ~manageUrl) =>
-  <Item size=Item.Size.Xs>
-    <Item.Content>
-      <Item.Title>
-        {React.string("or use an API key")}
-        {badge}
-      </Item.Title>
-    </Item.Content>
-    <Item.Actions> {renderExternalLink(~href=manageUrl, ~label="Manage keys")} </Item.Actions>
-  </Item>
+  <div className="flex w-full flex-wrap items-center justify-between gap-2">
+    <Field.Title>
+      {React.string("API key")}
+      {badge}
+    </Field.Title>
+    {renderExternalLink(~href=manageUrl, ~label="Manage keys")}
+  </div>
 
 let renderConnectedToken = (~expiresAt, ~onDisconnect) => {
   let expiryDate = Date.fromTime(expiresAt)
@@ -248,7 +236,7 @@ let make = (~open_) => {
   <div className="space-y-6">
     <Field.Set>
       <Field.Legend variant=Field.Variant.Label>
-        {React.string("Connect your account")}
+        {React.string("Account connections")}
       </Field.Legend>
       <Card size=Card.Size.Sm>
         <Card.Header>
@@ -256,8 +244,7 @@ let make = (~open_) => {
             ~name="Anthropic Claude Pro/Max",
             ~badge={renderAnthropicOAuthBadge(anthropicOAuthStatus)},
             ~description="Use your Claude Pro or Max subscription to power Frontman.",
-            ~manageUrl="https://console.anthropic.com/settings/oauth",
-            ~manageLabel="Manage connections",
+            ~manageUrl="https://platform.claude.com/settings/keys",
           )}
         </Card.Header>
         <Card.Content>
@@ -342,7 +329,7 @@ let make = (~open_) => {
                 }}
                 {renderApiKeySummary(
                   ~badge={renderApiKeySourceBadge(anthropicKeySettings.source)},
-                  ~manageUrl="https://console.anthropic.com/settings/keys",
+                  ~manageUrl="https://platform.claude.com/settings/keys",
                 )}
                 {renderApiKeyForm(
                   ~apiKey=anthropicKey,
@@ -413,9 +400,7 @@ let make = (~open_) => {
     </Field.Set>
 
     <Field.Set>
-      <Field.Legend variant=Field.Variant.Label>
-        {React.string("Bring your own key")}
-      </Field.Legend>
+      <Field.Legend variant=Field.Variant.Label> {React.string("API keys")} </Field.Legend>
       {renderApiKeyProviderCard(
         ~name="NVIDIA",
         ~manageUrl="https://build.nvidia.com/settings/api-keys",

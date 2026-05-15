@@ -7,6 +7,43 @@ To start your Phoenix server:
 
 Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
+## Local Stripe webhooks
+
+Stripe cannot call `localhost` directly. Use the Stripe CLI listener to create a temporary tunnel and forward events to Phoenix.
+
+Install repo tools from the monorepo root:
+
+```bash
+make install
+```
+
+Log in to Stripe once:
+
+```bash
+mise exec -- stripe login
+```
+
+Start webhook forwarding:
+
+```bash
+make stripe-webhooks
+```
+
+The listener captures the CLI signing secret, masks it in logs, and writes it to `envs/.dev.stripe-webhook.env` as `STRIPE_WEBHOOK_SECRET`. `config/runtime.exs` loads that into `Application.fetch_env!(:frontman_server, :stripe)[:webhook_secret]` at Phoenix boot. Use a test-mode API key like `sk_test_...` for `STRIPE_SECRET_KEY`.
+
+Forwarded events:
+
+```text
+checkout.session.completed
+customer.subscription.created
+customer.subscription.updated
+customer.subscription.deleted
+customer.subscription.paused
+customer.subscription.resumed
+```
+
+`make dev` starts this listener in mprocs as `stripe-webhooks`; the server waits for the generated `STRIPE_WEBHOOK_SECRET` before booting. Keep Stripe CLI login completed, or provide a test `STRIPE_SECRET_KEY` so the script can pass it to Stripe CLI as `STRIPE_API_KEY`.
+
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
 ## Architecture docs

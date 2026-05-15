@@ -7,6 +7,7 @@ source!([
   Path.absname(".env", env_dir_prefix),
   Path.absname(".#{config_env()}.env", env_dir_prefix),
   Path.absname(".#{config_env()}.overrides.env", env_dir_prefix),
+  Path.absname(".#{config_env()}.stripe-webhook.env", env_dir_prefix),
   System.get_env()
 ])
 

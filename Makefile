@@ -78,11 +78,16 @@ help: ## Display available commands
 # ============================================================================
 # Development
 # ============================================================================
+STRIPE_WEBHOOK_EVENTS := checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,customer.subscription.paused,customer.subscription.resumed
+STRIPE_WEBHOOK_FORWARD_URL ?= http://localhost:4000/api/stripe/webhook
+STRIPE_WEBHOOK_ENV_FILE := apps/frontman_server/envs/.dev.stripe-webhook.env
+
 ## DEV_START
-.PHONY: dev dev-client dev-server dev-nextjs dev-marketing
+.PHONY: dev dev-client dev-server dev-nextjs dev-marketing stripe-webhooks wait-stripe-webhook-secret
 
 dev: ## Start all core services (client + server + nextjs)
 	@printf "$(YELLOW)Starting all services via mprocs...$(RESET)\n"
+	@rm -f "$(STRIPE_WEBHOOK_ENV_FILE)"
 	mprocs --config mprocs.yml
 
 dev-client: ## Start development server for client app
@@ -102,6 +107,14 @@ dev-marketing: ## Start development server for marketing site
 	@bash -c 'while ! (: > /dev/tcp/localhost/4000) 2>/dev/null; do sleep 1; done'
 	@printf "$(YELLOW)Starting marketing dev server...$(RESET)\n"
 	cd apps/marketing && $(MAKE) dev
+
+stripe-webhooks: ## Forward Stripe webhooks to local Phoenix
+	@printf "$(YELLOW)Forwarding Stripe webhooks to $(STRIPE_WEBHOOK_FORWARD_URL)...$(RESET)\n"
+	STRIPE_WEBHOOK_FORWARD_URL="$(STRIPE_WEBHOOK_FORWARD_URL)" STRIPE_WEBHOOK_EVENTS="$(STRIPE_WEBHOOK_EVENTS)" bash ./bin/stripe-webhooks
+
+wait-stripe-webhook-secret:
+	@printf "$(YELLOW)Waiting for generated Stripe webhook secret...$(RESET)\n"
+	@while ! grep -q '^STRIPE_WEBHOOK_SECRET=whsec_' "$(STRIPE_WEBHOOK_ENV_FILE)" 2>/dev/null; do sleep 1; done
 ## DEV_END
 
 # ============================================================================
@@ -111,6 +124,8 @@ dev-marketing: ## Start development server for marketing site
 .PHONY: install build rescript-watch rescript-build reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins
 
 install: ## Install dependencies
+	@printf "$(YELLOW)Installing mise tools...$(RESET)\n"
+	mise install
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
 	yarn install
 	@$(MAKE) hooks-install
