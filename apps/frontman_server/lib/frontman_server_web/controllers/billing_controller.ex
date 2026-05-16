@@ -37,7 +37,7 @@ defmodule FrontmanServerWeb.BillingController do
     response =
       subscription
       |> status_response()
-      |> Map.put(:allow_access, Subscription.allow_access?(subscription))
+      |> Map.put(:access_allowed, Subscription.allow_access?(subscription))
 
     json(conn, response)
   end

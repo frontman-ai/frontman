@@ -40,7 +40,7 @@ defmodule FrontmanServer.Billing do
   end
 
   @doc """
-  Returns whether the scoped user can receive their lifetime trial.
+  Returns whether checkout should include the configured trial period.
   """
   @spec trial_eligible?(Scope.t()) :: boolean()
   def trial_eligible?(%Scope{} = scope) do

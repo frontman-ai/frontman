@@ -191,7 +191,11 @@ module Actions = {
     Client__State__Store.dispatch(SetSettingsModalTab({tab: tab}))
   let openSettingsModal = () => setSettingsModalTab(Some(Client__State__Types.General))
   let openSettingsModalOnProviders = () => setSettingsModalTab(Some(Client__State__Types.Providers))
+  let openSettingsModalOnBilling = () => setSettingsModalTab(Some(Client__State__Types.Billing))
   let closeSettingsModal = () => setSettingsModalTab(None)
+
+  let startBillingCheckout = (~interval) =>
+    Client__State__Store.dispatch(StartBillingCheckout(interval))
 
   // API key settings action creators
   let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)

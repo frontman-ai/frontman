@@ -39,6 +39,10 @@ module CircleHelp = {
   @module("lucide-react") external make: React.component<props> = "CircleHelpIcon"
 }
 
+module CreditCard = {
+  @module("lucide-react") external make: React.component<props> = "CreditCardIcon"
+}
+
 module ExternalLink = {
   @module("lucide-react") external make: React.component<props> = "ExternalLinkIcon"
 }
@@ -100,3 +104,4 @@ module MobileIcon = Smartphone
 module DesktopIcon = Monitor
 module UpdateIcon = RefreshCw
 module CheckIcon = Check
+module CreditCardIcon = CreditCard

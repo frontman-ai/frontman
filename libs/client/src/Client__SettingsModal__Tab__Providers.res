@@ -73,6 +73,7 @@ let renderOpenAIOAuthBadge = status =>
 let renderExternalLink = (~href, ~label) =>
   <Button
     render={<a href target="_blank" rel="noopener noreferrer" />}
+    nativeButton={false}
     variant=Button.Variant.Link
     size=Button.Size.Xs
   >
@@ -182,13 +183,14 @@ let renderApiKeyProviderCard = (
   </Card>
 
 @react.component
-let make = (~open_) => {
+let make = () => {
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
   let (anthropicKey, setAnthropicKey) = React.useState(() => "")
   let (fireworksKey, setFireworksKey) = React.useState(() => "")
   let (nvidiaKey, setNvidiaKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
 
+  let settingsModalTab = State.useSelector(State.Selectors.settingsModalTab)
   let acpSession = State.useSelector(State.Selectors.acpSession)
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
   let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
@@ -198,29 +200,33 @@ let make = (~open_) => {
   let openaiOAuthStatus = State.useSelector(State.Selectors.openaiOAuthStatus)
 
   React.useEffect2(() => {
-    switch open_ {
-    | true =>
-      State.Actions.fetchApiKeySettings()
-      State.Actions.fetchAnthropicApiKeySettings()
-      State.Actions.fetchFireworksApiKeySettings()
-      State.Actions.fetchNvidiaApiKeySettings()
-      State.Actions.fetchAnthropicOAuthStatus()
-      State.Actions.fetchOpenAIOAuthStatus()
-      State.Actions.resetOpenRouterKeySaveStatus()
-      State.Actions.resetAnthropicKeySaveStatus()
-      State.Actions.resetFireworksKeySaveStatus()
-      State.Actions.resetNvidiaKeySaveStatus()
-      State.Actions.resetAnthropicOAuthError()
-      State.Actions.resetOpenAIOAuthError()
-      setOpenrouterKey(_ => "")
-      setAnthropicKey(_ => "")
-      setFireworksKey(_ => "")
-      setNvidiaKey(_ => "")
-      setOauthCode(_ => "")
-    | false => ()
+    switch settingsModalTab {
+    | Some(tab) =>
+      switch tab {
+      | Types.Providers =>
+        State.Actions.fetchApiKeySettings()
+        State.Actions.fetchAnthropicApiKeySettings()
+        State.Actions.fetchFireworksApiKeySettings()
+        State.Actions.fetchNvidiaApiKeySettings()
+        State.Actions.fetchAnthropicOAuthStatus()
+        State.Actions.fetchOpenAIOAuthStatus()
+        State.Actions.resetOpenRouterKeySaveStatus()
+        State.Actions.resetAnthropicKeySaveStatus()
+        State.Actions.resetFireworksKeySaveStatus()
+        State.Actions.resetNvidiaKeySaveStatus()
+        State.Actions.resetAnthropicOAuthError()
+        State.Actions.resetOpenAIOAuthError()
+        setOpenrouterKey(_ => "")
+        setAnthropicKey(_ => "")
+        setFireworksKey(_ => "")
+        setNvidiaKey(_ => "")
+        setOauthCode(_ => "")
+      | _ => ()
+      }
+    | None => ()
     }
     None
-  }, (open_, acpSession))
+  }, (settingsModalTab, acpSession))
 
   let placeholder = apiKeyPlaceholder(keySettings.source, "Enter OpenRouter API key")
   let anthropicPlaceholder = apiKeyPlaceholder(
@@ -261,7 +267,10 @@ let make = (~open_) => {
               <Field.Description>
                 {React.string("1. Click the button below to authorize with Anthropic")}
               </Field.Description>
-              <Button render={<a href={authorizeUrl} target="_blank" rel="noopener noreferrer" />}>
+              <Button
+                render={<a href={authorizeUrl} target="_blank" rel="noopener noreferrer" />}
+                nativeButton={false}
+              >
                 {React.string("Open Anthropic Authorization")}
                 <Icons.OpenInNewWindowIcon className="size-4" />
               </Button>
@@ -374,6 +383,7 @@ let make = (~open_) => {
                 </Kbd>
                 <Button
                   render={<a href={verificationUrl} target="_blank" rel="noopener noreferrer" />}
+                  nativeButton={false}
                   variant=Button.Variant.Secondary
                   size=Button.Size.Sm
                 >

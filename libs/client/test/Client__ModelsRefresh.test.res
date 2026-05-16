@@ -34,6 +34,8 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     sessionInitialized: true,
     userProfile: None,
     settingsModalTab: None,
+    billingStatus: Types.BillingStatusNotLoaded,
+    billingCheckout: Types.BillingCheckoutIdle,
     openrouterKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     anthropicKeySettings: {
       source: Types.None,

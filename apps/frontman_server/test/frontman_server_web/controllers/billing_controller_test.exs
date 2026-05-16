@@ -55,11 +55,11 @@ defmodule FrontmanServerWeb.BillingControllerTest do
 
       assert %{
                "status" => "none",
-               "allow_access" => false
+               "access_allowed" => false
              } = json_response(conn, 200)
     end
 
-    test "returns subscription status", %{conn: conn, scope: scope} do
+    test "returns allowed subscription status", %{conn: conn, scope: scope} do
       {:ok, customer} =
         Billing.create_customer(scope, %{stripe_customer_id: "cus_status_test"})
 
@@ -79,7 +79,31 @@ defmodule FrontmanServerWeb.BillingControllerTest do
                "status" => "trialing",
                "interval" => "monthly",
                "price_id" => "price_monthly_test",
-               "allow_access" => true
+               "access_allowed" => true
+             } = json_response(conn, 200)
+    end
+
+    test "returns blocked subscription status", %{conn: conn, scope: scope} do
+      {:ok, customer} =
+        Billing.create_customer(scope, %{stripe_customer_id: "cus_blocked_status_test"})
+
+      {:ok, _subscription} =
+        Billing.create_subscription(scope, %{
+          billing_customer_id: customer.id,
+          stripe_subscription_id: "sub_blocked_status_test",
+          stripe_customer_id: "cus_blocked_status_test",
+          status: "canceled",
+          interval: :yearly,
+          price_id: "price_yearly_test"
+        })
+
+      conn = get(conn, ~p"/api/billing/status")
+
+      assert %{
+               "status" => "canceled",
+               "interval" => "yearly",
+               "price_id" => "price_yearly_test",
+               "access_allowed" => false
              } = json_response(conn, 200)
     end
   end

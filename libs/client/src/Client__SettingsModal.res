@@ -5,6 +5,7 @@ module State = Client__State
 module Types = Client__State__Types
 module GeneralTab = Client__SettingsModal__Tab__General
 module ProvidersTab = Client__SettingsModal__Tab__Providers
+module BillingTab = Client__SettingsModal__Tab__Billing
 
 exception UnknownSettingsTab(string)
 
@@ -12,12 +13,14 @@ let settingsTabValue = tab =>
   switch tab {
   | Types.General => "general"
   | Types.Providers => "providers"
+  | Types.Billing => "billing"
   }
 
 let openSettingsTabValue = value =>
   switch value {
   | "general" => State.Actions.openSettingsModal()
   | "providers" => State.Actions.openSettingsModalOnProviders()
+  | "billing" => State.Actions.openSettingsModalOnBilling()
   | value => throw(UnknownSettingsTab(value))
   }
 
@@ -69,6 +72,10 @@ let make = () => {
               <Icons.GlobeIcon className="size-4" />
               {React.string("Providers")}
             </Tabs.Trigger>
+            <Tabs.Trigger value={settingsTabValue(Types.Billing)}>
+              <Icons.CreditCardIcon className="size-4" />
+              {React.string("Billing")}
+            </Tabs.Trigger>
           </Tabs.List>
         </div>
 
@@ -82,7 +89,13 @@ let make = () => {
           ~value=settingsTabValue(Types.Providers),
           ~title="Providers",
           ~description="Connect subscriptions or bring your own API keys.",
-          <ProvidersTab open_ />,
+          <ProvidersTab />,
+        )}
+        {renderPanel(
+          ~value=settingsTabValue(Types.Billing),
+          ~title="Billing",
+          ~description="View your Frontman plan and billing access.",
+          <BillingTab />,
         )}
       </Tabs>
     </Dialog.Content>

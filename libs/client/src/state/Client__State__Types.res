@@ -90,6 +90,97 @@ type apiKeySettings = {
 type settingsTab =
   | General
   | Providers
+  | Billing
+
+type billingSubscriptionStatus =
+  | @as("none") NoSubscription
+  | @as("trialing") Trialing
+  | @as("active") Active
+  | @as("past_due") PastDue
+  | @as("canceled") Canceled
+  | @as("incomplete") Incomplete
+  | @as("incomplete_expired") IncompleteExpired
+  | @as("unpaid") Unpaid
+  | UnknownSubscriptionStatus(string)
+
+let billingSubscriptionStatusSchema = S.union([
+  S.literal(NoSubscription),
+  S.literal(Trialing),
+  S.literal(Active),
+  S.literal(PastDue),
+  S.literal(Canceled),
+  S.literal(Incomplete),
+  S.literal(IncompleteExpired),
+  S.literal(Unpaid),
+  S.string->S.transform(_ => {
+    parser: status => UnknownSubscriptionStatus(status),
+    serializer: status =>
+      switch status {
+      | NoSubscription => "none"
+      | Trialing => "trialing"
+      | Active => "active"
+      | PastDue => "past_due"
+      | Canceled => "canceled"
+      | Incomplete => "incomplete"
+      | IncompleteExpired => "incomplete_expired"
+      | Unpaid => "unpaid"
+      | UnknownSubscriptionStatus(status) => status
+      },
+  }),
+])
+
+@schema
+type billingInterval =
+  | @as("monthly") Monthly
+  | @as("yearly") Yearly
+
+@schema
+type billingCheckoutInterval =
+  | @as("monthly") CheckoutMonthly
+  | @as("yearly") CheckoutYearly
+
+@schema
+type billingStatus = {
+  @s.matches(billingSubscriptionStatusSchema)
+  status: billingSubscriptionStatus,
+  @as("access_allowed")
+  accessAllowed: bool,
+  interval: @s.null option<billingInterval>,
+  @as("current_period_end")
+  currentPeriodEnd: @s.null option<string>,
+  @as("trial_end")
+  trialEnd: @s.null option<string>,
+  @as("cancel_at")
+  cancelAt: @s.null option<string>,
+  @as("canceled_at")
+  canceledAt: @s.null option<string>,
+}
+
+@schema
+type billingCheckoutRequest = {
+  @live
+  interval: billingCheckoutInterval,
+}
+
+@schema
+type billingCheckoutResponse = {url: string}
+
+@schema
+type billingApiErrorResponse = {
+  error: string,
+  reason: option<string>,
+}
+
+type billingStatusState =
+  | BillingStatusNotLoaded
+  | BillingStatusLoading
+  | BillingStatusLoaded(billingStatus)
+  | BillingStatusError(string)
+
+type billingCheckoutState =
+  | BillingCheckoutIdle
+  | BillingCheckoutLoading(billingCheckoutInterval)
+  | BillingCheckoutError(string)
 
 // Re-export ACP session config types used by the client state layer.
 module ACPConfig = {
@@ -153,6 +244,8 @@ type state = {
   sessionInitialized: bool,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
+  billingStatus: billingStatusState,
+  billingCheckout: billingCheckoutState,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,
