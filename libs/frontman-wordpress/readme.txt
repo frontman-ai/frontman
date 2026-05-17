@@ -16,6 +16,8 @@ Watch Frontman in action:
 
 https://www.youtube.com/watch?v=-4GD1GYwH8Y
 
+Learn more on the [Frontman Website](https://frontman.sh).
+
 Agentic AI puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow — posts, pages, blocks, menus, templates, site settings, WooCommerce store operations, and more.
 
 No code editor. No terminal. Just a chat interface alongside a live view of your site.
@@ -95,7 +97,10 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 
 == Screenshots ==
 
-1. The Frontman chat interface alongside your WordPress site
+1. Frontman understands the requested content change and prepares the edit from chat.
+2. Frontman runs beside a live WordPress page preview while you describe changes.
+3. Frontman highlights the selected product card directly on the site.
+4. Select mode lets you click page elements to target edits visually.
 
 == Changelog ==
 
