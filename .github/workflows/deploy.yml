@@ -12,6 +12,7 @@ on:
       - 'mise.toml'
       - '.github/workflows/deploy.yml'
       - 'infra/**'
+      - '!infra/production/notifier/**'
   workflow_dispatch:
 
 # Only one deploy at a time — newer pushes cancel in-progress deploys

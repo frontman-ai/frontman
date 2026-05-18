@@ -1,0 +1,80 @@
+name: Deploy Production Notifier
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/frontman_notifier/**'
+      - 'infra/production/notifier/**'
+      - '.github/workflows/deploy-notifier.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production-notifier
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-notifier:
+    name: Deploy Notifier
+    runs-on: self-hosted
+    environment: production
+    env:
+      PROD_SERVER: ${{ secrets.PROD_SERVER }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$PROD_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Ensure remote build directory
+        run: |
+          ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" \
+            'mkdir -p /opt/frontman-notifier/build'
+
+      - name: Sync source to production server
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '_build' \
+            --exclude 'deps' \
+            --exclude '.worktrees' \
+            --exclude '.DS_Store' \
+            --exclude '.yarn' \
+            --exclude '.env.local' \
+            --exclude '.certs' \
+            --exclude 'docs' \
+            --exclude 'infra/marketing' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ \
+            "deploy@${PROD_SERVER}:/opt/frontman-notifier/build/"
+
+      - name: Build and deploy on server
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            "deploy@${PROD_SERVER}" \
+            'chmod +x /opt/frontman-notifier/build/infra/production/notifier/build-and-deploy.sh && /opt/frontman-notifier/build/infra/production/notifier/build-and-deploy.sh'
+
+      - name: Cleanup SSH
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+      - name: Notify Discord
+        if: always()
+        continue-on-error: true
+        uses: ./.github/actions/discord-notify
+        with:
+          status: ${{ job.status }}
+          component: Notifier
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
