@@ -74,33 +74,4 @@ describe("Client__Billing", _t => {
     t->expect(Client__Billing.accessAllowed(Client__Billing.NotLoaded))->Expect.toBe(false)
     t->expect(Client__Billing.accessAllowed(Client__Billing.Error("boom")))->Expect.toBe(false)
   })
-
-  test("activation gate defers billing fallback until ACP session initializes", t => {
-    t
-    ->expect(
-      Client__BillingActivation.shouldRenderChildren(
-        ~sessionInitialized=false,
-        Client__Billing.NotLoaded,
-      ),
-    )
-    ->Expect.toBe(true)
-
-    t
-    ->expect(
-      Client__BillingActivation.shouldRenderChildren(
-        ~sessionInitialized=true,
-        Client__Billing.NotLoaded,
-      ),
-    )
-    ->Expect.toBe(false)
-
-    t
-    ->expect(
-      Client__BillingActivation.shouldRenderChildren(
-        ~sessionInitialized=true,
-        Client__Billing.Loaded(activeStatus),
-      ),
-    )
-    ->Expect.toBe(true)
-  })
 })

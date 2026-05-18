@@ -208,7 +208,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "jsonrpc" => "2.0",
         "id" => 2,
         "error" => %{
-          "code" => -32_000,
+          "code" => -32_010,
           "message" => "Finish billing setup to start using Frontman."
         }
       })

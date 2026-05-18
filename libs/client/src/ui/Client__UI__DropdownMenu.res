@@ -36,6 +36,12 @@ module Portal = {
     <BaseUi.Menu.Portal ?children ?container dataSlot="dropdown-menu-portal" />
 }
 
+module Group = {
+  @react.componentWithProps(BaseUi.Types.BaseUIComponentProps.t)
+  let make = (props: BaseUi.Types.BaseUIComponentProps.t) =>
+    <BaseUi.Menu.Group {...props} dataSlot="dropdown-menu-group" />
+}
+
 module Trigger = {
   @react.componentWithProps(BaseUi.Menu.Trigger.props)
   let make = (props: BaseUi.Menu.Trigger.props) =>

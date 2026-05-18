@@ -231,6 +231,36 @@ describe("ACP Client handleResponse", _t => {
     t->expect(rejected.contents)->Expect.toEqual(true)
   })
 
+  test("error response preserves code and message", t => {
+    let rejected = ref(None)
+    let pending: Client.pendingRequest = {
+      resolve: _ => (),
+      reject: err => rejected := Some(err),
+    }
+
+    let state = Client.initialState->Client.reduce(Client.RequestSent(4, pending))
+
+    let errorObj = Dict.make()
+    errorObj->Dict.set("code", JSON.Encode.int(JsonRpc.ErrorCode.billingInactive))
+    errorObj->Dict.set("message", JSON.Encode.string("Alternate billing copy"))
+
+    let responseJson = Dict.make()
+    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
+    responseJson->Dict.set("id", JSON.Encode.int(4))
+    responseJson->Dict.set("error", JSON.Encode.object(errorObj))
+
+    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
+
+    switch rejected.contents {
+    | Some(err) =>
+      t
+      ->expect(Client.requestErrorCode(err))
+      ->Expect.toEqual(Some(JsonRpc.ErrorCode.billingInactive))
+      t->expect(Client.requestErrorMessage(err))->Expect.toEqual("Alternate billing copy")
+    | None => failwith("Expected rejected error")
+    }
+  })
+
   test("removes request from pending after handling", t => {
     let pending: Client.pendingRequest = {
       method: "test",

@@ -6,6 +6,7 @@ module AssistantContentPart = Client__Task__Types.AssistantContentPart
 module Message = Client__Task__Types.Message
 module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
+module ACPClient = FrontmanAiFrontmanClient.FrontmanClient__ACP
 
 // Re-export content block builders
 let annotationToContentBlocks = Client__Task__Types.annotationToContentBlocks
@@ -15,7 +16,7 @@ let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsTo
 type sendPromptFn = (
   string,
   ~additionalBlocks: array<ACPTypes.contentBlock>,
-  ~onComplete: result<ACPTypes.promptResult, string> => unit,
+  ~onComplete: result<ACPTypes.promptResult, ACPClient.requestError> => unit,
   ~_meta: option<JSON.t>,
 ) => unit
 

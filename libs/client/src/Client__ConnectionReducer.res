@@ -87,19 +87,19 @@ type action =
   | RelayConnectSuccess
   | RelayConnectError(string)
   | SessionCreateSuccess(ACP.session)
-  | SessionCreateError(string)
+  | SessionCreateError(ACP.requestError)
   | CreateSession({
       onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
       onTitleUpdated: (string, string) => unit,
       onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<string, string> => unit,
+      onComplete: result<string, ACP.requestError> => unit,
     })
   | SendPrompt({
       text: string,
       additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
       onComplete: result<
         FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult,
-        string,
+        ACP.requestError,
       > => unit,
       _meta: option<JSON.t>,
     })
@@ -132,7 +132,7 @@ type effect =
       onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
       onTitleUpdated: (string, string) => unit,
       onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<string, string> => unit,
+      onComplete: result<string, ACP.requestError> => unit,
     })
   | SendPromptEffect({
       session: ACP.session,
@@ -140,7 +140,7 @@ type effect =
       additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
       onComplete: result<
         FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult,
-        string,
+        ACP.requestError,
       > => unit,
       _meta: option<JSON.t>,
     })
@@ -304,10 +304,16 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [LogInfo(`Session activated: ${sess.sessionId}`)],
     )
 
-  | ({session: SessionCreating}, SessionCreateError(msg)) => (
-      {...state, session: SessionError(msg)},
-      [LogError(`Session failed: ${msg}`)],
-    )
+  | ({session: SessionCreating}, SessionCreateError(err)) => {
+      let message = ACP.requestErrorMessage(err)
+      switch ACP.requestErrorIsBillingInactive(err) {
+      | true => ({...state, session: NoSession}, [LogError(`Session failed: ${message}`)])
+      | false => (
+          {...state, session: SessionError(message)},
+          [LogError(`Session failed: ${message}`)],
+        )
+      }
+    }
 
   | (
       {
@@ -542,7 +548,8 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         onComplete(result)
       } catch {
       | exn =>
-        onComplete(Error("sendPrompt exception"))
+        dispatch(PromptSent)
+        onComplete(Error(ACP.requestErrorFromMessage("sendPrompt exception")))
         throw(exn)
       }
     }
@@ -612,7 +619,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         Log.info(~ctx={"taskId": taskId}, "Session activated")
         onComplete(Ok())
       | Error(err) =>
-        dispatch(SessionCreateError(err))
+        dispatch(SessionCreateError(ACP.requestErrorFromMessage(err)))
         Log.error(~ctx={"error": err}, "Failed to activate session")
         onComplete(Error(err))
       }

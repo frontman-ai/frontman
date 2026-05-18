@@ -14,11 +14,16 @@ type acpState =
   | Connecting
   | Initialized(Types.initializeResult)
 
+type requestError = {
+  code: option<int>,
+  message: string,
+}
+
 type pendingRequest = {
   method: string,
   sessionId: option<string>,
   resolve: JSON.t => unit,
-  reject: string => unit,
+  reject: requestError => unit,
 }
 
 type state = {
@@ -44,6 +49,12 @@ let initialState: state = {
   acpState: Disconnected,
   pendingRequests: Dict.make(),
 }
+
+let requestErrorFromMessage = message => {code: None, message}
+let requestErrorWithCode = (~code, ~message) => {code: Some(code), message}
+let requestErrorMessage = error => error.message
+let requestErrorCode = error => error.code
+let requestErrorIsBillingInactive = error => error.code == Some(JsonRpc.ErrorCode.billingInactive)
 
 // Pure reducer function
 let reduce = (state: state, action: action): state => {
@@ -77,8 +88,9 @@ let handleResponse = (state: state, payload: JSON.t): state => {
       | Some(result) => resolve(result)
       | None =>
         switch response->JsonRpc.Response.error {
-        | Some(err) => reject(err->JsonRpc.RpcError.message)
-        | None => reject("Unknown error")
+        | Some(err) =>
+          reject({code: Some(err->JsonRpc.RpcError.code), message: err->JsonRpc.RpcError.message})
+        | None => reject(requestErrorFromMessage("Unknown error"))
         }
       }
       state->reduce(ResponseReceived(id))

@@ -171,7 +171,7 @@ defmodule FrontmanServerWeb.TasksChannel do
 
       {:error, :billing_inactive} ->
         message = Execution.error_message(socket.assigns.scope, :billing_inactive)
-        push_error(socket, id, -32_000, message)
+        push_error(socket, id, JsonRpc.error_billing_inactive(), message)
 
       {:error, _changeset} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")

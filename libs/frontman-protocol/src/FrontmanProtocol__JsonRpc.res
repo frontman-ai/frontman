@@ -13,6 +13,8 @@ module ErrorCode = {
   let serverError = -32000
   // ACP elicitation: URL mode elicitation is required before the request can proceed
   let urlElicitationRequired = -32042
+  // Frontman billing: access is blocked because billing is inactive
+  let billingInactive = -32010
 }
 
 module Id: {

@@ -2,6 +2,7 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #StateReducer
 })
 module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
+module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 
 let name = "Client::StateReducer"
 
@@ -538,7 +539,7 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
-  _dispatch,
+  dispatch,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
@@ -576,7 +577,38 @@ let sendMessageToAPIImpl = (
     | None => Some(baseMeta)
     }
 
-    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
+    sendPrompt(
+      message,
+      ~additionalBlocks,
+      ~onComplete=result => {
+        // Flush any buffered text deltas before completing the turn.
+        // Without this, a rAF-buffered delta could fire after TurnCompleted,
+        // reopening a Completed message as Streaming permanently.
+        Client__TextDeltaBuffer.flush()
+
+        switch result {
+        | Error(err) if ACP.requestErrorIsBillingInactive(err) =>
+          dispatch(
+            TaskAction({
+              target: ForTask(taskId),
+              action: AgentError({
+                id: `billing_inactive:${Date.make()->Date.toISOString}`,
+                error: ACP.requestErrorMessage(err),
+                timestamp: Date.make()->Date.toISOString,
+                category: "billing",
+              }),
+            }),
+          )
+          dispatch(SetSettingsModalTab({tab: Some(Client__State__Types.Billing)}))
+        | _ =>
+          // Always dispatch — the reducer gates TurnCompleted on isAgentRunning,
+          // so duplicates (from notification + RPC) and post-cancel arrivals
+          // are no-ops.
+          dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+        }
+      },
+      ~_meta,
+    )
   | NoAcpSession => Log.error("Cannot send message: no active ACP session")
   }
 }

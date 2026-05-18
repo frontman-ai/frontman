@@ -905,6 +905,27 @@ describe("Client State Reducer - Billing Settings", () => {
   let parseBillingStatus = json =>
     S.parseJsonOrThrow(JSON.parseOrThrow(json), Client__Billing.statusSchema)
 
+  let noopSessionCallbacks = (~sendPrompt) => Client__State__Types.AcpSessionActive({
+    sendPrompt,
+    cancelPrompt: () => (),
+    retryTurn: _ => (),
+    loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+    deleteSession: (_, ~onComplete as _) => (),
+    apiBaseUrl: "http://localhost:4000",
+  })
+
+  let setRuntime: JSON.t => unit = %raw(`
+    function(value) {
+      globalThis.window = globalThis.window || {};
+      window.__frontmanRuntime = value;
+    }
+  `)
+  let clearRuntime: unit => unit = %raw(`
+    function() {
+      if (typeof window !== 'undefined') delete window.__frontmanRuntime;
+    }
+  `)
+
   test("SetSettingsModalTab(Billing) only opens the tab", t => {
     let state: Reducer.state = {
       ...Reducer.defaultState,
@@ -1038,6 +1059,56 @@ describe("Client State Reducer - Billing Settings", () => {
       }),
     )
     ->Expect.toBe(false)
+  })
+
+  test("billing prompt failure stores billing turn error and opens Billing settings", t => {
+    let taskId = "billing-task"
+    let billingError = FrontmanAiFrontmanClient.FrontmanClient__ACP.requestErrorWithCode(
+      ~code=FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc.ErrorCode.billingInactive,
+      ~message="Alternate billing copy",
+    )
+    let sendPrompt: Client__State__Types.sendPromptFn = (
+      _,
+      ~additionalBlocks as _,
+      ~onComplete,
+      ~_meta as _,
+    ) => onComplete(Error(billingError))
+    let state = {
+      ...TestHelpers.makeStateWithTask(~taskId, ~isAgentRunning=true),
+      acpSession: noopSessionCallbacks(~sendPrompt),
+    }
+    let dispatched = ref([])
+    setRuntime(JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("nextjs"))])))
+
+    Reducer.handleEffect(
+      TaskEffect({
+        target: ForTask(taskId),
+        effect: SendMessage({text: "Hello", attachments: [], annotations: []}),
+      }),
+      state,
+      action => dispatched.contents = Array.concat(dispatched.contents, [action]),
+    )
+    clearRuntime()
+
+    let finalState = dispatched.contents->Array.reduce(
+      state,
+      (state, action) => {
+        let (nextState, _) = Reducer.next(state, action)
+        nextState
+      },
+    )
+
+    t
+    ->expect(finalState.settingsModalTab)
+    ->Expect.toEqual(Some(Client__State__Types.Billing))
+
+    switch Reducer.Selectors.turnError(finalState) {
+    | Some({message, category, _}) => {
+        t->expect(message)->Expect.toBe("Alternate billing copy")
+        t->expect(category)->Expect.toBe("billing")
+      }
+    | None => JsExn.throw("Expected billing turn error")
+    }
   })
 })
 

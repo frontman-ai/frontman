@@ -167,6 +167,14 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_interaction(interaction, turn_number, socket)
   end
 
+  def handle_info({:execution_start_error, msg, turn_number}, socket) do
+    finalize_turn(socket, {:error, msg, "unknown"}, turn_number)
+  end
+
+  def handle_info({:execution_start_error, reason, msg}, socket) do
+    finalize_turn(socket, {:error, msg, execution_start_error_category(reason)}, nil)
+  end
+
   def handle_info({:fire_retry, token}, socket) do
     case socket.assigns[:retry_state] do
       %{timer_token: ^token, retried_error_id: retried_error_id} ->
@@ -671,6 +679,9 @@ defmodule FrontmanServerWeb.TaskChannel do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
     {:noreply, socket}
   end
+
+  defp execution_start_error_category(:billing_inactive), do: "billing"
+  defp execution_start_error_category(_reason), do: "unknown"
 
   defp handle_execution_chunk(socket, %{type: :content, text: text})
        when is_binary(text) and text != "" do

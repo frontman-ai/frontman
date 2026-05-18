@@ -14,6 +14,12 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 type messageDirection = Protocol.messageDirection
+type requestError = Client.requestError
+let requestErrorFromMessage = Client.requestErrorFromMessage
+let requestErrorWithCode = Client.requestErrorWithCode
+let requestErrorMessage = Client.requestErrorMessage
+let requestErrorCode = Client.requestErrorCode
+let requestErrorIsBillingInactive = Client.requestErrorIsBillingInactive
 @@live
 type config = {
   endpoint: string,
@@ -265,8 +271,9 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
         ~onMessage=config.onMessage,
       ) {
       | Error(e) =>
-        Log.error(`ACP initialize failed: ${e}`)
-        Error(ConnectionFailed(e))
+        let message = Client.requestErrorMessage(e)
+        Log.error(`ACP initialize failed: ${message}`)
+        Error(ConnectionFailed(message))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
         state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
@@ -368,7 +375,7 @@ let createSession = async (
   ~onTitleUpdated: (string, string) => unit,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
-): result<(session, option<array<Types.sessionConfigOption>>), string> => {
+): result<(session, option<array<Types.sessionConfigOption>>), requestError> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
   let sessionNewResult = await Protocol.sendSessionNew(
@@ -390,10 +397,10 @@ let createSession = async (
     )
     switch joinResult {
     | Ok(session) => Ok((session, result.configOptions))
-    | Error(e) => Error(e)
+    | Error(e) => Error(Client.requestErrorFromMessage(e))
     }
   | Error(err) =>
-    Log.error(`Session creation failed: ${err}`)
+    Log.error(`Session creation failed: ${Client.requestErrorMessage(err)}`)
     Error(err)
   }
 }
@@ -405,7 +412,7 @@ let sendPrompt = async (
   text: string,
   ~additionalBlocks: array<Types.contentBlock>=[],
   ~_meta: option<JSON.t>=None,
-): result<Types.promptResult, string> => {
+): result<Types.promptResult, requestError> => {
   let baseBlocks: array<Types.contentBlock> = switch text->String.trim != "" {
   | true => [TextContent({text, _meta: None, annotations: None})]
   | false => []
@@ -417,14 +424,17 @@ let sendPrompt = async (
       block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
     )
 
-  await Protocol.sendPrompt(
+  switch await Protocol.sendPrompt(
     ~channel=session.channel,
     ~state=session.connection.state,
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
     ~_meta,
     ~onMessage=session.connection.onMessage,
-  )
+  ) {
+  | Ok(result) => Ok(result)
+  | Error(error) => Error(error)
+  }
 }
 
 // Cancel an in-flight prompt
@@ -534,7 +544,7 @@ let loadSession = async (
 
     switch loadResult {
     | Ok(result) => Ok((session, result))
-    | Error(e) => Error(e)
+    | Error(e) => Error(Client.requestErrorMessage(e))
     }
   }
 }
