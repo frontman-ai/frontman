@@ -2099,7 +2099,7 @@ __metadata:
     "@radix-ui/react-select": "npm:^2.2.6"
     "@radix-ui/react-slot": "npm:^1.2.4"
     "@radix-ui/react-tooltip": "npm:^1.2.8"
-    "@rescript/react": "npm:^0.14.2"
+    "@rescript/react": "npm:^0.15.0"
     "@rescript/webapi": "npm:*"
     "@tailwindcss/vite": "npm:^4.2.2"
     "@types/babel__core": "npm:^7"
@@ -2220,7 +2220,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman-ai/react-statestore@workspace:libs/react-statestore"
   dependencies:
-    "@rescript/react": "npm:^0.14.2"
+    "@rescript/react": "npm:^0.15.0"
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/react": "npm:^16.3.0"
     jsdom: "npm:^28.0.0"
@@ -2265,7 +2265,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/bindings@workspace:libs/bindings"
   dependencies:
-    "@rescript/react": "npm:^0.14.0"
+    "@rescript/react": "npm:^0.15.0"
     "@rescript/runtime": "npm:12.2.0"
     dom-element-to-component-source: "npm:^0.5.0"
     rescript: "catalog:"
@@ -4605,13 +4605,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/react@npm:^0.14.0, @rescript/react@npm:^0.14.2":
-  version: 0.14.2
-  resolution: "@rescript/react@npm:0.14.2"
+"@rescript/react@npm:^0.15.0":
+  version: 0.15.0
+  resolution: "@rescript/react@npm:0.15.0"
   peerDependencies:
-    react: ">=19.1.0"
-    react-dom: ">=19.1.0"
-  checksum: 10c0/6fbc0614ac4e4e5ad37abe474dcc137dc8cb7c3351dbc9afa4de92f080614e78809278a034c52da1676e89c299ab07154760d8b80f68f0a5cfd284e22035f713
+    "@rescript/runtime": ">=12.0.0"
+    react: ">=19.2.0"
+    react-dom: ">=19.2.0"
+  checksum: 10c0/e66834c5a290700f0ee586be3c8e65c74248c1f364b32e1a8fcb48d874cf80ec51700dee4cf57d24274b144fc9744e0228c4788422b635ff8008570b17f991df
   languageName: node
   linkType: hard
 
