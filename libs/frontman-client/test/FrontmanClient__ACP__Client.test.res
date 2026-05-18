@@ -157,6 +157,33 @@ describe("ACP Client parseInitializeResult", _t => {
   })
 })
 
+describe("ACP Client transport events", _t => {
+  test("billing status event invokes callback", t => {
+    let eventNames: ref<array<string>> = ref([])
+    let callbacks: ref<array<JSON.t => unit>> = ref([])
+    let channel: FrontmanClient__Phoenix__Channel.t = %raw(`({
+      on: function(event, callback) {
+        eventNames.push(event);
+        callbacks.push(callback);
+      }
+    })`)
+    let received: ref<option<JSON.t>> = ref(None)
+
+    FrontmanClient__ACP.attachBillingStatusHandler(
+      ~channel,
+      ~onBillingStatusUpdated=Some(payload => received := Some(payload)),
+    )
+
+    t->expect(eventNames.contents->Array.get(0))->Expect.toEqual(Some("billing_status_updated"))
+
+    let payload = JSON.Encode.object(Dict.fromArray([("status", JSON.Encode.string("none"))]))
+    let callback = callbacks.contents->Array.get(0)->Option.getOrThrow
+    callback(payload)
+
+    t->expect(received.contents)->Expect.toEqual(Some(payload))
+  })
+})
+
 describe("ACP Client handleResponse", _t => {
   test("resolves pending request on success", t => {
     let resolved = ref(false)

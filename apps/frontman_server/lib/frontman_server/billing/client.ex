@@ -20,5 +20,8 @@ defmodule FrontmanServer.Billing.Client do
               trial_eligible: boolean()
             ) :: {:ok, map()} | {:error, term()}
 
+  @callback create_customer_portal_url(Customer.t(), String.t()) ::
+              {:ok, String.t()} | {:error, term()}
+
   @callback construct_webhook_event(binary(), String.t()) :: {:ok, map()} | {:error, term()}
 end

@@ -1,52 +1,43 @@
+module Alert = Client__UI__Alert
 module Badge = Client__UI__Badge
 module Button = Client__UI__Button
 module Card = Client__UI__Card
+module HostNavigation = Client__HostNavigation
 module Spinner = Client__UI__Spinner
+module Billing = Client__Billing
 module State = Client__State
-module Types = Client__State__Types
 
-let statusLabel = status =>
-  switch status {
-  | Types.NoSubscription => "No active plan"
-  | Types.Trialing => "Trialing"
-  | Types.Active => "Active"
-  | Types.PastDue => "Past due"
-  | Types.Canceled => "canceled"
-  | Types.Incomplete => "incomplete"
-  | Types.IncompleteExpired => "incomplete_expired"
-  | Types.Unpaid => "unpaid"
-  | Types.UnknownSubscriptionStatus(status) => status
-  }
+type stripeFlowStage =
+  | StripeFlowInactive
+  | StripeFlowOpen
+  | StripeFlowClosed
+  | StripeFlowBlocked({url: string})
 
 let statusVariant = status =>
   switch status {
-  | Types.Trialing | Types.Active => Badge.Variant.Emerald
-  | Types.PastDue => Badge.Variant.Amber
-  | Types.NoSubscription => Badge.Variant.Zinc
-  | Types.Canceled
-  | Types.Incomplete
-  | Types.IncompleteExpired
-  | Types.Unpaid
-  | Types.UnknownSubscriptionStatus(_) =>
+  | Billing.Trialing | Billing.Active => Badge.Variant.Emerald
+  | Billing.PastDue => Badge.Variant.Amber
+  | Billing.NoSubscription => Badge.Variant.Zinc
+  | Billing.Canceled
+  | Billing.Incomplete
+  | Billing.IncompleteExpired
+  | Billing.Unpaid
+  | Billing.UnknownSubscriptionStatus(_) =>
     Badge.Variant.Red
   }
 
-let intervalLabel = interval =>
-  switch interval {
-  | Types.Monthly => "Monthly"
-  | Types.Yearly => "Yearly"
-  }
-
-let checkoutIntervalIsLoading = (~checkoutState, ~interval) =>
-  switch checkoutState {
-  | Types.BillingCheckoutLoading(loadingInterval) => loadingInterval == interval
-  | Types.BillingCheckoutIdle | Types.BillingCheckoutError(_) => false
+let stripeFlowIsOpen = stripeFlowStage =>
+  switch stripeFlowStage {
+  | StripeFlowOpen => true
+  | StripeFlowInactive | StripeFlowClosed | StripeFlowBlocked(_) => false
   }
 
 let formatDate = value => {
   let date = Date.fromString(value)
   Intl.DateTimeFormat.make()->Intl.DateTimeFormat.format(date)
 }
+
+let buildBillingUrl = (~apiBaseUrl, ~path) => apiBaseUrl->Option.map(baseUrl => `${baseUrl}${path}`)
 
 let renderDetailRow = (~label, ~value) =>
   <div className="flex items-center justify-between gap-4 py-2 text-sm">
@@ -60,54 +51,132 @@ let renderOptionalDetailRow = (~label, value) =>
   | None => React.null
   }
 
+let renderCancellationNotice = billingStatus =>
+  switch Billing.cancelAt(billingStatus) {
+  | Some(cancelAt) =>
+    <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-950 dark:text-amber-100">
+      <Alert.Title> {React.string("Subscription scheduled to cancel")} </Alert.Title>
+      <Alert.Description className="text-amber-900/80 dark:text-amber-100/80">
+        {React.string(`Access remains active until ${formatDate(cancelAt)}.`)}
+      </Alert.Description>
+    </Alert>
+  | None => React.null
+  }
+
+let renderStripeFlowCopy = stripeFlowStage =>
+  switch stripeFlowStage {
+  | StripeFlowOpen =>
+    <>
+      <p className="text-sm text-muted-foreground">
+        {React.string(
+          "Complete any required steps in Stripe. Billing updates here automatically when Stripe sends confirmation.",
+        )}
+      </p>
+    </>
+  | StripeFlowClosed =>
+    <>
+      <p className="text-sm text-muted-foreground">
+        {React.string(
+          "Billing updates here automatically when Stripe sends confirmation. You can reopen Stripe if needed.",
+        )}
+      </p>
+    </>
+  | StripeFlowBlocked(_) =>
+    <>
+      <p className="text-sm text-muted-foreground">
+        {React.string(
+          "Popup blocked. Allow popups, then open Stripe again. Billing updates here automatically after Stripe confirms changes.",
+        )}
+      </p>
+    </>
+  | StripeFlowInactive => React.null
+  }
+
+let renderStripeFlowNotice = (~stripeFlowStage, ~onRetry) => {
+  switch stripeFlowStage {
+  | StripeFlowInactive => React.null
+  | StripeFlowOpen | StripeFlowClosed | StripeFlowBlocked(_) =>
+    <Card size=Card.Size.Sm>
+      <Card.Content className="space-y-3">
+        <div className="space-y-1"> {renderStripeFlowCopy(stripeFlowStage)} </div>
+        {switch stripeFlowStage {
+        | StripeFlowBlocked({url}) =>
+          <Button variant=Button.Variant.Default onClick={_ => onRetry(~url)}>
+            {React.string("Open Stripe again")}
+          </Button>
+        | StripeFlowOpen | StripeFlowClosed | StripeFlowInactive => React.null
+        }}
+      </Card.Content>
+    </Card>
+  }
+}
+
 let renderCheckoutButton = (
-  ~interval,
+  ~url,
   ~label,
-  ~loadingLabel,
-  ~checkoutState,
+  ~stripeFlowIsOpen,
+  ~onOpenStripeFlow,
   ~variant=Button.Variant.Default,
 ) => {
-  let loading = checkoutIntervalIsLoading(~checkoutState, ~interval)
+  let disabled = stripeFlowIsOpen || url->Option.isNone
   <Button
     variant
     className="w-full sm:w-40"
-    disabled={switch checkoutState {
-    | Types.BillingCheckoutLoading(_) => true
-    | Types.BillingCheckoutIdle | Types.BillingCheckoutError(_) => false
-    }}
-    onClick={_ => State.Actions.startBillingCheckout(~interval)}
+    disabled
+    onClick={_ =>
+      switch url {
+      | Some(url) => onOpenStripeFlow(~url)
+      | None => ()
+      }}
   >
-    {switch loading {
-    | true => <Spinner dataIcon=Spinner.InlineStart />
-    | false => React.null
-    }}
     {React.string(
-      switch loading {
-      | true => loadingLabel
+      switch stripeFlowIsOpen {
+      | true => "Stripe tab open"
       | false => label
       },
     )}
   </Button>
 }
 
-let renderCheckoutError = checkoutState =>
-  switch checkoutState {
-  | Types.BillingCheckoutError(error) =>
-    <div
-      role="alert" className="rounded-lg border border-destructive/30 p-2 text-sm text-destructive"
-    >
-      {React.string(error)}
+let renderCustomerManagementActions = (~apiBaseUrl, ~stripeFlowIsOpen, ~onOpenStripeFlow) => {
+  let url = buildBillingUrl(~apiBaseUrl, ~path=Billing.customerPortalPath)
+  <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="space-y-1">
+        <div className="text-sm font-medium"> {React.string("Manage billing")} </div>
+        <p className="text-xs text-muted-foreground">
+          {React.string("Cancel, update payment method, and view invoices in Stripe.")}
+        </p>
+      </div>
+      <Button
+        variant=Button.Variant.Secondary
+        className="w-full sm:w-auto"
+        disabled={stripeFlowIsOpen || url->Option.isNone}
+        onClick={_ =>
+          switch url {
+          | Some(url) => onOpenStripeFlow(~url)
+          | None => ()
+          }}
+      >
+        {React.string(
+          switch stripeFlowIsOpen {
+          | true => "Stripe tab open"
+          | false => "Manage in Stripe"
+          },
+        )}
+      </Button>
     </div>
-  | Types.BillingCheckoutIdle | Types.BillingCheckoutLoading(_) => React.null
-  }
+  </div>
+}
 
 let renderCheckoutOption = (
-  ~interval,
+  ~apiBaseUrl,
+  ~path,
   ~title,
   ~price,
   ~description,
-  ~loadingLabel,
-  ~checkoutState,
+  ~stripeFlowIsOpen,
+  ~onOpenStripeFlow,
   ~variant,
   ~badge=?,
 ) =>
@@ -126,47 +195,47 @@ let renderCheckoutOption = (
       <p className="text-xs text-muted-foreground"> {React.string(description)} </p>
     </div>
     {renderCheckoutButton(
-      ~interval,
+      ~url=buildBillingUrl(~apiBaseUrl, ~path),
       ~label=`Choose ${title}`,
-      ~loadingLabel,
-      ~checkoutState,
+      ~stripeFlowIsOpen,
+      ~onOpenStripeFlow,
       ~variant,
     )}
   </div>
 
-let renderCheckoutActions = (~checkoutState) => {
-  <>
-    <div className="divide-y">
-      {renderCheckoutOption(
-        ~interval=Types.CheckoutYearly,
-        ~title="Yearly",
-        ~price="EUR 12.50 / seat / month",
-        ~description="EUR 150 billed once per year. Saves EUR 30.",
-        ~loadingLabel="Starting yearly...",
-        ~checkoutState,
-        ~variant=Button.Variant.Default,
-        ~badge="Best value",
-      )}
-      {renderCheckoutOption(
-        ~interval=Types.CheckoutMonthly,
-        ~title="Monthly",
-        ~price="EUR 15 / seat / month",
-        ~description="EUR 15 billed monthly.",
-        ~loadingLabel="Starting monthly...",
-        ~checkoutState,
-        ~variant=Button.Variant.Secondary,
-      )}
-    </div>
-    {renderCheckoutError(checkoutState)}
-  </>
-}
+let renderCheckoutActions = (~apiBaseUrl, ~stripeFlowIsOpen, ~onOpenStripeFlow) =>
+  <div className="divide-y">
+    {Billing.checkoutOptions
+    ->Array.map((option: Billing.checkoutOption) =>
+      renderCheckoutOption(
+        ~apiBaseUrl,
+        ~path=Billing.checkoutOptionPath(option),
+        ~title=Billing.checkoutOptionTitle(option),
+        ~price=Billing.checkoutOptionPrice(option),
+        ~description=Billing.checkoutOptionDescription(option),
+        ~stripeFlowIsOpen,
+        ~onOpenStripeFlow,
+        ~variant=switch Billing.checkoutOptionRecommended(option) {
+        | true => Button.Variant.Default
+        | false => Button.Variant.Secondary
+        },
+        ~badge=?Billing.checkoutOptionBadge(option),
+      )
+    )
+    ->React.array}
+  </div>
 
-let renderLoaded = (~checkoutState, billingStatus: Types.billingStatus) =>
+let renderStatusCard = (
+  ~apiBaseUrl,
+  ~stripeFlowIsOpen,
+  ~onOpenStripeFlow,
+  billingStatus: Billing.status,
+) =>
   <Card size=Card.Size.Sm>
     <Card.Header>
       <Card.Action>
-        <Badge variant={statusVariant(billingStatus.status)}>
-          {React.string(statusLabel(billingStatus.status))}
+        <Badge variant={statusVariant(Billing.subscriptionStatus(billingStatus))}>
+          {React.string(Billing.statusLabel(billingStatus))}
         </Badge>
       </Card.Action>
       <Card.Title> {React.string("Plan status")} </Card.Title>
@@ -175,19 +244,28 @@ let renderLoaded = (~checkoutState, billingStatus: Types.billingStatus) =>
       </Card.Description>
     </Card.Header>
     <Card.Content className="space-y-4">
+      {renderCancellationNotice(billingStatus)}
       <div className="divide-y">
-        {switch billingStatus.interval {
-        | Some(interval) => renderDetailRow(~label="Interval", ~value=intervalLabel(interval))
+        {switch Billing.interval(billingStatus) {
+        | Some(interval) =>
+          renderDetailRow(~label="Interval", ~value=Billing.intervalLabel(interval))
         | None => React.null
         }}
-        {renderOptionalDetailRow(~label="Current period end", billingStatus.currentPeriodEnd)}
-        {renderOptionalDetailRow(~label="Trial end", billingStatus.trialEnd)}
-        {renderOptionalDetailRow(~label="Cancel date", billingStatus.cancelAt)}
-        {renderOptionalDetailRow(~label="Canceled date", billingStatus.canceledAt)}
+        {renderOptionalDetailRow(
+          ~label="Current period end",
+          Billing.currentPeriodEnd(billingStatus),
+        )}
+        {renderOptionalDetailRow(~label="Trial end", Billing.trialEnd(billingStatus))}
+        {renderOptionalDetailRow(~label="Cancel date", Billing.cancelAt(billingStatus))}
+        {renderOptionalDetailRow(~label="Canceled date", Billing.canceledAt(billingStatus))}
       </div>
-      {switch billingStatus.accessAllowed {
+      {switch Billing.canManage(billingStatus) {
+      | true => renderCustomerManagementActions(~apiBaseUrl, ~stripeFlowIsOpen, ~onOpenStripeFlow)
+      | false => React.null
+      }}
+      {switch Billing.isAccessAllowed(billingStatus) {
       | true => React.null
-      | false => renderCheckoutActions(~checkoutState)
+      | false => renderCheckoutActions(~apiBaseUrl, ~stripeFlowIsOpen, ~onOpenStripeFlow)
       }}
     </Card.Content>
   </Card>
@@ -200,18 +278,79 @@ let renderLoading = () =>
     </Card.Content>
   </Card>
 
+let renderError = error =>
+  <div role="alert">
+    <Card size=Card.Size.Sm className="ring-destructive/30">
+      <Card.Header>
+        <Card.Title className="text-destructive">
+          {React.string("Billing status unavailable")}
+        </Card.Title>
+        <Card.Description className="text-destructive/80"> {React.string(error)} </Card.Description>
+      </Card.Header>
+    </Card>
+  </div>
+
 @react.component
 let make = () => {
   let billingStatus = State.useSelector(State.Selectors.billingStatus)
-  let billingCheckout = State.useSelector(State.Selectors.billingCheckout)
+  let acpSession = State.useSelector(State.Selectors.acpSession)
+  let (stripeFlowStage, setStripeFlowStage) = React.useState(() => StripeFlowInactive)
+  let stripeTabRef: React.ref<option<HostNavigation.managedTab>> = React.useRef(None)
 
-  {
-    switch billingStatus {
-    | Types.BillingStatusNotLoaded | Types.BillingStatusLoading => renderLoading()
-    | Types.BillingStatusLoaded(billingStatus) =>
-      renderLoaded(~checkoutState=billingCheckout, billingStatus)
-    | Types.BillingStatusError(error) =>
-      <div role="alert" className="text-sm text-destructive"> {React.string(error)} </div>
+  let apiBaseUrl = switch acpSession {
+  | Client__State__Types.AcpSessionActive({apiBaseUrl}) => Some(apiBaseUrl)
+  | Client__State__Types.NoAcpSession => None
+  }
+
+  let markStripeTabClosed = () => {
+    stripeTabRef.current = None
+    setStripeFlowStage(_ => StripeFlowClosed)
+  }
+
+  let openStripeFlow = (~url) => {
+    switch HostNavigation.openManagedTab(~url) {
+    | Some(tab) =>
+      stripeTabRef.current = Some(tab)
+      setStripeFlowStage(_ => StripeFlowOpen)
+    | None =>
+      stripeTabRef.current = None
+      setStripeFlowStage(_ => StripeFlowBlocked({url: url}))
     }
   }
+
+  React.useEffect(() => {
+    switch stripeFlowStage {
+    | StripeFlowOpen =>
+      let intervalId = WebAPI.Global.setInterval2(~handler=() => {
+        switch stripeTabRef.current {
+        | Some(tab) =>
+          switch HostNavigation.tabClosed(tab) {
+          | true => markStripeTabClosed()
+          | false => ()
+          }
+        | None => ()
+        }
+      }, ~timeout=1000)
+
+      Some(() => WebAPI.Global.clearInterval(intervalId))
+    | StripeFlowInactive | StripeFlowClosed | StripeFlowBlocked(_) => None
+    }
+  }, [stripeFlowStage])
+
+  let stripeFlowIsOpen = stripeFlowStage->stripeFlowIsOpen
+
+  <div className="space-y-4">
+    {renderStripeFlowNotice(~stripeFlowStage, ~onRetry=openStripeFlow)}
+    {switch billingStatus {
+    | Billing.NotLoaded | Billing.Loading => renderLoading()
+    | Billing.Loaded(billingStatus) =>
+      renderStatusCard(
+        ~apiBaseUrl,
+        ~stripeFlowIsOpen,
+        ~onOpenStripeFlow=openStripeFlow,
+        billingStatus,
+      )
+    | Billing.Error(error) => renderError(error)
+    }}
+  </div>
 }

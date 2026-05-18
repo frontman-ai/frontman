@@ -40,6 +40,30 @@ defmodule FrontmanServer.Billing do
   end
 
   @doc """
+  Creates a Stripe Customer Portal URL for the scoped user's billing customer.
+  """
+  @spec create_customer_portal_url(Scope.t(), String.t()) ::
+          {:ok, String.t()}
+          | {:error, :billing_customer_missing}
+          | {:error, {:customer_portal_url_failed, term()}}
+  def create_customer_portal_url(%Scope{} = scope, return_url)
+      when is_binary(return_url) do
+    case Customer |> Customer.for_user(Accounts.scope_user_id(scope)) |> Repo.one() do
+      %Customer{} = customer ->
+        case billing_client().create_customer_portal_url(customer, return_url) do
+          {:ok, url} when is_binary(url) ->
+            {:ok, url}
+
+          {:error, reason} ->
+            {:error, {:customer_portal_url_failed, reason}}
+        end
+
+      nil ->
+        {:error, :billing_customer_missing}
+    end
+  end
+
+  @doc """
   Returns whether checkout should include the configured trial period.
   """
   @spec trial_eligible?(Scope.t()) :: boolean()
@@ -48,6 +72,42 @@ defmodule FrontmanServer.Billing do
     |> trial_consumed_query()
     |> Repo.exists?()
     |> Kernel.not()
+  end
+
+  @doc """
+  Returns the current billing status payload for UI consumers.
+  """
+  @spec status(Scope.t()) :: %{
+          status: String.t(),
+          access_allowed: boolean(),
+          has_billing_customer: boolean(),
+          interval: atom() | nil,
+          current_period_end: DateTime.t() | nil,
+          trial_end: DateTime.t() | nil,
+          cancel_at: DateTime.t() | nil,
+          canceled_at: DateTime.t() | nil
+        }
+  def status(%Scope{} = scope) do
+    subscription = get_current_subscription(scope)
+    status_payload(scope, subscription)
+  end
+
+  @doc """
+  Returns the PubSub topic for billing status updates for a user.
+  """
+  @spec status_topic(String.t()) :: String.t()
+  def status_topic(user_id) when is_binary(user_id), do: "billing_status:user:#{user_id}"
+
+  @doc """
+  Broadcasts that a user's billing status changed.
+  """
+  @spec broadcast_status_changed(String.t()) :: :ok | {:error, term()}
+  def broadcast_status_changed(user_id) when is_binary(user_id) do
+    Phoenix.PubSub.broadcast(
+      FrontmanServer.PubSub,
+      status_topic(user_id),
+      :billing_status_changed
+    )
   end
 
   @doc """
@@ -72,78 +132,38 @@ defmodule FrontmanServer.Billing do
     |> Repo.one()
   end
 
-  def get_customer!(%Scope{} = scope, id), do: scoped_customer_query(scope) |> Repo.get!(id)
+  defp status_payload(scope, %Subscription{} = subscription) do
+    %{
+      status: subscription.status,
+      access_allowed: Subscription.allow_access?(subscription),
+      has_billing_customer: has_billing_customer?(scope, subscription),
+      interval: subscription.interval,
+      current_period_end: subscription.current_period_end,
+      trial_end: subscription.trial_end,
+      cancel_at: subscription.cancel_at,
+      canceled_at: subscription.canceled_at
+    }
+  end
 
-  def list_billing_customers(%Scope{} = scope) do
+  defp status_payload(scope, nil) do
+    %{
+      status: "none",
+      access_allowed: false,
+      has_billing_customer: has_billing_customer?(scope, nil),
+      interval: nil,
+      current_period_end: nil,
+      trial_end: nil,
+      cancel_at: nil,
+      canceled_at: nil
+    }
+  end
+
+  defp has_billing_customer?(_scope, %Subscription{}), do: true
+
+  defp has_billing_customer?(scope, nil) do
     Customer
     |> Customer.for_user(Accounts.scope_user_id(scope))
-    |> Repo.all()
-  end
-
-  def create_customer(%Scope{} = scope, attrs) do
-    %Customer{user_id: Accounts.scope_user_id(scope)}
-    |> Customer.changeset(attrs)
-    |> Repo.insert()
-  end
-
-  def update_customer(%Scope{} = scope, %Customer{} = customer, attrs) do
-    scope
-    |> get_customer!(customer.id)
-    |> Customer.changeset(attrs)
-    |> Repo.update()
-  end
-
-  def delete_customer(%Scope{} = scope, %Customer{} = customer) do
-    scope
-    |> get_customer!(customer.id)
-    |> Repo.delete()
-  end
-
-  def change_customer(%Scope{} = scope, %Customer{} = customer, attrs \\ %{}) do
-    scope
-    |> get_customer!(customer.id)
-    |> Customer.changeset(attrs)
-  end
-
-  def list_billing_subscriptions(%Scope{} = scope) do
-    scoped_subscription_query(scope)
-    |> Repo.all()
-  end
-
-  def get_subscription!(%Scope{} = scope, id),
-    do: scoped_subscription_query(scope) |> Repo.get!(id)
-
-  def create_subscription(%Scope{} = scope, attrs) do
-    customer = get_customer!(scope, attr_value(attrs, :billing_customer_id))
-
-    %Subscription{billing_customer_id: customer.id}
-    |> Subscription.changeset(attrs)
-    |> Repo.insert()
-  end
-
-  def update_subscription(%Scope{} = scope, %Subscription{} = subscription, attrs) do
-    scope
-    |> get_subscription!(subscription.id)
-    |> Subscription.changeset(attrs)
-    |> Repo.update()
-  end
-
-  def delete_subscription(%Scope{} = scope, %Subscription{} = subscription) do
-    scope
-    |> get_subscription!(subscription.id)
-    |> Repo.delete()
-  end
-
-  def change_subscription(%Scope{} = scope, %Subscription{} = subscription, attrs \\ %{}) do
-    scope
-    |> get_subscription!(subscription.id)
-    |> Subscription.changeset(attrs)
-  end
-
-  defp attr_value(attrs, key), do: attrs[key] || attrs[Atom.to_string(key)]
-
-  defp scoped_customer_query(scope) do
-    Customer.for_user(Customer, Accounts.scope_user_id(scope))
+    |> Repo.exists?()
   end
 
   defp scoped_subscription_query(scope) do

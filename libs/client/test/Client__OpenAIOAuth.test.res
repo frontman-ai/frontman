@@ -12,8 +12,7 @@ let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
     sessionInitialized: false,
     userProfile: None,
     settingsModalTab: None,
-    billingStatus: Types.BillingStatusNotLoaded,
-    billingCheckout: Types.BillingCheckoutIdle,
+    billingStatus: Client__Billing.NotLoaded,
     openrouterKeySettings: {
       source: Types.None,
       saveStatus: Types.Idle,

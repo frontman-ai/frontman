@@ -30,6 +30,29 @@ defmodule FrontmanServer.Billing.StripeClient do
   end
 
   @impl true
+  def create_customer_portal_url(
+        %Customer{stripe_customer_id: customer_id},
+        return_url
+      )
+      when is_binary(customer_id) and is_binary(return_url) do
+    params = [
+      {"customer", customer_id},
+      {"return_url", return_url}
+    ]
+
+    case Req.post(new(), url: "/billing_portal/sessions", form: params) do
+      {:ok, %{status: status, body: %{"url" => url}}} when status in 200..299 ->
+        {:ok, url}
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, {:stripe_error, status, body}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @impl true
   def construct_webhook_event(raw_body, signature_header) do
     with :ok <-
            StripeWebhookSignature.verify(

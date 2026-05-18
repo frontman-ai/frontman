@@ -1,6 +1,8 @@
 // Navigate the host page, escaping an embedding iframe when needed.
 // This keeps hosted auth flows working in shells like WordPress Playground.
 
+type managedTab = FrontmanBindings.BrowserWindow.managedTab
+
 let useTopWindow = (~currentWindow: WebAPI.DOMAPI.window, ~topWindow: WebAPI.DOMAPI.window): bool =>
   currentWindow !== topWindow
 
@@ -43,5 +45,26 @@ let assign = (~url: string) => {
     | _ => currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
     }
   | false => currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
+  }
+}
+
+let openManagedTab = (~url: string): option<managedTab> => {
+  let currentWindow = WebAPI.Global.window
+
+  currentWindow
+  ->FrontmanBindings.BrowserWindow.openNullable(~url="about:blank", ~target="_blank")
+  ->Nullable.toOption
+  ->Option.map(tab => {
+    tab->FrontmanBindings.BrowserWindow.setOpener(Nullable.null)
+    tab->WebAPI.Window.location->WebAPI.Location.assign(url)
+    tab
+  })
+}
+
+let tabClosed = (tab: managedTab): bool => {
+  try {
+    tab->FrontmanBindings.BrowserWindow.closed
+  } catch {
+  | _ => true
   }
 }

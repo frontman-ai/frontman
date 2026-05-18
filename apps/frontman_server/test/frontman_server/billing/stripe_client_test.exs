@@ -6,24 +6,8 @@ defmodule FrontmanServer.Billing.StripeClientTest do
   alias FrontmanServer.Billing.StripeWebhookSignature
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
-  describe "start_checkout/4" do
-    setup do
-      bypass = Bypass.open()
-      stripe_config = Application.fetch_env!(:frontman_server, :stripe)
-
-      Application.put_env(
-        :frontman_server,
-        :stripe,
-        Keyword.merge(stripe_config,
-          api_base_url: "http://localhost:#{bypass.port}/v1",
-          secret_key: "sk_test_123"
-        )
-      )
-
-      on_exit(fn -> Application.put_env(:frontman_server, :stripe, stripe_config) end)
-
-      %{bypass: bypass}
-    end
+  describe "start_checkout/5" do
+    setup :setup_stripe_bypass
 
     test "constructs Stripe Managed Payments Checkout params from domain values", %{
       bypass: bypass
@@ -44,8 +28,11 @@ defmodule FrontmanServer.Billing.StripeClientTest do
         assert params["line_items[0][price]"] == "price_yearly_test"
         assert params["line_items[0][quantity]"] == "1"
         assert params["managed_payments[enabled]"] == "true"
-        assert params["success_url"] == "https://billing.test/success"
-        assert params["cancel_url"] == "https://billing.test/cancel"
+
+        assert params["success_url"] ==
+                 "https://frontman.test/billing/stripe-return/success?session_id={CHECKOUT_SESSION_ID}"
+
+        assert params["cancel_url"] == "https://frontman.test/billing/stripe-return/cancel"
         assert params["client_reference_id"] == user.id
         assert params["customer_email"] == user.email
         assert params["customer"] == "cus_existing"
@@ -69,10 +56,47 @@ defmodule FrontmanServer.Billing.StripeClientTest do
                  customer,
                  :yearly,
                  %{
-                   success_url: "https://billing.test/success",
-                   cancel_url: "https://billing.test/cancel"
+                   success_url:
+                     "https://frontman.test/billing/stripe-return/success?session_id={CHECKOUT_SESSION_ID}",
+                   cancel_url: "https://frontman.test/billing/stripe-return/cancel"
                  },
                  trial_eligible: true
+               )
+    end
+  end
+
+  describe "create_customer_portal_url/2" do
+    setup :setup_stripe_bypass
+
+    test "constructs Stripe Customer Portal params from domain values", %{bypass: bypass} do
+      customer = %Customer{stripe_customer_id: "cus_existing"}
+
+      Bypass.expect(bypass, "POST", "/v1/billing_portal/sessions", fn conn ->
+        assert ["Bearer sk_test_123"] = Plug.Conn.get_req_header(conn, "authorization")
+
+        expected_api_version = Keyword.fetch!(stripe_config(), :api_version)
+        assert [expected_api_version] == Plug.Conn.get_req_header(conn, "stripe-version")
+
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        params = URI.decode_query(body)
+
+        assert params["customer"] == "cus_existing"
+
+        assert params["return_url"] ==
+                 "https://frontman.test/billing/stripe-return/customer-portal"
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(
+          200,
+          Jason.encode!(%{"url" => "https://billing.stripe.test/p/session"})
+        )
+      end)
+
+      assert {:ok, "https://billing.stripe.test/p/session"} =
+               StripeClient.create_customer_portal_url(
+                 customer,
+                 "https://frontman.test/billing/stripe-return/customer-portal"
                )
     end
   end
@@ -137,5 +161,23 @@ defmodule FrontmanServer.Billing.StripeClientTest do
 
   defp stripe_config do
     Application.fetch_env!(:frontman_server, :stripe)
+  end
+
+  defp setup_stripe_bypass(_context) do
+    bypass = Bypass.open()
+    stripe_config = Application.fetch_env!(:frontman_server, :stripe)
+
+    Application.put_env(
+      :frontman_server,
+      :stripe,
+      Keyword.merge(stripe_config,
+        api_base_url: "http://localhost:#{bypass.port}/v1",
+        secret_key: "sk_test_123"
+      )
+    )
+
+    on_exit(fn -> Application.put_env(:frontman_server, :stripe, stripe_config) end)
+
+    %{bypass: bypass}
   end
 end

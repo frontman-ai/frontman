@@ -24,6 +24,7 @@ type config = {
   onMessage: option<(messageDirection, JSON.t) => unit>,
   onTitleUpdated: option<(string, string) => unit>,
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
+  onBillingStatusUpdated: option<JSON.t => unit>,
 }
 
 @@live
@@ -37,6 +38,7 @@ let makeConfig = (
   ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
   ~onTitleUpdated: option<(string, string) => unit>=?,
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
+  ~onBillingStatusUpdated: option<JSON.t => unit>=?,
 ): config => {
   endpoint,
   tokenUrl,
@@ -49,6 +51,7 @@ let makeConfig = (
   },
   onTitleUpdated,
   onConfigOptionsUpdated,
+  onBillingStatusUpdated,
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
     terminal: Some(false),
@@ -119,6 +122,15 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
     })->ignore
   })
 }
+
+let attachBillingStatusHandler = (
+  ~channel: Channel.t,
+  ~onBillingStatusUpdated: option<JSON.t => unit>,
+): unit =>
+  switch onBillingStatusUpdated {
+  | Some(callback) => channel->Channel.on(~event=Constants.billingStatusUpdatedEvent, ~callback)
+  | None => ()
+  }
 
 // Helper to check abort status
 let checkAborted = (signal: option<WebAPI.EventAPI.abortSignal>): result<unit, string> => {
@@ -242,6 +254,8 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
         })
       | None => ()
       }
+
+      attachBillingStatusHandler(~channel, ~onBillingStatusUpdated=config.onBillingStatusUpdated)
 
       Sentry.addBreadcrumb(~category=#acp, ~message="Channel joined, sending initialize")
       switch await Protocol.sendInitialize(

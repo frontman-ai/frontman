@@ -79,7 +79,7 @@ help: ## Display available commands
 # Development
 # ============================================================================
 STRIPE_WEBHOOK_EVENTS := checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,customer.subscription.paused,customer.subscription.resumed
-STRIPE_WEBHOOK_FORWARD_URL ?= http://localhost:4000/api/stripe/webhook
+STRIPE_WEBHOOK_FORWARD_URL ?= https://localhost:4000/api/stripe/webhook
 STRIPE_WEBHOOK_ENV_FILE := apps/frontman_server/envs/.dev.stripe-webhook.env
 
 ## DEV_START

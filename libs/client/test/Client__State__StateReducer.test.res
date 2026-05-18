@@ -901,6 +901,146 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 })
 
+describe("Client State Reducer - Billing Settings", () => {
+  let parseBillingStatus = json =>
+    S.parseJsonOrThrow(JSON.parseOrThrow(json), Client__Billing.statusSchema)
+
+  test("SetSettingsModalTab(Billing) only opens the tab", t => {
+    let state: Reducer.state = {
+      ...Reducer.defaultState,
+      billingStatus: Client__Billing.NotLoaded,
+    }
+
+    let (nextState, effects) = Reducer.next(
+      state,
+      SetSettingsModalTab({tab: Some(Client__State__Types.Billing)}),
+    )
+
+    t->expect(nextState.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Billing))
+    t->expect(nextState.billingStatus)->Expect.toEqual(Client__Billing.NotLoaded)
+    t->expect(effects->Array.length)->Expect.toBe(0)
+  })
+
+  test("BillingStatusReceived stores global billing status", t => {
+    let billingStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": "monthly",
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    let (nextState, effects) = Reducer.next(
+      Reducer.defaultState,
+      BillingStatusReceived(billingStatus),
+    )
+
+    t
+    ->expect(nextState.billingStatus)
+    ->Expect.toEqual(Client__Billing.Loaded(billingStatus))
+    t->expect(effects->Array.length)->Expect.toBe(0)
+  })
+
+  test("BillingStatusReceived updates inactive billing to active", t => {
+    let inactiveStatus = parseBillingStatus(`{
+      "status": "none",
+      "access_allowed": false,
+      "has_billing_customer": false,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+    let activeStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": "monthly",
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    let (inactiveState, inactiveEffects) = Reducer.next(
+      Reducer.defaultState,
+      BillingStatusReceived(inactiveStatus),
+    )
+    let (activeState, activeEffects) = Reducer.next(
+      inactiveState,
+      BillingStatusReceived(activeStatus),
+    )
+
+    t->expect(Reducer.Selectors.billingAccessAllowed(inactiveState))->Expect.toBe(false)
+    t->expect(Reducer.Selectors.billingAccessAllowed(activeState))->Expect.toBe(true)
+    t->expect(inactiveEffects->Array.length)->Expect.toBe(0)
+    t->expect(activeEffects->Array.length)->Expect.toBe(0)
+  })
+
+  test("billingAccessAllowed selector returns derived billing access", t => {
+    let activeStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+    let inactiveStatus = parseBillingStatus(`{
+      "status": "none",
+      "access_allowed": false,
+      "has_billing_customer": false,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Loaded(activeStatus),
+      }),
+    )
+    ->Expect.toBe(true)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Loaded(inactiveStatus),
+      }),
+    )
+    ->Expect.toBe(false)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.NotLoaded,
+      }),
+    )
+    ->Expect.toBe(false)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Error("boom"),
+      }),
+    )
+    ->Expect.toBe(false)
+  })
+})
+
 describe("Client State Reducer - Session Loading Actions", () => {
   test("SessionsLoadStarted transitions to Loading state", t => {
     let state = Reducer.defaultState

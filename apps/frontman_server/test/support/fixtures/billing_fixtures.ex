@@ -1,11 +1,10 @@
 defmodule FrontmanServer.BillingFixtures do
   @moduledoc """
-  This module defines test helpers for creating
-  entities via the `FrontmanServer.Billing` context.
+  This module defines test helpers for creating billing entities.
   """
 
   alias FrontmanServer.Billing
-  alias FrontmanServer.Billing.{StripeEvent, Subscription}
+  alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
   alias FrontmanServer.Repo
   alias FrontmanServer.Test.Fixtures.Accounts
 
@@ -16,11 +15,14 @@ defmodule FrontmanServer.BillingFixtures do
     unique = System.unique_integer([:positive])
 
     {:ok, customer} =
-      attrs
-      |> Enum.into(%{
-        stripe_customer_id: "cus_#{unique}"
-      })
-      |> then(&Billing.create_customer(scope, &1))
+      %Customer{user_id: scope.user.id}
+      |> Customer.changeset(
+        attrs
+        |> Enum.into(%{
+          stripe_customer_id: "cus_#{unique}"
+        })
+      )
+      |> Repo.insert()
 
     customer
   end
@@ -28,20 +30,22 @@ defmodule FrontmanServer.BillingFixtures do
   @doc """
   Generate a subscription for an existing billing customer.
   """
-  def subscription_for_customer_fixture(scope, customer, attrs \\ %{}) do
+  def subscription_for_customer_fixture(_scope, customer, attrs \\ %{}) do
     unique = System.unique_integer([:positive])
 
     {:ok, subscription} =
-      attrs
-      |> Enum.into(%{
-        billing_customer_id: customer.id,
-        stripe_customer_id: customer.stripe_customer_id,
-        stripe_subscription_id: "sub_#{unique}",
-        status: "active",
-        interval: :monthly,
-        price_id: "price_monthly_test"
-      })
-      |> then(&Billing.create_subscription(scope, &1))
+      %Subscription{billing_customer_id: customer.id}
+      |> Subscription.changeset(
+        attrs
+        |> Enum.into(%{
+          stripe_customer_id: customer.stripe_customer_id,
+          stripe_subscription_id: "sub_#{unique}",
+          status: "active",
+          interval: :monthly,
+          price_id: "price_monthly_test"
+        })
+      )
+      |> Repo.insert()
 
     subscription
   end

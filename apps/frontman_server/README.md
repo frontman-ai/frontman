@@ -5,7 +5,7 @@ To start your Phoenix server:
 * Run `mix setup` to install and setup dependencies
 * Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+Now you can visit [`frontman.local:4000`](https://frontman.local:4000) from your browser.
 
 ## Local Stripe webhooks
 
@@ -29,7 +29,7 @@ Start webhook forwarding:
 make stripe-webhooks
 ```
 
-The listener captures the CLI signing secret, masks it in logs, and writes it to `envs/.dev.stripe-webhook.env` as `STRIPE_WEBHOOK_SECRET`. `config/runtime.exs` loads that into `Application.fetch_env!(:frontman_server, :stripe)[:webhook_secret]` at Phoenix boot. Use a test-mode API key like `sk_test_...` for `STRIPE_SECRET_KEY`.
+The listener forwards to Phoenix at `https://localhost:4000/api/stripe/webhook`, passes `--skip-verify` for the local HTTPS certificate, captures the CLI signing secret, masks it in logs, and writes it to `envs/.dev.stripe-webhook.env` as `STRIPE_WEBHOOK_SECRET`. `config/runtime.exs` loads that into `Application.fetch_env!(:frontman_server, :stripe)[:webhook_secret]` at Phoenix boot. Use a test-mode API key like `sk_test_...` for `STRIPE_SECRET_KEY`.
 
 Forwarded events:
 

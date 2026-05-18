@@ -1,110 +1,197 @@
 defmodule FrontmanServerWeb.BillingControllerTest do
-  use FrontmanServerWeb.ConnCase, async: true
+  use FrontmanServerWeb.ConnCase, async: false
 
-  alias FrontmanServer.Billing
+  import FrontmanServer.BillingFixtures
 
-  describe "POST /api/billing/checkout" do
-    setup :setup_paper_tiger
-    setup :register_and_log_in_user
+  alias FrontmanServer.Billing.Customer
+  alias FrontmanServer.Test.BillingClientStub
 
-    test "starts checkout for monthly plan", %{conn: conn} do
-      conn =
-        post(conn, ~p"/api/billing/checkout", %{
-          "interval" => "monthly"
-        })
+  describe "GET /billing/checkout/monthly" do
+    test "renders a CSRF-protected auto-submit form for authenticated users", %{conn: conn} do
+      %{conn: conn} = register_and_log_in_user(%{conn: conn})
 
-      response = json_response(conn, 200)
+      conn = get(conn, ~p"/billing/checkout/monthly")
+      response = html_response(conn, 200)
 
-      assert_paper_tiger_checkout_session!(response)
+      assert response =~ "billing-stripe-launch"
+      assert response =~ "billing-stripe-launch-form"
+      assert response =~ "data-auto-submit"
+      assert response =~ "Opening Stripe..."
+      assert response =~ ~s(action="/billing/checkout/monthly")
+      assert response =~ ~s(method="post")
+      assert response =~ ~s(name="_csrf_token")
     end
 
-    test "starts checkout for yearly plan", %{conn: conn} do
-      conn =
-        post(conn, ~p"/api/billing/checkout", %{
-          "interval" => "yearly"
-        })
+    test "redirects unauthenticated users to login" do
+      conn = get(build_conn(), ~p"/billing/checkout/monthly")
 
-      response = json_response(conn, 200)
-
-      assert_paper_tiger_checkout_session!(response)
-    end
-
-    test "returns unauthorized without user" do
-      conn =
-        post(build_conn(), ~p"/api/billing/checkout", %{
-          "interval" => "monthly"
-        })
-
-      assert %{"error" => "authentication_required"} = json_response(conn, 401)
-    end
-
-    test "rejects unsupported checkout intervals", %{conn: conn} do
-      assert_raise Phoenix.ActionClauseError, fn ->
-        post(conn, ~p"/api/billing/checkout", %{
-          "interval" => "weekly"
-        })
-      end
+      assert redirected_to(conn) == ~p"/users/log-in"
     end
   end
 
-  describe "GET /api/billing/status" do
-    setup :register_and_log_in_user
+  describe "POST /billing/checkout/monthly" do
+    test "redirects to Stripe with server-owned safe return URLs", %{conn: conn} do
+      use_billing_client_stub()
 
-    test "returns none before subscription exists", %{conn: conn} do
-      conn = get(conn, ~p"/api/billing/status")
+      BillingClientStub.stub_start_checkout(
+        {:ok, %{"id" => "cs_monthly_test", "url" => "https://checkout.stripe.test/session"}}
+      )
 
-      assert %{
-               "status" => "none",
-               "access_allowed" => false
-             } = json_response(conn, 200)
+      %{conn: conn, user: user} = register_and_log_in_user(%{conn: conn})
+
+      conn = post(conn, ~p"/billing/checkout/monthly")
+
+      assert redirected_to(conn) == "https://checkout.stripe.test/session"
+
+      assert_received {:start_checkout, checkout_user, nil, :monthly, return_urls,
+                       [trial_eligible: true]}
+
+      assert checkout_user.id == user.id
+
+      assert String.ends_with?(
+               return_urls.success_url,
+               "/billing/stripe-return/success?session_id={CHECKOUT_SESSION_ID}"
+             )
+
+      assert String.ends_with?(return_urls.cancel_url, "/billing/stripe-return/cancel")
+    end
+  end
+
+  describe "GET /billing/checkout/yearly" do
+    test "renders a CSRF-protected auto-submit form for authenticated users", %{conn: conn} do
+      %{conn: conn} = register_and_log_in_user(%{conn: conn})
+
+      conn = get(conn, ~p"/billing/checkout/yearly")
+      response = html_response(conn, 200)
+
+      assert response =~ "billing-stripe-launch"
+      assert response =~ "billing-stripe-launch-form"
+      assert response =~ "data-auto-submit"
+      assert response =~ "Opening Stripe..."
+      assert response =~ ~s(action="/billing/checkout/yearly")
+      assert response =~ ~s(method="post")
+      assert response =~ ~s(name="_csrf_token")
+    end
+  end
+
+  describe "POST /billing/checkout/yearly" do
+    test "redirects to Stripe with yearly interval and safe return URLs", %{conn: conn} do
+      use_billing_client_stub()
+
+      BillingClientStub.stub_start_checkout(
+        {:ok, %{"id" => "cs_yearly_test", "url" => "https://checkout.stripe.test/session"}}
+      )
+
+      %{conn: conn, user: user} = register_and_log_in_user(%{conn: conn})
+
+      conn = post(conn, ~p"/billing/checkout/yearly")
+
+      assert redirected_to(conn) == "https://checkout.stripe.test/session"
+
+      assert_received {:start_checkout, checkout_user, nil, :yearly, return_urls,
+                       [trial_eligible: true]}
+
+      assert checkout_user.id == user.id
+
+      assert String.ends_with?(
+               return_urls.success_url,
+               "/billing/stripe-return/success?session_id={CHECKOUT_SESSION_ID}"
+             )
+
+      assert String.ends_with?(return_urls.cancel_url, "/billing/stripe-return/cancel")
+    end
+  end
+
+  describe "GET /billing/customer-portal" do
+    test "renders a CSRF-protected auto-submit form for authenticated users", %{conn: conn} do
+      %{conn: conn} = register_and_log_in_user(%{conn: conn})
+
+      conn = get(conn, ~p"/billing/customer-portal")
+      response = html_response(conn, 200)
+
+      assert response =~ "billing-stripe-launch"
+      assert response =~ "billing-stripe-launch-form"
+      assert response =~ "data-auto-submit"
+      assert response =~ "Opening Stripe..."
+      assert response =~ ~s(action="/billing/customer-portal")
+      assert response =~ ~s(method="post")
+      assert response =~ ~s(name="_csrf_token")
+    end
+  end
+
+  describe "POST /billing/customer-portal" do
+    test "redirects to Stripe Customer Portal with safe return URL", %{conn: conn} do
+      use_billing_client_stub()
+
+      BillingClientStub.stub_customer_portal_url({:ok, "https://billing.stripe.test/p/session"})
+
+      %{conn: conn, scope: scope} = register_and_log_in_user(%{conn: conn})
+      customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_browser_management_test"})
+
+      conn = post(conn, ~p"/billing/customer-portal")
+
+      assert redirected_to(conn) == "https://billing.stripe.test/p/session"
+
+      assert_received {
+        :create_customer_portal_url,
+        %Customer{stripe_customer_id: "cus_browser_management_test"},
+        return_url
+      }
+
+      assert String.ends_with?(return_url, "/billing/stripe-return/customer-portal")
+    end
+  end
+
+  describe "GET /billing/stripe-return/*" do
+    test "success renders safe close page" do
+      conn = get(build_conn(), ~p"/billing/stripe-return/success?session_id=cs_test")
+      response = html_response(conn, 200)
+
+      assert response =~ "billing-stripe-return"
+      assert response =~ "data-auto-close-window"
+      assert response =~ "Stripe checkout complete"
+      assert response =~ "You can close this tab and return to Frontman."
+
+      assert response =~
+               "Your original Frontman tab updates automatically when Stripe sends a billing event."
+
+      refute response =~ "refresh billing status"
     end
 
-    test "returns allowed subscription status", %{conn: conn, scope: scope} do
-      {:ok, customer} =
-        Billing.create_customer(scope, %{stripe_customer_id: "cus_status_test"})
+    test "cancel renders safe close page" do
+      conn = get(build_conn(), ~p"/billing/stripe-return/cancel")
+      response = html_response(conn, 200)
 
-      {:ok, _subscription} =
-        Billing.create_subscription(scope, %{
-          billing_customer_id: customer.id,
-          stripe_subscription_id: "sub_status_test",
-          stripe_customer_id: "cus_status_test",
-          status: "trialing",
-          interval: :monthly,
-          price_id: "price_monthly_test"
-        })
+      assert response =~ "billing-stripe-return"
+      assert response =~ "data-auto-close-window"
+      assert response =~ "Stripe checkout closed"
+      assert response =~ "You can close this tab and return to Frontman."
 
-      conn = get(conn, ~p"/api/billing/status")
+      assert response =~
+               "Your original Frontman tab updates automatically when Stripe sends a billing event."
 
-      assert %{
-               "status" => "trialing",
-               "interval" => "monthly",
-               "price_id" => "price_monthly_test",
-               "access_allowed" => true
-             } = json_response(conn, 200)
+      refute response =~ "refresh billing status"
     end
 
-    test "returns blocked subscription status", %{conn: conn, scope: scope} do
-      {:ok, customer} =
-        Billing.create_customer(scope, %{stripe_customer_id: "cus_blocked_status_test"})
+    test "customer portal renders safe close page" do
+      conn = get(build_conn(), ~p"/billing/stripe-return/customer-portal")
+      response = html_response(conn, 200)
 
-      {:ok, _subscription} =
-        Billing.create_subscription(scope, %{
-          billing_customer_id: customer.id,
-          stripe_subscription_id: "sub_blocked_status_test",
-          stripe_customer_id: "cus_blocked_status_test",
-          status: "canceled",
-          interval: :yearly,
-          price_id: "price_yearly_test"
-        })
+      assert response =~ "billing-stripe-return"
+      assert response =~ "data-auto-close-window"
+      assert response =~ "Stripe billing portal closed"
+      assert response =~ "You can close this tab and return to Frontman."
 
-      conn = get(conn, ~p"/api/billing/status")
+      assert response =~
+               "Your original Frontman tab updates automatically when Stripe sends a billing event."
 
-      assert %{
-               "status" => "canceled",
-               "interval" => "yearly",
-               "price_id" => "price_yearly_test",
-               "access_allowed" => false
-             } = json_response(conn, 200)
+      refute response =~ "refresh billing status"
     end
+  end
+
+  defp use_billing_client_stub do
+    billing_client = Application.fetch_env!(:frontman_server, :billing_client)
+    Application.put_env(:frontman_server, :billing_client, BillingClientStub)
+    on_exit(fn -> Application.put_env(:frontman_server, :billing_client, billing_client) end)
   end
 end

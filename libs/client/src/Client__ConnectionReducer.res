@@ -11,6 +11,8 @@ module Log = FrontmanLogs.Logs.Make({
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
+module Channel = FrontmanAiFrontmanClient.FrontmanClient__Phoenix__Channel
+module Decoders = FrontmanAiFrontmanClient.FrontmanClient__Decoders
 
 // Configuration for initialization
 type initConfig = {
@@ -233,6 +235,16 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ~onTitleUpdated=?config.onTitleUpdated,
       ~onConfigOptionsUpdated=configOptions => {
         Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
+      },
+      ~onBillingStatusUpdated=payload => {
+        switch payload->Decoders.parseSchema(Client__Billing.statusSchema) {
+        | Ok(billingStatus) => Client__State__Store.dispatch(BillingStatusReceived(billingStatus))
+        | Error(error) =>
+          Log.error(~ctx={"error": error}, "Failed to parse billing_status_updated")
+          Client__State__Store.dispatch(
+            BillingStatusError({error: "Failed to parse billing status"}),
+          )
+        }
       },
     )
     // Create AbortController to cancel connections on cleanup

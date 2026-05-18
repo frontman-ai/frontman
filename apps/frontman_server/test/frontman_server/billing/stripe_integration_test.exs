@@ -17,8 +17,11 @@ defmodule FrontmanServer.Billing.StripeIntegrationTest do
     %{"id" => session_id} =
       paper_tiger_post!("/v1/checkout/sessions", [
         {"mode", "subscription"},
-        {"success_url", "https://billing.test/success"},
-        {"cancel_url", "https://billing.test/cancel"},
+        {
+          "success_url",
+          "https://frontman.test/billing/stripe-return/success?session_id={CHECKOUT_SESSION_ID}"
+        },
+        {"cancel_url", "https://frontman.test/billing/stripe-return/cancel"},
         {"customer", "cus_checkout_webhook"},
         {"metadata[user_id]", user.id}
       ])

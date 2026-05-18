@@ -8,87 +8,117 @@ defmodule FrontmanServerWeb.BillingController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Billing
-  alias FrontmanServer.Billing.Subscription
 
-  def checkout(conn, %{"interval" => "monthly"}) do
-    checkout_with_interval(conn, :monthly)
+  def checkout_monthly(conn, _params) do
+    stripe_launch(conn, ~p"/billing/checkout/monthly")
   end
 
-  def checkout(conn, %{"interval" => "yearly"}) do
-    checkout_with_interval(conn, :yearly)
+  def create_monthly_checkout(conn, _params) do
+    checkout_browser_redirect(conn, :monthly)
   end
 
-  defp checkout_with_interval(conn, interval) do
+  def checkout_yearly(conn, _params) do
+    stripe_launch(conn, ~p"/billing/checkout/yearly")
+  end
+
+  def create_yearly_checkout(conn, _params) do
+    checkout_browser_redirect(conn, :yearly)
+  end
+
+  def customer_portal(conn, _params) do
+    stripe_launch(conn, ~p"/billing/customer-portal")
+  end
+
+  def create_customer_portal(conn, _params) do
+    customer_portal_browser_redirect(conn)
+  end
+
+  def stripe_return_success(conn, _params) do
+    stripe_return(conn, "Stripe checkout complete")
+  end
+
+  def stripe_return_cancel(conn, _params) do
+    stripe_return(conn, "Stripe checkout closed")
+  end
+
+  def stripe_return_customer_portal(conn, _params) do
+    stripe_return(conn, "Stripe billing portal closed")
+  end
+
+  defp checkout_return_urls do
+    %{
+      success_url: url(~p"/billing/stripe-return/success") <> "?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: url(~p"/billing/stripe-return/cancel")
+    }
+  end
+
+  defp customer_portal_return_url do
+    url(~p"/billing/stripe-return/customer-portal")
+  end
+
+  defp stripe_launch(conn, action) do
+    render(conn, :stripe_launch,
+      page_title: "Opening Stripe",
+      title: "Opening Stripe...",
+      message: "This tab will continue to Stripe automatically.",
+      action: action,
+      submit_label: "Open Stripe"
+    )
+  end
+
+  defp checkout_browser_redirect(conn, interval) do
     scope = conn.assigns.current_scope
 
-    case Billing.start_checkout(scope, interval, checkout_return_urls(conn)) do
-      {:ok, %{"url" => url, "id" => session_id}} ->
-        json(conn, %{id: session_id, url: url})
+    case Billing.start_checkout(scope, interval, checkout_return_urls()) do
+      {:ok, %{"url" => url}} when is_binary(url) ->
+        redirect(conn, external: url)
 
       {:error, reason} ->
         checkout_error(conn, reason)
     end
   end
 
-  def status(conn, _params) do
+  defp customer_portal_browser_redirect(conn) do
     scope = conn.assigns.current_scope
-    subscription = Billing.get_current_subscription(scope)
 
-    response =
-      subscription
-      |> status_response()
-      |> Map.put(:access_allowed, Subscription.allow_access?(subscription))
+    case Billing.create_customer_portal_url(
+           scope,
+           customer_portal_return_url()
+         ) do
+      {:ok, url} when is_binary(url) ->
+        redirect(conn, external: url)
 
-    json(conn, response)
-  end
-
-  defp status_response(%Subscription{} = subscription) do
-    %{
-      status: subscription.status,
-      interval: subscription.interval,
-      price_id: subscription.price_id,
-      current_period_end: subscription.current_period_end,
-      trial_end: subscription.trial_end,
-      cancel_at: subscription.cancel_at,
-      canceled_at: subscription.canceled_at
-    }
-  end
-
-  defp status_response(nil) do
-    %{
-      status: "none",
-      interval: nil,
-      price_id: nil,
-      current_period_end: nil,
-      trial_end: nil,
-      cancel_at: nil,
-      canceled_at: nil
-    }
-  end
-
-  defp checkout_return_urls(conn) do
-    origin = request_origin(conn)
-
-    %{
-      success_url: origin <> ~p"/billing/success" <> "?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: origin <> ~p"/billing/cancel"
-    }
-  end
-
-  defp request_origin(conn) do
-    uri = conn |> Phoenix.Controller.current_url() |> URI.parse()
-
-    case uri.port do
-      nil -> "#{uri.scheme}://#{uri.host}"
-      80 when uri.scheme == "http" -> "#{uri.scheme}://#{uri.host}"
-      443 when uri.scheme == "https" -> "#{uri.scheme}://#{uri.host}"
-      port -> "#{uri.scheme}://#{uri.host}:#{port}"
+      {:error, reason} ->
+        customer_portal_url_error(conn, reason)
     end
+  end
+
+  defp stripe_return(conn, title) do
+    render(conn, :stripe_return,
+      page_title: title,
+      title: title,
+      message: "You can close this tab and return to Frontman."
+    )
   end
 
   defp checkout_error(conn, reason) do
     conn
     |> put_status(:bad_gateway)
     |> json(%{error: "stripe_checkout_session_failed", reason: inspect(reason)})
+  end
+
+  defp customer_portal_url_error(conn, :billing_customer_missing) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{error: "billing_customer_missing"})
+  end
+
+  defp customer_portal_url_error(
+         conn,
+         {:customer_portal_url_failed, reason}
+       ) do
+    conn
+    |> put_status(:bad_gateway)
+    |> json(%{error: "customer_portal_url_failed", reason: inspect(reason)})
   end
 end

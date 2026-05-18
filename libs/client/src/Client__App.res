@@ -41,18 +41,19 @@ let make = (~apiBaseUrl: string) => {
   let hasProviderConfigured = Client__State.useSelector(
     Client__State.Selectors.hasAnyProviderConfigured,
   )
+  let appAccessAllowed = Client__State.useSelector(Client__State.Selectors.billingAccessAllowed)
 
-  // Trigger post-signup celebration when session becomes active for first time after signup
-  React.useEffect(() => {
-    switch (connectionState, ftueState) {
-    | (Connected | SessionActive(_), Client__FtueState.WelcomeShown) =>
+  // Trigger post-signup celebration only after billing allows app access.
+  React.useEffect3(() => {
+    switch (connectionState, ftueState, appAccessAllowed) {
+    | (Connected | SessionActive(_), Client__FtueState.WelcomeShown, true) =>
       setShowCelebration(_ => true)
       Client__FtueState.setCompleted()
       setFtueState(_ => Client__FtueState.Completed)
     | _ => ()
     }
     None
-  }, (connectionState, ftueState))
+  }, (connectionState, ftueState, appAccessAllowed))
 
   let handleCelebrationDismiss = () => {
     setShowCelebration(_ => false)
@@ -63,8 +64,16 @@ let make = (~apiBaseUrl: string) => {
     Client__State.Actions.openSettingsModalOnProviders()
   }
 
-  let showNudge = switch (ftueState, hasProviderConfigured, providerNudgeDismissed) {
-  | (Client__FtueState.Completed, false, false) => true
+  let openSettingsProviders = () => Client__State.Actions.openSettingsModalOnProviders()
+
+  // Provider nudge: show when FTUE is completed, no provider configured, and not dismissed this session.
+  let showNudge = switch (
+    ftueState,
+    hasProviderConfigured,
+    providerNudgeDismissed,
+    appAccessAllowed,
+  ) {
+  | (Client__FtueState.Completed, false, false, true) => true
   | _ => false
   }
   let showProviderNudgeBubble = showNudge && !nudgeBubbleDismissed
@@ -103,33 +112,35 @@ let make = (~apiBaseUrl: string) => {
       onProviderNudgeDismiss=handleProviderNudgeDismiss
       onProviderNudgeCta=handleProviderNudgeCta
     />
-    // Main content area — flex row of chat + preview panels
-    <div className="flex flex-1 min-h-0 w-full">
-      // Transparent overlay during resize to prevent iframe from stealing mouse events
-      {switch isResizing {
-      | true => <div className="fixed inset-0 z-50 cursor-col-resize" />
-      | false => React.null
-      }}
-      <div
-        style={{width: `${Int.toString(chatboxWidth)}px`}}
-        className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
-      >
-        <Client__Chatbox onConfigureProvider=openSettingsProviders />
-        // Resize handle on right edge
+    <Client__BillingActivation.Gate>
+      // Main content area: flex row of chat + preview panels.
+      <div className="flex flex-1 min-h-0 w-full">
+        // Transparent overlay during resize to prevent iframe from stealing mouse events
+        {switch isResizing {
+        | true => <div className="fixed inset-0 z-50 cursor-col-resize" />
+        | false => React.null
+        }}
         <div
-          className={[
-            "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
-            switch isResizing {
-            | true => "bg-zinc-500"
-            | false => "hover:bg-zinc-600"
-            },
-          ]->Array.join(" ")}
-          onMouseDown={handleResizeMouseDown}
-        />
+          style={{width: `${Int.toString(chatboxWidth)}px`}}
+          className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
+        >
+          <Client__Chatbox onConfigureProvider=openSettingsProviders />
+          // Resize handle on right edge
+          <div
+            className={[
+              "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
+              switch isResizing {
+              | true => "bg-zinc-500"
+              | false => "hover:bg-zinc-600"
+              },
+            ]->Array.join(" ")}
+            onMouseDown={handleResizeMouseDown}
+          />
+        </div>
+        <div className="grow h-full min-w-0">
+          <Client__WebPreview />
+        </div>
       </div>
-      <div className="grow h-full min-w-0">
-        <Client__WebPreview />
-      </div>
-    </div>
+    </Client__BillingActivation.Gate>
   </div>
 }

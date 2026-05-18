@@ -54,10 +54,8 @@ type action =
   | ClearAcpSession
   // Settings modal actions
   | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
-  | BillingStatusReceived(Client__State__Types.billingStatus)
+  | BillingStatusReceived(Client__Billing.status)
   | BillingStatusError({error: string})
-  | StartBillingCheckout(Client__State__Types.billingCheckoutInterval)
-  | BillingCheckoutFailed(string)
   // API key settings actions
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
@@ -109,10 +107,6 @@ type action =
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchBillingStatusEffect({apiBaseUrl: string})
-  | StartBillingCheckoutEffect({
-      apiBaseUrl: string,
-      interval: Client__State__Types.billingCheckoutInterval,
-    })
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   // Anthropic OAuth effects
@@ -248,8 +242,7 @@ let defaultState: state = {
   sessionInitialized: false,
   userProfile: None,
   settingsModalTab: None,
-  billingStatus: Client__State__Types.BillingStatusNotLoaded,
-  billingCheckout: Client__State__Types.BillingCheckoutIdle,
+  billingStatus: Client__Billing.NotLoaded,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -417,12 +410,12 @@ module Selectors = {
     state.settingsModalTab
   }
 
-  let billingStatus = (state: state): Client__State__Types.billingStatusState => {
+  let billingStatus = (state: state): Client__Billing.state => {
     state.billingStatus
   }
 
-  let billingCheckout = (state: state): Client__State__Types.billingCheckoutState => {
-    state.billingCheckout
+  let billingAccessAllowed = (state: state): bool => {
+    Client__Billing.accessAllowed(state.billingStatus)
   }
 
   // Get OpenRouter API key settings
@@ -615,9 +608,9 @@ let fetchBillingStatusImpl = (dispatch, ~apiBaseUrl) => {
       let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
-        let billingStatus: Client__State__Types.billingStatus = S.parseJsonOrThrow(
+        let billingStatus: Client__Billing.status = S.parseJsonOrThrow(
           json,
-          Client__State__Types.billingStatusSchema,
+          Client__Billing.statusSchema,
         )
         dispatch(BillingStatusReceived(billingStatus))
       } else {
@@ -657,72 +650,8 @@ let encodeUserApiKeySaveRequest = (~provider, ~key) => {
   ->JSON.stringify
 }
 
-let encodeBillingCheckoutRequest = (~interval) => {
-  let payload: Client__State__Types.billingCheckoutRequest = {
-    interval: interval,
-  }
-  S.reverseConvertToJsonOrThrow(
-    payload,
-    Client__State__Types.billingCheckoutRequestSchema,
-  )->JSON.stringify
-}
-
-let billingApiErrorResponseMessage = (response: Client__State__Types.billingApiErrorResponse) =>
-  switch response.reason {
-  | Some(reason) => `${response.error}: ${reason}`
-  | None => response.error
-  }
-
 let jsonContentHeaders = () =>
   WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
-
-let startBillingCheckoutImpl = (
-  dispatch: action => unit,
-  ~apiBaseUrl,
-  ~interval: Client__State__Types.billingCheckoutInterval,
-) => {
-  let start = async () => {
-    let url = `${apiBaseUrl}/api/billing/checkout`
-
-    try {
-      let response = await WebAPI.Global.fetch(
-        url,
-        ~init={
-          credentials: Include,
-          method: "POST",
-          headers: jsonContentHeaders(),
-          body: WebAPI.BodyInit.fromString(encodeBillingCheckoutRequest(~interval)),
-        },
-      )
-
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let checkoutResponse = S.parseJsonOrThrow(
-          json,
-          Client__State__Types.billingCheckoutResponseSchema,
-        )
-        Client__HostNavigation.assign(~url=checkoutResponse.url)
-      } else {
-        let error = try {
-          let json = await response->WebAPI.Response.json
-          let errorResponse = S.parseJsonOrThrow(
-            json,
-            Client__State__Types.billingApiErrorResponseSchema,
-          )
-          billingApiErrorResponseMessage(errorResponse)
-        } catch {
-        | _ => `HTTP ${response.status->Int.toString}: ${response.statusText}`
-        }
-        dispatch(BillingCheckoutFailed(error))
-      }
-    } catch {
-    | exn =>
-      Log.error(~error=JsExn.fromException(exn), "StartBillingCheckout failed")
-      dispatch(BillingCheckoutFailed("Failed to start checkout"))
-    }
-  }
-  start()->ignore
-}
 
 let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
@@ -794,8 +723,6 @@ let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | FetchBillingStatusEffect({apiBaseUrl}) => fetchBillingStatusImpl(dispatch, ~apiBaseUrl)
-  | StartBillingCheckoutEffect({apiBaseUrl, interval}) =>
-    startBillingCheckoutImpl(dispatch, ~apiBaseUrl, ~interval)
   | TaskEffect({target, effect: taskEffect}) => {
       // Resolve taskId for dispatching task actions back
       let taskDispatch = (taskAction: TaskReducer.action) => {
@@ -1407,64 +1334,18 @@ let next = (state: state, action) => {
       ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
     )
 
-  | SetSettingsModalTab({tab: Some(Client__State__Types.Billing)}) =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      {
-        ...state,
-        settingsModalTab: Some(Client__State__Types.Billing),
-        billingStatus: Client__State__Types.BillingStatusLoading,
-        billingCheckout: Client__State__Types.BillingCheckoutIdle,
-      }->StateReducer.update(~sideEffects=[FetchBillingStatusEffect({apiBaseUrl: apiBaseUrl})])
-    | NoAcpSession =>
-      {
-        ...state,
-        settingsModalTab: Some(Client__State__Types.Billing),
-        billingStatus: Client__State__Types.BillingStatusError(
-          "Billing is unavailable until the app connects.",
-        ),
-        billingCheckout: Client__State__Types.BillingCheckoutIdle,
-      }->StateReducer.update
-    }
-
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
 
   | BillingStatusReceived(billingStatus) =>
     {
       ...state,
-      billingStatus: Client__State__Types.BillingStatusLoaded(billingStatus),
+      billingStatus: Client__Billing.Loaded(billingStatus),
     }->StateReducer.update
 
   | BillingStatusError({error}) =>
     {
       ...state,
-      billingStatus: Client__State__Types.BillingStatusError(error),
-    }->StateReducer.update
-
-  | StartBillingCheckout(interval) =>
-    switch state.billingCheckout {
-    | Client__State__Types.BillingCheckoutLoading(_) => state->StateReducer.update
-    | _ =>
-      switch state.acpSession {
-      | AcpSessionActive({apiBaseUrl}) =>
-        {
-          ...state,
-          billingCheckout: Client__State__Types.BillingCheckoutLoading(interval),
-        }->StateReducer.update(~sideEffects=[StartBillingCheckoutEffect({apiBaseUrl, interval})])
-      | NoAcpSession =>
-        {
-          ...state,
-          billingCheckout: Client__State__Types.BillingCheckoutError(
-            "Billing is unavailable until the app connects.",
-          ),
-        }->StateReducer.update
-      }
-    }
-
-  | BillingCheckoutFailed(error) =>
-    {
-      ...state,
-      billingCheckout: Client__State__Types.BillingCheckoutError(error),
+      billingStatus: Client__Billing.Error(error),
     }->StateReducer.update
 
   // API key settings actions

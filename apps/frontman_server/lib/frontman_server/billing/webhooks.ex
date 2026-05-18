@@ -26,10 +26,7 @@ defmodule FrontmanServer.Billing.Webhooks do
           {:error, reason} -> {:error, reason}
         end
       end)
-      |> case do
-        {:ok, result} -> {:ok, result}
-        {:error, reason} -> {:error, reason}
-      end
+      |> normalize_process_result()
 
     log_event_result(event_id, type, result)
 
@@ -47,6 +44,15 @@ defmodule FrontmanServer.Billing.Webhooks do
 
     handle_event(repo, type, event)
   end
+
+  defp normalize_process_result({:ok, {:processed, user_id}}) do
+    :ok = FrontmanServer.Billing.broadcast_status_changed(user_id)
+    {:ok, :processed}
+  end
+
+  defp normalize_process_result({:ok, result}), do: {:ok, result}
+
+  defp normalize_process_result({:error, reason}), do: {:error, reason}
 
   defp log_event_result(event_id, type, {:ok, result}) do
     Logger.info("stripe webhook #{result} event_id=#{event_id} type=#{type}")
@@ -81,13 +87,13 @@ defmodule FrontmanServer.Billing.Webhooks do
     |> Enum.any?(fn {_message, opts} -> opts[:constraint] == :unique end)
   end
 
-  defp upsert_customer(repo, attrs) do
-    %Customer{user_id: attr_value(attrs, :user_id)}
-    |> Customer.changeset(attrs)
+  defp upsert_customer(repo, user_id, stripe_customer_id) do
+    %Customer{user_id: user_id}
+    |> Customer.changeset(%{stripe_customer_id: stripe_customer_id})
     |> repo.insert(
       on_conflict: [
         set: [
-          stripe_customer_id: attr_value(attrs, :stripe_customer_id),
+          stripe_customer_id: stripe_customer_id,
           updated_at: DateTime.utc_now(:second)
         ]
       ],
@@ -96,8 +102,8 @@ defmodule FrontmanServer.Billing.Webhooks do
     )
   end
 
-  defp upsert_subscription(repo, attrs) do
-    %Subscription{billing_customer_id: attr_value(attrs, :billing_customer_id)}
+  defp upsert_subscription(repo, billing_customer_id, attrs) do
+    %Subscription{billing_customer_id: billing_customer_id}
     |> Subscription.changeset(attrs)
     |> repo.insert(
       on_conflict: [
@@ -109,18 +115,9 @@ defmodule FrontmanServer.Billing.Webhooks do
   end
 
   defp subscription_conflict_updates(attrs) do
-    [
-      stripe_subscription_id: attr_value(attrs, :stripe_subscription_id),
-      stripe_customer_id: attr_value(attrs, :stripe_customer_id),
-      status: attr_value(attrs, :status),
-      interval: attr_value(attrs, :interval),
-      price_id: attr_value(attrs, :price_id),
-      current_period_end: attr_value(attrs, :current_period_end),
-      trial_end: attr_value(attrs, :trial_end),
-      cancel_at: attr_value(attrs, :cancel_at),
-      canceled_at: attr_value(attrs, :canceled_at),
-      updated_at: DateTime.utc_now(:second)
-    ]
+    attrs
+    |> Map.to_list()
+    |> Keyword.put(:updated_at, DateTime.utc_now(:second))
   end
 
   defp handle_event(repo, "checkout.session.completed", event) do
@@ -133,11 +130,8 @@ defmodule FrontmanServer.Billing.Webhooks do
 
       user_id ->
         with {:ok, _customer} <-
-               upsert_customer(repo, %{
-                 user_id: user_id,
-                 stripe_customer_id: session["customer"]
-               }) do
-          {:ok, :processed}
+               upsert_customer(repo, user_id, session["customer"]) do
+          {:ok, {:processed, user_id}}
         end
     end
   end
@@ -153,20 +147,17 @@ defmodule FrontmanServer.Billing.Webhooks do
 
       user_id ->
         with {:ok, customer} <-
-               upsert_customer(repo, %{
-                 user_id: user_id,
-                 stripe_customer_id: subscription["customer"]
-               }),
+               upsert_customer(repo, user_id, subscription["customer"]),
              {:ok, _subscription} <-
-               upsert_subscription(repo, subscription_attrs(subscription, customer.id)) do
-          {:ok, :processed}
+               upsert_subscription(repo, customer.id, subscription_attrs(subscription)) do
+          {:ok, {:processed, user_id}}
         end
     end
   end
 
   defp handle_event(_repo, _type, _event), do: {:ok, :ignored}
 
-  defp subscription_attrs(subscription, billing_customer_id) do
+  defp subscription_attrs(subscription) do
     first_item =
       subscription
       |> get_in(["items", "data"])
@@ -175,16 +166,17 @@ defmodule FrontmanServer.Billing.Webhooks do
         _items -> nil
       end
 
-    price = get_in(first_item || %{}, ["price"])
+    first_item = first_item || %{}
+    price = get_in(first_item, ["price"])
 
     %{
-      billing_customer_id: billing_customer_id,
       stripe_subscription_id: subscription["id"],
       stripe_customer_id: subscription["customer"],
       status: subscription["status"],
       interval: subscription_interval(get_in(price || %{}, ["recurring", "interval"])),
       price_id: (price || %{})["id"],
-      current_period_end: unix_to_datetime(subscription["current_period_end"]),
+      current_period_end:
+        unix_to_datetime(subscription["current_period_end"] || first_item["current_period_end"]),
       trial_end: unix_to_datetime(subscription["trial_end"]),
       cancel_at: unix_to_datetime(subscription["cancel_at"]),
       canceled_at: unix_to_datetime(subscription["canceled_at"])
@@ -192,8 +184,6 @@ defmodule FrontmanServer.Billing.Webhooks do
   end
 
   defp event_object(event), do: get_in(event, ["data", "object"])
-
-  defp attr_value(attrs, key), do: attrs[key] || attrs[Atom.to_string(key)]
 
   defp subscription_interval("month"), do: :monthly
   defp subscription_interval("year"), do: :yearly
