@@ -486,6 +486,7 @@ test-wordpress-core-tools: ## Run PHP tests for WordPress tool implementations
 	@php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
 	@php libs/frontman-wordpress/tests/ElementorToolsTest.php
 	@php libs/frontman-wordpress/tests/MediaToolsTest.php
+	@php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
 	@php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
 	@php libs/frontman-wordpress/tests/RouterTest.php
 

@@ -30,6 +30,7 @@ class Frontman_Tool_Definition {
 	public string $description;
 	public array  $input_schema;
 	public bool   $visible_to_agent;
+	public bool   $preserve_input_strings;
 	/** @var callable(array): array */
 	public $handler;
 
@@ -38,20 +39,23 @@ class Frontman_Tool_Definition {
 	 * @param string   $description      Human-readable description.
 	 * @param array    $input_schema     JSON Schema for input (as PHP array).
 	 * @param callable $handler          fn(array $input): array — returns plain data (JSON-serializable).
-	 * @param bool     $visible_to_agent Whether the agent can see this tool.
+	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
+	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
 	 */
 	public function __construct(
 		string $name,
 		string $description,
 		array $input_schema,
 		callable $handler,
-		bool $visible_to_agent = true
+		bool $visible_to_agent = true,
+		bool $preserve_input_strings = false
 	) {
-		$this->name             = $name;
-		$this->description      = $description;
-		$this->input_schema     = $input_schema;
-		$this->handler          = $handler;
-		$this->visible_to_agent = $visible_to_agent;
+		$this->name                   = $name;
+		$this->description            = $description;
+		$this->input_schema           = $input_schema;
+		$this->handler                = $handler;
+		$this->visible_to_agent       = $visible_to_agent;
+		$this->preserve_input_strings = $preserve_input_strings;
 	}
 
 	/**
@@ -129,7 +133,7 @@ class Frontman_Tools {
 			return $this->sanitize_untyped_array( $input, $name );
 		}
 
-		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '' );
+		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $tool->preserve_input_strings );
 		return is_array( $sanitized ) ? $sanitized : [];
 	}
 
@@ -210,12 +214,12 @@ class Frontman_Tools {
 	/**
 	 * Sanitize a value using a JSON-schema fragment.
 	 */
-	private function sanitize_value_for_schema( $value, array $schema, string $tool_name, string $field_name ) {
+	private function sanitize_value_for_schema( $value, array $schema, string $tool_name, string $field_name, bool $preserve_input_strings = false ) {
 		$type = $schema['type'] ?? null;
 
 		switch ( $type ) {
 			case 'object':
-				return is_array( $value ) ? $this->sanitize_object_for_schema( $value, $schema, $tool_name ) : [];
+				return is_array( $value ) ? $this->sanitize_object_for_schema( $value, $schema, $tool_name, $preserve_input_strings ) : [];
 
 			case 'array':
 				if ( ! is_array( $value ) ) {
@@ -225,8 +229,8 @@ class Frontman_Tools {
 				$item_schema = isset( $schema['items'] ) && is_array( $schema['items'] ) ? $schema['items'] : [];
 				return array_values(
 					array_map(
-						function ( $item ) use ( $item_schema, $tool_name, $field_name ) {
-							return $this->sanitize_value_for_schema( $item, $item_schema, $tool_name, $field_name );
+						function ( $item ) use ( $item_schema, $tool_name, $field_name, $preserve_input_strings ) {
+							return $this->sanitize_value_for_schema( $item, $item_schema, $tool_name, $field_name, $preserve_input_strings );
 						},
 						$value
 					)
@@ -242,15 +246,15 @@ class Frontman_Tools {
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':
-				return $this->sanitize_string_value( (string) $value, $tool_name, $field_name );
+				return $this->sanitize_string_value( (string) $value, $tool_name, $field_name, $preserve_input_strings );
 		}
 
 		if ( is_array( $value ) ) {
-			return $this->sanitize_untyped_array( $value, $tool_name );
+			return $this->sanitize_untyped_array( $value, $tool_name, $preserve_input_strings );
 		}
 
 		if ( is_string( $value ) ) {
-			return $this->sanitize_string_value( $value, $tool_name, $field_name );
+			return $this->sanitize_string_value( $value, $tool_name, $field_name, $preserve_input_strings );
 		}
 
 		if ( is_bool( $value ) || is_int( $value ) || is_float( $value ) || null === $value ) {
@@ -263,7 +267,7 @@ class Frontman_Tools {
 	/**
 	 * Sanitize object properties and drop unexpected fixed-schema fields.
 	 */
-	private function sanitize_object_for_schema( array $value, array $schema, string $tool_name ): array {
+	private function sanitize_object_for_schema( array $value, array $schema, string $tool_name, bool $preserve_input_strings = false ): array {
 		$properties            = isset( $schema['properties'] ) && is_array( $schema['properties'] ) ? $schema['properties'] : [];
 		$allow_extra_properties = ! empty( $schema['additionalProperties'] );
 		$sanitized             = [];
@@ -274,8 +278,8 @@ class Frontman_Tools {
 			}
 
 			$sanitized[ $property_name ] = is_array( $property_schema )
-				? $this->sanitize_value_for_schema( $value[ $property_name ], $property_schema, $tool_name, (string) $property_name )
-				: $this->sanitize_value_for_schema( $value[ $property_name ], [], $tool_name, (string) $property_name );
+				? $this->sanitize_value_for_schema( $value[ $property_name ], $property_schema, $tool_name, (string) $property_name, $preserve_input_strings )
+				: $this->sanitize_value_for_schema( $value[ $property_name ], [], $tool_name, (string) $property_name, $preserve_input_strings );
 		}
 
 		if ( $allow_extra_properties ) {
@@ -284,7 +288,7 @@ class Frontman_Tools {
 					continue;
 				}
 
-				$sanitized[ $property_name ] = $this->sanitize_value_for_schema( $property_value, [], $tool_name, (string) $property_name );
+				$sanitized[ $property_name ] = $this->sanitize_value_for_schema( $property_value, [], $tool_name, (string) $property_name, $preserve_input_strings );
 			}
 		}
 
@@ -294,10 +298,10 @@ class Frontman_Tools {
 	/**
 	 * Sanitize arrays whose schema permits dynamic keys.
 	 */
-	private function sanitize_untyped_array( array $value, string $tool_name ): array {
+	private function sanitize_untyped_array( array $value, string $tool_name, bool $preserve_input_strings = false ): array {
 		$sanitized = [];
 		foreach ( $value as $key => $item ) {
-			$sanitized[ $key ] = $this->sanitize_value_for_schema( $item, [], $tool_name, (string) $key );
+			$sanitized[ $key ] = $this->sanitize_value_for_schema( $item, [], $tool_name, (string) $key, $preserve_input_strings );
 		}
 
 		return $sanitized;
@@ -306,8 +310,11 @@ class Frontman_Tools {
 	/**
 	 * Apply the narrowest safe string sanitizer available for each tool field.
 	 */
-	private function sanitize_string_value( string $value, string $tool_name, string $field_name ): string {
+	private function sanitize_string_value( string $value, string $tool_name, string $field_name, bool $preserve_input_strings = false ): string {
 		$value = wp_check_invalid_utf8( $value );
+		if ( $preserve_input_strings ) {
+			return $value;
+		}
 
 		if ( in_array( $field_name, [ 'url', 'permalink' ], true ) ) {
 			return esc_url_raw( $value );
