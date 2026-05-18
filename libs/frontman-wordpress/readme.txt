@@ -49,7 +49,7 @@ This is an experimental release. It works, but it hasn't been tested across ever
 1. Download the Frontman plugin release ZIP or upload the `frontman-agentic-ai-editor` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu
 3. Navigate to `/frontman` on your site (you must be logged in as an admin)
-4. Use Frontman - WordPress tools, file inspection, and Elementor editing now run directly inside the plugin
+4. Use Frontman - WordPress tools, Elementor editing, and WooCommerce tools now run directly inside the plugin
 
 == Frequently Asked Questions ==
 
@@ -82,7 +82,7 @@ The chat interface is loaded from `https://app.frontman.sh`. This serves the Jav
 * Privacy Policy: [https://frontman.sh/terms](https://frontman.sh/terms)
 
 **Frontman API (api.frontman.sh)**
-The plugin connects via WebSocket to `wss://api.frontman.sh` for AI agent communication — sending tool results and receiving agent responses. Your site content is sent to this service when the agent processes requests.
+The plugin connects via WebSocket to `wss://api.frontman.sh` for AI agent communication — sending tool results and receiving agent responses. Your site content and, when you use WooCommerce tools, store data such as products, orders, customers, coupons, reports, and settings are sent to this service when the agent processes requests.
 
 * Service URL: [https://api.frontman.sh](https://api.frontman.sh)
 * Provider: Frontman AI

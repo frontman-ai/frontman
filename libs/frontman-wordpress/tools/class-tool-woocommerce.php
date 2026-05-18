@@ -103,11 +103,11 @@ class Frontman_Tool_WooCommerce {
 			'reviewId'  => $this->integer_prop( 'The product review ID.' ),
 		];
 
-		$this->add_custom_tool( $tools, 'get_product_reviews', 'Retrieves WooCommerce product reviews, optionally scoped to one product.', $this->object_schema( [ 'productId' => $review_props['productId'], 'perPage' => $this->integer_prop( 'Number of results per page.' ), 'page' => $this->integer_prop( 'Page number.' ), 'filters' => $this->dynamic_object_prop( 'WooCommerce REST API filters.' ) ] ), function( array $input ) { return $this->handle_product_reviews( 'list', $input ); } );
-		$this->add_custom_tool( $tools, 'get_product_review', 'Gets one WooCommerce product review.', $this->object_schema( $review_props, [ 'reviewId' ] ), function( array $input ) { return $this->handle_product_reviews( 'get', $input ); } );
-		$this->add_custom_tool( $tools, 'create_product_review', 'Creates a WooCommerce product review.', $this->data_schema( 'reviewData', 'Product review fields to create.', [ 'productId', 'reviewData' ], [ 'productId' => $review_props['productId'] ] ), function( array $input ) { return $this->handle_product_reviews( 'create', $input ); } );
-		$this->add_custom_tool( $tools, 'update_product_review', 'Updates a WooCommerce product review.', $this->data_schema( 'reviewData', 'Product review fields to update.', [ 'reviewId', 'reviewData' ], $review_props ), function( array $input ) { return $this->handle_product_reviews( 'update', $input ); } );
-		$this->add_custom_tool( $tools, 'delete_product_review', 'Deletes a WooCommerce product review. Ask the user for confirmation before calling with confirm=true.', $this->delete_schema_with_ids( $review_props, [ 'reviewId' ] ), function( array $input ) { return $this->handle_product_reviews( 'delete', $input ); } );
+		$this->add_endpoint_tool( $tools, 'get_product_reviews', 'Retrieves WooCommerce product reviews, optionally scoped to one product.', 'GET', '/products/reviews', $this->object_schema( [ 'productId' => $review_props['productId'], 'perPage' => $this->integer_prop( 'Number of results per page.' ), 'page' => $this->integer_prop( 'Page number.' ), 'filters' => $this->dynamic_object_prop( 'WooCommerce REST API filters.' ) ] ), [ 'paged' => true, 'filters' => true, 'product_filter' => true ] );
+		$this->add_endpoint_tool( $tools, 'get_product_review', 'Gets one WooCommerce product review.', 'GET', '/products/reviews/{reviewId}', $this->object_schema( $review_props, [ 'reviewId' ] ) );
+		$this->add_endpoint_tool( $tools, 'create_product_review', 'Creates a WooCommerce product review.', 'POST', '/products/reviews', $this->data_schema( 'reviewData', 'Product review fields to create.', [ 'productId', 'reviewData' ], [ 'productId' => $review_props['productId'] ] ), [ 'body' => 'reviewData', 'body_product_id' => 'productId' ] );
+		$this->add_endpoint_tool( $tools, 'update_product_review', 'Updates a WooCommerce product review.', 'PUT', '/products/reviews/{reviewId}', $this->data_schema( 'reviewData', 'Product review fields to update.', [ 'reviewId', 'reviewData' ], $review_props ), [ 'body' => 'reviewData' ] );
+		$this->add_endpoint_tool( $tools, 'delete_product_review', 'Deletes a WooCommerce product review. Ask the user for confirmation before calling with confirm=true.', 'DELETE', '/products/reviews/{reviewId}', $this->delete_schema_with_ids( $review_props, [ 'reviewId' ] ), [ 'confirm' => true, 'force_default' => true ] );
 	}
 
 	private function register_orders( Frontman_Tools $tools ): void {
@@ -178,7 +178,7 @@ class Frontman_Tool_WooCommerce {
 	private function register_taxes( Frontman_Tools $tools ): void {
 		$this->add_endpoint_tool( $tools, 'get_tax_classes', 'Retrieves WooCommerce tax classes.', 'GET', '/taxes/classes', $this->empty_schema() );
 		$this->add_endpoint_tool( $tools, 'create_tax_class', 'Creates a WooCommerce tax class.', 'POST', '/taxes/classes', $this->data_schema( 'taxClassData', 'Tax class fields to create.', [ 'taxClassData' ] ), [ 'body' => 'taxClassData' ] );
-		$this->add_endpoint_tool( $tools, 'delete_tax_class', 'Deletes a WooCommerce tax class. Ask the user for confirmation before calling with confirm=true.', 'DELETE', '/taxes/classes/{slug}', $this->delete_schema_with_ids( [ 'slug' => $this->string_prop( 'The tax class slug.' ) ], [ 'slug' ] ), [ 'confirm' => true, 'force_default' => true ] );
+		$this->add_endpoint_tool( $tools, 'delete_tax_class', 'Deletes a WooCommerce tax class. Ask the user for confirmation before calling with confirm=true.', 'DELETE', '/taxes/classes/{slug}', $this->delete_schema_with_ids( [ 'slug' => $this->string_prop( 'The tax class slug.' ) ], [ 'slug' ] ), [ 'confirm' => true, 'force_default' => true, 'read_before_write' => '/taxes/classes' ] );
 
 		$this->add_endpoint_tool( $tools, 'get_tax_rates', 'Retrieves WooCommerce tax rates.', 'GET', '/taxes', $this->list_schema(), [ 'paged' => true, 'filters' => true ] );
 		$this->add_endpoint_tool( $tools, 'get_tax_rate', 'Gets one WooCommerce tax rate.', 'GET', '/taxes/{rateId}', $this->id_schema( 'rateId', 'The tax rate ID.' ) );
@@ -221,7 +221,7 @@ class Frontman_Tool_WooCommerce {
 	private function register_system_status( Frontman_Tools $tools ): void {
 		$this->add_endpoint_tool( $tools, 'get_system_status', 'Retrieves WooCommerce system status.', 'GET', '/system_status', $this->empty_schema() );
 		$this->add_endpoint_tool( $tools, 'get_system_status_tools', 'Retrieves WooCommerce system status tools.', 'GET', '/system_status/tools', $this->empty_schema() );
-		$this->add_endpoint_tool( $tools, 'run_system_status_tool', 'Runs one WooCommerce system status tool.', 'PUT', '/system_status/tools/{toolId}', $this->object_schema( [ 'toolId' => $this->string_prop( 'The system status tool ID.' ) ], [ 'toolId' ] ) );
+		$this->add_endpoint_tool( $tools, 'run_system_status_tool', 'Runs one WooCommerce system status tool.', 'PUT', '/system_status/tools/{toolId}', $this->object_schema( [ 'toolId' => $this->string_prop( 'The system status tool ID.' ) ], [ 'toolId' ] ), [ 'read_before_write' => '/system_status/tools' ] );
 	}
 
 	private function register_data( Frontman_Tools $tools ): void {
@@ -233,13 +233,21 @@ class Frontman_Tool_WooCommerce {
 	}
 
 	private function add_endpoint_tool( Frontman_Tools $tools, string $source_method, string $description, string $http_method, string $path_template, array $schema, array $options = [] ): void {
+		if ( in_array( strtoupper( $http_method ), [ 'PUT', 'DELETE' ], true ) ) {
+			$schema             = $this->with_confirm( $schema );
+			$options['confirm'] = true;
+			if ( false === strpos( $description, 'confirm=true' ) ) {
+				$description .= ' Ask the user for confirmation before calling with confirm=true.';
+			}
+		}
+
 		$this->add_custom_tool(
 			$tools,
 			$source_method,
 			$description,
 			$schema,
-			function( array $input ) use ( $source_method, $http_method, $path_template, $options ) {
-				return $this->handle_endpoint_tool( $source_method, $http_method, $path_template, $options, $input );
+			function( array $input ) use ( $http_method, $path_template, $options ) {
+				return $this->handle_endpoint_tool( $http_method, $path_template, $options, $input );
 			}
 		);
 	}
@@ -264,16 +272,16 @@ class Frontman_Tool_WooCommerce {
 			'get_' . $entity . '_meta',
 			'Retrieves WooCommerce ' . $entity . ' metadata, optionally filtered by meta key.',
 			$this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'Optional metadata key to filter by.' ) ] ), [ $id_key ] ),
-			function( array $input ) use ( $id_key, $path_template ) { return $this->get_meta( $id_key, $path_template, $input ); }
+			function( array $input ) use ( $path_template ) { return $this->get_meta( $path_template, $input ); }
 		);
 
 		foreach ( [ 'create', 'update' ] as $operation ) {
 			$this->add_custom_tool(
 				$tools,
 				$operation . '_' . $entity . '_meta',
-				$entity_label . ' metadata upsert. Creates the key when missing and updates the first matching key when present.',
-				$this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'The metadata key.' ), 'metaValue' => [ 'description' => 'The metadata value. Can be a scalar, object, array, or null.' ] ] ), [ $id_key, 'metaKey', 'metaValue' ] ),
-				function( array $input ) use ( $id_key, $path_template ) { return $this->upsert_meta( $id_key, $path_template, $input ); }
+				$entity_label . ' metadata upsert. Creates the key when missing and updates the first matching key when present. Ask the user for confirmation before calling with confirm=true.',
+				$this->with_confirm( $this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'The metadata key.' ), 'metaValue' => [ 'description' => 'The metadata value. Can be a scalar, object, array, or null.' ] ] ), [ $id_key, 'metaKey', 'metaValue' ] ) ),
+				function( array $input ) use ( $path_template ) { return $this->upsert_meta( $path_template, $input ); }
 			);
 		}
 
@@ -282,66 +290,37 @@ class Frontman_Tool_WooCommerce {
 			'delete_' . $entity . '_meta',
 			'Deletes WooCommerce ' . $entity . ' metadata by key. Ask the user for confirmation before calling with confirm=true.',
 			$this->object_schema( array_merge( $id_prop, [ 'metaKey' => $this->string_prop( 'The metadata key to delete.' ), 'confirm' => $this->boolean_prop( 'Must be true only after the user explicitly confirms deletion.' ) ] ), [ $id_key, 'metaKey', 'confirm' ] ),
-			function( array $input ) use ( $id_key, $path_template ) { return $this->delete_meta( $id_key, $path_template, $input ); }
+			function( array $input ) use ( $entity, $id_key, $path_template ) { return $this->delete_meta( $entity, $id_key, $path_template, $input ); }
 		);
 	}
 
-	private function handle_endpoint_tool( string $source_method, string $http_method, string $path_template, array $options, array $input ): array {
+	private function handle_endpoint_tool( string $http_method, string $path_template, array $options, array $input ): array {
 		if ( ! empty( $options['confirm'] ) && true !== ( $input['confirm'] ?? false ) ) {
-			throw new Frontman_Tool_Error( 'This WooCommerce deletion requires explicit confirmation. Ask the user first, then call again with confirm=true.' );
+			throw new Frontman_Tool_Error( 'This WooCommerce mutation requires explicit confirmation. Ask the user first, then call again with confirm=true.' );
 		}
 
 		if ( isset( $options['body'] ) ) {
 			$body_key = (string) $options['body'];
-			if ( ! array_key_exists( $body_key, $input ) ) {
-				throw new Frontman_Tool_Error( $body_key . ' is required for ' . $source_method );
-			}
+			$this->require_array_field( $input, $body_key );
 			$body = $input[ $body_key ];
+			if ( isset( $options['body_product_id'] ) ) {
+				$body['product_id'] = $this->require_positive_int( $input, (string) $options['body_product_id'] );
+			}
 		} else {
 			$body = null;
 		}
 
 		$path  = $this->resolve_path( $path_template, $input );
 		$query = $this->query_params( $input, $options, 'DELETE' === strtoupper( $http_method ) );
+		if ( in_array( strtoupper( $http_method ), [ 'PUT', 'DELETE' ], true ) ) {
+			$read_path = $this->resolve_path( (string) ( $options['read_before_write'] ?? $path_template ), $input );
+			$this->request( 'GET', $read_path );
+		}
 
 		return $this->request( $http_method, $path, $query, $body );
 	}
 
-	private function handle_product_reviews( string $operation, array $input ): array {
-		switch ( $operation ) {
-			case 'list':
-				$path = isset( $input['productId'] ) && $this->positive_int( $input['productId'] ) > 0 ? '/products/' . $this->positive_int( $input['productId'] ) . '/reviews' : '/products/reviews';
-				return $this->request( 'GET', $path, $this->query_params( $input, [ 'paged' => true, 'filters' => true ], false ) );
-
-			case 'get':
-				$review_id = $this->require_positive_int( $input, 'reviewId' );
-				$path      = isset( $input['productId'] ) && $this->positive_int( $input['productId'] ) > 0 ? '/products/' . $this->positive_int( $input['productId'] ) . '/reviews/' . $review_id : '/products/reviews/' . $review_id;
-				return $this->request( 'GET', $path );
-
-			case 'create':
-				$product_id = $this->require_positive_int( $input, 'productId' );
-				$this->require_array_field( $input, 'reviewData' );
-				return $this->request( 'POST', '/products/' . $product_id . '/reviews', [], $input['reviewData'] );
-
-			case 'update':
-				$review_id = $this->require_positive_int( $input, 'reviewId' );
-				$this->require_array_field( $input, 'reviewData' );
-				$path = isset( $input['productId'] ) && $this->positive_int( $input['productId'] ) > 0 ? '/products/' . $this->positive_int( $input['productId'] ) . '/reviews/' . $review_id : '/products/reviews/' . $review_id;
-				return $this->request( 'PUT', $path, [], $input['reviewData'] );
-
-			case 'delete':
-				if ( true !== ( $input['confirm'] ?? false ) ) {
-					throw new Frontman_Tool_Error( 'This WooCommerce deletion requires explicit confirmation. Ask the user first, then call again with confirm=true.' );
-				}
-				$review_id = $this->require_positive_int( $input, 'reviewId' );
-				$path      = isset( $input['productId'] ) && $this->positive_int( $input['productId'] ) > 0 ? '/products/' . $this->positive_int( $input['productId'] ) . '/reviews/' . $review_id : '/products/reviews/' . $review_id;
-				return $this->request( 'DELETE', $path, [ 'force' => isset( $input['force'] ) ? (bool) $input['force'] : true ] );
-		}
-
-		throw new Frontman_Tool_Error( 'Unknown product review operation: ' . $operation );
-	}
-
-	private function get_meta( string $id_key, string $path_template, array $input ): array {
+	private function get_meta( string $path_template, array $input ): array {
 		$resource = $this->request( 'GET', $this->resolve_path( $path_template, $input ) );
 		$meta     = isset( $resource['meta_data'] ) && is_array( $resource['meta_data'] ) ? $resource['meta_data'] : [];
 
@@ -355,7 +334,11 @@ class Frontman_Tool_WooCommerce {
 		return $meta;
 	}
 
-	private function upsert_meta( string $id_key, string $path_template, array $input ): array {
+	private function upsert_meta( string $path_template, array $input ): array {
+		if ( true !== ( $input['confirm'] ?? false ) ) {
+			throw new Frontman_Tool_Error( 'This WooCommerce metadata update requires explicit confirmation. Ask the user first, then call again with confirm=true.' );
+		}
+
 		$this->require_string_field( $input, 'metaKey' );
 		if ( ! array_key_exists( 'metaValue', $input ) ) {
 			throw new Frontman_Tool_Error( 'metaValue is required' );
@@ -383,23 +366,47 @@ class Frontman_Tool_WooCommerce {
 		return isset( $response['meta_data'] ) && is_array( $response['meta_data'] ) ? $response['meta_data'] : [];
 	}
 
-	private function delete_meta( string $id_key, string $path_template, array $input ): array {
+	private function delete_meta( string $entity, string $id_key, string $path_template, array $input ): array {
 		if ( true !== ( $input['confirm'] ?? false ) ) {
 			throw new Frontman_Tool_Error( 'This WooCommerce metadata deletion requires explicit confirmation. Ask the user first, then call again with confirm=true.' );
 		}
 
 		$this->require_string_field( $input, 'metaKey' );
-		$path     = $this->resolve_path( $path_template, $input );
-		$resource = $this->request( 'GET', $path );
-		$meta     = isset( $resource['meta_data'] ) && is_array( $resource['meta_data'] ) ? array_values( $resource['meta_data'] ) : [];
-		$key      = (string) $input['metaKey'];
+		$object = $this->meta_object( $entity, $this->require_positive_int( $input, $id_key ) );
+		try {
+			$object->delete_meta_data( (string) $input['metaKey'] );
+			$object->save();
+		} catch ( \Throwable $e ) {
+			throw new Frontman_Tool_Error( $e->getMessage() );
+		}
 
-		$filtered = array_values( array_filter( $meta, static function( $entry ) use ( $key ) {
-			return ! is_array( $entry ) || ! isset( $entry['key'] ) || (string) $entry['key'] !== $key;
-		} ) );
+		return $this->get_meta( $path_template, $input );
+	}
 
-		$response = $this->request( 'PUT', $path, [], [ 'meta_data' => $filtered ] );
-		return isset( $response['meta_data'] ) && is_array( $response['meta_data'] ) ? $response['meta_data'] : [];
+	private function meta_object( string $entity, int $id ) {
+		try {
+			switch ( $entity ) {
+				case 'product':
+					$object = function_exists( 'wc_get_product' ) ? wc_get_product( $id ) : null;
+					break;
+				case 'order':
+					$object = function_exists( 'wc_get_order' ) ? wc_get_order( $id ) : null;
+					break;
+				case 'customer':
+					$object = class_exists( 'WC_Customer' ) ? new \WC_Customer( $id ) : null;
+					break;
+				default:
+					$object = null;
+			}
+		} catch ( \Throwable $e ) {
+			throw new Frontman_Tool_Error( $e->getMessage() );
+		}
+
+		if ( ! is_object( $object ) || ! method_exists( $object, 'delete_meta_data' ) || ! method_exists( $object, 'save' ) ) {
+			throw new Frontman_Tool_Error( 'WooCommerce ' . $entity . ' not found or does not support metadata deletion.' );
+		}
+
+		return $object;
 	}
 
 	private function request( string $method, string $path, array $query = [], $body = null ): array {
@@ -463,6 +470,9 @@ class Frontman_Tool_WooCommerce {
 				if ( ! array_key_exists( $field, $input ) || '' === (string) $input[ $field ] ) {
 					throw new Frontman_Tool_Error( $field . ' is required' );
 				}
+				if ( $this->is_integer_path_field( $field ) ) {
+					return (string) $this->require_positive_int( $input, $field );
+				}
 
 				return rawurlencode( (string) $input[ $field ] );
 			},
@@ -493,6 +503,9 @@ class Frontman_Tool_WooCommerce {
 				$query[ $key ] = $value;
 			}
 		}
+		if ( ! empty( $options['product_filter'] ) && isset( $input['productId'] ) && $this->positive_int( $input['productId'] ) > 0 ) {
+			$query['product'] = $this->positive_int( $input['productId'] );
+		}
 
 		if ( $is_delete ) {
 			$query['force'] = array_key_exists( 'force', $input ) ? (bool) $input['force'] : (bool) ( $options['force_default'] ?? false );
@@ -511,9 +524,13 @@ class Frontman_Tool_WooCommerce {
 	}
 
 	private function require_array_field( array $input, string $field ): void {
-		if ( ! isset( $input[ $field ] ) || ! is_array( $input[ $field ] ) ) {
+		if ( ! array_key_exists( $field, $input ) || ! is_array( $input[ $field ] ) ) {
 			throw new Frontman_Tool_Error( $field . ' is required' );
 		}
+	}
+
+	private function is_integer_path_field( string $field ): bool {
+		return ! in_array( $field, [ 'gatewayId', 'id', 'toolId' ], true ) && substr( $field, -2 ) === 'Id';
 	}
 
 	private function require_string_field( array $input, string $field ): void {
@@ -602,6 +619,12 @@ class Frontman_Tool_WooCommerce {
 			$schema['required'] = $required;
 		}
 
+		return $schema;
+	}
+
+	private function with_confirm( array $schema ): array {
+		$schema['properties']['confirm'] = $this->boolean_prop( 'Must be true only after the user explicitly confirms this WooCommerce mutation.' );
+		$schema['required'] = array_values( array_unique( array_merge( $schema['required'] ?? [], [ 'confirm' ] ) ) );
 		return $schema;
 	}
 

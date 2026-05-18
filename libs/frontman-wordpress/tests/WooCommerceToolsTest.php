@@ -4,9 +4,37 @@ define( 'ABSPATH', sys_get_temp_dir() . '/frontman-wordpress-woocommerce-tools/'
 
 $GLOBALS['frontman_wc_rest_requests']  = [];
 $GLOBALS['frontman_wc_rest_responses'] = [];
+$GLOBALS['frontman_wc_meta_object']    = null;
 
 if ( ! class_exists( 'WooCommerce' ) ) {
 	class WooCommerce {}
+}
+
+if ( ! class_exists( 'Frontman_WC_Test_Meta_Object' ) ) {
+	class Frontman_WC_Test_Meta_Object {
+		public int $id;
+		public array $deleted = [];
+		public bool $saved = false;
+
+		public function __construct( int $id ) {
+			$this->id = $id;
+		}
+
+		public function delete_meta_data( string $key ): void {
+			$this->deleted[] = $key;
+		}
+
+		public function save(): void {
+			$this->saved = true;
+		}
+	}
+}
+
+if ( ! function_exists( 'wc_get_product' ) ) {
+	function wc_get_product( int $id ) {
+		$GLOBALS['frontman_wc_meta_object'] = new Frontman_WC_Test_Meta_Object( $id );
+		return $GLOBALS['frontman_wc_meta_object'];
+	}
 }
 
 if ( ! class_exists( 'WP_Error' ) ) {
@@ -162,8 +190,14 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 		$this->test_tool_array_schemas_have_items();
 		$this->test_list_products_maps_to_wc_rest_route();
 		$this->test_create_product_preserves_raw_product_data();
+		$this->test_update_product_reads_before_write();
+		$this->test_invalid_product_data_is_rejected();
+		$this->test_invalid_path_ids_are_rejected();
+		$this->test_string_path_ids_are_allowed();
+		$this->test_product_reviews_use_global_reviews_endpoint();
 		$this->test_delete_product_requires_confirmation();
 		$this->test_product_meta_upsert_uses_meta_data_array();
+		$this->test_product_meta_delete_uses_woocommerce_crud();
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
 	}
@@ -383,7 +417,53 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 		$this->assert_same( '<p>Path C:\\tmp\\shirt and regex /\\d+/</p>', $request->body_params['description'], 'WooCommerce product HTML and backslashes are preserved' );
 	}
 
+	private function test_update_product_reads_before_write(): void {
+		$this->reset_rest();
+		$this->call_success( 'wc_update_product', [ 'productId' => 10, 'productData' => [ 'name' => 'After' ], 'confirm' => true ] );
+		$this->assert_same( 'GET', $GLOBALS['frontman_wc_rest_requests'][0]->method, 'wc_update_product reads the product before mutation' );
+		$this->assert_same( '/wc/v3/products/10', $GLOBALS['frontman_wc_rest_requests'][0]->route, 'wc_update_product reads the target product route' );
+		$this->assert_same( 'PUT', $GLOBALS['frontman_wc_rest_requests'][1]->method, 'wc_update_product writes after reading' );
+	}
+
+	private function test_invalid_product_data_is_rejected(): void {
+		$sanitized = $this->tools->sanitize_input( 'wc_create_product', [ 'productData' => 'not an object' ] );
+		$error = $this->call_error( 'wc_create_product', $sanitized );
+		$this->assert_true( false !== strpos( $error, 'productData is required' ), 'wc_create_product rejects non-object productData' );
+	}
+
+	private function test_invalid_path_ids_are_rejected(): void {
+		$sanitized = $this->tools->sanitize_input( 'wc_get_product', [ 'productId' => 'abc' ] );
+		$error = $this->call_error( 'wc_get_product', $sanitized );
+		$this->assert_true( false !== strpos( $error, 'productId is required' ), 'wc_get_product rejects invalid product IDs before REST dispatch' );
+	}
+
+	private function test_string_path_ids_are_allowed(): void {
+		$this->reset_rest();
+		$this->call_success( 'wc_get_payment_gateway', [ 'gatewayId' => 'stripe' ] );
+		$this->assert_same( '/wc/v3/payment_gateways/stripe', $GLOBALS['frontman_wc_rest_requests'][0]->route, 'gatewayId remains a string path parameter' );
+
+		$this->reset_rest();
+		$this->call_success( 'wc_run_system_status_tool', [ 'toolId' => 'clear_transients', 'confirm' => true ] );
+		$this->assert_same( '/wc/v3/system_status/tools', $GLOBALS['frontman_wc_rest_requests'][0]->route, 'wc_run_system_status_tool reads available tools before mutation' );
+		$this->assert_same( '/wc/v3/system_status/tools/clear_transients', $GLOBALS['frontman_wc_rest_requests'][1]->route, 'toolId remains a string path parameter' );
+	}
+
+	private function test_product_reviews_use_global_reviews_endpoint(): void {
+		$this->reset_rest();
+		$this->call_success( 'wc_get_product_reviews', [ 'productId' => 10 ] );
+		$this->assert_same( '/wc/v3/products/reviews', $GLOBALS['frontman_wc_rest_requests'][0]->route, 'wc_get_product_reviews uses the global WooCommerce reviews route' );
+		$this->assert_same( 10, $GLOBALS['frontman_wc_rest_requests'][0]->params['product'], 'wc_get_product_reviews maps productId to product filter' );
+
+		$this->reset_rest();
+		$this->call_success( 'wc_create_product_review', [ 'productId' => 10, 'reviewData' => [ 'review' => 'Great' ] ] );
+		$this->assert_same( '/wc/v3/products/reviews', $GLOBALS['frontman_wc_rest_requests'][0]->route, 'wc_create_product_review uses the global WooCommerce reviews route' );
+		$this->assert_same( 10, $GLOBALS['frontman_wc_rest_requests'][0]->body_params['product_id'], 'wc_create_product_review writes product_id into the request body' );
+	}
+
 	private function test_delete_product_requires_confirmation(): void {
+		$update_error = $this->call_error( 'wc_update_product', [ 'productId' => 10, 'productData' => [ 'name' => 'After' ] ] );
+		$this->assert_true( false !== strpos( $update_error, 'explicit confirmation' ), 'wc_update_product requires confirm=true' );
+
 		$error = $this->call_error( 'wc_delete_product', [ 'productId' => 10, 'force' => true, 'confirm' => false ] );
 		$this->assert_true( false !== strpos( $error, 'explicit confirmation' ), 'wc_delete_product requires confirm=true' );
 	}
@@ -399,6 +479,7 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 			'productId' => 10,
 			'metaKey' => '_old',
 			'metaValue' => 'after',
+			'confirm' => true,
 		] );
 
 		$this->assert_same( 'GET', $GLOBALS['frontman_wc_rest_requests'][0]->method, 'meta update reads the product first' );
@@ -406,6 +487,22 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 		$this->assert_same( 'PUT', $GLOBALS['frontman_wc_rest_requests'][1]->method, 'meta update writes the product' );
 		$this->assert_same( 'after', $GLOBALS['frontman_wc_rest_requests'][1]->body_params['meta_data'][0]['value'], 'meta update sends modified meta_data array' );
 		$this->assert_same( 'after', $meta[0]['value'], 'meta update returns updated metadata' );
+	}
+
+	private function test_product_meta_delete_uses_woocommerce_crud(): void {
+		$this->reset_rest();
+		$GLOBALS['frontman_wc_rest_responses'] = [ [ 'id' => 10, 'meta_data' => [] ] ];
+
+		$this->call_success( 'wc_delete_product_meta', [
+			'productId' => 10,
+			'metaKey' => '_old',
+			'confirm' => true,
+		] );
+
+		$this->assert_same( 10, $GLOBALS['frontman_wc_meta_object']->id, 'meta delete loads the WooCommerce CRUD object' );
+		$this->assert_same( [ '_old' ], $GLOBALS['frontman_wc_meta_object']->deleted, 'meta delete uses delete_meta_data' );
+		$this->assert_same( true, $GLOBALS['frontman_wc_meta_object']->saved, 'meta delete saves the WooCommerce CRUD object' );
+		$this->assert_same( 'GET', $GLOBALS['frontman_wc_rest_requests'][0]->method, 'meta delete reads back updated metadata' );
 	}
 
 	private function reset_rest(): void {

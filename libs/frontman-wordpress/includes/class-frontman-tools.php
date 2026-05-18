@@ -83,12 +83,6 @@ class Frontman_Tools {
 
 	private static ?self $instance = null;
 
-	/**
-	 * MCP _meta object — matches MCP.emptyMeta on the ReScript side.
-	 * { model: undefined, envApiKey: {} }
-	 */
-	private const EMPTY_META = [ 'envApiKey' => [] ];
-
 	public static function instance(): self {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
@@ -219,11 +213,11 @@ class Frontman_Tools {
 
 		switch ( $type ) {
 			case 'object':
-				return is_array( $value ) ? $this->sanitize_object_for_schema( $value, $schema, $tool_name, $preserve_input_strings ) : [];
+				return is_array( $value ) ? $this->sanitize_object_for_schema( $value, $schema, $tool_name, $preserve_input_strings ) : ( $preserve_input_strings ? null : [] );
 
 			case 'array':
 				if ( ! is_array( $value ) ) {
-					return [];
+					return $preserve_input_strings ? null : [];
 				}
 
 				$item_schema = isset( $schema['items'] ) && is_array( $schema['items'] ) ? $schema['items'] : [];
