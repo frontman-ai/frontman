@@ -11,6 +11,7 @@ type subscriptionStatus =
   | @as("unpaid") Unpaid
   | UnknownSubscriptionStatus(string)
 
+@@live
 let subscriptionStatusSchema = S.union([
   S.literal(NoSubscription),
   S.literal(Trialing),
@@ -63,7 +64,6 @@ type status = {
 
 type state =
   | NotLoaded
-  | Loading
   | Loaded(status)
   | Error(string)
 
@@ -78,7 +78,7 @@ type checkoutOption = {
 let accessAllowed = billingStatus =>
   switch billingStatus {
   | Loaded({accessAllowed: true}) => true
-  | NotLoaded | Loading | Error(_) | Loaded(_) => false
+  | NotLoaded | Error(_) | Loaded(_) => false
   }
 
 let isAccessAllowed = (billingStatus: status) => billingStatus.accessAllowed

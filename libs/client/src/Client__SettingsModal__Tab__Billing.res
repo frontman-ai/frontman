@@ -111,13 +111,7 @@ let renderStripeFlowNotice = (~stripeFlowStage, ~onRetry) => {
   }
 }
 
-let renderCheckoutButton = (
-  ~url,
-  ~label,
-  ~stripeFlowIsOpen,
-  ~onOpenStripeFlow,
-  ~variant=Button.Variant.Default,
-) => {
+let renderCheckoutButton = (~url, ~label, ~stripeFlowIsOpen, ~onOpenStripeFlow, ~variant) => {
   let disabled = stripeFlowIsOpen || url->Option.isNone
   <Button
     variant
@@ -342,7 +336,7 @@ let make = () => {
   <div className="space-y-4">
     {renderStripeFlowNotice(~stripeFlowStage, ~onRetry=openStripeFlow)}
     {switch billingStatus {
-    | Billing.NotLoaded | Billing.Loading => renderLoading()
+    | Billing.NotLoaded => renderLoading()
     | Billing.Loaded(billingStatus) =>
       renderStatusCard(
         ~apiBaseUrl,

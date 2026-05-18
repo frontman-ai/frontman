@@ -16,7 +16,7 @@ let openBilling = () => State.Actions.openSettingsModalOnBilling()
 
 let renderActivationState = (billingStatus: Billing.state) => {
   switch billingStatus {
-  | Billing.NotLoaded | Billing.Loading =>
+  | Billing.NotLoaded =>
     shell(
       <Card className="border-white/10 bg-white/[0.03] text-zinc-100 ring-white/10">
         <Card.Content className="flex items-center gap-3">
@@ -82,7 +82,7 @@ let renderActivationState = (billingStatus: Billing.state) => {
 let shouldRenderChildren = (~sessionInitialized, billingStatus: Billing.state) => {
   switch billingStatus {
   | Billing.Loaded(status) => Billing.isAccessAllowed(status)
-  | Billing.NotLoaded | Billing.Loading | Billing.Error(_) => !sessionInitialized
+  | Billing.NotLoaded | Billing.Error(_) => !sessionInitialized
   }
 }
 
@@ -97,9 +97,4 @@ module Gate = {
     | false => renderActivationState(billingStatus)
     }
   }
-}
-
-@react.component
-let make = () => {
-  State.useSelector(State.Selectors.billingStatus)->renderActivationState
 }

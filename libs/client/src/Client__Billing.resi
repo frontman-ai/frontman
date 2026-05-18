@@ -17,7 +17,6 @@ type interval =
 
 type state =
   | NotLoaded
-  | Loading
   | Loaded(status)
   | Error(string)
 
@@ -40,7 +39,6 @@ let trialEnd: status => option<string>
 let cancelAt: status => option<string>
 let canceledAt: status => option<string>
 
-let checkoutPath: interval => string
 let customerPortalPath: string
 let checkoutOptions: array<checkoutOption>
 let checkoutOptionTitle: checkoutOption => string
