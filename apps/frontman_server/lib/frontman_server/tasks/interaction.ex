@@ -1571,20 +1571,13 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp decode_tool_result_image(_tool_name, _result), do: :no_image
 
-  defp build_tool_message_with_image(name, id, %{data: data, media_type: media_type} = image) do
-    content =
-      case image.context do
-        nil ->
-          [ContentPart.image(data, media_type)]
-
-        context ->
-          [
-            ContentPart.text(context),
-            ContentPart.image(data, media_type)
-          ]
-      end
-
-    %ReqLLM.Message{role: :tool, name: name, tool_call_id: id, content: content}
+  defp build_tool_message_with_image(name, id, %{data: data, media_type: media_type}) do
+    %ReqLLM.Message{
+      role: :tool,
+      name: name,
+      tool_call_id: id,
+      content: [ContentPart.image(data, media_type)]
+    }
   end
 
   # Get field from map, supporting both string and atom keys.

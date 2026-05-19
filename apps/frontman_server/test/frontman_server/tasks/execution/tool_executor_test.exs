@@ -199,7 +199,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   end
 
   describe "make_mcp_tool_result/4" do
-    test "enriches web_fetch image result with source text and image content parts" do
+    test "enriches web_fetch image result with image content part" do
       image_bytes = <<255, 216, 255, 224, "fake-jpeg">>
       image_url = "https://example.com/cat.jpg"
 
@@ -218,16 +218,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       assert %SwarmAi.ToolResult{id: "tc_web_fetch", is_error: false} = result
 
       assert [
-               %SwarmAi.Message.ContentPart{type: :text, text: text},
                %SwarmAi.Message.ContentPart{
                  type: :image,
                  data: ^image_bytes,
                  media_type: "image/jpeg"
                }
              ] = result.content
-
-      assert text =~ image_url
-      assert text =~ "image/jpeg"
     end
 
     test "returns plain text ToolResult for non-image tool" do

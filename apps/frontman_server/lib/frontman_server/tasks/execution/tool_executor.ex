@@ -416,18 +416,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp extract_image_content(tool_name, json_string) do
     with {:ok, decoded} when is_map(decoded) <- Jason.decode(json_string),
-         {:ok, image} <- Image.decode_tool_image_for_llm(tool_name, decoded) do
-      {:ok, swarm_content_parts(image)}
+         {:ok, %{data: data, media_type: media_type}} <-
+           Image.decode_tool_image_for_llm(tool_name, decoded) do
+      {:ok, [ContentPart.image(data, media_type)]}
     else
       _ -> :no_image
     end
-  end
-
-  defp swarm_content_parts(%{data: data, media_type: media_type, context: nil}) do
-    [ContentPart.image(data, media_type)]
-  end
-
-  defp swarm_content_parts(%{data: data, media_type: media_type, context: context}) do
-    [ContentPart.text(context), ContentPart.image(data, media_type)]
   end
 end
