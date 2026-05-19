@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+### Fixed
+
+- Keep generated task titles stable after the first user prompt instead of regenerating them on every prompt.
+
 ## [0.17.0] - 2026-05-12
 
 

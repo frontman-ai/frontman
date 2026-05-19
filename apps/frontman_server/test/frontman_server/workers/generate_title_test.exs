@@ -56,7 +56,10 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
       task_id = task_fixture(scope)
 
-      {:ok, _job} =
+      {:ok, _message} =
+        Tasks.add_user_message(scope, task_id, user_content("Help me build a login page"))
+
+      :ok =
         Tasks.enqueue_title_generation(scope, task_id, "Help me build a login page",
           model: Model.new("openrouter", "openai/gpt-5.5")
         )
@@ -69,6 +72,19 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
           model: "openrouter:openai/gpt-5.5"
         }
       )
+    end
+
+    test "does not enqueue after the first user message title is generated", %{user: user} do
+      scope = Scope.for_user(user)
+      task_id = task_fixture(scope)
+
+      {:ok, _message} = Tasks.add_user_message(scope, task_id, user_content("Build a login page"))
+      :ok = Tasks.set_generated_title(scope, task_id, "Login Page")
+      {:ok, _message} = Tasks.add_user_message(scope, task_id, user_content("Now add signup"))
+
+      :ok = Tasks.enqueue_title_generation(scope, task_id, "Now add signup")
+
+      refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
   end
 end

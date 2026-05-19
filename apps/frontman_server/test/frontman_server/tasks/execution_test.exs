@@ -314,7 +314,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+      :ok = Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
 
       assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
@@ -329,20 +329,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Build me a login page"), [])
 
-      {:ok, first_job} =
-        Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+      :ok = Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      # Second message + title enqueue (should be deduplicated by Oban unique constraint)
+      # Second message should not enqueue a new title job.
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Now add a signup form"), [])
 
-      {:ok, second_job} =
-        Tasks.enqueue_title_generation(scope, task_id, "Now add a signup form")
-
-      # Oban unique constraint returns the existing job — same ID means no new job was inserted
-      assert first_job.id == second_job.id
+      :ok = Tasks.enqueue_title_generation(scope, task_id, "Now add a signup form")
 
       # Only one title generation job should exist for this task
       enqueued = all_enqueued(worker: GenerateTitle)
