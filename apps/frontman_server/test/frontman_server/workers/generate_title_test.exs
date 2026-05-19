@@ -4,9 +4,11 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import Ecto.Query, only: [where: 3]
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers.Model
+  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Workers.GenerateTitle
 
@@ -56,10 +58,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
       task_id = task_fixture(scope)
 
-      {:ok, _message} =
-        Tasks.add_user_message(scope, task_id, user_content("Help me build a login page"))
-
-      :ok =
+      {:ok, _job} =
         Tasks.enqueue_title_generation(scope, task_id, "Help me build a login page",
           model: Model.new("openrouter", "openai/gpt-5.5")
         )
@@ -74,17 +73,19 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
       )
     end
 
-    test "does not enqueue after the first user message title is generated", %{user: user} do
+    test "completed title jobs remain unique", %{user: user} do
       scope = Scope.for_user(user)
-      task_id = task_fixture(scope)
+      task_id = Ecto.UUID.generate()
 
-      {:ok, _message} = Tasks.add_user_message(scope, task_id, user_content("Build a login page"))
-      :ok = Tasks.set_generated_title(scope, task_id, "Login Page")
-      {:ok, _message} = Tasks.add_user_message(scope, task_id, user_content("Now add signup"))
+      {:ok, first_job} = Tasks.enqueue_title_generation(scope, task_id, "Build a login page")
 
-      :ok = Tasks.enqueue_title_generation(scope, task_id, "Now add signup")
+      Oban.Job
+      |> where([job], job.id == ^first_job.id)
+      |> Repo.update_all(set: [state: "completed"])
 
-      refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+      {:ok, second_job} = Tasks.enqueue_title_generation(scope, task_id, "Now add signup")
+
+      assert first_job.id == second_job.id
     end
   end
 end

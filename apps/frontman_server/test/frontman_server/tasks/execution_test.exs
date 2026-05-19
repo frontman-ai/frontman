@@ -314,7 +314,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      :ok = Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+      {:ok, _job} = Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
 
       assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
@@ -329,7 +329,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Build me a login page"), [])
 
-      :ok = Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+      {:ok, _job} = Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
@@ -337,7 +337,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Now add a signup form"), [])
 
-      :ok = Tasks.enqueue_title_generation(scope, task_id, "Now add a signup form")
+      {:ok, _job} = Tasks.enqueue_title_generation(scope, task_id, "Now add a signup form")
 
       # Only one title generation job should exist for this task
       enqueued = all_enqueued(worker: GenerateTitle)

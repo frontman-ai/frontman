@@ -41,8 +41,6 @@ defmodule FrontmanServer.Tasks do
       {MessageOptimizer, []}
     ]
 
-  import Ecto.Query, only: [where: 3]
-
   alias FrontmanServer.Accounts
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
@@ -148,7 +146,7 @@ defmodule FrontmanServer.Tasks do
           :ok | {:error, :not_found | Ecto.Changeset.t()}
   def set_generated_title(scope, task_id, title) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
-         true <- generated_title_missing?(schema),
+         true <- schema.short_desc == Task.short_description(task_id),
          {:ok, _updated} <-
            schema
            |> TaskSchema.update_changeset(%{short_desc: title})
@@ -462,32 +460,12 @@ defmodule FrontmanServer.Tasks do
   Enqueues an Oban job to generate a title for a task from the user's prompt.
   """
   @spec enqueue_title_generation(Accounts.scope(), String.t(), String.t(), keyword()) ::
-          :ok | {:error, :not_found | Oban.Job.changeset()}
+          {:ok, Oban.Job.t()} | {:error, Oban.Job.changeset()}
   def enqueue_title_generation(scope, task_id, user_prompt_text, opts \\ []) do
     model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
 
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
-         true <- generated_title_missing?(schema),
-         true <- first_user_message?(task_id),
-         {:ok, _job} <-
-           GenerateTitle.new_job(scope, task_id, user_prompt_text, model) |> Oban.insert() do
-      :ok
-    else
-      false -> :ok
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp first_user_message?(task_id) do
-    InteractionSchema
-    |> InteractionSchema.for_task(task_id)
-    |> where([interaction], interaction.type == "user_message")
-    |> Repo.aggregate(:count, :id)
-    |> Kernel.==(1)
-  end
-
-  defp generated_title_missing?(%TaskSchema{id: task_id, short_desc: short_desc}) do
-    short_desc == Task.short_description(task_id)
+    GenerateTitle.new_job(scope, task_id, user_prompt_text, model)
+    |> Oban.insert()
   end
 
   @doc """
