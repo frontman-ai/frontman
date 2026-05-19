@@ -21,6 +21,16 @@ defmodule FrontmanServer.Tools.WebFetch do
   @max_response_bytes 5_242_880
   @max_redirects 10
   @max_retries 5
+  @image_media_types ["image/png", "image/jpeg", "image/gif", "image/webp"]
+  @accept_header Enum.join(
+                   [
+                     "application/json",
+                     "text/markdown;q=0.9",
+                     "text/html;q=0.8",
+                     "text/plain;q=0.7"
+                   ] ++ Enum.map(@image_media_types, &"#{&1};q=0.8"),
+                   ", "
+                 )
 
   @impl true
   @spec name() :: String.t()
@@ -109,7 +119,7 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp fetch(url, [user_agent | remaining_agents], redirects) do
     headers = [
-      {"accept", "application/json, text/markdown;q=0.9, text/html;q=0.8, text/plain;q=0.7"},
+      {"accept", @accept_header},
       {"user-agent", user_agent}
     ]
 
@@ -229,7 +239,6 @@ defmodule FrontmanServer.Tools.WebFetch do
   # -- Content-type guard ------------------------------------------------------
 
   @text_prefixes ["text/", "application/json", "application/xml", "application/javascript"]
-  @image_media_types ["image/png", "image/jpeg", "image/gif", "image/webp"]
 
   defp text_content?(content_type) do
     ct = String.downcase(content_type)

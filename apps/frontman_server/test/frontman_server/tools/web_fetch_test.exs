@@ -344,7 +344,17 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       image_bytes = <<137, 80, 78, 71, 13, 10, 26, 10>>
       url = "https://example.com/logo.png"
 
-      stub_resp(200, "image/png", image_bytes)
+      Req.Test.stub(:web_fetch, fn conn ->
+        accept = Plug.Conn.get_req_header(conn, "accept") |> List.first("")
+        assert accept =~ "image/png"
+        assert accept =~ "image/jpeg"
+        assert accept =~ "image/gif"
+        assert accept =~ "image/webp"
+
+        conn
+        |> Plug.Conn.put_resp_content_type("image/png")
+        |> Plug.Conn.send_resp(200, image_bytes)
+      end)
 
       assert {:ok, result} = execute(url, ctx)
       assert result["type"] == "image"
