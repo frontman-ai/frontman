@@ -24,8 +24,15 @@ defmodule FrontmanServer.Image do
   # Tools whose results contain base64-encoded images.
   # {image_field, extra_text_fields} per canonical tool name (without mcp_ prefix).
   @image_tool_configs %{
-    "take_screenshot" => {:screenshot, []}
+    "take_screenshot" => {:screenshot, []},
+    "web_fetch" => {:image, [:url, :content_type]}
   }
+
+  @type decoded_tool_image :: %{
+          required(:data) => binary(),
+          required(:media_type) => String.t(),
+          required(:context) => String.t() | nil
+        }
 
   # ── Public API ──────────────────────────────────────────────────────
 
@@ -48,6 +55,29 @@ defmodule FrontmanServer.Image do
   def image_tool_config(tool_name) when is_binary(tool_name) do
     canonical = String.replace_prefix(tool_name, "mcp_", "")
     Map.get(@image_tool_configs, canonical)
+  end
+
+  @doc """
+  Decodes a configured tool image result into runtime LLM image input data.
+
+  The returned binary payload is for constructing LLM content parts only. Do
+  not persist it; persisted interactions should keep the original JSON-safe
+  tool result with its base64 data URL.
+  """
+  @spec decode_tool_image_for_llm(String.t(), map()) :: {:ok, decoded_tool_image()} | :no_image
+  def decode_tool_image_for_llm(tool_name, result) when is_binary(tool_name) and is_map(result) do
+    with {image_field, context_fields} <- image_tool_config(tool_name),
+         data_url when is_binary(data_url) <- get_configured_field(result, image_field),
+         {:ok, data, media_type} <- decode_data_url(data_url) do
+      {:ok,
+       %{
+         data: data,
+         media_type: media_type,
+         context: build_context(result, context_fields)
+       }}
+    else
+      _ -> :no_image
+    end
   end
 
   @doc """
@@ -143,6 +173,30 @@ defmodule FrontmanServer.Image do
   def parse_dimensions(_), do: :unknown
 
   # ── Private ─────────────────────────────────────────────────────────
+
+  defp build_context(result, fields) do
+    fields
+    |> Enum.flat_map(fn field ->
+      case get_configured_field(result, field) do
+        nil -> []
+        value -> ["#{field}: #{encode_context_value(value)}"]
+      end
+    end)
+    |> case do
+      [] -> nil
+      parts -> Enum.join(parts, "\n\n")
+    end
+  end
+
+  defp get_configured_field(map, field) when is_atom(field) do
+    case Map.fetch(map, Atom.to_string(field)) do
+      {:ok, value} -> value
+      :error -> Map.get(map, field)
+    end
+  end
+
+  defp encode_context_value(value) when is_binary(value), do: value
+  defp encode_context_value(value), do: Jason.encode!(value)
 
   # Scan JPEG markers looking for any SOFn (Start of Frame) marker.
   # SOFn markers are 0xFFC0-0xFFCF except 0xFFC4 (DHT), 0xFFC8 (JPG extension),
