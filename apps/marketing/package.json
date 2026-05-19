@@ -33,7 +33,7 @@
     "satori": "^0.26.0",
     "sharp": "^0.34.0",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5.4.5"
+    "typescript": "^6.0.3"
   },
   "devDependencies": {
     "@frontman-ai/astro": "workspace:*"
