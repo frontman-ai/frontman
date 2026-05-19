@@ -18,7 +18,6 @@ type requestError = Client.requestError
 let requestErrorFromMessage = Client.requestErrorFromMessage
 let requestErrorWithCode = Client.requestErrorWithCode
 let requestErrorMessage = Client.requestErrorMessage
-let requestErrorCode = Client.requestErrorCode
 let requestErrorIsBillingInactive = Client.requestErrorIsBillingInactive
 @@live
 type config = {
