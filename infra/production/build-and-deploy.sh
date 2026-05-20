@@ -61,6 +61,10 @@ mix deps.get --only prod
 echo ">>> Compiling Elixir deps..."
 mix deps.compile
 
+# The prod build dir is reused; these deps embed Zoi structs at compile time.
+echo ">>> Recompiling LLM deps..."
+mix deps.compile --force zoi llm_db req_llm
+
 echo ">>> Installing Tailwind & esbuild..."
 mix tailwind.install --if-missing
 mix esbuild.install --if-missing
