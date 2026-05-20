@@ -113,6 +113,7 @@ class Frontman_UI {
 			'framework' => 'wordpress',
 			'basePath'  => 'frontman',
 			'wpNonce'   => Frontman_Auth::create_nonce(),
+			'traits'    => [],
 		];
 
 		// Build the entrypoint URL for the web preview iframe.
@@ -144,6 +145,7 @@ class Frontman_UI {
 		data-framework="<?php echo esc_attr( $runtime['framework'] ); ?>"
 		data-base-path="<?php echo esc_attr( $runtime['basePath'] ); ?>"
 		data-wp-nonce="<?php echo esc_attr( $runtime['wpNonce'] ); ?>"
+		data-traits="<?php echo esc_attr( wp_json_encode( $runtime['traits'] ) ); ?>"
 	></div>
 	<?php if ( $entrypoint_url ) : ?>
 	<span id="frontman-entrypoint-url" hidden><?php echo esc_url( $entrypoint_url ); ?></span>

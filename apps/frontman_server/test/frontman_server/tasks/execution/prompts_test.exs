@@ -109,15 +109,21 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "## UI & Layout Changes"
     end
 
-    test "has_typescript_react includes TypeScript / React section" do
-      prompt = Prompts.build(has_typescript_react: true)
+    test "TypeScript and React traits include TypeScript / React section" do
+      prompt = Prompts.build(project_traits: [:typescript, :react])
 
       assert prompt =~ "## TypeScript / React"
       assert prompt =~ "discriminated unions"
     end
 
-    test "has_typescript_react false excludes TypeScript / React section" do
-      prompt = Prompts.build(has_typescript_react: false)
+    test "React trait alone excludes TypeScript / React section" do
+      prompt = Prompts.build(project_traits: [:react])
+
+      refute prompt =~ "## TypeScript / React"
+    end
+
+    test "Next.js framework alone does not control TypeScript / React section" do
+      prompt = Prompts.build(framework: Frameworks.from_string("nextjs"))
 
       refute prompt =~ "## TypeScript / React"
     end

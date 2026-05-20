@@ -22,6 +22,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: nil,
       mcp_capabilities: %{},
       mcp_server_info: %{},
+      mcp_initialization_steps: [:load_agent_instructions, :list_tree],
       tools: nil
     }
   end
@@ -38,6 +39,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: nil,
       mcp_capabilities: %{},
       mcp_server_info: %{},
+      mcp_initialization_steps: [:list_tree],
       tools: []
     }
   end
@@ -54,6 +56,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: request_id,
       mcp_capabilities: %{},
       mcp_server_info: %{},
+      mcp_initialization_steps: [],
       tools: []
     }
   end
@@ -90,6 +93,25 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       assert navigate_tool.name == "navigate"
       assert navigate_tool.on_timeout == :error
       assert navigate_tool.timeout_ms == 600_000
+    end
+
+    test "completes initialization without tools/call when policy has no steps" do
+      request_id = 1
+      state = %{tools_state(request_id) | mcp_initialization_steps: []}
+
+      {new_state, actions} = MCPInitializer.handle_response(state, request_id, %{"tools" => []})
+
+      assert new_state.status == :ready
+      assert new_state.tools == []
+
+      refute Enum.any?(actions, &match?({:push_mcp, _}, &1))
+
+      assert Enum.any?(
+               actions,
+               &match?({:push_acp, %{"method" => "mcp_initialization_complete"}}, &1)
+             )
+
+      assert Enum.any?(actions, &match?({:initialization_complete, _}, &1))
     end
   end
 

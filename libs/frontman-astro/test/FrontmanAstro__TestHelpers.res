@@ -18,6 +18,7 @@ let defaultConfig: CoreMiddlewareConfig.t = {
   clientCssUrl: None,
   entrypointUrl: None,
   frameworkId: CoreMiddlewareConfig.Astro,
+  traits: [],
 }
 
 // Build middleware from a registry (caller decides which tools are active).

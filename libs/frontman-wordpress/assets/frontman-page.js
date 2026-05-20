@@ -4,11 +4,13 @@ if (typeof process === "undefined") {
 
 (function () {
 	var config = document.getElementById("frontman-runtime-config");
+	var traits = config ? JSON.parse(config.getAttribute("data-traits") || "[]") : [];
 
 	window.__frontmanRuntime = {
 		framework: config ? config.getAttribute("data-framework") || "wordpress" : "wordpress",
 		basePath: config ? config.getAttribute("data-base-path") || "frontman" : "frontman",
-		wpNonce: config ? config.getAttribute("data-wp-nonce") || "" : ""
+		wpNonce: config ? config.getAttribute("data-wp-nonce") || "" : "",
+		traits: traits
 	};
 })();
 

@@ -51,7 +51,6 @@ define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
 
 // Autoload plugin classes.
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-auth.php';
-require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-agent-instructions-tool.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
@@ -73,7 +72,6 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
 function frontman_init(): void {
 	// Register all WP tools.
 	$tools = Frontman_Tools::instance();
-	( new Frontman_Agent_Instructions_Tool() )->register( $tools );
 	( new Frontman_Tool_Posts() )->register( $tools );
 	( new Frontman_Tool_Blocks() )->register( $tools );
 	( new Frontman_Tool_Media() )->register( $tools );

@@ -31,4 +31,5 @@ type t = {
   clientCssUrl: option<string>,
   entrypointUrl: option<string>,
   frameworkId: frameworkId,
+  traits: array<string>,
 }

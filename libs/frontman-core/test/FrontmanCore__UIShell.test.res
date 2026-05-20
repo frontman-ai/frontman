@@ -9,6 +9,7 @@ module Helpers = {
     ~clientCssUrl=None,
     ~entrypointUrl=None,
     ~frameworkId=MiddlewareConfig.Nextjs,
+    ~traits=[],
   ): MiddlewareConfig.t => {
     projectRoot: "/test/project",
     sourceRoot: "/test/project",
@@ -19,6 +20,7 @@ module Helpers = {
     clientCssUrl,
     entrypointUrl,
     frameworkId,
+    traits,
   }
 }
 
@@ -154,6 +156,15 @@ describe("UIShell", _t => {
 
         t->expect(html->String.includes("__frontmanRuntime"))->Expect.toBe(true)
         t->expect(html->String.includes("\"vite\""))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "includes traits in runtime config",
+      t => {
+        let html = UIShell.generateHTML(Helpers.makeConfig(~traits=["react", "typescript"]))
+
+        t->expect(html->String.includes("\"traits\":[\"react\",\"typescript\"]"))->Expect.toBe(true)
       },
     )
 

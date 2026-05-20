@@ -13,11 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Replace consumed tool result payloads with an omitted-data placeholder that points agents to `get_tool_result`.
+- Drive TypeScript/React prompt guidance from explicit project traits, while preserving legacy Next.js guidance for adapters that do not emit traits yet.
 
 ### Fixed
 
 - Fix Vitest 4 coverage test runs by aligning Vitest dependency versions and updating hook callbacks for Vitest 4.
 - Keep generated task titles stable after the first user prompt instead of regenerating them on every prompt.
+- Skip filesystem MCP initialization for WordPress tasks so sessions no longer call unavailable `load_agent_instructions` or `list_tree` tools.
 
 ## [0.17.0] - 2026-05-12
 

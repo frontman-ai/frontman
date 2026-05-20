@@ -48,6 +48,7 @@ type parsed = {
   nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
+  traits: option<array<string>>,
 }
 
 @@live
@@ -61,6 +62,7 @@ type t = {
   nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
+  traits: option<array<string>>,
 }
 
 let normalizeOptionalString = value =>
@@ -91,6 +93,7 @@ let read = (): t => {
     nvidiaKeyValue: normalizeOptionalString(config.nvidiaKeyValue),
     projectRoot: config.projectRoot,
     sourceRoot: config.sourceRoot,
+    traits: config.traits,
   }
 }
 
@@ -131,6 +134,9 @@ let toMeta = (config: t): JSON.t => {
   ])
   toEnvApiKeyDict(config)->Dict.forEachWithKey((keyValue, keyName) => {
     configObj->Dict.set(keyName, JSON.Encode.string(keyValue))
+  })
+  config.traits->Option.forEach(traits => {
+    configObj->Dict.set("traits", traits->Array.map(JSON.Encode.string)->JSON.Encode.array)
   })
   JSON.Encode.object(configObj)
 }

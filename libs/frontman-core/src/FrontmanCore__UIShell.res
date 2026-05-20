@@ -50,6 +50,7 @@ let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string 
       ("basePath", JSON.Encode.string(config.basePath)),
       ("projectRoot", JSON.Encode.string(config.projectRoot)),
       ("sourceRoot", JSON.Encode.string(config.sourceRoot)),
+      ("traits", config.traits->Array.map(JSON.Encode.string)->JSON.Encode.array),
     ])
     // Add key values if present and non-empty
     [

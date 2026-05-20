@@ -26,6 +26,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   require Logger
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.MCP, as: MCPTools
   alias JsonRpc
@@ -49,6 +50,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
           project_structure_request_id: integer() | nil,
           mcp_capabilities: map() | nil,
           mcp_server_info: map() | nil,
+          mcp_initialization_steps: [Frameworks.mcp_initialization_step()],
           tools: list() | nil
         }
 
@@ -63,8 +65,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   @doc """
   Creates the initial state and returns the MCP initialize request to send.
   """
-  @spec start(String.t(), Scope.t()) :: {t(), [action()]}
-  def start(task_id, scope) do
+  @spec start(String.t(), Scope.t(), Frameworks.t()) :: {t(), [action()]}
+  def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
     request = JsonRpc.request(request_id, "initialize", MCP.initialize_params())
 
@@ -78,6 +80,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       project_structure_request_id: nil,
       mcp_capabilities: nil,
       mcp_server_info: nil,
+      mcp_initialization_steps: Frameworks.mcp_initialization_steps(framework),
       tools: nil
     }
 
@@ -136,17 +139,20 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       request_id == state.tools_request_id ->
         Logger.warning("MCPInitializer: Tools list failed: #{inspect(error)}")
         # Continue with empty tools list
-        request_project_rules([], state)
+        state = %{state | tools: [], tools_request_id: nil}
+        request_next_initialization_step(state)
 
       request_id == state.project_rules_request_id ->
         Logger.warning("MCPInitializer: Project rules failed: #{inspect(error)}")
-        # Continue without project rules, try project structure
-        request_project_structure(state)
+        # Continue without project rules.
+        state = %{state | project_rules_request_id: nil}
+        request_next_initialization_step(state)
 
       request_id == state.project_structure_request_id ->
         Logger.warning("MCPInitializer: Project structure failed: #{inspect(error)}")
-        # Complete initialization without project structure
-        complete_initialization(state)
+        # Continue without project structure.
+        state = %{state | project_structure_request_id: nil}
+        request_next_initialization_step(state)
 
       true ->
         {state, []}
@@ -185,10 +191,23 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
     state = %{state | tools: tools, tools_request_id: nil}
 
-    request_project_rules(tools, state)
+    request_next_initialization_step(state)
   end
 
-  defp request_project_rules(_tools, state) do
+  defp request_next_initialization_step(%{mcp_initialization_steps: []} = state) do
+    complete_initialization(state)
+  end
+
+  defp request_next_initialization_step(%{mcp_initialization_steps: [step | remaining]} = state) do
+    state = %{state | mcp_initialization_steps: remaining}
+
+    case step do
+      :load_agent_instructions -> request_project_rules(state)
+      :list_tree -> request_project_structure(state)
+    end
+  end
+
+  defp request_project_rules(state) do
     request_id = System.unique_integer([:positive])
     call_id = "project_rules_init_#{request_id}"
 
@@ -213,7 +232,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       parse_project_rules(result, state)
     end
 
-    request_project_structure(state)
+    state = %{state | project_rules_request_id: nil}
+    request_next_initialization_step(state)
   end
 
   defp parse_project_rules(result, state) do
@@ -268,7 +288,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       parse_project_structure(result, state)
     end
 
-    complete_initialization(state)
+    state = %{state | project_structure_request_id: nil}
+    request_next_initialization_step(state)
   end
 
   defp parse_project_structure(result, state) do

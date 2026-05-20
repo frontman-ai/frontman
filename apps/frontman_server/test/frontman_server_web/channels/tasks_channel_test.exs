@@ -130,10 +130,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert task.framework.id == :nextjs
     end
 
-    test "normalizes and stores framework from clientInfo", %{socket: socket, scope: scope} do
+    test "stores framework ID from clientInfo", %{socket: socket, scope: scope} do
       version = ACP.protocol_version()
 
-      # Client sends display label "Next.js" (as real middleware adapters do)
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -143,7 +142,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "frontman-client",
             "version" => "1.0.0",
-            "_meta" => %{"framework" => "Next.js"}
+            "_meta" => %{"framework" => "nextjs"}
           }
         }
       })
@@ -173,14 +172,13 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "result" => %{"sessionId" => ^client_session_id}
       })
 
-      # Verify framework was normalized from "Next.js" to "nextjs"
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
       assert task.task_id == client_session_id
       assert task.framework.id == :nextjs
       assert Repo.get!(TaskSchema, client_session_id).framework == "nextjs"
     end
 
-    test "normalizes vite framework from display label", %{socket: socket, scope: scope} do
+    test "stores vite framework ID from clientInfo", %{socket: socket, scope: scope} do
       version = ACP.protocol_version()
 
       push(socket, "acp:message", %{
@@ -192,7 +190,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "clientInfo" => %{
             "name" => "frontman-client",
             "version" => "1.0.0",
-            "_meta" => %{"framework" => "Vite"}
+            "_meta" => %{"framework" => "vite"}
           }
         }
       })

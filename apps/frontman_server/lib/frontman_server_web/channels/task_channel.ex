@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry}
   alias FrontmanServer.Tasks
@@ -37,7 +38,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
 
     case Tasks.get_task(scope, task_id) do
-      {:ok, _task} ->
+      {:ok, task} ->
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
         # Start MCP initialization as a synchronous state machine.
@@ -50,11 +51,12 @@ defmodule FrontmanServerWeb.TaskChannel do
         # Note: Phoenix channels prohibit push() during join/3, so we defer
         # the initial MCP request push to handle_info(:start_mcp_init).
         # All subsequent MCP responses are processed synchronously in handle_in.
-        {init_state, init_actions} = MCPInitializer.start(task_id, scope)
+        {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
 
         socket =
           socket
           |> assign(:task_id, task_id)
+          |> assign(:framework, task.framework)
           |> assign(:mcp_init_state, init_state)
           |> assign(:mcp_status, :pending)
 
@@ -218,7 +220,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     mcp_tools = socket.assigns[:mcp_tools] || []
     all_tools = Tools.prepare_for_task(mcp_tools, task_id)
 
-    opts = execution_opts(socket, model, mcp_tools)
+    opts = execution_opts(socket, model, mcp_tools, meta)
 
     Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
   end
@@ -477,7 +479,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     all_tools = Tools.prepare_for_task(mcp_tools, task_id)
 
-    opts = execution_opts(socket, model, mcp_tools)
+    opts = execution_opts(socket, model, mcp_tools, prompt_meta(params))
 
     case Tasks.submit_user_message(scope, task_id, prompt_content, all_tools, opts) do
       {:error, :already_running} ->
@@ -515,7 +517,16 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp enrich_scope_from_params(scope, _), do: scope
 
-  defp execution_opts(_socket, model, mcp_tools), do: [model: model, mcp_tool_defs: mcp_tools]
+  defp execution_opts(socket, model, mcp_tools, meta) do
+    [
+      model: model,
+      mcp_tool_defs: mcp_tools,
+      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+    ]
+  end
+
+  defp prompt_meta(%{"_meta" => meta}) when is_map(meta), do: meta
+  defp prompt_meta(_params), do: nil
 
   defp extract_model_from_params(params) when is_map(params) do
     case Model.from_client_params(get_in(params, ["_meta", "model"])) do
