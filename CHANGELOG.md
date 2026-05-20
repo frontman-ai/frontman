@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Add a backend `get_interaction` tool for retrieving stored task interactions by ID.
+
+### Changed
+
+- Replace consumed non-image tool result payloads with an omitted-data placeholder that points agents to `get_interaction`.
+
 ### Fixed
 
 - Keep generated task titles stable after the first user prompt instead of regenerating them on every prompt.

@@ -155,11 +155,13 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "converts tool results to tool messages" do
-      messages = Interaction.to_llm_messages([tool_result("call_123", "calculator", 42)])
+      interaction = tool_result("call_123", "calculator", 42)
+      messages = Interaction.to_llm_messages([interaction])
 
       assert [msg] = messages
       assert msg.role == :tool
       assert msg.tool_call_id == "call_123"
+      assert msg.metadata == %{interaction_id: interaction.id}
     end
 
     test "skips ToolCall structs (they live in agent response metadata)" do

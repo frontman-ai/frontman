@@ -7,6 +7,7 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend.Context
+  alias FrontmanServer.Tools.GetInteraction
   alias FrontmanServer.Tools.TodoWrite
 
   setup do
@@ -33,6 +34,9 @@ defmodule FrontmanServer.ToolsTest do
     test "finds existing tool" do
       assert {:ok, module} = Tools.find_tool("todo_write")
       assert module == TodoWrite
+
+      assert {:ok, module} = Tools.find_tool("get_interaction")
+      assert module == GetInteraction
     end
 
     test "finds web_fetch tool" do
@@ -180,6 +184,35 @@ defmodule FrontmanServer.ToolsTest do
       }
 
       assert {:error, _} = TodoWrite.execute(args, context)
+    end
+  end
+
+  describe "GetInteraction.execute/2" do
+    test "returns the full interaction by ID", %{task_id: task_id, scope: scope} do
+      {:ok, interaction, :no_executor} =
+        Tasks.add_tool_result(
+          scope,
+          task_id,
+          %{id: "tc-read", name: "read_file"},
+          %{"content" => "file contents"},
+          false
+        )
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      context = build_context(scope, task)
+
+      assert {:ok, result} = GetInteraction.execute(%{"id" => interaction.id}, context)
+      assert result["type"] == "tool_result"
+      assert result["id"] == interaction.id
+      assert result["tool_call_id"] == "tc-read"
+      assert result["result"] == %{"content" => "file contents"}
+    end
+
+    test "returns an error when the interaction does not exist", %{task: task, scope: scope} do
+      context = build_context(scope, task)
+
+      assert {:error, "Interaction not found: missing"} =
+               GetInteraction.execute(%{"id" => "missing"}, context)
     end
   end
 end

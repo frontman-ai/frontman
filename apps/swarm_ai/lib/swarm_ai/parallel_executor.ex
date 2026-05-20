@@ -7,7 +7,7 @@ defmodule SwarmAi.ParallelExecutor do
 
   - `Sync` executions are spawned as supervised tasks.
   - `Await` executions call their start MFA in PE's own process, then wait
-    for `{:tool_result, message_key, content, is_error}` in PE's receive loop.
+    for `{:tool_result, message_key, content, is_error, metadata}` in PE's receive loop.
 
   ## Return values
 
@@ -128,13 +128,13 @@ defmodule SwarmAi.ParallelExecutor do
           task_supervisor
         )
 
-      {:tool_result, key, content, is_error} when is_map_key(awaiting, key) ->
+      {:tool_result, key, content, is_error, metadata} when is_map_key(awaiting, key) ->
         # Await tool received its browser client response.
         ref = Map.fetch!(awaiting, key)
         %{exec: exec, timer: timer} = Map.fetch!(pending, ref)
         Process.cancel_timer(timer)
 
-        result = build_await_result(exec, content, is_error)
+        result = build_await_result(exec, content, is_error, metadata)
 
         collect_results(
           Map.delete(pending, ref),
@@ -154,7 +154,12 @@ defmodule SwarmAi.ParallelExecutor do
     %{kind: kind, exec: exec} = Map.fetch!(pending, ref)
 
     {mod, fun, args} = exec.on_timeout
-    apply(mod, fun, args ++ [exec.tool_call, :triggered])
+
+    metadata =
+      case apply(mod, fun, args ++ [exec.tool_call, :triggered]) do
+        metadata when is_map(metadata) -> metadata
+        _ -> %{}
+      end
 
     awaiting =
       case kind do
@@ -177,7 +182,12 @@ defmodule SwarmAi.ParallelExecutor do
     case exec.on_timeout_policy do
       :error ->
         error_result =
-          ToolResult.make(exec.tool_call.id, "Tool timed out after #{exec.timeout_ms}ms", true)
+          ToolResult.make(
+            exec.tool_call.id,
+            "Tool timed out after #{exec.timeout_ms}ms",
+            true,
+            metadata
+          )
 
         collect_results(
           Map.delete(pending, ref),
@@ -227,12 +237,15 @@ defmodule SwarmAi.ParallelExecutor do
     end)
   end
 
-  @spec build_await_result(ToolExecution.Await.t(), term(), boolean()) :: ToolResult.t()
-  defp build_await_result(exec, content, is_error) do
-    case exec.process_result do
-      nil -> ToolResult.make(exec.tool_call.id, content, is_error)
-      {mod, fun, args} -> apply(mod, fun, args ++ [exec.tool_call, content, is_error])
-    end
+  @spec build_await_result(ToolExecution.Await.t(), term(), boolean(), map()) :: ToolResult.t()
+  defp build_await_result(exec, content, is_error, metadata) do
+    result =
+      case exec.process_result do
+        nil -> ToolResult.make(exec.tool_call.id, content, is_error)
+        {mod, fun, args} -> apply(mod, fun, args ++ [exec.tool_call, content, is_error])
+      end
+
+    %{result | metadata: Map.merge(result.metadata, metadata)}
   end
 
   # Re-order results map into a list matching the original tool_calls order.

@@ -61,6 +61,33 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultCompactionTest do
       assert decoded == %{"keep" => "yes"}
     end
 
+    test "replaces old non-image tool results and preserves image tool results" do
+      messages = [
+        %Message{
+          role: :tool,
+          name: "read_file",
+          content: [ContentPart.text("full contents")],
+          tool_call_id: "tc1",
+          metadata: %{interaction_id: "interaction-1"}
+        },
+        %Message{
+          role: :tool,
+          name: "take_screenshot",
+          content: [ContentPart.image("image-bytes", "image/png")],
+          tool_call_id: "tc1",
+          metadata: %{interaction_id: "interaction-1"}
+        },
+        %Message{role: :assistant, content: [ContentPart.text("I saw it")]}
+      ]
+
+      [omitted, image | _] = ToolResultCompaction.run(messages, 3)
+
+      assert hd(omitted.content).text ==
+               "[Omitted data. For the data, use get_interaction for interaction-1.]"
+
+      assert image.content == [ContentPart.image("image-bytes", "image/png")]
+    end
+
     test "skips non-tool messages even if old" do
       messages = [
         %Message{role: :user, content: [ContentPart.text(Jason.encode!(%{"start_line" => 1}))]},

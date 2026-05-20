@@ -164,9 +164,13 @@ defmodule SwarmAi.Loop.Runner do
   defp format_tool_result(%SwarmAi.ToolCall{
          id: id,
          name: name,
-         result: %SwarmAi.ToolResult{content: content, is_error: is_error}
+         result: %SwarmAi.ToolResult{
+           content: content,
+           is_error: is_error,
+           metadata: result_metadata
+         }
        }) do
-    metadata = if is_error, do: %{is_error: true}, else: %{}
+    metadata = if is_error, do: Map.put(result_metadata, :is_error, true), else: result_metadata
     Message.tool_result(name, id, content, metadata)
   end
 

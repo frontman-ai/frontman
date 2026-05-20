@@ -144,11 +144,13 @@ defmodule FrontmanServer.Tasks.Execution do
   """
   @spec notify_tool_result(Accounts.scope(), String.t(), term(), boolean()) ::
           :notified | :no_executor
-  def notify_tool_result(%Scope{}, tool_call_id, result, is_error) do
+  @spec notify_tool_result(Accounts.scope(), String.t(), term(), boolean(), map()) ::
+          :notified | :no_executor
+  def notify_tool_result(%Scope{}, tool_call_id, result, is_error, metadata \\ %{}) do
     case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
         encoded = encode_result_for_swarm(result)
-        send(caller, {:tool_result, tool_call_id, encoded, is_error})
+        send(caller, {:tool_result, tool_call_id, encoded, is_error, metadata})
         :notified
 
       [] ->

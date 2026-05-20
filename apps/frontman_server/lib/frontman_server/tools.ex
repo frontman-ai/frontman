@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tools do
   alias FrontmanServer.Tools.MCP
 
   @backend_tools [
+    FrontmanServer.Tools.GetInteraction,
     FrontmanServer.Tools.TodoWrite,
     FrontmanServer.Tools.WebFetch
   ]

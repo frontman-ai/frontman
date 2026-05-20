@@ -45,7 +45,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   """
   def interaction_modules, do: @interaction_modules
 
-  alias FrontmanServer.Image
   alias ReqLLM.Message.ContentPart
 
   defmodule FigmaNode do
@@ -1271,15 +1270,8 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
-    # Check if this tool result contains an image that should be sent as image content
-    case decode_tool_result_image(name, result) do
-      {:ok, image} ->
-        build_tool_message_with_image(name, id, image)
-
-      :no_image ->
-        json_result = if is_binary(result), do: result, else: Jason.encode!(result)
-        ReqLLM.Context.tool_result_message(name, id, json_result)
-    end
+    json_result = if is_binary(result), do: result, else: Jason.encode!(result)
+    ReqLLM.Context.tool_result_message(name, id, json_result)
   end
 
   # Helper functions for to_llm_message(%UserMessage{})
@@ -1564,20 +1556,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       [] -> nil
       filtered -> filtered
     end
-  end
-
-  defp decode_tool_result_image(tool_name, result) when is_map(result),
-    do: Image.decode_tool_image_for_llm(tool_name, result)
-
-  defp decode_tool_result_image(_tool_name, _result), do: :no_image
-
-  defp build_tool_message_with_image(name, id, %{data: data, media_type: media_type}) do
-    %ReqLLM.Message{
-      role: :tool,
-      name: name,
-      tool_call_id: id,
-      content: [ContentPart.image(data, media_type)]
-    }
   end
 
   # Get field from map, supporting both string and atom keys.

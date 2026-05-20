@@ -641,10 +641,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, tool_result))
 
       # Executor should receive the result
-      assert_receive {:tool_result, ^tool_call_id, content, false}, 5_000
+      assert_receive {:tool_result, ^tool_call_id, content, false, metadata}, 5_000
 
       assert is_binary(content)
       assert content =~ "file1.txt"
+      assert is_binary(metadata.interaction_id)
 
       Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
     end
@@ -704,11 +705,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       # The waiting executor should receive a message with the result
       # The result should be a STRING (encoded JSON), not a map
-      assert_receive {:tool_result, ^tool_call_id, content, false}, 5_000
+      assert_receive {:tool_result, ^tool_call_id, content, false, metadata}, 5_000
 
       # This is the key assertion - content must be a string for SwarmAi.Message.ContentPart.text/1
       assert is_binary(content),
              "Tool result should be encoded to string, got: #{inspect(content)}"
+
+      assert is_binary(metadata.interaction_id)
 
       # Verify it's valid JSON that can be decoded back
       assert {:ok, decoded} = Jason.decode(content)

@@ -97,12 +97,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @spec run_backend_tool(Accounts.scope(), module(), String.t(), map(), SwarmAi.ToolCall.t()) ::
           SwarmAi.ToolResult.t()
   def run_backend_tool(%Scope{} = scope, module, task_id, exec_opts, tool_call) do
-    result = execute_backend_tool(scope, module, tool_call, task_id, exec_opts)
-    result = maybe_enrich_with_images(tool_call.name, result)
+    case execute_backend_tool(scope, module, tool_call, task_id, exec_opts) do
+      {:ok, content, metadata} ->
+        {:ok, enriched} = maybe_enrich_with_images(tool_call.name, {:ok, content})
+        SwarmAi.ToolResult.make(tool_call.id, enriched, false, metadata)
 
-    case result do
-      {:ok, content} -> SwarmAi.ToolResult.make(tool_call.id, content, false)
-      {:error, reason} -> SwarmAi.ToolResult.make(tool_call.id, to_string(reason), true)
+      {:error, reason, metadata} ->
+        SwarmAi.ToolResult.make(tool_call.id, to_string(reason), true, metadata)
     end
   end
 
@@ -134,21 +135,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           SwarmAi.ToolCall.t(),
           :triggered | :cancelled
         ) ::
-          :ok
+          map()
   def handle_timeout(%Scope{} = scope, task_id, :error, tool_call, :triggered) do
     timeout_msg = "Tool #{tool_call.name} timed out"
     Logger.error("ToolExecutor: #{timeout_msg}")
     report_tool_timeout_sentry(tool_call, task_id)
 
-    Tasks.add_tool_result(
-      scope,
-      task_id,
-      %{id: tool_call.id, name: tool_call.name},
-      timeout_msg,
-      true
-    )
-
-    :ok
+    persist_error_tool_result(scope, task_id, tool_call, timeout_msg)
   end
 
   def handle_timeout(%Scope{} = scope, task_id, :error, tool_call, :cancelled) do
@@ -157,21 +150,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
     Logger.info("ToolExecutor: #{cancel_msg}")
 
-    Tasks.add_tool_result(
-      scope,
-      task_id,
-      %{id: tool_call.id, name: tool_call.name},
-      cancel_msg,
-      true
-    )
-
-    :ok
+    persist_error_tool_result(scope, task_id, tool_call, cancel_msg)
   end
 
   def handle_timeout(_scope, _task_id, :pause_agent, _tool_call, :triggered) do
     # SwarmDispatcher persists the ToolResult for the triggered tool via the
     # {:paused, {:timeout, ...}} event. Nothing to do here.
-    :ok
+    %{}
   end
 
   def handle_timeout(%Scope{} = scope, task_id, :pause_agent, tool_call, :cancelled) do
@@ -179,15 +164,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     # so we must persist here to satisfy the ToolCall→ToolResult DB invariant.
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
 
-    Tasks.add_tool_result(
-      scope,
-      task_id,
-      %{id: tool_call.id, name: tool_call.name},
-      cancel_msg,
-      true
-    )
-
-    :ok
+    persist_error_tool_result(scope, task_id, tool_call, cancel_msg)
   end
 
   # --- Internal ---
@@ -277,8 +254,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       {:error, reason} ->
         # parse_arguments already reported to Sentry and logged — just record
         # the error result for interaction history and return.
-        Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason, true)
-        {:error, reason}
+        metadata = persist_error_tool_result(scope, task_id, tool_call, reason)
+        {:error, reason, metadata}
 
       {:ok, args} ->
         do_run_backend_tool(scope, module, args, context, tool_call, task_id)
@@ -298,8 +275,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp handle_backend_outcome({:returned, {:ok, value}}, scope, tool_call, task_id) do
     case Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), value, false) do
-      {:ok, _interaction, _executor_status} ->
-        {:ok, encode_result(value)}
+      {:ok, interaction, _executor_status} ->
+        {:ok, encode_result(value), tool_result_metadata(interaction)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         reason =
@@ -307,15 +284,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
         Logger.error("ToolExecutor: #{reason}")
         report_tool_sentry("tool_persist_error", tool_call, task_id, reason)
-        Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason, true)
-        {:error, reason}
+        metadata = persist_error_tool_result(scope, task_id, tool_call, reason)
+        {:error, reason, metadata}
 
       {:error, reason} ->
         Logger.error(
           "ToolExecutor: Failed to persist tool result for #{tool_call.name}: #{inspect(reason)}"
         )
 
-        {:error, inspect(reason)}
+        {:error, inspect(reason), %{}}
     end
   end
 
@@ -325,19 +302,35 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     )
 
     report_tool_sentry("tool_soft_error", tool_call, task_id, inspect(reason))
-    Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason, true)
-    {:error, reason}
+    metadata = persist_error_tool_result(scope, task_id, tool_call, reason)
+    {:error, reason, metadata}
   end
 
   defp handle_backend_outcome({:crashed, reason}, scope, tool_call, task_id) do
     reason_str = inspect(reason)
     Logger.error("ToolExecutor: Backend tool #{tool_call.name} crashed: #{reason_str}")
     report_tool_sentry("tool_crash", tool_call, task_id, reason_str)
-    Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason_str, true)
-    {:error, reason_str}
+    metadata = persist_error_tool_result(scope, task_id, tool_call, reason_str)
+    {:error, reason_str, metadata}
   end
 
   defp tool_call_ref(tool_call), do: %{id: tool_call.id, name: tool_call.name}
+
+  defp persist_error_tool_result(scope, task_id, tool_call, reason) do
+    case Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason, true) do
+      {:ok, interaction, _executor_status} ->
+        tool_result_metadata(interaction)
+
+      {:error, reason} ->
+        Logger.error(
+          "ToolExecutor: Failed to persist error tool result for #{tool_call.name}: #{inspect(reason)}"
+        )
+
+        %{}
+    end
+  end
+
+  defp tool_result_metadata(%Interaction.ToolResult{id: id}), do: %{interaction_id: id}
 
   defp report_tool_sentry(error_type, tool_call, task_id, reason) do
     Sentry.capture_message("Tool execution failed",

@@ -55,6 +55,34 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end)
   end
 
+  describe "run_backend_tool/5 — sub-agent spawning" do
+    @tag :capture_log
+    test "backend tool can call context.tool_executor without crashing", %{
+      scope: scope,
+      task_id: task_id,
+      llm_opts: llm_opts
+    } do
+      exec_opts = %{
+        backend_tool_modules: [SubAgentTool],
+        backend_module_map: %{SubAgentTool.name() => SubAgentTool},
+        mcp_tools: [],
+        mcp_tool_defs: [],
+        llm_opts: llm_opts
+      }
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: SubAgentTool.name(),
+        arguments: "{}"
+      }
+
+      result = ToolExecutor.run_backend_tool(scope, SubAgentTool, task_id, exec_opts, tool_call)
+
+      # SubAgentTool calls context.tool_executor.([]) and returns {:ok, "executor is callable"}.
+      assert %SwarmAi.ToolResult{is_error: false} = result
+    end
+  end
+
   describe "handle_timeout/5 — cancelled tools" do
     @tag :capture_log
     test "persists error ToolResult for :error policy", %{

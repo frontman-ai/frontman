@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultCompaction do
   Live tool results are untouched.
   """
 
+  alias FrontmanServer.Image
   alias ReqLLM.Message
   alias ReqLLM.Message.ContentPart
 
@@ -34,11 +35,27 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultCompaction do
 
   defp compact_tool_result(%Message{content: content} = msg, strip_keys)
        when is_list(content) do
-    new_content = Enum.map(content, &maybe_strip_json_keys(&1, strip_keys))
-    %{msg | content: new_content}
+    case {image_tool_name?(msg.name), interaction_id(msg)} do
+      {false, id} when is_binary(id) ->
+        %{msg | content: [ContentPart.text(placeholder(id))]}
+
+      _ ->
+        %{msg | content: Enum.map(content, &maybe_strip_json_keys(&1, strip_keys))}
+    end
   end
 
   defp compact_tool_result(msg, _strip_keys), do: msg
+
+  defp placeholder(id), do: "[Omitted data. For the data, use get_interaction for #{id}.]"
+
+  defp image_tool_name?(name) when is_binary(name), do: Image.image_tool_config(name) != nil
+  defp image_tool_name?(_), do: false
+
+  defp interaction_id(%Message{metadata: metadata}) when is_map(metadata) do
+    Map.get(metadata, :interaction_id) || Map.get(metadata, "interaction_id")
+  end
+
+  defp interaction_id(_), do: nil
 
   defp maybe_strip_json_keys(%ContentPart{type: :text, text: text} = part, strip_keys)
        when is_binary(text) do

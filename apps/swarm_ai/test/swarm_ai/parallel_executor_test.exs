@@ -36,7 +36,7 @@ defmodule SwarmAi.ParallelExecutorTest do
 
     spawn(fn ->
       Process.sleep(10)
-      send(pe_pid, {:tool_result, key, result_content, false})
+      send(pe_pid, {:tool_result, key, result_content, false, %{}})
     end)
 
     :ok
@@ -146,6 +146,24 @@ defmodule SwarmAi.ParallelExecutorTest do
       assert content_text(result) == "enriched!"
     end
 
+    test "metadata from awaited tool result is merged after process_result" do
+      sup = start_sup()
+      tc = make_tc("id1", "mcp1")
+
+      exec = %ToolExecution.Await{
+        tool_call: tc,
+        timeout_ms: 5_000,
+        on_timeout_policy: :error,
+        start: {__MODULE__, :start_await_with_metadata, [%{interaction_id: "interaction-1"}]},
+        message_key: tc.id,
+        on_timeout: {__MODULE__, :noop_timeout, []},
+        process_result: {__MODULE__, :make_custom_result_with_metadata, []}
+      }
+
+      {:ok, [result]} = ParallelExecutor.run([exec], sup)
+      assert result.metadata == %{source: "custom", interaction_id: "interaction-1"}
+    end
+
     test "Await error result propagates is_error flag" do
       sup = start_sup()
       tc = make_tc("id1", "mcp1")
@@ -156,7 +174,7 @@ defmodule SwarmAi.ParallelExecutorTest do
         timeout_ms: 5_000,
         on_timeout_policy: :error,
         start: fn _tc ->
-          spawn(fn -> send(pe_pid, {:tool_result, tc.id, "mcp error", true}) end)
+          spawn(fn -> send(pe_pid, {:tool_result, tc.id, "mcp error", true, %{}}) end)
           :ok
         end,
         message_key: tc.id,
@@ -380,8 +398,18 @@ defmodule SwarmAi.ParallelExecutorTest do
     ToolResult.make(tool_call.id, "enriched!", false)
   end
 
+  def make_custom_result_with_metadata(tool_call, _content, _is_error) do
+    ToolResult.make(tool_call.id, "enriched!", false, %{source: "custom"})
+  end
+
+  def start_await_with_metadata(metadata, tool_call) do
+    pe_pid = self()
+    spawn(fn -> send(pe_pid, {:tool_result, tool_call.id, "ok", false, metadata}) end)
+    :ok
+  end
+
   def start_await_error(pe_pid, tool_call) do
-    spawn(fn -> send(pe_pid, {:tool_result, tool_call.id, "mcp error", true}) end)
+    spawn(fn -> send(pe_pid, {:tool_result, tool_call.id, "mcp error", true, %{}}) end)
     :ok
   end
 

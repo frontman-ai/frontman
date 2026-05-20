@@ -438,7 +438,11 @@ defmodule FrontmanServer.Tasks do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- append_interaction(schema, interaction) do
-      executor_status = Execution.notify_tool_result(scope, tool_call_id, result, is_error)
+      executor_status =
+        Execution.notify_tool_result(scope, tool_call_id, result, is_error, %{
+          interaction_id: interaction.id
+        })
+
       {:ok, interaction, executor_status}
     end
   end
