@@ -125,15 +125,13 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     has_annotations = Keyword.get(opts, :has_annotations, false)
     framework = Keyword.get(opts, :framework)
 
-    project_traits =
-      opts |> Keyword.get(:project_traits, []) |> Frameworks.normalize_project_traits()
+    project_traits = Keyword.get(opts, :project_traits, [])
 
     sections =
       [
         CurrentPageContext.guidance(),
         if(has_annotations, do: annotation_guidance()),
-        if(
-          Frameworks.has_project_traits?(project_traits, [:typescript, :react]),
+        if(:typescript in project_traits and :react in project_traits,
           do: typescript_react_guidance()
         ),
         framework |> Frameworks.framework_guidance_sections() |> Enum.map(&framework_guidance/1),
@@ -159,132 +157,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     - **Client Components**: Use `"use client"` directive for client-side components that use hooks, event handlers, or browser APIs.
     - **Server Components**: Keep server actions and non-serializable logic on the server. Default to server components unless client-side features are needed.
     - **CSS Framework**: Do not make assumptions about CSS frameworks. Use default Next.js conventions and follow existing patterns in the codebase. If Tailwind or other CSS utilities are present, use them as they appear in the project.
-
-    ### Discovering Next.js Project Structure
-
-    Use `search_files` to efficiently discover the project structure:
-
-    **Finding Routes:**
-    - App Router: `search_files(pattern: "page.tsx")` or `search_files(pattern: "page.js")`
-    - Pages Router: `search_files(pattern: "*.tsx", path: "pages")` or `search_files(pattern: "*.jsx", path: "pages")`
-
-    **Finding Layouts:**
-    - `search_files(pattern: "layout.tsx")` or `search_files(pattern: "layout.js")` to find all layout files
-
-    **Finding Components:**
-    - `search_files(pattern: "Button")` to find Button component variations
-    - `search_files(pattern: "*.tsx", path: "components")` to list all components in the components directory
-
-    **Finding Route Groups:**
-    - `search_files(pattern: "(*)`, path: "app")` to find all route groups like `(marketing)`, `(app)`, etc.
-
-    **Example Workflow:**
-    1. Use `search_files(pattern: "page.tsx")` to discover all routes
-    2. Use `list_files` to examine specific directories
-    3. Use `read_file` to understand the component structure
-    4. Use `grep` to find where components or functions are used
-
-    ### Creating Test Pages in Next.js Projects
-
-    Test pages allow you to verify component rendering, test features in isolation, and validate designs
-    without navigating through the full application workflow.
-
-    **Step-by-Step Process:**
-
-    **1. Determine the Router Type**
-    First, identify which router the project uses:
-    - **App Router** (Next.js 13+): Routes defined via file structure in `src/app/` or `app/`
-    - **Pages Router** (older Next.js): Routes defined in `pages/` directory
-
-    Check the project root for `src/app/` or `pages/` directories.
-
-    **2. Understand the Layout Structure**
-    For **App Router projects**:
-    - Use `search_files(pattern: "layout.tsx")` or `search_files(pattern: "layout.js")` to find all layouts and understand the hierarchy
-    - Use `search_files(pattern: "page.tsx")` or `search_files(pattern: "page.js")` to see existing routes
-    - Identify group folders (e.g., `(marketing)`, `(app)`, `(with-layout)`) from the search results
-    - Note which layouts have page content and which provide visual structure
-
-    For **Pages Router projects**:
-    - Use `search_files(pattern: "*.tsx", path: "pages")` to see the pages directory structure
-    - Understand how layouts are applied via component wrappers
-
-    **3. Choose a Test Location**
-
-    **CRITICAL: Always prefer Option A (Full Site Layout) unless it's absolutely not possible.**
-
-    **Option A: Using the Full Site Layout (STRONGLY PREFERRED - Use This First)**
-    - **This is the default and preferred option** - Always try this first
-    - Place test page within an authenticated/main app section
-    - Includes navigation, sidebars, and full application structure
-    - Example: Create under `src/app/(app)/app/(with-layout)/[test-name]/page.tsx`
-    - Pros: Tests components in actual production layout with full styling context
-    - Cons: May require authentication to access (but this is acceptable)
-
-    **Option B: Standalone Test Page (Last Resort Only)**
-    - **Only use this if Option A is absolutely not possible** (e.g., no authenticated/main app section exists)
-    - Use an existing group that has fewer dependencies
-    - Example: Create under `src/app/(marketing)/test/[test-name]/page.tsx`
-    - Pros: Uses existing layout, minimal setup
-    - Cons: Limited to that group's layout styling, may not reflect production environment
-
-    ### CRITICAL: Avoiding the Missing `<html>` and `<body>` Layout Error
-
-    In Next.js App Router, **every route MUST have a root layout that provides `<html>` and `<body>` tags**.
-    If you create a page without proper layout inheritance, you'll get this error:
-    > "The root layout is missing html and body tags"
-
-    **Before creating ANY test page, verify the layout chain:**
-
-    1. **Check if the target directory has a `layout.tsx`**
-    2. **Trace the layout hierarchy up to root** - Ensure there's a `layout.tsx` at the app root (`src/app/layout.tsx` or `app/layout.tsx`) that contains `<html>` and `<body>` tags
-    3. **Route groups inherit layouts** - A page in `(marketing)/test/page.tsx` will use `(marketing)/layout.tsx` if it exists, then fall back to the root layout
-
-    **If the chosen location has NO layout chain to root:**
-    - **DO NOT create the page there** - Instead, find an existing route group with proper layout inheritance
-    - **As absolute last resort**, create BOTH a `layout.tsx` AND `page.tsx` in your test folder:
-
-    ```jsx
-    // test-feature/layout.tsx - Only if no parent layout exists
-    export default function TestLayout({ children }) {
-      return (
-        <html lang="en">
-          <body>{children}</body>
-        </html>
-      );
-    }
-    ```
-
-    **NEVER create a page.tsx without verifying the layout chain first!**
-
-    **4. Create the Test Page**
-
-    **File Creation**:
-    - App Router format: `src/app/[group]/[section]/test-[feature-name]/page.tsx`, `page.jsx`, or `page.js`
-    - Pages Router format: `pages/test/[feature-name].tsx`, `.jsx`, or `.js`
-    - Ensure the file path matches the desired URL route
-
-    **Page Content Guidelines**:
-    - Export a default React component
-    - Include a title/heading to identify the test
-    - Add multiple component variations/states to test
-    - Use semantic HTML and proper accessibility
-    - Include form controls, buttons, cards, and other common UI elements
-    - Add clear labels for each test section
-
-    **Styling Considerations**:
-    - Use the same CSS framework as the project (Tailwind, CSS modules, etc.)
-    - Follow existing color schemes and design patterns
-    - Make components responsive
-    - Add spacing and visual hierarchy
-
-    **5. Important Notes:**
-    - **CRITICAL: Always prefer Option A (Full Site Layout)** - This ensures components are tested with the complete production styling context
-    - **Always use existing layout** - We want the styling of the project to affect our component, so place test pages within existing route groups that have layouts
-    - Only use Option B (Standalone Test Page) as a last resort if Option A is truly not possible
-    - Test pages should be accessible via direct URL navigation
-    - Ensure test pages are self-contained and don't require external state or complex setup
-    - For testing a single component, use existing layout as we want to have the styling of the project affect our component
     """
   end
 

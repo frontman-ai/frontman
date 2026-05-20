@@ -87,13 +87,6 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
 	}
 
-	private function assert_same( $expected, $actual, string $message ): void {
-		$this->assertions++;
-		if ( $expected !== $actual ) {
-			throw new RuntimeException( $message . ' expected ' . var_export( $expected, true ) . ' got ' . var_export( $actual, true ) );
-		}
-	}
-
 	private function assert_false( bool $condition, string $message ): void {
 		$this->assertions++;
 		if ( $condition ) {

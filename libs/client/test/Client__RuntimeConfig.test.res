@@ -26,7 +26,7 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(config.traits)->Expect.toBe(None)
   })
 
-  test("read parses optional traits", t => {
+  test("read forwards runtime traits to ACP metadata", t => {
     _setRuntime(
       JSON.Encode.object(
         Dict.fromArray([
@@ -43,6 +43,21 @@ describe("Client__RuntimeConfig", _t => {
     let config = Client__RuntimeConfig.read()
 
     t->expect(config.traits)->Expect.toEqual(Some(["react", "typescript"]))
+
+    t
+    ->expect(Client__RuntimeConfig.toMeta(config))
+    ->Expect.toEqual(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("nextjs")),
+          ("basePath", JSON.Encode.string("frontman")),
+          (
+            "traits",
+            [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
+          ),
+        ]),
+      ),
+    )
   })
 
   test("read preserves wpNonce for WordPress integrations", t => {
@@ -128,36 +143,6 @@ describe("Client__RuntimeConfig", _t => {
           ("basePath", JSON.Encode.string("frontman")),
           ("fireworksKeyValue", JSON.Encode.string("fw-test-123")),
           ("nvidiaKeyValue", JSON.Encode.string("nvapi-test-123")),
-        ]),
-      ),
-    )
-  })
-
-  test("toMeta includes traits when runtime emitted them", t => {
-    let meta = Client__RuntimeConfig.toMeta({
-      framework: Client__RuntimeConfig.Nextjs,
-      basePath: "frontman",
-      wpNonce: None,
-      openrouterKeyValue: None,
-      anthropicKeyValue: None,
-      fireworksKeyValue: None,
-      nvidiaKeyValue: None,
-      projectRoot: None,
-      sourceRoot: None,
-      traits: Some(["react", "typescript"]),
-    })
-
-    t
-    ->expect(meta)
-    ->Expect.toEqual(
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("framework", JSON.Encode.string("nextjs")),
-          ("basePath", JSON.Encode.string("frontman")),
-          (
-            "traits",
-            [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
-          ),
         ]),
       ),
     )

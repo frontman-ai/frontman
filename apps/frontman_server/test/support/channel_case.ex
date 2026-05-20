@@ -37,33 +37,17 @@ defmodule FrontmanServerWeb.ChannelCase do
   end
 
   @doc """
-  Completes the MCP handshake (initialize → tools/list → framework init steps).
+  Completes the MCP handshake and optional project-context loading.
 
   Uses `:sys.get_state/1` as a synchronization barrier after each push to ensure
-  the channel process has fully processed the message before we assert the
-  response. Without these barriers, under CI load (especially coverage runs),
-  the channel process may not be scheduled in time and assert_push times out.
-
-  ## Options
-
-    * `:tools` - list of MCP tool definitions to return from `tools/list`
-      (default: `[]`, which returns an empty tool set)
-    * `:mcp_initialization_steps` - expected framework init steps
-      (default: `[:load_agent_instructions, :list_tree]`)
-
-  ## Examples
-
-      complete_mcp_handshake(socket)
-      complete_mcp_handshake(socket, tools: [%{"name" => "get_logs", ...}])
+  the channel process has fully processed the message before assertions.
   """
   defmacro complete_mcp_handshake(socket, opts \\ []) do
     quote do
       socket = unquote(socket)
       tools = unquote(opts) |> Keyword.get(:tools, [])
 
-      mcp_initialization_steps =
-        unquote(opts)
-        |> Keyword.get(:mcp_initialization_steps, [:load_agent_instructions, :list_tree])
+      load_project_context = unquote(opts) |> Keyword.get(:load_project_context, true)
 
       :sys.get_state(socket.channel_pid)
       assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
@@ -88,11 +72,8 @@ defmodule FrontmanServerWeb.ChannelCase do
 
       :sys.get_state(socket.channel_pid)
 
-      case mcp_initialization_steps do
-        [] ->
-          :ok
-
-        [:load_agent_instructions, :list_tree] ->
+      case load_project_context do
+        true ->
           assert_push("mcp:message", %{
             "id" => project_rules_request_id,
             "method" => "tools/call",
@@ -120,6 +101,9 @@ defmodule FrontmanServerWeb.ChannelCase do
           )
 
           :sys.get_state(socket.channel_pid)
+
+        false ->
+          :ok
       end
 
       assert_push(@acp_message, %{

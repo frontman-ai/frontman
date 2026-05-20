@@ -60,8 +60,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
     %__MODULE__{
       tools: Keyword.get(opts, :tools, []),
       has_annotations: Keyword.get(opts, :has_annotations, false),
-      project_traits:
-        opts |> Keyword.get(:project_traits, []) |> Frameworks.normalize_project_traits(),
+      project_traits: Keyword.get(opts, :project_traits, []),
       framework: Keyword.get(opts, :framework),
       llm_opts: Keyword.get(opts, :llm_opts, []),
       model: Keyword.get(opts, :model),

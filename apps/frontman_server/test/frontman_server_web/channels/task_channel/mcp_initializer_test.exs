@@ -10,7 +10,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     :ok
   end
 
-  # A minimal state in the tools loading phase
   defp tools_state(request_id) do
     %{
       status: :loading_tools,
@@ -22,12 +21,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: nil,
       mcp_capabilities: %{},
       mcp_server_info: %{},
-      mcp_initialization_steps: [:load_agent_instructions, :list_tree],
+      load_project_context: true,
       tools: nil
     }
   end
 
-  # A minimal state in the project_rules loading phase
   defp rules_state(request_id) do
     %{
       status: :loading_project_rules,
@@ -39,12 +37,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: nil,
       mcp_capabilities: %{},
       mcp_server_info: %{},
-      mcp_initialization_steps: [:list_tree],
+      load_project_context: true,
       tools: []
     }
   end
 
-  # A minimal state in the project_structure loading phase
   defp structure_state(request_id) do
     %{
       status: :loading_project_structure,
@@ -56,7 +53,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: request_id,
       mcp_capabilities: %{},
       mcp_server_info: %{},
-      mcp_initialization_steps: [],
+      load_project_context: true,
       tools: []
     }
   end
@@ -94,25 +91,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       assert navigate_tool.on_timeout == :error
       assert navigate_tool.timeout_ms == 600_000
     end
-
-    test "completes initialization without tools/call when policy has no steps" do
-      request_id = 1
-      state = %{tools_state(request_id) | mcp_initialization_steps: []}
-
-      {new_state, actions} = MCPInitializer.handle_response(state, request_id, %{"tools" => []})
-
-      assert new_state.status == :ready
-      assert new_state.tools == []
-
-      refute Enum.any?(actions, &match?({:push_mcp, _}, &1))
-
-      assert Enum.any?(
-               actions,
-               &match?({:push_acp, %{"method" => "mcp_initialization_complete"}}, &1)
-             )
-
-      assert Enum.any?(actions, &match?({:initialization_complete, _}, &1))
-    end
   end
 
   describe "handle_response/3 with tool-level errors (isError: true)" do
@@ -120,8 +98,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       request_id = 1
       state = rules_state(request_id)
 
-      # This is the exact payload from the Sentry issue — a successful JSON-RPC
-      # response where the tool itself returned an error.
       result = %{
         "content" => [%{"text" => "Path escapes source root: .", "type" => "text"}],
         "isError" => true
@@ -184,8 +160,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       request_id = 1
       state = rules_state(request_id)
 
-      # JSON decodes successfully but to a map, not a list — the `when is_list` guard
-      # in the `with` block rejects it, and there's no matching `else` clause.
       result = %{
         "content" => [%{"text" => ~s({"key": "value"}), "type" => "text"}]
       }

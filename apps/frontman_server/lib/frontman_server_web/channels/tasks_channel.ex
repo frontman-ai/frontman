@@ -136,7 +136,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
-         fw = Frameworks.from_client_label(raw_framework),
+         fw = Frameworks.from_string(raw_framework),
          {:ok, ^session_id} <-
            Tasks.create_task(
              socket.assigns.scope,
