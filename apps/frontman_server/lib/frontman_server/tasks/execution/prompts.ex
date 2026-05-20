@@ -13,7 +13,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   """
 
   alias FrontmanServer.CurrentPageContext
-  alias FrontmanServer.Tasks.Execution.Framework
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tools.TodoWrite
 
   # --- Root Agent Prompts ---
@@ -138,20 +138,20 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
   defp append_current_page_guidance(prompt), do: prompt <> "\n" <> CurrentPageContext.guidance()
 
-  defp append_framework_guidance(prompt, %Framework{id: :nextjs}),
+  defp append_framework_guidance(prompt, %Frameworks{id: :nextjs}),
     do: prompt <> "\n" <> nextjs_guidance()
 
-  defp append_framework_guidance(prompt, %Framework{id: :vite}), do: prompt
+  defp append_framework_guidance(prompt, %Frameworks{id: :vite}), do: prompt
 
-  defp append_framework_guidance(prompt, %Framework{id: :astro}),
+  defp append_framework_guidance(prompt, %Frameworks{id: :astro}),
     do: prompt <> "\n" <> astro_guidance()
 
-  defp append_framework_guidance(prompt, %Framework{id: :wordpress}),
+  defp append_framework_guidance(prompt, %Frameworks{id: :wordpress}),
     do: prompt <> "\n" <> wordpress_guidance()
 
   defp append_framework_guidance(prompt, nil), do: prompt
 
-  defp append_attachment_guidance(prompt, %Framework{id: :wordpress}), do: prompt
+  defp append_attachment_guidance(prompt, %Frameworks{id: :wordpress}), do: prompt
 
   defp append_attachment_guidance(prompt, _framework),
     do: prompt <> "\n" <> code_project_attachment_guidance()

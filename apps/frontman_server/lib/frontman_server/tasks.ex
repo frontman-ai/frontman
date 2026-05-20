@@ -16,7 +16,12 @@ defmodule FrontmanServer.Tasks do
   """
 
   use Boundary,
-    deps: [FrontmanServer, FrontmanServer.Accounts, FrontmanServer.Providers],
+    deps: [
+      FrontmanServer,
+      FrontmanServer.Accounts,
+      FrontmanServer.Providers,
+      FrontmanServer.Frameworks
+    ],
     exports: [
       Task,
       TaskSchema,
@@ -29,7 +34,6 @@ defmodule FrontmanServer.Tasks do
       Interaction.ToolResult,
       InteractionSchema,
       Execution,
-      Execution.Framework,
       Execution.LLMProvider,
       ExecutionEvent,
       RetryCoordinator,
@@ -42,12 +46,12 @@ defmodule FrontmanServer.Tasks do
     ]
 
   alias FrontmanServer.Accounts
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Tasks.{
     Execution,
-    Execution.Framework,
     Interaction,
     InteractionSchema,
     Task,
@@ -165,7 +169,7 @@ defmodule FrontmanServer.Tasks do
     %Task{
       task_id: schema.id,
       short_desc: schema.short_desc,
-      framework: Framework.from_string(schema.framework),
+      framework: Frameworks.from_string(schema.framework),
       interactions: interactions
     }
   end

@@ -5,8 +5,8 @@ defmodule FrontmanServer.TasksTest do
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution.Framework
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
@@ -29,7 +29,7 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.task_id == task_id
-      assert task.framework == Framework.from_string(framework)
+      assert task.framework == Frameworks.from_string(framework)
     end
   end
 

@@ -22,14 +22,14 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
 
   use TypedStruct
 
-  alias FrontmanServer.Tasks.Execution.Framework
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts}
 
   typedstruct do
     field(:tools, [SwarmAi.Tool.t()], default: [])
     field(:has_annotations, boolean(), default: false)
     field(:has_typescript_react, boolean(), default: false)
-    field(:framework, Framework.t() | nil, default: nil)
+    field(:framework, Frameworks.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
     # May also include :with_claude_subscription for OAuth
     field(:llm_opts, keyword(), default: [])

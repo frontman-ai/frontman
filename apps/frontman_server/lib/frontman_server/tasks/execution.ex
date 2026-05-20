@@ -22,9 +22,10 @@ defmodule FrontmanServer.Tasks.Execution do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
-  alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Execution.{RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias FrontmanServer.Tools
 
@@ -155,11 +156,11 @@ defmodule FrontmanServer.Tasks.Execution do
 
   defp maybe_enable_prompt_cache(opts, _provider), do: opts
 
-  defp tool_execution_mode(%Framework{id: :wordpress}), do: :serial
+  defp tool_execution_mode(%Frameworks{id: :wordpress}), do: :serial
   defp tool_execution_mode(_framework), do: :parallel
 
-  defp build_agent(%Task{} = task, tools, model_spec, llm_opts, %Framework{} = fw) do
-    has_typescript_react = Framework.has_typescript_react?(fw)
+  defp build_agent(%Task{} = task, tools, model_spec, llm_opts, %Frameworks{} = fw) do
+    has_typescript_react = Frameworks.has_typescript_react?(fw)
 
     # Derive prompt data from task interactions
     project_rules =
