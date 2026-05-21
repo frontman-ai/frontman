@@ -6,7 +6,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
-  alias FrontmanServer.Tasks.MessageOptimizer
+  alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
   alias ReqLLM.Error.API.{Request, Stream}
   alias SwarmAi.Message.ContentPart
 
@@ -167,8 +167,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
     end
 
-    test "does not parse tool image JSON when optimizer is disabled" do
-      Application.put_env(:frontman_server, MessageOptimizer, enabled: false)
+    test "does not parse tool image JSON when request preflight is disabled" do
+      Application.put_env(:frontman_server, LLMRequestPreflight, enabled: false)
 
       expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
         assert message.role == :tool
@@ -195,7 +195,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
       assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
     after
-      Application.delete_env(:frontman_server, MessageOptimizer)
+      Application.delete_env(:frontman_server, LLMRequestPreflight)
     end
 
     test "replaces oversized images before provider requests" do

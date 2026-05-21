@@ -22,6 +22,7 @@ defmodule FrontmanServer do
     Repo,
     Vault,
     Image,
+    CurrentPageContext,
     FinchLogger,
     Mailer,
     Release,

@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   - Root agent (dynamic, context-aware)
   """
 
+  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Execution.Framework
   alias FrontmanServer.Tools.TodoWrite
 
@@ -135,7 +136,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   defp maybe_append(prompt, true, guidance_fn), do: prompt <> "\n" <> guidance_fn.()
   defp maybe_append(prompt, false, _guidance_fn), do: prompt
 
-  defp append_current_page_guidance(prompt), do: prompt <> "\n" <> current_page_guidance()
+  defp append_current_page_guidance(prompt), do: prompt <> "\n" <> CurrentPageContext.guidance()
 
   defp append_framework_guidance(prompt, %Framework{id: :nextjs}),
     do: prompt <> "\n" <> nextjs_guidance()
@@ -193,18 +194,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
     - Avoid any. Prefer discriminated unions.
     - Pure components and stable hooks.
-    """
-  end
-
-  defp current_page_guidance do
-    """
-    ## Current Page Context
-
-    User messages may include `[Current Page Context]` with URL, viewport, title,
-    color scheme, and scroll position. Use it to identify the relevant route and
-    responsive/theme constraints. Do not inspect the browser just because page
-    context exists; prefer code/source inspection unless the task needs rendered
-    state or visual verification.
     """
   end
 

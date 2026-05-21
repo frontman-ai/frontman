@@ -1,6 +1,7 @@
 defmodule FrontmanServer.Tasks.InteractionTest do
   use FrontmanServer.InteractionCase, async: true
 
+  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
 
   alias FrontmanServer.Tasks.Interaction.{
@@ -111,6 +112,31 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert [ann] = msg.annotations
       assert ann.metadata == %{"custom_context" => context}
+    end
+
+    test "extracts current page context from resource block" do
+      msg =
+        UserMessage.new([
+          text_block("Hello"),
+          current_page_block("https://example.com/app", %{
+            "viewport_width" => 390,
+            "viewport_height" => 844,
+            "device_pixel_ratio" => 3.0,
+            "title" => "Dashboard",
+            "color_scheme" => "dark",
+            "scroll_y" => 120
+          })
+        ])
+
+      assert msg.current_page == %Interaction.CurrentPage{
+               url: "https://example.com/app",
+               viewport_width: 390,
+               viewport_height: 844,
+               device_pixel_ratio: 3.0,
+               title: "Dashboard",
+               color_scheme: "dark",
+               scroll_y: 120
+             }
     end
   end
 
@@ -300,6 +326,29 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert text =~ "Just a regular message"
       refute text =~ "[Annotated Elements]"
+    end
+
+    test "includes current page context in user message content" do
+      msg = %{
+        user_msg("Fix this route")
+        | current_page: %Interaction.CurrentPage{
+            url: "https://example.com/settings",
+            viewport_width: 1440,
+            viewport_height: 900,
+            device_pixel_ratio: 2.0,
+            title: "Settings",
+            color_scheme: "light",
+            scroll_y: 0
+          }
+      }
+
+      [llm_msg] = Interaction.to_swarm_messages([msg])
+      text = extract_text(llm_msg)
+
+      assert text =~ CurrentPageContext.header()
+      assert text =~ "URL: https://example.com/settings"
+      assert text =~ "Viewport: 1440x900"
+      assert text =~ "Page Title: Settings"
     end
 
     test "lists attachment URI without tool-specific guidance" do

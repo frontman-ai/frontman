@@ -45,6 +45,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   """
   def interaction_modules, do: @interaction_modules
 
+  alias FrontmanServer.CurrentPageContext
   alias SwarmAi.Message, as: SwarmMessage
   alias SwarmAi.Message.ContentPart, as: SwarmContentPart
   alias SwarmAi.ToolCall, as: SwarmToolCall
@@ -238,21 +239,19 @@ defmodule FrontmanServer.Tasks.Interaction do
     def from_map(nil), do: nil
 
     def from_map(data) when is_map(data) do
-      url = data["url"]
-
-      case url do
-        url when is_binary(url) ->
+      case CurrentPageContext.fields_from_meta(data) do
+        %{url: url} = fields ->
           %__MODULE__{
             url: url,
-            viewport_width: data["viewport_width"],
-            viewport_height: data["viewport_height"],
-            device_pixel_ratio: data["device_pixel_ratio"],
-            title: data["title"],
-            color_scheme: data["color_scheme"],
-            scroll_y: data["scroll_y"]
+            viewport_width: fields.viewport_width,
+            viewport_height: fields.viewport_height,
+            device_pixel_ratio: fields.device_pixel_ratio,
+            title: fields.title,
+            color_scheme: fields.color_scheme,
+            scroll_y: fields.scroll_y
           }
 
-        _ ->
+        nil ->
           nil
       end
     end
@@ -522,8 +521,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     # Delegates construction to CurrentPage.from_map/1.
     defp extract_current_page(content_blocks) do
       Enum.find_value(content_blocks, fn
-        %{"type" => "resource", "resource" => %{"_meta" => %{"current_page" => true} = meta}} ->
-          CurrentPage.from_map(meta)
+        %{"type" => "resource", "resource" => %{"_meta" => meta}} ->
+          if CurrentPageContext.marked?(meta), do: CurrentPage.from_map(meta), else: nil
 
         _ ->
           nil
@@ -1270,7 +1269,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     text_content =
       msg.messages
       |> Enum.join("\n\n")
-      |> append_current_page_context(msg.current_page)
+      |> CurrentPageContext.append_prompt_section(msg.current_page)
       |> append_annotations(msg.annotations)
       |> append_image_attachment_context(msg.images)
 
@@ -1484,25 +1483,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp format_parent_chain(_, _depth), do: ""
 
-  # Append current page context to user message text
-  defp append_current_page_context(text, %{url: url} = page) do
-    viewport_context = build_viewport_context(page)
-    dpr_context = build_dpr_context(page)
-    title_context = build_title_context(page)
-    color_scheme_context = build_color_scheme_context(page)
-    scroll_context = build_scroll_context(page)
-
-    page_info = """
-
-    [Current Page Context]
-    URL: #{url}#{viewport_context}#{dpr_context}#{title_context}#{color_scheme_context}#{scroll_context}
-    """
-
-    text <> page_info
-  end
-
-  defp append_current_page_context(text, _), do: text
-
   # Append image attachment URIs so the LLM knows they can be referenced via image_ref.
   defp append_image_attachment_context(text, images) when is_list(images) and images != [] do
     uris =
@@ -1528,38 +1508,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp append_image_attachment_context(text, _), do: text
-
-  defp build_viewport_context(%{viewport_width: w, viewport_height: h})
-       when is_integer(w) and is_integer(h) do
-    "\nViewport: #{w}x#{h}"
-  end
-
-  defp build_viewport_context(_), do: ""
-
-  defp build_dpr_context(%{device_pixel_ratio: dpr})
-       when is_number(dpr) do
-    "\nDevice Pixel Ratio: #{dpr}"
-  end
-
-  defp build_dpr_context(_), do: ""
-
-  defp build_title_context(%{title: title}) when is_binary(title) do
-    "\nPage Title: #{title}"
-  end
-
-  defp build_title_context(_), do: ""
-
-  defp build_color_scheme_context(%{color_scheme: scheme}) when is_binary(scheme) do
-    "\nColor Scheme: #{scheme}"
-  end
-
-  defp build_color_scheme_context(_), do: ""
-
-  defp build_scroll_context(%{scroll_y: scroll_y}) when is_integer(scroll_y) do
-    "\nScroll Position: #{scroll_y}px"
-  end
-
-  defp build_scroll_context(_), do: ""
 
   defp build_response_metadata_for_message(meta) do
     response_id = get_flexible(meta, :response_id)

@@ -65,7 +65,8 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.Execution.LLMProvider
-  alias FrontmanServer.Tasks.{MessageOptimizer, StreamCleanup, StreamStallTimeout}
+  alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
+  alias FrontmanServer.Tasks.{StreamCleanup, StreamStallTimeout}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.SchemaTransformer
@@ -87,18 +88,18 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
     provider = Providers.model_provider_name(client.model)
 
-    optimizer_opts = [
+    preflight_opts = [
       images_supported: images_supported?(client.model),
       max_image_dimension: Providers.max_image_dimension(provider)
     ]
 
-    # Run MessageOptimizer here (not just at task startup) so that tool results
+    # Run request preflight here (not just at task startup) so that tool results
     # accumulated inside the swarm loop are also truncated. Without this, long
     # tool-calling chains accumulate dozens of full-size tool results and the
     # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
-      |> MessageOptimizer.optimize(optimizer_opts)
+      |> LLMRequestPreflight.run(preflight_opts)
       |> Enum.map(&to_reqllm_message/1)
 
     case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do

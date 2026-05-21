@@ -4,13 +4,12 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServer.Tasks.MessageOptimizer do
+defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   @moduledoc """
-  Message optimization pipeline that minimizes token usage
-  without losing accuracy.
+  LLM request preflight pipeline.
 
-  Runs in `LLMClient` before each provider request. Each optimization pass is
-  a pure function over a list of `SwarmAi.Message` structs.
+  Runs in `LLMClient` before each provider request. Each pass is a pure
+  function over a list of `SwarmAi.Message` structs.
 
   Core principle: recent context is sacred, old context is compactable.
   A message is "old" if an assistant message appears after it — the model
@@ -23,6 +22,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
 
   require Logger
 
+  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Image
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
@@ -30,19 +30,17 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
   @default_tool_result_max_bytes 51_200
   @old_image_placeholder "[image: previously analyzed]"
   @unsupported_image_placeholder "[Image omitted: selected model does not support image input]"
-  @page_context_unchanged_placeholder "[Page context unchanged]"
-  @page_context_pattern ~r/\n\[Current Page Context\]\n.+\z/s
 
   @type opts :: keyword()
 
   @doc """
-  Run the full optimization pipeline over a list of messages.
+  Run the full request preflight pipeline over a list of messages.
 
-  Returns the optimized message list. When the optimizer is disabled
-  via config, acts as a pass-through.
+  Returns the preflighted message list. When disabled via config, acts as a
+  pass-through.
   """
-  @spec optimize([Message.t()], opts()) :: [Message.t()]
-  def optimize(messages, opts \\ []) do
+  @spec run([Message.t()], opts()) :: [Message.t()]
+  def run(messages, opts \\ []) do
     if enabled?() do
       old_boundary = find_old_boundary(messages)
 
@@ -345,7 +343,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
   defp duplicate_context?(_context, _prev_context), do: false
 
   defp put_deduped_context_part(%ContentPart{type: :text, text: ""}, parts) do
-    [ContentPart.text(@page_context_unchanged_placeholder) | parts]
+    [ContentPart.text(CurrentPageContext.unchanged_placeholder()) | parts]
   end
 
   defp put_deduped_context_part(stripped_part, parts) do
@@ -353,14 +351,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
   end
 
   defp extract_context(%ContentPart{type: :text, text: text}) when is_binary(text) do
-    case Regex.run(@page_context_pattern, text) do
-      [context_block] ->
-        stripped = String.replace(text, @page_context_pattern, "")
-        stripped_part = ContentPart.text(stripped)
-        {stripped_part, context_block}
-
-      nil ->
-        nil
+    case CurrentPageContext.extract_prompt_section(text) do
+      {stripped, context_block} -> {ContentPart.text(stripped), context_block}
+      nil -> nil
     end
   end
 

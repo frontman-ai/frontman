@@ -5,6 +5,7 @@
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
 alias AgentClientProtocol, as: ACP
+alias FrontmanServer.CurrentPageContext
 alias FrontmanServer.Tasks.Interaction
 alias FrontmanServerWeb.ACPHistory
 
@@ -22,7 +23,7 @@ defimpl ACPHistory, for: Interaction.UserMessage do
       text_blocks(msg.messages) ++
         annotation_blocks(msg.annotations) ++
         image_blocks(msg.images) ++
-        current_page_blocks(msg.current_page)
+        CurrentPageContext.to_content_blocks(msg.current_page)
 
     Enum.map(blocks, &ACP.build_user_message_chunk_notification(session_id, &1, msg.timestamp))
   end
@@ -110,37 +111,6 @@ defimpl ACPHistory, for: Interaction.UserMessage do
         }
       }
     end)
-  end
-
-  defp current_page_blocks(nil), do: []
-
-  defp current_page_blocks(page) do
-    meta =
-      %{
-        "current_page" => true,
-        "url" => page.url,
-        "viewport_width" => page.viewport_width,
-        "viewport_height" => page.viewport_height,
-        "device_pixel_ratio" => page.device_pixel_ratio,
-        "title" => page.title,
-        "color_scheme" => page.color_scheme,
-        "scroll_y" => page.scroll_y
-      }
-      |> reject_nils()
-
-    [
-      %{
-        "type" => "resource",
-        "resource" => %{
-          "_meta" => meta,
-          "resource" => %{
-            "uri" => "page://#{page.url}",
-            "mimeType" => "text/plain",
-            "text" => "Current page: #{page.url}"
-          }
-        }
-      }
-    ]
   end
 
   defp encode_bounding_box(nil), do: nil

@@ -1,25 +1,24 @@
-defmodule FrontmanServer.Tasks.MessageOptimizerTest do
+defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Tasks.MessageOptimizer
+  alias FrontmanServer.CurrentPageContext
+  alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
 
-  @page_context """
+  @page_context CurrentPageContext.to_prompt_section(%{
+                  url: "https://example.com",
+                  viewport_width: 1920,
+                  viewport_height: 1080,
+                  title: "Test"
+                })
 
-  [Current Page Context]
-  URL: https://example.com
-  Viewport: 1920x1080
-  Title: Test\
-  """
-
-  @different_page_context """
-
-  [Current Page Context]
-  URL: https://other.example.com
-  Viewport: 1280x720
-  Title: Other\
-  """
+  @different_page_context CurrentPageContext.to_prompt_section(%{
+                            url: "https://other.example.com",
+                            viewport_width: 1280,
+                            viewport_height: 720,
+                            title: "Other"
+                          })
 
   @tool_result_max_bytes 100
 
@@ -31,12 +30,12 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         %Message.User{content: []}
       ]
 
-      assert MessageOptimizer.find_old_boundary(messages) == 2
+      assert LLMRequestPreflight.find_old_boundary(messages) == 2
     end
 
     test "returns 0 when no assistant messages" do
       messages = [%Message.User{content: []}]
-      assert MessageOptimizer.find_old_boundary(messages) == 0
+      assert LLMRequestPreflight.find_old_boundary(messages) == 0
     end
 
     test "handles multiple assistant messages" do
@@ -48,11 +47,11 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         %Message.User{content: []}
       ]
 
-      assert MessageOptimizer.find_old_boundary(messages) == 4
+      assert LLMRequestPreflight.find_old_boundary(messages) == 4
     end
   end
 
-  describe "optimize/2" do
+  describe "run/2" do
     test "full pipeline: decays old images, compacts old tool results, dedupes context" do
       tool_json =
         Jason.encode!(%{
@@ -89,7 +88,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         }
       ]
 
-      result = MessageOptimizer.optimize(messages)
+      result = LLMRequestPreflight.run(messages)
 
       # Old screenshot (index 0) replaced with placeholder
       user1_content = Enum.at(result, 0).content
@@ -115,7 +114,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
     end
 
     test "pass-through when disabled" do
-      Application.put_env(:frontman_server, MessageOptimizer, enabled: false)
+      Application.put_env(:frontman_server, LLMRequestPreflight, enabled: false)
 
       messages = [
         %Message.User{
@@ -124,14 +123,14 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         %Message.Assistant{content: [ContentPart.text("ok")]}
       ]
 
-      result = MessageOptimizer.optimize(messages)
+      result = LLMRequestPreflight.run(messages)
       assert result == messages
     after
-      Application.delete_env(:frontman_server, MessageOptimizer)
+      Application.delete_env(:frontman_server, LLMRequestPreflight)
     end
 
     test "handles empty message list" do
-      assert MessageOptimizer.optimize([]) == []
+      assert LLMRequestPreflight.run([]) == []
     end
 
     test "expands image-producing tool result JSON into image content" do
@@ -172,12 +171,12 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         }
       ]
 
-      optimized = MessageOptimizer.optimize(messages)
+      preflighted = LLMRequestPreflight.run(messages)
 
-      assert Enum.at(optimized, 1).content == [ContentPart.image("png-bytes", "image/png")]
-      assert Enum.at(optimized, 2).content == [ContentPart.image("jpeg-bytes", "image/jpeg")]
-      assert Enum.at(optimized, 3).content == [ContentPart.image("jpeg-bytes", "image/jpeg")]
-      assert Enum.at(optimized, 4).content == [ContentPart.image("png-bytes", "image/png")]
+      assert Enum.at(preflighted, 1).content == [ContentPart.image("png-bytes", "image/png")]
+      assert Enum.at(preflighted, 2).content == [ContentPart.image("jpeg-bytes", "image/jpeg")]
+      assert Enum.at(preflighted, 3).content == [ContentPart.image("jpeg-bytes", "image/jpeg")]
+      assert Enum.at(preflighted, 4).content == [ContentPart.image("png-bytes", "image/png")]
     end
 
     test "leaves live non-image tool results unchanged" do
@@ -189,7 +188,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         }
       ]
 
-      assert MessageOptimizer.optimize(messages) == messages
+      assert LLMRequestPreflight.run(messages) == messages
     end
 
     test "removes oversized images for constrained providers" do
@@ -202,7 +201,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         }
       ]
 
-      [result] = MessageOptimizer.optimize(messages, max_image_dimension: 7680)
+      [result] = LLMRequestPreflight.run(messages, max_image_dimension: 7680)
 
       [_text, image_placeholder] = result.content
       assert image_placeholder.type == :text
@@ -217,7 +216,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         %Message.Assistant{content: [ContentPart.text("ok")]}
       ]
 
-      [result | _] = MessageOptimizer.optimize(messages)
+      [result | _] = LLMRequestPreflight.run(messages)
       assert result.content == [ContentPart.text("[image: previously analyzed]")]
     end
 
@@ -231,7 +230,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         %Message.Assistant{content: [ContentPart.text("ok")]}
       ]
 
-      [result | _] = MessageOptimizer.optimize(messages)
+      [result | _] = LLMRequestPreflight.run(messages)
       assert result.content == [ContentPart.text("plain text result")]
     end
 
@@ -242,7 +241,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         %Message.User{content: [ContentPart.text("page two" <> @different_page_context)]}
       ]
 
-      result = MessageOptimizer.optimize(messages)
+      result = LLMRequestPreflight.run(messages)
 
       second_text = Enum.at(result, 2).content |> hd() |> Map.fetch!(:text)
       assert second_text =~ "[Current Page Context]"
@@ -256,11 +255,36 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         %Message.User{content: [ContentPart.text(@page_context)]}
       ]
 
-      result = MessageOptimizer.optimize(messages)
+      result = LLMRequestPreflight.run(messages)
 
       second_content = Enum.at(result, 2).content
       refute second_content == []
-      assert second_content == [ContentPart.text("[Page context unchanged]")]
+      assert second_content == [ContentPart.text(CurrentPageContext.unchanged_placeholder())]
+    end
+
+    test "dedupes page context without stripping following sections" do
+      annotations_section = """
+
+      [Annotated Elements]
+      Annotation 1:
+        Tag: <button>
+      """
+
+      messages = [
+        %Message.User{content: [ContentPart.text("first" <> @page_context)]},
+        %Message.Assistant{content: [ContentPart.text("ok")]},
+        %Message.User{
+          content: [ContentPart.text("second" <> @page_context <> annotations_section)]
+        }
+      ]
+
+      result = LLMRequestPreflight.run(messages)
+
+      second_text = Enum.at(result, 2).content |> hd() |> Map.fetch!(:text)
+      refute second_text =~ CurrentPageContext.header()
+      assert second_text =~ "second"
+      assert second_text =~ "[Annotated Elements]"
+      assert second_text =~ "Annotation 1"
     end
 
     test "truncates live text tool results at valid UTF-8 boundaries" do
@@ -275,7 +299,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       ]
 
       [result] =
-        MessageOptimizer.optimize(messages, tool_result_max_bytes: @tool_result_max_bytes)
+        LLMRequestPreflight.run(messages, tool_result_max_bytes: @tool_result_max_bytes)
 
       text = hd(result.content).text
       assert String.valid?(text)
@@ -297,7 +321,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       ]
 
       [result] =
-        MessageOptimizer.optimize(messages, tool_result_max_bytes: @tool_result_max_bytes)
+        LLMRequestPreflight.run(messages, tool_result_max_bytes: @tool_result_max_bytes)
 
       assert hd(result.content).text == short_text
     end
@@ -311,7 +335,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       ]
 
       result =
-        MessageOptimizer.optimize(messages, tool_result_max_bytes: @tool_result_max_bytes)
+        LLMRequestPreflight.run(messages, tool_result_max_bytes: @tool_result_max_bytes)
 
       Enum.each(result, fn msg ->
         assert hd(msg.content).text == large_text
@@ -331,7 +355,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       ]
 
       [result] =
-        MessageOptimizer.optimize(messages, tool_result_max_bytes: @tool_result_max_bytes)
+        LLMRequestPreflight.run(messages, tool_result_max_bytes: @tool_result_max_bytes)
 
       [first, second] = result.content
       assert first.text =~ "[Output truncated:"
@@ -340,8 +364,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
     end
 
     # Regression test: long tool-calling chains accumulate many tool results
-    # inside the swarm loop without going through MessageOptimizer. When the
-    # LLMClient calls MessageOptimizer.optimize() before each API request, old
+    # inside the swarm loop without going through LLMRequestPreflight. When the
+    # LLMClient calls LLMRequestPreflight.run() before each API request, old
     # large tool results must be truncated to stay within Anthropic's body limit.
     test "truncates large tool results accumulated across many loop steps" do
       # Simulate 10 tool call/result pairs (loop steps), each result 100KB
@@ -369,10 +393,10 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         [%Message.User{content: [ContentPart.text("do work")]}] ++
           tool_pairs
 
-      optimized = MessageOptimizer.optimize(messages)
+      preflighted = LLMRequestPreflight.run(messages)
 
       tool_results =
-        Enum.filter(optimized, &match?(%Message.Tool{}, &1))
+        Enum.filter(preflighted, &match?(%Message.Tool{}, &1))
 
       # Old results are compacted; the live result is truncated.
       Enum.each(Enum.take(tool_results, 9), fn msg ->
@@ -406,9 +430,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         }
       ]
 
-      optimized = MessageOptimizer.optimize(messages, images_supported: false)
+      preflighted = LLMRequestPreflight.run(messages, images_supported: false)
 
-      [part] = Enum.at(optimized, 2).content
+      [part] = Enum.at(preflighted, 2).content
       assert part.type == :text
       assert part.text =~ "Image omitted"
     end
@@ -424,7 +448,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       ]
 
       [result] =
-        MessageOptimizer.optimize(messages,
+        LLMRequestPreflight.run(messages,
           images_supported: false,
           max_image_dimension: 7680
         )
@@ -453,9 +477,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         %Message.User{content: [ContentPart.text("continue")]}
       ]
 
-      optimized = MessageOptimizer.optimize(messages)
+      preflighted = LLMRequestPreflight.run(messages)
 
-      [part] = Enum.at(optimized, 2).content
+      [part] = Enum.at(preflighted, 2).content
 
       assert part.type == :text
 

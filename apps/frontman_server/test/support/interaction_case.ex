@@ -17,6 +17,7 @@ defmodule FrontmanServer.InteractionCase do
     * `text_block/1`         — `%{"type" => "text", "text" => text}`
     * `annotation_block/5,6` — annotation resource block with optional enrichment
     * `screenshot_block/2,3` — screenshot resource block paired to an annotation
+    * `current_page_block/2`  — current page context resource block
 
   ### Interaction struct builders
 
@@ -129,6 +130,23 @@ defmodule FrontmanServer.InteractionCase do
             "uri" => "annotation://#{annotation_id}/screenshot",
             "mimeType" => mime,
             "blob" => blob
+          }
+        }
+      }
+    end
+
+    @doc "Build a current-page context resource block."
+    def current_page_block(url, extra \\ %{}) do
+      meta = Map.merge(extra, %{"current_page" => true, "url" => url})
+
+      %{
+        "type" => "resource",
+        "resource" => %{
+          "_meta" => meta,
+          "resource" => %{
+            "uri" => "page://#{url}",
+            "mimeType" => "text/plain",
+            "text" => "Current page: #{url}"
           }
         }
       }

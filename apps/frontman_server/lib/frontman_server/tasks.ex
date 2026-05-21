@@ -38,7 +38,7 @@ defmodule FrontmanServer.Tasks do
       SwarmDispatcher,
       Todos,
       Todos.Todo,
-      {MessageOptimizer, []}
+      {Execution.LLMRequestPreflight, []}
     ]
 
   alias FrontmanServer.Accounts
