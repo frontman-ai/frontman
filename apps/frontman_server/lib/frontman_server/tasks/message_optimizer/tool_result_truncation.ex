@@ -30,12 +30,12 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncation do
 
   defp truncate_tool_result(%Message{content: content} = msg, max_bytes)
        when is_list(content) do
-    %{msg | content: Enum.map(content, &maybe_truncate(&1, max_bytes))}
+    %{msg | content: Enum.map(content, &maybe_truncate(&1, max_bytes, msg.tool_call_id))}
   end
 
   defp truncate_tool_result(msg, _max_bytes), do: msg
 
-  defp maybe_truncate(%ContentPart{type: :text, text: text} = part, max_bytes)
+  defp maybe_truncate(%ContentPart{type: :text, text: text} = part, max_bytes, tool_call_id)
        when is_binary(text) and byte_size(text) > max_bytes do
     # binary_part/3 is byte-level and can split a multi-byte UTF-8 sequence.
     # :unicode.characters_to_binary/3 recovers the longest valid prefix.
@@ -48,14 +48,21 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncation do
 
     total = byte_size(text)
 
-    suffix =
-      "\n\n[Output truncated: #{total} bytes total, showing first #{max_bytes}. " <>
-        "Use search or read tools with line offsets to retrieve specific sections.]"
+    suffix = truncated_suffix(total, max_bytes, tool_call_id)
 
     %{part | text: trimmed <> suffix}
   end
 
-  defp maybe_truncate(part, _max_bytes), do: part
+  defp maybe_truncate(part, _max_bytes, _tool_call_id), do: part
+
+  defp truncated_suffix(total, max_bytes, tool_call_id) when is_binary(tool_call_id) do
+    "\n\n[Output truncated: #{total} bytes total, showing first #{max_bytes}. " <>
+      "For the full output, use get_interaction for #{tool_call_id}.]"
+  end
+
+  defp truncated_suffix(total, max_bytes, _tool_call_id) do
+    "\n\n[Output truncated: #{total} bytes total, showing first #{max_bytes}.]"
+  end
 
   defp max_bytes(opts) do
     config =

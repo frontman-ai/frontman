@@ -10,7 +10,6 @@ defmodule SwarmAi.ToolResult do
     field(:id, String.t())
     field(:content, [ContentPart.t()])
     field(:is_error, boolean(), default: false)
-    field(:metadata, map(), default: %{})
   end
 
   @doc """
@@ -18,8 +17,8 @@ defmodule SwarmAi.ToolResult do
 
   Handles string and other term types by converting them to text content.
   """
-  @spec make(String.t(), term(), boolean(), map()) :: t()
-  def make(id, raw_result, is_error \\ false, metadata \\ %{}) do
+  @spec make(String.t(), term(), boolean()) :: t()
+  def make(id, raw_result, is_error \\ false) do
     content =
       case raw_result do
         [%ContentPart{} | _] = content_parts -> content_parts
@@ -30,8 +29,7 @@ defmodule SwarmAi.ToolResult do
     %__MODULE__{
       id: id,
       content: content,
-      is_error: is_error,
-      metadata: metadata
+      is_error: is_error
     }
   end
 end

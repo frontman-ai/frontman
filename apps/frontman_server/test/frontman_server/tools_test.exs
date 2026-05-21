@@ -208,6 +208,24 @@ defmodule FrontmanServer.ToolsTest do
       assert result["result"] == %{"content" => "file contents"}
     end
 
+    test "returns a tool result by tool call ID", %{task_id: task_id, scope: scope} do
+      {:ok, interaction, :no_executor} =
+        Tasks.add_tool_result(
+          scope,
+          task_id,
+          %{id: "tc-read", name: "read_file"},
+          %{"content" => "file contents"},
+          false
+        )
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      context = build_context(scope, task)
+
+      assert {:ok, result} = GetInteraction.execute(%{"id" => "tc-read"}, context)
+      assert result["id"] == interaction.id
+      assert result["tool_call_id"] == "tc-read"
+    end
+
     test "returns an error when the interaction does not exist", %{task: task, scope: scope} do
       context = build_context(scope, task)
 

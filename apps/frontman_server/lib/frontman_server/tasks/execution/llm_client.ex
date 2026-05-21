@@ -61,6 +61,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
+  alias FrontmanServer.Image
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.Execution.LLMProvider
@@ -281,11 +282,36 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   defp to_reqllm_message(%Message.Tool{} = msg) do
     %ReqLLM.Message{
       role: :tool,
-      content: Enum.map(msg.content, &to_reqllm_content_part/1),
+      content: to_reqllm_tool_content(msg),
       tool_call_id: msg.tool_call_id,
       name: msg.name,
       metadata: msg.metadata
     }
+  end
+
+  defp to_reqllm_tool_content(%Message.Tool{name: name, content: content}) do
+    case image_tool_content(name, content) do
+      {:ok, parts} -> parts
+      :no_image -> Enum.map(content, &to_reqllm_content_part/1)
+    end
+  end
+
+  defp image_tool_content(tool_name, content) do
+    with json when is_binary(json) <- text_part(content),
+         {:ok, decoded} when is_map(decoded) <- Jason.decode(json),
+         {:ok, %{data: data, media_type: media_type}} <-
+           Image.decode_tool_image_for_llm(tool_name, decoded) do
+      {:ok, [ReqLLM.Message.ContentPart.image(data, media_type)]}
+    else
+      _ -> :no_image
+    end
+  end
+
+  defp text_part(content) do
+    Enum.find_value(content, fn
+      %ContentPart{type: :text, text: text} when is_binary(text) -> text
+      _ -> nil
+    end)
   end
 
   defp to_reqllm_content_part(%ContentPart{type: :text, text: text}) do

@@ -122,6 +122,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
 
       assert text =~ "200 bytes total"
       assert text =~ "showing first #{@max_bytes}"
+      assert text =~ "get_interaction for tc1"
     end
   end
 end

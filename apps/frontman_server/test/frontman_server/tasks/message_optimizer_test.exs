@@ -43,7 +43,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
   end
 
   describe "optimize/2" do
-    test "full pipeline: decays old images, strips tool metadata, dedupes context" do
+    test "full pipeline: decays old images, compacts old tool results, dedupes context" do
       tool_json =
         Jason.encode!(%{
           "content" => "file data",
@@ -84,10 +84,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       assert Enum.any?(user1_content, &(&1.text == "[image: previously analyzed]"))
       refute Enum.any?(user1_content, &(&1.type == :image))
 
-      # Old tool result (index 2) has metadata stripped
+      # Old tool result (index 2) is replaced with a recovery pointer
       tool_text = Enum.at(result, 2).content |> hd() |> Map.get(:text)
-      decoded = Jason.decode!(tool_text)
-      assert decoded == %{"content" => "file data"}
+      assert tool_text == "[Omitted data. For the data, use get_interaction for tc1.]"
 
       # Duplicate page context stripped from second user message
       user2_text =
@@ -158,14 +157,19 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       tool_results =
         Enum.filter(optimized, &(&1.role == :tool))
 
-      # Every tool result should be truncated to <= default 50KB + suffix overhead
-      Enum.each(tool_results, fn msg ->
+      # Old results are compacted; the live result is truncated.
+      Enum.each(Enum.take(tool_results, 9), fn msg ->
+        assert hd(msg.content).text =~ "get_interaction"
+      end)
+
+      Enum.each(Enum.drop(tool_results, 9), fn msg ->
         text = hd(msg.content).text
-        # After truncation: starts with 51_200 bytes of content + suffix
+
         assert byte_size(text) < 100_000,
                "Expected tool result to be truncated, got #{byte_size(text)} bytes"
 
         assert text =~ "[Output truncated:"
+        assert text =~ "get_interaction"
       end)
     end
   end

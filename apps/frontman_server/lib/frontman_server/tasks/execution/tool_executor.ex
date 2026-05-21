@@ -33,11 +33,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Image
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend
-  alias SwarmAi.Message.ContentPart
   alias SwarmAi.ToolExecution
 
   @doc """
@@ -84,9 +82,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           timeout_ms: tool_def.timeout_ms,
           on_timeout_policy: tool_def.on_timeout,
           start: {__MODULE__, :start_mcp_tool, [scope, task_id]},
-          message_key: tool_call.id,
-          on_timeout: {__MODULE__, :handle_timeout, [scope, task_id, tool_def.on_timeout]},
-          process_result: {__MODULE__, :make_mcp_tool_result, [tool_call.name]}
+          on_timeout: {__MODULE__, :handle_timeout, [scope, task_id, tool_def.on_timeout]}
         }
     end
   end
@@ -98,12 +94,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           SwarmAi.ToolResult.t()
   def run_backend_tool(%Scope{} = scope, module, task_id, exec_opts, tool_call) do
     case execute_backend_tool(scope, module, tool_call, task_id, exec_opts) do
-      {:ok, content, metadata} ->
-        {:ok, enriched} = maybe_enrich_with_images(tool_call.name, {:ok, content})
-        SwarmAi.ToolResult.make(tool_call.id, enriched, false, metadata)
+      {:ok, content} ->
+        SwarmAi.ToolResult.make(tool_call.id, content, false)
 
-      {:error, reason, metadata} ->
-        SwarmAi.ToolResult.make(tool_call.id, to_string(reason), true, metadata)
+      {:error, reason} ->
+        SwarmAi.ToolResult.make(tool_call.id, to_string(reason), true)
     end
   end
 
@@ -120,14 +115,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   @doc false
-  @spec make_mcp_tool_result(String.t(), SwarmAi.ToolCall.t(), term(), boolean()) ::
-          SwarmAi.ToolResult.t()
-  def make_mcp_tool_result(tool_name, tool_call, content, is_error) do
-    {:ok, enriched} = maybe_enrich_with_images(tool_name, {:ok, content})
-    SwarmAi.ToolResult.make(tool_call.id, enriched, is_error)
-  end
-
-  @doc false
   @spec handle_timeout(
           Accounts.scope(),
           String.t(),
@@ -135,7 +122,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           SwarmAi.ToolCall.t(),
           :triggered | :cancelled
         ) ::
-          map()
+          :ok
   def handle_timeout(%Scope{} = scope, task_id, :error, tool_call, :triggered) do
     timeout_msg = "Tool #{tool_call.name} timed out"
     Logger.error("ToolExecutor: #{timeout_msg}")
@@ -156,7 +143,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   def handle_timeout(_scope, _task_id, :pause_agent, _tool_call, :triggered) do
     # SwarmDispatcher persists the ToolResult for the triggered tool via the
     # {:paused, {:timeout, ...}} event. Nothing to do here.
-    %{}
+    :ok
   end
 
   def handle_timeout(%Scope{} = scope, task_id, :pause_agent, tool_call, :cancelled) do
@@ -254,8 +241,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       {:error, reason} ->
         # parse_arguments already reported to Sentry and logged — just record
         # the error result for interaction history and return.
-        metadata = persist_error_tool_result(scope, task_id, tool_call, reason)
-        {:error, reason, metadata}
+        persist_error_tool_result(scope, task_id, tool_call, reason)
+        {:error, reason}
 
       {:ok, args} ->
         do_run_backend_tool(scope, module, args, context, tool_call, task_id)
@@ -274,9 +261,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp handle_backend_outcome({:returned, {:ok, value}}, scope, tool_call, task_id) do
-    case Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), value, false) do
-      {:ok, interaction, _executor_status} ->
-        {:ok, encode_result(value), tool_result_metadata(interaction)}
+    case Tasks.add_tool_result(scope, task_id, tool_call, value, false) do
+      {:ok, _interaction, _executor_status} ->
+        {:ok, encode_result(value)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         reason =
@@ -284,15 +271,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
         Logger.error("ToolExecutor: #{reason}")
         report_tool_sentry("tool_persist_error", tool_call, task_id, reason)
-        metadata = persist_error_tool_result(scope, task_id, tool_call, reason)
-        {:error, reason, metadata}
+        persist_error_tool_result(scope, task_id, tool_call, reason)
+        {:error, reason}
 
       {:error, reason} ->
         Logger.error(
           "ToolExecutor: Failed to persist tool result for #{tool_call.name}: #{inspect(reason)}"
         )
 
-        {:error, inspect(reason), %{}}
+        {:error, inspect(reason)}
     end
   end
 
@@ -302,35 +289,31 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     )
 
     report_tool_sentry("tool_soft_error", tool_call, task_id, inspect(reason))
-    metadata = persist_error_tool_result(scope, task_id, tool_call, reason)
-    {:error, reason, metadata}
+    persist_error_tool_result(scope, task_id, tool_call, reason)
+    {:error, reason}
   end
 
   defp handle_backend_outcome({:crashed, reason}, scope, tool_call, task_id) do
     reason_str = inspect(reason)
     Logger.error("ToolExecutor: Backend tool #{tool_call.name} crashed: #{reason_str}")
     report_tool_sentry("tool_crash", tool_call, task_id, reason_str)
-    metadata = persist_error_tool_result(scope, task_id, tool_call, reason_str)
-    {:error, reason_str, metadata}
+    persist_error_tool_result(scope, task_id, tool_call, reason_str)
+    {:error, reason_str}
   end
 
-  defp tool_call_ref(tool_call), do: %{id: tool_call.id, name: tool_call.name}
-
   defp persist_error_tool_result(scope, task_id, tool_call, reason) do
-    case Tasks.add_tool_result(scope, task_id, tool_call_ref(tool_call), reason, true) do
-      {:ok, interaction, _executor_status} ->
-        tool_result_metadata(interaction)
+    case Tasks.add_tool_result(scope, task_id, tool_call, reason, true) do
+      {:ok, _interaction, _executor_status} ->
+        :ok
 
       {:error, reason} ->
         Logger.error(
           "ToolExecutor: Failed to persist error tool result for #{tool_call.name}: #{inspect(reason)}"
         )
 
-        %{}
+        :ok
     end
   end
-
-  defp tool_result_metadata(%Interaction.ToolResult{id: id}), do: %{interaction_id: id}
 
   defp report_tool_sentry(error_type, tool_call, task_id, reason) do
     Sentry.capture_message("Tool execution failed",
@@ -391,29 +374,4 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp encode_result(value) when is_binary(value), do: value
   defp encode_result(value), do: Jason.encode!(value)
-
-  # --- Image Enrichment ---
-  #
-  # Tools that return images (e.g. take_screenshot) send base64 data URLs as JSON text.
-  # The LLM can't "see" images encoded as text in tool outputs — it needs proper image
-  # content parts. This mirrors the same extraction logic in Interaction.to_llm_message.
-
-  defp maybe_enrich_with_images(tool_name, {:ok, content} = result) when is_binary(content) do
-    case extract_image_content(tool_name, content) do
-      {:ok, content_parts} -> {:ok, content_parts}
-      :no_image -> result
-    end
-  end
-
-  defp maybe_enrich_with_images(_tool_name, result), do: result
-
-  defp extract_image_content(tool_name, json_string) do
-    with {:ok, decoded} when is_map(decoded) <- Jason.decode(json_string),
-         {:ok, %{data: data, media_type: media_type}} <-
-           Image.decode_tool_image_for_llm(tool_name, decoded) do
-      {:ok, [ContentPart.image(data, media_type)]}
-    else
-      _ -> :no_image
-    end
-  end
 end

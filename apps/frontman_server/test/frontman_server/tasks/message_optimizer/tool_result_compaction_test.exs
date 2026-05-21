@@ -6,39 +6,27 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultCompactionTest do
   alias ReqLLM.Message.ContentPart
 
   describe "run/3" do
-    test "strips configured keys from old tool result JSON" do
-      json =
-        Jason.encode!(%{
-          "content" => "file contents here",
-          "start_line" => 1,
-          "lines_returned" => 50,
-          "total_lines" => 200
-        })
-
+    test "replaces old non-image tool results with recoverable placeholders" do
       messages = [
-        %Message{role: :tool, content: [ContentPart.text(json)], tool_call_id: "tc1"},
+        %Message{role: :tool, content: [ContentPart.text("full contents")], tool_call_id: "tc1"},
         %Message{role: :assistant, content: [ContentPart.text("got it")]},
-        %Message{role: :tool, content: [ContentPart.text(json)], tool_call_id: "tc2"}
+        %Message{role: :tool, content: [ContentPart.text("live contents")], tool_call_id: "tc2"}
       ]
 
       result = ToolResultCompaction.run(messages, 2)
 
-      # Old tool message: keys stripped
       old_text = Enum.at(result, 0).content |> hd() |> Map.get(:text)
-      decoded = Jason.decode!(old_text)
-      assert decoded == %{"content" => "file contents here"}
+      assert old_text == "[Omitted data. For the data, use get_interaction for tc1.]"
 
-      # Live tool message: untouched
       live_text = Enum.at(result, 2).content |> hd() |> Map.get(:text)
-      assert Jason.decode!(live_text) == Jason.decode!(json)
+      assert live_text == "live contents"
     end
 
-    test "leaves non-JSON text content alone" do
+    test "leaves old tool results without IDs alone" do
       messages = [
         %Message{
           role: :tool,
-          content: [ContentPart.text("plain text result")],
-          tool_call_id: "tc1"
+          content: [ContentPart.text("plain text result")]
         },
         %Message{role: :assistant, content: [ContentPart.text("ok")]}
       ]
@@ -47,35 +35,19 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultCompactionTest do
       assert Enum.at(result, 0).content |> hd() |> Map.get(:text) == "plain text result"
     end
 
-    test "accepts custom strip keys via opts" do
-      json = Jason.encode!(%{"keep" => "yes", "remove_me" => "gone"})
-
-      messages = [
-        %Message{role: :tool, content: [ContentPart.text(json)], tool_call_id: "tc1"},
-        %Message{role: :assistant, content: [ContentPart.text("ok")]}
-      ]
-
-      result = ToolResultCompaction.run(messages, 2, tool_result_strip_keys: ["remove_me"])
-
-      decoded = Enum.at(result, 0).content |> hd() |> Map.get(:text) |> Jason.decode!()
-      assert decoded == %{"keep" => "yes"}
-    end
-
     test "replaces old non-image tool results and preserves image tool results" do
       messages = [
         %Message{
           role: :tool,
           name: "read_file",
           content: [ContentPart.text("full contents")],
-          tool_call_id: "tc1",
-          metadata: %{interaction_id: "interaction-1"}
+          tool_call_id: "tc1"
         },
         %Message{
           role: :tool,
           name: "take_screenshot",
           content: [ContentPart.image("image-bytes", "image/png")],
-          tool_call_id: "tc1",
-          metadata: %{interaction_id: "interaction-1"}
+          tool_call_id: "tc2"
         },
         %Message{role: :assistant, content: [ContentPart.text("I saw it")]}
       ]
@@ -83,14 +55,14 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultCompactionTest do
       [omitted, image | _] = ToolResultCompaction.run(messages, 3)
 
       assert hd(omitted.content).text ==
-               "[Omitted data. For the data, use get_interaction for interaction-1.]"
+               "[Omitted data. For the data, use get_interaction for tc1.]"
 
       assert image.content == [ContentPart.image("image-bytes", "image/png")]
     end
 
     test "skips non-tool messages even if old" do
       messages = [
-        %Message{role: :user, content: [ContentPart.text(Jason.encode!(%{"start_line" => 1}))]},
+        %Message{role: :user, content: [ContentPart.text("plain text")]},
         %Message{role: :assistant, content: [ContentPart.text("ok")]}
       ]
 

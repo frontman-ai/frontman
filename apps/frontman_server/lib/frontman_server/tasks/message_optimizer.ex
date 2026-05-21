@@ -9,9 +9,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer do
   Composable message optimization pipeline that minimizes token usage
   without losing accuracy.
 
-  Slots between `Interaction.to_llm_messages()` and `to_swarm_message/1`
-  in the execution pipeline. Each layer is a pure function over a list
-  of `ReqLLM.Message` structs.
+  Runs in `LLMClient` before each provider request. Each layer is a pure
+  function over a list of `ReqLLM.Message` structs.
 
   Core principle: recent context is sacred, old context is compactable.
   A message is "old" if an assistant message appears after it — the model

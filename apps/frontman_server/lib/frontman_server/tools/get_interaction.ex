@@ -6,11 +6,12 @@
 
 defmodule FrontmanServer.Tools.GetInteraction do
   @moduledoc """
-  Retrieves a task interaction by its interaction ID.
+  Retrieves a task interaction by interaction ID or tool call ID.
   """
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias FrontmanServer.Tasks.Interaction.ToolResult
   alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tools.Backend.Context
 
@@ -25,7 +26,7 @@ defmodule FrontmanServer.Tools.GetInteraction do
     Retrieve a previous interaction by ID.
 
     Use this when a prior tool result says its data was omitted. Pass the exact
-    interaction ID from that placeholder to retrieve the full stored interaction.
+    ID from that placeholder to retrieve the full stored interaction.
     """
   end
 
@@ -37,7 +38,7 @@ defmodule FrontmanServer.Tools.GetInteraction do
       "properties" => %{
         "id" => %{
           "type" => "string",
-          "description" => "The interaction ID to retrieve."
+          "description" => "The interaction ID or tool call ID to retrieve."
         }
       },
       "required" => ["id"]
@@ -63,9 +64,15 @@ defmodule FrontmanServer.Tools.GetInteraction do
   end
 
   defp find_interaction(interactions, id) do
-    case Enum.find(interactions, fn interaction -> Map.get(interaction, :id) == id end) do
+    case Enum.find(interactions, &matches_id?(&1, id)) do
       nil -> {:error, "Interaction not found: #{id}"}
       interaction -> {:ok, interaction |> Jason.encode!() |> Jason.decode!()}
     end
   end
+
+  defp matches_id?(interaction, id),
+    do: Map.get(interaction, :id) == id or tool_call_id?(interaction, id)
+
+  defp tool_call_id?(%ToolResult{tool_call_id: tool_call_id}, id), do: tool_call_id == id
+  defp tool_call_id?(_interaction, _id), do: false
 end

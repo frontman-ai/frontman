@@ -15,6 +15,22 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
   # --- Fake backend tools ---
 
+  # A backend tool that invokes context.tool_executor to simulate sub-agent use.
+  defmodule SubAgentTool do
+    @behaviour Backend
+
+    def name, do: "sub_agent_tool"
+    def description, do: "Invokes context.tool_executor"
+    def parameter_schema, do: %{"type" => "object", "properties" => %{}}
+    def timeout_ms, do: 30_000
+    def on_timeout, do: :error
+
+    def execute(_args, context) do
+      _results = context.tool_executor.([])
+      {:ok, "executor is callable"}
+    end
+  end
+
   # A backend tool that declares on_timeout: :pause_agent.
   defmodule PauseOnTimeoutTool do
     @behaviour Backend
@@ -216,57 +232,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
       assert %SwarmAi.ToolExecution.Await{
                on_timeout_policy: :pause_agent,
-               message_key: tc_id,
                on_timeout: {ToolExecutor, :handle_timeout, [^scope, ^task_id, :pause_agent]}
              } = execution
-
-      assert tc_id == tc.id
-
-      assert execution.process_result == {ToolExecutor, :make_mcp_tool_result, [tc.name]}
-    end
-  end
-
-  describe "make_mcp_tool_result/4" do
-    test "enriches web_fetch image result with image content part" do
-      image_bytes = <<255, 216, 255, 224, "fake-jpeg">>
-      image_url = "https://example.com/cat.jpg"
-
-      json_content =
-        Jason.encode!(%{
-          "type" => "image",
-          "url" => image_url,
-          "content_type" => "image/jpeg",
-          "image" => "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
-        })
-
-      tool_call = %SwarmAi.ToolCall{id: "tc_web_fetch", name: "web_fetch", arguments: "{}"}
-
-      result = ToolExecutor.make_mcp_tool_result("web_fetch", tool_call, json_content, false)
-
-      assert %SwarmAi.ToolResult{id: "tc_web_fetch", is_error: false} = result
-
-      assert [
-               %SwarmAi.Message.ContentPart{
-                 type: :image,
-                 data: ^image_bytes,
-                 media_type: "image/jpeg"
-               }
-             ] = result.content
-    end
-
-    test "returns plain text ToolResult for non-image tool" do
-      json_content = Jason.encode!(%{"output" => "hello world"})
-
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_read",
-        name: "mcp_read_file",
-        arguments: "{}"
-      }
-
-      result = ToolExecutor.make_mcp_tool_result("mcp_read_file", tool_call, json_content, false)
-
-      assert %SwarmAi.ToolResult{id: "tc_read", is_error: false} = result
-      assert [%SwarmAi.Message.ContentPart{type: :text, text: ^json_content}] = result.content
     end
   end
 end

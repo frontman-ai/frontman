@@ -210,9 +210,14 @@ defmodule FrontmanServerWeb.ChannelCase do
       raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"
     end
 
+    shared = tags[:shared_sandbox] || not tags[:async]
+
+    if shared do
+      Mox.set_mox_global()
+    end
+
     LLMProvider.stub_llm_response("Test response")
 
-    shared = tags[:shared_sandbox] || not tags[:async]
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 

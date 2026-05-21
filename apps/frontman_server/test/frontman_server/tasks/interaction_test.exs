@@ -161,7 +161,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert [msg] = messages
       assert msg.role == :tool
       assert msg.tool_call_id == "call_123"
-      assert msg.metadata == %{interaction_id: interaction.id}
+      assert msg.metadata == %{}
     end
 
     test "skips ToolCall structs (they live in agent response metadata)" do

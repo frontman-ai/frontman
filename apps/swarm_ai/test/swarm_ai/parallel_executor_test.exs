@@ -36,7 +36,7 @@ defmodule SwarmAi.ParallelExecutorTest do
 
     spawn(fn ->
       Process.sleep(10)
-      send(pe_pid, {:tool_result, key, result_content, false, %{}})
+      send(pe_pid, {:tool_result, key, result_content, false})
     end)
 
     :ok
@@ -60,7 +60,7 @@ defmodule SwarmAi.ParallelExecutorTest do
     }
   end
 
-  defp await_exec(tc, opts \\ []) do
+  defp await_exec(tc, opts) do
     timeout_ms = Keyword.get(opts, :timeout_ms, 5_000)
     policy = Keyword.get(opts, :policy, :error)
     content = Keyword.get(opts, :content, "await:#{tc.name}")
@@ -70,7 +70,6 @@ defmodule SwarmAi.ParallelExecutorTest do
       timeout_ms: timeout_ms,
       on_timeout_policy: policy,
       start: {__MODULE__, :start_await_soon, [content]},
-      message_key: tc.id,
       on_timeout: {__MODULE__, :noop_timeout, []}
     }
   end
@@ -128,42 +127,6 @@ defmodule SwarmAi.ParallelExecutorTest do
       assert content_text(r) == "await result"
     end
 
-    test "process_result MFA is called and its return value becomes the ToolResult" do
-      sup = start_sup()
-      tc = make_tc("id1", "mcp1")
-
-      exec = %ToolExecution.Await{
-        tool_call: tc,
-        timeout_ms: 5_000,
-        on_timeout_policy: :error,
-        start: {__MODULE__, :start_await_soon, ["raw content"]},
-        message_key: tc.id,
-        on_timeout: {__MODULE__, :noop_timeout, []},
-        process_result: {__MODULE__, :make_custom_result, []}
-      }
-
-      {:ok, [result]} = ParallelExecutor.run([exec], sup)
-      assert content_text(result) == "enriched!"
-    end
-
-    test "metadata from awaited tool result is merged after process_result" do
-      sup = start_sup()
-      tc = make_tc("id1", "mcp1")
-
-      exec = %ToolExecution.Await{
-        tool_call: tc,
-        timeout_ms: 5_000,
-        on_timeout_policy: :error,
-        start: {__MODULE__, :start_await_with_metadata, [%{interaction_id: "interaction-1"}]},
-        message_key: tc.id,
-        on_timeout: {__MODULE__, :noop_timeout, []},
-        process_result: {__MODULE__, :make_custom_result_with_metadata, []}
-      }
-
-      {:ok, [result]} = ParallelExecutor.run([exec], sup)
-      assert result.metadata == %{source: "custom", interaction_id: "interaction-1"}
-    end
-
     test "Await error result propagates is_error flag" do
       sup = start_sup()
       tc = make_tc("id1", "mcp1")
@@ -173,29 +136,11 @@ defmodule SwarmAi.ParallelExecutorTest do
         tool_call: tc,
         timeout_ms: 5_000,
         on_timeout_policy: :error,
-        start: fn _tc ->
-          spawn(fn -> send(pe_pid, {:tool_result, tc.id, "mcp error", true, %{}}) end)
-          :ok
-        end,
-        message_key: tc.id,
-        on_timeout: {__MODULE__, :noop_timeout, []}
-      }
-
-      # start is an anonymous fn here — use a wrapper that accepts MFA format
-      # Instead use a direct helper approach
-      _ = exec
-
-      # Use a proper MFA-compatible approach via a captured pid
-      exec2 = %ToolExecution.Await{
-        tool_call: tc,
-        timeout_ms: 5_000,
-        on_timeout_policy: :error,
         start: {__MODULE__, :start_await_error, [pe_pid]},
-        message_key: tc.id,
         on_timeout: {__MODULE__, :noop_timeout, []}
       }
 
-      {:ok, [result]} = ParallelExecutor.run([exec2], sup)
+      {:ok, [result]} = ParallelExecutor.run([exec], sup)
       assert result.is_error == true
       assert content_text(result) == "mcp error"
     end
@@ -229,7 +174,6 @@ defmodule SwarmAi.ParallelExecutorTest do
         on_timeout_policy: :error,
         # Never sends a result back
         start: {__MODULE__, :start_await_never, []},
-        message_key: tc.id,
         on_timeout: {__MODULE__, :noop_timeout, []}
       }
 
@@ -265,7 +209,6 @@ defmodule SwarmAi.ParallelExecutorTest do
         timeout_ms: 10,
         on_timeout_policy: :pause_agent,
         start: {__MODULE__, :start_await_never, []},
-        message_key: tc.id,
         on_timeout: {__MODULE__, :noop_timeout, []}
       }
 
@@ -394,22 +337,8 @@ defmodule SwarmAi.ParallelExecutorTest do
 
   # --- Additional MFA helpers needed by tests above ---
 
-  def make_custom_result(tool_call, _content, _is_error) do
-    ToolResult.make(tool_call.id, "enriched!", false)
-  end
-
-  def make_custom_result_with_metadata(tool_call, _content, _is_error) do
-    ToolResult.make(tool_call.id, "enriched!", false, %{source: "custom"})
-  end
-
-  def start_await_with_metadata(metadata, tool_call) do
-    pe_pid = self()
-    spawn(fn -> send(pe_pid, {:tool_result, tool_call.id, "ok", false, metadata}) end)
-    :ok
-  end
-
   def start_await_error(pe_pid, tool_call) do
-    spawn(fn -> send(pe_pid, {:tool_result, tool_call.id, "mcp error", true, %{}}) end)
+    spawn(fn -> send(pe_pid, {:tool_result, tool_call.id, "mcp error", true}) end)
     :ok
   end
 
