@@ -175,7 +175,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   end
 
   defp maybe_put_tool_calls(metadata, tool_calls) when is_list(tool_calls) and tool_calls != [] do
-    Map.put(metadata, :tool_calls, Enum.map(tool_calls, &to_reqllm_tool_call/1))
+    Map.put(metadata, :tool_calls, Enum.map(tool_calls, &to_flat_tool_call/1))
   end
 
   defp maybe_put_tool_calls(metadata, _tool_calls), do: metadata
@@ -205,8 +205,8 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
 
   defp get_response_meta(_metadata, _key), do: nil
 
-  defp to_reqllm_tool_call(%SwarmAi.ToolCall{} = tc) do
-    ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
+  defp to_flat_tool_call(%SwarmAi.ToolCall{} = tc) do
+    %{"id" => tc.id, "name" => tc.name, "arguments" => tc.arguments}
   end
 
   defp format_crash_reason(reason) do

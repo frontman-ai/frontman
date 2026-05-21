@@ -1,4 +1,4 @@
 ---
 ---
 
-Support public image URLs in web_fetch so fetched images can be passed to the LLM with source URL context.
+Support image-producing tool results in the optimizer, including public image URLs fetched through web_fetch and recovered via get_tool_result.

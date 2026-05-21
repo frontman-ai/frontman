@@ -1,8 +1,6 @@
 defmodule FrontmanServer.Tasks.MessageOptimizerTest do
   use ExUnit.Case, async: true
 
-  import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
-
   alias FrontmanServer.Tasks.MessageOptimizer
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
@@ -14,6 +12,16 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
   Viewport: 1920x1080
   Title: Test\
   """
+
+  @different_page_context """
+
+  [Current Page Context]
+  URL: https://other.example.com
+  Viewport: 1280x720
+  Title: Other\
+  """
+
+  @tool_result_max_bytes 100
 
   describe "find_old_boundary/1" do
     test "returns index after last assistant message" do
@@ -126,6 +134,211 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       assert MessageOptimizer.optimize([]) == []
     end
 
+    test "expands image-producing tool result JSON into image content" do
+      png_data_url = "data:image/png;base64,#{Base.encode64("png-bytes")}"
+      jpeg_data_url = "data:image/jpeg;base64,#{Base.encode64("jpeg-bytes")}"
+
+      messages = [
+        %Message.Assistant{
+          content: [],
+          tool_calls: [
+            %SwarmAi.ToolCall{id: "tc-screenshot", name: "mcp_take_screenshot", arguments: "{}"},
+            %SwarmAi.ToolCall{id: "tc-web-fetch", name: "web_fetch", arguments: "{}"},
+            %SwarmAi.ToolCall{id: "tc-get-image", name: "get_tool_result", arguments: "{}"},
+            %SwarmAi.ToolCall{id: "tc-get-screenshot", name: "get_tool_result", arguments: "{}"}
+          ]
+        },
+        %Message.Tool{
+          name: "mcp_take_screenshot",
+          tool_call_id: "tc-screenshot",
+          content: [ContentPart.text(Jason.encode!(%{"screenshot" => png_data_url}))]
+        },
+        %Message.Tool{
+          name: "web_fetch",
+          tool_call_id: "tc-web-fetch",
+          content: [ContentPart.text(Jason.encode!(%{"image" => jpeg_data_url}))]
+        },
+        %Message.Tool{
+          name: "get_tool_result",
+          tool_call_id: "tc-get-image",
+          content: [
+            ContentPart.text(Jason.encode!(%{"type" => "image", "image" => jpeg_data_url}))
+          ]
+        },
+        %Message.Tool{
+          name: "get_tool_result",
+          tool_call_id: "tc-get-screenshot",
+          content: [ContentPart.text(Jason.encode!(%{"screenshot" => png_data_url}))]
+        }
+      ]
+
+      optimized = MessageOptimizer.optimize(messages)
+
+      assert Enum.at(optimized, 1).content == [ContentPart.image("png-bytes", "image/png")]
+      assert Enum.at(optimized, 2).content == [ContentPart.image("jpeg-bytes", "image/jpeg")]
+      assert Enum.at(optimized, 3).content == [ContentPart.image("jpeg-bytes", "image/jpeg")]
+      assert Enum.at(optimized, 4).content == [ContentPart.image("png-bytes", "image/png")]
+    end
+
+    test "leaves live non-image tool results unchanged" do
+      messages = [
+        %Message.Tool{
+          name: "read_file",
+          tool_call_id: "tc-read",
+          content: [ContentPart.text("file contents")]
+        }
+      ]
+
+      assert MessageOptimizer.optimize(messages) == messages
+    end
+
+    test "removes oversized images for constrained providers" do
+      messages = [
+        %Message.User{
+          content: [
+            ContentPart.text("look"),
+            ContentPart.image(png_fixture(9000, 1080), "image/png")
+          ]
+        }
+      ]
+
+      [result] = MessageOptimizer.optimize(messages, max_image_dimension: 7680)
+
+      [_text, image_placeholder] = result.content
+      assert image_placeholder.type == :text
+      assert image_placeholder.text =~ "Image removed"
+      assert image_placeholder.text =~ "9000x1080px"
+      assert image_placeholder.text =~ "7680px provider limit"
+    end
+
+    test "decays old image_url parts" do
+      messages = [
+        %Message.User{content: [ContentPart.image_url("https://example.com/image.png")]},
+        %Message.Assistant{content: [ContentPart.text("ok")]}
+      ]
+
+      [result | _] = MessageOptimizer.optimize(messages)
+      assert result.content == [ContentPart.text("[image: previously analyzed]")]
+    end
+
+    test "keeps old tool results without tool_call_id unchanged" do
+      messages = [
+        %Message.Tool{
+          name: "read_file",
+          tool_call_id: nil,
+          content: [ContentPart.text("plain text result")]
+        },
+        %Message.Assistant{content: [ContentPart.text("ok")]}
+      ]
+
+      [result | _] = MessageOptimizer.optimize(messages)
+      assert result.content == [ContentPart.text("plain text result")]
+    end
+
+    test "keeps changed page context" do
+      messages = [
+        %Message.User{content: [ContentPart.text("page one" <> @page_context)]},
+        %Message.Assistant{content: [ContentPart.text("ok")]},
+        %Message.User{content: [ContentPart.text("page two" <> @different_page_context)]}
+      ]
+
+      result = MessageOptimizer.optimize(messages)
+
+      second_text = Enum.at(result, 2).content |> hd() |> Map.fetch!(:text)
+      assert second_text =~ "[Current Page Context]"
+      assert second_text =~ "https://other.example.com"
+    end
+
+    test "replaces duplicate context-only user messages with a placeholder" do
+      messages = [
+        %Message.User{content: [ContentPart.text(@page_context)]},
+        %Message.Assistant{content: [ContentPart.text("ok")]},
+        %Message.User{content: [ContentPart.text(@page_context)]}
+      ]
+
+      result = MessageOptimizer.optimize(messages)
+
+      second_content = Enum.at(result, 2).content
+      refute second_content == []
+      assert second_content == [ContentPart.text("[Page context unchanged]")]
+    end
+
+    test "truncates live text tool results at valid UTF-8 boundaries" do
+      boundary_text = String.duplicate("a", 98) <> "🐞" <> String.duplicate("b", 100)
+
+      messages = [
+        %Message.Tool{
+          name: "read_file",
+          tool_call_id: "tc-utf8",
+          content: [ContentPart.text(boundary_text)]
+        }
+      ]
+
+      [result] =
+        MessageOptimizer.optimize(messages, tool_result_max_bytes: @tool_result_max_bytes)
+
+      text = hd(result.content).text
+      assert String.valid?(text)
+      assert text =~ "[Output truncated:"
+      assert text =~ "#{byte_size(boundary_text)} bytes total"
+      assert text =~ "showing first #{@tool_result_max_bytes}"
+      assert text =~ "get_tool_result with tool_call_id tc-utf8"
+    end
+
+    test "leaves under-limit tool text unchanged" do
+      short_text = String.duplicate("a", 50)
+
+      messages = [
+        %Message.Tool{
+          name: "read_file",
+          tool_call_id: "tc-short",
+          content: [ContentPart.text(short_text)]
+        }
+      ]
+
+      [result] =
+        MessageOptimizer.optimize(messages, tool_result_max_bytes: @tool_result_max_bytes)
+
+      assert hd(result.content).text == short_text
+    end
+
+    test "does not truncate non-tool messages" do
+      large_text = String.duplicate("a", 200)
+
+      messages = [
+        %Message.User{content: [ContentPart.text(large_text)]},
+        %Message.Assistant{content: [ContentPart.text(large_text)]}
+      ]
+
+      result =
+        MessageOptimizer.optimize(messages, tool_result_max_bytes: @tool_result_max_bytes)
+
+      Enum.each(result, fn msg ->
+        assert hd(msg.content).text == large_text
+      end)
+    end
+
+    test "truncates only oversized text parts in multi-part tool results" do
+      large_text = String.duplicate("b", 200)
+      small_text = String.duplicate("s", 10)
+
+      messages = [
+        %Message.Tool{
+          name: "read_file",
+          tool_call_id: "tc-multi",
+          content: [ContentPart.text(large_text), ContentPart.text(small_text)]
+        }
+      ]
+
+      [result] =
+        MessageOptimizer.optimize(messages, tool_result_max_bytes: @tool_result_max_bytes)
+
+      [first, second] = result.content
+      assert first.text =~ "[Output truncated:"
+      assert first.text =~ "200 bytes total"
+      assert second.text == small_text
+    end
+
     # Regression test: long tool-calling chains accumulate many tool results
     # inside the swarm loop without going through MessageOptimizer. When the
     # LLMClient calls MessageOptimizer.optimize() before each API request, old
@@ -177,7 +390,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       end)
     end
 
-    test "strips recovered get_tool_result images for text-only models" do
+    test "strips recovered get_tool_result images when images are unsupported" do
       data_url = "data:image/png;base64,#{Base.encode64("image-bytes")}"
 
       messages = [
@@ -193,8 +406,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
         }
       ]
 
-      optimized =
-        MessageOptimizer.optimize(messages, model: "nvidia:deepseek-ai/deepseek-v4-flash")
+      optimized = MessageOptimizer.optimize(messages, images_supported: false)
 
       [part] = Enum.at(optimized, 2).content
       assert part.type == :text
@@ -213,8 +425,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
 
       [result] =
         MessageOptimizer.optimize(messages,
-          model: "nvidia:deepseek-ai/deepseek-v4-flash",
-          provider: "anthropic"
+          images_supported: false,
+          max_image_dimension: 7680
         )
 
       [_text, image_placeholder] = result.content
@@ -250,5 +462,10 @@ defmodule FrontmanServer.Tasks.MessageOptimizerTest do
       assert part.text ==
                "[Omitted data. For the data, use get_tool_result with tool_call_id tc-get.]"
     end
+  end
+
+  defp png_fixture(width, height) do
+    <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
+      <<0::32>> <> "IHDR" <> <<width::32, height::32>> <> <<0::8>>
   end
 end

@@ -86,7 +86,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         ]
       })
 
-    ReqLLM.ToolCall.new(id, "question", args)
+    %SwarmAi.ToolCall{id: id, name: "question", arguments: args}
+  end
+
+  defp tool_call_metadata(%SwarmAi.ToolCall{} = tool_call) do
+    %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
   end
 
   defp question_answer_response(id, answer) do
@@ -949,12 +953,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id = task_fixture(scope)
 
       tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
-      reqllm_tc = question_tool_call(tool_call_id, "Test", "A")
+      tool_call = question_tool_call(tool_call_id, "Test", "A")
 
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "ask me a question"}])
 
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [reqllm_tc]})
-      Tasks.add_tool_call(scope, task_id, reqllm_tc)
+      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [tool_call_metadata(tool_call)]})
+      Tasks.add_tool_call(scope, task_id, tool_call)
 
       {:ok, task_id: task_id, scope: scope, tool_call_id: tool_call_id}
     end
@@ -1013,7 +1017,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       second_tc = question_tool_call(second_tool_call_id, "Second turn", "B")
 
       Tasks.add_user_message(scope, task_id, user_content("first turn"))
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [first_tc]})
+      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [tool_call_metadata(first_tc)]})
       Tasks.add_tool_call(scope, task_id, first_tc)
 
       Tasks.add_tool_result(
@@ -1028,7 +1032,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Tasks.add_agent_completed(scope, task_id)
 
       Tasks.add_user_message(scope, task_id, user_content("second turn"))
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [second_tc]})
+      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [tool_call_metadata(second_tc)]})
       Tasks.add_tool_call(scope, task_id, second_tc)
 
       {:ok, _reply, socket} =

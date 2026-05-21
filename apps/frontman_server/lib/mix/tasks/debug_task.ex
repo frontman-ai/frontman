@@ -266,6 +266,14 @@ defmodule Mix.Tasks.DebugTask do
     }
   end
 
+  defp format_embedded_tool_call(%{"id" => id, "name" => name, "arguments" => arguments}) do
+    %{
+      "arguments" => decode_embedded_tool_arguments(arguments),
+      "tool_call_id" => id,
+      "tool_name" => name
+    }
+  end
+
   defp format_embedded_tool_call(call), do: call
 
   defp decode_embedded_tool_arguments(arguments) when is_binary(arguments) do
@@ -443,7 +451,7 @@ defmodule Mix.Tasks.DebugTask do
         truncate(first["content"] || first["text"] || "", 80)
 
       _ ->
-        "(#{length(messages)} messages)"
+        summarize_annotation_comments(data) || "(#{length(messages)} messages)"
     end
   end
 
@@ -465,6 +473,20 @@ defmodule Mix.Tasks.DebugTask do
 
   defp interaction_summary(%{data: data}) do
     truncate(inspect(data), 60)
+  end
+
+  defp summarize_annotation_comments(data) do
+    comments =
+      data
+      |> Map.get("annotations", [])
+      |> Enum.map(& &1["comment"])
+      |> Enum.filter(&is_binary/1)
+
+    case comments do
+      [] -> nil
+      [comment] -> truncate(comment, 80)
+      _ -> truncate(Enum.join(comments, "; "), 80)
+    end
   end
 
   defp summarize_tool_result_map(result) do

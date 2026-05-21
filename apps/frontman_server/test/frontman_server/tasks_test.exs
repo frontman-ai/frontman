@@ -124,7 +124,12 @@ defmodule FrontmanServer.TasksTest do
           ]
         })
 
-      tc = ReqLLM.ToolCall.new(tool_call_id, "calculator", ~s({"expression": "2+2"}))
+      tc = %SwarmAi.ToolCall{
+        id: tool_call_id,
+        name: "calculator",
+        arguments: ~s({"expression": "2+2"})
+      }
+
       {:ok, _} = Tasks.add_tool_call(scope, task_id, tc)
 
       {:ok, _, _} =
@@ -163,7 +168,11 @@ defmodule FrontmanServer.TasksTest do
     test "creates tool call interaction", %{scope: scope} do
       task_id = task_fixture(scope)
 
-      tool_call = ReqLLM.ToolCall.new("call_123", "calculator", ~s({"expression": "1 + 1"}))
+      tool_call = %SwarmAi.ToolCall{
+        id: "call_123",
+        name: "calculator",
+        arguments: ~s({"expression": "1 + 1"})
+      }
 
       {:ok, interaction} = Tasks.add_tool_call(scope, task_id, tool_call)
 
@@ -172,9 +181,52 @@ defmodule FrontmanServer.TasksTest do
       assert interaction.arguments == %{"expression" => "1 + 1"}
     end
 
+    test "stores blank tool call arguments as an empty map", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "call_blank",
+        name: "calculator",
+        arguments: "  \n  "
+      }
+
+      assert {:ok, interaction} = Tasks.add_tool_call(scope, task_id, tool_call)
+      assert interaction.arguments == %{}
+    end
+
+    test "returns an error for malformed tool call arguments", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "call_bad_json",
+        name: "calculator",
+        arguments: ~s({"expression":)
+      }
+
+      assert {:error, {:invalid_tool_arguments, reason}} =
+               Tasks.add_tool_call(scope, task_id, tool_call)
+
+      assert reason =~ "unexpected end of input"
+    end
+
+    test "returns an error for non-object tool call arguments", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "call_array",
+        name: "calculator",
+        arguments: ~s(["not", "object"])
+      }
+
+      assert {:error, {:invalid_tool_arguments, reason}} =
+               Tasks.add_tool_call(scope, task_id, tool_call)
+
+      assert reason =~ "expected JSON object"
+    end
+
     test "returns error for non-existent task", %{scope: scope} do
       nonexistent_id = Ecto.UUID.generate()
-      tool_call = ReqLLM.ToolCall.new("call_123", "test", "{}")
+      tool_call = %SwarmAi.ToolCall{id: "call_123", name: "test", arguments: "{}"}
 
       assert {:error, :not_found} =
                Tasks.add_tool_call(scope, nonexistent_id, tool_call)

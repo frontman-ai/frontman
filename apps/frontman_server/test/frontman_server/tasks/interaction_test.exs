@@ -498,20 +498,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert %SwarmAi.ToolCall{} = tc
       assert tc.name == "calculator"
     end
-
-    test "converts ReqLLM.ToolCall structs to Swarm tool calls" do
-      existing_struct = ReqLLM.ToolCall.new("call_struct_1", "my_tool", "{}")
-
-      interactions = [agent_resp("Using tool", %{tool_calls: [existing_struct]})]
-
-      [msg] = Interaction.to_swarm_messages(interactions)
-
-      assert [tc] = msg.tool_calls
-      assert %SwarmAi.ToolCall{} = tc
-      assert tc.id == "call_struct_1"
-      assert tc.name == "my_tool"
-      assert tc.arguments == "{}"
-    end
   end
 
   # ---------------------------------------------------------------------------
@@ -596,18 +582,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert Interaction.all_pending_tools_resolved?(interactions) == false
     end
 
-    test "handles tool_calls as atom-key maps and ReqLLM.ToolCall structs" do
-      tc_struct = ReqLLM.ToolCall.new("call_struct", "question", "{}")
-
+    test "handles tool_calls as atom-key maps" do
       for tool_calls <- [
             [%{id: "call_a", name: "question", arguments: "{}"}],
-            [tc_struct]
+            [%{id: "call_nested", function: %{name: "question", arguments: "{}"}}]
           ] do
-        call_id =
-          case hd(tool_calls) do
-            %ReqLLM.ToolCall{id: id} -> id
-            %{id: id} -> id
-          end
+        %{id: call_id} = hd(tool_calls)
 
         interactions = [
           agent_resp("Using tool", %{tool_calls: tool_calls}),

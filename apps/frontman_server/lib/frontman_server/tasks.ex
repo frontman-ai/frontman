@@ -55,7 +55,6 @@ defmodule FrontmanServer.Tasks do
   }
 
   alias FrontmanServer.Workers.GenerateTitle
-  alias ReqLLM.ToolCall
 
   # --- Authorization Helpers ---
 
@@ -406,11 +405,12 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates and appends a ToolCall interaction.
   """
-  @spec add_tool_call(Accounts.scope(), String.t(), ToolCall.t()) ::
-          {:ok, Interaction.ToolCall.t()} | {:error, :not_found}
-  def add_tool_call(scope, task_id, %ToolCall{} = tool_call_data) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      interaction = Interaction.ToolCall.new(tool_call_data)
+  @spec add_tool_call(Accounts.scope(), String.t(), SwarmAi.ToolCall.t()) ::
+          {:ok, Interaction.ToolCall.t()}
+          | {:error, :not_found | {:invalid_tool_arguments, String.t()}}
+  def add_tool_call(scope, task_id, %SwarmAi.ToolCall{} = tool_call_data) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id),
+         {:ok, interaction} <- Interaction.ToolCall.new(tool_call_data) do
       append_interaction(schema, interaction)
     end
   end

@@ -259,36 +259,4 @@ defmodule FrontmanServer.ImageTest do
       assert {:ok, _binary, "image/jpeg"} = Image.decode_data_url(data_url)
     end
   end
-
-  # ── decode_tool_image_for_llm/2 ─────────────────────────────────────
-
-  describe "decode_tool_image_for_llm/2" do
-    test "decodes take_screenshot image" do
-      image_bytes = <<255, 216, 255, 224, "fake-jpeg">>
-
-      result = %{
-        "screenshot" => "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
-      }
-
-      assert {:ok, %{data: ^image_bytes, media_type: "image/jpeg"}} =
-               Image.decode_tool_image_for_llm("take_screenshot", result)
-    end
-
-    test "decodes web_fetch image" do
-      image_bytes = <<255, 216, 255, 224, "fake-jpeg">>
-
-      result = %{
-        "url" => "https://example.com/cat.jpg",
-        "content_type" => "image/jpeg",
-        "image" => "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
-      }
-
-      assert {:ok, %{data: ^image_bytes, media_type: "image/jpeg"}} =
-               Image.decode_tool_image_for_llm("web_fetch", result)
-    end
-
-    test "returns :no_image for non-image tools" do
-      assert :no_image = Image.decode_tool_image_for_llm("read_file", %{"content" => "hello"})
-    end
-  end
 end

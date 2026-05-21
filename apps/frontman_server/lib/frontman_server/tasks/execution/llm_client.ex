@@ -85,16 +85,20 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
         {_key, value} -> value == []
       end)
 
+    provider = Providers.model_provider_name(client.model)
+
+    optimizer_opts = [
+      images_supported: images_supported?(client.model),
+      max_image_dimension: Providers.max_image_dimension(provider)
+    ]
+
     # Run MessageOptimizer here (not just at task startup) so that tool results
     # accumulated inside the swarm loop are also truncated. Without this, long
     # tool-calling chains accumulate dozens of full-size tool results and the
     # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
-      |> MessageOptimizer.optimize(
-        model: client.model,
-        provider: Providers.model_provider_name(client.model)
-      )
+      |> MessageOptimizer.optimize(optimizer_opts)
       |> Enum.map(&to_reqllm_message/1)
 
     case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do
@@ -180,6 +184,13 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   defp normalize_reqllm_chunk(malformed_chunk) do
     raise "Malformed chunk from ReqLLM (missing or invalid type): #{inspect(malformed_chunk, limit: :infinity)}"
+  end
+
+  defp images_supported?(model) do
+    case ReqLLM.model(model) do
+      {:ok, %{modalities: %{input: input}}} when is_list(input) -> :image in input
+      _ -> true
+    end
   end
 
   defp normalize_index(index) when is_integer(index), do: index

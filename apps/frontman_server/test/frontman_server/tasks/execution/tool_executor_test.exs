@@ -99,6 +99,31 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end
   end
 
+  describe "start_mcp_tool/3" do
+    test "persists MCP tool call interactions", %{
+      scope: scope,
+      task_id: task_id
+    } do
+      tool_call = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: "take_screenshot",
+        arguments: ~s({"selector":"#main"})
+      }
+
+      assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, tool_call)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert %Interaction.ToolCall{
+               tool_call_id: tool_call_id,
+               tool_name: "take_screenshot",
+               arguments: %{"selector" => "#main"}
+             } = Enum.find(task.interactions, &match?(%Interaction.ToolCall{}, &1))
+
+      assert tool_call_id == tool_call.id
+    end
+  end
+
   describe "handle_timeout/5 — cancelled tools" do
     @tag :capture_log
     test "persists error ToolResult for :error policy", %{

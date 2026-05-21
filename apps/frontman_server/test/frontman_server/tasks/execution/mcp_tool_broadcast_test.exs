@@ -64,6 +64,16 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       assert length(tool_call_broadcasts) == 1,
              "Expected exactly 1 tool call broadcast, got #{length(tool_call_broadcasts)}. " <>
                "This indicates Tasks.add_tool_call is being called multiple times."
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert %Tasks.Interaction.AgentResponse{metadata: %{"tool_calls" => [persisted_call]}} =
+               Enum.find(task.interactions, &match?(%Tasks.Interaction.AgentResponse{}, &1))
+
+      assert persisted_call["id"] == mcp_tool_call.id
+      assert persisted_call["name"] == "some_mcp_tool"
+      assert Jason.decode!(persisted_call["arguments"]) == %{"arg" => "value"}
+      refute Map.has_key?(persisted_call, "function")
     end
   end
 

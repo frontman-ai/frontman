@@ -187,9 +187,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp publish_mcp_tool_call(%Scope{} = scope, task_id, tool_call) do
-    reqllm_tc = to_reqllm_tool_call(tool_call)
-
-    case Tasks.add_tool_call(scope, task_id, reqllm_tc) do
+    case Tasks.add_tool_call(scope, task_id, tool_call) do
       {:ok, _interaction} ->
         :ok
 
@@ -200,10 +198,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
         raise "Failed to publish MCP tool call: #{inspect(reason)}"
     end
-  end
-
-  defp to_reqllm_tool_call(%SwarmAi.ToolCall{} = tc) do
-    ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
   end
 
   # --- Backend Tool Execution ---

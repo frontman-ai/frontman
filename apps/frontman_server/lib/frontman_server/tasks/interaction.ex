@@ -887,16 +887,44 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:timestamp, DateTime.t())
     end
 
-    def new(%ReqLLM.ToolCall{} = tc) do
+    def new(%SwarmAi.ToolCall{} = tc) do
       alias FrontmanServer.Tasks.Interaction
 
-      %__MODULE__{
-        id: Interaction.new_id(),
-        tool_call_id: tc.id,
-        tool_name: ReqLLM.ToolCall.name(tc),
-        arguments: ReqLLM.ToolCall.args_map(tc) || %{},
-        timestamp: Interaction.now()
-      }
+      case decode_arguments(tc.arguments) do
+        {:ok, arguments} ->
+          {:ok,
+           %__MODULE__{
+             id: Interaction.new_id(),
+             tool_call_id: tc.id,
+             tool_name: tc.name,
+             arguments: arguments,
+             timestamp: Interaction.now()
+           }}
+
+        {:error, reason} ->
+          {:error, {:invalid_tool_arguments, reason}}
+      end
+    end
+
+    defp decode_arguments(arguments) when is_binary(arguments) do
+      arguments
+      |> String.trim()
+      |> decode_arguments_json()
+    end
+
+    defp decode_arguments_json(""), do: {:ok, %{}}
+
+    defp decode_arguments_json(arguments) do
+      case Jason.decode(arguments) do
+        {:ok, decoded} when is_map(decoded) ->
+          {:ok, decoded}
+
+        {:ok, decoded} ->
+          {:error, "expected JSON object, got #{inspect(decoded)}"}
+
+        {:error, decode_error} ->
+          {:error, Exception.message(decode_error)}
+      end
     end
   end
 
@@ -1335,10 +1363,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp normalize_swarm_tool_call(%SwarmToolCall{} = tc), do: tc
-
-  defp normalize_swarm_tool_call(%ReqLLM.ToolCall{} = tc) do
-    new_swarm_tool_call(tc.id, ReqLLM.ToolCall.name(tc), ReqLLM.ToolCall.args_json(tc))
-  end
 
   defp normalize_swarm_tool_call(%{
          "id" => id,
