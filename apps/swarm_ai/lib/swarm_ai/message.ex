@@ -7,7 +7,7 @@ defmodule SwarmAi.Message do
   unrepresentable at compile time.
   """
 
-  alias SwarmAi.Message.{System, User, Assistant, Tool}
+  alias SwarmAi.Message.{Assistant, System, Tool, User}
   alias SwarmAi.Message.ContentPart
 
   @type role :: :system | :user | :assistant | :tool
@@ -47,14 +47,18 @@ defmodule SwarmAi.Message do
   end
 
   @doc "Creates an assistant message"
-  @spec assistant(String.t() | nil, [SwarmAi.ToolCall.t()], map()) :: Assistant.t()
-  def assistant(text, tool_calls \\ [], metadata \\ %{}) do
+  @spec assistant(String.t() | nil, [SwarmAi.ToolCall.t()], map(), [map()] | nil) :: Assistant.t()
+  def assistant(text, tool_calls \\ [], metadata \\ %{}, reasoning_details \\ nil) do
     %Assistant{
       content: [ContentPart.text(text || "")],
       tool_calls: tool_calls,
-      metadata: metadata
+      metadata: metadata,
+      reasoning_details: normalize_reasoning_details(reasoning_details)
     }
   end
+
+  defp normalize_reasoning_details([]), do: nil
+  defp normalize_reasoning_details(details), do: details
 
   @doc "Creates a tool result message from content parts"
   @spec tool_result(String.t(), String.t(), [ContentPart.t()], map()) :: Tool.t()

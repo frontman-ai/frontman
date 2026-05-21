@@ -7,7 +7,7 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend.Context
-  alias FrontmanServer.Tools.GetInteraction
+  alias FrontmanServer.Tools.GetToolResult
   alias FrontmanServer.Tools.TodoWrite
 
   setup do
@@ -35,8 +35,8 @@ defmodule FrontmanServer.ToolsTest do
       assert {:ok, module} = Tools.find_tool("todo_write")
       assert module == TodoWrite
 
-      assert {:ok, module} = Tools.find_tool("get_interaction")
-      assert module == GetInteraction
+      assert {:ok, module} = Tools.find_tool("get_tool_result")
+      assert module == GetToolResult
     end
 
     test "finds web_fetch tool" do
@@ -187,8 +187,8 @@ defmodule FrontmanServer.ToolsTest do
     end
   end
 
-  describe "GetInteraction.execute/2" do
-    test "returns the full interaction by ID", %{task_id: task_id, scope: scope} do
+  describe "GetToolResult.execute/2" do
+    test "returns the actual tool result by tool call ID", %{task_id: task_id, scope: scope} do
       {:ok, interaction, :no_executor} =
         Tasks.add_tool_result(
           scope,
@@ -201,36 +201,17 @@ defmodule FrontmanServer.ToolsTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
       context = build_context(scope, task)
 
-      assert {:ok, result} = GetInteraction.execute(%{"id" => interaction.id}, context)
-      assert result["type"] == "tool_result"
-      assert result["id"] == interaction.id
-      assert result["tool_call_id"] == "tc-read"
-      assert result["result"] == %{"content" => "file contents"}
-    end
+      assert {:ok, result} = GetToolResult.execute(%{"tool_call_id" => "tc-read"}, context)
 
-    test "returns a tool result by tool call ID", %{task_id: task_id, scope: scope} do
-      {:ok, interaction, :no_executor} =
-        Tasks.add_tool_result(
-          scope,
-          task_id,
-          %{id: "tc-read", name: "read_file"},
-          %{"content" => "file contents"},
-          false
-        )
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      context = build_context(scope, task)
-
-      assert {:ok, result} = GetInteraction.execute(%{"id" => "tc-read"}, context)
-      assert result["id"] == interaction.id
-      assert result["tool_call_id"] == "tc-read"
+      assert result == %{"content" => "file contents"}
+      assert interaction.tool_call_id == "tc-read"
     end
 
     test "returns an error when the interaction does not exist", %{task: task, scope: scope} do
       context = build_context(scope, task)
 
-      assert {:error, "Interaction not found: missing"} =
-               GetInteraction.execute(%{"id" => "missing"}, context)
+      assert {:error, "Tool result not found: missing"} =
+               GetToolResult.execute(%{"tool_call_id" => "missing"}, context)
     end
   end
 end

@@ -8,11 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Add a backend `get_interaction` tool for retrieving stored task interactions by ID.
+- Add a backend `get_tool_result` tool for retrieving stored tool results by tool call ID.
 
 ### Changed
 
-- Replace consumed non-image tool result payloads with an omitted-data placeholder that points agents to `get_interaction`.
+- Replace consumed tool result payloads with an omitted-data placeholder that points agents to `get_tool_result`.
 
 ### Fixed
 

@@ -13,8 +13,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ImageDecay do
   (the page has changed since). Live messages are untouched.
   """
 
-  alias ReqLLM.Message
-  alias ReqLLM.Message.ContentPart
+  alias SwarmAi.Message
+  alias SwarmAi.Message.ContentPart
 
   @placeholder "[image: previously analyzed]"
 
@@ -31,7 +31,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ImageDecay do
     end)
   end
 
-  defp decay_images(%Message{content: content} = msg) when is_list(content) do
+  defp decay_images(%Message.Tool{} = msg), do: msg
+
+  defp decay_images(%{content: content} = msg) when is_list(content) do
     new_content =
       Enum.map(content, fn
         %ContentPart{type: type} when type in [:image, :image_url] ->

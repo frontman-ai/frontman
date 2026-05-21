@@ -14,8 +14,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncation do
   Matches opencode's 50KB limit by default.
   """
 
-  alias ReqLLM.Message
-  alias ReqLLM.Message.ContentPart
+  alias SwarmAi.Message
+  alias SwarmAi.Message.ContentPart
 
   @default_max_bytes 51_200
 
@@ -23,12 +23,13 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncation do
   def run(messages, opts \\ []) do
     max_bytes = max_bytes(opts)
 
-    Enum.map(messages, fn msg ->
-      if msg.role == :tool, do: truncate_tool_result(msg, max_bytes), else: msg
+    Enum.map(messages, fn
+      %Message.Tool{} = msg -> truncate_tool_result(msg, max_bytes)
+      msg -> msg
     end)
   end
 
-  defp truncate_tool_result(%Message{content: content} = msg, max_bytes)
+  defp truncate_tool_result(%Message.Tool{content: content} = msg, max_bytes)
        when is_list(content) do
     %{msg | content: Enum.map(content, &maybe_truncate(&1, max_bytes, msg.tool_call_id))}
   end
@@ -57,7 +58,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncation do
 
   defp truncated_suffix(total, max_bytes, tool_call_id) when is_binary(tool_call_id) do
     "\n\n[Output truncated: #{total} bytes total, showing first #{max_bytes}. " <>
-      "For the full output, use get_interaction for #{tool_call_id}.]"
+      "For the full output, use get_tool_result with tool_call_id #{tool_call_id}.]"
   end
 
   defp truncated_suffix(total, max_bytes, _tool_call_id) do

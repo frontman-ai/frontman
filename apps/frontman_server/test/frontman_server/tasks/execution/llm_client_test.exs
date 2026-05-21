@@ -1,10 +1,12 @@
 defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   import Mox
+  import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
+  alias FrontmanServer.Tasks.MessageOptimizer
   alias ReqLLM.Error.API.{Request, Stream}
   alias SwarmAi.Message.ContentPart
 
@@ -159,6 +161,91 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
           name: "web_fetch",
           tool_call_id: "tc_web_fetch",
           content: [ContentPart.text(Jason.encode!(%{"image" => data_url}))]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
+
+    test "does not parse tool image JSON when optimizer is disabled" do
+      Application.put_env(:frontman_server, MessageOptimizer, enabled: false)
+
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert message.role == :tool
+        assert Enum.map(message.content, & &1.type) == [:text]
+        assert hd(message.content).text =~ "screenshot"
+        {:ok, stream_response([])}
+      end)
+
+      data_url = "data:image/png;base64,#{Base.encode64("image-bytes")}"
+
+      client =
+        LLMClient.new(
+          model: "nvidia:moonshotai/kimi-k2.6",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.Tool{
+          name: "mcp_take_screenshot",
+          tool_call_id: "tc_screenshot",
+          content: [ContentPart.text(Jason.encode!(%{"screenshot" => data_url}))]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    after
+      Application.delete_env(:frontman_server, MessageOptimizer)
+    end
+
+    test "replaces oversized images before provider requests" do
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert Enum.map(message.content, & &1.type) == [:text, :text]
+        assert Enum.at(message.content, 1).text =~ "Image removed"
+        assert Enum.at(message.content, 1).text =~ "9000x1080px"
+
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "anthropic:claude-sonnet-4-5",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.User{
+          content: [
+            ContentPart.text("look"),
+            ContentPart.image(png_fixture(9000, 1080), "image/png")
+          ]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
+  end
+
+  describe "assistant reasoning details" do
+    test "serializes reasoning details from Swarm assistant messages" do
+      reasoning = [%{"type" => "reasoning.encrypted", "data" => "encrypted-data"}]
+
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert message.role == :assistant
+        assert message.reasoning_details == reasoning
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "openrouter:openai/gpt-5.5",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.Assistant{
+          content: [ContentPart.text("thinking done")],
+          reasoning_details: reasoning
         }
       ]
 

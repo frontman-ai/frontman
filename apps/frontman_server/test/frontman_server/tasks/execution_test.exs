@@ -301,9 +301,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       tool_message =
         task.interactions
-        |> Interaction.to_llm_messages()
+        |> Interaction.to_swarm_messages()
         |> Enum.find(fn message ->
-          message.role == :tool && message.tool_call_id == tool_call_id
+          SwarmAi.Message.role(message) == :tool && message.tool_call_id == tool_call_id
         end)
 
       assert tool_message != nil

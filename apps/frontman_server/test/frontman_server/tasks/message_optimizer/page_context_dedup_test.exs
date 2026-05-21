@@ -2,8 +2,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedupTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Tasks.MessageOptimizer.PageContextDedup
-  alias ReqLLM.Message
-  alias ReqLLM.Message.ContentPart
+  alias SwarmAi.Message
+  alias SwarmAi.Message.ContentPart
 
   @page_context """
 
@@ -30,9 +30,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedupTest do
   describe "run/2" do
     test "strips duplicate page context from consecutive user messages" do
       messages = [
-        %Message{role: :user, content: [ContentPart.text("click the button" <> @page_context)]},
-        %Message{role: :assistant, content: [ContentPart.text("done")]},
-        %Message{role: :user, content: [ContentPart.text("now scroll down" <> @page_context)]}
+        %Message.User{content: [ContentPart.text("click the button" <> @page_context)]},
+        %Message.Assistant{content: [ContentPart.text("done")]},
+        %Message.User{content: [ContentPart.text("now scroll down" <> @page_context)]}
       ]
 
       result = PageContextDedup.run(messages)
@@ -50,9 +50,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedupTest do
 
     test "keeps context when it changes between user messages" do
       messages = [
-        %Message{role: :user, content: [ContentPart.text("page one" <> @page_context)]},
-        %Message{role: :assistant, content: [ContentPart.text("ok")]},
-        %Message{role: :user, content: [ContentPart.text("page two" <> @different_context)]}
+        %Message.User{content: [ContentPart.text("page one" <> @page_context)]},
+        %Message.Assistant{content: [ContentPart.text("ok")]},
+        %Message.User{content: [ContentPart.text("page two" <> @different_context)]}
       ]
 
       result = PageContextDedup.run(messages)
@@ -64,8 +64,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedupTest do
 
     test "preserves messages without page context" do
       messages = [
-        %Message{role: :user, content: [ContentPart.text("hello")]},
-        %Message{role: :assistant, content: [ContentPart.text("hi")]}
+        %Message.User{content: [ContentPart.text("hello")]},
+        %Message.Assistant{content: [ContentPart.text("hi")]}
       ]
 
       result = PageContextDedup.run(messages)
@@ -74,9 +74,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedupTest do
 
     test "drops empty text parts when stripping context-only content" do
       messages = [
-        %Message{role: :user, content: [ContentPart.text(@page_context)]},
-        %Message{role: :assistant, content: [ContentPart.text("ok")]},
-        %Message{role: :user, content: [ContentPart.text(@page_context)]}
+        %Message.User{content: [ContentPart.text(@page_context)]},
+        %Message.Assistant{content: [ContentPart.text("ok")]},
+        %Message.User{content: [ContentPart.text(@page_context)]}
       ]
 
       result = PageContextDedup.run(messages)
@@ -88,9 +88,9 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedupTest do
 
     test "never produces a message with empty content list" do
       messages = [
-        %Message{role: :user, content: [ContentPart.text(@page_context)]},
-        %Message{role: :assistant, content: [ContentPart.text("ok")]},
-        %Message{role: :user, content: [ContentPart.text(@page_context)]}
+        %Message.User{content: [ContentPart.text(@page_context)]},
+        %Message.Assistant{content: [ContentPart.text("ok")]},
+        %Message.User{content: [ContentPart.text(@page_context)]}
       ]
 
       result = PageContextDedup.run(messages)

@@ -61,7 +61,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
-  alias FrontmanServer.Image
+  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.Execution.LLMProvider
@@ -91,9 +91,11 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
+      |> MessageOptimizer.optimize(
+        model: client.model,
+        provider: Providers.model_provider_name(client.model)
+      )
       |> Enum.map(&to_reqllm_message/1)
-      |> MessageOptimizer.optimize()
-      |> strip_images_unless_supported(client.model)
 
     case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
@@ -275,47 +277,20 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       role: :assistant,
       content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_calls: to_reqllm_tool_calls(msg.tool_calls),
-      metadata: msg.metadata
+      metadata: msg.metadata,
+      reasoning_details: msg.reasoning_details
     }
   end
 
   defp to_reqllm_message(%Message.Tool{} = msg) do
     %ReqLLM.Message{
       role: :tool,
-      content: to_reqllm_tool_content(msg),
+      content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_call_id: msg.tool_call_id,
       name: msg.name,
       metadata: msg.metadata
     }
   end
-
-  defp to_reqllm_tool_content(%Message.Tool{name: name, content: content}) do
-    case image_tool_content(name, content) do
-      {:ok, parts} -> parts
-      :no_image -> Enum.map(content, &to_reqllm_content_part/1)
-    end
-  end
-
-  defp image_tool_content(tool_name, content) do
-    with json when is_binary(json) <- text_part(content),
-         {:ok, decoded} when is_map(decoded) <- Jason.decode(json),
-         {:ok, %{data: data, media_type: media_type}} <-
-           Image.decode_tool_image_for_llm(canonical_tool_name(tool_name), decoded) do
-      {:ok, [ReqLLM.Message.ContentPart.image(data, media_type)]}
-    else
-      _ -> :no_image
-    end
-  end
-
-  defp text_part(content) do
-    Enum.find_value(content, fn
-      %ContentPart{type: :text, text: text} when is_binary(text) -> text
-      _ -> nil
-    end)
-  end
-
-  defp canonical_tool_name(name) when is_binary(name), do: String.replace_prefix(name, "mcp_", "")
-  defp canonical_tool_name(name), do: name
 
   defp to_reqllm_content_part(%ContentPart{type: :text, text: text}) do
     ReqLLM.Message.ContentPart.text(text)
@@ -328,29 +303,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   defp to_reqllm_content_part(%ContentPart{type: :image_url, url: url}) do
     ReqLLM.Message.ContentPart.image_url(url)
   end
-
-  defp strip_images_unless_supported(messages, model) do
-    case ReqLLM.model(model) do
-      {:ok, %{modalities: %{input: input}}} when is_list(input) ->
-        if :image in input, do: messages, else: Enum.map(messages, &strip_message_images/1)
-
-      _ ->
-        messages
-    end
-  end
-
-  defp strip_message_images(%ReqLLM.Message{content: content} = message) do
-    %{message | content: Enum.map(content, &strip_image_part/1)}
-  end
-
-  defp strip_image_part(%ReqLLM.Message.ContentPart{type: type})
-       when type in [:image, :image_url] do
-    ReqLLM.Message.ContentPart.text(
-      "[Image omitted: selected model does not support image input]"
-    )
-  end
-
-  defp strip_image_part(part), do: part
 
   defp to_reqllm_tool_calls([]), do: nil
   defp to_reqllm_tool_calls(nil), do: nil

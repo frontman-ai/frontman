@@ -45,7 +45,9 @@ defmodule FrontmanServer.Tasks.Interaction do
   """
   def interaction_modules, do: @interaction_modules
 
-  alias ReqLLM.Message.ContentPart
+  alias SwarmAi.Message, as: SwarmMessage
+  alias SwarmAi.Message.ContentPart, as: SwarmContentPart
+  alias SwarmAi.ToolCall, as: SwarmToolCall
 
   defmodule FigmaNode do
     @moduledoc """
@@ -1121,10 +1123,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
-  Converts interactions to LLM message format.
+  Converts interactions to Swarm message format.
 
   This is the boundary translation from Tasks domain (Interactions)
-  to Agents domain (LLM messages). Conversation messages include
+  to Agents domain (Swarm messages). Conversation messages include
   UserMessage, AgentResponse, and ToolResult.
   ToolCall interactions are excluded as they're embedded in AgentResponse metadata.
 
@@ -1132,12 +1134,11 @@ defmodule FrontmanServer.Tasks.Interaction do
   which guarantees correct conversation structure (assistant messages before their
   tool results) regardless of database insertion timing.
   """
-  @spec to_llm_messages(list(t())) :: list(map())
-  def to_llm_messages(interactions) do
+  @spec to_swarm_messages(list(t())) :: list(SwarmMessage.t())
+  def to_swarm_messages(interactions) do
     interactions
     |> Enum.filter(&conversation_message?/1)
-    |> Enum.map(&to_llm_message/1)
-    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&to_swarm_message/1)
   end
 
   defp conversation_message?(%UserMessage{}), do: true
@@ -1237,7 +1238,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  defp to_llm_message(%UserMessage{} = msg) do
+  defp to_swarm_message(%UserMessage{} = msg) do
     text_content =
       msg.messages
       |> Enum.join("\n\n")
@@ -1247,34 +1248,123 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     content_parts =
       text_content
-      |> build_text_parts()
-      |> append_annotation_screenshots(msg.annotations)
-      |> append_user_images(msg.images)
+      |> build_swarm_text_parts()
+      |> append_swarm_annotation_screenshots(msg.annotations)
+      |> append_swarm_user_images(msg.images)
 
-    build_user_message(content_parts)
+    build_swarm_user_message(content_parts)
   end
 
-  defp to_llm_message(%AgentResponse{content: content, metadata: metadata}) do
+  defp to_swarm_message(%AgentResponse{content: content, metadata: metadata}) do
     meta = metadata || %{}
-    # Handle both atom and string keys (DB stores string keys, but in-memory uses atoms)
-    raw_tool_calls = get_flexible(meta, :tool_calls)
-    # Convert stored tool_calls (maps with string keys) to ReqLLM.ToolCall structs
-    tool_calls = normalize_tool_calls(raw_tool_calls)
 
-    build_assistant_message(content, tool_calls, meta)
+    %SwarmMessage.Assistant{
+      content: [SwarmContentPart.text(content)],
+      tool_calls: meta |> get_flexible(:tool_calls) |> normalize_swarm_tool_calls(),
+      metadata: build_response_metadata_for_message(meta),
+      reasoning_details: filter_encrypted_reasoning(get_flexible(meta, :reasoning_details))
+    }
   end
 
-  defp to_llm_message(%ToolCall{}) do
-    # Tool calls are embedded in AgentResponse metadata, skip standalone
-    nil
-  end
-
-  defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
+  defp to_swarm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
     json_result = if is_binary(result), do: result, else: Jason.encode!(result)
-    ReqLLM.Context.tool_result_message(name, id, json_result)
+
+    %SwarmMessage.Tool{
+      content: [SwarmContentPart.text(json_result)],
+      tool_call_id: id,
+      name: name,
+      metadata: %{}
+    }
   end
 
-  # Helper functions for to_llm_message(%UserMessage{})
+  defp build_swarm_text_parts(""), do: []
+  defp build_swarm_text_parts(text), do: [SwarmContentPart.text(text)]
+
+  defp append_swarm_annotation_screenshots(parts, []), do: parts
+
+  defp append_swarm_annotation_screenshots(parts, annotations) when is_list(annotations) do
+    screenshot_parts =
+      annotations
+      |> Enum.filter(&(&1.screenshot != nil))
+      |> Enum.flat_map(fn ann ->
+        %{blob: base64_data, mime_type: mime_type} = ann.screenshot
+
+        case Base.decode64(base64_data) do
+          {:ok, decoded_data} -> [SwarmContentPart.image(decoded_data, mime_type)]
+          :error -> []
+        end
+      end)
+
+    parts ++ screenshot_parts
+  end
+
+  defp append_swarm_user_images(parts, []), do: parts
+
+  defp append_swarm_user_images(parts, images) when is_list(images) do
+    {image_attachments, pdf_attachments} =
+      Enum.split_with(images, fn %{mime_type: mime_type} ->
+        String.starts_with?(mime_type, "image/")
+      end)
+
+    image_parts =
+      image_attachments
+      |> Enum.map(fn %{blob: base64_data, mime_type: mime_type} ->
+        case Base.decode64(base64_data) do
+          {:ok, decoded_data} -> SwarmContentPart.image(decoded_data, mime_type)
+          :error -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    pdf_parts =
+      Enum.map(pdf_attachments, fn %{filename: filename} ->
+        SwarmContentPart.text("[Attached PDF: #{filename}]")
+      end)
+
+    parts ++ image_parts ++ pdf_parts
+  end
+
+  defp build_swarm_user_message([]), do: SwarmMessage.user("")
+  defp build_swarm_user_message(parts), do: %SwarmMessage.User{content: parts}
+
+  defp normalize_swarm_tool_calls(nil), do: []
+  defp normalize_swarm_tool_calls([]), do: []
+
+  defp normalize_swarm_tool_calls(tool_calls) when is_list(tool_calls) do
+    Enum.map(tool_calls, &normalize_swarm_tool_call/1)
+  end
+
+  defp normalize_swarm_tool_call(%SwarmToolCall{} = tc), do: tc
+
+  defp normalize_swarm_tool_call(%ReqLLM.ToolCall{} = tc) do
+    new_swarm_tool_call(tc.id, ReqLLM.ToolCall.name(tc), ReqLLM.ToolCall.args_json(tc))
+  end
+
+  defp normalize_swarm_tool_call(%{
+         "id" => id,
+         "function" => %{"name" => name, "arguments" => args}
+       }) do
+    new_swarm_tool_call(id, name, args)
+  end
+
+  defp normalize_swarm_tool_call(%{id: id, function: %{name: name, arguments: args}}) do
+    new_swarm_tool_call(id, name, args)
+  end
+
+  defp normalize_swarm_tool_call(%{"id" => id, "name" => name, "arguments" => args}) do
+    new_swarm_tool_call(id, name, args)
+  end
+
+  defp normalize_swarm_tool_call(%{id: id, name: name, arguments: args}) do
+    new_swarm_tool_call(id, name, args)
+  end
+
+  defp new_swarm_tool_call(id, name, arguments) do
+    %SwarmToolCall{id: id, name: name, arguments: tool_arguments_json(arguments)}
+  end
+
+  defp tool_arguments_json(arguments) when is_binary(arguments), do: arguments
+  defp tool_arguments_json(arguments), do: Jason.encode!(arguments)
 
   # Append annotation location info to user message text
   defp append_annotations(text, []), do: text
@@ -1447,79 +1537,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp build_scroll_context(_), do: ""
 
-  defp build_text_parts(""), do: []
-  defp build_text_parts(text), do: [ContentPart.text(text)]
-
-  # Append annotation screenshots as image content parts
-  defp append_annotation_screenshots(parts, []), do: parts
-
-  defp append_annotation_screenshots(parts, annotations) when is_list(annotations) do
-    screenshot_parts =
-      annotations
-      |> Enum.filter(&(&1.screenshot != nil))
-      |> Enum.flat_map(fn ann ->
-        %{blob: base64_data, mime_type: mime_type} = ann.screenshot
-
-        case Base.decode64(base64_data) do
-          {:ok, decoded_data} -> [ContentPart.image(decoded_data, mime_type)]
-          :error -> []
-        end
-      end)
-
-    parts ++ screenshot_parts
-  end
-
-  # Append user-uploaded images to content parts
-  # PDFs are converted to text mentions since LLM APIs only support image/* content types
-  defp append_user_images(parts, []), do: parts
-
-  defp append_user_images(parts, images) when is_list(images) do
-    {image_attachments, pdf_attachments} =
-      Enum.split_with(images, fn %{mime_type: mime_type} ->
-        String.starts_with?(mime_type, "image/")
-      end)
-
-    image_parts =
-      image_attachments
-      |> Enum.map(fn %{blob: base64_data, mime_type: mime_type} ->
-        case Base.decode64(base64_data) do
-          {:ok, decoded_data} -> ContentPart.image(decoded_data, mime_type)
-          :error -> nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    pdf_parts =
-      Enum.map(pdf_attachments, fn %{filename: filename} ->
-        ContentPart.text("[Attached PDF: #{filename}]")
-      end)
-
-    parts ++ image_parts ++ pdf_parts
-  end
-
-  defp build_user_message([]), do: ReqLLM.Context.user("")
-  defp build_user_message([%{type: :text, text: text}]), do: ReqLLM.Context.user(text)
-  defp build_user_message(parts), do: %ReqLLM.Message{role: :user, content: parts}
-
-  # Helper functions for to_llm_message(%AgentResponse{})
-
-  defp build_assistant_message(content, tool_calls, meta) do
-    encrypted_reasoning = filter_encrypted_reasoning(get_flexible(meta, :reasoning_details))
-    response_metadata = build_response_metadata_for_message(meta)
-
-    if tool_calls in [nil, []] and response_metadata == %{} and is_nil(encrypted_reasoning) do
-      ReqLLM.Context.assistant(content)
-    else
-      %ReqLLM.Message{
-        role: :assistant,
-        content: [ContentPart.text(content)],
-        tool_calls: tool_calls,
-        metadata: response_metadata,
-        reasoning_details: encrypted_reasoning
-      }
-    end
-  end
-
   defp build_response_metadata_for_message(meta) do
     response_id = get_flexible(meta, :response_id)
     phase = get_flexible(meta, :phase)
@@ -1570,37 +1587,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   # Alias for get_field, used for metadata access to make intent clear
   defp get_flexible(map, key), do: get_field(map, key)
-
-  # Convert stored tool_calls (maps with string keys in OpenAI wire format) to ReqLLM.ToolCall structs
-  defp normalize_tool_calls(nil), do: nil
-  defp normalize_tool_calls([]), do: []
-
-  defp normalize_tool_calls(tool_calls) when is_list(tool_calls) do
-    Enum.map(tool_calls, &normalize_tool_call/1)
-  end
-
-  # Already a struct, pass through
-  defp normalize_tool_call(%ReqLLM.ToolCall{} = tc), do: tc
-
-  # OpenAI wire format with string keys (from DB JSON)
-  defp normalize_tool_call(%{"id" => id, "function" => %{"name" => name, "arguments" => args}}) do
-    ReqLLM.ToolCall.new(id, name, args)
-  end
-
-  # OpenAI wire format with atom keys (fresh from response)
-  defp normalize_tool_call(%{id: id, function: %{name: name, arguments: args}}) do
-    ReqLLM.ToolCall.new(id, name, args)
-  end
-
-  # Flat format with string keys
-  defp normalize_tool_call(%{"id" => id, "name" => name, "arguments" => args}) do
-    ReqLLM.ToolCall.new(id, name, args)
-  end
-
-  # Flat format with atom keys
-  defp normalize_tool_call(%{id: id, name: name, arguments: args}) do
-    ReqLLM.ToolCall.new(id, name, args)
-  end
 
   @doc """
   Checks if any user messages in the interactions contain annotations.

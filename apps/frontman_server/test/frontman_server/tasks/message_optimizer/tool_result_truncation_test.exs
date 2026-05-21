@@ -2,8 +2,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncation
-  alias ReqLLM.Message
-  alias ReqLLM.Message.ContentPart
+  alias SwarmAi.Message
+  alias SwarmAi.Message.ContentPart
 
   @max_bytes 100
 
@@ -12,8 +12,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
       large_text = String.duplicate("a", 200)
 
       messages = [
-        %Message{
-          role: :tool,
+        %Message.Tool{
+          name: "read_file",
           tool_call_id: "tc1",
           content: [ContentPart.text(large_text)]
         }
@@ -31,8 +31,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
       short_text = String.duplicate("a", 50)
 
       messages = [
-        %Message{
-          role: :tool,
+        %Message.Tool{
+          name: "read_file",
           tool_call_id: "tc1",
           content: [ContentPart.text(short_text)]
         }
@@ -46,8 +46,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
       large_text = String.duplicate("a", 200)
 
       messages = [
-        %Message{role: :user, content: [ContentPart.text(large_text)]},
-        %Message{role: :assistant, content: [ContentPart.text(large_text)]}
+        %Message.User{content: [ContentPart.text(large_text)]},
+        %Message.Assistant{content: [ContentPart.text(large_text)]}
       ]
 
       result = ToolResultTruncation.run(messages, tool_result_max_bytes: @max_bytes)
@@ -62,8 +62,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
       small_text = String.duplicate("s", 10)
 
       messages = [
-        %Message{
-          role: :tool,
+        %Message.Tool{
+          name: "read_file",
           tool_call_id: "tc1",
           content: [ContentPart.text(large_text), ContentPart.text(small_text)]
         }
@@ -88,8 +88,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
       boundary_text = String.duplicate("a", 98) <> "🐞" <> String.duplicate("b", 100)
 
       messages = [
-        %Message{
-          role: :tool,
+        %Message.Tool{
+          name: "read_file",
           tool_call_id: "tc_utf8",
           content: [ContentPart.text(boundary_text)]
         }
@@ -110,8 +110,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
       large_text = String.duplicate("x", 200)
 
       messages = [
-        %Message{
-          role: :tool,
+        %Message.Tool{
+          name: "read_file",
           tool_call_id: "tc1",
           content: [ContentPart.text(large_text)]
         }
@@ -122,7 +122,7 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.ToolResultTruncationTest do
 
       assert text =~ "200 bytes total"
       assert text =~ "showing first #{@max_bytes}"
-      assert text =~ "get_interaction for tc1"
+      assert text =~ "get_tool_result with tool_call_id tc1"
     end
   end
 end

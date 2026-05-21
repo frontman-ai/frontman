@@ -14,8 +14,8 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedup do
   The first occurrence is always kept.
   """
 
-  alias ReqLLM.Message
-  alias ReqLLM.Message.ContentPart
+  alias SwarmAi.Message
+  alias SwarmAi.Message.ContentPart
 
   @context_pattern ~r/\n\[Current Page Context\]\n.+\z/s
 
@@ -23,18 +23,20 @@ defmodule FrontmanServer.Tasks.MessageOptimizer.PageContextDedup do
   def run(messages, _opts \\ []) do
     {reversed, _prev} =
       Enum.reduce(messages, {[], nil}, fn msg, {acc, prev_context} ->
-        if msg.role == :user do
-          {new_msg, current_context} = dedup_context(msg, prev_context)
-          {[new_msg | acc], current_context}
-        else
-          {[msg | acc], prev_context}
+        case msg do
+          %Message.User{} ->
+            {new_msg, current_context} = dedup_context(msg, prev_context)
+            {[new_msg | acc], current_context}
+
+          _ ->
+            {[msg | acc], prev_context}
         end
       end)
 
     Enum.reverse(reversed)
   end
 
-  defp dedup_context(%Message{content: content} = msg, prev_context)
+  defp dedup_context(%Message.User{content: content} = msg, prev_context)
        when is_list(content) do
     {reversed_content, current_context} =
       Enum.reduce(content, {[], prev_context}, fn part, {parts, prev} ->
