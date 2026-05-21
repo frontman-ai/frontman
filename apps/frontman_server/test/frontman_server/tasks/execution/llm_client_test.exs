@@ -138,6 +138,32 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
       assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
     end
+
+    test "converts web_fetch image JSON into image parts" do
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert message.role == :tool
+        assert Enum.map(message.content, & &1.type) == [:image]
+        {:ok, stream_response([])}
+      end)
+
+      data_url = "data:image/jpeg;base64,#{Base.encode64("image-bytes")}"
+
+      client =
+        LLMClient.new(
+          model: "nvidia:moonshotai/kimi-k2.6",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.Tool{
+          name: "web_fetch",
+          tool_call_id: "tc_web_fetch",
+          content: [ContentPart.text(Jason.encode!(%{"image" => data_url}))]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
   end
 
   describe "ping keepalive filtering (issue #731)" do

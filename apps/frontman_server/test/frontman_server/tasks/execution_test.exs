@@ -249,7 +249,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   describe "web_fetch image results" do
     setup [:setup_sandbox, :setup_user, :setup_task]
 
-    test "fetched image URL is persisted and converts back to LLM image content",
+    test "fetched image URL is persisted as JSON tool content for provider conversion",
          %{
            task_id: task_id,
            scope: scope
@@ -308,9 +308,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert tool_message != nil
 
-      assert [
-               %{type: :image, data: ^image_bytes, media_type: "image/jpeg"}
-             ] = tool_message.content
+      assert [%{type: :text, text: text}] = tool_message.content
+
+      assert Jason.decode!(text)["image"] ==
+               "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
     end
   end
 

@@ -300,7 +300,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     with json when is_binary(json) <- text_part(content),
          {:ok, decoded} when is_map(decoded) <- Jason.decode(json),
          {:ok, %{data: data, media_type: media_type}} <-
-           Image.decode_tool_image_for_llm(tool_name, decoded) do
+           Image.decode_tool_image_for_llm(canonical_tool_name(tool_name), decoded) do
       {:ok, [ReqLLM.Message.ContentPart.image(data, media_type)]}
     else
       _ -> :no_image
@@ -313,6 +313,9 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       _ -> nil
     end)
   end
+
+  defp canonical_tool_name(name) when is_binary(name), do: String.replace_prefix(name, "mcp_", "")
+  defp canonical_tool_name(name), do: name
 
   defp to_reqllm_content_part(%ContentPart{type: :text, text: text}) do
     ReqLLM.Message.ContentPart.text(text)
