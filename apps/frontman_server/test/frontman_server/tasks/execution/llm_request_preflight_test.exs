@@ -22,35 +22,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
 
   @tool_result_max_bytes 100
 
-  describe "find_old_boundary/1" do
-    test "returns index after last assistant message" do
-      messages = [
-        %Message.User{content: []},
-        %Message.Assistant{content: []},
-        %Message.User{content: []}
-      ]
-
-      assert LLMRequestPreflight.find_old_boundary(messages) == 2
-    end
-
-    test "returns 0 when no assistant messages" do
-      messages = [%Message.User{content: []}]
-      assert LLMRequestPreflight.find_old_boundary(messages) == 0
-    end
-
-    test "handles multiple assistant messages" do
-      messages = [
-        %Message.User{content: []},
-        %Message.Assistant{content: []},
-        %Message.Tool{name: "read_file", content: [], tool_call_id: "tc1"},
-        %Message.Assistant{content: []},
-        %Message.User{content: []}
-      ]
-
-      assert LLMRequestPreflight.find_old_boundary(messages) == 4
-    end
-  end
-
   describe "run/2" do
     test "full pipeline: decays old images, compacts old tool results, dedupes context" do
       tool_json =
@@ -115,6 +86,21 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
 
     test "handles empty message list" do
       assert LLMRequestPreflight.run([]) == []
+    end
+
+    test "treats all messages as live before the first assistant response" do
+      messages = [
+        %Message.User{
+          content: [
+            ContentPart.text("inspect this"),
+            ContentPart.image("live-image", "image/png")
+          ]
+        }
+      ]
+
+      [result] = LLMRequestPreflight.run(messages)
+
+      assert Enum.any?(result.content, &(&1.type == :image and &1.data == "live-image"))
     end
 
     test "expands image-producing tool result JSON into image content" do

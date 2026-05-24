@@ -40,29 +40,22 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   """
   @spec run([Message.t()], opts()) :: [Message.t()]
   def run(messages, opts \\ []) do
-    old_boundary = find_old_boundary(messages)
+    live_start_index = live_message_start_index(messages)
 
     messages
-    |> compact_old_tool_results(old_boundary)
+    |> compact_old_tool_results(live_start_index)
     |> expand_tool_result_images()
-    |> decay_old_images(old_boundary)
+    |> decay_old_images(live_start_index)
     |> strip_unsupported_images(opts)
     |> constrain_image_dimensions(opts)
     |> truncate_tool_results(opts)
     |> dedup_page_context()
   end
 
-  @doc """
-  Find the boundary between old and live messages.
-
-  Returns the index *after* the last assistant message. Everything
-  before that index is old (already processed). Everything from that
-  index onward is live (current turn).
-
-  Returns 0 when there are no assistant messages (all messages are live).
-  """
-  @spec find_old_boundary([Message.t()]) :: non_neg_integer()
-  def find_old_boundary(messages) do
+  # Index after the last assistant message. Earlier messages have already been
+  # processed by the model; later messages still belong to the live turn.
+  @spec live_message_start_index([Message.t()]) :: non_neg_integer()
+  defp live_message_start_index(messages) do
     messages
     |> Enum.with_index()
     |> Enum.reduce(0, fn {msg, idx}, acc ->
@@ -70,18 +63,18 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
     end)
   end
 
-  defp compact_old_tool_results(messages, old_boundary) do
+  defp compact_old_tool_results(messages, live_start_index) do
     messages
     |> Enum.with_index()
-    |> Enum.map(&compact_old_tool_result(&1, old_boundary))
+    |> Enum.map(&compact_old_tool_result(&1, live_start_index))
   end
 
-  defp compact_old_tool_result({%Message.Tool{} = msg, idx}, old_boundary)
-       when idx < old_boundary do
+  defp compact_old_tool_result({%Message.Tool{} = msg, idx}, live_start_index)
+       when idx < live_start_index do
     compact_tool_result(msg)
   end
 
-  defp compact_old_tool_result({msg, _idx}, _old_boundary), do: msg
+  defp compact_old_tool_result({msg, _idx}, _live_start_index), do: msg
 
   defp compact_tool_result(%Message.Tool{tool_call_id: id} = msg) when is_binary(id) do
     %{msg | content: [ContentPart.text(tool_result_placeholder(id))]}
@@ -147,17 +140,17 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   defp canonical_tool_name(name) when is_binary(name), do: String.replace_prefix(name, "mcp_", "")
   defp canonical_tool_name(name), do: name
 
-  defp decay_old_images(messages, old_boundary) do
+  defp decay_old_images(messages, live_start_index) do
     messages
     |> Enum.with_index()
-    |> Enum.map(&decay_old_image(&1, old_boundary))
+    |> Enum.map(&decay_old_image(&1, live_start_index))
   end
 
-  defp decay_old_image({msg, idx}, old_boundary) when idx < old_boundary do
+  defp decay_old_image({msg, idx}, live_start_index) when idx < live_start_index do
     decay_images(msg)
   end
 
-  defp decay_old_image({msg, _idx}, _old_boundary), do: msg
+  defp decay_old_image({msg, _idx}, _live_start_index), do: msg
 
   defp decay_images(%Message.Tool{} = msg), do: msg
 
