@@ -138,6 +138,26 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                scroll_y: 120
              }
     end
+
+    test "ignores resource url meta without current page marker" do
+      msg =
+        UserMessage.new([
+          text_block("Hello"),
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{"url" => "https://example.com/not-page-context"},
+              "resource" => %{
+                "uri" => "custom://resource",
+                "mimeType" => "text/plain",
+                "text" => "Resource with URL metadata"
+              }
+            }
+          }
+        ])
+
+      assert msg.current_page == nil
+    end
   end
 
   # ---------------------------------------------------------------------------

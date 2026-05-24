@@ -257,6 +257,15 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def from_map(_), do: nil
+
+    @spec from_acp_meta(map() | nil) :: t() | nil
+    def from_acp_meta(nil), do: nil
+
+    def from_acp_meta(meta) when is_map(meta) do
+      if CurrentPageContext.current_page_in_meta?(meta), do: from_map(meta), else: nil
+    end
+
+    def from_acp_meta(_), do: nil
   end
 
   defmodule Annotation do
@@ -522,7 +531,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp extract_current_page(content_blocks) do
       Enum.find_value(content_blocks, fn
         %{"type" => "resource", "resource" => %{"_meta" => meta}} ->
-          if CurrentPageContext.marked?(meta), do: CurrentPage.from_map(meta), else: nil
+          CurrentPage.from_acp_meta(meta)
 
         _ ->
           nil

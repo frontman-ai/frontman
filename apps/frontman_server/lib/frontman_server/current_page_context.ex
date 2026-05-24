@@ -32,11 +32,11 @@ defmodule FrontmanServer.CurrentPageContext do
   @spec unchanged_placeholder() :: String.t()
   def unchanged_placeholder, do: @unchanged_placeholder
 
-  @doc "Checks whether an ACP metadata map marks current-page context."
-  @spec marked?(term()) :: boolean()
-  def marked?(%{@marker_key => true}), do: true
-  def marked?(%{current_page: true}), do: true
-  def marked?(_), do: false
+  @doc "Returns true when ACP metadata contains current-page context."
+  @spec current_page_in_meta?(term()) :: boolean()
+  def current_page_in_meta?(%{@marker_key => true}), do: true
+  def current_page_in_meta?(%{current_page: true}), do: true
+  def current_page_in_meta?(_), do: false
 
   @doc "Extracts normalized fields from ACP/DB metadata."
   @spec fields_from_meta(map() | nil) :: map() | nil
