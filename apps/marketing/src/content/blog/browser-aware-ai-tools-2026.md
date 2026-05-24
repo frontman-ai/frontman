@@ -1,5 +1,5 @@
 ---
-title: 'Browser-Aware AI Coding Tools in 2026 — Compared by Architecture'
+title: 'Browser-Aware AI Coding Tools Compared'
 pubDate: 2026-02-23T06:00:00Z
 description: "Frontman, Stagewise, Tidewave, Chrome DevTools MCP, and Onlook: how each one connects to your running app, what they can and can't see, and who each is for."
 author: 'Danni Friedland'

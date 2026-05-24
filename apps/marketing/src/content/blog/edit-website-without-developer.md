@@ -1,5 +1,5 @@
 ---
-title: 'How PMs Can Edit Production Websites Without Waiting on Devs'
+title: 'How PMs Can Ship Website Edits'
 pubDate: 2026-04-17T05:00:00Z
 description: 'Frontman lets PMs click any element in the running application, describe the change, and open a pull request without touching a code editor or filing a ticket.'
 author: 'Danni Friedland'

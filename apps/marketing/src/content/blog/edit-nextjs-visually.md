@@ -1,5 +1,5 @@
 ---
-title: 'How to Edit Any Next.js Component in Your Browser'
+title: 'Edit Next.js Components in Your Browser'
 pubDate: 2026-04-14T05:00:00Z
 description: 'Frontman connects to your running Next.js app and lets you click any element to edit the source. No file hunting, no class name guessing — just click and describe.'
 author: 'Danni Friedland'

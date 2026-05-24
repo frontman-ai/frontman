@@ -1,5 +1,5 @@
 ---
-title: 'Best Open-Source AI Coding Tools in 2026 — 12 Tools Tested and Compared'
+title: 'Best Open-Source AI Coding Tools in 2026'
 pubDate: 2026-03-03T10:00:00Z
 description: 'CLI agents, IDE extensions, browser tools, and BYOK options — we tested 12 open-source AI coding tools and ranked them with honest tradeoffs. Updated April 2026.'
 author: 'Danni Friedland'

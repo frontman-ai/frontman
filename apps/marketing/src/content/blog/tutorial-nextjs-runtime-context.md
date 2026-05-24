@@ -1,5 +1,5 @@
 ---
-title: 'Add Runtime Context to Your AI Workflow (Next.js)'
+title: 'Add Runtime Context to AI Coding in Next.js'
 pubDate: 2026-02-23T07:00:00Z
 description: 'Step-by-step: install Frontman in a Next.js project, connect your AI key, and fix a CSS layout bug by clicking the broken element instead of describing it.'
 author: 'Danni Friedland'

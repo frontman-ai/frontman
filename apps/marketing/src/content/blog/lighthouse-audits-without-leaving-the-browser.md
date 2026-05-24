@@ -1,5 +1,5 @@
 ---
-title: 'Lighthouse Audits Without Leaving the Browser'
+title: 'Run Lighthouse Audits Inside Frontman'
 pubDate: 2026-02-21T05:00:00Z
 description: 'Frontman now runs Google Lighthouse audits as a built-in tool. Your agent sees the scores, reads the issues, and fixes them — all inside the browser you are already working in.'
 author: 'Danni Friedland'

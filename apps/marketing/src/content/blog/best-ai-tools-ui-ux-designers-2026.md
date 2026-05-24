@@ -1,5 +1,5 @@
 ---
-title: 'Best AI Tools for UI/UX Designers 2026: What Works, What Doesn''t, and What''s Missing'
+title: 'Best AI Tools for UI/UX Designers in 2026'
 pubDate: 2026-04-15T10:00:00Z
 description: 'Honest comparison of the best AI tools for UI/UX designers in 2026. What works, what''s overhyped, and what lets you ship without waiting on devs.'
 author: 'Danni Friedland'

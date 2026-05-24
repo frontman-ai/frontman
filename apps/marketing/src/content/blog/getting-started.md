@@ -1,5 +1,5 @@
 ---
-title: 'Frontman Quickstart: Change a Button Color in 5 Minutes'
+title: 'Frontman Quickstart: First UI Edit'
 pubDate: 2026-02-15T05:00:00Z
 description: 'Install Frontman, connect an AI provider, and make your first live UI edit — all in under five minutes. This tutorial walks through one complete change from install to diff.'
 author: 'Danni Friedland'

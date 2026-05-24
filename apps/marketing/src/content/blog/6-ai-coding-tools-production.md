@@ -1,5 +1,5 @@
 ---
-title: 'AI Coding Tools That Work on Existing Codebases (2026)'
+title: 'AI Coding Tools for Existing Codebases'
 pubDate: 2026-03-23T05:00:00Z
 description: 'Most AI coding tools are built for greenfield. Six that actually work on production codebases — including one that runs in the browser for visual work.'
 author: 'Danni Friedland'

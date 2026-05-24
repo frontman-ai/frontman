@@ -1,5 +1,5 @@
 ---
-title: 'Team Collaboration for Design Systems Without the Engineering Bottleneck'
+title: 'Design System Collaboration Without Tickets'
 pubDate: 2026-02-16T05:00:00Z
 description: 'You built the system. You maintain it across teams. But every token tweak still routes through a developer. Frontman changes that.'
 author: 'Danni Friedland'
