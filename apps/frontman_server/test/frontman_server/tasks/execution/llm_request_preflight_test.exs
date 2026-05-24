@@ -113,22 +113,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert Enum.any?(Enum.at(result, 4).content, &(&1.type == :image))
     end
 
-    test "pass-through when disabled" do
-      Application.put_env(:frontman_server, LLMRequestPreflight, enabled: false)
-
-      messages = [
-        %Message.User{
-          content: [ContentPart.image("big_data", "image/png")]
-        },
-        %Message.Assistant{content: [ContentPart.text("ok")]}
-      ]
-
-      result = LLMRequestPreflight.run(messages)
-      assert result == messages
-    after
-      Application.delete_env(:frontman_server, LLMRequestPreflight)
-    end
-
     test "handles empty message list" do
       assert LLMRequestPreflight.run([]) == []
     end

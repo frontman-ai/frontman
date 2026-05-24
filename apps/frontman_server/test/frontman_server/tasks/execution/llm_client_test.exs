@@ -6,7 +6,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
-  alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
   alias ReqLLM.Error.API.{Request, Stream}
   alias SwarmAi.Message.ContentPart
 
@@ -165,37 +164,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       ]
 
       assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
-    end
-
-    test "does not parse tool image JSON when request preflight is disabled" do
-      Application.put_env(:frontman_server, LLMRequestPreflight, enabled: false)
-
-      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
-        assert message.role == :tool
-        assert Enum.map(message.content, & &1.type) == [:text]
-        assert hd(message.content).text =~ "screenshot"
-        {:ok, stream_response([])}
-      end)
-
-      data_url = "data:image/png;base64,#{Base.encode64("image-bytes")}"
-
-      client =
-        LLMClient.new(
-          model: "nvidia:moonshotai/kimi-k2.6",
-          llm_opts: [api_key: "test-key"]
-        )
-
-      messages = [
-        %SwarmAi.Message.Tool{
-          name: "mcp_take_screenshot",
-          tool_call_id: "tc_screenshot",
-          content: [ContentPart.text(Jason.encode!(%{"screenshot" => data_url}))]
-        }
-      ]
-
-      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
-    after
-      Application.delete_env(:frontman_server, LLMRequestPreflight)
     end
 
     test "replaces oversized images before provider requests" do

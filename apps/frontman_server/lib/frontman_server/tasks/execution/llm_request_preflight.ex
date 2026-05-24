@@ -36,25 +36,20 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   @doc """
   Run the full request preflight pipeline over a list of messages.
 
-  Returns the preflighted message list. When disabled via config, acts as a
-  pass-through.
+  Returns the preflighted message list.
   """
   @spec run([Message.t()], opts()) :: [Message.t()]
   def run(messages, opts \\ []) do
-    if enabled?() do
-      old_boundary = find_old_boundary(messages)
+    old_boundary = find_old_boundary(messages)
 
-      messages
-      |> compact_old_tool_results(old_boundary)
-      |> expand_tool_result_images()
-      |> decay_old_images(old_boundary)
-      |> strip_unsupported_images(opts)
-      |> constrain_image_dimensions(opts)
-      |> truncate_tool_results(opts)
-      |> dedup_page_context()
-    else
-      messages
-    end
+    messages
+    |> compact_old_tool_results(old_boundary)
+    |> expand_tool_result_images()
+    |> decay_old_images(old_boundary)
+    |> strip_unsupported_images(opts)
+    |> constrain_image_dimensions(opts)
+    |> truncate_tool_results(opts)
+    |> dedup_page_context()
   end
 
   @doc """
@@ -73,11 +68,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
     |> Enum.reduce(0, fn {msg, idx}, acc ->
       if match?(%Message.Assistant{}, msg), do: idx + 1, else: acc
     end)
-  end
-
-  defp enabled? do
-    Application.get_env(:frontman_server, __MODULE__, [])
-    |> Keyword.get(:enabled, true)
   end
 
   defp compact_old_tool_results(messages, old_boundary) do
