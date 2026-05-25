@@ -53,7 +53,7 @@ let _contentWithTargetAt = (totalLines, targetIdx, targetText) => {
 
 let _lines = n => Array.make(~length=n, "line")->Array.join("\n")
 
-beforeEach(_t => {
+beforeEach(() => {
   FileTracker.clear()
 })
 

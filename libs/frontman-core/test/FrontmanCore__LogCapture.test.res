@@ -77,7 +77,7 @@ describe("LogCapture", _t => {
 
   describe("Build-level tagging via console", _t => {
     beforeAll(
-      _t => {
+      () => {
         let state = LogCapture.getOrCreateInstance(~config=LogCapture.defaultConfig)
         LogCapture.interceptConsole(state)
         LogCapture.interceptStdout(state)

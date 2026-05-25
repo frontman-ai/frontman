@@ -3,7 +3,7 @@ open Vitest
 let _setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let _clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
 
-afterEach(_t => {
+afterEach(() => {
   _clearRuntime()
 })
 
