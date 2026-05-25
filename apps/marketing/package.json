@@ -32,7 +32,7 @@
     "prettier-plugin-tailwindcss": "^0.6.4",
     "satori": "^0.26.0",
     "sharp": "^0.34.0",
-    "tailwindcss": "^4.2.2",
+    "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3"
   },
   "devDependencies": {
