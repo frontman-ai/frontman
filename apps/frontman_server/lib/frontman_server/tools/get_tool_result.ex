@@ -64,15 +64,9 @@ defmodule FrontmanServer.Tools.GetToolResult do
   end
 
   defp find_tool_result(interactions, tool_call_id) do
-    case Enum.find(interactions, &matches_tool_call_id?(&1, tool_call_id)) do
-      nil -> {:error, "Tool result not found: #{tool_call_id}"}
-      %InteractionToolResult{result: result} -> {:ok, result}
-    end
+    Enum.find_value(interactions, {:error, "Tool result not found: #{tool_call_id}"}, fn
+      %InteractionToolResult{tool_call_id: ^tool_call_id, result: result} -> {:ok, result}
+      _interaction -> false
+    end)
   end
-
-  defp matches_tool_call_id?(%InteractionToolResult{tool_call_id: tool_call_id}, id) do
-    tool_call_id == id
-  end
-
-  defp matches_tool_call_id?(_interaction, _id), do: false
 end
