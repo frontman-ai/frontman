@@ -9,6 +9,7 @@ on:
       - "adapters/**"
       - "apps/frontman_server/lib/**"
       - "apps/frontman_server/config/**"
+      - "apps/frontman_server/mix.*"
       - ".github/workflows/e2e.yml"
   workflow_dispatch:
     inputs:

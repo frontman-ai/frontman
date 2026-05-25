@@ -406,33 +406,21 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   # content parts. This mirrors the same extraction logic in Interaction.to_llm_message.
 
   defp maybe_enrich_with_images(tool_name, {:ok, content} = result) when is_binary(content) do
-    case Image.image_tool_config(tool_name) do
-      nil ->
-        result
-
-      {image_field, _text_fields} ->
-        case extract_image_content(content, image_field) do
-          {:ok, content_parts} -> {:ok, content_parts}
-          :no_image -> result
-        end
+    case extract_image_content(tool_name, content) do
+      {:ok, content_parts} -> {:ok, content_parts}
+      :no_image -> result
     end
   end
 
   defp maybe_enrich_with_images(_tool_name, result), do: result
 
-  defp extract_image_content(json_string, image_field) do
-    field_name = Atom.to_string(image_field)
-
+  defp extract_image_content(tool_name, json_string) do
     with {:ok, decoded} when is_map(decoded) <- Jason.decode(json_string),
-         data_url when is_binary(data_url) <- Map.get(decoded, field_name),
-         {:ok, binary, mime} <- Image.decode_data_url(data_url) do
-      {:ok, [ContentPart.image(binary, mime)]}
+         {:ok, %{data: data, media_type: media_type}} <-
+           Image.decode_tool_image_for_llm(tool_name, decoded) do
+      {:ok, [ContentPart.image(data, media_type)]}
     else
-      {:error, _json_error} -> :no_image
-      {:ok, _not_a_map} -> :no_image
-      nil -> :no_image
-      # Image field present but not a string (e.g. integer, list).
-      _non_string_field -> :no_image
+      _ -> :no_image
     end
   end
 end

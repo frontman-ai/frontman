@@ -55,7 +55,11 @@ class Frontman_Tool_Elementor {
 						'items'       => [
 							'type'                 => 'object',
 							'additionalProperties' => true,
-							'properties'           => new \stdClass(),
+							'properties'           => [
+								'id'     => [ 'type' => 'string' ],
+								'elType' => [ 'type' => 'string' ],
+							],
+							'required'             => [ 'id', 'elType' ],
 						],
 					],
 					'confirm' => [ 'type' => 'boolean', 'description' => 'Must be true only after the user explicitly confirms replacing the full Elementor page data.' ],
@@ -83,7 +87,8 @@ class Frontman_Tool_Elementor {
 					'element_id' => [ 'type' => 'string' ],
 					'settings'   => [
 						'type'                 => 'object',
-						'description'          => 'Elementor settings keys to merge for non-HTML-fragment updates.',
+						'description'          => 'Elementor settings keys to merge for non-HTML-fragment updates. Must contain at least one setting; omit settings instead of passing {}.',
+						'minProperties'        => 1,
 						'additionalProperties' => true,
 						'properties'           => new \stdClass(),
 					],
@@ -107,7 +112,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_add_element',
-			'Adds a new Elementor element at the root or inside a parent container after saving the previous page tree as a private rollback snapshot. Use wp_elementor_generate_element or widget schema output to build valid element JSON.',
+			'Adds a new Elementor element at the root or inside a parent container after saving the previous page tree as a private rollback snapshot. Prefer wp_elementor_generate_element and pass its returned object as element. Do not call with element: {}.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -115,8 +120,15 @@ class Frontman_Tool_Elementor {
 					'post_id'    => [ 'type' => 'integer' ],
 					'element'    => [
 						'type'                 => 'object',
+						'description'          => 'Complete Elementor element JSON. Prefer the exact object returned by wp_elementor_generate_element; never pass an empty object.',
 						'additionalProperties' => true,
-						'properties'           => new \stdClass(),
+						'properties'           => [
+							'elType'     => [ 'type' => 'string', 'enum' => [ 'container', 'section', 'column', 'widget' ], 'description' => 'Elementor element type. Use widget for widgets and include widgetType.' ],
+							'widgetType' => [ 'type' => 'string', 'description' => 'Required when elType is widget.' ],
+							'settings'   => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ],
+							'elements'   => [ 'type' => 'array', 'items' => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ] ],
+						],
+						'required'             => [ 'elType' ],
 					],
 					'parent_id'  => [ 'type' => 'string' ],
 					'position'   => [ 'type' => 'integer', 'default' => -1 ],
@@ -211,7 +223,8 @@ class Frontman_Tool_Elementor {
 						'items' => [
 							'type'                 => 'object',
 							'additionalProperties' => true,
-							'properties'           => new \stdClass(),
+							'properties'           => [ 'elType' => [ 'type' => 'string' ] ],
+							'required'             => [ 'elType' ],
 						],
 					],
 					'widget_type'   => [ 'type' => 'string' ],
@@ -323,9 +336,9 @@ class Frontman_Tool_Elementor {
 		if ( null !== $rollback ) {
 			Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
 		}
-		$this->save_elementor_data( $post_id, $data );
+		$save_result = $this->save_elementor_data( $post_id, $data );
 
-		return [ 'success' => true, 'post_id' => $post_id, 'sections' => count( $data ), 'rollback_id' => $rollback['rollback_id'] ?? null ];
+		return $this->append_save_result( [ 'success' => true, 'post_id' => $post_id, 'sections' => count( $data ), 'rollback_id' => $rollback['rollback_id'] ?? null ], $save_result );
 	}
 
 	public function get_element( array $input ): array {
@@ -405,8 +418,8 @@ class Frontman_Tool_Elementor {
 		}
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
-		$this->save_elementor_data( $post_id, $data );
-		return [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'rollback_id' => $rollback['rollback_id'] ];
+		$save_result = $this->save_elementor_data( $post_id, $data );
+		return $this->append_save_result( [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'rollback_id' => $rollback['rollback_id'] ], $save_result );
 	}
 
 	private function has_update_shortcut( array $input ): bool {
@@ -509,8 +522,8 @@ class Frontman_Tool_Elementor {
 		}
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
-		$this->save_elementor_data( $post_id, $data );
-		return [
+		$save_result = $this->save_elementor_data( $post_id, $data );
+		return $this->append_save_result( [
 			'success'           => true,
 			'post_id'           => $post_id,
 			'element_id'        => $element_id,
@@ -518,7 +531,7 @@ class Frontman_Tool_Elementor {
 			'matches_before'    => $matches,
 			'matches_remaining' => substr_count( $updated_html, $old_html ),
 			'rollback_id'       => $rollback['rollback_id'],
-		];
+		], $save_result );
 	}
 
 	public function add_element( array $input ): array {
@@ -526,6 +539,10 @@ class Frontman_Tool_Elementor {
 		$element = $input['element'] ?? null;
 		if ( ! is_array( $element ) ) {
 			throw new Frontman_Tool_Error( 'element must be an object.' );
+		}
+		$el_type = $element['elType'] ?? '';
+		if ( ! is_string( $el_type ) || '' === trim( $el_type ) ) {
+			throw new Frontman_Tool_Error( 'element.elType is required. Do not call wp_elementor_add_element with element: {}. Use wp_elementor_generate_element first and pass the returned object as element.' );
 		}
 		if ( empty( $element['id'] ) ) {
 			$element['id'] = Frontman_Elementor_Data::generate_id();
@@ -541,8 +558,8 @@ class Frontman_Tool_Elementor {
 		$this->validate_full_element_tree( $data );
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
-		$this->save_elementor_data( $post_id, $data );
-		return [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element['id'] ?? '', 'rollback_id' => $rollback['rollback_id'] ];
+		$save_result = $this->save_elementor_data( $post_id, $data );
+		return $this->append_save_result( [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element['id'] ?? '', 'rollback_id' => $rollback['rollback_id'] ], $save_result );
 	}
 
 	public function remove_element( array $input ): array {
@@ -565,8 +582,8 @@ class Frontman_Tool_Elementor {
 		}
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
-		$this->save_elementor_data( $post_id, $data );
-		return [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'rollback_id' => $rollback['rollback_id'] ];
+		$save_result = $this->save_elementor_data( $post_id, $data );
+		return $this->append_save_result( [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'rollback_id' => $rollback['rollback_id'] ], $save_result );
 	}
 
 	public function list_rollbacks( array $input ): array {
@@ -603,8 +620,8 @@ class Frontman_Tool_Elementor {
 		}
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
-		$this->save_elementor_data( $post_id, $data );
-		return [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'new_element_id' => $new_id, 'rollback_id' => $rollback['rollback_id'] ];
+		$save_result = $this->save_elementor_data( $post_id, $data );
+		return $this->append_save_result( [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'new_element_id' => $new_id, 'rollback_id' => $rollback['rollback_id'] ], $save_result );
 	}
 
 	public function move_element( array $input ): array {
@@ -619,8 +636,8 @@ class Frontman_Tool_Elementor {
 		}
 
 		Frontman_Elementor_Data::save_rollback( $post_id, $rollback );
-		$this->save_elementor_data( $post_id, $data );
-		return [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'parent_id' => $parent_id, 'position' => $position, 'rollback_id' => $rollback['rollback_id'] ];
+		$save_result = $this->save_elementor_data( $post_id, $data );
+		return $this->append_save_result( [ 'success' => true, 'post_id' => $post_id, 'element_id' => $element_id, 'parent_id' => $parent_id, 'position' => $position, 'rollback_id' => $rollback['rollback_id'] ], $save_result );
 	}
 
 	public function generate_element( array $input ): array {
@@ -694,12 +711,20 @@ class Frontman_Tool_Elementor {
 		return $rollback_id;
 	}
 
-	private function save_elementor_data( int $post_id, array $data ): void {
+	private function save_elementor_data( int $post_id, array $data ): array {
 		try {
-			Frontman_Elementor_Data::save_page_data( $post_id, $data );
+			return Frontman_Elementor_Data::save_page_data( $post_id, $data );
 		} catch ( \Throwable $e ) {
 			throw new Frontman_Tool_Error( 'Failed to save Elementor data: ' . $e->getMessage() );
 		}
+	}
+
+	private function append_save_result( array $response, array $save_result ): array {
+		if ( isset( $save_result['page_template_change'] ) ) {
+			$response['page_template_change'] = $save_result['page_template_change'];
+		}
+
+		return $response;
 	}
 
 	private function require_page_data( int $post_id ): array {

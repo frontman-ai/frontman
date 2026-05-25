@@ -1,0 +1,95 @@
+name: Publish WordPress Plugin
+
+on:
+  workflow_run:
+    workflows:
+      - Release Tag
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish, without the leading v. Defaults to the latest CHANGELOG entry.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-wordpress-plugin
+  cancel-in-progress: false
+
+jobs:
+  publish-wordpress-plugin:
+    name: Publish WordPress.org Plugin
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Verify release trigger
+        id: verify
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "Skipping because Release Tag did not complete successfully"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          COMMIT_MSG=$(git log -1 --format='%s')
+          if echo "$COMMIT_MSG" | grep -qE '^chore: release v[0-9]'; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif echo "$COMMIT_MSG" | grep -qE '^Merge pull request.*release/v[0-9]'; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping because this is not a release commit: $COMMIT_MSG"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract version
+        if: steps.verify.outputs.publish == 'true'
+        id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          VERSION="$INPUT_VERSION"
+          VERSION="${VERSION#v}"
+
+          if [ -z "$VERSION" ]; then
+            VERSION=$(sed -n 's/^## \[\{0,1\}\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -1)
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not determine release version"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing WordPress plugin version $VERSION"
+
+      - name: Install release tools
+        if: steps.verify.outputs.publish == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync subversion zip
+
+      - name: Package WordPress plugin
+        if: steps.verify.outputs.publish == 'true'
+        run: make package-wordpress-plugin VERSION="${{ steps.version.outputs.version }}"
+
+      - name: Publish to WordPress.org SVN
+        if: steps.verify.outputs.publish == 'true'
+        env:
+          WORDPRESS_ORG_USERNAME: ${{ secrets.WORDPRESS_ORG_USERNAME }}
+          WORDPRESS_ORG_PASSWORD: ${{ secrets.WORDPRESS_ORG_PASSWORD }}
+        run: bash ./scripts/publish-wordpress-plugin-svn.sh "${{ steps.version.outputs.version }}"

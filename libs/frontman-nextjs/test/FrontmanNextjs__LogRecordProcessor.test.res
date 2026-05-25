@@ -12,7 +12,7 @@ external onEmit: (processor, Bindings.Logs.sdkLogRecord, option<Bindings.context
 @send external forceFlush: processor => promise<unit> = "forceFlush"
 @send external shutdown: processor => promise<unit> = "shutdown"
 
-beforeAll(_t => {
+beforeAll(() => {
   LogCapture.initialize()
 })
 

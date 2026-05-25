@@ -4,6 +4,7 @@ define( 'ABSPATH', sys_get_temp_dir() . '/frontman-wordpress-elementor-tools/' )
 
 $GLOBALS['frontman_test_posts'] = [];
 $GLOBALS['frontman_test_meta']  = [];
+$GLOBALS['frontman_test_update_meta_callbacks'] = [];
 
 if ( ! class_exists( 'WP_Post' ) ) {
 	class WP_Post {
@@ -21,6 +22,51 @@ if ( ! class_exists( 'WP_Post' ) ) {
 			$this->post_type   = $type;
 		}
 	}
+}
+
+class Frontman_Test_Elementor_Plugin {
+	public static $instance = null;
+	public $documents;
+
+	public function __construct( $documents ) {
+		$this->documents = $documents;
+	}
+}
+
+class Frontman_Test_Elementor_Documents {
+	private Frontman_Test_Elementor_Document $document;
+
+	public function __construct( Frontman_Test_Elementor_Document $document ) {
+		$this->document = $document;
+	}
+
+	public function get( int $post_id ) {
+		return $this->document->post_id === $post_id ? $this->document : null;
+	}
+}
+
+class Frontman_Test_Elementor_Document {
+	public int $post_id;
+	public int $save_calls = 0;
+
+	public function __construct( int $post_id ) {
+		$this->post_id = $post_id;
+	}
+
+	public function get_elements_data(): array {
+		$raw = get_post_meta( $this->post_id, '_elementor_data', true );
+		return is_string( $raw ) ? json_decode( $raw, true ) : [];
+	}
+
+	public function save( array $payload ): void {
+		$this->save_calls++;
+		update_post_meta( $this->post_id, '_wp_page_template', 'elementor_header_footer' );
+		update_post_meta( $this->post_id, '_elementor_data', wp_json_encode( $payload['elements'] ?? [] ) );
+	}
+}
+
+if ( ! class_exists( 'Elementor\\Plugin', false ) ) {
+	class_alias( Frontman_Test_Elementor_Plugin::class, 'Elementor\\Plugin' );
 }
 
 if ( ! function_exists( 'wp_json_encode' ) ) {
@@ -112,6 +158,9 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 if ( ! function_exists( 'update_post_meta' ) ) {
 	function update_post_meta( int $post_id, string $key, $value ): bool {
 		$GLOBALS['frontman_test_meta'][ $post_id ][ $key ] = wp_unslash( $value );
+		foreach ( $GLOBALS['frontman_test_update_meta_callbacks'] as $callback ) {
+			$callback( $post_id, $key, $value );
+		}
 		return true;
 	}
 }
@@ -168,16 +217,19 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_tool_object_schemas_have_properties_objects();
 		$this->test_tool_array_schemas_have_items();
 		$this->test_generate_element_schema_declares_handler_inputs();
+		$this->test_mutation_schemas_reject_empty_objects();
 		$this->test_rollback_tool_schemas();
 		$this->test_structure_and_get_element();
 		$this->test_update_rejects_empty_and_noop_settings();
 		$this->test_update_duplicate_and_flush();
 		$this->test_update_shortcut_fields();
+		$this->test_elementor_saves_preserve_page_template();
 		$this->test_remove_preserves_private_rollback();
 		$this->test_removed_rollback_refuses_same_id_conflict();
 		$this->test_save_page_data_rejects_invalid_tree();
 		$this->test_save_page_data_preserves_page_rollback();
 		$this->test_update_html_fragment_preserves_widget();
+		$this->test_add_element_rejects_empty_element();
 		$this->test_add_duplicate_and_move_restore_rollbacks();
 		$this->test_rollback_preserves_backslash_newline_styles();
 		$this->test_generate_element();
@@ -351,6 +403,30 @@ class Frontman_Elementor_Tools_Test_Runner {
 				]
 			),
 		];
+
+		$GLOBALS['frontman_test_posts'][48] = new WP_Post( 48, 'Default Template', 'default-template' );
+		$GLOBALS['frontman_test_meta'][48]  = [
+			'_elementor_edit_mode'   => 'builder',
+			'_wp_page_template'      => 'default',
+			'_elementor_data'        => wp_json_encode(
+				[
+					[
+						'id'       => 'root4800',
+						'elType'   => 'container',
+						'settings' => [],
+						'elements' => [
+							[
+								'id'         => 'heading4801',
+								'elType'     => 'widget',
+								'widgetType' => 'heading',
+								'settings'   => [ 'title' => 'Default Template' ],
+								'elements'   => [],
+							],
+						],
+					],
+				]
+			),
+		];
 	}
 
 	private function test_tools_registered(): void {
@@ -458,6 +534,14 @@ class Frontman_Elementor_Tools_Test_Runner {
 				'wp_elementor_generate_element schema declares ' . $field
 			);
 		}
+	}
+
+	private function test_mutation_schemas_reject_empty_objects(): void {
+		$element_schema = $this->decoded_tool_definition( 'wp_elementor_add_element' )->inputSchema->properties->element;
+		$this->assert_true( in_array( 'elType', $element_schema->required, true ), 'wp_elementor_add_element requires element.elType' );
+		$this->assert_same( 1, $this->decoded_tool_definition( 'wp_elementor_update_element' )->inputSchema->properties->settings->minProperties, 'wp_elementor_update_element settings schema rejects empty objects' );
+		$this->assert_true( in_array( 'id', $this->decoded_tool_definition( 'wp_elementor_save_page_data' )->inputSchema->properties->data->items->required, true ), 'wp_elementor_save_page_data requires element IDs' );
+		$this->assert_true( in_array( 'elType', $this->decoded_tool_definition( 'wp_elementor_generate_element' )->inputSchema->properties->children->items->required, true ), 'wp_elementor_generate_element requires complete children' );
 	}
 
 	private function test_rollback_tool_schemas(): void {
@@ -571,6 +655,74 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->assert_same( '#FFFFFF', $data[0]['elements'][0]['settings']['title_color'], 'Shortcut updates heading title color' );
 		$this->assert_same( 'Poppins', $data[0]['elements'][0]['settings']['title_typography_font_family'], 'Shortcut updates heading font family' );
 		$this->assert_same( 'custom', $data[0]['elements'][0]['settings']['title_typography_typography'], 'Shortcut enables custom heading typography' );
+	}
+
+	private function test_elementor_saves_preserve_page_template(): void {
+		$this->assert_same( 'default', get_post_meta( 48, '_wp_page_template', true ), 'Fixture starts with the default page template' );
+
+		$updated = $this->call_success(
+			'wp_elementor_update_element',
+			[
+				'post_id'    => 48,
+				'element_id' => 'heading4801',
+				'settings'   => [ 'title' => 'Updated Template Safe' ],
+			]
+		);
+		$this->assert_same( 'default', get_post_meta( 48, '_wp_page_template', true ), 'Element update preserves the existing page template' );
+
+		$this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 48, 'rollback_id' => $updated['rollback_id'], 'confirm' => true ] );
+		$this->assert_same( 'default', get_post_meta( 48, '_wp_page_template', true ), 'Element rollback preserves the existing page template' );
+
+		$data = Frontman_Elementor_Data::get_page_data( 48 );
+		$data[0]['settings']['flex_direction'] = 'row';
+		$saved = $this->call_success( 'wp_elementor_save_page_data', [ 'post_id' => 48, 'data' => $data, 'confirm' => true ] );
+		$this->assert_same( 'default', get_post_meta( 48, '_wp_page_template', true ), 'Full page data save preserves the existing page template' );
+
+		$this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 48, 'rollback_id' => $saved['rollback_id'], 'confirm' => true ] );
+		$this->assert_same( 'default', get_post_meta( 48, '_wp_page_template', true ), 'Page-data rollback preserves the existing page template' );
+
+		$document = new Frontman_Test_Elementor_Document( 48 );
+		Frontman_Test_Elementor_Plugin::$instance = new Frontman_Test_Elementor_Plugin( new Frontman_Test_Elementor_Documents( $document ) );
+		try {
+			$this->call_success(
+				'wp_elementor_update_element',
+				[
+					'post_id'    => 48,
+					'element_id' => 'heading4801',
+					'settings'   => [ 'title' => 'Updated Without Document Save' ],
+				]
+			);
+			$this->assert_same( 0, $document->save_calls, 'Elementor saves bypass document save template side effects' );
+			$this->assert_same( 'default', get_post_meta( 48, '_wp_page_template', true ), 'Element update with Elementor loaded preserves the existing page template' );
+		} finally {
+			Frontman_Test_Elementor_Plugin::$instance = null;
+		}
+
+		$GLOBALS['frontman_test_update_meta_callbacks'][] = function ( int $post_id, string $key, $value ): void {
+			if ( 48 === $post_id && '_elementor_data' === $key ) {
+				$GLOBALS['frontman_test_meta'][48]['_wp_page_template'] = 'elementor_header_footer';
+			}
+		};
+		try {
+			$response = $this->call_success(
+				'wp_elementor_update_element',
+				[
+					'post_id'    => 48,
+					'element_id' => 'heading4801',
+					'settings'   => [ 'title' => 'Template Side Effect Reported' ],
+				]
+			);
+			$this->assert_same( 'default', get_post_meta( 48, '_wp_page_template', true ), 'Template side effects are restored after save' );
+			$this->assert_true( isset( $response['page_template_change'] ), 'Template side effects are included in the tool response' );
+			$this->assert_same( false, $response['page_template_change']['changed'], 'Template response reports no final template change after restoration' );
+			$this->assert_same( true, $response['page_template_change']['changed_during_save'], 'Template response reports a save-time template change' );
+			$this->assert_same( true, $response['page_template_change']['restored'], 'Template response reports restoration' );
+			$this->assert_same( 'default', $response['page_template_change']['before'], 'Template response includes the original template' );
+			$this->assert_same( 'elementor_header_footer', $response['page_template_change']['after_save'], 'Template response includes the save-time template' );
+			$this->assert_same( 'default', $response['page_template_change']['after'], 'Template response includes the final template' );
+		} finally {
+			$GLOBALS['frontman_test_update_meta_callbacks'] = [];
+		}
 	}
 
 	private function test_remove_preserves_private_rollback(): void {
@@ -730,6 +882,12 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->assert_same( 'html', $element['widgetType'], 'HTML fragment rollback keeps the Elementor HTML widget' );
 		$this->assert_true( false !== strpos( $element['settings']['html'], 'SMS opt in' ), 'HTML fragment rollback restores removed markup' );
 		$this->assert_true( false !== strpos( $element['settings']['html'], 'Email opt in' ), 'HTML fragment rollback preserves sibling markup' );
+	}
+
+	private function test_add_element_rejects_empty_element(): void {
+		$error = $this->call_error( 'wp_elementor_add_element', [ 'post_id' => 47, 'parent_id' => 'root4710', 'element' => [] ] );
+		$this->assert_true( false !== strpos( $error, 'element.elType is required' ), 'Add element rejects empty element with a direct error' );
+		$this->assert_same( 0, count( Frontman_Elementor_Data::get_page_data( 47 )[1]['elements'] ), 'Rejected empty add leaves Elementor data unchanged' );
 	}
 
 	private function test_add_duplicate_and_move_restore_rollbacks(): void {

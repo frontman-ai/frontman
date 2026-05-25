@@ -4,16 +4,6 @@ defmodule FrontmanServer.Tools.WebFetchTest do
   alias FrontmanServer.Tools.WebFetch
 
   setup do
-    Application.put_env(:frontman_server, :web_fetch_req_options,
-      plug: {Req.Test, :web_fetch},
-      retry_delay: fn _ -> 0 end,
-      retry_log_level: false
-    )
-
-    on_exit(fn ->
-      Application.delete_env(:frontman_server, :web_fetch_req_options)
-    end)
-
     context = %FrontmanServer.Tools.Backend.Context{
       scope: nil,
       task: nil,
@@ -349,21 +339,45 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
   end
 
-  describe "execute/2 — non-text content rejection" do
-    test "rejects image/png responses", %{context: ctx} do
-      # PNG header bytes
-      stub_resp(200, "image/png", <<137, 80, 78, 71, 13, 10, 26, 10>>)
+  describe "execute/2 — image support and non-text rejection" do
+    test "returns image/png responses as image results", %{context: ctx} do
+      image_bytes = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      url = "https://example.com/logo.png"
 
-      assert {:error, msg} = execute("https://example.com/logo.png", ctx)
-      assert msg =~ "non-text"
-      assert msg =~ "image/png"
+      Req.Test.stub(:web_fetch, fn conn ->
+        accept = Plug.Conn.get_req_header(conn, "accept") |> List.first("")
+        assert accept =~ "image/png"
+        assert accept =~ "image/jpeg"
+        assert accept =~ "image/gif"
+        assert accept =~ "image/webp"
+
+        conn
+        |> Plug.Conn.put_resp_content_type("image/png")
+        |> Plug.Conn.send_resp(200, image_bytes)
+      end)
+
+      assert {:ok, result} = execute(url, ctx)
+      assert result["type"] == "image"
+      assert result["url"] == url
+      assert result["content_type"] =~ "image/png"
+      assert result["image"] == "data:image/png;base64,#{Base.encode64(image_bytes)}"
     end
 
-    test "rejects image/jpeg responses", %{context: ctx} do
-      stub_resp(200, "image/jpeg", <<255, 216, 255, 224>>)
+    test "returns image/jpeg responses with normalized data URL media type", %{context: ctx} do
+      image_bytes = <<255, 216, 255, 224, "fake-jpeg">>
+      url = "https://example.com/photo.jpg"
 
-      assert {:error, msg} = execute("https://example.com/photo.jpg", ctx)
-      assert msg =~ "non-text"
+      Req.Test.stub(:web_fetch, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "image/jpeg; charset=binary")
+        |> Plug.Conn.send_resp(200, image_bytes)
+      end)
+
+      assert {:ok, result} = execute(url, ctx)
+      assert result["type"] == "image"
+      assert result["url"] == url
+      assert result["content_type"] == "image/jpeg; charset=binary"
+      assert result["image"] == "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
     end
 
     test "rejects application/octet-stream responses", %{context: ctx} do
@@ -378,6 +392,14 @@ defmodule FrontmanServer.Tools.WebFetchTest do
 
       assert {:error, msg} = execute("https://example.com/doc.pdf", ctx)
       assert msg =~ "non-text"
+    end
+
+    test "rejects image/svg+xml responses", %{context: ctx} do
+      stub_resp(200, "image/svg+xml", "<svg></svg>")
+
+      assert {:error, msg} = execute("https://example.com/vector.svg", ctx)
+      assert msg =~ "non-text"
+      assert msg =~ "image/svg+xml"
     end
 
     test "allows text/html responses", %{context: ctx} do
