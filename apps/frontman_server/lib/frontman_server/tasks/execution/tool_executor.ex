@@ -198,10 +198,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     }
 
     case SwarmAi.ToolCall.parse_arguments(tool_call) do
-      {:error, parse_error} ->
-        message =
-          if is_exception(parse_error), do: Exception.message(parse_error), else: parse_error
-
+      {:error, message} ->
         raw_arguments = String.slice(tool_call.arguments, 0, 500)
 
         reason =

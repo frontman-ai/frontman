@@ -854,8 +854,7 @@ defmodule FrontmanServer.Tasks.Interaction do
              timestamp: Interaction.now()
            }}
 
-        {:error, reason} ->
-          message = if is_exception(reason), do: Exception.message(reason), else: reason
+        {:error, message} ->
           {:error, {:invalid_tool_arguments, message}}
       end
     end

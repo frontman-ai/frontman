@@ -81,7 +81,7 @@ defmodule SwarmAi.ToolCall do
       iex> SwarmAi.ToolCall.parse_arguments(tc)
       {:ok, %{"location" => "NYC"}}
   """
-  @spec parse_arguments(t()) :: {:ok, map()} | {:error, Jason.DecodeError.t() | String.t()}
+  @spec parse_arguments(t()) :: {:ok, map()} | {:error, String.t()}
   def parse_arguments(%__MODULE__{arguments: arguments}) do
     case String.trim(arguments) do
       "" ->
@@ -91,7 +91,7 @@ defmodule SwarmAi.ToolCall do
         case Jason.decode(arguments) do
           {:ok, decoded} when is_map(decoded) -> {:ok, decoded}
           {:ok, decoded} -> {:error, "expected JSON object, got #{inspect(decoded)}"}
-          {:error, decode_error} -> {:error, decode_error}
+          {:error, decode_error} -> {:error, Exception.message(decode_error)}
         end
     end
   end
