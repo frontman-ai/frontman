@@ -1141,8 +1141,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [SwarmContentPart.text(content)],
-        tool_calls: normalize_swarm_tool_calls(meta["tool_calls"]),
-        metadata: build_response_metadata_for_message(meta),
+        tool_calls: swarm_tool_calls(meta["tool_calls"]),
+        metadata: swarm_metadata(meta),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
     ]
@@ -1355,49 +1355,39 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_attachment_context(text, _), do: text
 
-  defp normalize_swarm_tool_calls(nil), do: []
-  defp normalize_swarm_tool_calls([]), do: []
+  defp swarm_tool_calls(nil), do: []
+  defp swarm_tool_calls([]), do: []
 
-  defp normalize_swarm_tool_calls(tool_calls) when is_list(tool_calls) do
-    Enum.map(tool_calls, &normalize_swarm_tool_call/1)
+  defp swarm_tool_calls(tool_calls) when is_list(tool_calls) do
+    Enum.map(tool_calls, &swarm_tool_call/1)
   end
 
-  defp normalize_swarm_tool_call(%{
+  defp swarm_tool_call(%{
          "id" => id,
          "function" => %{"name" => name, "arguments" => arguments}
        }) do
-    new_swarm_tool_call(id, name, arguments)
+    %SwarmToolCall{id: id, name: name, arguments: tool_arguments_json(arguments)}
   end
 
-  defp normalize_swarm_tool_call(%{"id" => id, "name" => name, "arguments" => arguments}) do
-    new_swarm_tool_call(id, name, arguments)
-  end
-
-  defp new_swarm_tool_call(id, name, arguments) do
+  defp swarm_tool_call(%{"id" => id, "name" => name, "arguments" => arguments}) do
     %SwarmToolCall{id: id, name: name, arguments: tool_arguments_json(arguments)}
   end
 
   defp tool_arguments_json(arguments) when is_binary(arguments), do: arguments
   defp tool_arguments_json(arguments), do: Jason.encode!(arguments)
 
-  defp build_response_metadata_for_message(meta) do
-    metadata = %{}
-    metadata = put_binary_metadata(metadata, :response_id, meta["response_id"])
-    metadata = put_binary_metadata(metadata, :phase, meta["phase"])
+  defp swarm_metadata(meta) do
+    response_id = meta["response_id"]
+    phase = meta["phase"]
+    phase_items = meta["phase_items"]
 
-    case meta["phase_items"] do
-      phase_items when is_list(phase_items) and phase_items != [] ->
-        Map.put(metadata, :phase_items, phase_items)
-
-      _ ->
-        metadata
-    end
+    %{
+      response_id: if(is_binary(response_id), do: response_id),
+      phase: if(is_binary(phase), do: phase),
+      phase_items: if(is_list(phase_items) and phase_items != [], do: phase_items)
+    }
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
   end
-
-  defp put_binary_metadata(metadata, key, value) when is_binary(value),
-    do: Map.put(metadata, key, value)
-
-  defp put_binary_metadata(metadata, _key, _value), do: metadata
 
   defp filter_encrypted_reasoning(nil), do: nil
   defp filter_encrypted_reasoning(details) when not is_list(details), do: nil
