@@ -8,7 +8,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   @moduledoc """
   The main coordinating agent that handles user requests.
 
-  This agent receives user messages, can use tools (including spawning sub-agents),
+  This agent receives user messages, can use tools,
   and coordinates the overall task execution. It implements the SwarmAi.Agent protocol
   directly, owning its system prompt generation logic.
 

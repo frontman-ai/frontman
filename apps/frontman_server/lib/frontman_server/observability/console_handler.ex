@@ -11,7 +11,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   Useful for development to see timing info without needing a tracing backend.
   Uses ETS to track start times for duration calculation.
 
-  Handles Swarm events: run, llm, tool, child lifecycle.
+  Handles Swarm events: run, llm, and tool lifecycle.
   """
 
   require Logger
@@ -38,10 +38,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
       {SwarmEvents.llm_call_exception(), &__MODULE__.handle_swarm_llm_exception/4},
       {SwarmEvents.tool_execute_start(), &__MODULE__.handle_swarm_tool_start/4},
       {SwarmEvents.tool_execute_stop(), &__MODULE__.handle_swarm_tool_stop/4},
-      {SwarmEvents.tool_execute_exception(), &__MODULE__.handle_swarm_tool_exception/4},
-      {SwarmEvents.child_spawn_start(), &__MODULE__.handle_swarm_child_start/4},
-      {SwarmEvents.child_spawn_stop(), &__MODULE__.handle_swarm_child_stop/4},
-      {SwarmEvents.child_spawn_exception(), &__MODULE__.handle_swarm_child_exception/4}
+      {SwarmEvents.tool_execute_exception(), &__MODULE__.handle_swarm_tool_exception/4}
     ]
 
     Enum.each(handlers, fn {event, handler} ->
@@ -169,60 +166,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
     Logger.error(
       "[swarm] tool:exception loop=#{short_id(loop_id)} #{tool_name} #{kind}: #{inspect(reason)}"
-    )
-  end
-
-  # ===========================================================================
-  # Swarm Child Spawn
-  # ===========================================================================
-
-  def handle_swarm_child_start(_event, _measurements, metadata, _config) do
-    %{
-      parent_loop_id: parent_id,
-      tool_call_id: tool_call_id,
-      child_agent_module: child_module,
-      task: task
-    } = metadata
-
-    start_time = System.monotonic_time(:millisecond)
-    :ets.insert(@table, {{:swarm_child, parent_id, tool_call_id}, start_time, child_module})
-
-    task_preview = String.slice(task || "", 0, 50)
-
-    Logger.info(
-      "[swarm] child:start parent=#{short_id(parent_id)} agent=#{inspect(child_module)} task=\"#{task_preview}...\""
-    )
-  end
-
-  def handle_swarm_child_stop(_event, _measurements, metadata, _config) do
-    %{
-      parent_loop_id: parent_id,
-      child_loop_id: child_id,
-      child_status: status,
-      child_step_count: steps,
-      child_total_tokens: tokens,
-      duration_ms: duration
-    } = metadata
-
-    # Clean up ETS entry if we can find it (duration comes from metadata so we don't need our own)
-    :ets.match_delete(@table, {{:swarm_child, parent_id, :_}, :_, :_})
-
-    status_str = format_status(status)
-
-    Logger.info(
-      "[swarm] child:stop  parent=#{short_id(parent_id)} child=#{short_id(child_id)} " <>
-        "#{status_str} steps=#{steps} tokens=#{tokens} (#{duration}ms)"
-    )
-  end
-
-  def handle_swarm_child_exception(_event, _measurements, metadata, _config) do
-    %{parent_loop_id: parent_id, tool_call_id: tool_call_id, kind: kind, reason: reason} =
-      metadata
-
-    :ets.delete(@table, {:swarm_child, parent_id, tool_call_id})
-
-    Logger.error(
-      "[swarm] child:exception parent=#{short_id(parent_id)} #{kind}: #{inspect(reason)}"
     )
   end
 

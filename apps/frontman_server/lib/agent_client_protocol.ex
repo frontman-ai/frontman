@@ -331,10 +331,6 @@ defmodule AgentClientProtocol do
   Creates a new tool call notification (sessionUpdate: "tool_call").
 
   Used when the LLM first requests a tool invocation.
-
-  Options:
-    - `:parent_agent_id` - If present, indicates this tool call is from a sub-agent
-    - `:spawning_tool_name` - Name of the tool that spawned this agent
   """
   def tool_call_create(
         session_id,
@@ -342,31 +338,17 @@ defmodule AgentClientProtocol do
         title,
         kind,
         timestamp,
-        status \\ @tool_call_status_pending,
-        opts \\ []
+        status \\ @tool_call_status_pending
       )
       when status in @tool_call_statuses do
-    optional =
-      opts
-      |> Keyword.take([:parent_agent_id, :spawning_tool_name])
-      |> Enum.reduce(%{}, fn
-        {:parent_agent_id, v}, acc when not is_nil(v) -> Map.put(acc, "parentAgentId", v)
-        {:spawning_tool_name, v}, acc when not is_nil(v) -> Map.put(acc, "spawningToolName", v)
-        _, acc -> acc
-      end)
-
-    update =
-      Map.merge(
-        %{
-          "sessionUpdate" => "tool_call",
-          "toolCallId" => tool_call_id,
-          "title" => title,
-          "kind" => kind,
-          "status" => status,
-          "timestamp" => DateTime.to_iso8601(timestamp)
-        },
-        optional
-      )
+    update = %{
+      "sessionUpdate" => "tool_call",
+      "toolCallId" => tool_call_id,
+      "title" => title,
+      "kind" => kind,
+      "status" => status,
+      "timestamp" => DateTime.to_iso8601(timestamp)
+    }
 
     JsonRpc.notification(@method_session_update, %{
       "sessionId" => session_id,

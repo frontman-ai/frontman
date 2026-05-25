@@ -179,10 +179,6 @@ defimpl ACPHistory, for: Interaction.ToolResult do
   end
 end
 
-defimpl ACPHistory, for: Interaction.AgentSpawned do
-  def to_history_items(%Interaction.AgentSpawned{}, _session_id), do: []
-end
-
 defimpl ACPHistory, for: Interaction.AgentCompleted do
   def to_history_items(%Interaction.AgentCompleted{}, _session_id), do: []
 end

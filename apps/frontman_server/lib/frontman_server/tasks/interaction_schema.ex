@@ -165,14 +165,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     }
   end
 
-  def to_struct(%__MODULE__{type: "agent_spawned", data: data}) do
-    %Interaction.AgentSpawned{
-      id: data["id"],
-      config: data["config"] || %{},
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
   def to_struct(%__MODULE__{type: "agent_completed", data: data}) do
     %Interaction.AgentCompleted{
       id: data["id"],

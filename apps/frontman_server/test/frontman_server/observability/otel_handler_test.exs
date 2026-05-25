@@ -277,7 +277,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   end
 
   defp ensure_ets_tables do
-    tables = ~w(task mcp loop swarm_step llm tool spawn)a
+    tables = ~w(task mcp loop swarm_step llm tool)a
 
     for t <- tables do
       name = :"frontman_spans_#{t}"
@@ -289,7 +289,7 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
   end
 
   defp cleanup_ets_tables do
-    tables = ~w(task mcp loop swarm_step llm tool spawn)a
+    tables = ~w(task mcp loop swarm_step llm tool)a
 
     for t <- tables do
       name = :"frontman_spans_#{t}"

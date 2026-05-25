@@ -92,9 +92,7 @@ defmodule FrontmanServer.Tasks.Execution do
         tool_executor =
           ToolExecutor.make_executor(scope, task_id,
             backend_tool_modules: backend_tool_modules,
-            mcp_tools: tools,
-            mcp_tool_defs: mcp_tool_defs,
-            llm_opts: Keyword.put(llm_opts, :model, model_spec)
+            mcp_tool_defs: mcp_tool_defs
           )
 
         # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop

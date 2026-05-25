@@ -15,22 +15,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
   # --- Fake backend tools ---
 
-  # A backend tool that invokes context.tool_executor to simulate sub-agent use.
-  defmodule SubAgentTool do
-    @behaviour Backend
-
-    def name, do: "sub_agent_tool"
-    def description, do: "Invokes context.tool_executor"
-    def parameter_schema, do: %{"type" => "object", "properties" => %{}}
-    def timeout_ms, do: 30_000
-    def on_timeout, do: :error
-
-    def execute(_args, context) do
-      _results = context.tool_executor.([])
-      {:ok, "executor is callable"}
-    end
-  end
-
   # A backend tool that declares on_timeout: :pause_agent.
   defmodule PauseOnTimeoutTool do
     @behaviour Backend
@@ -59,9 +43,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     task_id = Ecto.UUID.generate()
     {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
-    llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
-
-    {:ok, scope: scope, task_id: task_id, llm_opts: llm_opts}
+    {:ok, scope: scope, task_id: task_id}
   end
 
   defp tool_results(task, tool_call_id) do
@@ -69,34 +51,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       %Interaction.ToolResult{tool_call_id: ^tool_call_id} -> true
       _ -> false
     end)
-  end
-
-  describe "run_backend_tool/5 — sub-agent spawning" do
-    @tag :capture_log
-    test "backend tool can call context.tool_executor without crashing", %{
-      scope: scope,
-      task_id: task_id,
-      llm_opts: llm_opts
-    } do
-      exec_opts = %{
-        backend_tool_modules: [SubAgentTool],
-        backend_module_map: %{SubAgentTool.name() => SubAgentTool},
-        mcp_tools: [],
-        mcp_tool_defs: [],
-        llm_opts: llm_opts
-      }
-
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_#{System.unique_integer([:positive])}",
-        name: SubAgentTool.name(),
-        arguments: "{}"
-      }
-
-      result = ToolExecutor.run_backend_tool(scope, SubAgentTool, task_id, exec_opts, tool_call)
-
-      # SubAgentTool calls context.tool_executor.([]) and returns {:ok, "executor is callable"}.
-      assert %SwarmAi.ToolResult{is_error: false} = result
-    end
   end
 
   describe "start_mcp_tool/3" do
@@ -155,7 +109,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end
   end
 
-  describe "run_backend_tool/5 — non-JSON-serializable result" do
+  describe "run_backend_tool/4 — non-JSON-serializable result" do
     defmodule BinaryResultTool do
       @behaviour Backend
 
@@ -172,17 +126,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     @tag :capture_log
     test "converts non-JSON-serializable result to error instead of crashing", %{
       scope: scope,
-      task_id: task_id,
-      llm_opts: llm_opts
+      task_id: task_id
     } do
-      exec_opts = %{
-        backend_tool_modules: [BinaryResultTool],
-        backend_module_map: %{BinaryResultTool.name() => BinaryResultTool},
-        mcp_tools: [],
-        mcp_tool_defs: [],
-        llm_opts: llm_opts
-      }
-
       tool_call = %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
         name: BinaryResultTool.name(),
@@ -190,7 +135,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       }
 
       result =
-        ToolExecutor.run_backend_tool(scope, BinaryResultTool, task_id, exec_opts, tool_call)
+        ToolExecutor.run_backend_tool(scope, BinaryResultTool, task_id, tool_call)
 
       assert %SwarmAi.ToolResult{is_error: true} = result
       assert [%SwarmAi.Message.ContentPart{type: :text, text: text}] = result.content
@@ -201,15 +146,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   describe "make_executor/3 — execution descriptors" do
     test "executor returns ToolExecution.Sync for backend tools", %{
       scope: scope,
-      task_id: task_id,
-      llm_opts: llm_opts
+      task_id: task_id
     } do
       executor =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [PauseOnTimeoutTool],
-          mcp_tools: [],
-          mcp_tool_defs: [],
-          llm_opts: llm_opts
+          mcp_tool_defs: []
         )
 
       tc = %SwarmAi.ToolCall{
@@ -228,8 +170,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
     test "executor returns ToolExecution.Await for MCP tools", %{
       scope: scope,
-      task_id: task_id,
-      llm_opts: llm_opts
+      task_id: task_id
     } do
       pause_mcp_def = %FrontmanServer.Tools.MCP{
         name: "some_mcp_tool",
@@ -242,9 +183,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       executor =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [],
-          mcp_tools: [],
-          mcp_tool_defs: [pause_mcp_def],
-          llm_opts: llm_opts
+          mcp_tool_defs: [pause_mcp_def]
         )
 
       tc = %SwarmAi.ToolCall{

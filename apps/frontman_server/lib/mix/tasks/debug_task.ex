@@ -40,7 +40,7 @@ defmodule Mix.Tasks.DebugTask do
   ## Interaction types
 
   user_message, agent_response, tool_call, tool_result,
-  agent_spawned, agent_completed, discovered_project_rule,
+  agent_completed, discovered_project_rule,
   discovered_project_structure
   """
 
@@ -396,7 +396,6 @@ defmodule Mix.Tasks.DebugTask do
   defp format_type("tool_result"), do: magenta("tool_result    ")
   defp format_type("agent_response"), do: green("agent_response ")
   defp format_type("user_message"), do: cyan("user_message   ")
-  defp format_type("agent_spawned"), do: dim("agent_spawned  ")
   defp format_type("agent_completed"), do: dim("agent_completed")
   defp format_type("discovered_project_rule"), do: dim("project_rule   ")
   defp format_type("discovered_project_structure"), do: dim("project_struct ")
@@ -461,10 +460,6 @@ defmodule Mix.Tasks.DebugTask do
 
   defp interaction_summary(%{type: "discovered_project_structure", data: data}) do
     truncate(data["summary"] || "", 80)
-  end
-
-  defp interaction_summary(%{type: "agent_spawned", data: data}) do
-    truncate(inspect(data["config"] || %{}), 80)
   end
 
   defp interaction_summary(%{type: "agent_completed", data: data}) do

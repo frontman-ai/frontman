@@ -57,7 +57,6 @@ defmodule FrontmanServer.Tools do
   Prepares all available tools for a task.
 
   Aggregates backend tools and MCP tools into LLM format.
-  MCP tools are passed through the agent execution chain via Backend.Context.
 
   ## Example
       Tools.prepare_for_task(mcp_tools, task_id)

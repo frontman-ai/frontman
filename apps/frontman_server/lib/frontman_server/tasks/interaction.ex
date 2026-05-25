@@ -16,7 +16,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   @type t ::
           __MODULE__.UserMessage.t()
           | __MODULE__.AgentResponse.t()
-          | __MODULE__.AgentSpawned.t()
           | __MODULE__.AgentCompleted.t()
           | __MODULE__.AgentError.t()
           | __MODULE__.AgentPaused.t()
@@ -29,7 +28,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   @interaction_modules [
     __MODULE__.UserMessage,
     __MODULE__.AgentResponse,
-    __MODULE__.AgentSpawned,
     __MODULE__.AgentCompleted,
     __MODULE__.AgentError,
     __MODULE__.AgentPaused,
@@ -652,43 +650,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  defmodule AgentSpawned do
-    @moduledoc """
-    Represents the creation of a new agent run.
-    """
-    use TypedStruct
-
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:config, map(), enforce: false)
-      field(:timestamp, DateTime.t())
-    end
-
-    def new(config \\ %{}) do
-      alias FrontmanServer.Tasks.Interaction
-
-      %__MODULE__{
-        id: Interaction.new_id(),
-        config: config,
-        timestamp: Interaction.now()
-      }
-    end
-  end
-
-  defimpl Jason.Encoder, for: AgentSpawned do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "agent_spawned",
-          id: value.id,
-          config: value.config,
-          timestamp: DateTime.to_iso8601(value.timestamp)
-        },
-        opts
-      )
-    end
-  end
-
   defmodule AgentCompleted do
     @moduledoc """
     Represents an agent finishing its work.
@@ -1162,7 +1123,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp to_swarm_message(%ToolCall{}), do: []
-  defp to_swarm_message(%AgentSpawned{}), do: []
   defp to_swarm_message(%AgentCompleted{}), do: []
   defp to_swarm_message(%AgentError{}), do: []
   defp to_swarm_message(%AgentPaused{}), do: []

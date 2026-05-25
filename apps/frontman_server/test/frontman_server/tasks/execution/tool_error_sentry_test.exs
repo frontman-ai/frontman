@@ -32,16 +32,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     {:ok, task_id: task_id, scope: scope}
   end
 
-  defp backend_exec_opts do
-    %{
-      backend_tool_modules: Tools.backend_tool_modules(),
-      backend_module_map: Map.new(Tools.backend_tool_modules(), &{&1.name(), &1}),
-      mcp_tools: [],
-      mcp_tool_defs: [],
-      llm_opts: [api_key: "test", model: "mock"]
-    }
-  end
-
   describe "backend tool soft error Sentry reporting (Gap 2)" do
     @tag :capture_log
     test "reports {:error, reason} to Sentry with tool context", %{
@@ -66,7 +56,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
-          backend_exec_opts(),
           tool_call
         )
 
@@ -108,7 +97,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
-          backend_exec_opts(),
           tool_call
         )
 
@@ -150,7 +138,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
-          backend_exec_opts(),
           tool_call
         )
 
@@ -182,7 +169,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
-          backend_exec_opts(),
           tool_call
         )
 

@@ -45,7 +45,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         # Each websocket connection needs its own MCP session because:
         # 1. MCPInitializer performs a stateful handshake with the browser-side MCP client
         # 2. Project rules loading depends on client-specific context
-        # Tools are stored in socket assigns and passed through Backend.Context for agent access.
+        # Tools are stored in socket assigns for LLM availability and browser routing.
         #
         # Note: Phoenix channels prohibit push() during join/3, so we defer
         # the initial MCP request push to handle_info(:start_mcp_init).

@@ -15,7 +15,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   ## Backend tools
 
   Each backend tool becomes a `ToolExecution.Sync` struct whose `run` MFA calls
-  `run_backend_tool/5` in the spawned task.
+  `run_backend_tool/4` in the supervised task.
 
   ## MCP tools
 
@@ -25,7 +25,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   ## Callbacks
 
-  `run_backend_tool/5`, `start_mcp_tool/3`, and `handle_timeout/5` are public
+  `run_backend_tool/4`, `start_mcp_tool/3`, and `handle_timeout/5` are public
   so PE can call them via MFA. They are not part of the public API.
   """
 
@@ -45,9 +45,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   ## Options
 
   - `:backend_tool_modules` - List of backend tool modules (required)
-  - `:mcp_tools` - List of `SwarmAi.Tool.t()` for sub-agents (required)
   - `:mcp_tool_defs` - List of `FrontmanServer.Tools.MCP.t()` with timeout/policy (required)
-  - `:llm_opts` - Keyword list with `:api_key` and `:model` (required)
   """
   @spec make_executor(Accounts.scope(), String.t(), keyword()) ::
           ([SwarmAi.ToolCall.t()] -> [ToolExecution.Sync.t() | ToolExecution.Await.t()])
@@ -64,7 +62,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           tool_call: tool_call,
           timeout_ms: module.timeout_ms(),
           on_timeout_policy: module.on_timeout(),
-          run: {__MODULE__, :run_backend_tool, [scope, module, task_id, exec_opts]},
+          run: {__MODULE__, :run_backend_tool, [scope, module, task_id]},
           on_timeout: {__MODULE__, :handle_timeout, [scope, task_id, module.on_timeout()]}
         }
 
@@ -84,10 +82,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   # --- PE Callbacks (public for MFA dispatch) ---
 
   @doc false
-  @spec run_backend_tool(Accounts.scope(), module(), String.t(), map(), SwarmAi.ToolCall.t()) ::
+  @spec run_backend_tool(Accounts.scope(), module(), String.t(), SwarmAi.ToolCall.t()) ::
           SwarmAi.ToolResult.t()
-  def run_backend_tool(%Scope{} = scope, module, task_id, exec_opts, tool_call) do
-    case execute_backend_tool(scope, module, tool_call, task_id, exec_opts) do
+  def run_backend_tool(%Scope{} = scope, module, task_id, tool_call) do
+    case execute_backend_tool(scope, module, tool_call, task_id) do
       {:ok, content} ->
         SwarmAi.ToolResult.make(tool_call.id, content, false)
 
@@ -150,27 +148,20 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- Internal ---
 
-  # Looks up a tool by name for timeout/policy config. Checks mcp_tool_defs
-  # (FrontmanServer.Tools.MCP.t()) first, then mcp_tools (SwarmAi.Tool.t()).
-  # Both structs have timeout_ms and on_timeout fields.
+  # Looks up an MCP tool by name for timeout/policy config.
   defp find_mcp_tool_def!(tool_name, exec_opts) do
-    found =
-      Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tool_name)) ||
-        Enum.find(exec_opts.mcp_tools, &(&1.name == tool_name))
+    found = Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tool_name))
 
     found ||
-      raise "Unknown tool: #{tool_name}. Not a backend tool and not in mcp_tool_defs or mcp_tools."
+      raise "Unknown tool: #{tool_name}. Not a backend tool and not in mcp_tool_defs."
   end
 
   defp build_exec_opts(opts) do
     backend_tool_modules = Keyword.fetch!(opts, :backend_tool_modules)
 
     %{
-      backend_tool_modules: backend_tool_modules,
       backend_module_map: Map.new(backend_tool_modules, &{&1.name(), &1}),
-      mcp_tools: Keyword.fetch!(opts, :mcp_tools),
-      mcp_tool_defs: Keyword.fetch!(opts, :mcp_tool_defs),
-      llm_opts: Keyword.fetch!(opts, :llm_opts)
+      mcp_tool_defs: Keyword.fetch!(opts, :mcp_tool_defs)
     }
   end
 
@@ -196,30 +187,14 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- Backend Tool Execution ---
 
-  defp execute_backend_tool(scope, module, tool_call, task_id, opts) do
+  defp execute_backend_tool(scope, module, tool_call, task_id) do
     Logger.info("ToolExecutor: Executing backend tool #{tool_call.name}")
 
-    # Re-fetch task from DB to get latest interactions. The task captured at
-    # execution start becomes stale as earlier tool calls in the same run add
-    # new interactions. Without a fresh fetch, sub-agents spawned by later
-    # backend tools would miss context from earlier tool results.
+    # Re-fetch task from DB so backend tools see latest persisted interactions.
     {:ok, task} = Tasks.get_task(scope, task_id)
 
-    # Pass the executor itself so backend tools can spawn sub-agents.
-    executor =
-      make_executor(scope, task_id,
-        backend_tool_modules: opts.backend_tool_modules,
-        mcp_tools: opts.mcp_tools,
-        mcp_tool_defs: opts.mcp_tool_defs,
-        llm_opts: opts.llm_opts
-      )
-
     context = %Backend.Context{
-      scope: scope,
-      task: task,
-      tool_executor: executor,
-      mcp_tools: opts.mcp_tools,
-      llm_opts: opts.llm_opts
+      task: task
     }
 
     case SwarmAi.ToolCall.parse_arguments(tool_call) do
