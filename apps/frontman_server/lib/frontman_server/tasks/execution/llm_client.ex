@@ -69,7 +69,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.{StreamCleanup, StreamStallTimeout}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
-  alias SwarmAi.SchemaTransformer
 
   require Logger
 

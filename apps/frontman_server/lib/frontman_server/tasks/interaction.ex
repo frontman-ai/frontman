@@ -48,7 +48,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   alias FrontmanServer.CurrentPageContext
   alias SwarmAi.Message, as: SwarmMessage
   alias SwarmAi.Message.ContentPart, as: SwarmContentPart
-  alias SwarmAi.SchemaTransformer
   alias SwarmAi.ToolCall, as: SwarmToolCall
 
   defmodule FigmaNode do
@@ -906,7 +905,7 @@ defmodule FrontmanServer.Tasks.Interaction do
              id: Interaction.new_id(),
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: SchemaTransformer.strip_nulls(arguments),
+             arguments: SwarmAi.SchemaTransformer.strip_nulls(arguments),
              timestamp: Interaction.now()
            }}
 

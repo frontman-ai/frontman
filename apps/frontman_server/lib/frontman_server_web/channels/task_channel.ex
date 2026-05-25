@@ -467,15 +467,16 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket = assign(socket, :scope, scope)
 
     model = extract_model_from_params(params)
-    prompt = ACP.parse_prompt_params(params)
+    prompt_content = Map.fetch!(params, "prompt")
+    text_summary = ACP.extract_text_content(prompt_content)
 
-    Logger.info("process_prompt", %{task_id: task_id, model: model, prompt: prompt})
+    Logger.info("process_prompt", %{task_id: task_id, model: model, text_summary: text_summary})
 
     all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
 
     opts = execution_opts(socket, model, mcp_tools)
 
-    case Tasks.submit_user_message(scope, task_id, prompt.content, all_tools, opts) do
+    case Tasks.submit_user_message(scope, task_id, prompt_content, all_tools, opts) do
       {:error, :already_running} ->
         Logger.info("Rejected prompt — agent already running for task #{task_id}")
         error_response = JsonRpc.error_response(id, -32_000, "Agent already running")
@@ -493,7 +494,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         Logger.info("User message added, agent spawned for task #{task_id}")
 
-        Tasks.enqueue_title_generation(scope, task_id, prompt.text_summary, model: model)
+        Tasks.enqueue_title_generation(scope, task_id, text_summary, model: model)
 
         {:noreply, socket}
 

@@ -455,31 +455,13 @@ defmodule AgentClientProtocol do
   Extracts text content from ACP prompt content blocks.
 
   Filters for text blocks and joins their text content with newlines.
-  Used for logging and analysis of prompts.
+  Used for logging and title generation.
   """
   @spec extract_text_content(list(map())) :: String.t()
   def extract_text_content(prompt_content) when is_list(prompt_content) do
     prompt_content
     |> Enum.filter(&(&1["type"] == "text"))
     |> Enum.map_join("\n", &(&1["text"] || ""))
-  end
-
-  @doc """
-  Parses ACP session/prompt params into a structured format.
-
-  Returns a map with:
-  - `content`: The full ACP content blocks (for passing to agent)
-  - `text_summary`: Extracted text for logging
-  """
-  @spec parse_prompt_params(map()) :: %{
-          content: list(map()),
-          text_summary: String.t()
-        }
-  def parse_prompt_params(%{"prompt" => content}) do
-    %{
-      content: content,
-      text_summary: extract_text_content(content)
-    }
   end
 
   # ---------------------------------------------------------------------------

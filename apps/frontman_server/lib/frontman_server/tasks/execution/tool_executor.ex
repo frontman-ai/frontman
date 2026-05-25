@@ -36,7 +36,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend
-  alias SwarmAi.SchemaTransformer
   alias SwarmAi.ToolExecution
 
   @doc """
@@ -256,7 +255,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         do_run_backend_tool(
           scope,
           module,
-          SchemaTransformer.strip_nulls(args),
+          SwarmAi.SchemaTransformer.strip_nulls(args),
           context,
           tool_call,
           task_id
