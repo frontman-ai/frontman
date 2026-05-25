@@ -105,18 +105,9 @@ defmodule SwarmAi.Testing do
 
     defp to_stream_chunk_tool_call(%SwarmAi.ToolCall{} = tc, index) do
       args =
-        case tc.arguments do
-          arguments when is_map(arguments) ->
-            arguments
-
-          arguments when is_binary(arguments) ->
-            case Jason.decode(arguments) do
-              {:ok, decoded} when is_map(decoded) -> decoded
-              _other -> %{}
-            end
-
-          _other ->
-            %{}
+        case SwarmAi.ToolCall.parse_arguments(tc) do
+          {:ok, arguments} -> arguments
+          {:error, _reason} -> %{}
         end
 
       StreamChunk.tool_call(tc.name, args, %{id: tc.id, index: index})

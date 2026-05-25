@@ -36,6 +36,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend
+  alias SwarmAi.SchemaTransformer
   alias SwarmAi.ToolExecution
 
   @doc """
@@ -55,12 +56,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   def make_executor(%Scope{} = scope, task_id, opts) do
     exec_opts = build_exec_opts(opts)
 
-    fn tool_calls ->
-      Enum.map(tool_calls, fn tc ->
-        tc = strip_null_arguments(tc)
-        build_execution(tc, scope, task_id, exec_opts)
-      end)
-    end
+    fn tool_calls -> Enum.map(tool_calls, &build_execution(&1, scope, task_id, exec_opts)) end
   end
 
   defp build_execution(tool_call, scope, task_id, exec_opts) do
@@ -231,15 +227,40 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       llm_opts: opts.llm_opts
     }
 
-    case parse_arguments(tool_call.name, tool_call.arguments) do
-      {:error, reason} ->
-        # parse_arguments already reported to Sentry and logged — just record
-        # the error result for interaction history and return.
+    case SwarmAi.ToolCall.parse_arguments(tool_call) do
+      {:error, parse_error} ->
+        message =
+          if is_exception(parse_error), do: Exception.message(parse_error), else: parse_error
+
+        raw_arguments = String.slice(tool_call.arguments, 0, 500)
+
+        reason =
+          "Failed to parse arguments for tool #{tool_call.name}: #{message}, raw: #{raw_arguments}"
+
+        Logger.error("ToolExecutor: #{reason}")
+
+        Sentry.capture_message("Tool argument parse failure",
+          level: :error,
+          tags: %{error_type: "tool_parse_error", tool_name: tool_call.name},
+          extra: %{
+            tool_name: tool_call.name,
+            raw_arguments: raw_arguments,
+            decode_error: message
+          }
+        )
+
         persist_error_tool_result(scope, task_id, tool_call, reason)
         {:error, reason}
 
       {:ok, args} ->
-        do_run_backend_tool(scope, module, args, context, tool_call, task_id)
+        do_run_backend_tool(
+          scope,
+          module,
+          SchemaTransformer.strip_nulls(args),
+          context,
+          tool_call,
+          task_id
+        )
     end
   end
 
@@ -333,38 +354,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       }
     )
   end
-
-  defp strip_null_arguments(tool_call) do
-    SwarmAi.ToolCall.strip_null_arguments(tool_call)
-  end
-
-  defp parse_arguments(tool_name, arguments) when is_binary(arguments) do
-    case Jason.decode(arguments) do
-      {:ok, decoded} ->
-        {:ok, decoded}
-
-      {:error, decode_error} ->
-        reason =
-          "Failed to parse arguments for tool #{tool_name}: #{inspect(decode_error)}, raw: #{String.slice(arguments, 0, 500)}"
-
-        Logger.error("ToolExecutor: #{reason}")
-
-        Sentry.capture_message("Tool argument parse failure",
-          level: :error,
-          tags: %{error_type: "tool_parse_error", tool_name: tool_name},
-          extra: %{
-            tool_name: tool_name,
-            raw_arguments: String.slice(arguments, 0, 500),
-            decode_error: inspect(decode_error)
-          }
-        )
-
-        {:error, reason}
-    end
-  end
-
-  defp parse_arguments(_tool_name, arguments) when is_map(arguments), do: {:ok, arguments}
-  defp parse_arguments(_tool_name, _), do: {:ok, %{}}
 
   defp encode_result(value) when is_binary(value), do: value
   defp encode_result(value), do: Jason.encode!(value)

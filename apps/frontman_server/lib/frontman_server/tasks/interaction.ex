@@ -48,6 +48,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   alias FrontmanServer.CurrentPageContext
   alias SwarmAi.Message, as: SwarmMessage
   alias SwarmAi.Message.ContentPart, as: SwarmContentPart
+  alias SwarmAi.SchemaTransformer
   alias SwarmAi.ToolCall, as: SwarmToolCall
 
   defmodule FigmaNode do
@@ -898,40 +899,20 @@ defmodule FrontmanServer.Tasks.Interaction do
     def new(%SwarmAi.ToolCall{} = tc) do
       alias FrontmanServer.Tasks.Interaction
 
-      case decode_arguments(tc.arguments) do
+      case SwarmAi.ToolCall.parse_arguments(tc) do
         {:ok, arguments} ->
           {:ok,
            %__MODULE__{
              id: Interaction.new_id(),
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: arguments,
+             arguments: SchemaTransformer.strip_nulls(arguments),
              timestamp: Interaction.now()
            }}
 
         {:error, reason} ->
-          {:error, {:invalid_tool_arguments, reason}}
-      end
-    end
-
-    defp decode_arguments(arguments) when is_binary(arguments) do
-      arguments
-      |> String.trim()
-      |> decode_arguments_json()
-    end
-
-    defp decode_arguments_json(""), do: {:ok, %{}}
-
-    defp decode_arguments_json(arguments) do
-      case Jason.decode(arguments) do
-        {:ok, decoded} when is_map(decoded) ->
-          {:ok, decoded}
-
-        {:ok, decoded} ->
-          {:error, "expected JSON object, got #{inspect(decoded)}"}
-
-        {:error, decode_error} ->
-          {:error, Exception.message(decode_error)}
+          message = if is_exception(reason), do: Exception.message(reason), else: reason
+          {:error, {:invalid_tool_arguments, message}}
       end
     end
   end

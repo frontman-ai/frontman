@@ -321,23 +321,8 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   defp to_reqllm_tool_calls(tool_calls) do
     Enum.map(tool_calls, fn tc ->
-      arguments = strip_null_args(tc.arguments)
-      ReqLLM.ToolCall.new(tc.id, tc.name, arguments)
+      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+      ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
     end)
   end
-
-  # Strip null values from tool call arguments in conversation history.
-  # OpenAI strict mode makes optional fields nullable, so the model sends null.
-  # Clean these before sending back in the next turn.
-  defp strip_null_args(arguments) when is_binary(arguments) do
-    case Jason.decode(arguments) do
-      {:ok, args} when is_map(args) ->
-        Jason.encode!(SwarmAi.SchemaTransformer.strip_nulls(args))
-
-      _ ->
-        arguments
-    end
-  end
-
-  defp strip_null_args(arguments), do: arguments
 end
