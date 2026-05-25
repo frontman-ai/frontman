@@ -34,7 +34,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend
   alias SwarmAi.ToolExecution
 
@@ -215,14 +214,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         llm_opts: opts.llm_opts
       )
 
-    context_messages = Interaction.extract_markdown_messages(task.interactions)
-
     context = %Backend.Context{
       scope: scope,
       task: task,
       tool_executor: executor,
       mcp_tools: opts.mcp_tools,
-      context_messages: context_messages,
       llm_opts: opts.llm_opts
     }
 

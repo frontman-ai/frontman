@@ -15,7 +15,6 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
       end
   """
 
-  alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.MCP
   alias SwarmAi.ToolExecution
@@ -53,28 +52,6 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
     merged_llm_opts = Keyword.merge(default_llm_opts, llm_opts)
 
     %Context{scope: scope, task: task, tool_executor: noop_executor, llm_opts: merged_llm_opts}
-  end
-
-  @doc """
-  Add a markdown file to task interactions.
-
-  Simulates the task having read a markdown file via read_file tool,
-  making it available for injection into sub-agent context.
-  """
-  @spec add_markdown_to_task(
-          FrontmanServer.Accounts.Scope.t(),
-          String.t(),
-          String.t(),
-          String.t()
-        ) :: :ok
-  def add_markdown_to_task(scope, task_id, filename, content) do
-    tool_call = %{
-      id: "call_#{:rand.uniform(1_000_000)}",
-      name: "read_file"
-    }
-
-    result = %{"path" => filename, "text" => content}
-    Tasks.add_tool_result(scope, task_id, tool_call, result, false)
   end
 
   @doc """

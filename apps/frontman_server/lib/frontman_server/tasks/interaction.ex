@@ -1061,27 +1061,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   def user_message?(_), do: false
 
   @doc """
-  Extracts markdown file contents from read_file ToolResult interactions
-  and converts them to user messages.
-
-  Only includes ToolResults where:
-  - tool_name is "read_file"
-  - The filename/path (from the matching ToolCall arguments) ends with .md
-  - The result is not an error
-  """
-  @spec extract_markdown_messages(list(t())) :: list(SwarmMessage.t())
-  def extract_markdown_messages(interactions) do
-    tool_calls_map = build_tool_calls_map(interactions)
-
-    interactions
-    |> Enum.filter(fn
-      %ToolResult{tool_name: "read_file", is_error: false} -> true
-      _ -> false
-    end)
-    |> Enum.flat_map(&extract_markdown_from_tool_result(&1, tool_calls_map))
-  end
-
-  @doc """
   Checks whether all tool_calls from the last AgentResponse have matching
   ToolResult interactions.
 
@@ -1427,62 +1406,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     case Enum.filter(details, &(&1["type"] == "reasoning.encrypted")) do
       [] -> nil
       filtered -> filtered
-    end
-  end
-
-  defp build_tool_calls_map(interactions) do
-    interactions
-    |> Enum.filter(fn
-      %ToolCall{} -> true
-      _ -> false
-    end)
-    |> Enum.reduce(%{}, fn %ToolCall{tool_call_id: id} = tc, acc ->
-      Map.put(acc, id, tc)
-    end)
-  end
-
-  defp extract_markdown_from_tool_result(
-         %ToolResult{tool_call_id: tool_call_id, result: result},
-         tool_calls_map
-       ) do
-    case Map.get(tool_calls_map, tool_call_id) do
-      %ToolCall{arguments: args} ->
-        path = args["path"]
-
-        if path && String.ends_with?(path, ".md") do
-          extract_content_from_result(result)
-        else
-          []
-        end
-
-      nil ->
-        []
-    end
-  end
-
-  defp extract_content_from_result(result) do
-    case result do
-      result when is_map(result) ->
-        content = result["text"] || result["content"]
-
-        if content && is_binary(content) do
-          [SwarmAi.Message.user(content)]
-        else
-          []
-        end
-
-      result when is_binary(result) ->
-        case Jason.decode(result) do
-          {:ok, decoded} when is_map(decoded) ->
-            extract_content_from_result(decoded)
-
-          _ ->
-            # Plain text content - use as is
-            [SwarmAi.Message.user(result)]
-        end
-
-      _ ->
-        []
     end
   end
 

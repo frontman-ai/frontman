@@ -26,7 +26,6 @@ defmodule FrontmanServer.Tools.Backend do
     contexts:
     - `llm_opts`: Flat keyword list with `:api_key` and `:model` for LLM calls
     - `mcp_tools`: Pre-converted Swarm tools for sub-agent spawning
-    - `context_messages`: Pre-extracted context from read_file results (AGENTS.md, etc.)
     """
     use TypedStruct
 
@@ -41,7 +40,6 @@ defmodule FrontmanServer.Tools.Backend do
       field(:task, Task.t(), enforce: true)
       field(:tool_executor, executor(), enforce: true)
       field(:mcp_tools, [SwarmAi.Tool.t()], default: [])
-      field(:context_messages, [SwarmAi.Message.t()], default: [])
       # Flat keyword list: [api_key: "...", model: "openrouter:anthropic/..."]
       field(:llm_opts, keyword(), enforce: true)
     end
