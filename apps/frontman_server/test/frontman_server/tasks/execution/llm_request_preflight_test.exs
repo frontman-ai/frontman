@@ -23,7 +23,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
   @tool_result_max_bytes 100
 
   describe "run/2" do
-    test "full pipeline: decays old images, compacts old tool results, dedupes context" do
+    test "full pipeline: decays old images, leaves old tool results intact, dedupes context" do
       tool_json =
         Jason.encode!(%{
           "content" => "file data",
@@ -66,11 +66,10 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert Enum.any?(user1_content, &(&1.text == "[image: previously analyzed]"))
       refute Enum.any?(user1_content, &(&1.type == :image))
 
-      # Old tool result (index 2) is replaced with a recovery pointer
+      # Old tool result decay is intentionally a no-op.
       tool_text = Enum.at(result, 2).content |> hd() |> Map.get(:text)
 
-      assert tool_text ==
-               "[Omitted data. For the data, use get_tool_result with tool_call_id tc1.]"
+      assert tool_text == tool_json
 
       # Duplicate page context stripped from second user message
       user2_text =
@@ -279,6 +278,38 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert text =~ "get_tool_result with tool_call_id tc-utf8"
     end
 
+    test "truncates live get_tool_result with its tool call ID" do
+      source_tool_call_id = "tc-original"
+      get_tool_call_id = "tc-get"
+      large_text = String.duplicate("r", 200)
+
+      messages = [
+        %Message.Assistant{
+          content: [],
+          tool_calls: [
+            %SwarmAi.ToolCall{
+              id: get_tool_call_id,
+              name: "get_tool_result",
+              arguments: Jason.encode!(%{"tool_call_id" => source_tool_call_id})
+            }
+          ]
+        },
+        %Message.Tool{
+          name: "get_tool_result",
+          tool_call_id: get_tool_call_id,
+          content: [ContentPart.text(large_text)]
+        }
+      ]
+
+      [_assistant, result] =
+        LLMRequestPreflight.run(messages, tool_result_max_bytes: @tool_result_max_bytes)
+
+      text = hd(result.content).text
+      assert text =~ "[Output truncated:"
+      assert text =~ "get_tool_result with tool_call_id #{get_tool_call_id}"
+      refute text =~ "get_tool_result with tool_call_id #{source_tool_call_id}"
+    end
+
     test "leaves under-limit tool text unchanged" do
       short_text = String.duplicate("a", 50)
 
@@ -368,12 +399,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       tool_results =
         Enum.filter(preflighted, &match?(%Message.Tool{}, &1))
 
-      # Old results are compacted; the live result is truncated.
-      Enum.each(Enum.take(tool_results, 9), fn msg ->
-        assert hd(msg.content).text =~ "get_tool_result"
-      end)
-
-      Enum.each(Enum.drop(tool_results, 9), fn msg ->
+      Enum.each(tool_results, fn msg ->
         text = hd(msg.content).text
 
         assert byte_size(text) < 100_000,
@@ -429,18 +455,26 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       refute image_placeholder.text =~ "Image removed"
     end
 
-    test "compacts recovered get_tool_result images after the assistant has read them" do
+    test "leaves recovered get_tool_result image intact after the assistant has read it" do
       data_url = "data:image/png;base64,#{Base.encode64("image-bytes")}"
+      source_tool_call_id = "tc-screenshot"
+      get_tool_call_id = "tc-get"
 
       messages = [
         %Message.User{content: [ContentPart.text("recover screenshot")]},
         %Message.Assistant{
           content: [ContentPart.text("")],
-          tool_calls: [%SwarmAi.ToolCall{id: "tc-get", name: "get_tool_result", arguments: "{}"}]
+          tool_calls: [
+            %SwarmAi.ToolCall{
+              id: get_tool_call_id,
+              name: "get_tool_result",
+              arguments: Jason.encode!(%{"tool_call_id" => source_tool_call_id})
+            }
+          ]
         },
         %Message.Tool{
           name: "get_tool_result",
-          tool_call_id: "tc-get",
+          tool_call_id: get_tool_call_id,
           content: [ContentPart.text(Jason.encode!(%{"screenshot" => data_url}))]
         },
         %Message.Assistant{content: [ContentPart.text("I saw it")]},
@@ -451,10 +485,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
 
       [part] = Enum.at(preflighted, 2).content
 
-      assert part.type == :text
-
-      assert part.text ==
-               "[Omitted data. For the data, use get_tool_result with tool_call_id tc-get.]"
+      assert part == ContentPart.image("image-bytes", "image/png")
     end
   end
 

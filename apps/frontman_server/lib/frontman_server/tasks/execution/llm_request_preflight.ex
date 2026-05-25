@@ -63,28 +63,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
     end)
   end
 
-  defp compact_old_tool_results(messages, live_start_index) do
-    messages
-    |> Enum.with_index()
-    |> Enum.map(&compact_old_tool_result(&1, live_start_index))
-  end
-
-  defp compact_old_tool_result({%Message.Tool{} = msg, idx}, live_start_index)
-       when idx < live_start_index do
-    compact_tool_result(msg)
-  end
-
-  defp compact_old_tool_result({msg, _idx}, _live_start_index), do: msg
-
-  defp compact_tool_result(%Message.Tool{tool_call_id: id} = msg) when is_binary(id) do
-    %{msg | content: [ContentPart.text(tool_result_placeholder(id))]}
-  end
-
-  defp compact_tool_result(msg), do: msg
-
-  defp tool_result_placeholder(id) do
-    "[Omitted data. For the data, use get_tool_result with tool_call_id #{id}.]"
-  end
+  defp compact_old_tool_results(messages, _live_start_index), do: messages
 
   defp expand_tool_result_images(messages) do
     Enum.map(messages, &expand_tool_image/1)
