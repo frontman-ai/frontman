@@ -21,6 +21,16 @@ defmodule FrontmanServer.Tools.WebFetch do
   @max_response_bytes 5_242_880
   @max_redirects 10
   @max_retries 5
+  @image_media_types ["image/png", "image/jpeg", "image/gif", "image/webp"]
+  @accept_header Enum.join(
+                   [
+                     "application/json",
+                     "text/markdown;q=0.9",
+                     "text/html;q=0.8",
+                     "text/plain;q=0.7"
+                   ] ++ Enum.map(@image_media_types, &"#{&1};q=0.8"),
+                   ", "
+                 )
 
   @impl true
   @spec name() :: String.t()
@@ -30,15 +40,17 @@ defmodule FrontmanServer.Tools.WebFetch do
   @spec description() :: String.t()
   def description do
     """
-    Fetch a public external web page and return its content as markdown.
+    Fetch a public external text page or image URL.
 
-    Use this to retrieve content from known public internet URLs. Do not use this
-    for the current app page, localhost, private networks, .local, .internal, or
-    other development-server URLs. For the current web preview page, use the
-    available browser or framework-specific page inspection tools instead.
+    Use this to retrieve content from known public internet URLs, including
+    public image URLs for visual analysis. Do not use this for the current app
+    page, localhost, private networks, .local, .internal, or other
+    development-server URLs. For the current web preview page, use the available
+    browser or framework-specific page inspection tools instead.
 
     HTML pages are automatically converted to markdown. Results are paginated by
-    lines — use offset and limit to read through large pages.
+    lines — use offset and limit to read through large pages. Image responses are
+    returned as image content and include the source URL.
 
     If total_lines > start_line + lines_returned, there is more content available.
     Call again with a higher offset to continue reading.
@@ -81,15 +93,12 @@ defmodule FrontmanServer.Tools.WebFetch do
   @spec execute(map(), FrontmanServer.Tools.Backend.Context.t()) ::
           FrontmanServer.Tools.Backend.result()
   def execute(args, _context) do
-    with {:ok, url} <- validate_url(args) do
-      offset = clamp(Map.get(args, "offset", 0), 0, :infinity)
-      limit = clamp(Map.get(args, "limit", 500), 1, 2000)
+    offset = clamp(Map.get(args, "offset", 0), 0, :infinity)
+    limit = clamp(Map.get(args, "limit", 500), 1, 2000)
 
-      with {:ok, content_type, body} <- fetch(url),
-           :ok <- require_text_content(content_type) do
-        markdown = convert_to_markdown(body, content_type)
-        paginate(markdown, url, content_type, offset, limit)
-      end
+    with {:ok, url} <- validate_url(args),
+         {:ok, content_type, body} <- fetch(url) do
+      content_result(url, content_type, body, offset, limit)
     end
   end
 
@@ -110,7 +119,7 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp fetch(url, [user_agent | remaining_agents], redirects) do
     headers = [
-      {"accept", "application/json, text/markdown;q=0.9, text/html;q=0.8, text/plain;q=0.7"},
+      {"accept", @accept_header},
       {"user-agent", user_agent}
     ]
 
@@ -231,20 +240,61 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   @text_prefixes ["text/", "application/json", "application/xml", "application/javascript"]
 
-  defp require_text_content(content_type) do
+  defp text_content?(content_type) do
     ct = String.downcase(content_type)
+    Enum.any?(@text_prefixes, &String.contains?(ct, &1))
+  end
 
-    case Enum.any?(@text_prefixes, &String.contains?(ct, &1)) do
-      true ->
-        :ok
+  defp image_content?(content_type) do
+    content_type
+    |> media_type()
+    |> then(&(&1 in @image_media_types))
+  end
 
-      false ->
-        {:error,
-         "Cannot fetch non-text content (#{content_type}). This tool only supports text-based URLs."}
-    end
+  defp media_type(content_type) do
+    content_type
+    |> String.split(";", parts: 2)
+    |> hd()
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp unsupported_content_error(content_type) do
+    {:error,
+     "Cannot fetch non-text content (#{content_type}). This tool only supports text-based URLs and supported image URLs."}
   end
 
   # -- Content conversion -----------------------------------------------------
+
+  defp content_result(url, content_type, body, offset, limit) do
+    cond do
+      image_content?(content_type) ->
+        image_result(url, content_type, body)
+
+      text_content?(content_type) ->
+        text_result(url, content_type, body, offset, limit)
+
+      true ->
+        unsupported_content_error(content_type)
+    end
+  end
+
+  defp text_result(url, content_type, body, offset, limit) do
+    markdown = convert_to_markdown(body, content_type)
+    paginate(markdown, url, content_type, offset, limit)
+  end
+
+  defp image_result(url, content_type, body) do
+    mime = media_type(content_type)
+
+    {:ok,
+     %{
+       "type" => "image",
+       "url" => url,
+       "content_type" => content_type,
+       "image" => "data:#{mime};base64,#{Base.encode64(body)}"
+     }}
+  end
 
   defp convert_to_markdown(body, content_type) do
     case String.contains?(content_type, "text/html") do

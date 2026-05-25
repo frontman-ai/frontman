@@ -58,38 +58,43 @@ class Frontman_Elementor_Data {
         return null;
     }
 
-    public static function save_page_data( int $post_id, array $data ): bool {
+    public static function save_page_data( int $post_id, array $data ): array {
         $post = get_post( $post_id );
         if ( ! $post ) {
             throw new \RuntimeException( 'Post not found: ' . esc_html( (string) $post_id ) );
         }
 
-        update_post_meta( $post_id, '_elementor_edit_mode', 'builder' );
-        update_post_meta( $post_id, '_elementor_template_type', self::template_type_for_post( $post ) );
-        if ( 'page' === $post->post_type ) {
-            update_post_meta( $post_id, '_wp_page_template', 'elementor_header_footer' );
-        }
+        $page_template_before       = self::capture_page_template( $post );
+        $page_template_after_save   = $page_template_before;
+        $page_template_after_restore = $page_template_before;
 
-        $plugin = self::elementor_plugin();
-        if ( $plugin && isset( $plugin->documents ) ) {
-            $document = $plugin->documents->get( $post_id );
-            if ( $document && method_exists( $document, 'save' ) ) {
-                $document->save( [ 'elements' => $data ] );
-                self::flush_css( $post_id );
-                return true;
+        try {
+            update_post_meta( $post_id, '_elementor_edit_mode', 'builder' );
+            update_post_meta( $post_id, '_elementor_template_type', self::template_type_for_post( $post ) );
+
+            // Save only the element tree; Elementor document saves also sync page-level templates.
+            $json = wp_json_encode( $data );
+            if ( ! is_string( $json ) || '' === $json ) {
+                throw new \RuntimeException( 'Failed to encode Elementor data.' );
             }
+
+            update_post_meta( $post_id, '_elementor_data', function_exists( 'wp_slash' ) ? wp_slash( $json ) : addslashes( $json ) );
+            update_post_meta( $post_id, '_elementor_version', defined( 'ELEMENTOR_VERSION' ) ? ELEMENTOR_VERSION : 'unknown' );
+            self::flush_css( $post_id );
+
+            $result = [ 'success' => true ];
+        } finally {
+            $page_template_after_save = self::capture_page_template( $post );
+            self::restore_page_template( $post_id, $page_template_before );
+            $page_template_after_restore = self::capture_page_template( $post );
         }
 
-        $json = wp_json_encode( $data );
-        if ( ! is_string( $json ) || '' === $json ) {
-            throw new \RuntimeException( 'Failed to encode Elementor data.' );
+        $page_template_change = self::page_template_change_response( $page_template_before, $page_template_after_save, $page_template_after_restore );
+        if ( null !== $page_template_change ) {
+            $result['page_template_change'] = $page_template_change;
         }
 
-        update_post_meta( $post_id, '_elementor_data', function_exists( 'wp_slash' ) ? wp_slash( $json ) : addslashes( $json ) );
-        update_post_meta( $post_id, '_elementor_version', defined( 'ELEMENTOR_VERSION' ) ? ELEMENTOR_VERSION : 'unknown' );
-        self::flush_css( $post_id );
-
-        return true;
+        return $result;
     }
 
     public static function get_page_structure( int $post_id ): ?array {
@@ -268,12 +273,12 @@ class Frontman_Elementor_Data {
             $before = self::get_page_data( $post_id );
             $undo   = is_array( $before ) ? self::save_rollback( $post_id, self::make_page_rollback( 'pre_restore_page_data', $before ) ) : null;
             try {
-                self::save_page_data( $post_id, $data );
+                $save_result = self::save_page_data( $post_id, $data );
             } catch ( \Throwable $e ) {
                 return [ 'success' => false, 'error' => 'Failed to restore page rollback: ' . $e->getMessage() ];
             }
 
-            return [ 'success' => true, 'restored' => 'page_data', 'rollback_id' => $rollback_id, 'undo_rollback_id' => $undo['rollback_id'] ?? null ];
+            return self::append_save_result( [ 'success' => true, 'restored' => 'page_data', 'rollback_id' => $rollback_id, 'undo_rollback_id' => $undo['rollback_id'] ?? null ], $save_result );
         }
 
         $element = isset( $rollback['element'] ) && is_array( $rollback['element'] ) ? $rollback['element'] : null;
@@ -316,12 +321,12 @@ class Frontman_Elementor_Data {
 
         $undo = self::save_rollback( $post_id, self::make_page_rollback( 'pre_restore_page_data', $before ) );
         try {
-            self::save_page_data( $post_id, $data );
+            $save_result = self::save_page_data( $post_id, $data );
         } catch ( \Throwable $e ) {
             return [ 'success' => false, 'error' => 'Failed to restore element rollback: ' . $e->getMessage() ];
         }
 
-        return [ 'success' => true, 'restored' => 'element', 'rollback_id' => $rollback_id, 'undo_rollback_id' => $undo['rollback_id'], 'element_id' => $element_id ];
+        return self::append_save_result( [ 'success' => true, 'restored' => 'element', 'rollback_id' => $rollback_id, 'undo_rollback_id' => $undo['rollback_id'], 'element_id' => $element_id ], $save_result );
     }
 
     public static function generate_id(): string {
@@ -524,6 +529,65 @@ class Frontman_Elementor_Data {
         }
 
         return null;
+    }
+
+    private static function capture_page_template( \WP_Post $post ): ?string {
+        if ( 'page' !== $post->post_type ) {
+            return null;
+        }
+
+        $template = get_post_meta( $post->ID, '_wp_page_template', true );
+        return is_string( $template ) ? $template : '';
+    }
+
+    private static function restore_page_template( int $post_id, ?string $page_template ): void {
+        if ( null === $page_template ) {
+            return;
+        }
+
+        if ( '' === $page_template ) {
+            delete_post_meta( $post_id, '_wp_page_template' );
+            return;
+        }
+
+        update_post_meta( $post_id, '_wp_page_template', $page_template );
+    }
+
+    private static function page_template_change_response( ?string $before, ?string $after_save, ?string $after_restore ): ?array {
+        if ( null === $before ) {
+            return null;
+        }
+
+        if ( $before === $after_save && $before === $after_restore ) {
+            return null;
+        }
+
+        $restored = $before !== $after_save && $before === $after_restore;
+        return [
+            'changed'             => $before !== $after_restore,
+            'changed_during_save' => $before !== $after_save,
+            'restored'            => $restored,
+            'before'              => self::page_template_label( $before ),
+            'after_save'          => self::page_template_label( $after_save ),
+            'after'               => self::page_template_label( $after_restore ),
+            'message'             => $restored ? 'Page template changed during Elementor save and was restored.' : 'Page template changed during Elementor save.',
+        ];
+    }
+
+    private static function page_template_label( ?string $template ): ?string {
+        if ( null === $template ) {
+            return null;
+        }
+
+        return '' === $template ? 'default' : $template;
+    }
+
+    private static function append_save_result( array $response, array $save_result ): array {
+        if ( isset( $save_result['page_template_change'] ) ) {
+            $response['page_template_change'] = $save_result['page_template_change'];
+        }
+
+        return $response;
     }
 
     private static function rollback_exists( array $rollbacks, string $rollback_id ): bool {

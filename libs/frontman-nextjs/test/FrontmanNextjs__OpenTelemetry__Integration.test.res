@@ -13,7 +13,7 @@ external logOnEmit: (logProcessor, Bindings.Logs.sdkLogRecord, option<Bindings.c
 type spanProcessor
 @send external spanOnEnd: (spanProcessor, Bindings.Trace.readableSpan) => unit = "onEnd"
 
-beforeAll(_t => {
+beforeAll(() => {
   LogCapture.initialize()
 })
 

@@ -244,6 +244,76 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
+  # -- web_fetch image results ------------------------------------------------
+
+  describe "web_fetch image results" do
+    setup [:setup_sandbox, :setup_user, :setup_task]
+
+    test "fetched image URL is persisted and converts back to LLM image content",
+         %{
+           task_id: task_id,
+           scope: scope
+         } do
+      image_url = "https://example.com/cat.jpg"
+      image_bytes = <<255, 216, 255, 224, "fake-jpeg">>
+      tool_call_id = "tc_web_fetch_image_#{System.unique_integer([:positive])}"
+
+      web_fetch_call =
+        tool_call("web_fetch", %{"url" => image_url}, id: tool_call_id)
+
+      Req.Test.stub(:web_fetch, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_content_type("image/jpeg")
+        |> Plug.Conn.send_resp(200, image_bytes)
+      end)
+
+      expect_llm_responses([
+        {:tool_calls, [web_fetch_call], "I'll fetch the image."},
+        "I can inspect the image."
+      ])
+
+      scope = Scope.with_env_api_keys(scope, %{"nvidia" => "sk-test"})
+
+      {:ok, _interaction} =
+        Tasks.submit_user_message(
+          scope,
+          task_id,
+          user_content("What is in #{image_url}?"),
+          [],
+          model: "nvidia:moonshotai/kimi-k2.6"
+        )
+
+      assert_receive {:execution_event, %ExecutionEvent{type: :completed}}, 5_000
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_result =
+        Enum.find(task.interactions, fn
+          %Interaction.ToolResult{tool_call_id: ^tool_call_id} -> true
+          _ -> false
+        end)
+
+      assert %Interaction.ToolResult{is_error: false, result: result} = tool_result
+      assert result["type"] == "image"
+      assert result["url"] == image_url
+      assert result["content_type"] =~ "image/jpeg"
+      assert result["image"] == "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
+
+      tool_message =
+        task.interactions
+        |> Interaction.to_llm_messages()
+        |> Enum.find(fn message ->
+          message.role == :tool && message.tool_call_id == tool_call_id
+        end)
+
+      assert tool_message != nil
+
+      assert [
+               %{type: :image, data: ^image_bytes, media_type: "image/jpeg"}
+             ] = tool_message.content
+    end
+  end
+
   # -- Interactive tool (question) with blocking receive ----------------------
 
   describe "interactive tool (question) blocking" do
@@ -314,7 +384,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+      {:ok, _job} = Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
 
       assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
@@ -329,20 +399,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Build me a login page"), [])
 
-      {:ok, first_job} =
-        Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
+      {:ok, _job} = Tasks.enqueue_title_generation(scope, task_id, "Build me a login page")
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      # Second message + title enqueue (should be deduplicated by Oban unique constraint)
+      # Second message should not enqueue a new title job.
       {:ok, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Now add a signup form"), [])
 
-      {:ok, second_job} =
-        Tasks.enqueue_title_generation(scope, task_id, "Now add a signup form")
-
-      # Oban unique constraint returns the existing job — same ID means no new job was inserted
-      assert first_job.id == second_job.id
+      {:ok, _job} = Tasks.enqueue_title_generation(scope, task_id, "Now add a signup form")
 
       # Only one title generation job should exist for this task
       enqueued = all_enqueued(worker: GenerateTitle)

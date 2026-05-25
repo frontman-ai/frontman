@@ -145,12 +145,17 @@ defmodule FrontmanServer.Tasks do
   @spec set_generated_title(Accounts.scope(), String.t(), String.t()) ::
           :ok | {:error, :not_found | Ecto.Changeset.t()}
   def set_generated_title(scope, task_id, title) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
+    default_title = Task.short_description(task_id)
+
+    with {:ok, %TaskSchema{short_desc: ^default_title} = schema} <- get_task_by_id(scope, task_id),
          {:ok, _updated} <-
            schema
            |> TaskSchema.update_changeset(%{short_desc: title})
            |> Repo.update() do
       broadcast_task(task_id, {:title_updated, task_id, title})
+    else
+      {:ok, %TaskSchema{}} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 

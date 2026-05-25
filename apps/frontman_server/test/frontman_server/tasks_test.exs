@@ -47,6 +47,15 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, "My Custom Title"} = Tasks.get_short_desc(scope, task_id)
     end
 
+    test "does not overwrite an existing generated title", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      :ok = Tasks.set_generated_title(scope, task_id, "First Title")
+      :ok = Tasks.set_generated_title(scope, task_id, "Second Title")
+
+      assert {:ok, "First Title"} = Tasks.get_short_desc(scope, task_id)
+    end
+
     test "returns not_found for non-existent task", %{scope: scope} do
       assert {:error, :not_found} = Tasks.get_short_desc(scope, Ecto.UUID.generate())
     end

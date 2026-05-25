@@ -177,6 +177,6 @@ jobs:
 
           **Review the changelog below, then merge when ready to release.**
 
-          Once merged, a git tag \`v${VERSION}\` and GitHub Release will be created automatically, and the marketing site will redeploy with the updated changelog." \
+          Once merged, a git tag \`v${VERSION}\`, GitHub Release, and WordPress.org SVN publish will be created automatically, and the marketing site will redeploy with the updated changelog." \
               --label "skip-changelog"
           fi

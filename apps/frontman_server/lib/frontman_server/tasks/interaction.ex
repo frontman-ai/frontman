@@ -1272,11 +1272,11 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp to_llm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
     # Check if this tool result contains an image that should be sent as image content
-    case extract_image_from_result(name, result) do
-      {image_binary, mime_type, text_content} ->
-        build_tool_message_with_image(name, id, image_binary, mime_type, text_content)
+    case decode_tool_result_image(name, result) do
+      {:ok, image} ->
+        build_tool_message_with_image(name, id, image)
 
-      nil ->
+      :no_image ->
         json_result = if is_binary(result), do: result, else: Jason.encode!(result)
         ReqLLM.Context.tool_result_message(name, id, json_result)
     end
@@ -1566,55 +1566,19 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  defp extract_image_from_result(tool_name, result) when is_map(result) do
-    with {image_field, text_fields} <- Image.image_tool_config(tool_name),
-         data_url when is_binary(data_url) <- get_field(result, image_field),
-         {:ok, binary, mime} <- Image.decode_data_url(data_url) do
-      text_content = build_text_content(result, text_fields)
-      {binary, mime, text_content}
-    else
-      _ -> nil
-    end
+  defp decode_tool_result_image(tool_name, result) when is_map(result),
+    do: Image.decode_tool_image_for_llm(tool_name, result)
+
+  defp decode_tool_result_image(_tool_name, _result), do: :no_image
+
+  defp build_tool_message_with_image(name, id, %{data: data, media_type: media_type}) do
+    %ReqLLM.Message{
+      role: :tool,
+      name: name,
+      tool_call_id: id,
+      content: [ContentPart.image(data, media_type)]
+    }
   end
-
-  defp extract_image_from_result(_tool_name, _result), do: nil
-
-  defp build_tool_message_with_image(name, id, image_binary, mime_type, text_content) do
-    content =
-      case text_content do
-        "" ->
-          [ContentPart.image(image_binary, mime_type)]
-
-        text ->
-          [
-            ContentPart.text(text),
-            ContentPart.image(image_binary, mime_type)
-          ]
-      end
-
-    %ReqLLM.Message{role: :tool, name: name, tool_call_id: id, content: content}
-  end
-
-  defp build_text_content(result, fields) do
-    text_parts =
-      Enum.flat_map(fields, fn field ->
-        case get_field(result, field) do
-          nil -> []
-          value -> [format_field(field, value)]
-        end
-      end)
-
-    error = get_field(result, :error)
-    text_parts = if error, do: text_parts ++ ["Error: #{error}"], else: text_parts
-
-    Enum.join(text_parts, "\n\n")
-  end
-
-  defp format_field(:node, value), do: "Node data:\n#{encode_json(value)}"
-  defp format_field(field, value), do: "#{field}: #{encode_json(value)}"
-
-  defp encode_json(value) when is_binary(value), do: value
-  defp encode_json(value), do: Jason.encode!(value)
 
   # Get field from map, supporting both string and atom keys.
   # This is needed because metadata from DB has string keys, but in-memory uses atoms.
