@@ -436,7 +436,7 @@ worktree-registry:
 # Release
 # ============================================================================
 ## REL_START
-.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin test-wordpress-core-tools
+.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn test-wordpress-core-tools
 
 publish: publish-astro publish-vite publish-nextjs publish-react-statestore ## Publish all npm packages (pass OTP=<code> for 2FA)
 
@@ -481,6 +481,9 @@ release: ## Create a release PR from pending changesets
 
 package-wordpress-plugin: ## Build WordPress ZIP and WordPress.org bundle
 	@VERSION=$(VERSION) bash ./scripts/package-wordpress-plugin.sh
+
+publish-wordpress-plugin-svn: package-wordpress-plugin ## Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
+	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
 test-wordpress-core-tools: ## Run PHP tests for WordPress tool implementations
 	@php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php

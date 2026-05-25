@@ -55,7 +55,11 @@ class Frontman_Tool_Elementor {
 						'items'       => [
 							'type'                 => 'object',
 							'additionalProperties' => true,
-							'properties'           => new \stdClass(),
+							'properties'           => [
+								'id'     => [ 'type' => 'string' ],
+								'elType' => [ 'type' => 'string' ],
+							],
+							'required'             => [ 'id', 'elType' ],
 						],
 					],
 					'confirm' => [ 'type' => 'boolean', 'description' => 'Must be true only after the user explicitly confirms replacing the full Elementor page data.' ],
@@ -83,7 +87,8 @@ class Frontman_Tool_Elementor {
 					'element_id' => [ 'type' => 'string' ],
 					'settings'   => [
 						'type'                 => 'object',
-						'description'          => 'Elementor settings keys to merge for non-HTML-fragment updates.',
+						'description'          => 'Elementor settings keys to merge for non-HTML-fragment updates. Must contain at least one setting; omit settings instead of passing {}.',
+						'minProperties'        => 1,
 						'additionalProperties' => true,
 						'properties'           => new \stdClass(),
 					],
@@ -107,7 +112,7 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_add_element',
-			'Adds a new Elementor element at the root or inside a parent container after saving the previous page tree as a private rollback snapshot. Use wp_elementor_generate_element or widget schema output to build valid element JSON.',
+			'Adds a new Elementor element at the root or inside a parent container after saving the previous page tree as a private rollback snapshot. Prefer wp_elementor_generate_element and pass its returned object as element. Do not call with element: {}.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -115,8 +120,15 @@ class Frontman_Tool_Elementor {
 					'post_id'    => [ 'type' => 'integer' ],
 					'element'    => [
 						'type'                 => 'object',
+						'description'          => 'Complete Elementor element JSON. Prefer the exact object returned by wp_elementor_generate_element; never pass an empty object.',
 						'additionalProperties' => true,
-						'properties'           => new \stdClass(),
+						'properties'           => [
+							'elType'     => [ 'type' => 'string', 'enum' => [ 'container', 'section', 'column', 'widget' ], 'description' => 'Elementor element type. Use widget for widgets and include widgetType.' ],
+							'widgetType' => [ 'type' => 'string', 'description' => 'Required when elType is widget.' ],
+							'settings'   => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ],
+							'elements'   => [ 'type' => 'array', 'items' => [ 'type' => 'object', 'additionalProperties' => true, 'properties' => new \stdClass() ] ],
+						],
+						'required'             => [ 'elType' ],
 					],
 					'parent_id'  => [ 'type' => 'string' ],
 					'position'   => [ 'type' => 'integer', 'default' => -1 ],
@@ -211,7 +223,8 @@ class Frontman_Tool_Elementor {
 						'items' => [
 							'type'                 => 'object',
 							'additionalProperties' => true,
-							'properties'           => new \stdClass(),
+							'properties'           => [ 'elType' => [ 'type' => 'string' ] ],
+							'required'             => [ 'elType' ],
 						],
 					],
 					'widget_type'   => [ 'type' => 'string' ],
@@ -526,6 +539,10 @@ class Frontman_Tool_Elementor {
 		$element = $input['element'] ?? null;
 		if ( ! is_array( $element ) ) {
 			throw new Frontman_Tool_Error( 'element must be an object.' );
+		}
+		$el_type = $element['elType'] ?? '';
+		if ( ! is_string( $el_type ) || '' === trim( $el_type ) ) {
+			throw new Frontman_Tool_Error( 'element.elType is required. Do not call wp_elementor_add_element with element: {}. Use wp_elementor_generate_element first and pass the returned object as element.' );
 		}
 		if ( empty( $element['id'] ) ) {
 			$element['id'] = Frontman_Elementor_Data::generate_id();

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Fix Vitest 4 coverage test runs by aligning Vitest dependency versions and updating hook callbacks for Vitest 4.
 - Keep generated task titles stable after the first user prompt instead of regenerating them on every prompt.
 
 ## [0.17.0] - 2026-05-12

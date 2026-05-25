@@ -4,7 +4,7 @@ Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.18.1
+Stable tag: 0.18.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,6 +15,8 @@ AI agent for WordPress that edits posts, blocks, menus, templates, site options,
 Watch Frontman in action:
 
 https://www.youtube.com/watch?v=-4GD1GYwH8Y
+
+Learn more on the [Frontman Website](https://frontman.sh).
 
 Agentic AI puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow — posts, pages, blocks, menus, templates, site settings, WooCommerce store operations, and more.
 
@@ -95,9 +97,15 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 
 == Screenshots ==
 
-1. The Frontman chat interface alongside your WordPress site
+1. Frontman understands the requested content change and prepares the edit from chat.
+2. Frontman runs beside a live WordPress page preview while you describe changes.
+3. Frontman highlights the selected product card directly on the site.
+4. Select mode lets you click page elements to target edits visually.
 
 == Changelog ==
+
+= 0.18.2 =
+* Improve Elementor mutation schemas so empty add-element, update-settings, full-page-data, and generated-child payloads are rejected before they reach Elementor
 
 = 0.18.1 =
 * Preserve existing WordPress page templates when saving or rolling back Elementor page data, and report any template side effect in Elementor tool responses
