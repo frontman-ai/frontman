@@ -38,6 +38,8 @@ Here's what I cover in this post:
 - **[Cline](#6-cline)** — open-source with browser automation
 - **[Comparison table](#comparison-table)** — side-by-side pricing, type, and best-for
 
+If your search is specifically frontend UI work, start with the [best frontend coding agent](/blog/best-frontend-coding-agent/) guide instead; it compares frontend-specific workflows, browser context, React UI generation, and reviewable diffs.
+
 ---
 
 ## 1. Frontman

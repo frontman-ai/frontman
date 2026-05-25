@@ -11,7 +11,7 @@ import BlogPostHero from '../components/blocks/blog/BlogPostHero.astro'
 // Content
 // - SEO
 const SEO = {
-	title: `${frontmatter.title} | Frontman`,
+	title: `${frontmatter.seoTitle ?? frontmatter.title} | Frontman`,
 	description: `${frontmatter.description}`
 }
 
@@ -52,7 +52,7 @@ const blogPostJsonLd = {
 	},
 	"speakable": {
 		"@type": "SpeakableSpecification",
-		"cssSelector": [".post-body h1", ".post-body h2", ".post-body p:first-of-type"]
+		"cssSelector": [".post-header__title", ".post-body h2", ".post-body p:first-of-type"]
 	},
 	"mainEntityOfPage": {
 		"@type": "WebPage",
@@ -169,6 +169,9 @@ const videoJsonLd = frontmatter.video
 	title={SEO.title}
 	description={SEO.description}
 	ogImage={frontmatter.image}
+	ogImageWidth={frontmatter.imageWidth}
+	ogImageHeight={frontmatter.imageHeight}
+	ogImageAlt={frontmatter.imageAlt}
 	article={{
 		publishedTime: pubDateISO,
 		modifiedTime: updatedDateISO || pubDateISO,
@@ -196,7 +199,7 @@ const videoJsonLd = frontmatter.video
 	{frontmatter.faq?.length && (
 		<section class="post-faq">
 			<div class="post-faq__container">
-				<h2 class="post-faq__title">Frequently Asked Questions</h2>
+				<h2 class="post-faq__title">FAQ</h2>
 				<div class="post-faq__list">
 					{frontmatter.faq.map((item: { question: string; answer: string }) => (
 						<details class="post-faq__item group">
@@ -234,6 +237,17 @@ const videoJsonLd = frontmatter.video
 		width: max-content;
 		min-width: 100%;
 		margin: 0;
+	}
+	.post-body :global(.table-scroll th:first-child),
+	.post-body :global(.table-scroll td:first-child) {
+		position: sticky;
+		left: 0;
+		z-index: 1;
+		background: #18181b;
+		box-shadow: 1px 0 0 rgba(63, 63, 70, 0.8);
+	}
+	.post-body :global(.table-scroll th:first-child) {
+		z-index: 2;
 	}
 	.post-body :global(.table-scroll::-webkit-scrollbar) {
 		height: 10px;

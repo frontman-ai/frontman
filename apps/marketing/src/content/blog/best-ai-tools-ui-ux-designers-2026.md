@@ -25,6 +25,8 @@ Some generate mockups. Some generate prototypes. Some generate code you'll never
 
 This is an honest comparison of 9 AI tools that matter for UI/UX designers in 2026, organized by what they actually produce. We built [Frontman](https://frontman.sh) (one of the tools listed), so we'll note that where relevant and call out where other tools are stronger.
 
+If you want a narrower comparison of tools that generate or edit frontend source code, read the [AI frontend tool](/blog/best-frontend-coding-agent/) buyer guide.
+
 ## The Full Picture
 
 | Tool | What It Produces | Price | Needs Dev Handoff? |
