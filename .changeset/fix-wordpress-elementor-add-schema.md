@@ -1,4 +1,4 @@
 ---
 ---
 
-Improve the WordPress Elementor add-element tool schema and reject empty element payloads with actionable guidance.
+Improve WordPress Elementor mutation schemas and reject empty add-element payloads with actionable guidance.

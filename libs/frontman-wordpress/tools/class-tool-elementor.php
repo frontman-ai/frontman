@@ -55,7 +55,11 @@ class Frontman_Tool_Elementor {
 						'items'       => [
 							'type'                 => 'object',
 							'additionalProperties' => true,
-							'properties'           => new \stdClass(),
+							'properties'           => [
+								'id'     => [ 'type' => 'string' ],
+								'elType' => [ 'type' => 'string' ],
+							],
+							'required'             => [ 'id', 'elType' ],
 						],
 					],
 					'confirm' => [ 'type' => 'boolean', 'description' => 'Must be true only after the user explicitly confirms replacing the full Elementor page data.' ],
@@ -83,7 +87,8 @@ class Frontman_Tool_Elementor {
 					'element_id' => [ 'type' => 'string' ],
 					'settings'   => [
 						'type'                 => 'object',
-						'description'          => 'Elementor settings keys to merge for non-HTML-fragment updates.',
+						'description'          => 'Elementor settings keys to merge for non-HTML-fragment updates. Must contain at least one setting; omit settings instead of passing {}.',
+						'minProperties'        => 1,
 						'additionalProperties' => true,
 						'properties'           => new \stdClass(),
 					],
@@ -218,7 +223,8 @@ class Frontman_Tool_Elementor {
 						'items' => [
 							'type'                 => 'object',
 							'additionalProperties' => true,
-							'properties'           => new \stdClass(),
+							'properties'           => [ 'elType' => [ 'type' => 'string' ] ],
+							'required'             => [ 'elType' ],
 						],
 					],
 					'widget_type'   => [ 'type' => 'string' ],

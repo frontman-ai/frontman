@@ -217,7 +217,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_tool_object_schemas_have_properties_objects();
 		$this->test_tool_array_schemas_have_items();
 		$this->test_generate_element_schema_declares_handler_inputs();
-		$this->test_add_element_schema_declares_element_shape();
+		$this->test_mutation_schemas_reject_empty_objects();
 		$this->test_rollback_tool_schemas();
 		$this->test_structure_and_get_element();
 		$this->test_update_rejects_empty_and_noop_settings();
@@ -536,9 +536,12 @@ class Frontman_Elementor_Tools_Test_Runner {
 		}
 	}
 
-	private function test_add_element_schema_declares_element_shape(): void {
+	private function test_mutation_schemas_reject_empty_objects(): void {
 		$element_schema = $this->decoded_tool_definition( 'wp_elementor_add_element' )->inputSchema->properties->element;
 		$this->assert_true( in_array( 'elType', $element_schema->required, true ), 'wp_elementor_add_element requires element.elType' );
+		$this->assert_same( 1, $this->decoded_tool_definition( 'wp_elementor_update_element' )->inputSchema->properties->settings->minProperties, 'wp_elementor_update_element settings schema rejects empty objects' );
+		$this->assert_true( in_array( 'id', $this->decoded_tool_definition( 'wp_elementor_save_page_data' )->inputSchema->properties->data->items->required, true ), 'wp_elementor_save_page_data requires element IDs' );
+		$this->assert_true( in_array( 'elType', $this->decoded_tool_definition( 'wp_elementor_generate_element' )->inputSchema->properties->children->items->required, true ), 'wp_elementor_generate_element requires complete children' );
 	}
 
 	private function test_rollback_tool_schemas(): void {
