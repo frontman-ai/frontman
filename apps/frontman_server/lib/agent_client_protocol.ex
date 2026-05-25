@@ -465,36 +465,20 @@ defmodule AgentClientProtocol do
   end
 
   @doc """
-  Checks if prompt content includes embedded resources.
-
-  Returns true if any content blocks are of type "resource_link" or "resource".
-  These indicate the client has embedded context into the prompt.
-  """
-  @spec has_embedded_resources?(list(map())) :: boolean()
-  def has_embedded_resources?(prompt_content) when is_list(prompt_content) do
-    Enum.any?(prompt_content, fn block ->
-      block["type"] in ["resource_link", "resource"]
-    end)
-  end
-
-  @doc """
   Parses ACP session/prompt params into a structured format.
 
   Returns a map with:
   - `content`: The full ACP content blocks (for passing to agent)
   - `text_summary`: Extracted text for logging
-  - `has_resources`: Whether embedded resources are present
   """
   @spec parse_prompt_params(map()) :: %{
           content: list(map()),
-          text_summary: String.t(),
-          has_resources: boolean()
+          text_summary: String.t()
         }
   def parse_prompt_params(%{"prompt" => content}) do
     %{
       content: content,
-      text_summary: extract_text_content(content),
-      has_resources: has_embedded_resources?(content)
+      text_summary: extract_text_content(content)
     }
   end
 

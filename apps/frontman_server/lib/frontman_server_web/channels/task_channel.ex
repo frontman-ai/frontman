@@ -469,15 +469,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     model = extract_model_from_params(params)
     prompt = ACP.parse_prompt_params(params)
 
-    Logger.info("Received prompt for task #{task_id}: #{prompt.text_summary}")
-
-    if prompt.has_resources do
-      Logger.info("Prompt includes embedded context")
-    end
-
-    if model do
-      Logger.info("Using model: #{model}")
-    end
+    Logger.info("process_prompt", %{task_id: task_id, model: model, prompt: prompt})
 
     all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
 
