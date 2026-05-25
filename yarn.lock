@@ -2102,7 +2102,7 @@ __metadata:
     "@tailwindcss/vite": "npm:^4.2.2"
     "@types/babel__core": "npm:^7"
     "@types/react": "npm:^19.2.2"
-    "@zumer/snapdom": "npm:^1.9.14"
+    "@zumer/snapdom": "npm:^2.9.0"
     babel-plugin-react-compiler: "npm:^1.0.0"
     canvas-confetti: "npm:^1.9.4"
     class-variance-authority: "npm:^0.7.1"
@@ -6710,10 +6710,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@zumer/snapdom@npm:^1.9.14":
-  version: 1.9.14
-  resolution: "@zumer/snapdom@npm:1.9.14"
-  checksum: 10c0/260e6f316aaad6ca9ea1866575b3fa916cc1b96e04edeb099cbd48acb31ffb6c4a80cbc85f087990a65df29fc065472bbe6a80081eccbb68e70c05bad4c26013
+"@zumer/snapdom@npm:^2.9.0":
+  version: 2.9.0
+  resolution: "@zumer/snapdom@npm:2.9.0"
+  checksum: 10c0/318c5ce02bd1f817fe3a459678ee2375b0e7a03b29343d730c350cf32e00c3db55849818f37bf2517ff18e9c57411409594355aa196e4fd298b5c77a1eda6a6f
   languageName: node
   linkType: hard
 
