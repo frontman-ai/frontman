@@ -35,7 +35,6 @@ defmodule FrontmanServer.CurrentPageContext do
   @doc "Returns true when ACP metadata contains current-page context."
   @spec current_page_in_meta?(term()) :: boolean()
   def current_page_in_meta?(%{@marker_key => true}), do: true
-  def current_page_in_meta?(%{current_page: true}), do: true
   def current_page_in_meta?(_), do: false
 
   @doc "Extracts normalized fields from ACP/DB metadata."
@@ -43,16 +42,16 @@ defmodule FrontmanServer.CurrentPageContext do
   def fields_from_meta(nil), do: nil
 
   def fields_from_meta(meta) when is_map(meta) do
-    case value(meta, "url") do
+    case meta["url"] do
       url when is_binary(url) ->
         %{
           url: url,
-          viewport_width: value(meta, "viewport_width"),
-          viewport_height: value(meta, "viewport_height"),
-          device_pixel_ratio: value(meta, "device_pixel_ratio"),
-          title: value(meta, "title"),
-          color_scheme: value(meta, "color_scheme"),
-          scroll_y: value(meta, "scroll_y")
+          viewport_width: meta["viewport_width"],
+          viewport_height: meta["viewport_height"],
+          device_pixel_ratio: meta["device_pixel_ratio"],
+          title: meta["title"],
+          color_scheme: meta["color_scheme"],
+          scroll_y: meta["scroll_y"]
         }
 
       _ ->
@@ -226,11 +225,5 @@ defmodule FrontmanServer.CurrentPageContext do
 
   defp page_value(page, key) when is_atom(key) do
     Map.get(page, key) || Map.get(page, Atom.to_string(key))
-  end
-
-  defp value(map, key) when is_binary(key) do
-    Map.get(map, key) || Map.get(map, String.to_existing_atom(key))
-  rescue
-    ArgumentError -> Map.get(map, key)
   end
 end

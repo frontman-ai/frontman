@@ -957,7 +957,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "ask me a question"}])
 
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [tool_call_metadata(tool_call)]})
+      Tasks.add_agent_response(scope, task_id, "", %{
+        "tool_calls" => [tool_call_metadata(tool_call)]
+      })
+
       Tasks.add_tool_call(scope, task_id, tool_call)
 
       {:ok, task_id: task_id, scope: scope, tool_call_id: tool_call_id}
@@ -1017,7 +1020,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       second_tc = question_tool_call(second_tool_call_id, "Second turn", "B")
 
       Tasks.add_user_message(scope, task_id, user_content("first turn"))
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [tool_call_metadata(first_tc)]})
+
+      Tasks.add_agent_response(scope, task_id, "", %{
+        "tool_calls" => [tool_call_metadata(first_tc)]
+      })
+
       Tasks.add_tool_call(scope, task_id, first_tc)
 
       Tasks.add_tool_result(
@@ -1032,7 +1039,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Tasks.add_agent_completed(scope, task_id)
 
       Tasks.add_user_message(scope, task_id, user_content("second turn"))
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [tool_call_metadata(second_tc)]})
+
+      Tasks.add_agent_response(scope, task_id, "", %{
+        "tool_calls" => [tool_call_metadata(second_tc)]
+      })
+
       Tasks.add_tool_call(scope, task_id, second_tc)
 
       {:ok, _reply, socket} =

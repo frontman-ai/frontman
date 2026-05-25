@@ -169,19 +169,19 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
     %{}
     |> maybe_put_tool_calls(tool_calls)
     |> maybe_put_reasoning_details(reasoning_details)
-    |> maybe_put_string_metadata(:response_id, get_response_meta(response_meta, :response_id))
-    |> maybe_put_string_metadata(:phase, get_response_meta(response_meta, :phase))
-    |> maybe_put_phase_items(get_response_meta(response_meta, :phase_items))
+    |> maybe_put_string_metadata("response_id", response_meta[:response_id])
+    |> maybe_put_string_metadata("phase", response_meta[:phase])
+    |> maybe_put_phase_items(response_meta[:phase_items])
   end
 
   defp maybe_put_tool_calls(metadata, tool_calls) when is_list(tool_calls) and tool_calls != [] do
-    Map.put(metadata, :tool_calls, Enum.map(tool_calls, &to_flat_tool_call/1))
+    Map.put(metadata, "tool_calls", Enum.map(tool_calls, &to_flat_tool_call/1))
   end
 
   defp maybe_put_tool_calls(metadata, _tool_calls), do: metadata
 
   defp maybe_put_reasoning_details(metadata, details) when is_list(details) and details != [] do
-    Map.put(metadata, :reasoning_details, details)
+    Map.put(metadata, "reasoning_details", details)
   end
 
   defp maybe_put_reasoning_details(metadata, _details), do: metadata
@@ -194,16 +194,10 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
 
   defp maybe_put_phase_items(metadata, phase_items)
        when is_list(phase_items) and phase_items != [] do
-    Map.put(metadata, :phase_items, phase_items)
+    Map.put(metadata, "phase_items", phase_items)
   end
 
   defp maybe_put_phase_items(metadata, _phase_items), do: metadata
-
-  defp get_response_meta(metadata, key) when is_map(metadata) do
-    Map.get(metadata, key) || Map.get(metadata, Atom.to_string(key))
-  end
-
-  defp get_response_meta(_metadata, _key), do: nil
 
   defp to_flat_tool_call(%SwarmAi.ToolCall{} = tc) do
     %{"id" => tc.id, "name" => tc.name, "arguments" => tc.arguments}

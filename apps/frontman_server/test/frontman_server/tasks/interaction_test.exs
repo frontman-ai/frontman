@@ -290,7 +290,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "handles mixed conversation in correct order" do
       interactions = [
         user_msg("Calculate 2+2"),
-        agent_resp("Let me calculate", %{tool_calls: [%{id: "c1", name: "calc", arguments: %{}}]}),
+        agent_resp("Let me calculate", %{
+          "tool_calls" => [%{"id" => "c1", "name" => "calc", "arguments" => %{}}]
+        }),
         tool_call("c1", "calc"),
         tool_result("c1", "calc", 4),
         agent_resp("The answer is 4")
@@ -547,26 +549,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert tc.id == "call_flat_1"
       assert tc.name == "get_weather"
     end
-
-    test "handles atom keys (fresh from response, not DB)" do
-      interactions = [
-        agent_resp("Calculating", %{
-          tool_calls: [
-            %{
-              function: %{arguments: ~s({"x": 1}), name: "calculator"},
-              id: "call_atom_1",
-              type: "function"
-            }
-          ]
-        })
-      ]
-
-      [msg] = Interaction.to_swarm_messages(interactions)
-
-      assert [tc] = msg.tool_calls
-      assert %SwarmAi.ToolCall{} = tc
-      assert tc.name == "calculator"
-    end
   end
 
   # ---------------------------------------------------------------------------
@@ -651,15 +633,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert Interaction.all_pending_tools_resolved?(interactions) == false
     end
 
-    test "handles tool_calls as atom-key maps" do
+    test "handles flat and nested string-key tool call maps" do
       for tool_calls <- [
-            [%{id: "call_a", name: "question", arguments: "{}"}],
-            [%{id: "call_nested", function: %{name: "question", arguments: "{}"}}]
+            [%{"id" => "call_a", "name" => "question", "arguments" => "{}"}],
+            [%{"id" => "call_nested", "function" => %{"name" => "question", "arguments" => "{}"}}]
           ] do
-        %{id: call_id} = hd(tool_calls)
+        %{"id" => call_id} = hd(tool_calls)
 
         interactions = [
-          agent_resp("Using tool", %{tool_calls: tool_calls}),
+          agent_resp("Using tool", %{"tool_calls" => tool_calls}),
           tool_result(call_id, "question", "answer")
         ]
 

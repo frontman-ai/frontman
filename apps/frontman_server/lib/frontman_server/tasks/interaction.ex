@@ -89,7 +89,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         id: data["id"],
         node: data["node"],
         image: data["image"],
-        is_dsl: data["is_dsl"] || true
+        is_dsl: Map.get(data, "is_dsl", true)
       }
     end
   end
@@ -108,10 +108,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     @spec from_map(map() | nil) :: t() | nil
     def from_map(nil), do: nil
-
-    def from_map(%{blob: blob, mime_type: mime_type})
-        when is_binary(blob) and is_binary(mime_type),
-        do: %__MODULE__{blob: blob, mime_type: mime_type}
 
     def from_map(%{"blob" => blob, "mime_type" => mime_type})
         when is_binary(blob) and is_binary(mime_type),
@@ -136,10 +132,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     @spec from_map(map() | nil) :: t() | nil
     def from_map(nil), do: nil
-
-    def from_map(%{x: x, y: y, width: w, height: h})
-        when is_number(x) and is_number(y) and is_number(w) and is_number(h),
-        do: %__MODULE__{x: x / 1, y: y / 1, width: w / 1, height: h / 1}
 
     def from_map(%{"x" => x, "y" => y, "width" => w, "height" => h})
         when is_number(x) and is_number(y) and is_number(w) and is_number(h),
@@ -166,24 +158,22 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:parent, t() | nil, enforce: false)
     end
 
-    alias FrontmanServer.Tasks.Interaction
-
     @spec from_map(map() | nil) :: t() | nil
     def from_map(nil), do: nil
 
     def from_map(data) when is_map(data) do
-      file = Interaction.get_flex(data, "file")
-      line = Interaction.get_flex(data, "line")
-      column = Interaction.get_flex(data, "column")
+      file = data["file"]
+      line = data["line"]
+      column = data["column"]
 
       if is_binary(file) and is_integer(line) and is_integer(column) do
         %__MODULE__{
           file: file,
           line: line,
           column: column,
-          component_name: Interaction.get_flex(data, "component_name"),
-          component_props: Interaction.get_flex(data, "component_props"),
-          parent: from_map(Interaction.get_flex(data, "parent"))
+          component_name: data["component_name"],
+          component_props: data["component_props"],
+          parent: from_map(data["parent"])
         }
       else
         nil
@@ -223,6 +213,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     Page context from the client: URL, viewport, DPR, title, color scheme, scroll position.
     """
     use TypedStruct
+
+    alias FrontmanServer.CurrentPageContext
 
     @derive Jason.Encoder
     typedstruct enforce: true do
@@ -295,8 +287,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       field(:screenshot, Screenshot.t() | nil)
     end
 
-    alias FrontmanServer.Tasks.Interaction
-
     @known_meta_keys ~w(
       annotation
       annotation_id
@@ -318,7 +308,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     )
 
     @doc """
-    Builds an Annotation from a map with string or atom keys.
+    Builds an Annotation from a string-key ACP/DB map.
 
     Used by both DB deserialization (InteractionSchema.to_struct) and
     ACP content block parsing (via from_meta/2).
@@ -326,44 +316,38 @@ defmodule FrontmanServer.Tasks.Interaction do
     @spec from_map(map()) :: t()
     def from_map(data) when is_map(data) do
       %__MODULE__{
-        annotation_id: Interaction.get_flex(data, "annotation_id"),
-        annotation_index: Interaction.get_flex(data, "annotation_index"),
-        tag_name: Interaction.get_flex(data, "tag_name") || "unknown",
-        comment: Interaction.get_flex(data, "comment"),
-        file: Interaction.get_flex(data, "file"),
-        line: Interaction.get_flex(data, "line"),
-        column: Interaction.get_flex(data, "column"),
-        component_name: Interaction.get_flex(data, "component_name"),
-        component_props: Interaction.get_flex(data, "component_props"),
-        parent: ParentLocation.from_map(Interaction.get_flex(data, "parent")),
-        css_classes: Interaction.get_flex(data, "css_classes"),
-        nearby_text: Interaction.get_flex(data, "nearby_text"),
+        annotation_id: data["annotation_id"],
+        annotation_index: data["annotation_index"],
+        tag_name: data["tag_name"] || "unknown",
+        comment: data["comment"],
+        file: data["file"],
+        line: data["line"],
+        column: data["column"],
+        component_name: data["component_name"],
+        component_props: data["component_props"],
+        parent: ParentLocation.from_map(data["parent"]),
+        css_classes: data["css_classes"],
+        nearby_text: data["nearby_text"],
         metadata: metadata_from_map(data),
-        bounding_box: BoundingBox.from_map(Interaction.get_flex(data, "bounding_box")),
-        screenshot: Screenshot.from_map(Interaction.get_flex(data, "screenshot"))
+        bounding_box: BoundingBox.from_map(data["bounding_box"]),
+        screenshot: Screenshot.from_map(data["screenshot"])
       }
     end
 
     defp metadata_from_map(data) do
-      inline_metadata = data |> stringify_keys() |> drop_known_metadata()
-
-      explicit_metadata =
-        data |> Interaction.get_flex("metadata") |> stringify_keys() |> drop_known_metadata()
+      inline_metadata = drop_known_metadata(data)
+      explicit_metadata = data |> Map.get("metadata") |> drop_known_metadata()
 
       Map.merge(inline_metadata, explicit_metadata)
     end
 
-    defp stringify_keys(map) when is_map(map) do
-      Map.new(map, fn {key, value} -> {to_string(key), value} end)
-    end
-
-    defp stringify_keys(_), do: %{}
-
-    defp drop_known_metadata(metadata),
+    defp drop_known_metadata(metadata) when is_map(metadata),
       do:
         metadata
         |> Map.drop(@known_meta_keys)
         |> Map.reject(fn {_key, value} -> is_nil(value) end)
+
+    defp drop_known_metadata(_), do: %{}
 
     @doc """
     Builds an Annotation from an ACP `_meta` block, pairing with a separate
@@ -1056,19 +1040,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
-  Retrieves a value from a map supporting both string and atom keys.
-
-  Useful at persistence boundaries where DB JSON comes with string keys
-  but in-memory structs use atoms.
-  """
-  @spec get_flex(map(), String.t()) :: term()
-  def get_flex(map, key) when is_binary(key) do
-    Map.get(map, key) || Map.get(map, String.to_existing_atom(key))
-  rescue
-    ArgumentError -> Map.get(map, key)
-  end
-
-  @doc """
   Generates a new interaction ID (UUID v4).
   """
   def new_id do
@@ -1090,6 +1061,27 @@ defmodule FrontmanServer.Tasks.Interaction do
   def user_message?(_), do: false
 
   @doc """
+  Extracts markdown file contents from read_file ToolResult interactions
+  and converts them to user messages.
+
+  Only includes ToolResults where:
+  - tool_name is "read_file"
+  - The filename/path (from the matching ToolCall arguments) ends with .md
+  - The result is not an error
+  """
+  @spec extract_markdown_messages(list(t())) :: list(SwarmMessage.t())
+  def extract_markdown_messages(interactions) do
+    tool_calls_map = build_tool_calls_map(interactions)
+
+    interactions
+    |> Enum.filter(fn
+      %ToolResult{tool_name: "read_file", is_error: false} -> true
+      _ -> false
+    end)
+    |> Enum.flat_map(&extract_markdown_from_tool_result(&1, tool_calls_map))
+  end
+
+  @doc """
   Checks whether all tool_calls from the last AgentResponse have matching
   ToolResult interactions.
 
@@ -1104,7 +1096,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   def all_pending_tools_resolved?(interactions) do
     case last_agent_response_with_following_interactions(interactions) do
       {tool_calls, following_interactions} ->
-        expected_ids = MapSet.new(tool_calls, &get_field(&1, "id"))
+        expected_ids = MapSet.new(tool_calls, &tool_call_id/1)
 
         result_ids =
           following_interactions
@@ -1125,7 +1117,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     |> List.last()
     |> case do
       {%AgentResponse{metadata: meta}, index} ->
-        case get_field(meta || %{}, "tool_calls") do
+        case (meta || %{})["tool_calls"] do
           tool_calls when is_list(tool_calls) and tool_calls != [] ->
             {tool_calls, Enum.drop(interactions, index + 1)}
 
@@ -1151,154 +1143,77 @@ defmodule FrontmanServer.Tasks.Interaction do
   tool results) regardless of database insertion timing.
   """
   @spec to_swarm_messages(list(t())) :: list(SwarmMessage.t())
-  def to_swarm_messages(interactions) do
-    interactions
-    |> Enum.filter(&conversation_message?/1)
-    |> Enum.map(&to_swarm_message/1)
+  def to_swarm_messages(interactions) when is_list(interactions) do
+    Enum.flat_map(interactions, &to_swarm_message/1)
   end
 
-  defp conversation_message?(%UserMessage{}), do: true
-  defp conversation_message?(%AgentResponse{}), do: true
-  defp conversation_message?(%ToolResult{}), do: true
-  # Explicit false for every non-conversation type — no catch-all, so adding
-  # a new Interaction type without a clause here will crash immediately and
-  # surface the omission instead of silently falling through.
-  defp conversation_message?(%ToolCall{}), do: false
-  defp conversation_message?(%AgentSpawned{}), do: false
-  defp conversation_message?(%AgentCompleted{}), do: false
-  defp conversation_message?(%AgentError{}), do: false
-  defp conversation_message?(%AgentPaused{}), do: false
-  defp conversation_message?(%AgentRetry{}), do: false
-  defp conversation_message?(%DiscoveredProjectRule{}), do: false
-  defp conversation_message?(%DiscoveredProjectStructure{}), do: false
-
-  @doc """
-  Extracts markdown file contents from read_file ToolResult interactions
-  and converts them to user messages.
-
-  Only includes ToolResults where:
-  - tool_name is "read_file"
-  - The filename/path (from the matching ToolCall arguments) ends with .md
-  - The result is not an error
-  """
-  @spec extract_markdown_messages(list(t())) :: list(map())
-  def extract_markdown_messages(interactions) do
-    # Build a map of tool_call_id -> ToolCall for quick lookup
-    tool_calls_map = build_tool_calls_map(interactions)
-
-    interactions
-    |> Enum.filter(fn
-      %ToolResult{tool_name: "read_file", is_error: false} -> true
-      _ -> false
-    end)
-    |> Enum.flat_map(&extract_markdown_from_tool_result(&1, tool_calls_map))
-  end
-
-  defp build_tool_calls_map(interactions) do
-    interactions
-    |> Enum.filter(fn
-      %ToolCall{} -> true
-      _ -> false
-    end)
-    |> Enum.reduce(%{}, fn %ToolCall{tool_call_id: id} = tc, acc ->
-      Map.put(acc, id, tc)
-    end)
-  end
-
-  defp extract_markdown_from_tool_result(
-         %ToolResult{tool_call_id: tool_call_id, result: result},
-         tool_calls_map
-       ) do
-    # Get the path from the matching ToolCall arguments
-    case Map.get(tool_calls_map, tool_call_id) do
-      %ToolCall{arguments: args} ->
-        path = get_field(args, :path)
-
-        if path && String.ends_with?(path, ".md") do
-          extract_content_from_result(result)
-        else
-          []
-        end
-
-      nil ->
-        []
-    end
-  end
-
-  defp extract_content_from_result(result) do
-    case result do
-      # Result is a map - check for text/content field
-      result when is_map(result) ->
-        content = get_field(result, :text) || get_field(result, :content)
-
-        if content && is_binary(content) do
-          [SwarmAi.Message.user(content)]
-        else
-          []
-        end
-
-      # Result is a string - this is the file content directly
-      result when is_binary(result) ->
-        # Try to decode as JSON first in case it's structured
-        case Jason.decode(result) do
-          {:ok, decoded} when is_map(decoded) ->
-            extract_content_from_result(decoded)
-
-          _ ->
-            # Plain text content - use as is
-            [SwarmAi.Message.user(result)]
-        end
-
-      _ ->
-        []
-    end
-  end
-
+  # Explicit clause for every Interaction type. Adding a new type without a
+  # clause crashes immediately instead of silently omitting it from LLM history.
   defp to_swarm_message(%UserMessage{} = msg) do
-    text_content =
-      msg.messages
-      |> Enum.join("\n\n")
-      |> CurrentPageContext.append_prompt_section(msg.current_page)
-      |> append_annotations(msg.annotations)
-      |> append_image_attachment_context(msg.images)
+    prompt_text = build_user_prompt_text(msg)
+    content_parts = build_user_content_parts(prompt_text, msg)
 
-    content_parts =
-      text_content
-      |> build_swarm_text_parts()
-      |> append_swarm_annotation_screenshots(msg.annotations)
-      |> append_swarm_user_images(msg.images)
-
-    build_swarm_user_message(content_parts)
+    [build_swarm_user_message(content_parts)]
   end
 
   defp to_swarm_message(%AgentResponse{content: content, metadata: metadata}) do
     meta = metadata || %{}
 
-    %SwarmMessage.Assistant{
-      content: [SwarmContentPart.text(content)],
-      tool_calls: meta |> get_flexible(:tool_calls) |> normalize_swarm_tool_calls(),
-      metadata: build_response_metadata_for_message(meta),
-      reasoning_details: filter_encrypted_reasoning(get_flexible(meta, :reasoning_details))
-    }
+    [
+      %SwarmMessage.Assistant{
+        content: [SwarmContentPart.text(content)],
+        tool_calls: normalize_swarm_tool_calls(meta["tool_calls"]),
+        metadata: build_response_metadata_for_message(meta),
+        reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
+      }
+    ]
   end
 
   defp to_swarm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
     json_result = if is_binary(result), do: result, else: Jason.encode!(result)
 
-    %SwarmMessage.Tool{
-      content: [SwarmContentPart.text(json_result)],
-      tool_call_id: id,
-      name: name,
-      metadata: %{}
-    }
+    [
+      %SwarmMessage.Tool{
+        content: [SwarmContentPart.text(json_result)],
+        tool_call_id: id,
+        name: name,
+        metadata: %{}
+      }
+    ]
   end
 
-  defp build_swarm_text_parts(""), do: []
-  defp build_swarm_text_parts(text), do: [SwarmContentPart.text(text)]
+  defp to_swarm_message(%ToolCall{}), do: []
+  defp to_swarm_message(%AgentSpawned{}), do: []
+  defp to_swarm_message(%AgentCompleted{}), do: []
+  defp to_swarm_message(%AgentError{}), do: []
+  defp to_swarm_message(%AgentPaused{}), do: []
+  defp to_swarm_message(%AgentRetry{}), do: []
+  defp to_swarm_message(%DiscoveredProjectRule{}), do: []
+  defp to_swarm_message(%DiscoveredProjectStructure{}), do: []
 
-  defp append_swarm_annotation_screenshots(parts, []), do: parts
+  @spec build_user_prompt_text(UserMessage.t()) :: String.t()
+  defp build_user_prompt_text(%UserMessage{} = msg) do
+    msg.messages
+    |> Enum.join("\n\n")
+    |> CurrentPageContext.append_prompt_section(msg.current_page)
+    |> append_annotation_context(msg.annotations)
+    |> append_attachment_context(msg.images)
+  end
 
-  defp append_swarm_annotation_screenshots(parts, annotations) when is_list(annotations) do
+  @spec build_user_content_parts(String.t(), UserMessage.t()) :: list(SwarmContentPart.t())
+  defp build_user_content_parts(prompt_text, %UserMessage{} = msg) do
+    prompt_text
+    |> text_parts()
+    |> append_annotation_screenshot_parts(msg.annotations)
+    |> append_user_attachment_parts(msg.images)
+  end
+
+  defp text_parts(""), do: []
+  defp text_parts(text), do: [SwarmContentPart.text(text)]
+
+  defp append_annotation_screenshot_parts(parts, []), do: parts
+
+  defp append_annotation_screenshot_parts(parts, annotations) when is_list(annotations) do
     screenshot_parts =
       annotations
       |> Enum.filter(&(&1.screenshot != nil))
@@ -1314,9 +1229,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     parts ++ screenshot_parts
   end
 
-  defp append_swarm_user_images(parts, []), do: parts
+  defp append_user_attachment_parts(parts, []), do: parts
 
-  defp append_swarm_user_images(parts, images) when is_list(images) do
+  defp append_user_attachment_parts(parts, images) when is_list(images) do
     {image_attachments, pdf_attachments} =
       Enum.split_with(images, fn %{mime_type: mime_type} ->
         String.starts_with?(mime_type, "image/")
@@ -1343,45 +1258,9 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp build_swarm_user_message([]), do: SwarmMessage.user("")
   defp build_swarm_user_message(parts), do: %SwarmMessage.User{content: parts}
 
-  defp normalize_swarm_tool_calls(nil), do: []
-  defp normalize_swarm_tool_calls([]), do: []
+  defp append_annotation_context(text, []), do: text
 
-  defp normalize_swarm_tool_calls(tool_calls) when is_list(tool_calls) do
-    Enum.map(tool_calls, &normalize_swarm_tool_call/1)
-  end
-
-  defp normalize_swarm_tool_call(%SwarmToolCall{} = tc), do: tc
-
-  defp normalize_swarm_tool_call(%{
-         "id" => id,
-         "function" => %{"name" => name, "arguments" => args}
-       }) do
-    new_swarm_tool_call(id, name, args)
-  end
-
-  defp normalize_swarm_tool_call(%{id: id, function: %{name: name, arguments: args}}) do
-    new_swarm_tool_call(id, name, args)
-  end
-
-  defp normalize_swarm_tool_call(%{"id" => id, "name" => name, "arguments" => args}) do
-    new_swarm_tool_call(id, name, args)
-  end
-
-  defp normalize_swarm_tool_call(%{id: id, name: name, arguments: args}) do
-    new_swarm_tool_call(id, name, args)
-  end
-
-  defp new_swarm_tool_call(id, name, arguments) do
-    %SwarmToolCall{id: id, name: name, arguments: tool_arguments_json(arguments)}
-  end
-
-  defp tool_arguments_json(arguments) when is_binary(arguments), do: arguments
-  defp tool_arguments_json(arguments), do: Jason.encode!(arguments)
-
-  # Append annotation location info to user message text
-  defp append_annotations(text, []), do: text
-
-  defp append_annotations(text, annotations) when is_list(annotations) do
+  defp append_annotation_context(text, annotations) when is_list(annotations) do
     annotation_sections =
       annotations
       |> Enum.with_index()
@@ -1472,8 +1351,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp format_parent_chain(_, _depth), do: ""
 
-  # Append image attachment URIs so the LLM knows they can be referenced via image_ref.
-  defp append_image_attachment_context(text, images) when is_list(images) and images != [] do
+  defp append_attachment_context(text, images) when is_list(images) and images != [] do
     uris =
       images
       |> Enum.filter(fn img -> is_binary(Map.get(img, :uri)) end)
@@ -1496,35 +1374,51 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  defp append_image_attachment_context(text, _), do: text
+  defp append_attachment_context(text, _), do: text
+
+  defp normalize_swarm_tool_calls(nil), do: []
+  defp normalize_swarm_tool_calls([]), do: []
+
+  defp normalize_swarm_tool_calls(tool_calls) when is_list(tool_calls) do
+    Enum.map(tool_calls, &normalize_swarm_tool_call/1)
+  end
+
+  defp normalize_swarm_tool_call(%{
+         "id" => id,
+         "function" => %{"name" => name, "arguments" => arguments}
+       }) do
+    new_swarm_tool_call(id, name, arguments)
+  end
+
+  defp normalize_swarm_tool_call(%{"id" => id, "name" => name, "arguments" => arguments}) do
+    new_swarm_tool_call(id, name, arguments)
+  end
+
+  defp new_swarm_tool_call(id, name, arguments) do
+    %SwarmToolCall{id: id, name: name, arguments: tool_arguments_json(arguments)}
+  end
+
+  defp tool_arguments_json(arguments) when is_binary(arguments), do: arguments
+  defp tool_arguments_json(arguments), do: Jason.encode!(arguments)
 
   defp build_response_metadata_for_message(meta) do
-    response_id = get_flexible(meta, :response_id)
-    phase = get_flexible(meta, :phase)
-    phase_items = get_flexible(meta, :phase_items)
-
     metadata = %{}
+    metadata = put_binary_metadata(metadata, :response_id, meta["response_id"])
+    metadata = put_binary_metadata(metadata, :phase, meta["phase"])
 
-    metadata =
-      if is_binary(response_id) do
-        Map.put(metadata, :response_id, response_id)
-      else
+    case meta["phase_items"] do
+      phase_items when is_list(phase_items) and phase_items != [] ->
+        Map.put(metadata, :phase_items, phase_items)
+
+      _ ->
         metadata
-      end
-
-    metadata =
-      if is_binary(phase) do
-        Map.put(metadata, :phase, phase)
-      else
-        metadata
-      end
-
-    if is_list(phase_items) and phase_items != [] do
-      Map.put(metadata, :phase_items, phase_items)
-    else
-      metadata
     end
   end
+
+  defp put_binary_metadata(metadata, key, value) when is_binary(value),
+    do: Map.put(metadata, key, value)
+
+  defp put_binary_metadata(metadata, _key, _value), do: metadata
 
   defp filter_encrypted_reasoning(nil), do: nil
   defp filter_encrypted_reasoning(details) when not is_list(details), do: nil
@@ -1536,18 +1430,63 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  # Get field from map, supporting both string and atom keys.
-  # This is needed because metadata from DB has string keys, but in-memory uses atoms.
-  defp get_field(map, key) when is_atom(key) do
-    Map.get(map, Atom.to_string(key)) || Map.get(map, key)
+  defp build_tool_calls_map(interactions) do
+    interactions
+    |> Enum.filter(fn
+      %ToolCall{} -> true
+      _ -> false
+    end)
+    |> Enum.reduce(%{}, fn %ToolCall{tool_call_id: id} = tc, acc ->
+      Map.put(acc, id, tc)
+    end)
   end
 
-  defp get_field(map, key) when is_binary(key) do
-    Map.get(map, key) || Map.get(map, String.to_atom(key))
+  defp extract_markdown_from_tool_result(
+         %ToolResult{tool_call_id: tool_call_id, result: result},
+         tool_calls_map
+       ) do
+    case Map.get(tool_calls_map, tool_call_id) do
+      %ToolCall{arguments: args} ->
+        path = args["path"]
+
+        if path && String.ends_with?(path, ".md") do
+          extract_content_from_result(result)
+        else
+          []
+        end
+
+      nil ->
+        []
+    end
   end
 
-  # Alias for get_field, used for metadata access to make intent clear
-  defp get_flexible(map, key), do: get_field(map, key)
+  defp extract_content_from_result(result) do
+    case result do
+      result when is_map(result) ->
+        content = result["text"] || result["content"]
+
+        if content && is_binary(content) do
+          [SwarmAi.Message.user(content)]
+        else
+          []
+        end
+
+      result when is_binary(result) ->
+        case Jason.decode(result) do
+          {:ok, decoded} when is_map(decoded) ->
+            extract_content_from_result(decoded)
+
+          _ ->
+            # Plain text content - use as is
+            [SwarmAi.Message.user(result)]
+        end
+
+      _ ->
+        []
+    end
+  end
+
+  defp tool_call_id(%{"id" => id}), do: id
 
   @doc """
   Checks if any user messages in the interactions contain annotations.
