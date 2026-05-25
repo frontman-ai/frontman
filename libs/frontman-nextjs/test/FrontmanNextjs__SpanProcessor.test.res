@@ -128,12 +128,12 @@ let clearLogs = (): unit => {
 }
 
 // Initialize LogCapture before tests
-beforeAll(_t => {
+beforeAll(() => {
   LogCapture.initialize()
 })
 
 // Clear logs after each test for isolation
-afterEach(_t => {
+afterEach(() => {
   clearLogs()
 })
 

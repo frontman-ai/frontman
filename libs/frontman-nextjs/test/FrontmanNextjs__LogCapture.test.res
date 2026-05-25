@@ -3,7 +3,7 @@ open Vitest
 module LogCapture = FrontmanNextjs__LogCapture
 
 // Initialize log capture once before all tests
-beforeAll(_t => {
+beforeAll(() => {
   LogCapture.initialize()
 })
 
