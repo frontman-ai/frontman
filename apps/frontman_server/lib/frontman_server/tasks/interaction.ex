@@ -1337,16 +1337,12 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp tool_arguments_json(arguments), do: Jason.encode!(arguments)
 
   defp swarm_metadata(meta) do
-    response_id = meta["response_id"]
-    phase = meta["phase"]
-    phase_items = meta["phase_items"]
-
     %{
-      response_id: if(is_binary(response_id), do: response_id),
-      phase: if(is_binary(phase), do: phase),
-      phase_items: if(is_list(phase_items) and phase_items != [], do: phase_items)
+      response_id: meta["response_id"],
+      phase: meta["phase"],
+      phase_items: meta["phase_items"]
     }
-    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.reject(fn {_key, value} -> value in [nil, []] end)
   end
 
   defp filter_encrypted_reasoning(nil), do: nil
