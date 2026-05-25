@@ -217,6 +217,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_tool_object_schemas_have_properties_objects();
 		$this->test_tool_array_schemas_have_items();
 		$this->test_generate_element_schema_declares_handler_inputs();
+		$this->test_add_element_schema_declares_element_shape();
 		$this->test_rollback_tool_schemas();
 		$this->test_structure_and_get_element();
 		$this->test_update_rejects_empty_and_noop_settings();
@@ -228,6 +229,7 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_save_page_data_rejects_invalid_tree();
 		$this->test_save_page_data_preserves_page_rollback();
 		$this->test_update_html_fragment_preserves_widget();
+		$this->test_add_element_rejects_empty_element();
 		$this->test_add_duplicate_and_move_restore_rollbacks();
 		$this->test_rollback_preserves_backslash_newline_styles();
 		$this->test_generate_element();
@@ -532,6 +534,11 @@ class Frontman_Elementor_Tools_Test_Runner {
 				'wp_elementor_generate_element schema declares ' . $field
 			);
 		}
+	}
+
+	private function test_add_element_schema_declares_element_shape(): void {
+		$element_schema = $this->decoded_tool_definition( 'wp_elementor_add_element' )->inputSchema->properties->element;
+		$this->assert_true( in_array( 'elType', $element_schema->required, true ), 'wp_elementor_add_element requires element.elType' );
 	}
 
 	private function test_rollback_tool_schemas(): void {
@@ -872,6 +879,12 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->assert_same( 'html', $element['widgetType'], 'HTML fragment rollback keeps the Elementor HTML widget' );
 		$this->assert_true( false !== strpos( $element['settings']['html'], 'SMS opt in' ), 'HTML fragment rollback restores removed markup' );
 		$this->assert_true( false !== strpos( $element['settings']['html'], 'Email opt in' ), 'HTML fragment rollback preserves sibling markup' );
+	}
+
+	private function test_add_element_rejects_empty_element(): void {
+		$error = $this->call_error( 'wp_elementor_add_element', [ 'post_id' => 47, 'parent_id' => 'root4710', 'element' => [] ] );
+		$this->assert_true( false !== strpos( $error, 'element.elType is required' ), 'Add element rejects empty element with a direct error' );
+		$this->assert_same( 0, count( Frontman_Elementor_Data::get_page_data( 47 )[1]['elements'] ), 'Rejected empty add leaves Elementor data unchanged' );
 	}
 
 	private function test_add_duplicate_and_move_restore_rollbacks(): void {
