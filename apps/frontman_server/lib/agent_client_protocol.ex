@@ -451,19 +451,6 @@ defmodule AgentClientProtocol do
     :ok
   end
 
-  @doc """
-  Extracts text content from ACP prompt content blocks.
-
-  Filters for text blocks and joins their text content with newlines.
-  Used for logging and title generation.
-  """
-  @spec extract_text_content(list(map())) :: String.t()
-  def extract_text_content(prompt_content) when is_list(prompt_content) do
-    prompt_content
-    |> Enum.filter(&(&1["type"] == "text"))
-    |> Enum.map_join("\n", &(&1["text"] || ""))
-  end
-
   # ---------------------------------------------------------------------------
   # Elicitation (session/elicitation)
   # ---------------------------------------------------------------------------

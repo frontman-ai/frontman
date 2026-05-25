@@ -216,7 +216,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       end
 
     mcp_tools = socket.assigns[:mcp_tools] || []
-    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+    all_tools = Tools.prepare_for_task(mcp_tools, task_id)
 
     opts = execution_opts(socket, model, mcp_tools)
 
@@ -458,7 +458,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp process_prompt(id, params, socket) do
+  defp process_prompt(id, %{"prompt" => prompt_content} = params, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
     mcp_tools = socket.assigns[:mcp_tools] || []
@@ -467,12 +467,15 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket = assign(socket, :scope, scope)
 
     model = extract_model_from_params(params)
-    prompt_content = Map.fetch!(params, "prompt")
-    text_summary = ACP.extract_text_content(prompt_content)
+
+    text_summary =
+      prompt_content
+      |> Enum.filter(&(&1["type"] == "text"))
+      |> Enum.map_join("\n", &(&1["text"] || ""))
 
     Logger.info("process_prompt", %{task_id: task_id, model: model, text_summary: text_summary})
 
-    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+    all_tools = Tools.prepare_for_task(mcp_tools, task_id)
 
     opts = execution_opts(socket, model, mcp_tools)
 
@@ -645,7 +648,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       task_id = socket.assigns.task_id
       opts = socket.assigns[:last_execution_opts] || []
       mcp_tools = socket.assigns[:mcp_tools] || []
-      all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+      all_tools = Tools.prepare_for_task(mcp_tools, task_id)
       Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
     end
 
@@ -736,7 +739,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       Tasks.add_agent_retry(scope, task_id, retried_error_id)
       opts = socket.assigns[:last_execution_opts] || []
       mcp_tools = socket.assigns[:mcp_tools] || []
-      all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+      all_tools = Tools.prepare_for_task(mcp_tools, task_id)
       Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
     end
 
