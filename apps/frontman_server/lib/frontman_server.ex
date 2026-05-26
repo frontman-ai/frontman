@@ -17,6 +17,7 @@ defmodule FrontmanServer do
     {Accounts, []},
     {Organizations, []},
     {Providers, []},
+    PlayGithub,
     {Tasks, []},
     {Frameworks, []},
     BrandTokens,

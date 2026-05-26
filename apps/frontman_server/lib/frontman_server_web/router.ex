@@ -37,6 +37,7 @@ defmodule FrontmanServerWeb.Router do
       pipe_through([:browser, :require_authenticated_user])
 
       get("/", PlayGithubController, :index)
+      get("/*github_path", PlayGithubController, :show)
     end
   end
 
