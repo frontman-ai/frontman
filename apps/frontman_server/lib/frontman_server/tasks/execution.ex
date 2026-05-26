@@ -18,6 +18,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Billing
   alias FrontmanServer.Billing.Subscription
   alias FrontmanServer.Frameworks
+  alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks

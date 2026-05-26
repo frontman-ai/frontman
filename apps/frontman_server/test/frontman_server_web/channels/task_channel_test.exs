@@ -921,6 +921,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "reconnect re-executes unresolved tool calls" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
 
       tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
@@ -1281,6 +1282,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{"sessionUpdate" => "error", "message" => "Auth failed"}
         }
       })
+    end
+  end
+
+  describe "retry flow" do
+    setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
     end
 
     test "session/retry_turn notification creates AgentRetry interaction", %{
