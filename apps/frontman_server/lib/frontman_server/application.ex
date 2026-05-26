@@ -16,6 +16,20 @@ defmodule FrontmanServer.Application do
   alias FrontmanServer.Observability.OtelHandler
   alias FrontmanServer.Observability.SwarmOtelHandler
 
+  @sentry_metadata [
+    :file,
+    :line,
+    :error_type,
+    :tool_name,
+    :tool_call_id,
+    :task_id,
+    :reason,
+    :raw_arguments,
+    :decode_error,
+    :loop_id,
+    :error_message
+  ]
+
   @impl true
   def start(_type, _args) do
     # Setup telemetry -> OTEL span translation
@@ -27,9 +41,14 @@ defmodule FrontmanServer.Application do
       ConsoleHandler.setup()
     end
 
-    # Add Sentry logger handler to capture crashed process exceptions
+    # Capture crashes plus all Logger.error/2 messages as Sentry events.
     :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
-      config: %{metadata: [:file, :line]}
+      config: %{
+        capture_log_messages: true,
+        level: :error,
+        metadata: @sentry_metadata,
+        tags_from_metadata: [:error_type, :tool_name]
+      }
     })
 
     :telemetry.attach(

@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
@@ -99,7 +99,10 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
 
       [result] = LLMRequestPreflight.run(messages)
 
-      assert Enum.any?(result.content, &(&1.type == :image and &1.data == "live-image"))
+      assert Enum.any?(result.content, fn
+               %ContentPart{type: :image, data: "live-image"} -> true
+               _other -> false
+             end)
     end
 
     test "expands image-producing tool result JSON into image content" do
@@ -160,7 +163,10 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert LLMRequestPreflight.run(messages) == messages
     end
 
+    @tag :capture_log
     test "removes oversized images for constrained providers" do
+      Sentry.Test.setup_sentry(dedup_events: false)
+
       messages = [
         %Message.User{
           content: [
@@ -177,6 +183,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert image_placeholder.text =~ "Image removed"
       assert image_placeholder.text =~ "9000x1080px"
       assert image_placeholder.text =~ "7680px provider limit"
+
+      assert [] = Sentry.Test.pop_sentry_reports()
     end
 
     test "decays old image_url parts" do

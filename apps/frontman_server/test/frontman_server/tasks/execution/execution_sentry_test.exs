@@ -48,18 +48,16 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       reports = Sentry.Test.pop_sentry_reports()
 
       error_reports =
-        Enum.filter(reports, fn event ->
-          event.tags[:error_type] == "agent_execution_error" and
-            event.extra[:task_id] == task_id
-        end)
+        Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id))
 
       assert error_reports != [],
              "Expected at least one agent_execution_error Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, & &1.tags))}"
 
       [report | _] = error_reports
+      metadata = report.extra[:logger_metadata]
       assert report.message.formatted == "Agent execution failed"
-      assert is_binary(report.extra[:reason])
-      assert is_integer(report.extra[:loop_id]) or is_binary(report.extra[:loop_id])
+      assert is_binary(metadata[:reason])
+      assert loop_id?(metadata[:loop_id])
     end
   end
 
@@ -71,7 +69,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     } do
       # The provider returns {:ok, stream} where the stream raises when consumed.
       # The try/rescue in execute_llm_call catches the raise and routes it through
-      # Loop.handle_error → {:failed, ...} → Sentry.capture_message (not crash).
+      # Loop.handle_error → {:failed, ...} → marked Logger report (not crash).
       expect_llm_responses([{:stream_raise, "Sentry test: simulated stream error"}])
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
@@ -87,13 +85,10 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       reports = Sentry.Test.pop_sentry_reports()
 
       error_reports =
-        Enum.filter(reports, fn event ->
-          event.tags[:error_type] == "agent_execution_error" and
-            event.extra[:task_id] == task_id
-        end)
+        Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id))
 
       assert error_reports != [],
-             "Expected at least one agent_execution_error Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, &{&1.tags, &1.extra[:task_id]}))}"
+             "Expected at least one agent_execution_error Sentry report for task #{task_id}, got none. All reports: #{inspect(Enum.map(reports, &{&1.tags, &1.extra[:logger_metadata][:task_id]}))}"
 
       [report | _] = error_reports
 
@@ -102,4 +97,15 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
              "Error report should have a message"
     end
   end
+
+  defp agent_execution_error_for_task?(event, task_id) do
+    case event.tags[:error_type] do
+      "agent_execution_error" -> event.extra[:logger_metadata][:task_id] == task_id
+      _other -> false
+    end
+  end
+
+  defp loop_id?(loop_id) when is_integer(loop_id), do: true
+  defp loop_id?(loop_id) when is_binary(loop_id), do: true
+  defp loop_id?(_loop_id), do: false
 end

@@ -117,8 +117,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           :ok
   def handle_timeout(%Scope{} = scope, task_id, :error, tool_call, :triggered) do
     timeout_msg = "Tool #{tool_call.name} timed out"
-    Logger.error("ToolExecutor: #{timeout_msg}")
-    report_tool_timeout_sentry(tool_call, task_id)
+
+    metadata = [
+      error_type: "tool_timeout",
+      tool_name: tool_call.name,
+      tool_call_id: tool_call.id,
+      task_id: task_id
+    ]
+
+    Logger.error("Backend tool timeout", metadata)
 
     persist_error_tool_result(scope, task_id, tool_call, timeout_msg)
   end
@@ -204,17 +211,16 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         reason =
           "Failed to parse arguments for tool #{tool_call.name}: #{message}, raw: #{raw_arguments}"
 
-        Logger.error("ToolExecutor: #{reason}")
+        metadata = [
+          error_type: "tool_parse_error",
+          tool_name: tool_call.name,
+          tool_call_id: tool_call.id,
+          task_id: task_id,
+          raw_arguments: raw_arguments,
+          decode_error: message
+        ]
 
-        Sentry.capture_message("Tool argument parse failure",
-          level: :error,
-          tags: %{error_type: "tool_parse_error", tool_name: tool_call.name},
-          extra: %{
-            tool_name: tool_call.name,
-            raw_arguments: raw_arguments,
-            decode_error: message
-          }
-        )
+        Logger.error("Tool argument parse failure", metadata)
 
         persist_error_tool_result(scope, task_id, tool_call, reason)
         {:error, reason}
@@ -251,8 +257,16 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         reason =
           "Tool result not JSON-serializable: #{inspect(changeset.errors)}. Tool: #{tool_call.name}"
 
-        Logger.error("ToolExecutor: #{reason}")
-        report_tool_sentry("tool_persist_error", tool_call, task_id, reason)
+        metadata = [
+          error_type: "tool_persist_error",
+          tool_name: tool_call.name,
+          tool_call_id: tool_call.id,
+          task_id: task_id,
+          reason: reason
+        ]
+
+        Logger.error("Tool execution failed", metadata)
+
         persist_error_tool_result(scope, task_id, tool_call, reason)
         {:error, reason}
 
@@ -266,19 +280,33 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp handle_backend_outcome({:returned, {:error, reason}}, scope, tool_call, task_id) do
-    Logger.error(
-      "ToolExecutor: Backend tool #{tool_call.name} returned error: #{inspect(reason)}"
-    )
+    metadata = [
+      error_type: "tool_soft_error",
+      tool_name: tool_call.name,
+      tool_call_id: tool_call.id,
+      task_id: task_id,
+      reason: inspect(reason)
+    ]
 
-    report_tool_sentry("tool_soft_error", tool_call, task_id, inspect(reason))
+    Logger.error("Tool execution failed", metadata)
+
     persist_error_tool_result(scope, task_id, tool_call, reason)
     {:error, reason}
   end
 
   defp handle_backend_outcome({:crashed, reason}, scope, tool_call, task_id) do
     reason_str = inspect(reason)
-    Logger.error("ToolExecutor: Backend tool #{tool_call.name} crashed: #{reason_str}")
-    report_tool_sentry("tool_crash", tool_call, task_id, reason_str)
+
+    metadata = [
+      error_type: "tool_crash",
+      tool_name: tool_call.name,
+      tool_call_id: tool_call.id,
+      task_id: task_id,
+      reason: reason_str
+    ]
+
+    Logger.error("Tool execution failed", metadata)
+
     persist_error_tool_result(scope, task_id, tool_call, reason_str)
     {:error, reason_str}
   end
@@ -295,31 +323,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
         :ok
     end
-  end
-
-  defp report_tool_sentry(error_type, tool_call, task_id, reason) do
-    Sentry.capture_message("Tool execution failed",
-      level: :error,
-      tags: %{error_type: error_type},
-      extra: %{
-        tool_name: tool_call.name,
-        tool_call_id: tool_call.id,
-        task_id: task_id,
-        reason: reason
-      }
-    )
-  end
-
-  defp report_tool_timeout_sentry(tool_call, task_id) do
-    Sentry.capture_message("Backend tool timeout",
-      level: :error,
-      tags: %{error_type: "tool_timeout"},
-      extra: %{
-        tool_name: tool_call.name,
-        tool_call_id: tool_call.id,
-        task_id: task_id
-      }
-    )
   end
 
   defp encode_result(value) when is_binary(value), do: value

@@ -94,7 +94,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
   end
 
   describe "handle_response/3 with tool-level errors (isError: true)" do
-    test "project rules: does not crash and reports to Sentry" do
+    test "project rules: does not crash or report to Sentry" do
       request_id = 1
       state = rules_state(request_id)
 
@@ -117,15 +117,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       assert log =~ "Tool error loading project_rules"
 
-      [event] = Sentry.Test.pop_sentry_reports()
-      assert event.message.formatted == "MCP tool error during initialization"
-      assert event.level == :warning
-      assert event.tags[:init_step] == "project_rules"
-      assert event.extra[:tool_name] == "load_agent_instructions"
-      assert event.extra[:error_text] =~ "Path escapes source root"
+      assert [] = Sentry.Test.pop_sentry_reports()
     end
 
-    test "project structure: does not crash and reports to Sentry" do
+    test "project structure: does not crash or report to Sentry" do
       request_id = 2
       state = structure_state(request_id)
 
@@ -148,10 +143,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       assert log =~ "Tool error loading project_structure"
 
-      [event] = Sentry.Test.pop_sentry_reports()
-      assert event.message.formatted == "MCP tool error during initialization"
-      assert event.tags[:init_step] == "project_structure"
-      assert event.extra[:tool_name] == "list_tree"
+      assert [] = Sentry.Test.pop_sentry_reports()
     end
   end
 

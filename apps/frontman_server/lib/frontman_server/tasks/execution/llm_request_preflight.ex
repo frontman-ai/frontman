@@ -186,11 +186,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
         part
 
       {:too_large, width, height} ->
-        Sentry.capture_message("Image exceeded provider dimension limit",
-          level: :warning,
-          extra: %{width: width, height: height, max_dimension: max}
-        )
-
         Logger.warning("Stripping oversized image (#{width}x#{height}px, max #{max}px)")
 
         ContentPart.text(

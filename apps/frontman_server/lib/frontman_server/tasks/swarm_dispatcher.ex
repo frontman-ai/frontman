@@ -74,15 +74,14 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   defp persist(%Scope{} = scope, task_id, {:failed, {:error, reason, loop_id}}, _metadata) do
     {reason_str, category, retryable} = ExecutionEvent.classify_error(reason)
 
-    Logger.error(
-      "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{reason_str}"
-    )
+    metadata = [
+      error_type: "agent_execution_error",
+      task_id: task_id,
+      loop_id: loop_id,
+      reason: reason_str
+    ]
 
-    Sentry.capture_message("Agent execution failed",
-      level: :error,
-      tags: %{error_type: "agent_execution_error"},
-      extra: %{task_id: task_id, loop_id: loop_id, reason: reason_str}
-    )
+    Logger.error("Agent execution failed", metadata)
 
     Tasks.add_agent_error(scope, task_id, reason_str, "failed", retryable, category)
     TelemetryEvents.task_stop(task_id)
@@ -95,21 +94,14 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
          {:crashed, %{reason: reason, stacktrace: stacktrace}},
          _metadata
        ) do
-    Logger.error("Execution crashed for task #{task_id}, reason: #{inspect(reason)}")
+    metadata = [
+      crash_reason: {reason, stacktrace},
+      error_type: "agent_crash",
+      task_id: task_id,
+      reason: inspect(reason)
+    ]
 
-    if is_exception(reason) do
-      Sentry.capture_exception(reason,
-        stacktrace: stacktrace,
-        tags: %{error_type: "agent_crash"},
-        extra: %{task_id: task_id}
-      )
-    else
-      Sentry.capture_message("Agent execution crashed",
-        level: :error,
-        tags: %{error_type: "agent_crash"},
-        extra: %{task_id: task_id, reason: inspect(reason)}
-      )
-    end
+    Logger.error("Agent execution crashed", metadata)
 
     Tasks.add_agent_error(
       scope,

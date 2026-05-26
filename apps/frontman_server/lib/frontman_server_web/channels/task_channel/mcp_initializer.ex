@@ -87,18 +87,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   @doc """
-  Returns true if this initializer state is expecting a response with the given request_id.
-  Used by TaskChannel to route MCP responses to the correct handler.
-  """
-  @spec expects_response?(t(), integer()) :: boolean()
-  def expects_response?(state, request_id) do
-    request_id == state.mcp_init_request_id or
-      request_id == state.tools_request_id or
-      request_id == state.project_rules_request_id or
-      request_id == state.project_structure_request_id
-  end
-
-  @doc """
   Handle a successful MCP response. Returns updated state and actions.
   """
   @spec handle_response(t(), integer(), map()) :: {t(), [action()]}
@@ -148,6 +136,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         complete_initialization(state)
 
       true ->
+        Logger.warning("MCPInitializer: Received error for unknown request_id #{request_id}")
         {state, []}
     end
   end
@@ -299,7 +288,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  defp format_workspace_section(ws) when is_list(ws) and ws != [] do
+  defp format_workspace_section([]), do: ""
+
+  defp format_workspace_section(ws) when is_list(ws) do
     ws_lines =
       Enum.map(ws, fn w ->
         "  #{Map.get(w, "name", "unknown")} → #{Map.get(w, "path", "")}"
@@ -308,7 +299,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     "\n\nWorkspaces:\n" <> Enum.join(ws_lines, "\n")
   end
 
-  defp format_workspace_section(_), do: ""
+  defp format_workspace_section(_other), do: ""
 
   defp complete_initialization(state) do
     state = %{
@@ -335,14 +326,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     {state, [{:push_acp, notification}, {:initialization_complete, initialization_data}]}
   end
 
-  defp report_tool_error(state, init_step, tool_name, result) do
+  defp report_tool_error(_state, init_step, tool_name, result) do
     text = MCP.extract_content_text(result)
-    Logger.warning("MCPInitializer: Tool error loading #{init_step}: #{text}")
 
-    Sentry.capture_message("MCP tool error during initialization",
-      level: :warning,
-      tags: %{error_type: "mcp_tool_error", init_step: init_step},
-      extra: %{task_id: state.task_id, tool_name: tool_name, error_text: text}
-    )
+    Logger.warning("MCPInitializer: Tool error loading #{init_step} with #{tool_name}: #{text}")
   end
 end
