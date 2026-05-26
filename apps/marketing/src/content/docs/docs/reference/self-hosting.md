@@ -445,7 +445,7 @@ Self-hosted deployments are community-supported via:
 - Security patches with 24-hour SLA
 - Performance tuning and database optimization
 
-Contact [enterprise@frontman.sh](mailto:enterprise@frontman.sh) for pricing.
+Contact us through the [contact page](/contact/) for enterprise support details.
 
 ### Cloud Marketplaces
 Not currently available on AWS/GCP/Azure marketplaces. Roadmap item for 2025. Track progress in [issue #123](https://github.com/frontman-ai/frontman/issues/123).
@@ -460,7 +460,7 @@ Multi-tenancy is implemented via `organization_id` foreign keys + Ecto query sco
 ### Cost Estimates
 
 #### Hosted (api.frontman.sh)
-- **Free** — no subscription fees, no usage limits
+- **Paid hosted service** — hosted plans are moving to paid subscriptions
 - **BYOK** — you pay your LLM provider directly (Anthropic, OpenAI, OpenRouter) at standard API rates
 
 #### Self-Hosted (estimated monthly costs)
@@ -605,4 +605,4 @@ See the [Models & Providers](/docs/reference/models/) reference for currently su
 - [Environment Template](https://github.com/frontman-ai/frontman/blob/main/infra/production/env.template)
 - [Discord Community](https://discord.gg/xk8uXJSvhC)
 
-For enterprise support or commercial licensing questions, contact [enterprise@frontman.sh](mailto:enterprise@frontman.sh).
+For enterprise support or commercial licensing questions, contact us through the [contact page](/contact/).

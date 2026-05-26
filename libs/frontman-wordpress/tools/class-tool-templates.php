@@ -116,24 +116,51 @@ class Frontman_Tool_Templates {
 	}
 
 	/**
+	 * Get active plugin filesystem paths using WordPress' validated plugin list.
+	 */
+	private function get_active_plugin_paths(): array {
+		$plugin_paths = [];
+
+		if ( function_exists( 'wp_get_active_and_valid_plugins' ) ) {
+			$plugin_paths = array_merge( $plugin_paths, wp_get_active_and_valid_plugins() );
+		}
+
+		if ( function_exists( 'wp_get_active_network_plugins' ) ) {
+			$plugin_paths = array_merge( $plugin_paths, wp_get_active_network_plugins() );
+		}
+
+		return array_values( array_unique( array_filter( $plugin_paths, 'is_string' ) ) );
+	}
+
+	private function get_active_plugin_info( string $plugin_path ): array {
+		$plugin_file = function_exists( 'plugin_basename' ) ? plugin_basename( $plugin_path ) : basename( $plugin_path );
+		$data        = function_exists( 'get_file_data' )
+			? get_file_data(
+				$plugin_path,
+				[
+					'Name'    => 'Plugin Name',
+					'Version' => 'Version',
+				],
+				'plugin'
+			)
+			: [];
+
+		return [
+			'name'    => sanitize_text_field( $data['Name'] ?? $plugin_file ),
+			'version' => sanitize_text_field( $data['Version'] ?? 'unknown' ),
+		];
+	}
+
+	/**
 	 * wp_get_site_info handler.
 	 */
 	public function get_site_info( array $input ): array {
-		$theme   = wp_get_theme();
-		$plugins = get_option( 'active_plugins', [] );
+		$theme = wp_get_theme();
 
-		if ( ! function_exists( 'get_plugin_data' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/plugin.php';
-		}
-
-		// Get plugin names from slugs.
+		// Get plugin names from WordPress' validated active plugin paths.
 		$plugin_info = [];
-		foreach ( $plugins as $plugin_file ) {
-			$data = get_plugin_data( WP_PLUGIN_DIR . '/' . $plugin_file, false, false );
-			$plugin_info[] = [
-				'name'    => $data['Name'] ?? $plugin_file,
-				'version' => $data['Version'] ?? 'unknown',
-			];
+		foreach ( $this->get_active_plugin_paths() as $plugin_path ) {
+			$plugin_info[] = $this->get_active_plugin_info( $plugin_path );
 		}
 
 		// Get post types.

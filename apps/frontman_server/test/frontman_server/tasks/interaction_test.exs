@@ -1,6 +1,7 @@
 defmodule FrontmanServer.Tasks.InteractionTest do
   use FrontmanServer.InteractionCase, async: true
 
+  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
 
   alias FrontmanServer.Tasks.Interaction.{
@@ -112,6 +113,51 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert [ann] = msg.annotations
       assert ann.metadata == %{"custom_context" => context}
     end
+
+    test "extracts current page context from resource block" do
+      msg =
+        UserMessage.new([
+          text_block("Hello"),
+          current_page_block("https://example.com/app", %{
+            "viewport_width" => 390,
+            "viewport_height" => 844,
+            "device_pixel_ratio" => 3.0,
+            "title" => "Dashboard",
+            "color_scheme" => "dark",
+            "scroll_y" => 120
+          })
+        ])
+
+      assert msg.current_page == %Interaction.CurrentPage{
+               url: "https://example.com/app",
+               viewport_width: 390,
+               viewport_height: 844,
+               device_pixel_ratio: 3.0,
+               title: "Dashboard",
+               color_scheme: "dark",
+               scroll_y: 120
+             }
+    end
+
+    test "ignores resource url meta without current page marker" do
+      msg =
+        UserMessage.new([
+          text_block("Hello"),
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "_meta" => %{"url" => "https://example.com/not-page-context"},
+              "resource" => %{
+                "uri" => "custom://resource",
+                "mimeType" => "text/plain",
+                "text" => "Resource with URL metadata"
+              }
+            }
+          }
+        ])
+
+      assert msg.current_page == nil
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -134,53 +180,129 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   # ---------------------------------------------------------------------------
-  # to_llm_messages/1
+  # to_swarm_messages/1
   # ---------------------------------------------------------------------------
 
-  describe "to_llm_messages/1" do
+  describe "to_swarm_messages/1" do
+    test "converts user message text and images to Swarm content parts" do
+      msg = %{
+        user_msg("Look at this")
+        | images: [
+            %UserImage{
+              blob: Base.encode64("image-bytes"),
+              mime_type: "image/png",
+              filename: "screen.png"
+            }
+          ]
+      }
+
+      [swarm_msg] = Interaction.to_swarm_messages([msg])
+
+      assert %SwarmAi.Message.User{content: content} = swarm_msg
+
+      assert [
+               %SwarmAi.Message.ContentPart{type: :text, text: "Look at this"},
+               %SwarmAi.Message.ContentPart{
+                 type: :image,
+                 data: "image-bytes",
+                 media_type: "image/png"
+               }
+             ] = content
+    end
+
+    test "converts assistant tool calls to Swarm tool calls" do
+      interactions = [
+        agent_resp("I'll read it", %{
+          "tool_calls" => [db_tool_call("toolu_012", "read_file", ~s({"path":"README.md"}))],
+          "response_id" => "resp_123",
+          "phase" => "tool_call"
+        })
+      ]
+
+      [swarm_msg] = Interaction.to_swarm_messages(interactions)
+
+      assert %SwarmAi.Message.Assistant{
+               content: [%SwarmAi.Message.ContentPart{type: :text, text: "I'll read it"}],
+               tool_calls: [
+                 %SwarmAi.ToolCall{
+                   id: "toolu_012",
+                   name: "read_file",
+                   arguments: ~s({"path":"README.md"})
+                 }
+               ],
+               metadata: %{response_id: "resp_123", phase: "tool_call"}
+             } = swarm_msg
+    end
+
+    test "converts tool result to Swarm tool message with JSON text" do
+      [swarm_msg] =
+        Interaction.to_swarm_messages([
+          tool_result("call_123", "calculator", %{"answer" => 42})
+        ])
+
+      assert %SwarmAi.Message.Tool{
+               tool_call_id: "call_123",
+               name: "calculator",
+               content: [%SwarmAi.Message.ContentPart{type: :text, text: text}],
+               metadata: %{}
+             } = swarm_msg
+
+      assert Jason.decode!(text) == %{"answer" => 42}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # to_swarm_messages/1
+  # ---------------------------------------------------------------------------
+
+  describe "to_swarm_messages/1 conversation coverage" do
     test "converts user message with correct role and content" do
-      messages = Interaction.to_llm_messages([user_msg("Hello")])
+      messages = Interaction.to_swarm_messages([user_msg("Hello")])
 
       assert [msg] = messages
-      assert msg.role == :user
+      assert SwarmAi.Message.role(msg) == :user
       assert is_list(msg.content)
     end
 
     test "converts agent response to assistant message with content" do
-      messages = Interaction.to_llm_messages([agent_resp("Hi there")])
+      messages = Interaction.to_swarm_messages([agent_resp("Hi there")])
 
       assert [msg] = messages
-      assert msg.role == :assistant
+      assert SwarmAi.Message.role(msg) == :assistant
       assert [%{type: :text, text: "Hi there"}] = msg.content
     end
 
     test "converts tool results to tool messages" do
-      messages = Interaction.to_llm_messages([tool_result("call_123", "calculator", 42)])
+      interaction = tool_result("call_123", "calculator", 42)
+      messages = Interaction.to_swarm_messages([interaction])
 
       assert [msg] = messages
-      assert msg.role == :tool
+      assert SwarmAi.Message.role(msg) == :tool
       assert msg.tool_call_id == "call_123"
+      assert msg.metadata == %{}
     end
 
     test "skips ToolCall structs (they live in agent response metadata)" do
-      messages = Interaction.to_llm_messages([tool_call("call_123", "calculator")])
+      messages = Interaction.to_swarm_messages([tool_call("call_123", "calculator")])
       assert messages == []
     end
 
     test "handles mixed conversation in correct order" do
       interactions = [
         user_msg("Calculate 2+2"),
-        agent_resp("Let me calculate", %{tool_calls: [%{id: "c1", name: "calc", arguments: %{}}]}),
+        agent_resp("Let me calculate", %{
+          "tool_calls" => [%{"id" => "c1", "name" => "calc", "arguments" => %{}}]
+        }),
         tool_call("c1", "calc"),
         tool_result("c1", "calc", 4),
         agent_resp("The answer is 4")
       ]
 
-      messages = Interaction.to_llm_messages(interactions)
+      messages = Interaction.to_swarm_messages(interactions)
       # UserMessage + AgentResponse(with tool) + ToolResult + AgentResponse(final)
       # ToolCall is skipped
       assert length(messages) == 4
-      assert Enum.map(messages, & &1.role) == [:user, :assistant, :tool, :assistant]
+      assert Enum.map(messages, &SwarmAi.Message.role/1) == [:user, :assistant, :tool, :assistant]
     end
 
     test "includes annotation location info in user message content" do
@@ -193,7 +315,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         column: 5
       }
 
-      messages = Interaction.to_llm_messages([user_msg("Change the text", [ann])])
+      messages = Interaction.to_swarm_messages([user_msg("Change the text", [ann])])
       text = extract_text(hd(messages))
 
       assert text =~ "Change the text"
@@ -213,7 +335,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         bounding_box: %Interaction.BoundingBox{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
       }
 
-      messages = Interaction.to_llm_messages([user_msg("Fix layout", [ann])])
+      messages = Interaction.to_swarm_messages([user_msg("Fix layout", [ann])])
       text = extract_text(hd(messages))
 
       assert text =~ "Bounding Box:"
@@ -221,11 +343,34 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "does not add annotation section when annotations is empty" do
-      messages = Interaction.to_llm_messages([user_msg("Just a regular message")])
+      messages = Interaction.to_swarm_messages([user_msg("Just a regular message")])
       text = extract_text(hd(messages))
 
       assert text =~ "Just a regular message"
       refute text =~ "[Annotated Elements]"
+    end
+
+    test "includes current page context in user message content" do
+      msg = %{
+        user_msg("Fix this route")
+        | current_page: %Interaction.CurrentPage{
+            url: "https://example.com/settings",
+            viewport_width: 1440,
+            viewport_height: 900,
+            device_pixel_ratio: 2.0,
+            title: "Settings",
+            color_scheme: "light",
+            scroll_y: 0
+          }
+      }
+
+      [llm_msg] = Interaction.to_swarm_messages([msg])
+      text = extract_text(llm_msg)
+
+      assert text =~ CurrentPageContext.header()
+      assert text =~ "URL: https://example.com/settings"
+      assert text =~ "Viewport: 1440x900"
+      assert text =~ "Page Title: Settings"
     end
 
     test "lists attachment URI without tool-specific guidance" do
@@ -245,7 +390,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           }
         end)
 
-      [llm_msg] = Interaction.to_llm_messages([msg])
+      [llm_msg] = Interaction.to_swarm_messages([msg])
       text = extract_text(llm_msg)
       assert text =~ "attachment://att_hero/hero.png"
       refute text =~ "write_file with image_ref"
@@ -253,10 +398,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   # ---------------------------------------------------------------------------
-  # to_llm_messages/1 — DB-loaded metadata (string keys)
+  # to_swarm_messages/1 — DB-loaded metadata (string keys)
   # ---------------------------------------------------------------------------
 
-  describe "to_llm_messages/1 with DB-loaded metadata (string keys)" do
+  describe "to_swarm_messages/1 with DB-loaded metadata (string keys)" do
     test "converts tool_calls stored in OpenAI wire format (string keys)" do
       interactions = [
         agent_resp("I'll read the file", %{
@@ -266,14 +411,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         })
       ]
 
-      [msg] = Interaction.to_llm_messages(interactions)
+      [msg] = Interaction.to_swarm_messages(interactions)
 
-      assert msg.role == :assistant
+      assert SwarmAi.Message.role(msg) == :assistant
       assert [tc] = msg.tool_calls
-      assert %ReqLLM.ToolCall{} = tc
+      assert %SwarmAi.ToolCall{} = tc
       assert tc.id == "toolu_012"
-      assert tc.function.name == "read_file"
-      assert tc.function.arguments == ~s({"path": "src/app/page.tsx"})
+      assert tc.name == "read_file"
+      assert tc.arguments == ~s({"path": "src/app/page.tsx"})
     end
 
     test "converts multiple tool_calls from DB" do
@@ -286,21 +431,22 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         })
       ]
 
-      [msg] = Interaction.to_llm_messages(interactions)
+      [msg] = Interaction.to_swarm_messages(interactions)
 
       assert length(msg.tool_calls) == 2
-      assert Enum.all?(msg.tool_calls, &match?(%ReqLLM.ToolCall{}, &1))
+      assert Enum.all?(msg.tool_calls, &match?(%SwarmAi.ToolCall{}, &1))
       assert Enum.map(msg.tool_calls, & &1.id) == ["toolu_001", "toolu_002"]
-      assert Enum.map(msg.tool_calls, & &1.function.name) == ["read_file", "glob"]
+      assert Enum.map(msg.tool_calls, & &1.name) == ["read_file", "glob"]
     end
 
     test "handles empty or nil tool_calls from DB gracefully" do
       for tool_calls <- [[], nil] do
         [msg] =
-          Interaction.to_llm_messages([agent_resp("Just text", %{"tool_calls" => tool_calls})])
+          Interaction.to_swarm_messages([agent_resp("Just text", %{"tool_calls" => tool_calls})])
 
-        assert msg.role == :assistant
+        assert SwarmAi.Message.role(msg) == :assistant
         assert [%{type: :text, text: "Just text"}] = msg.content
+        assert msg.tool_calls == []
       end
     end
 
@@ -324,7 +470,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         })
       ]
 
-      [msg] = Interaction.to_llm_messages(interactions)
+      [msg] = Interaction.to_swarm_messages(interactions)
 
       assert msg.metadata == %{
                response_id: "resp_abc123",
@@ -354,10 +500,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         })
       ]
 
-      [msg] = Interaction.to_llm_messages(interactions)
+      [msg] = Interaction.to_swarm_messages(interactions)
 
       assert msg.metadata == %{response_id: "resp_final_123", phase: "final_answer"}
-      assert msg.tool_calls == nil
+      assert msg.tool_calls == []
     end
 
     test "full conversation round-trip with tool calls from DB" do
@@ -371,20 +517,20 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         agent_resp("The file contains a README header.")
       ]
 
-      messages = Interaction.to_llm_messages(interactions)
+      messages = Interaction.to_swarm_messages(interactions)
 
       assert length(messages) == 4
 
       [user_msg_, assistant_with_tool, tool_result_, final_assistant] = messages
-      assert user_msg_.role == :user
-      assert assistant_with_tool.role == :assistant
-      assert tool_result_.role == :tool
-      assert final_assistant.role == :assistant
+      assert SwarmAi.Message.role(user_msg_) == :user
+      assert SwarmAi.Message.role(assistant_with_tool) == :assistant
+      assert SwarmAi.Message.role(tool_result_) == :tool
+      assert SwarmAi.Message.role(final_assistant) == :assistant
 
       assert [tc] = assistant_with_tool.tool_calls
-      assert %ReqLLM.ToolCall{} = tc
+      assert %SwarmAi.ToolCall{} = tc
       assert tc.id == "toolu_read_123"
-      assert tc.function.name == "read_file"
+      assert tc.name == "read_file"
 
       assert tool_result_.tool_call_id == "toolu_read_123"
     end
@@ -396,43 +542,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         })
       ]
 
-      [msg] = Interaction.to_llm_messages(interactions)
+      [msg] = Interaction.to_swarm_messages(interactions)
 
       assert [tc] = msg.tool_calls
-      assert %ReqLLM.ToolCall{} = tc
+      assert %SwarmAi.ToolCall{} = tc
       assert tc.id == "call_flat_1"
-      assert tc.function.name == "get_weather"
-    end
-
-    test "handles atom keys (fresh from response, not DB)" do
-      interactions = [
-        agent_resp("Calculating", %{
-          tool_calls: [
-            %{
-              function: %{arguments: ~s({"x": 1}), name: "calculator"},
-              id: "call_atom_1",
-              type: "function"
-            }
-          ]
-        })
-      ]
-
-      [msg] = Interaction.to_llm_messages(interactions)
-
-      assert [tc] = msg.tool_calls
-      assert %ReqLLM.ToolCall{} = tc
-      assert tc.function.name == "calculator"
-    end
-
-    test "passes through ReqLLM.ToolCall structs unchanged" do
-      existing_struct = ReqLLM.ToolCall.new("call_struct_1", "my_tool", "{}")
-
-      interactions = [agent_resp("Using tool", %{tool_calls: [existing_struct]})]
-
-      [msg] = Interaction.to_llm_messages(interactions)
-
-      assert [tc] = msg.tool_calls
-      assert tc == existing_struct
+      assert tc.name == "get_weather"
     end
   end
 
@@ -518,21 +633,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert Interaction.all_pending_tools_resolved?(interactions) == false
     end
 
-    test "handles tool_calls as atom-key maps and ReqLLM.ToolCall structs" do
-      tc_struct = ReqLLM.ToolCall.new("call_struct", "question", "{}")
-
+    test "handles flat and nested string-key tool call maps" do
       for tool_calls <- [
-            [%{id: "call_a", name: "question", arguments: "{}"}],
-            [tc_struct]
+            [%{"id" => "call_a", "name" => "question", "arguments" => "{}"}],
+            [%{"id" => "call_nested", "function" => %{"name" => "question", "arguments" => "{}"}}]
           ] do
-        call_id =
-          case hd(tool_calls) do
-            %ReqLLM.ToolCall{id: id} -> id
-            %{id: id} -> id
-          end
+        %{"id" => call_id} = hd(tool_calls)
 
         interactions = [
-          agent_resp("Using tool", %{tool_calls: tool_calls}),
+          agent_resp("Using tool", %{"tool_calls" => tool_calls}),
           tool_result(call_id, "question", "answer")
         ]
 

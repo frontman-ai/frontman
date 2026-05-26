@@ -123,11 +123,11 @@ let serializeProps = (rawProps: Nullable.t<Dict.t<JSON.t>>): option<Dict.t<JSON.
         switch props->Dict.get(key) {
         | None => () // undefined prop — skip
         | Some(value) =>
-          switch Js.typeof(value) {
-          | "string" | "number" | "boolean" =>
+          switch typeof(value) {
+          | #string | #number | #boolean =>
             clean->Dict.set(key, value)
             hasProps := true
-          | "object" =>
+          | #object =>
             // typeof null === "object" in JS, so check for null first.
             // Nullable.toOption handles this: null → None, object → Some.
             switch (Obj.magic(value): Nullable.t<JSON.t>)->Nullable.toOption {

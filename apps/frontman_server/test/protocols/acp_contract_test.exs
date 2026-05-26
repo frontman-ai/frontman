@@ -54,7 +54,7 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.tool_call_create/7" do
+  describe "AgentClientProtocol.tool_call_create/6" do
     test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
       payload =
         AgentClientProtocol.tool_call_create(
@@ -64,23 +64,6 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
           "other",
           DateTime.utc_now(),
           "pending"
-        )
-
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
-      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
-    end
-
-    test "with sub-agent fields validates against acp/sessionUpdateNotification schema" do
-      payload =
-        AgentClientProtocol.tool_call_create(
-          "session-123",
-          "tc-1",
-          "read_file",
-          "other",
-          DateTime.utc_now(),
-          "pending",
-          parent_agent_id: "agent-1",
-          spawning_tool_name: "dispatch"
         )
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")

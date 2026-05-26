@@ -438,7 +438,17 @@ defmodule SwarmTest do
 
     test "tool call with invalid JSON returns error" do
       tc = %SwarmAi.ToolCall{id: "tc_1", name: "test", arguments: "not json"}
-      assert {:error, %Jason.DecodeError{}} = SwarmAi.ToolCall.parse_arguments(tc)
+      assert {:error, reason} = SwarmAi.ToolCall.parse_arguments(tc)
+      assert reason =~ "unexpected byte"
+    end
+
+    test "blank and non-object JSON arguments are handled" do
+      tc = %SwarmAi.ToolCall{id: "tc_1", name: "test", arguments: "  \n  "}
+      assert {:ok, %{}} = SwarmAi.ToolCall.parse_arguments(tc)
+
+      tc = %SwarmAi.ToolCall{id: "tc_1", name: "test", arguments: ~s(["not", "object"])}
+      assert {:error, reason} = SwarmAi.ToolCall.parse_arguments(tc)
+      assert reason =~ "expected JSON object"
     end
   end
 end

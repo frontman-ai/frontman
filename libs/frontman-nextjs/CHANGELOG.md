@@ -1,5 +1,21 @@
 # @frontman-ai/nextjs
 
+## 0.6.4
+
+### Patch Changes
+
+- [#890](https://github.com/frontman-ai/frontman/pull/890) [`05942f0`](https://github.com/frontman-ai/frontman/commit/05942f0bdaf3a60710a903542ec68200a58be6aa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Centralize path normalization and filename pattern matching to shared helpers across core and framework packages. This removes duplicate `toForwardSlashes` logic from client/Next.js/Astro path conversion and moves search/file matching logic into reusable frontman-core utilities, while adding focused regression tests for mixed separators and wildcard/case-insensitive pattern matching.
+
+- [#966](https://github.com/frontman-ai/frontman/pull/966) [`de43db7`](https://github.com/frontman-ai/frontman/commit/de43db75fcaacd66af39ca000c037e3d90880c76) Thanks [@itayadler](https://github.com/itayadler)! - Consolidate duplicated framework log capture and edit-file log checking through shared core helpers.
+
+- [#953](https://github.com/frontman-ai/frontman/pull/953) [`b2aef53`](https://github.com/frontman-ai/frontman/commit/b2aef533a79fcd0d96291eb40f812b5e926eec9e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enable React Scan in Frontman UI shells when requested with `?debug=1` and keep the shell in dark mode consistently.
+
+- [#951](https://github.com/frontman-ai/frontman/pull/951) [`dc65580`](https://github.com/frontman-ai/frontman/commit/dc6558045b8eaee5981afbc34e9d75b1b2db4fcc) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Patch vulnerable JavaScript dependencies across framework fixtures.
+
+- [#967](https://github.com/frontman-ai/frontman/pull/967) [`8adb8e4`](https://github.com/frontman-ai/frontman/commit/8adb8e45e2d476a912f71cd60539f642ee37d19f) Thanks [@itayadler](https://github.com/itayadler)! - Trim duplicated CLI package-manager helpers and remove stale client tool summary helpers.
+
+- [#976](https://github.com/frontman-ai/frontman/pull/976) [`5585afb`](https://github.com/frontman-ai/frontman/commit/5585afb0f0a1e715133ede2fa97f0d32abc3b648) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update the ReScript compiler and runtime dependencies to 12.2.0 across the workspace.
+
 ## 0.6.3
 
 ### Patch Changes

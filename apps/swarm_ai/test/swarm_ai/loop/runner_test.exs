@@ -98,6 +98,30 @@ defmodule SwarmAi.Loop.RunnerTest do
       assert step.reasoning_details == reasoning
     end
 
+    test "includes reasoning_details in assistant message after tool results", %{loop: loop} do
+      {running_loop, _} = Runner.start(loop, [Message.user("Test")])
+
+      tool_call = %SwarmAi.ToolCall{id: "tc_1", name: "read_file", arguments: "{}"}
+      reasoning = [%{"type" => "reasoning.encrypted", "data" => "encrypted-data"}]
+
+      response = %LLM.Response{
+        content: "Need tool",
+        reasoning_details: reasoning,
+        tool_calls: [tool_call],
+        usage: nil,
+        raw: nil
+      }
+
+      {waiting_loop, _effects} = Runner.handle_llm_response(running_loop, response)
+      result = SwarmAi.ToolResult.make("tc_1", "file contents", false)
+
+      {_continued_loop, [{:step_ended, _step}, {:call_llm, _llm, messages}]} =
+        Runner.handle_tool_result(waiting_loop, result)
+
+      assistant = Enum.find(messages, &match?(%Message.Assistant{}, &1))
+      assert assistant.reasoning_details == reasoning
+    end
+
     test "returns complete effect", %{loop: loop} do
       {running_loop, _} = Runner.start(loop, [Message.user("Test")])
       response = %LLM.Response{content: "Final answer", usage: nil, raw: nil}

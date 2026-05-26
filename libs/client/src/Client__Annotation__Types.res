@@ -8,11 +8,6 @@ type annotationMode =
   | Off
   | Selecting
 
-type position = {
-  xPercent: float,
-  yAbsolute: float,
-}
-
 type boundingBox = {
   x: float,
   y: float,
@@ -40,20 +35,13 @@ type t = {
   boundingBox: option<boundingBox>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
-  position: position,
-  timestamp: float,
   enrichmentStatus: enrichmentStatus,
 }
 
-let make = (
-  ~element: WebAPI.DOMAPI.element,
-  ~position: position,
-  ~tagName: string,
-  ~comment: option<string>=?,
-): t => {
+let make = (~element: WebAPI.DOMAPI.element, ~tagName: string): t => {
   id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
   element,
-  comment,
+  comment: None,
   selector: Ok(None),
   screenshot: Ok(None),
   sourceLocation: Ok(None),
@@ -62,8 +50,6 @@ let make = (
   boundingBox: None,
   nearbyText: None,
   elementorContext: None,
-  position,
-  timestamp: Date.now(),
   enrichmentStatus: Enriching,
 }
 

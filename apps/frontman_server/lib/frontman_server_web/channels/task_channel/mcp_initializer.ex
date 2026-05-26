@@ -8,12 +8,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   @moduledoc """
   Pure functional state machine for MCP initialization.
 
-  Manages the sequential initialization process:
+  Manages browser-side MCP setup:
   1. Initialize MCP connection
-  2. Load tools list
-  3. Load project rules
-  4. Discover project structure
-  5. Signal completion
+  2. Load tool definitions
+  3. Optionally load project rules and structure for code projects
+  4. Signal completion
 
   State is stored in socket assigns by TaskChannel. Functions return
   `{new_state, actions}` tuples where actions are instructions for the
@@ -26,6 +25,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   require Logger
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.MCP, as: MCPTools
   alias JsonRpc
@@ -49,6 +49,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
           project_structure_request_id: integer() | nil,
           mcp_capabilities: map() | nil,
           mcp_server_info: map() | nil,
+          load_project_context: boolean(),
           tools: list() | nil
         }
 
@@ -58,13 +59,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
           | {:initialization_complete, map()}
           | {:initialization_failed, any()}
 
-  # Public API
-
   @doc """
   Creates the initial state and returns the MCP initialize request to send.
   """
-  @spec start(String.t(), Scope.t()) :: {t(), [action()]}
-  def start(task_id, scope) do
+  @spec start(String.t(), Scope.t(), Frameworks.t()) :: {t(), [action()]}
+  def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
     request = JsonRpc.request(request_id, "initialize", MCP.initialize_params())
 
@@ -78,6 +77,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       project_structure_request_id: nil,
       mcp_capabilities: nil,
       mcp_server_info: nil,
+      load_project_context: Frameworks.load_project_context?(framework),
       tools: nil
     }
 
@@ -135,25 +135,22 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
       request_id == state.tools_request_id ->
         Logger.warning("MCPInitializer: Tools list failed: #{inspect(error)}")
-        # Continue with empty tools list
-        request_project_rules([], state)
+        state = %{state | tools: [], tools_request_id: nil}
+        maybe_request_project_context(state)
 
       request_id == state.project_rules_request_id ->
         Logger.warning("MCPInitializer: Project rules failed: #{inspect(error)}")
-        # Continue without project rules, try project structure
+        state = %{state | project_rules_request_id: nil}
         request_project_structure(state)
 
       request_id == state.project_structure_request_id ->
         Logger.warning("MCPInitializer: Project structure failed: #{inspect(error)}")
-        # Complete initialization without project structure
         complete_initialization(state)
 
       true ->
         {state, []}
     end
   end
-
-  # Private Helpers
 
   defp handle_init_response(result, state) do
     Logger.info("MCPInitializer: MCP initialized for task #{state.task_id}")
@@ -165,10 +162,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         mcp_init_request_id: nil
     }
 
-    # Send initialized notification
     notification = JsonRpc.notification("notifications/initialized", %{})
 
-    # Request tools list
     request_id = System.unique_integer([:positive])
     request = JsonRpc.request(request_id, "tools/list", %{})
 
@@ -185,10 +180,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
     state = %{state | tools: tools, tools_request_id: nil}
 
-    request_project_rules(tools, state)
+    maybe_request_project_context(state)
   end
 
-  defp request_project_rules(_tools, state) do
+  defp maybe_request_project_context(%{load_project_context: true} = state),
+    do: request_project_rules(state)
+
+  defp maybe_request_project_context(%{load_project_context: false} = state),
+    do: complete_initialization(state)
+
+  defp request_project_rules(state) do
     request_id = System.unique_integer([:positive])
     call_id = "project_rules_init_#{request_id}"
 
@@ -213,6 +214,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       parse_project_rules(result, state)
     end
 
+    state = %{state | project_rules_request_id: nil}
     request_project_structure(state)
   end
 
@@ -236,8 +238,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  # Step 4: Discover project structure via list_tree
-
   defp request_project_structure(state) do
     request_id = System.unique_integer([:positive])
     call_id = "project_structure_init_#{request_id}"
@@ -252,7 +252,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     state = %{
       state
       | status: :loading_project_structure,
-        project_rules_request_id: nil,
         project_structure_request_id: request_id
     }
 

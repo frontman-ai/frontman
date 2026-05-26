@@ -18,6 +18,13 @@
 	"jsx": {
 		"version": 4
 	},
+	"reanalyze": {
+		"suppress": [
+			"libs/bindings",
+			"libs/experimental-rescript-webapi",
+			"libs/frontman-protocol"
+		]
+	},
 	"gentypeconfig": {
 		"language": "typescript",
 		"module": "esmodule",

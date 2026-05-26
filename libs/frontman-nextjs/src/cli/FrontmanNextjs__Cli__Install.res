@@ -9,6 +9,7 @@ module Detect = FrontmanNextjs__Cli__Detect
 module Files = FrontmanNextjs__Cli__Files
 module Templates = FrontmanNextjs__Cli__Templates
 module Style = FrontmanNextjs__Cli__Style
+module PackageManager = FrontmanAiFrontmanCore.FrontmanCore__Cli__PackageManager
 
 type installOptions = {
   server: string,
@@ -31,11 +32,7 @@ let installDependencies = async (
   let pm = Detect.getPackageManagerCommand(packageManager)
   let args = Detect.getInstallArgs(packageManager)
   let packages = ["@frontman-ai/nextjs", "@opentelemetry/sdk-node"]
-  // Deno requires npm: prefix for npm packages (otherwise it looks them up on JSR)
-  let packages = switch packageManager {
-  | Deno => packages->Array.map(p => "npm:" ++ p)
-  | _ => packages
-  }
+  let packages = PackageManager.npmPackages(packageManager, packages)
   let cmd = `${pm} ${args->Array.join(" ")} ${packages->Array.join(" ")}`
 
   switch dryRun {
@@ -79,35 +76,20 @@ let processFileResult = (
 }
 
 // Collect which files need auto-editing (without prompting the user)
-let collectPendingAutoEdits = (
-  ~projectDir: string,
-  ~host: string,
-  ~info: Detect.projectInfo,
-  ~isNext16Plus: bool,
-): array<Files.pendingAutoEdit> => {
+let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): array<
+  Files.pendingAutoEdit,
+> => {
   let pending = []
 
   // Check middleware or proxy
   switch isNext16Plus {
   | true =>
-    switch Files.getPendingAutoEdit(
-      ~existingFile=info.proxy,
-      ~filePath=Path.join([projectDir, "proxy.ts"]),
-      ~fileName="proxy.ts",
-      ~fileType=AutoEdit.Proxy,
-      ~manualDetails=Templates.ManualInstructions.proxy("proxy.ts", host),
-    ) {
+    switch Files.getPendingAutoEdit(~existingFile=info.proxy, ~fileName="proxy.ts") {
     | Some(p) => pending->Array.push(p)->ignore
     | None => ()
     }
   | false =>
-    switch Files.getPendingAutoEdit(
-      ~existingFile=info.middleware,
-      ~filePath=Path.join([projectDir, "middleware.ts"]),
-      ~fileName="middleware.ts",
-      ~fileType=AutoEdit.Middleware,
-      ~manualDetails=Templates.ManualInstructions.middleware("middleware.ts", host),
-    ) {
+    switch Files.getPendingAutoEdit(~existingFile=info.middleware, ~fileName="middleware.ts") {
     | Some(p) => pending->Array.push(p)->ignore
     | None => ()
     }
@@ -118,17 +100,7 @@ let collectPendingAutoEdits = (
   | true => "src/instrumentation.ts"
   | false => "instrumentation.ts"
   }
-  let instrFilePath = switch info.hasSrcDir {
-  | true => Path.join([projectDir, "src", "instrumentation.ts"])
-  | false => Path.join([projectDir, "instrumentation.ts"])
-  }
-  switch Files.getPendingAutoEdit(
-    ~existingFile=info.instrumentation,
-    ~filePath=instrFilePath,
-    ~fileName=instrFileName,
-    ~fileType=AutoEdit.Instrumentation,
-    ~manualDetails=Templates.ManualInstructions.instrumentation(instrFileName),
-  ) {
+  switch Files.getPendingAutoEdit(~existingFile=info.instrumentation, ~fileName=instrFileName) {
   | Some(p) => pending->Array.push(p)->ignore
   | None => ()
   }
@@ -183,7 +155,7 @@ let run = async (options: installOptions): installResult => {
     }
 
     // Step 3: Collect files needing auto-edit and prompt once (if any)
-    let pendingEdits = collectPendingAutoEdits(~projectDir, ~host, ~info, ~isNext16Plus)
+    let pendingEdits = collectPendingAutoEdits(~info, ~isNext16Plus)
     let shouldAutoEdit = switch (pendingEdits->Array.length > 0, options.dryRun) {
     | (true, false) =>
       let fileNames = pendingEdits->Array.map(p => p.fileName)

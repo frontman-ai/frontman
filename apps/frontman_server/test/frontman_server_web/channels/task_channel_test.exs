@@ -1,5 +1,5 @@
 defmodule FrontmanServerWeb.TaskChannelTest do
-  use FrontmanServerWeb.ChannelCase, async: true
+  use FrontmanServerWeb.ChannelCase, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.InteractionCase.Helpers
@@ -61,6 +61,19 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  defp assert_agent_turn_complete(task_id) do
+    assert_push(
+      "acp:message",
+      %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+        }
+      },
+      1_000
+    )
+  end
+
   defp question_tool_call(id, header, label) do
     args =
       Jason.encode!(%{
@@ -73,7 +86,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         ]
       })
 
-    ReqLLM.ToolCall.new(id, "question", args)
+    %SwarmAi.ToolCall{id: id, name: "question", arguments: args}
+  end
+
+  defp tool_call_metadata(%SwarmAi.ToolCall{} = tool_call) do
+    %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
   end
 
   defp question_answer_response(id, answer) do
@@ -148,12 +165,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         build_prompt_request(
           _meta: %{
             "openrouterKeyValue" => "sk-or-test",
-            "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"}
+            "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
+            "traits" => ["react", "typescript"]
           }
         )
       )
 
-      :sys.get_state(socket.channel_pid)
+      %{assigns: assigns} = :sys.get_state(socket.channel_pid)
+
+      assert Keyword.fetch!(assigns.last_execution_opts, :project_traits) == [:react, :typescript]
 
       assert_enqueued(
         worker: GenerateTitle,
@@ -163,6 +183,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           model: "openrouter:openai/gpt-5.5"
         }
       )
+
+      assert_agent_turn_complete(task_id)
     end
   end
 
@@ -322,10 +344,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
-      # First, send a prompt to set pending_prompt
-      push(socket, "acp:message", build_prompt_request(id: 42))
-      # Wait for the prompt to be processed
-      :sys.get_state(socket.channel_pid)
+      :sys.replace_state(socket.channel_pid, fn state ->
+        put_in(state.assigns[:pending_prompt], %{
+          interaction_id: "test-interaction",
+          jsonrpc_id: 42
+        })
+      end)
 
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
@@ -500,6 +524,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "jsonrpc" => "2.0",
         "method" => "notifications/initialized"
       })
+    end
+
+    test "wordpress completes after tools/list without filesystem tool calls", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope, framework: "wordpress")
+
+      complete_mcp_handshake(socket, load_project_context: false)
+
+      refute_push("mcp:message", %{"method" => "tools/call"})
+
+      channel_socket = :sys.get_state(socket.channel_pid)
+      assert channel_socket.assigns.mcp_status == :ready
     end
   end
 
@@ -803,6 +838,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       # After MCP init completes, the queued prompt is processed (task_channel.ex:471-479)
       # This creates a UserMessage interaction broadcast via PubSub
       assert_receive {:interaction, %Tasks.Interaction.UserMessage{}}
+      assert_agent_turn_complete(socket.assigns.task_id)
     end
   end
 
@@ -817,9 +853,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
-      # Send a prompt to set pending_prompt
-      push(socket, "acp:message", build_prompt_request(id: 99))
-      :sys.get_state(socket.channel_pid)
+      :sys.replace_state(socket.channel_pid, fn state ->
+        put_in(state.assigns[:pending_prompt], %{
+          interaction_id: "test-interaction",
+          jsonrpc_id: 99
+        })
+      end)
 
       Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_cancelled())
 
@@ -928,18 +967,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id = task_fixture(scope)
 
       tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
-      reqllm_tc = question_tool_call(tool_call_id, "Test", "A")
+      tool_call = question_tool_call(tool_call_id, "Test", "A")
 
-      Tasks.submit_user_message(
-        scope,
-        task_id,
-        [%{"type" => "text", "text" => "ask me a question"}],
-        [],
-        agent: %FrontmanServer.Testing.BlockingAgent{}
-      )
+      Tasks.add_user_message(scope, task_id, [%{"type" => "text", "text" => "ask me a question"}])
 
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [reqllm_tc]})
-      Tasks.add_tool_call(scope, task_id, reqllm_tc)
+      Tasks.add_agent_response(scope, task_id, "", %{
+        "tool_calls" => [tool_call_metadata(tool_call)]
+      })
+
+      Tasks.add_tool_call(scope, task_id, tool_call)
 
       {:ok, task_id: task_id, scope: scope, tool_call_id: tool_call_id}
     end
@@ -982,6 +1018,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
                tool_results
+
+      assert_agent_turn_complete(task_id)
     end
 
     test "e2e: reconnect re-dispatches unresolved tool calls from a later turn after a prior turn completed",
@@ -996,7 +1034,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       second_tc = question_tool_call(second_tool_call_id, "Second turn", "B")
 
       Tasks.add_user_message(scope, task_id, user_content("first turn"))
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [first_tc]})
+
+      Tasks.add_agent_response(scope, task_id, "", %{
+        "tool_calls" => [tool_call_metadata(first_tc)]
+      })
+
       Tasks.add_tool_call(scope, task_id, first_tc)
 
       Tasks.add_tool_result(
@@ -1011,7 +1053,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Tasks.add_agent_completed(scope, task_id)
 
       Tasks.add_user_message(scope, task_id, user_content("second turn"))
-      Tasks.add_agent_response(scope, task_id, "", %{tool_calls: [second_tc]})
+
+      Tasks.add_agent_response(scope, task_id, "", %{
+        "tool_calls" => [tool_call_metadata(second_tc)]
+      })
+
       Tasks.add_tool_call(scope, task_id, second_tc)
 
       {:ok, _reply, socket} =
@@ -1115,6 +1161,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
                tool_results
+
+      assert_agent_turn_complete(task_id)
     end
 
     test "tools/call is pushed AFTER session/load success response (ordering guarantee)", %{
@@ -1302,41 +1350,29 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                  &1
                )
              )
+
+      assert_agent_turn_complete(task_id)
     end
 
     test "when all retries are exhausted, the pending prompt is resolved with an error", %{
       socket: socket,
-      task_id: task_id
+      task_id: _task_id
     } do
-      push(socket, "acp:message", build_prompt_request(id: 99))
-      :sys.get_state(socket.channel_pid)
-
       error = %FrontmanServer.Tasks.Execution.LLMError{
         message: "Rate limited",
         category: "rate_limit",
         retryable: true
       }
 
-      # Cycle through all 5 attempts: the first error starts the coordinator,
-      # then each fire_retry + error pair increments the attempt until exhausted.
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        Tasks.topic(task_id),
-        execution_failed(error)
-      )
+      :sys.replace_state(socket.channel_pid, fn state ->
+        put_in(state.assigns[:pending_prompt], %{
+          interaction_id: "test-interaction",
+          jsonrpc_id: 99
+        })
+      end)
 
-      :sys.get_state(socket.channel_pid)
-
-      Enum.each(1..5, fn _ ->
-        send(socket.channel_pid, :fire_retry)
-        :sys.get_state(socket.channel_pid)
-
-        Phoenix.PubSub.broadcast(
-          FrontmanServer.PubSub,
-          Tasks.topic(task_id),
-          execution_failed(error)
-        )
-
+      Enum.each(1..6, fn _ ->
+        send(socket.channel_pid, execution_failed(error))
         :sys.get_state(socket.channel_pid)
       end)
 
@@ -1413,11 +1449,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
       })
 
-      # Simulate the timer firing :fire_retry (skip 2s default delay)
-      send(socket.channel_pid, :fire_retry)
-      :sys.get_state(socket.channel_pid)
-
-      # Execution succeeds — handle_turn_ended should stop and clear the coordinator
+      # Execution succeeds — finalize_turn should stop and clear the coordinator
       Phoenix.PubSub.broadcast(FrontmanServer.PubSub, Tasks.topic(task_id), execution_completed())
       :sys.get_state(socket.channel_pid)
       flush_mailbox()
@@ -1724,12 +1756,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       %{assigns: %{retry_state: retry_state}} = :sys.get_state(socket.channel_pid)
       assert %FrontmanServer.Tasks.RetryCoordinator{} = retry_state
 
-      # Timer fires :fire_retry → channel calls maybe_start_execution
-      # but execution fails to start (e.g. API key expired)
-      send(socket.channel_pid, :fire_retry)
-      :sys.get_state(socket.channel_pid)
-
-      # Simulate execution start failure
+      # Simulate execution start failure after retry fires.
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
@@ -1773,10 +1800,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
       })
 
-      # trigger_retry fires, but execution fails to start
-      send(socket.channel_pid, :fire_retry)
-      :sys.get_state(socket.channel_pid)
-
+      # Retry fires, but execution fails to start.
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),
@@ -1837,10 +1861,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"update" => %{"sessionUpdate" => "error", "attempt" => 1, "retryAt" => _}}
       })
 
-      # Retry fires, but execution hits a non-retryable error
-      send(socket.channel_pid, :fire_retry)
-      :sys.get_state(socket.channel_pid)
-
+      # Retry fires, but execution hits a non-retryable error.
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         Tasks.topic(task_id),

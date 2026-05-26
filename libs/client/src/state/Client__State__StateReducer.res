@@ -22,6 +22,8 @@ module TaskReducer = Client__Task__Reducer
 
 type taskTarget = CurrentTask | ForTask(string)
 
+type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
+
 type action =
   // Task-scoped actions (routed to task sub-reducer)
   | TaskAction({target: taskTarget, action: TaskReducer.action})
@@ -35,7 +37,6 @@ type action =
   // Cancel current turn
   | CancelTurn
   // Task management actions
-  | CreateTask
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask // Used when clicking "+" to start a new task - clears selection so next message creates new task
@@ -53,29 +54,13 @@ type action =
   // Usage info actions
   | UsageInfoReceived({usageInfo: Client__State__Types.usageInfo})
   // API key settings actions
-  | FetchApiKeySettings
-  | ApiKeySettingsReceived({source: Client__State__Types.apiKeySource})
-  | SaveOpenRouterKey({key: string})
-  | OpenRouterKeySaveStarted
-  | OpenRouterKeySaved
-  | OpenRouterKeySaveError({error: string})
-  | ResetOpenRouterKeySaveStatus
-  // Anthropic API key settings actions
-  | FetchAnthropicApiKeySettings
-  | AnthropicApiKeySettingsReceived({source: Client__State__Types.apiKeySource})
-  | SaveAnthropicKey({key: string})
-  | AnthropicKeySaveStarted
-  | AnthropicKeySaved
-  | AnthropicKeySaveError({error: string})
-  | ResetAnthropicKeySaveStatus
-  // Fireworks API key settings actions
-  | FetchFireworksApiKeySettings
-  | FireworksApiKeySettingsReceived({source: Client__State__Types.apiKeySource})
-  | SaveFireworksKey({key: string})
-  | FireworksKeySaveStarted
-  | FireworksKeySaved
-  | FireworksKeySaveError({error: string})
-  | ResetFireworksKeySaveStatus
+  | FetchApiKeySettings({provider: apiKeyProvider})
+  | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
+  | SaveApiKey({provider: apiKeyProvider, key: string})
+  | ApiKeySaveStarted({provider: apiKeyProvider})
+  | ApiKeySaved({provider: apiKeyProvider})
+  | ApiKeySaveError({provider: apiKeyProvider, error: string})
+  | ResetApiKeySaveStatus({provider: apiKeyProvider})
   // ACP session config option actions (unified model/mode/config selection)
   | ConfigOptionsReceived({
       configOptions: array<Client__State__Types.ACPConfig.sessionConfigOption>,
@@ -119,12 +104,8 @@ type action =
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchUsageInfo({apiBaseUrl: string})
-  | FetchApiKeySettingsEffect({apiBaseUrl: string})
-  | SaveOpenRouterKeyEffect({apiBaseUrl: string, key: string})
-  | FetchAnthropicApiKeySettingsEffect({apiBaseUrl: string})
-  | SaveAnthropicKeyEffect({apiBaseUrl: string, key: string})
-  | FetchFireworksApiKeySettingsEffect({apiBaseUrl: string})
-  | SaveFireworksKeyEffect({apiBaseUrl: string, key: string})
+  | FetchApiKeySettingsEffect({apiBaseUrl: string, provider: apiKeyProvider})
+  | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   // Anthropic OAuth effects
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
@@ -199,6 +180,49 @@ let saveSelectedModelValueToStorage = (value: string): unit => {
   }
 }
 
+let apiKeyProviderId = provider =>
+  switch provider {
+  | OpenRouter => "openrouter"
+  | Anthropic => "anthropic"
+  | Fireworks => "fireworks"
+  | Nvidia => "nvidia"
+  }
+
+let apiKeyUsagePath = provider =>
+  switch provider {
+  | OpenRouter => "/api/user/api-key-usage"
+  | Anthropic | Fireworks | Nvidia =>
+    `/api/user/api-key-usage?provider=${apiKeyProviderId(provider)}`
+  }
+
+let apiKeyRuntimeKey = provider => `${apiKeyProviderId(provider)}KeyValue`
+
+let hasRuntimeApiKey = (runtimeConfig, provider) =>
+  Client__RuntimeConfig.toEnvApiKeyDict(runtimeConfig)->Dict.has(apiKeyRuntimeKey(provider))
+
+let updateApiKeySettings = (state: state, provider, update) =>
+  switch provider {
+  | OpenRouter => {...state, openrouterKeySettings: update(state.openrouterKeySettings)}
+  | Anthropic => {...state, anthropicKeySettings: update(state.anthropicKeySettings)}
+  | Fireworks => {...state, fireworksKeySettings: update(state.fireworksKeySettings)}
+  | Nvidia => {...state, nvidiaKeySettings: update(state.nvidiaKeySettings)}
+  }
+
+let setApiKeySource = (state, provider, source) =>
+  updateApiKeySettings(state, provider, settings => {...settings, source})
+
+let setApiKeySaveStatus = (state, provider, saveStatus) =>
+  updateApiKeySettings(state, provider, settings => {...settings, saveStatus})
+
+let markApiKeySaved = (state, provider) =>
+  updateApiKeySettings(state, provider, _settings => {source: UserOverride, saveStatus: Saved})
+
+let hasApiKeySource = (source: Client__State__Types.apiKeySource) =>
+  switch source {
+  | UserOverride | FromEnv => true
+  | Client__State__Types.None => false
+  }
+
 let defaultState: state = {
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
@@ -218,6 +242,10 @@ let defaultState: state = {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
   },
+  nvidiaKeySettings: {
+    source: Client__State__Types.None,
+    saveStatus: Client__State__Types.Idle,
+  },
   anthropicOAuthStatus: Client__State__Types.NotConnected,
   chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
   configOptions: None,
@@ -227,101 +255,6 @@ let defaultState: state = {
   updateInfo: None,
   updateCheckStatus: UpdateNotChecked,
   updateBannerDismissed: false,
-}
-
-let actionToString = action => {
-  switch action {
-  | TaskAction({target, action}) =>
-    let targetStr = switch target {
-    | CurrentTask => "CurrentTask"
-    | ForTask(id) => `ForTask(${id})`
-    }
-    `TaskAction(${targetStr}, ${TaskReducer.actionToString(action)})`
-  | AddUserMessage({id, sessionId}) => `AddUserMessage(${id}, session=${sessionId})`
-  | CancelTurn => `CancelTurn`
-  | CreateTask => `CreateTask`
-  | SwitchTask({taskId}) => `SwitchTask(${taskId})`
-  | DeleteTask({taskId}) => `DeleteTask(${taskId})`
-  | ClearCurrentTask => `ClearCurrentTask`
-  | UpdateTaskTitle({taskId, title}) => `UpdateTaskTitle(${taskId}, "${title}")`
-  | SetAcpSession(_) => `SetAcpSession`
-  | ClearAcpSession => `ClearAcpSession`
-  | UsageInfoReceived(_) => `UsageInfoReceived`
-  | FetchApiKeySettings => `FetchApiKeySettings`
-  | ApiKeySettingsReceived({source}) =>
-    let sourceStr = switch source {
-    | Client__State__Types.None => "None"
-    | Client__State__Types.FromEnv => "FromEnv"
-    | Client__State__Types.UserOverride => "UserOverride"
-    }
-    `ApiKeySettingsReceived(${sourceStr})`
-  | SaveOpenRouterKey(_) => `SaveOpenRouterKey`
-  | OpenRouterKeySaveStarted => `OpenRouterKeySaveStarted`
-  | OpenRouterKeySaved => `OpenRouterKeySaved`
-  | OpenRouterKeySaveError({error}) => `OpenRouterKeySaveError(${error})`
-  | ResetOpenRouterKeySaveStatus => `ResetOpenRouterKeySaveStatus`
-  | FetchAnthropicApiKeySettings => `FetchAnthropicApiKeySettings`
-  | AnthropicApiKeySettingsReceived({source}) => {
-      let sourceStr = switch source {
-      | Client__State__Types.None => "None"
-      | Client__State__Types.FromEnv => "FromEnv"
-      | Client__State__Types.UserOverride => "UserOverride"
-      }
-      `AnthropicApiKeySettingsReceived(${sourceStr})`
-    }
-  | SaveAnthropicKey(_) => `SaveAnthropicKey`
-  | AnthropicKeySaveStarted => `AnthropicKeySaveStarted`
-  | AnthropicKeySaved => `AnthropicKeySaved`
-  | AnthropicKeySaveError({error}) => `AnthropicKeySaveError(${error})`
-  | ResetAnthropicKeySaveStatus => `ResetAnthropicKeySaveStatus`
-  | FetchFireworksApiKeySettings => `FetchFireworksApiKeySettings`
-  | FireworksApiKeySettingsReceived({source}) => {
-      let sourceStr = switch source {
-      | Client__State__Types.None => "None"
-      | Client__State__Types.FromEnv => "FromEnv"
-      | Client__State__Types.UserOverride => "UserOverride"
-      }
-      `FireworksApiKeySettingsReceived(${sourceStr})`
-    }
-  | SaveFireworksKey(_) => `SaveFireworksKey`
-  | FireworksKeySaveStarted => `FireworksKeySaveStarted`
-  | FireworksKeySaved => `FireworksKeySaved`
-  | FireworksKeySaveError({error}) => `FireworksKeySaveError(${error})`
-  | ResetFireworksKeySaveStatus => `ResetFireworksKeySaveStatus`
-  | ConfigOptionsReceived(_) => `ConfigOptionsReceived`
-  | SetSelectedModelValue({value}) => `SetSelectedModelValue(${value})`
-  | FetchAnthropicOAuthStatus => `FetchAnthropicOAuthStatus`
-  | AnthropicOAuthStatusReceived({connected}) =>
-    `AnthropicOAuthStatusReceived(connected=${connected->string_of_bool})`
-  | InitiateAnthropicOAuth => `InitiateAnthropicOAuth`
-  | AnthropicOAuthUrlReceived(_) => `AnthropicOAuthUrlReceived`
-  | ExchangeAnthropicOAuthCode(_) => `ExchangeAnthropicOAuthCode`
-  | AnthropicOAuthConnected({expiresAt}) => `AnthropicOAuthConnected(${expiresAt})`
-  | AnthropicOAuthError({error}) => `AnthropicOAuthError(${error})`
-  | DisconnectAnthropicOAuth => `DisconnectAnthropicOAuth`
-  | AnthropicOAuthDisconnected => `AnthropicOAuthDisconnected`
-  | ResetAnthropicOAuthError => `ResetAnthropicOAuthError`
-  | CancelAnthropicOAuth => `CancelAnthropicOAuth`
-  | FetchChatGPTOAuthStatus => `FetchChatGPTOAuthStatus`
-  | ChatGPTOAuthStatusReceived({connected}) =>
-    `ChatGPTOAuthStatusReceived(connected=${connected->string_of_bool})`
-  | InitiateChatGPTOAuth => `InitiateChatGPTOAuth`
-  | ChatGPTDeviceCodeReceived({userCode}) => `ChatGPTDeviceCodeReceived(userCode=${userCode})`
-  | ChatGPTOAuthConnected({expiresAt}) => `ChatGPTOAuthConnected(expiresAt=${expiresAt})`
-  | ChatGPTOAuthError({error}) => `ChatGPTOAuthError(error=${error})`
-  | DisconnectChatGPTOAuth => `DisconnectChatGPTOAuth`
-  | ChatGPTOAuthDisconnected => `ChatGPTOAuthDisconnected`
-  | ResetChatGPTOAuthError => `ResetChatGPTOAuthError`
-  | UserProfileReceived(_) => `UserProfileReceived`
-  | SessionsLoadStarted => `SessionsLoadStarted`
-  | SessionsLoadSuccess({sessions}) =>
-    `SessionsLoadSuccess(${sessions->Array.length->Int.toString} sessions)`
-  | SessionsLoadError({error}) => `SessionsLoadError(${error})`
-  | CheckForUpdate({npmPackage}) => `CheckForUpdate(${npmPackage})`
-  | UpdateInfoReceived({updateInfo}) =>
-    `UpdateInfoReceived(${updateInfo.npmPackage} ${updateInfo.installedVersion} -> ${updateInfo.latestVersion})`
-  | DismissUpdateBanner => `DismissUpdateBanner`
-  }
 }
 
 module Selectors = {
@@ -353,12 +286,6 @@ module Selectors = {
 
   // State predicates
   let isNewTask = (state: state): bool => Task.isNew(currentTask(state))
-  let isCurrentTaskUnloaded = (state: state): bool => Task.isUnloaded(currentTask(state))
-  let isCurrentTaskLoading = (state: state): bool => Task.isLoading(currentTask(state))
-  let isCurrentTaskLoaded = (state: state): bool => Task.isLoaded(currentTask(state))
-
-  // Delegate to Task helpers
-  let getMessageCreatedAt = TaskReducer.Selectors.getMessageCreatedAt
 
   let messages = (state: state): array<Message.t> => {
     Task.getMessages(currentTask(state))
@@ -370,10 +297,6 @@ module Selectors = {
 
   let previewFrame = (state: state): Task.previewFrame => {
     Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl())
-  }
-
-  let annotationMode = (state: state): Client__Annotation__Types.annotationMode => {
-    Task.getAnnotationMode(currentTask(state))
   }
 
   let annotations = (state: state): array<Client__Annotation__Types.t> => {
@@ -390,10 +313,6 @@ module Selectors = {
 
   let activePopupAnnotationId = (state: state): option<string> => {
     Task.getActivePopupAnnotationId(currentTask(state))
-  }
-
-  let isAnimationFrozen = (state: state): bool => {
-    Task.getIsAnimationFrozen(currentTask(state))
   }
 
   let isAgentRunning = (state: state): bool => {
@@ -426,24 +345,6 @@ module Selectors = {
     ->Dict.get(taskId)
     ->Option.flatMap(task => Task.getImageAttachments(task)->Dict.get(uri))
     ->Option.map(Message.resolveAttachmentImage)
-  }
-
-  // Derived selectors (use messages from above)
-  let completedMessages = (state: state) =>
-    messages(state)->Array.filter(msg => {
-      switch msg {
-      | User(_) => true
-      | Assistant(Completed(_)) => true
-      | Assistant(Streaming(_)) => false
-      | ToolCall({state: OutputAvailable | OutputError, _}) => true
-      | ToolCall(_) => false
-      | Error(_) => true
-      }
-    })
-
-  let lastMessage = (state: state) => {
-    let msgs = messages(state)
-    msgs->Array.get(Array.length(msgs) - 1)
   }
 
   let previewUrl = (state: state): string => {
@@ -512,6 +413,10 @@ module Selectors = {
     state.fireworksKeySettings
   }
 
+  let nvidiaKeySettings = (state: state): Client__State__Types.apiKeySettings => {
+    state.nvidiaKeySettings
+  }
+
   // Get ACP session config options
   let configOptions = (state: state): option<
     array<Client__State__Types.ACPConfig.sessionConfigOption>,
@@ -558,8 +463,7 @@ module Selectors = {
     }
   }
 
-  // Whether the user has any API provider configured via state-tracked sources
-  // (DB-stored OpenRouter, Anthropic, or Fireworks key, plus OAuth).
+  // Whether the user has any API provider configured via state-tracked sources plus OAuth.
   // Env-injected keys (window.__frontmanRuntime) live outside state — check RuntimeConfig separately.
   let hasAnyProviderConfigured = (state: state): bool => {
     switch state.usageInfo {
@@ -571,14 +475,9 @@ module Selectors = {
         switch state.chatgptOAuthStatus {
         | ChatGPTConnected(_) => true
         | _ =>
-          switch state.fireworksKeySettings.source {
-          | Client__State__Types.UserOverride | Client__State__Types.FromEnv => true
-          | _ =>
-            switch state.anthropicKeySettings.source {
-            | Client__State__Types.UserOverride | Client__State__Types.FromEnv => true
-            | _ => false
-            }
-          }
+          hasApiKeySource(state.nvidiaKeySettings.source) ||
+          hasApiKeySource(state.fireworksKeySettings.source) ||
+          hasApiKeySource(state.anthropicKeySettings.source)
         }
       }
     }
@@ -626,8 +525,8 @@ let sendMessageToAPIImpl = (
   state: state,
   dispatch,
   ~message,
-  ~attachments: array<Client__Message.fileAttachmentData>=[],
-  ~annotations: array<Client__Message.MessageAnnotation.t>=[],
+  ~attachments: array<Client__Message.fileAttachmentData>,
+  ~annotations: array<Client__Message.MessageAnnotation.t>,
   ~taskId,
 ) => {
   switch state.acpSession {
@@ -744,6 +643,72 @@ let encodeUserApiKeySaveRequest = (~provider, ~key) => {
   )->JSON.stringify
 }
 
+let jsonContentHeaders = () =>
+  WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
+
+let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider) => {
+  let fetch = async () => {
+    let logContext = `FetchApiKeySettings(${apiKeyProviderId(provider)})`
+    let url = `${apiBaseUrl}${apiKeyUsagePath(provider)}`
+
+    try {
+      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+      if response.ok {
+        let json = await response->WebAPI.Response.json
+        let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
+        let runtimeConfig = Client__RuntimeConfig.read()
+        let hasEnvKey = hasRuntimeApiKey(runtimeConfig, provider)
+
+        switch deriveApiKeySource(~usageInfo, ~hasEnvKey, ~logContext) {
+        | Some(source) => dispatch(ApiKeySettingsReceived({provider, source}))
+        | None => ()
+        }
+      }
+    } catch {
+    | exn => Log.error(~error=JsExn.fromException(exn), `${logContext} failed`)
+    }
+  }
+  fetch()->ignore
+}
+
+let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) => {
+  let save = async () => {
+    dispatch(ApiKeySaveStarted({provider: provider}))
+    let url = `${apiBaseUrl}/api/user/api-keys`
+
+    try {
+      let response = await WebAPI.Global.fetch(
+        url,
+        ~init={
+          credentials: Include,
+          method: "POST",
+          headers: jsonContentHeaders(),
+          body: WebAPI.BodyInit.fromString(
+            encodeUserApiKeySaveRequest(~provider=apiKeyProviderId(provider), ~key),
+          ),
+        },
+      )
+
+      if !response.ok {
+        dispatch(
+          ApiKeySaveError({
+            provider,
+            error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
+          }),
+        )
+      } else {
+        dispatch(ApiKeySaved({provider: provider}))
+      }
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      dispatch(ApiKeySaveError({provider, error: `Failed to save API key: ${msg}`}))
+    }
+  }
+  save()->ignore
+}
+
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUsageInfo({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
@@ -789,196 +754,10 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
     }
-  | FetchApiKeySettingsEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/user/api-key-usage`
-
-      try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
-
-          // Check if the Next.js project has OPENROUTER_API_KEY from runtime config
-          // This is set by the framework middleware (e.g., FrontmanNextjs__Middleware)
-          let runtimeConfig = Client__RuntimeConfig.read()
-          let hasEnvKey = Client__RuntimeConfig.hasOpenrouterKey(runtimeConfig)
-
-          switch deriveApiKeySource(~usageInfo, ~hasEnvKey, ~logContext="FetchApiKeySettings") {
-          | Some(source) => dispatch(ApiKeySettingsReceived({source: source}))
-          | None => ()
-          }
-        }
-      } catch {
-      | exn => Log.error(~error=JsExn.fromException(exn), "FetchApiKeySettings failed")
-      }
-    }
-    fetch()->ignore
-  | SaveOpenRouterKeyEffect({apiBaseUrl, key}) =>
-    let save = async () => {
-      dispatch(OpenRouterKeySaveStarted)
-      let url = `${apiBaseUrl}/api/user/api-keys`
-
-      try {
-        let response = await WebAPI.Global.fetch(
-          url,
-          ~init={
-            credentials: Include,
-            method: "POST",
-            headers: WebAPI.HeadersInit.fromDict(
-              Dict.fromArray([("Content-Type", "application/json")]),
-            ),
-            body: WebAPI.BodyInit.fromString(
-              encodeUserApiKeySaveRequest(~provider="openrouter", ~key),
-            ),
-          },
-        )
-
-        if !response.ok {
-          dispatch(
-            OpenRouterKeySaveError({
-              error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
-            }),
-          )
-        } else {
-          dispatch(OpenRouterKeySaved)
-        }
-      } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        dispatch(OpenRouterKeySaveError({error: `Failed to save API key: ${msg}`}))
-      }
-    }
-    save()->ignore
-  | FetchAnthropicApiKeySettingsEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/user/api-key-usage?provider=anthropic`
-
-      try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
-
-          let runtimeConfig = Client__RuntimeConfig.read()
-          let hasEnvKey = Client__RuntimeConfig.hasAnthropicKey(runtimeConfig)
-
-          switch deriveApiKeySource(
-            ~usageInfo,
-            ~hasEnvKey,
-            ~logContext="FetchAnthropicApiKeySettings",
-          ) {
-          | Some(source) => dispatch(AnthropicApiKeySettingsReceived({source: source}))
-          | None => ()
-          }
-        }
-      } catch {
-      | exn => Log.error(~error=JsExn.fromException(exn), "FetchAnthropicApiKeySettings failed")
-      }
-    }
-    fetch()->ignore
-  | SaveAnthropicKeyEffect({apiBaseUrl, key}) =>
-    let save = async () => {
-      dispatch(AnthropicKeySaveStarted)
-      let url = `${apiBaseUrl}/api/user/api-keys`
-
-      try {
-        let response = await WebAPI.Global.fetch(
-          url,
-          ~init={
-            credentials: Include,
-            method: "POST",
-            headers: WebAPI.HeadersInit.fromDict(
-              Dict.fromArray([("Content-Type", "application/json")]),
-            ),
-            body: WebAPI.BodyInit.fromString(
-              encodeUserApiKeySaveRequest(~provider="anthropic", ~key),
-            ),
-          },
-        )
-
-        if !response.ok {
-          dispatch(
-            AnthropicKeySaveError({
-              error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
-            }),
-          )
-        } else {
-          dispatch(AnthropicKeySaved)
-        }
-      } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        dispatch(AnthropicKeySaveError({error: `Failed to save API key: ${msg}`}))
-      }
-    }
-    save()->ignore
-  | FetchFireworksApiKeySettingsEffect({apiBaseUrl}) =>
-    let fetch = async () => {
-      let url = `${apiBaseUrl}/api/user/api-key-usage?provider=fireworks`
-
-      try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
-
-          let runtimeConfig = Client__RuntimeConfig.read()
-          let hasEnvKey = Client__RuntimeConfig.hasFireworksKey(runtimeConfig)
-
-          switch deriveApiKeySource(
-            ~usageInfo,
-            ~hasEnvKey,
-            ~logContext="FetchFireworksApiKeySettings",
-          ) {
-          | Some(source) => dispatch(FireworksApiKeySettingsReceived({source: source}))
-          | None => ()
-          }
-        }
-      } catch {
-      | exn => Log.error(~error=JsExn.fromException(exn), "FetchFireworksApiKeySettings failed")
-      }
-    }
-    fetch()->ignore
-  | SaveFireworksKeyEffect({apiBaseUrl, key}) =>
-    let save = async () => {
-      dispatch(FireworksKeySaveStarted)
-      let url = `${apiBaseUrl}/api/user/api-keys`
-
-      try {
-        let response = await WebAPI.Global.fetch(
-          url,
-          ~init={
-            credentials: Include,
-            method: "POST",
-            headers: WebAPI.HeadersInit.fromDict(
-              Dict.fromArray([("Content-Type", "application/json")]),
-            ),
-            body: WebAPI.BodyInit.fromString(
-              encodeUserApiKeySaveRequest(~provider="fireworks", ~key),
-            ),
-          },
-        )
-
-        if !response.ok {
-          dispatch(
-            FireworksKeySaveError({
-              error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
-            }),
-          )
-        } else {
-          dispatch(FireworksKeySaved)
-        }
-      } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        dispatch(FireworksKeySaveError({error: `Failed to save API key: ${msg}`}))
-      }
-    }
-    save()->ignore
+  | FetchApiKeySettingsEffect({apiBaseUrl, provider}) =>
+    fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl, ~provider)
+  | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
+    saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/status`
@@ -1052,9 +831,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           ~init={
             method: "POST",
             credentials: Include,
-            headers: WebAPI.HeadersInit.fromDict(
-              Dict.fromArray([("Content-Type", "application/json")]),
-            ),
+            headers: jsonContentHeaders(),
             body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
           },
         )
@@ -1144,9 +921,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           ~init={
             method: "POST",
             credentials: Include,
-            headers: WebAPI.HeadersInit.fromDict(
-              Dict.fromArray([("Content-Type", "application/json")]),
-            ),
+            headers: jsonContentHeaders(),
           },
         )
         if response.ok {
@@ -1211,9 +986,7 @@ let handleEffect = (effect, state: state, dispatch) => {
               ~init={
                 method: "POST",
                 credentials: Include,
-                headers: WebAPI.HeadersInit.fromDict(
-                  Dict.fromArray([("Content-Type", "application/json")]),
-                ),
+                headers: jsonContentHeaders(),
                 body: WebAPI.BodyInit.fromString(body),
               },
             )
@@ -1237,7 +1010,7 @@ let handleEffect = (effect, state: state, dispatch) => {
               | _ =>
                 // "pending" — wait and try again
                 await Promise.make((resolve, _) => {
-                  let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
+                  let _ = setTimeout(() => resolve(), intervalMs)
                 })
                 await pollLoop(attempt + 1)
               }
@@ -1250,14 +1023,14 @@ let handleEffect = (effect, state: state, dispatch) => {
               )
             } else {
               await Promise.make((resolve, _) => {
-                let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
+                let _ = setTimeout(() => resolve(), intervalMs)
               })
               await pollLoop(attempt + 1)
             }
           } catch {
           | _ =>
             await Promise.make((resolve, _) => {
-              let _ = Js.Global.setTimeout(() => resolve(), intervalMs)
+              let _ = setTimeout(() => resolve(), intervalMs)
             })
             await pollLoop(attempt + 1)
           }
@@ -1419,11 +1192,6 @@ let next = (state: state, action) => {
   // ============================================================================
   // Task management actions
   // ============================================================================
-  | CreateTask =>
-    {
-      ...state,
-      currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
-    }->StateReducer.update
   | SwitchTask({taskId}) => {
       let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
       let needsLoad = Task.isUnloaded(task)
@@ -1563,233 +1331,48 @@ let next = (state: state, action) => {
     {...state, userProfile: Some(userProfile)}->StateReducer.update
 
   // API key settings actions
-  | FetchApiKeySettings =>
+  | FetchApiKeySettings({provider}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
+      state->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl, provider})])
     | NoAcpSession => state->StateReducer.update
     }
 
-  | ApiKeySettingsReceived({source}) =>
-    {
-      ...state,
-      openrouterKeySettings: {
-        ...state.openrouterKeySettings,
-        source,
-      },
-    }->StateReducer.update
+  | ApiKeySettingsReceived({provider, source}) =>
+    state->setApiKeySource(provider, source)->StateReducer.update
 
-  | SaveOpenRouterKey({key}) =>
+  | SaveApiKey({provider, key}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       // Set pendingProviderAutoSelect eagerly so it's ready before
       // the server's config_options_updated push arrives (race fix).
       {
         ...state,
-        pendingProviderAutoSelect: Some("openrouter"),
-      }->StateReducer.update(~sideEffects=[SaveOpenRouterKeyEffect({apiBaseUrl, key})])
+        pendingProviderAutoSelect: Some(apiKeyProviderId(provider)),
+      }->StateReducer.update(~sideEffects=[SaveApiKeyEffect({apiBaseUrl, provider, key})])
     | NoAcpSession =>
-      {
-        ...state,
-        openrouterKeySettings: {
-          ...state.openrouterKeySettings,
-          saveStatus: SaveError("No active ACP session"),
-        },
-      }->StateReducer.update
+      state->setApiKeySaveStatus(provider, SaveError("No active ACP session"))->StateReducer.update
     }
 
-  | OpenRouterKeySaveStarted =>
-    {
-      ...state,
-      openrouterKeySettings: {
-        ...state.openrouterKeySettings,
-        saveStatus: Saving,
-      },
-    }->StateReducer.update
+  | ApiKeySaveStarted({provider}) =>
+    state->setApiKeySaveStatus(provider, Saving)->StateReducer.update
 
-  | OpenRouterKeySaved =>
+  | ApiKeySaved({provider}) =>
     // After saving the API key, refresh usage info.
     // Config options will be pushed by the server via config_option_update notification.
-    // pendingProviderAutoSelect was already set in SaveOpenRouterKey.
-    let effects = switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
-    | NoAcpSession => []
+    // pendingProviderAutoSelect was already set in SaveApiKey.
+    let effects = switch (provider, state.acpSession) {
+    | (OpenRouter, AcpSessionActive({apiBaseUrl})) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
+    | _ => []
     }
-    {
-      ...state,
-      openrouterKeySettings: {
-        source: UserOverride,
-        saveStatus: Saved,
-      },
-    }->StateReducer.update(~sideEffects=effects)
+    state->markApiKeySaved(provider)->StateReducer.update(~sideEffects=effects)
 
-  | OpenRouterKeySaveError({error}) =>
-    {
-      ...state,
-      openrouterKeySettings: {
-        ...state.openrouterKeySettings,
-        saveStatus: SaveError(error),
-      },
-      pendingProviderAutoSelect: None,
-    }->StateReducer.update
+  | ApiKeySaveError({provider, error}) =>
+    let state = state->setApiKeySaveStatus(provider, SaveError(error))
+    {...state, pendingProviderAutoSelect: None}->StateReducer.update
 
-  | ResetOpenRouterKeySaveStatus =>
-    {
-      ...state,
-      openrouterKeySettings: {
-        ...state.openrouterKeySettings,
-        saveStatus: Idle,
-      },
-    }->StateReducer.update
-
-  // Anthropic API key settings actions
-  | FetchAnthropicApiKeySettings =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[FetchAnthropicApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
-      )
-    | NoAcpSession => state->StateReducer.update
-    }
-
-  | AnthropicApiKeySettingsReceived({source}) =>
-    {
-      ...state,
-      anthropicKeySettings: {
-        ...state.anthropicKeySettings,
-        source,
-      },
-    }->StateReducer.update
-
-  | SaveAnthropicKey({key}) =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      // Set pendingProviderAutoSelect eagerly (race fix — see SaveOpenRouterKey).
-      {
-        ...state,
-        pendingProviderAutoSelect: Some("anthropic"),
-      }->StateReducer.update(~sideEffects=[SaveAnthropicKeyEffect({apiBaseUrl, key})])
-    | NoAcpSession =>
-      {
-        ...state,
-        anthropicKeySettings: {
-          ...state.anthropicKeySettings,
-          saveStatus: SaveError("No active ACP session"),
-        },
-      }->StateReducer.update
-    }
-
-  | AnthropicKeySaveStarted =>
-    {
-      ...state,
-      anthropicKeySettings: {
-        ...state.anthropicKeySettings,
-        saveStatus: Saving,
-      },
-    }->StateReducer.update
-
-  | AnthropicKeySaved =>
-    // Config options will be pushed by the server via config_option_update notification.
-    // pendingProviderAutoSelect was already set in SaveAnthropicKey.
-    {
-      ...state,
-      anthropicKeySettings: {
-        source: UserOverride,
-        saveStatus: Saved,
-      },
-    }->StateReducer.update
-
-  | AnthropicKeySaveError({error}) =>
-    {
-      ...state,
-      anthropicKeySettings: {
-        ...state.anthropicKeySettings,
-        saveStatus: SaveError(error),
-      },
-      pendingProviderAutoSelect: None,
-    }->StateReducer.update
-
-  | ResetAnthropicKeySaveStatus =>
-    {
-      ...state,
-      anthropicKeySettings: {
-        ...state.anthropicKeySettings,
-        saveStatus: Idle,
-      },
-    }->StateReducer.update
-
-  // Fireworks API key settings actions
-  | FetchFireworksApiKeySettings =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[FetchFireworksApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})],
-      )
-    | NoAcpSession => state->StateReducer.update
-    }
-
-  | FireworksApiKeySettingsReceived({source}) =>
-    {
-      ...state,
-      fireworksKeySettings: {
-        ...state.fireworksKeySettings,
-        source,
-      },
-    }->StateReducer.update
-
-  | SaveFireworksKey({key}) =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      {
-        ...state,
-        pendingProviderAutoSelect: Some("fireworks"),
-      }->StateReducer.update(~sideEffects=[SaveFireworksKeyEffect({apiBaseUrl, key})])
-    | NoAcpSession =>
-      {
-        ...state,
-        fireworksKeySettings: {
-          ...state.fireworksKeySettings,
-          saveStatus: SaveError("No active ACP session"),
-        },
-      }->StateReducer.update
-    }
-
-  | FireworksKeySaveStarted =>
-    {
-      ...state,
-      fireworksKeySettings: {
-        ...state.fireworksKeySettings,
-        saveStatus: Saving,
-      },
-    }->StateReducer.update
-
-  | FireworksKeySaved =>
-    {
-      ...state,
-      fireworksKeySettings: {
-        source: UserOverride,
-        saveStatus: Saved,
-      },
-    }->StateReducer.update
-
-  | FireworksKeySaveError({error}) =>
-    {
-      ...state,
-      fireworksKeySettings: {
-        ...state.fireworksKeySettings,
-        saveStatus: SaveError(error),
-      },
-      pendingProviderAutoSelect: None,
-    }->StateReducer.update
-
-  | ResetFireworksKeySaveStatus =>
-    {
-      ...state,
-      fireworksKeySettings: {
-        ...state.fireworksKeySettings,
-        saveStatus: Idle,
-      },
-    }->StateReducer.update
+  | ResetApiKeySaveStatus({provider}) =>
+    state->setApiKeySaveStatus(provider, Idle)->StateReducer.update
 
   // ACP session config option actions
   | ConfigOptionsReceived({configOptions}) =>
@@ -1886,7 +1469,7 @@ let next = (state: state, action) => {
   | ExchangeAnthropicOAuthCode({code, verifier}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      // Set pendingProviderAutoSelect eagerly (race fix — see SaveOpenRouterKey).
+      // Set pendingProviderAutoSelect eagerly (race fix — see SaveApiKey).
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.Exchanging,
@@ -1974,7 +1557,7 @@ let next = (state: state, action) => {
   | InitiateChatGPTOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      // Set pendingProviderAutoSelect eagerly (race fix — see SaveOpenRouterKey).
+      // Set pendingProviderAutoSelect eagerly (race fix — see SaveApiKey).
       {
         ...state,
         chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCode,

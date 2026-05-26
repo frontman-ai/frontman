@@ -54,7 +54,7 @@ module HeaderRow = {
     | Red => ("size-3.5 text-red-400", "text-[13px] text-red-400")
     }
     <div className="flex items-center gap-2">
-      <Bindings__RadixUI__Icons.ChatBubbleIcon className={iconClass} />
+      <FrontmanBindings.Bindings__RadixUI__Icons.ChatBubbleIcon className={iconClass} />
       <span className={textClass}> {React.string(text)} </span>
     </div>
   }
@@ -84,7 +84,9 @@ module QuestionList = {
         ->Array.mapWithIndex((q, i) =>
           <div key={Int.toString(i)} className="flex items-start gap-1.5 ml-5">
             <span className="text-zinc-500 mt-px shrink-0">
-              <Bindings__RadixUI__Icons.QuestionMarkCircledIcon className="size-3" />
+              <FrontmanBindings.Bindings__RadixUI__Icons.QuestionMarkCircledIcon
+                className="size-3"
+              />
             </span>
             <span className="text-[12px] leading-snug text-zinc-400">
               {React.string(q.header)}
@@ -153,11 +155,11 @@ let make = (
                 {switch isAnswered {
                 | true =>
                   <span className="text-teal-400 mt-px shrink-0">
-                    <Bindings__RadixUI__Icons.CheckIcon className="size-3" />
+                    <FrontmanBindings.Bindings__RadixUI__Icons.CheckIcon className="size-3" />
                   </span>
                 | false =>
                   <span className="text-zinc-500 mt-px shrink-0">
-                    <Bindings__RadixUI__Icons.Cross2Icon className="size-3" />
+                    <FrontmanBindings.Bindings__RadixUI__Icons.Cross2Icon className="size-3" />
                   </span>
                 }}
                 <div className="flex items-baseline gap-1 min-w-0">

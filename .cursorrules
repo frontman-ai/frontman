@@ -20,7 +20,7 @@ This is a multi-language project with ReScript, TypeScript, and JavaScript compo
 ### JSX Patterns
 9. **Text Content**: Always use `React.string("text")` for text content
 10. **Conditional Rendering**: Use `condition ? <Component /> : React.null`
-11. **Optional Props**: Use `Belt.Option.mapWithDefault(React.null, fn => <Component />)`
+11. **Optional Rendering**: Use `Option.mapOr(optionalValue, React.null, value => <Component value />)`
 12. **Unused Parameters**: Prefix with `_` (e.g., `~_onClearSelection=?`)
 
 ### Type System
@@ -41,17 +41,13 @@ This is a multi-language project with ReScript, TypeScript, and JavaScript compo
 
 ### JavaScript Interop
 23. **Raw Functions**: Use `%raw` with template literals for complex JavaScript:
-    ```rescript
-    let myFunction: (string, int) => bool = %raw(`function(str, num) {
+        let myFunction: (string, int) => bool = %raw(`function(str, num) {
       // JavaScript code here
       return str.length > num;
     }`)
-    ```
-24. **External Bindings**: Use `@val external` for simple JavaScript functions:
-    ```rescript
-    @val external myFunction: (string, int) => bool = "myFunction"
-    ```
-25. **Avoid Unused Variable Warnings**: Use the template literal approach for complex functions to avoid warnings
+    24. **External Bindings**: Use `@val external` for simple JavaScript functions:
+        @val external myFunction: (string, int) => bool = "myFunction"
+    25. **Avoid Unused Variable Warnings**: Use the template literal approach for complex functions to avoid warnings
 
 ### Common Pitfalls
 26. **Unicode Characters**: Use backticks for Unicode support: `` `🎯 Click element` `` instead of `"🎯 Click element"`
@@ -77,7 +73,6 @@ This is a multi-language project with ReScript, TypeScript, and JavaScript compo
 - Bindings: `Client__Bindings__LibraryName.res`
 
 ### Example Component Structure
-```rescript
 @react.component
 let make = (
   ~title=?,
@@ -102,7 +97,6 @@ let make = (
     )}
   </div>
 }
-```
 
 ### Conversion Checklist
 - [ ] Replace `@genType` with `@react.component`

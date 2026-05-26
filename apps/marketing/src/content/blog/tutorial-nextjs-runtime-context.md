@@ -1,5 +1,5 @@
 ---
-title: 'Add Runtime Context to Your AI Workflow (Next.js)'
+title: 'Add Runtime Context to AI Coding in Next.js'
 pubDate: 2026-02-23T07:00:00Z
 description: 'Step-by-step: install Frontman in a Next.js project, connect your AI key, and fix a CSS layout bug by clicking the broken element instead of describing it.'
 author: 'Danni Friedland'
@@ -121,4 +121,4 @@ Runtime-aware AI coding is not a silver bullet:
 
 [The runtime context gap](/blog/runtime-context-gap/) is real, and closing it saves time on a specific class of problems. It doesn't replace engineering judgment. It just means the AI guesses less.
 
-[Get started with Frontman](https://frontman.sh) — works with Next.js, Astro, and Vite. Or [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).
+[Get started with Frontman](https://frontman.sh) — works with Next.js, Astro, and Vite. Or [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). For a broader buyer guide to build frontend with AI, read the [best frontend coding agent comparison](/blog/best-frontend-coding-agent/).

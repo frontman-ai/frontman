@@ -1,5 +1,5 @@
 ---
-title: 'Every AI Coding Agent Is Blind to Your UI'
+title: 'Introducing Frontman: AI That Sees Your UI'
 pubDate: 2026-02-18T05:00:00Z
 description: 'Claude Code, Cursor, Copilot, Windsurf — every AI coding agent shares the same blind spot. They read your source files but cannot see what your app actually looks like. This is not a model quality problem. It is an architectural gap.'
 author: 'Danni Friedland'

@@ -73,15 +73,27 @@ defmodule SwarmAi.ToolCall do
   @doc """
   Parse arguments JSON string to a map.
 
+  Blank strings are treated as an empty argument object.
+
   ## Example
 
       iex> tc = %SwarmAi.ToolCall{id: "1", name: "get_weather", arguments: ~s({"location":"NYC"})}
       iex> SwarmAi.ToolCall.parse_arguments(tc)
       {:ok, %{"location" => "NYC"}}
   """
-  @spec parse_arguments(t()) :: {:ok, map()} | {:error, Jason.DecodeError.t()}
-  def parse_arguments(%__MODULE__{arguments: json}) do
-    Jason.decode(json)
+  @spec parse_arguments(t()) :: {:ok, map()} | {:error, String.t()}
+  def parse_arguments(%__MODULE__{arguments: arguments}) do
+    case String.trim(arguments) do
+      "" ->
+        {:ok, %{}}
+
+      arguments ->
+        case Jason.decode(arguments) do
+          {:ok, decoded} when is_map(decoded) -> {:ok, decoded}
+          {:ok, decoded} -> {:error, "expected JSON object, got #{inspect(decoded)}"}
+          {:error, decode_error} -> {:error, Exception.message(decode_error)}
+        end
+    end
   end
 
   @doc """
@@ -98,15 +110,13 @@ defmodule SwarmAi.ToolCall do
       ~s({"selector":"#btn"})
   """
   @spec strip_null_arguments(t()) :: t()
-  def strip_null_arguments(%__MODULE__{arguments: arguments} = tc) when is_binary(arguments) do
-    case Jason.decode(arguments) do
-      {:ok, args} when is_map(args) ->
+  def strip_null_arguments(%__MODULE__{} = tc) do
+    case parse_arguments(tc) do
+      {:ok, args} ->
         %{tc | arguments: Jason.encode!(SwarmAi.SchemaTransformer.strip_nulls(args))}
 
-      _ ->
+      {:error, _reason} ->
         tc
     end
   end
-
-  def strip_null_arguments(tc), do: tc
 end

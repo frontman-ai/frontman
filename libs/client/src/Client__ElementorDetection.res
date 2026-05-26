@@ -3,6 +3,7 @@ type t = {
   elementId: string,
   elementType: option<string>,
   widgetType: option<string>,
+  @live
   documentType: option<string>,
   editHint: string,
 }
@@ -118,8 +119,6 @@ let getElementorContext = (
       }
     }
   }
-
-let toJson = (context: t): JSON.t => S.reverseConvertToJsonOrThrow(context, schema)
 
 let uri = (context: t): string =>
   switch context.postId {

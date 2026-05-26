@@ -1,5 +1,5 @@
 ---
-title: 'AI Code Review Hallucination: The AI Said My Code Was Fine'
+title: 'AI Code Reviews Hallucinate Without Evidence'
 pubDate: 2026-03-25T05:00:00Z
 description: 'AI code reviews pattern-match the genre of analysis without doing the work. A structured reasoning template fixes this — here is the one we use.'
 author: 'Danni Friedland'

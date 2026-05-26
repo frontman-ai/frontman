@@ -35,19 +35,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
         },
       },
       {
-        name: 'go_to_pricing',
-        description: 'Navigate to the Frontman pricing page.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false,
-        },
-        execute: async () => {
-          window.location.href = '/pricing/'
-          return { ok: true }
-        },
-      },
-      {
         name: 'jump_to_install',
         description: 'Scroll to the install section on the homepage.',
         inputSchema: {
@@ -73,7 +60,7 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 	</div>
 	<div class="hero-section__container">
 		<div class="hero-section__top">
-			<span class="hero-section__badge">Free Beta — No credit card required</span>
+			<span class="hero-section__badge">Open-source core — hosted plans coming soon</span>
 			<h1 class="hero-section__title">See it. Say it. Ship it.</h1>
 			<p class="hero-section__subtitle">Stop waiting on dev tickets to fix a button color. Frontman lets you click any element in your live product, describe what you want, and watch the change happen — no code, no handoff, no waiting.</p>
 			<div class="hero-section__cta">
@@ -141,7 +128,7 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 			</span>
 		</div>
 		<!-- SEO-targeted detail text, visually de-emphasized -->
-		<p class="hero-section__geo-lead">Frontman is an AI agent that lives inside your framework's dev server as middleware. It sees the live DOM, component tree, CSS styles, routes, and server logs — the full runtime context that file-level agents miss. Supports Next.js, Astro, and Vite (React, Vue, Svelte). Open-source core (Apache 2.0 / AGPL-3.0) with BYOK pricing — bring your own API key or use ours.</p>
+		<p class="hero-section__geo-lead">Frontman is an AI agent that lives inside your framework's dev server as middleware. It sees the live DOM, component tree, CSS styles, routes, and server logs — the full runtime context that file-level agents miss. Supports Next.js, Astro, and Vite (React, Vue, Svelte). Open-source core (Apache 2.0 / AGPL-3.0) with BYOK model support for local development.</p>
 	</div>
 </section>
 

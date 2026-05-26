@@ -78,7 +78,7 @@ Client                          Server                          LLM Provider
 8. Channel pushes events to client for UI rendering
 9. Loop repeats until LLM returns `turn_complete`
 
-**Persist-then-broadcast:** All agent events are persisted to PostgreSQL *before* being broadcast via PubSub. If the client disconnects, no data is lost. On reconnect, full history is loaded from the database and deserialized via `Interaction.to_llm_messages/1`.
+**Persist-then-broadcast:** All agent events are persisted to PostgreSQL *before* being broadcast via PubSub. If the client disconnects, no data is lost. On reconnect, full history is loaded from the database and deserialized via `Interaction.to_swarm_messages/1`.
 
 ### Tool Relay (File Operations)
 

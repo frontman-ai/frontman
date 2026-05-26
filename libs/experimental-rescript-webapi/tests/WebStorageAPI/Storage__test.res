@@ -5,7 +5,7 @@ for i in 0 to localStorage.length - 1 {
   localStorage->key(i)->Null.getOr("nothing")->Console.log
 }
 
-let item1 = localStorage->getItem("foo")->Null.getOr("nothing")
+localStorage->getItem("foo")->Null.getOr("nothing")->ignore
 
 localStorage->setItem(~key="bar", ~value="...")
 

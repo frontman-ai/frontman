@@ -1,5 +1,5 @@
 ---
-title: "WordPress 7 Breaking Changes: What Breaks & How to Fix It"
+title: "WordPress 7 Breaking Changes and Fixes"
 pubDate: 2026-04-25T05:00:00Z
 description: "WordPress 7 breaking changes: developer audit with what actually breaks, migration code for each issue, and rollback strategies nobody else covers."
 author: 'Danni Friedland'

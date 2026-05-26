@@ -7,7 +7,7 @@ Frontman needs access to a large language model (LLM) to power the coding agent.
 
 ## Free tier (default)
 
-Every Frontman installation comes with a free usage tier out of the box — no API key required. The agent uses Frontman's hosted model endpoint with a generous rate limit so you can try it immediately after installation.
+Frontman uses a bring-your-own-key model. Connect your own AI provider account to use the agent with Claude, ChatGPT, OpenRouter, or another supported provider.
 
 :::note
 The free tier is subject to rate limits and may use a smaller model. For production use or heavier workloads, bring your own key.

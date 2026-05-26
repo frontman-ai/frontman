@@ -7,9 +7,9 @@
 defmodule FrontmanServerWeb.IntegrationsController do
   use FrontmanServerWeb, :controller
 
-  require Logger
+  alias FrontmanServer.Frameworks
 
-  @packages ~w(@frontman-ai/vite @frontman-ai/nextjs @frontman-ai/astro)
+  require Logger
 
   # Simple in-memory cache: {versions_map, fetched_at_unix}
   @cache_ttl_ms :timer.minutes(30)
@@ -52,7 +52,7 @@ defmodule FrontmanServerWeb.IntegrationsController do
 
   defp do_fetch_and_cache do
     versions =
-      @packages
+      Frameworks.npm_packages()
       |> Task.async_stream(&fetch_latest_version/1,
         timeout: :timer.seconds(10),
         on_timeout: :kill_task

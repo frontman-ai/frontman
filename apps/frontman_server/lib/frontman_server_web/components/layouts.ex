@@ -42,24 +42,31 @@ defmodule FrontmanServerWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div class="min-h-screen flex flex-col bg-[#0a0a0a]">
-      <header class="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
-        <a href="/" class="flex items-center gap-2.5 group">
-          <img src={~p"/images/frontman-logo.svg"} width="28" height="28" alt="Frontman" />
-          <span class="text-[15px] font-semibold text-white/90 tracking-tight group-hover:text-white transition-colors">
-            Frontman
-          </span>
-        </a>
+    <div class="relative flex min-h-screen flex-col overflow-hidden bg-base-100 text-base-content">
+      <div
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-x-0 top-0 h-[28rem] sm:h-[32rem]"
+      >
+        <div class="absolute inset-0 bg-gradient-to-b from-primary/16 via-primary/6 to-transparent" />
+      </div>
+
+      <header class="navbar relative z-10 border-b border-base-content/5 px-4 sm:px-6 lg:px-8">
+        <div class="navbar-start">
+          <a href="/" class="btn btn-ghost gap-2 px-2 text-base font-semibold tracking-tight">
+            <img src={~p"/images/frontman-logo.svg"} width="28" height="28" alt="Frontman" />
+            <span>Frontman</span>
+          </a>
+        </div>
       </header>
 
-      <main class="flex-1 flex items-center justify-center px-4 py-12">
-        <div class="w-full max-w-sm space-y-6">
+      <main class="relative z-10 flex-1">
+        <div class="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
           {render_slot(@inner_block)}
         </div>
       </main>
 
-      <footer class="py-6 text-center">
-        <p class="text-xs text-white/30">
+      <footer class="footer footer-center relative z-10 px-4 py-6 text-base-content/40">
+        <p class="text-xs">
           &copy; {DateTime.utc_now().year} Frontman. All rights reserved.
         </p>
       </footer>

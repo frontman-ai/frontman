@@ -29,13 +29,6 @@ module EventHelpers = {
         ->Option.ignore
       })
     )
-  let getIframeDoc = (iframeRef: Nullable.t<WebAPI.DOMAPI.element>) =>
-    iframeRef
-    ->Nullable.toOption
-    ->Option.flatMap(iframe =>
-      WebAPI.Element.unsafeAsHTMLIFrameElement(iframe)->WebAPI.HTMLIFrameElement.contentDocument
-    )
-
   // Shared hook: subscribes a handler to a DOM event on a document and all its
   // same-origin iframes, and tears everything down on cleanup.
   //
@@ -98,7 +91,7 @@ module EventHelpers = {
 }
 
 module MouseMove = {
-  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture=false, ()) => {
+  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture: bool, ()) => {
     let (state, setState) = React.useState(() => None)
     let stateRef = React.useRef(state)
     let rafIdRef = React.useRef(None)
@@ -154,11 +147,10 @@ module MouseClick = {
 
   let useIFrameDocument = (
     ~document: option<WebAPI.DOMAPI.document>,
-    ~withCapture=false,
-    ~preventDefault=false,
-    ~stopPropagation=false,
-    ~stopImmediatePropagation=false,
-    ~isRightClick=false,
+    ~withCapture: bool,
+    ~preventDefault: bool,
+    ~stopPropagation: bool,
+    ~stopImmediatePropagation: bool,
     (),
   ) => {
     let (state, setState) = React.useState(() => None)
@@ -183,20 +175,15 @@ module MouseClick = {
       setState(_ => Some({target, clickId: id}))
     }
 
-    let event = switch isRightClick {
-    | true => "contextmenu"
-    | false => "click"
-    }
-
-    EventHelpers.useDocumentEvent(~document, ~event, ~withCapture, ~handler=onClick, ())
+    EventHelpers.useDocumentEvent(~document, ~event="click", ~withCapture, ~handler=onClick, ())
 
     state
   }
 }
 
 module Scroll = {
-  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture=false, ()) => {
-    let (scrollTimestamp, setScrollTimestamp) = React.useState(() => Js.Date.now())
+  let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ~withCapture: bool, ()) => {
+    let (scrollTimestamp, setScrollTimestamp) = React.useState(() => Date.now())
     let rafIdRef = React.useRef(None)
     let isScheduledRef = React.useRef(false)
 
@@ -207,7 +194,7 @@ module Scroll = {
       | false =>
         isScheduledRef.current = true
         let rafId = WebAPI.Global.requestAnimationFrame(_timestamp => {
-          setScrollTimestamp(_ => Js.Date.now())
+          setScrollTimestamp(_ => Date.now())
           isScheduledRef.current = false
         })
         rafIdRef.current = Some(rafId)
@@ -330,13 +317,13 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
 
 module DOMmutations = {
   let useIFrameDocument = (~document: option<WebAPI.DOMAPI.document>, ()) => {
-    let (mutationTimestamp, setMutationTimestamp) = React.useState(() => Js.Date.now())
+    let (mutationTimestamp, setMutationTimestamp) = React.useState(() => Date.now())
 
     React.useEffect(() => {
       document
       ->Option.map(doc => {
         let onMutation = (_mutations: array<FrontmanBindings.MutationObserver.mutationRecord>) => {
-          setMutationTimestamp(_ => Js.Date.now())
+          setMutationTimestamp(_ => Date.now())
         }
 
         let observer = FrontmanBindings.MutationObserver.make(onMutation)

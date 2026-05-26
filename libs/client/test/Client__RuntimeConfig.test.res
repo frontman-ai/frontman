@@ -3,7 +3,7 @@ open Vitest
 let _setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let _clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
 
-afterEach(_t => {
+afterEach(() => {
   _clearRuntime()
 })
 
@@ -23,6 +23,41 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(config.framework)->Expect.toBe(Client__RuntimeConfig.Nextjs)
     t->expect(config.basePath)->Expect.toBe("frontman")
     t->expect(config.wpNonce)->Expect.toBe(None)
+    t->expect(config.traits)->Expect.toBe(None)
+  })
+
+  test("read forwards runtime traits to ACP metadata", t => {
+    _setRuntime(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("nextjs")),
+          ("basePath", JSON.Encode.string("frontman")),
+          (
+            "traits",
+            [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
+          ),
+        ]),
+      ),
+    )
+
+    let config = Client__RuntimeConfig.read()
+
+    t->expect(config.traits)->Expect.toEqual(Some(["react", "typescript"]))
+
+    t
+    ->expect(Client__RuntimeConfig.toMeta(config))
+    ->Expect.toEqual(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("nextjs")),
+          ("basePath", JSON.Encode.string("frontman")),
+          (
+            "traits",
+            [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
+          ),
+        ]),
+      ),
+    )
   })
 
   test("read preserves wpNonce for WordPress integrations", t => {
@@ -67,8 +102,10 @@ describe("Client__RuntimeConfig", _t => {
       openrouterKeyValue: None,
       anthropicKeyValue: None,
       fireworksKeyValue: None,
+      nvidiaKeyValue: None,
       projectRoot: None,
       sourceRoot: None,
+      traits: None,
     })
 
     t
@@ -83,7 +120,7 @@ describe("Client__RuntimeConfig", _t => {
     )
   })
 
-  test("toMeta forwards fireworksKeyValue when present", t => {
+  test("toMeta forwards provider keys when present", t => {
     let meta = Client__RuntimeConfig.toMeta({
       framework: Client__RuntimeConfig.Nextjs,
       basePath: "frontman",
@@ -91,8 +128,10 @@ describe("Client__RuntimeConfig", _t => {
       openrouterKeyValue: None,
       anthropicKeyValue: None,
       fireworksKeyValue: Some("fw-test-123"),
+      nvidiaKeyValue: Some("nvapi-test-123"),
       projectRoot: None,
       sourceRoot: None,
+      traits: None,
     })
 
     t
@@ -103,6 +142,7 @@ describe("Client__RuntimeConfig", _t => {
           ("framework", JSON.Encode.string("nextjs")),
           ("basePath", JSON.Encode.string("frontman")),
           ("fireworksKeyValue", JSON.Encode.string("fw-test-123")),
+          ("nvidiaKeyValue", JSON.Encode.string("nvapi-test-123")),
         ]),
       ),
     )

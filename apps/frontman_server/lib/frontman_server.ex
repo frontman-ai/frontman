@@ -18,9 +18,12 @@ defmodule FrontmanServer do
     {Organizations, []},
     {Providers, []},
     {Tasks, []},
+    {Frameworks, []},
+    BrandTokens,
     Repo,
     Vault,
     Image,
+    CurrentPageContext,
     FinchLogger,
     Mailer,
     Release,
@@ -39,7 +42,7 @@ defmodule FrontmanServer do
   ]
 
   @exports (case Mix.env() do
-              :test -> @base_exports ++ [DataCase]
+              :test -> @base_exports ++ [DataCase, ExecutionCase, Test.Fixtures.LLMProvider]
               _ -> @base_exports
             end)
 

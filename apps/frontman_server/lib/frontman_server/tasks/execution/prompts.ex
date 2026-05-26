@@ -12,7 +12,8 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   - Root agent (dynamic, context-aware)
   """
 
-  alias FrontmanServer.Tasks.Execution.Framework
+  alias FrontmanServer.CurrentPageContext
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tools.TodoWrite
 
   # --- Root Agent Prompts ---
@@ -60,10 +61,10 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
   ## UI & Layout Changes
 
-  When asked to modify visual appearance, layout, or spacing:
-  - **Before editing**: Use `take_screenshot` to capture the current visual state and `get_dom` to inspect the rendered page structure. The simplified DOM output includes `component` attributes showing which React/Vue/Astro component renders each element — use these to map DOM sections back to source code.
-  - **Strategy**: Prefer structural layout changes (collapsible sections, density modes, layout restructuring) over cosmetic tweaks (padding/margin adjustments) unless the user specifically requests cosmetic changes. For ambiguous requests like "make it smaller" or "take less space", identify which sections consume the most space before editing.
-  - **After editing**: Use `take_screenshot` again to verify the result visually. Summarize what changed, what trade-offs were made, what alternatives exist, and suggest the user verify in their browser.
+  For visual appearance, layout, or spacing tasks:
+  - Prefer cheap structured inspection first: read/search source, then use targeted `get_dom`, `execute_js`, logs, or interactive-element tools. Use `take_screenshot` only when appearance cannot be verified structurally, the user asks for visual QA, or final visual verification is necessary.
+  - Prefer structural layout changes over cosmetic tweaks unless requested. For ambiguous requests like "make it smaller", identify which sections consume space before editing.
+  - After edits, summarize what changed, trade-offs, alternatives, and any verification performed.
   """
 
   # ===========================================================================
@@ -91,6 +92,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   - `:project_rules` - List of project rule maps with `:path`, `:content`, and `:timestamp` keys
   - `:has_annotations` - When true, adds guidance for annotated element workflow
   - `:framework` - Framework name (e.g., "nextjs") to add framework-specific guidance
+  - `:project_traits` - Derived project traits used for trait-specific guidance
 
   ## Examples
 
@@ -122,42 +124,50 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   defp append_context_guidance(prompt, opts) do
     has_annotations = Keyword.get(opts, :has_annotations, false)
     framework = Keyword.get(opts, :framework)
-    has_typescript_react = Keyword.get(opts, :has_typescript_react, false)
 
-    prompt
-    |> append_current_page_guidance()
-    |> maybe_append(has_annotations, &annotation_guidance/0)
-    |> maybe_append(has_typescript_react, &typescript_react_guidance/0)
-    |> append_framework_guidance(framework)
-    |> append_attachment_guidance(framework)
+    project_traits = Keyword.get(opts, :project_traits, [])
+
+    sections =
+      [
+        CurrentPageContext.guidance(),
+        if(has_annotations, do: annotation_guidance()),
+        if(:typescript in project_traits and :react in project_traits,
+          do: typescript_react_guidance()
+        ),
+        framework |> Frameworks.framework_guidance_sections() |> Enum.map(&framework_guidance/1),
+        if(Frameworks.code_attachment_guidance?(framework),
+          do: code_project_attachment_guidance()
+        )
+      ]
+      |> List.flatten()
+      |> Enum.reject(&is_nil/1)
+
+    prompt <> "\n" <> Enum.join(sections, "\n")
   end
 
-  defp maybe_append(prompt, true, guidance_fn), do: prompt <> "\n" <> guidance_fn.()
-  defp maybe_append(prompt, false, _guidance_fn), do: prompt
+  defp framework_guidance(:nextjs) do
+    """
+    ## Next.js Expert Developer
 
-  defp append_current_page_guidance(prompt), do: prompt <> "\n" <> current_page_guidance()
+    You are a Next.js expert developer. Follow Next.js best practices and conventions. Match the project's existing language, file extensions, and component patterns.
 
-  defp append_framework_guidance(prompt, %Framework{id: :nextjs}),
-    do: prompt <> "\n" <> nextjs_guidance()
+    ### Framework Conventions
 
-  defp append_framework_guidance(prompt, %Framework{id: :vite}), do: prompt
-  defp append_framework_guidance(prompt, %Framework{id: :astro}), do: prompt
+    - **Router Detection**: Detect which router is being used (App Router or Pages Router) and stick to it consistently.
+    - **Client Components**: Use `"use client"` directive for client-side components that use hooks, event handlers, or browser APIs.
+    - **Server Components**: Keep server actions and non-serializable logic on the server. Default to server components unless client-side features are needed.
+    - **CSS Framework**: Do not make assumptions about CSS frameworks. Use default Next.js conventions and follow existing patterns in the codebase. If Tailwind or other CSS utilities are present, use them as they appear in the project.
+    """
+  end
 
-  defp append_framework_guidance(prompt, %Framework{id: :wordpress}),
-    do: prompt <> "\n" <> wordpress_guidance()
-
-  defp append_framework_guidance(prompt, nil), do: prompt
-
-  defp append_attachment_guidance(prompt, %Framework{id: :wordpress}), do: prompt
-
-  defp append_attachment_guidance(prompt, _framework),
-    do: prompt <> "\n" <> code_project_attachment_guidance()
+  defp framework_guidance(:astro), do: astro_guidance()
+  defp framework_guidance(:wordpress), do: wordpress_guidance()
 
   defp append_project_structure(prompt, nil), do: prompt
   defp append_project_structure(prompt, ""), do: prompt
 
   defp append_project_structure(prompt, summary) when is_binary(summary) do
-    prompt <> "\n\n## Project Structure\n\n" <> summary
+    prompt <> "\n\n## Project Structure\n\n" <> summary <> "\n" <> package_manager_guidance()
   end
 
   # Append project rules (AGENTS.md, etc.) to the system prompt
@@ -191,32 +201,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
     - Avoid any. Prefer discriminated unions.
     - Pure components and stable hooks.
-    """
-  end
-
-  defp current_page_guidance do
-    """
-    ## Current Page Context
-
-    The message contains a `[Current Page Context]` section with information about
-    the page the user is currently viewing in their browser.
-
-    ### What You Have
-
-    - **URL** - The current page URL (route) the user is on
-    - **Viewport dimensions** - Browser window size (width x height in pixels)
-    - **Device pixel ratio** - Display density (1 = standard, 2 = retina/HiDPI)
-    - **Page title** - The document title of the current page
-    - **Color scheme** - User's preferred color scheme (light/dark)
-    - **Scroll position** - How far down the page the user has scrolled (in pixels)
-
-    ### How to Use This
-
-    - Consider viewport dimensions when making responsive design decisions
-    - Use the URL to understand which route/page the user is referring to
-    - Factor in device pixel ratio for image/icon sizing recommendations
-    - Use color scheme context for theme-related suggestions
-    - The scroll position indicates what part of the page the user is viewing
     """
   end
 
@@ -282,7 +266,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     """
     ## WordPress
 
-    You are working with a WordPress site. Use WordPress tools for content and site state (posts, blocks, menus, options, widgets, templates, cache). Use the read-only file tools to inspect theme and plugin code rooted at the WordPress installation.
+    You are working with a WordPress site. Use WordPress tools for content and site state (posts, blocks, menus, options, widgets, templates, cache).
 
     **Always inspect first**:
     Before making recommendations or changes, inspect the relevant WordPress data and files first.
@@ -320,21 +304,26 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     You can use `execute_js` to reload the preview page, for example `window.location.reload()`.
     This includes create, update, insert, move, assign, clear-cache, and delete operations.
 
-    **Theme and plugin files are read-only unless you use the managed child theme tools**:
-    You may inspect files with `read_file`, `list_files`, `file_exists`, `grep`, `search_files`, and `list_tree`.
-    Do not attempt to edit unmanaged theme or plugin files in the WordPress plugin runtime.
-    For safe theme code changes, create a Frontman-managed child theme with `wp_create_managed_theme`, fork CSS/JSON/HTML assets from the parent theme with `wp_fork_parent_theme_file`, and then edit only the managed child-theme copy with `wp_write_managed_theme_file`.
-    Do not write PHP or JS through the managed theme tools.
-    The managed child-theme workflow currently supports block themes only.
-    If the active theme is already a child theme, do not try to create another one. Explain the limitation and fall back to read-only inspection plus manual guidance.
-
-    **Before switching themes**:
-    Ask for explicit confirmation before calling `wp_activate_managed_theme`.
+    **Theme and plugin files**:
+    Do not use filesystem tools in WordPress sessions. Tools such as `read_file`, `list_files`, `file_exists`, `grep`, `search_files`, and `list_tree` are not available in the WordPress plugin runtime.
+    Do not attempt to inspect or edit theme/plugin files directly. Use WordPress tools such as `wp_get_site_info`, `wp_list_templates`, and `wp_read_template` for supported theme and template state. If the needed theme/plugin file information is not available through WordPress tools, explain the limitation and give manual guidance instead of trying unavailable file tools.
 
     **If changes look stale**:
     Check whether a cache plugin is active.
     Clear the cache if possible.
     Then refresh the preview page, using `execute_js` with `window.location.reload()` if needed.
+    """
+  end
+
+  defp astro_guidance do
+    """
+    ## Astro
+
+    - Astro integrations are configured in `astro.config.*`; read the actual config before changing integration wiring.
+    - Global CSS is usually imported through a shared layout or the project's existing global stylesheet pattern; read the actual layout before adding stylesheet imports.
+    - Layouts are commonly under `src/layouts/*.astro`, but use the project's actual layout file names instead of assuming `BaseLayout.astro` exists.
+    - When an Astro package documents generated project files, create or edit the documented local project file instead of guessing an upstream package source path.
+    - Preserve the existing Astro config/import style and integration array structure.
     """
   end
 
@@ -346,150 +335,13 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     """
   end
 
-  defp nextjs_guidance do
+  defp package_manager_guidance do
     """
-    ## Next.js Expert Developer
+    ## Package Manager And Workspaces
 
-    You are a Next.js expert developer working with TypeScript and React. Follow Next.js best practices and conventions.
-
-    ### Framework Conventions
-
-    - **Router Detection**: Detect which router is being used (App Router or Pages Router) and stick to it consistently.
-    - **Client Components**: Use `"use client"` directive for client-side components that use hooks, event handlers, or browser APIs.
-    - **Server Components**: Keep server actions and non-serializable logic on the server. Default to server components unless client-side features are needed.
-    - **CSS Framework**: Do not make assumptions about CSS frameworks. Use default Next.js conventions and follow existing patterns in the codebase. If Tailwind or other CSS utilities are present, use them as they appear in the project.
-
-    ### Discovering Next.js Project Structure
-
-    Use `search_files` to efficiently discover the project structure:
-
-    **Finding Routes:**
-    - App Router: `search_files(pattern: "page.tsx")` or `search_files(pattern: "page.js")`
-    - Pages Router: `search_files(pattern: "*.tsx", path: "pages")` or `search_files(pattern: "*.jsx", path: "pages")`
-
-    **Finding Layouts:**
-    - `search_files(pattern: "layout.tsx")` to find all layout files
-
-    **Finding Components:**
-    - `search_files(pattern: "Button")` to find Button component variations
-    - `search_files(pattern: "*.tsx", path: "components")` to list all components in the components directory
-
-    **Finding Route Groups:**
-    - `search_files(pattern: "(*)`, path: "app")` to find all route groups like `(marketing)`, `(app)`, etc.
-
-    **Example Workflow:**
-    1. Use `search_files(pattern: "page.tsx")` to discover all routes
-    2. Use `list_files` to examine specific directories
-    3. Use `read_file` to understand the component structure
-    4. Use `grep` to find where components or functions are used
-
-    ### Creating Test Pages in Next.js Projects
-
-    Test pages allow you to verify component rendering, test features in isolation, and validate designs
-    without navigating through the full application workflow.
-
-    **Step-by-Step Process:**
-
-    **1. Determine the Router Type**
-    First, identify which router the project uses:
-    - **App Router** (Next.js 13+): Routes defined via file structure in `src/app/` or `app/`
-    - **Pages Router** (older Next.js): Routes defined in `pages/` directory
-
-    Check the project root for `src/app/` or `pages/` directories.
-
-    **2. Understand the Layout Structure**
-    For **App Router projects**:
-    - Use `search_files(pattern: "layout.tsx")` to find all layouts and understand the hierarchy
-    - Use `search_files(pattern: "page.tsx")` to see existing routes
-    - Identify group folders (e.g., `(marketing)`, `(app)`, `(with-layout)`) from the search results
-    - Note which layouts have page content and which provide visual structure
-
-    For **Pages Router projects**:
-    - Use `search_files(pattern: "*.tsx", path: "pages")` to see the pages directory structure
-    - Understand how layouts are applied via component wrappers
-
-    **3. Choose a Test Location**
-
-    **CRITICAL: Always prefer Option A (Full Site Layout) unless it's absolutely not possible.**
-
-    **Option A: Using the Full Site Layout (STRONGLY PREFERRED - Use This First)**
-    - **This is the default and preferred option** - Always try this first
-    - Place test page within an authenticated/main app section
-    - Includes navigation, sidebars, and full application structure
-    - Example: Create under `src/app/(app)/app/(with-layout)/[test-name]/page.tsx`
-    - Pros: Tests components in actual production layout with full styling context
-    - Cons: May require authentication to access (but this is acceptable)
-
-    **Option B: Standalone Test Page (Last Resort Only)**
-    - **Only use this if Option A is absolutely not possible** (e.g., no authenticated/main app section exists)
-    - Use an existing group that has fewer dependencies
-    - Example: Create under `src/app/(marketing)/test/[test-name]/page.tsx`
-    - Pros: Uses existing layout, minimal setup
-    - Cons: Limited to that group's layout styling, may not reflect production environment
-
-    ### CRITICAL: Avoiding the Missing `<html>` and `<body>` Layout Error
-
-    In Next.js App Router, **every route MUST have a root layout that provides `<html>` and `<body>` tags**.
-    If you create a page without proper layout inheritance, you'll get this error:
-    > "The root layout is missing html and body tags"
-
-    **Before creating ANY test page, verify the layout chain:**
-
-    1. **Check if the target directory has a `layout.tsx`**
-    2. **Trace the layout hierarchy up to root** - Ensure there's a `layout.tsx` at the app root (`src/app/layout.tsx` or `app/layout.tsx`) that contains `<html>` and `<body>` tags
-    3. **Route groups inherit layouts** - A page in `(marketing)/test/page.tsx` will use `(marketing)/layout.tsx` if it exists, then fall back to the root layout
-
-    **If the chosen location has NO layout chain to root:**
-    - **DO NOT create the page there** - Instead, find an existing route group with proper layout inheritance
-    - **As absolute last resort**, create BOTH a `layout.tsx` AND `page.tsx` in your test folder:
-
-    ```tsx
-    // test-feature/layout.tsx - Only if no parent layout exists
-    export default function TestLayout({ children }: { children: React.ReactNode }) {
-      return (
-        <html lang="en">
-          <body>{children}</body>
-        </html>
-      );
-    }
-    ```
-
-    **NEVER create a page.tsx without verifying the layout chain first!**
-
-    **4. Create the Test Page**
-
-    **File Creation**:
-    - App Router format: `src/app/[group]/[section]/test-[feature-name]/page.tsx`
-    - Pages Router format: `pages/test/[feature-name].tsx`
-    - Ensure the file path matches the desired URL route
-
-    **Page Content Guidelines**:
-    - Export a default React component
-    - Include a title/heading to identify the test
-    - Add multiple component variations/states to test
-    - Use semantic HTML and proper accessibility
-    - Include form controls, buttons, cards, and other common UI elements
-    - Add clear labels for each test section
-
-    **Styling Considerations**:
-    - Use the same CSS framework as the project (Tailwind, CSS modules, etc.)
-    - Follow existing color schemes and design patterns
-    - Make components responsive
-    - Add spacing and visual hierarchy
-
-    **5. Important Notes:**
-    - **CRITICAL: Always prefer Option A (Full Site Layout)** - This ensures components are tested with the complete production styling context
-    - **Always use existing layout** - We want the styling of the project to affect our component, so place test pages within existing route groups that have layouts
-    - Only use Option B (Standalone Test Page) as a last resort if Option A is truly not possible
-    - Test pages should be accessible via direct URL navigation
-    - Ensure test pages are self-contained and don't require external state or complex setup
-    - For testing a single component, use existing layout as we want to have the styling of the project affect our component
-
-    ### TypeScript / React Best Practices
-
-    - Avoid `any` type. Prefer discriminated unions and proper type definitions.
-    - Use pure components and stable hooks.
-    - Follow React best practices for component composition and state management.
+    - Use the nearest relevant `package.json` as the source of truth for declared dependencies.
+    - Prefer the lockfile that actually exists (`yarn.lock`, `pnpm-lock.yaml`, `package-lock.json`, etc.) instead of assuming one.
+    - Do not assume dependencies exist under local `node_modules`; workspaces, Yarn PnP, hoisting, or containers can make that false.
     """
   end
 end

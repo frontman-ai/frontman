@@ -1,32 +1,36 @@
 open WebAPI.Global
 
-let response = await fetch("https://rescript-lang.org/")
+(await fetch("https://rescript-lang.org/"))->ignore
 
-let response2 = await fetch(
-  "https://rescript-lang.org/",
-  ~init={
-    headers: HeadersInit.fromDict(
-      dict{
-        "Content-Type": "application/json",
-        "Authorization": "Bearer token",
-      },
-    ),
-    body: BodyInit.fromString(`secret=foo&response=bar`),
-  },
-)
+(
+  await fetch(
+    "https://rescript-lang.org/",
+    ~init={
+      headers: HeadersInit.fromDict(
+        dict{
+          "Content-Type": "application/json",
+          "Authorization": "Bearer token",
+        },
+      ),
+      body: BodyInit.fromString(`secret=foo&response=bar`),
+    },
+  )
+)->ignore
 
-let response3 = await fetchWithRequest(
-  Request.fromURL("https://rescript-lang.org/"),
-  ~init={
-    method: "POST",
-    headers: HeadersInit.fromDict(
-      dict{
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-    ),
-    body: BodyInit.fromString(`secret=foo&response=bar`),
-  },
-)
+(
+  await fetchWithRequest(
+    Request.fromURL("https://rescript-lang.org/"),
+    ~init={
+      method: "POST",
+      headers: HeadersInit.fromDict(
+        dict{
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      ),
+      body: BodyInit.fromString(`secret=foo&response=bar`),
+    },
+  )
+)->ignore
 
 removeEventListener(Mousedown, MouseEvent.preventDefault, ~options={capture: false})
 

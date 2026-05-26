@@ -3,8 +3,9 @@ module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
 module FsUtils = FrontmanAiFrontmanCore.FrontmanCore__FsUtils
+module PackageManager = FrontmanAiFrontmanCore.FrontmanCore__Cli__PackageManager
 
-type packageManager =
+type packageManager = PackageManager.t =
   | Npm
   | Yarn
   | Pnpm
@@ -32,54 +33,7 @@ let readFile = async (path: string): option<string> => {
   }
 }
 
-// Detect package manager from lock files
-let detectPackageManager = async (projectDir: string): packageManager => {
-  let checkDir = async (dir: string): option<packageManager> => {
-    let bunLockb = Path.join([dir, "bun.lockb"])
-    let bunLock = Path.join([dir, "bun.lock"])
-    let denoLock = Path.join([dir, "deno.lock"])
-    let pnpmLock = Path.join([dir, "pnpm-lock.yaml"])
-    let yarnLock = Path.join([dir, "yarn.lock"])
-    let npmLock = Path.join([dir, "package-lock.json"])
-
-    if (await FsUtils.pathExists(bunLockb)) || (await FsUtils.pathExists(bunLock)) {
-      Some(Bun)
-    } else if await FsUtils.pathExists(denoLock) {
-      Some(Deno)
-    } else if await FsUtils.pathExists(pnpmLock) {
-      Some(Pnpm)
-    } else if await FsUtils.pathExists(yarnLock) {
-      Some(Yarn)
-    } else if await FsUtils.pathExists(npmLock) {
-      Some(Npm)
-    } else {
-      None
-    }
-  }
-
-  switch await checkDir(projectDir) {
-  | Some(pm) => pm
-  | None =>
-    let parentDir = Path.dirname(projectDir)
-    if parentDir != projectDir {
-      switch await checkDir(parentDir) {
-      | Some(pm) => pm
-      | None =>
-        let grandparentDir = Path.dirname(parentDir)
-        if grandparentDir != parentDir {
-          switch await checkDir(grandparentDir) {
-          | Some(pm) => pm
-          | None => Npm
-          }
-        } else {
-          Npm
-        }
-      }
-    } else {
-      Npm
-    }
-  }
-}
+let detectPackageManager = PackageManager.detect
 
 // Pattern to detect frontman plugin import
 let frontmanImportPattern = /@frontman-ai\/vite|frontman-vite|frontmanPlugin/
@@ -170,35 +124,8 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
   }
 }
 
-// Get package manager command
-let getPackageManagerCommand = (pm: packageManager): string => {
-  switch pm {
-  | Npm => "npm"
-  | Yarn => "npx yarn"
-  | Pnpm => "npx pnpm"
-  | Bun => "bun"
-  | Deno => "deno"
-  }
-}
+let getPackageManagerCommand = PackageManager.command
 
-// Get the dev server command
-let getDevCommand = (pm: packageManager): string => {
-  switch pm {
-  | Npm => "npm run dev"
-  | Yarn => "yarn dev"
-  | Pnpm => "pnpm dev"
-  | Bun => "bun dev"
-  | Deno => "deno task dev"
-  }
-}
+let getDevCommand = PackageManager.devCommand
 
-// Get install command args
-let getInstallArgs = (pm: packageManager): array<string> => {
-  switch pm {
-  | Npm => ["install", "-D"]
-  | Yarn => ["add", "-D"]
-  | Pnpm => ["add", "--save-dev"]
-  | Bun => ["add", "--dev"]
-  | Deno => ["add", "--dev"]
-  }
-}
+let getInstallArgs = PackageManager.devInstallArgs

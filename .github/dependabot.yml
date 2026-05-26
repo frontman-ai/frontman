@@ -1,0 +1,130 @@
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 30
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 30
+    exclude-paths:
+      - "libs/frontman-nextjs/test/cli/fixtures/**"
+    groups:
+      rescript:
+        patterns:
+          - "rescript"
+          - "@rescript/*"
+          - "sury"
+          - "sury-ppx"
+          - "rescript-vitest"
+
+  - package-ecosystem: "npm"
+    directory: "/.opencode"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 30
+
+  - package-ecosystem: "npm"
+    directory: "/test/sites/vue-vite-app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 30
+
+  - package-ecosystem: "mix"
+    directory: "/apps/frontman_server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 30
+    groups:
+      elixir-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "mix"
+    directory: "/apps/swarm_ai"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 30
+    groups:
+      elixir-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directory: "/apps/frontman_server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 30
+    ignore:
+      - dependency-name: "hexpm/elixir"
+
+  - package-ecosystem: "docker"
+    directory: "/.devcontainer"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Etc/UTC"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    cooldown:
+      default-days: 30

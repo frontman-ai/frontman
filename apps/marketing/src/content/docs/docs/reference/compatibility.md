@@ -19,7 +19,7 @@ If you want the end-to-end execution model behind that split, read [How the Agen
 | Next.js | `@frontman-ai/nextjs` | Supported | Next.js 13.2+, Node.js 18+ | Files, route manifest, dev logs, optional OpenTelemetry spans |
 | Astro | `@frontman-ai/astro` | Supported | Astro 5.x or 6.x, Node.js 18+ | Files, resolved routes, dev logs, Astro source annotations |
 | Vite-based apps | `@frontman-ai/vite` | Supported | Vite 5.x or 6.x, Node.js 18+ | Files, dev logs, framework-aware client context |
-| WordPress | Frontman WordPress plugin | Beta | WordPress 6.0+, PHP 7.4+ | Site content and settings through WordPress tools, limited file inspection |
+| WordPress | Frontman WordPress plugin | Beta | WordPress 6.0+, PHP 7.4+ | Site content, Elementor, templates, widgets, menus, and settings through WordPress tools |
 
 ## How compatibility works
 
@@ -118,14 +118,11 @@ The Frontman WordPress plugin is separate from the JavaScript framework integrat
 - Administrator access
 
 **What the integration provides**
-- Post, page, block, menu, widget, template, and settings tools
+- Post, page, block, Elementor, menu, widget, template, and settings tools
 - A live preview inside the site itself
-- Read-only inspection of theme and plugin files
-- Managed child-theme editing for supported block-theme setups
 
 **Notes**
 - WordPress support is currently beta.
-- Direct arbitrary file writes are not available. File creation and editing are limited to the Frontman-managed child theme.
 - Supported workflows differ from the code-first integrations because the primary surface is WordPress content and configuration, not a local codebase.
 
 See [WordPress integration](/docs/integrations/wordpress/).

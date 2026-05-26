@@ -5,15 +5,11 @@ S.enableJson()
 module UserContentPart = Client__Task__Types.UserContentPart
 module AssistantContentPart = Client__Task__Types.AssistantContentPart
 module Message = Client__Task__Types.Message
-module Todo = Client__Task__Types.Todo
 module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
 
 // Re-export content block builders
-let stripFileUriPrefix = Client__Task__Types.stripFileUriPrefix
-let makeAnnotationMeta = Client__Task__Types.makeAnnotationMeta
 let annotationToContentBlocks = Client__Task__Types.annotationToContentBlocks
-let taskToContentBlocks = Client__Task__Types.taskToContentBlocks
 let taskToPageContextBlocks = Client__Task__Types.taskToPageContextBlocks
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks
 
@@ -70,7 +66,9 @@ type usageInfo = {
 
 @schema
 type userApiKeySaveRequest = {
+  @live
   provider: string,
+  @live
   key: string,
 }
 
@@ -158,6 +156,7 @@ type state = {
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,
+  nvidiaKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   chatgptOAuthStatus: chatgptOAuthStatus,
   // ACP session config options (replaces bespoke modelsConfig/selectedModel).

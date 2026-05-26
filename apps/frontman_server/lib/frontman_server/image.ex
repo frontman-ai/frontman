@@ -21,34 +21,7 @@ defmodule FrontmanServer.Image do
   # Other providers (OpenAI, OpenRouter, Google) auto-resize.
   @max_dimension 7680
 
-  # Tools whose results contain base64-encoded images.
-  # {image_field, extra_text_fields} per canonical tool name (without mcp_ prefix).
-  @image_tool_configs %{
-    "take_screenshot" => {:screenshot, []}
-  }
-
   # ── Public API ──────────────────────────────────────────────────────
-
-  @doc """
-  Returns the image extraction config for a tool, or `nil` if the tool
-  does not produce images.
-
-  The canonical name is used (the `mcp_` prefix is stripped automatically).
-
-      iex> FrontmanServer.Image.image_tool_config("take_screenshot")
-      {:screenshot, []}
-
-      iex> FrontmanServer.Image.image_tool_config("mcp_take_screenshot")
-      {:screenshot, []}
-
-      iex> FrontmanServer.Image.image_tool_config("read_file")
-      nil
-  """
-  @spec image_tool_config(String.t()) :: {atom(), [atom()]} | nil
-  def image_tool_config(tool_name) when is_binary(tool_name) do
-    canonical = String.replace_prefix(tool_name, "mcp_", "")
-    Map.get(@image_tool_configs, canonical)
-  end
 
   @doc """
   Checks whether a binary image exceeds a dimension limit on either axis.
@@ -161,7 +134,7 @@ defmodule FrontmanServer.Image do
     skip = max(length - 2, 0)
 
     case rest do
-      <<_::binary-size(skip), remaining::binary>> -> jpeg_scan_for_sof(remaining)
+      <<_::binary-size(^skip), remaining::binary>> -> jpeg_scan_for_sof(remaining)
       _ -> :unknown
     end
   end

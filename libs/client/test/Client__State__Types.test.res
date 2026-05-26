@@ -47,8 +47,6 @@ let makeTestAnnotation = (
   boundingBox,
   nearbyText,
   elementorContext: None,
-  position: {xPercent: 50.0, yAbsolute: 100.0},
-  timestamp: 0.0,
   enrichmentStatus: Enriched,
 }
 
@@ -101,14 +99,6 @@ let getMetaObject = (meta: JSON.t, field: string): Dict.t<JSON.t> =>
   ->Option.flatMap(obj => obj->Dict.get(field))
   ->Option.flatMap(JSON.Decode.object)
   ->Option.getOrThrow
-
-// Helper to create a New task with custom annotations
-let makeNewTaskWithAnnotations = (annotations: array<Annotation.t>): Types.Task.t => {
-  switch Types.Task.makeNew(~previewUrl="http://localhost:3000") {
-  | Types.Task.New(data) => Types.Task.New({...data, annotations})
-  | other => other
-  }
-}
 
 describe("Client__State__Types", () => {
   describe("annotationToContentBlocks", () => {
@@ -267,8 +257,6 @@ describe("Client__State__Types", () => {
           boundingBox: None,
           nearbyText: None,
           elementorContext: None,
-          position: {xPercent: 50.0, yAbsolute: 100.0},
-          timestamp: 0.0,
           enrichmentStatus: Enriched,
         }
 
@@ -325,8 +313,6 @@ describe("Client__State__Types", () => {
             documentType: Some("wp-page"),
             editHint: "Use Elementor tools",
           }),
-          position: {xPercent: 50.0, yAbsolute: 100.0},
-          timestamp: 0.0,
           enrichmentStatus: Enriched,
         }
 
@@ -398,73 +384,6 @@ describe("Client__State__Types", () => {
 
         let metaObj = meta->JSON.Decode.object->Option.getOrThrow
         t->expect(metaObj->Dict.get("bounding_box")->Option.isNone)->Expect.toBe(true)
-      },
-    )
-  })
-
-  describe("taskToContentBlocks", () => {
-    test(
-      "returns empty array for Unloaded task",
-      t => {
-        let task = Types.Task.Unloaded({
-          id: "test",
-          title: "test",
-          createdAt: 0.0,
-          updatedAt: 0.0,
-        })
-
-        let blocks = Types.taskToContentBlocks(task)
-        t->expect(blocks->Array.length)->Expect.toBe(0)
-      },
-    )
-
-    test(
-      "returns annotation blocks for New task with annotations",
-      t => {
-        let annotation = makeTestAnnotation(
-          ~file="file:///home/user/project/src/Component.tsx",
-          ~line=42,
-          ~column=5,
-          ~screenshot="data:image/jpeg;base64,/9j/4AAQ",
-        )
-
-        let task = makeNewTaskWithAnnotations([annotation])
-
-        let blocks = Types.taskToContentBlocks(task)
-        // 1 current_page block + 1 annotation with screenshot (2 blocks) = 3 blocks
-        t->expect(blocks->Array.length)->Expect.toBe(3)
-      },
-    )
-
-    test(
-      "returns blocks for multiple annotations",
-      t => {
-        let ann1 = makeTestAnnotation(
-          ~file="file:///home/user/project/src/A.tsx",
-          ~line=1,
-          ~column=1,
-        )
-        let ann2 = makeTestAnnotation(
-          ~file="file:///home/user/project/src/B.tsx",
-          ~line=2,
-          ~column=2,
-          ~screenshot="data:image/png;base64,iVBORw0K",
-        )
-
-        let task = makeNewTaskWithAnnotations([ann1, ann2])
-
-        let blocks = Types.taskToContentBlocks(task)
-        // 1 current_page block + ann1: 1 block (no screenshot) + ann2: 2 blocks (with screenshot) = 4 total
-        t->expect(blocks->Array.length)->Expect.toBe(4)
-
-        // blocks[0] is current_page; annotation blocks start at index 1
-        // Verify first annotation has index 0
-        let meta0 = getMeta(blocks->Array.getUnsafe(1))
-        t->expect(getMetaFloat(meta0, "annotation_index"))->Expect.toBe(0.0)
-
-        // Verify second annotation has index 1
-        let meta1 = getMeta(blocks->Array.getUnsafe(2))
-        t->expect(getMetaFloat(meta1, "annotation_index"))->Expect.toBe(1.0)
       },
     )
   })
@@ -561,8 +480,6 @@ describe("MessageAnnotation.fromAnnotation", () => {
       boundingBox: None,
       nearbyText: None,
       elementorContext: None,
-      position: {xPercent: 0.0, yAbsolute: 0.0},
-      timestamp: 0.0,
       enrichmentStatus: Enriched,
     }
 

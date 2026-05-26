@@ -16,6 +16,7 @@ module Helpers = {
     clientCssUrl: None,
     entrypointUrl: None,
     frameworkId: MiddlewareConfig.Nextjs,
+    traits: ["react", "typescript"],
   }
 
   let registry = ToolRegistry.coreTools()

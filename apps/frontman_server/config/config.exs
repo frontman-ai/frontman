@@ -22,7 +22,7 @@ config :frontman_server, :scopes,
 
 config :req_llm,
   receive_timeout: 150_000,
-  custom_providers: [FrontmanServer.Providers.Fireworks],
+  custom_providers: [FrontmanServer.Providers.Fireworks, FrontmanServer.Providers.Nvidia],
   # Override default Finch pool (8 connections) to handle concurrent LLM streams.
   # See https://github.com/frontman-ai/frontman/issues/428
   finch: [
@@ -229,6 +229,21 @@ config :llm_db,
         }
       }
     ],
+    nvidia: [
+      models: %{
+        "moonshotai/kimi-k2.6" => %{
+          name: "Kimi K2.6",
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            streaming: %{tool_calls: true},
+            tools: %{enabled: true}
+          },
+          limits: %{context: 262_144, output: 65_536},
+          modalities: %{input: [:text, :image], output: [:text]}
+        }
+      }
+    ],
     anthropic: [
       models: %{
         "claude-opus-4-6" => %{
@@ -338,6 +353,16 @@ config :frontman_server, :providers, %{
     env_key_param: nil,
     max_image_dimension: nil
   },
+  "nvidia" => %{
+    config_key: :nvidia_api_key,
+    env_var: "NVIDIA_API_KEY",
+    env_key_name: "nvidiaKeyValue",
+    display_name: "NVIDIA",
+    priority: 36,
+    oauth_provider: nil,
+    env_key_param: nil,
+    max_image_dimension: nil
+  },
   "google" => %{
     config_key: :google_api_key,
     env_var: "GOOGLE_API_KEY",
@@ -359,10 +384,6 @@ config :frontman_server, :providers, %{
     max_image_dimension: nil
   }
 }
-
-config :frontman_server, FrontmanServer.Tasks.MessageOptimizer,
-  enabled: true,
-  tool_result_strip_keys: ["start_line", "lines_returned", "total_lines"]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

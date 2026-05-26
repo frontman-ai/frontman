@@ -157,7 +157,7 @@ describe("ACP Client handleResponse", _t => {
     responseJson->Dict.set("id", JSON.Encode.int(1))
     responseJson->Dict.set("result", JSON.Encode.string("success"))
 
-    let _newState = Client.handleResponse(state, JSON.Encode.object(responseJson))
+    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
 
     t->expect(resolved.contents)->Expect.toEqual(true)
   })
@@ -180,7 +180,7 @@ describe("ACP Client handleResponse", _t => {
     responseJson->Dict.set("id", JSON.Encode.int(2))
     responseJson->Dict.set("error", JSON.Encode.object(errorObj))
 
-    let _newState = Client.handleResponse(state, JSON.Encode.object(responseJson))
+    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
 
     t->expect(rejected.contents)->Expect.toEqual(true)
   })

@@ -172,8 +172,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                 let w = Math.abs(currentX -. startX)
                 let h = Math.abs(currentY -. startY)
 
-                let viewportWidth = doc.documentElement.clientWidth->Int.toFloat
-
                 switch w > 10.0 && h > 10.0 {
                 | true =>
                   // Drag selection: find all meaningful elements in rectangle
@@ -186,15 +184,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                       Client__Task__Reducer.annotationElement,
                     > = foundElements->Array.map(
                       el => {
-                        let rect = WebAPI.Element.getBoundingClientRect(el)
-                        let centerX = rect.left +. rect.width /. 2.0
-                        let position: Client__Annotation__Types.position = {
-                          xPercent: centerX /. viewportWidth *. 100.0,
-                          yAbsolute: rect.top +. rect.height /. 2.0,
-                        }
                         {
                           Client__Task__Reducer.element: el,
-                          position,
                           tagName: el.tagName,
                         }
                       },
@@ -213,15 +204,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                   ->Nullable.toOption
                   ->Option.forEach(
                     el => {
-                      let rect = WebAPI.Element.getBoundingClientRect(el)
-                      let centerX = rect.left +. rect.width /. 2.0
-                      let position: Client__Annotation__Types.position = {
-                        xPercent: centerX /. viewportWidth *. 100.0,
-                        yAbsolute: rect.top +. rect.height /. 2.0,
-                      }
                       let entry: Client__Task__Reducer.annotationElement = {
                         element: el,
-                        position,
                         tagName: el.tagName,
                       }
 
@@ -326,22 +310,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
             | Some(eventTarget) => {
                 let element = WebAPI.EventTarget.asElement(eventTarget)
                 // Compute position from element bounding rect
-                let rect = WebAPI.Element.getBoundingClientRect(element)
-                let viewportWidth = switch document {
-                | Some(doc) => doc.documentElement.clientWidth->Int.toFloat
-                | None => 1.0
-                }
-                let centerX = rect.left +. rect.width /. 2.0
-                let position: Client__Annotation__Types.position = {
-                  xPercent: centerX /. viewportWidth *. 100.0,
-                  yAbsolute: rect.top +. rect.height /. 2.0,
-                }
                 // Dispatch toggle — reducer handles add/remove and popup state atomically
-                Client__State.Actions.toggleAnnotation(
-                  ~element,
-                  ~position,
-                  ~tagName=element.tagName,
-                )
+                Client__State.Actions.toggleAnnotation(~element, ~tagName=element.tagName)
               }
             | None => Log.error("Element clicked: unknown")
             }
@@ -446,18 +416,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       onRemove={id => Client__State.Actions.removeAnnotation(~id)}
       onNavigate={(id, element) => {
         // Replace the annotation with one for the navigated element
-        let rect = WebAPI.Element.getBoundingClientRect(element)
-        let viewportWidth = switch document {
-        | Some(doc) => doc.documentElement.clientWidth->Int.toFloat
-        | None => 1.0
-        }
-        let centerX = rect.left +. rect.width /. 2.0
-        let position: Client__Annotation__Types.position = {
-          xPercent: centerX /. viewportWidth *. 100.0,
-          yAbsolute: rect.top +. rect.height /. 2.0,
-        }
         Client__State.Actions.removeAnnotation(~id)
-        Client__State.Actions.addAnnotation(~element, ~position, ~tagName=element.tagName)
+        Client__State.Actions.addAnnotation(~element, ~tagName=element.tagName)
       }}
     />
 

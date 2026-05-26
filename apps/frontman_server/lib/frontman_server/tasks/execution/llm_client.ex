@@ -43,58 +43,36 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
   @doc """
   Converts SwarmAi.Tool to ReqLLM.Tool format.
   Normalizes schemas for OpenAI-compatible providers that require strict mode.
-
-  When `requires_mcp_prefix: true` is passed in opts, tool names are prefixed with `mcp_`.
   """
   @spec to_reqllm_tool(SwarmAi.Tool.t(), String.t(), keyword()) :: ReqLLM.Tool.t()
-  def to_reqllm_tool(%SwarmAi.Tool{} = tool, model, opts \\ []) do
+  def to_reqllm_tool(%SwarmAi.Tool{} = tool, model, _opts \\ []) do
     provider = SchemaTransformer.provider_for_model(model)
     schema = SchemaTransformer.transform(tool.parameter_schema, provider)
     strict? = provider == :openai_strict
 
-    requires_mcp_prefix? = Keyword.get(opts, :requires_mcp_prefix, false)
-
-    # Prefix tool name with mcp_ when required (e.g., Claude Code OAuth)
-    name = if requires_mcp_prefix?, do: "mcp_#{tool.name}", else: tool.name
-
     ReqLLM.Tool.new!(
-      name: name,
+      name: tool.name,
       description: tool.description,
       parameter_schema: schema,
       strict: strict?,
       callback: fn _args -> {:ok, nil} end
     )
   end
-
-  @doc """
-  Returns true if the llm_opts require mcp_ prefix on tool names.
-  """
-  def requires_mcp_prefix?(llm_opts) do
-    Keyword.get(llm_opts, :requires_mcp_prefix, false)
-  end
-
-  @doc """
-  Strips the mcp_ prefix from a tool name if present.
-  """
-  def strip_mcp_prefix("mcp_" <> rest), do: rest
-  def strip_mcp_prefix(name), do: name
 end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
+  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMError
-  alias FrontmanServer.Tasks.{MessageOptimizer, StreamCleanup, StreamStallTimeout}
+  alias FrontmanServer.Tasks.Execution.LLMProvider
+  alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
+  alias FrontmanServer.Tasks.{StreamCleanup, StreamStallTimeout}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
-  alias SwarmAi.SchemaTransformer
 
   require Logger
 
   def stream(client, messages, _opts) do
-    requires_mcp_prefix? = LLMClient.requires_mcp_prefix?(client.llm_opts)
-    identity_override = Keyword.get(client.llm_opts, :identity_override)
-
-    # Convert tools, applying mcp_ prefix if required
     reqllm_tools =
       Enum.map(client.tools, &LLMClient.to_reqllm_tool(&1, client.model, client.llm_opts))
 
@@ -102,22 +80,28 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)
-      |> Keyword.put_new(:parallel_tool_calls, true)
-      |> Keyword.reject(fn {_k, v} -> v == [] end)
+      |> Keyword.reject(fn
+        {:parallel_tool_calls, _value} -> true
+        {_key, value} -> value == []
+      end)
 
-    # Convert messages, applying mcp_ prefix to tool names if required
-    # For OAuth with identity_override, prepend identity as first content block.
-    # Run MessageOptimizer here (not just at task startup) so that tool results
+    provider = Providers.model_provider_name(client.model)
+
+    preflight_opts = [
+      images_supported: images_supported?(client.model),
+      max_image_dimension: Providers.max_image_dimension(provider)
+    ]
+
+    # Run request preflight here (not just at task startup) so that tool results
     # accumulated inside the swarm loop are also truncated. Without this, long
     # tool-calling chains accumulate dozens of full-size tool results and the
     # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
-      |> Enum.map(&to_reqllm_message(&1, requires_mcp_prefix?))
-      |> maybe_prepend_identity(identity_override)
-      |> MessageOptimizer.optimize()
+      |> LLMRequestPreflight.run(preflight_opts)
+      |> Enum.map(&to_reqllm_message/1)
 
-    case ReqLLM.stream_text(client.model, reqllm_messages, llm_opts) do
+    case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
         stall_timeout_ms =
           Application.fetch_env!(:frontman_server, :stream_stall_timeout_ms)
@@ -125,7 +109,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
         reqllm_stream =
           response.stream
           |> StreamStallTimeout.wrap_stream(stall_timeout_ms: stall_timeout_ms)
-          |> Stream.map(&normalize_reqllm_chunk(&1, requires_mcp_prefix?))
+          |> Stream.map(&normalize_reqllm_chunk/1)
           |> StreamCleanup.wrap_stream(response.cancel)
 
         {:ok, reqllm_stream}
@@ -136,28 +120,22 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     end
   end
 
-  defp normalize_reqllm_chunk(%{type: :content} = chunk, _requires_mcp_prefix?) do
+  defp normalize_reqllm_chunk(%{type: :content} = chunk) do
     chunk
   end
 
-  defp normalize_reqllm_chunk(%{type: :thinking} = chunk, _requires_mcp_prefix?) do
+  defp normalize_reqllm_chunk(%{type: :thinking} = chunk) do
     chunk
   end
 
   defp normalize_reqllm_chunk(
-         %{type: :tool_call, name: name, arguments: arguments, metadata: metadata} = chunk,
-         requires_mcp_prefix?
+         %{type: :tool_call, arguments: arguments, metadata: metadata} = chunk
        ) do
     metadata = metadata || %{}
 
     id = metadata[:id] || metadata["id"] || "call_#{:erlang.unique_integer([:positive])}"
 
     index = normalize_index(metadata[:index] || metadata["index"])
-
-    normalized_name =
-      if requires_mcp_prefix? and is_binary(name),
-        do: LLMClient.strip_mcp_prefix(name),
-        else: name
 
     normalized_arguments =
       case arguments do
@@ -172,44 +150,47 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
     %{
       chunk
-      | name: normalized_name,
-        arguments: normalized_arguments,
+      | arguments: normalized_arguments,
         metadata: normalized_metadata
     }
   end
 
-  defp normalize_reqllm_chunk(%{type: :meta} = chunk, _requires_mcp_prefix?) do
+  defp normalize_reqllm_chunk(%{type: :meta} = chunk) do
     chunk
   end
 
   # Legacy compatibility path for ReqLLM builds that emit :error chunks.
   # Current ReqLLM versions raise ReqLLM.Error.API.Stream instead; those are
   # classified in ExecutionEvent.classify_error/1.
-  defp normalize_reqllm_chunk(
-         %{type: :error, text: text, metadata: %{error: original}},
-         _requires_mcp_prefix?
-       )
+  defp normalize_reqllm_chunk(%{type: :error, text: text, metadata: %{error: original}})
        when is_binary(text) do
     classify_llm_error(original, text)
   end
 
-  defp normalize_reqllm_chunk(%{type: :error, text: text}, _requires_mcp_prefix?)
+  defp normalize_reqllm_chunk(%{type: :error, text: text})
        when is_binary(text) do
     classify_llm_error(nil, text)
   end
 
-  defp normalize_reqllm_chunk(%{type: :error} = chunk, _requires_mcp_prefix?) do
+  defp normalize_reqllm_chunk(%{type: :error} = chunk) do
     raise "LLM stream error: #{inspect(chunk, limit: :infinity)}"
   end
 
-  defp normalize_reqllm_chunk(%{type: unknown_type} = chunk, _requires_mcp_prefix?)
+  defp normalize_reqllm_chunk(%{type: unknown_type} = chunk)
        when unknown_type not in [:content, :thinking, :tool_call, :meta, :error] do
     raise "Unknown chunk TYPE from ReqLLM: #{inspect(unknown_type)}. " <>
             "Full chunk: #{inspect(chunk, limit: :infinity)}"
   end
 
-  defp normalize_reqllm_chunk(malformed_chunk, _requires_mcp_prefix?) do
+  defp normalize_reqllm_chunk(malformed_chunk) do
     raise "Malformed chunk from ReqLLM (missing or invalid type): #{inspect(malformed_chunk, limit: :infinity)}"
+  end
+
+  defp images_supported?(model) do
+    case ReqLLM.model(model) do
+      {:ok, %{modalities: %{input: input}}} when is_list(input) -> :image in input
+      _ -> true
+    end
   end
 
   defp normalize_index(index) when is_integer(index), do: index
@@ -292,47 +273,32 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       retryable: false
   end
 
-  # Log per-call message sizes to help diagnose large-request transport errors.
-  # Prepend identity override as the first content block of system messages
-  # This is used for Claude Code OAuth to inject "You are Claude Code..." identity
-  defp maybe_prepend_identity(messages, nil), do: messages
-
-  defp maybe_prepend_identity(messages, identity) when is_binary(identity) do
-    Enum.map(messages, fn
-      %ReqLLM.Message{role: :system, content: content} = msg ->
-        identity_part = ReqLLM.Message.ContentPart.text(identity)
-        %{msg | content: [identity_part | content]}
-
-      msg ->
-        msg
-    end)
-  end
-
   # --- SwarmAi.Message -> ReqLLM.Message conversion ---
 
-  defp to_reqllm_message(%Message.System{} = msg, _requires_mcp_prefix?) do
+  defp to_reqllm_message(%Message.System{} = msg) do
     %ReqLLM.Message{role: :system, content: Enum.map(msg.content, &to_reqllm_content_part/1)}
   end
 
-  defp to_reqllm_message(%Message.User{} = msg, _requires_mcp_prefix?) do
+  defp to_reqllm_message(%Message.User{} = msg) do
     %ReqLLM.Message{role: :user, content: Enum.map(msg.content, &to_reqllm_content_part/1)}
   end
 
-  defp to_reqllm_message(%Message.Assistant{} = msg, requires_mcp_prefix?) do
+  defp to_reqllm_message(%Message.Assistant{} = msg) do
     %ReqLLM.Message{
       role: :assistant,
       content: Enum.map(msg.content, &to_reqllm_content_part/1),
-      tool_calls: to_reqllm_tool_calls(msg.tool_calls, requires_mcp_prefix?),
-      metadata: msg.metadata
+      tool_calls: to_reqllm_tool_calls(msg.tool_calls),
+      metadata: msg.metadata,
+      reasoning_details: msg.reasoning_details
     }
   end
 
-  defp to_reqllm_message(%Message.Tool{} = msg, requires_mcp_prefix?) do
+  defp to_reqllm_message(%Message.Tool{} = msg) do
     %ReqLLM.Message{
       role: :tool,
       content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_call_id: msg.tool_call_id,
-      name: maybe_prefix_name(msg.name, requires_mcp_prefix?),
+      name: msg.name,
       metadata: msg.metadata
     }
   end
@@ -349,34 +315,13 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     ReqLLM.Message.ContentPart.image_url(url)
   end
 
-  defp to_reqllm_tool_calls([], _requires_mcp_prefix?), do: nil
-  defp to_reqllm_tool_calls(nil, _requires_mcp_prefix?), do: nil
+  defp to_reqllm_tool_calls([]), do: nil
+  defp to_reqllm_tool_calls(nil), do: nil
 
-  defp to_reqllm_tool_calls(tool_calls, requires_mcp_prefix?) do
+  defp to_reqllm_tool_calls(tool_calls) do
     Enum.map(tool_calls, fn tc ->
-      name = if requires_mcp_prefix?, do: "mcp_#{tc.name}", else: tc.name
-      arguments = strip_null_args(tc.arguments)
-      ReqLLM.ToolCall.new(tc.id, name, arguments)
+      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+      ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
     end)
   end
-
-  # Strip null values from tool call arguments in conversation history.
-  # OpenAI strict mode makes optional fields nullable, so the model sends null.
-  # Clean these before sending back in the next turn.
-  defp strip_null_args(arguments) when is_binary(arguments) do
-    case Jason.decode(arguments) do
-      {:ok, args} when is_map(args) ->
-        Jason.encode!(SwarmAi.SchemaTransformer.strip_nulls(args))
-
-      _ ->
-        arguments
-    end
-  end
-
-  defp strip_null_args(arguments), do: arguments
-
-  # Prefix tool name in tool result messages if mcp_ prefix is required
-  defp maybe_prefix_name(nil, _requires_mcp_prefix?), do: nil
-  defp maybe_prefix_name(name, true), do: "mcp_#{name}"
-  defp maybe_prefix_name(name, false), do: name
 end

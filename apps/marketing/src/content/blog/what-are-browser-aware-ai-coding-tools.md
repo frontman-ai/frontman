@@ -6,30 +6,30 @@ author: 'Danni Friedland'
 image: '/blog/what-are-framework-aware-ai-coding-tools-cover.png'
 tags: ['ai', 'design-systems', 'product-tools', 'comparison']
 faq:
-  - question: 'What is a framework-aware AI coding tool?'
+  - question: 'What is a browser-aware AI coding tool?'
     answer: >-
-      A framework-aware AI coding tool is an AI assistant that understands how your
-      application is actually built—not just the raw code files. It knows about your
-      components, pages, design tokens, and how they connect. This means you can click
-      on a button in your running app and say "make this match our primary style" and the
-      tool edits the right file, in the right component, using your existing design system
-      tokens—instead of creating a one-off override.
-  - question: 'How are framework-aware AI coding tools different from Cursor or Copilot?'
+      A browser-aware AI coding tool is an AI assistant that uses context from your
+      running application, not just raw source files. The strongest versions also know
+      about your components, pages, design tokens, and source mapping. This means you can
+      click on a button in your running app and say "make this match our primary style"
+      and the tool edits the right file using your existing design system tokens instead
+      of creating a one-off override.
+  - question: 'How are browser-aware AI coding tools different from Cursor or Copilot?'
     answer: >-
       IDE-based tools like Cursor, Copilot, and Claude Code are built for developers
       writing code in an editor. They can read files and run your app, but they don't
-      understand your component structure or design system. Framework-aware tools let
-      you interact with the live application directly—clicking on elements, seeing
-      component boundaries, and requesting changes visually. They're built for the
-      feedback loop between design and implementation, not for writing backend logic.
-  - question: 'Can designers use framework-aware AI coding tools without coding experience?'
+      start from the browser interaction itself. Browser-aware tools let you interact
+      with the live application directly—clicking on elements, seeing component boundaries,
+      and requesting changes visually. They're built for the feedback loop between design
+      and implementation, not for writing backend logic.
+  - question: 'Can designers use browser-aware AI coding tools without coding experience?'
     answer: >-
       It depends on the tool. Some require a developer to install a package first, and
       then designers can use the visual interface independently. Others work with zero
       setup—a designer can run a single command and start making changes. But all of them
       let you describe changes in plain language ("increase the padding on this card,"
       "swap this icon," "use our secondary color here") rather than writing code directly.
-  - question: 'Which framework-aware AI coding tools exist in 2026?'
+  - question: 'Which browser-aware AI coding tools exist in 2026?'
     answer: >-
       As of March 2026, the main tools are Frontman (deep component and design system
       awareness for Next.js, Astro, Vite), Stagewise (works with any framework, polished
@@ -37,7 +37,7 @@ faq:
       agents), Tidewave (deep backend state access for Phoenix/Rails), and Cursor's
       Visual Editor (built into the Cursor IDE). Onlook is adjacent as a visual design
       tool for React.
-  - question: 'Will framework-aware tools create one-off styles that break our design system?'
+  - question: 'Will browser-aware tools create one-off styles that break our design system?'
     answer: >-
       This is the key differentiator between tools. Tools with deep framework awareness
       (middleware architecture) can see your component library, design tokens, and existing
@@ -52,7 +52,7 @@ If you run a design system across multiple product teams, you know the bottlenec
 
 Browser-aware AI coding tools exist to short-circuit that loop. You open your running application in the browser, click on the element that needs to change, and describe what you want in plain language: "increase the padding to match our spacing scale," "swap this to use the secondary button variant," "this heading should be H2 semibold." The tool figures out which component file to edit, which design tokens to use, and makes the change - or select multiple elements to [fix design drift across your entire app](/blog/multi-select/). You see the result live.
 
-The difference between these tools and general-purpose AI coding assistants (Cursor, Copilot, Claude Code) is what they understand. A general-purpose tool reads your source files — a limitation we call the [Runtime Context Gap](/blog/runtime-context-gap/). A framework-aware tool understands your application's structure—it knows that the button you clicked lives in `src/components/ui/Button.tsx`, that it's used in 14 places, that your design system defines `--spacing-md` as `16px`, and that changing the padding here should use that token instead of hardcoding `20px`.
+The difference between these tools and general-purpose AI coding assistants (Cursor, Copilot, Claude Code) is what they understand. A general-purpose tool reads your source files — a limitation we call the [Runtime Context Gap](/blog/runtime-context-gap/). A browser-aware tool starts from the running application. The strongest versions also understand your framework structure: they know that the button you clicked lives in `src/components/ui/Button.tsx`, that it's used in 14 places, that your design system defines `--spacing-md` as `16px`, and that changing the padding here should use that token instead of hardcoding `20px`.
 
 Five tools currently exist. They take three different technical approaches, and the approach directly determines what the tool can and can't do for your team.
 
@@ -98,7 +98,7 @@ Chrome DevTools MCP (Google) and Tidewave (Phoenix/Rails) use this approach.
 
 [frontman.sh](https://frontman.sh) | Deep integration | Apache 2.0 / AGPL-3.0
 
-Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter)—no account required, no prompt limits, no per-seat pricing. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it ([Getting Started with Frontman](/blog/getting-started/) covers the process), and it only works with the three supported frameworks.
+Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter). Self-hosting remains available under the open-source licenses, while hosted Frontman plans are moving to paid subscriptions. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it ([Getting Started with Frontman](/blog/getting-started/) covers the process), and it only works with the three supported frameworks.
 
 *I built this.*
 
@@ -135,7 +135,7 @@ If your engineering team already uses Cursor, this is the lowest-friction option
 | Click-to-edit | Yes | Yes | No | No | Yes |
 | Usable by designers | After dev setup | Yes (standalone) | No | No | No |
 | Works with any framework | No (Next/Astro/Vite) | Yes | Yes | No (Phoenix) | No (React/Next) |
-| Cost for a team | Free (BYOK) | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
+| Cost for a team | Free self-hosting; paid hosted plans coming | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
 | Account required | No | Yes | No | Yes | Yes (Cursor) |
 | Component source mapping | Exact | Best-effort | No | No | Unknown |
 | Open source | Yes | Yes | Yes | Yes | No |

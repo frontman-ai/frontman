@@ -1,7 +1,7 @@
 // Post-signup celebration overlay
 // Fires confetti and shows a congratulatory message with CTA to connect a provider
 
-module Button = Bindings__UI__Button
+module Button = FrontmanBindings.Bindings__UI__Button
 
 let autoDismissMs = 8000
 
@@ -13,14 +13,14 @@ let make = (~onDismiss: unit => unit, ~onConnectProvider: unit => unit) => {
   React.useEffect0(() => {
     // Fire all bursts simultaneously — canvas-confetti promises resolve only after
     // particles fully fade (~3-5s), so awaiting them sequentially would cause ~9-15s delays.
-    Bindings__CanvasConfetti.fire({
+    FrontmanBindings.Bindings__CanvasConfetti.fire({
       particleCount: 80,
       spread: 70,
       origin: {x: 0.5, y: 0.4},
       colors: ["#a78bfa", "#818cf8", "#6366f1", "#c084fc", "#e879f9"],
       disableForReducedMotion: true,
     })->ignore
-    Bindings__CanvasConfetti.fire({
+    FrontmanBindings.Bindings__CanvasConfetti.fire({
       particleCount: 40,
       angle: 60,
       spread: 55,
@@ -28,7 +28,7 @@ let make = (~onDismiss: unit => unit, ~onConnectProvider: unit => unit) => {
       colors: ["#a78bfa", "#818cf8", "#6366f1"],
       disableForReducedMotion: true,
     })->ignore
-    Bindings__CanvasConfetti.fire({
+    FrontmanBindings.Bindings__CanvasConfetti.fire({
       particleCount: 40,
       angle: 120,
       spread: 55,

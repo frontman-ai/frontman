@@ -15,11 +15,13 @@ let toHandlerConfig = (config: Config.t): CoreRequestHandlers.handlerConfig => {
 }
 
 // GET /frontman/tools
+@@live
 let handleGetTools = (~registry: ToolRegistry.t, ~config: Config.t): WebAPI.FetchAPI.response => {
   CoreRequestHandlers.handleGetTools(~registry, ~config=toHandlerConfig(config))
 }
 
 // POST /frontman/tools/call - executes tool with SSE streaming
+@@live
 let handleToolCall = async (
   ~registry: ToolRegistry.t,
   ~config: Config.t,
@@ -29,10 +31,13 @@ let handleToolCall = async (
 }
 
 // CORS headers for preflight requests (delegated to core)
+@@live
 let corsHeaders = Core.FrontmanCore__CORS.corsHeaders
+@@live
 let handleCORS = Core.FrontmanCore__CORS.handlePreflight
 
 // POST /frontman/resolve-source-location
+@@live
 let handleResolveSourceLocation = async (
   ~config: Config.t,
   req: WebAPI.FetchAPI.request,

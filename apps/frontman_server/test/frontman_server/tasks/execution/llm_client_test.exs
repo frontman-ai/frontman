@@ -1,8 +1,15 @@
 defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
+
+  import Mox
+  import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
   alias FrontmanServer.Tasks.Execution.LLMClient
+  alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias ReqLLM.Error.API.{Request, Stream}
+  alias SwarmAi.Message.ContentPart
+
+  setup :verify_on_exit!
 
   describe "ReqLLM stream exception contract" do
     test "ReqLLM.Error.API.Stream carries ReqLLM.Error.API.Request as cause" do
@@ -45,46 +52,120 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       assert result.name == "read_file"
     end
 
-    test "with anthropic_oauth: false does not prefix tool name", %{tool: tool} do
-      result =
-        LLMClient.to_reqllm_tool(tool, "anthropic:claude-sonnet-4-20250514",
-          requires_mcp_prefix: false
-        )
-
-      assert result.name == "read_file"
-    end
-
-    test "with requires_mcp_prefix: true prefixes tool name with mcp_", %{tool: tool} do
-      result =
-        LLMClient.to_reqllm_tool(tool, "anthropic:claude-sonnet-4-20250514",
-          requires_mcp_prefix: true
-        )
-
-      assert result.name == "mcp_read_file"
-    end
-
     test "preserves description and schema", %{tool: tool} do
-      result =
-        LLMClient.to_reqllm_tool(tool, "anthropic:claude-sonnet-4-20250514",
-          requires_mcp_prefix: true
-        )
+      result = LLMClient.to_reqllm_tool(tool, "anthropic:claude-sonnet-4-20250514")
 
       assert result.description == "Reads a file"
       assert result.parameter_schema["properties"]["path"]["type"] == "string"
     end
   end
 
-  describe "strip_mcp_prefix/1" do
-    test "strips mcp_ prefix when present" do
-      assert LLMClient.strip_mcp_prefix("mcp_read_file") == "read_file"
+  describe "image modality guard" do
+    test "strips image parts for text-only models" do
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert Enum.map(message.content, & &1.type) == [:text, :text, :text]
+        assert Enum.at(message.content, 0).text == "look"
+        assert Enum.at(message.content, 1).text =~ "Image omitted"
+        assert Enum.at(message.content, 2).text =~ "Image omitted"
+
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "nvidia:deepseek-ai/deepseek-v4-flash",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.User{
+          content: [
+            ContentPart.text("look"),
+            ContentPart.image("image-bytes", "image/png"),
+            ContentPart.image_url("https://example.com/image.png")
+          ]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
     end
 
-    test "passes through when no mcp_ prefix" do
-      assert LLMClient.strip_mcp_prefix("read_file") == "read_file"
+    test "preserves image parts for multimodal models" do
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert Enum.map(message.content, & &1.type) == [:text, :image]
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "nvidia:moonshotai/kimi-k2.6",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.User{
+          content: [
+            ContentPart.text("look"),
+            ContentPart.image("image-bytes", "image/png")
+          ]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
     end
 
-    test "only strips prefix, not middle occurrences" do
-      assert LLMClient.strip_mcp_prefix("mcp_some_mcp_tool") == "some_mcp_tool"
+    test "replaces oversized images before provider requests" do
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert Enum.map(message.content, & &1.type) == [:text, :text]
+        assert Enum.at(message.content, 1).text =~ "Image removed"
+        assert Enum.at(message.content, 1).text =~ "9000x1080px"
+
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "anthropic:claude-sonnet-4-5",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.User{
+          content: [
+            ContentPart.text("look"),
+            ContentPart.image(png_fixture(9000, 1080), "image/png")
+          ]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
+  end
+
+  describe "assistant reasoning details" do
+    test "serializes reasoning details from Swarm assistant messages" do
+      reasoning = [%{"type" => "reasoning.encrypted", "data" => "encrypted-data"}]
+
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert message.role == :assistant
+        assert message.reasoning_details == reasoning
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "openrouter:openai/gpt-5.5",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.Assistant{
+          content: [ContentPart.text("thinking done")],
+          reasoning_details: reasoning
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
     end
   end
 
@@ -110,21 +191,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
     end
   end
 
-  describe "requires_mcp_prefix?/1" do
-    test "returns true when requires_mcp_prefix: true" do
-      assert LLMClient.requires_mcp_prefix?(requires_mcp_prefix: true)
-    end
-
-    test "returns false when requires_mcp_prefix: false" do
-      refute LLMClient.requires_mcp_prefix?(requires_mcp_prefix: false)
-    end
-
-    test "returns false when not set" do
-      refute LLMClient.requires_mcp_prefix?([])
-    end
-
-    test "returns false for other keys" do
-      refute LLMClient.requires_mcp_prefix?(api_key: "secret")
-    end
+  defp stream_response(chunks) do
+    %{stream: chunks, cancel: fn -> :ok end}
   end
 end

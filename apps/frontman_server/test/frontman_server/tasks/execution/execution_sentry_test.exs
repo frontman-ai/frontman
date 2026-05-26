@@ -7,7 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   - Crashed event triggers Sentry report with exception/stacktrace when available
   """
 
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.ExecutionCase
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
@@ -18,7 +18,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   alias FrontmanServer.Tasks.ExecutionEvent
 
   setup do
-    Sentry.Test.start_collecting_sentry_reports()
+    Sentry.Test.setup_sentry(dedup_events: false)
 
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
@@ -35,13 +35,12 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      # ErrorLLM always returns {:error, reason}, triggering a :failed event
-      agent = test_agent(%ErrorLLM{error: :llm_api_failure}, "ErrorSentryAgent")
+      expect_llm_responses([{:error, :llm_api_failure}])
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
 
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [], agent: agent)
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [])
 
       # Wait for the failed event broadcast (Sentry call completes before broadcast)
       assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
@@ -70,19 +69,15 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      # StreamErrorLLM returns {:ok, stream} where the stream raises when consumed.
+      # The provider returns {:ok, stream} where the stream raises when consumed.
       # The try/rescue in execute_llm_call catches the raise and routes it through
       # Loop.handle_error → {:failed, ...} → Sentry.capture_message (not crash).
-      error_llm = %StreamErrorLLM{
-        error_message: "Sentry test: simulated stream error"
-      }
-
-      agent = test_agent(error_llm, "ErrorSentryAgent")
+      expect_llm_responses([{:stream_raise, "Sentry test: simulated stream error"}])
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
 
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Trigger error"), [], agent: agent)
+        Tasks.submit_user_message(scope, task_id, user_content("Trigger error"), [])
 
       # Stream errors now produce {:failed, ...} instead of {:crashed, ...}
       assert_receive {:execution_event,

@@ -18,120 +18,19 @@ module Types = Client__ToolGroupTypes
 module Utils = Client__ToolGroupUtils
 module ToolCallBlock = Client__ToolCallBlock
 
-// Nested tool group for displaying "Explored" groups within subagent groups
-module NestedToolGroup = {
-  @react.component
-  let make = (
-    ~group: Types.toolGroup,
-    ~messageId: string,
-    ~isLastNestedGroup: bool=false,
-    ~isParentOpen: bool=false,
-  ) => {
-    let isLoading = group.toolCalls->Array.some(tc => {
-      switch tc.state {
-      | Client__State__Types.Message.InputStreaming
-      | Client__State__Types.Message.InputAvailable => true
-      | _ => false
-      }
-    })
-
-    // Nested group is "open" if it's the last nested group AND parent group is still open
-    // This prevents flickering - the nested group stays "Exploring..." while parent is open
-    let isOpen = isLastNestedGroup && isParentOpen
-
-    // Track if user has manually toggled expansion
-    let hasUserToggled = React.useRef(false)
-
-    // Track previous isLastNestedGroup state for auto-collapse detection
-    let prevIsLastNestedGroup = React.useRef(isLastNestedGroup)
-
-    // Auto-expand if this is the last nested group (always expand last group)
-    let (isExpanded, setIsExpanded) = React.useState(() => isLastNestedGroup)
-
-    // Auto-expand when becoming the last nested group
-    // Auto-collapse when no longer the last nested group (unless user manually toggled)
-    React.useEffect2(() => {
-      if isLastNestedGroup && !prevIsLastNestedGroup.current {
-        // Just became the last nested group - auto-expand
-        setIsExpanded(_ => true)
-      } else if !isLastNestedGroup && prevIsLastNestedGroup.current && !hasUserToggled.current {
-        // No longer the last nested group and user hasn't toggled - auto-collapse
-        setIsExpanded(_ => false)
-      }
-      prevIsLastNestedGroup.current = isLastNestedGroup
-      None
-    }, (isLastNestedGroup, hasUserToggled.current))
-
-    let summaryLabels = Utils.generateSummaryLabels(group.summary)
-    let toolCount = Array.length(group.toolCalls)
-    let displayPrefix = Utils.getGroupPrefix(group, ~isOpen)
-
-    let handleToggle = _ => {
-      hasUserToggled.current = true
-      setIsExpanded(prev => !prev)
-    }
-
-    // Show shimmer when parent is open (not just when loading)
-    let showShimmer = isLoading || isOpen
-    let prefixColorClass = if showShimmer {
-      "shimmer-text"
-    } else {
-      "text-zinc-400"
-    }
-
-    <div className="my-0.5">
-      <div
-        className="group flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer 
-                   bg-[#8051CD]/10 hover:bg-[#8051CD]/15 transition-colors duration-150"
-        onClick={handleToggle}
-      >
-        <button
-          type_="button" className="flex items-center justify-center w-3 h-3 shrink-0 text-zinc-400"
-        >
-          <Icons.ChevronDownIcon size=8 className={isExpanded ? "rotate-180" : "-rotate-90"} />
-        </button>
-        <span className={`text-[10px] shrink-0 ${prefixColorClass}`}>
-          {React.string(displayPrefix)}
-        </span>
-        <div className="flex items-center gap-1 text-[10px] min-w-0 overflow-hidden flex-1">
-          {summaryLabels
-          ->Array.mapWithIndex((label, i) => {
-            <React.Fragment key={Int.toString(i)}>
-              {i > 0 ? <span className="text-zinc-500"> {React.string(" · ")} </span> : React.null}
-              <span className="text-zinc-300 truncate"> {React.string(label)} </span>
-            </React.Fragment>
-          })
-          ->React.array}
-        </div>
-        <span className="text-[9px] text-zinc-400 bg-[#8051CD]/20 px-1 py-0.5 rounded shrink-0">
-          {React.string(Int.toString(toolCount))}
-        </span>
-      </div>
-      <div
-        className={`frontman-collapse-transition
-                    ${isExpanded ? "opacity-100 mt-0.5" : "max-h-0 opacity-0 overflow-hidden"}`}
-      >
-        <div className="pl-3 border-l border-[#8051CD]/30 space-y-0.5">
-          {group.toolCalls
-          ->Array.mapWithIndex((tc, i) => {
-            <ToolCallBlock
-              key={tc.id}
-              toolName={tc.toolName}
-              state={tc.state}
-              input={tc.input}
-              inputBuffer={tc.inputBuffer}
-              result={tc.result}
-              errorText={tc.errorText}
-              defaultExpanded=false
-              compact=true
-              messageId={`${messageId}-${Int.toString(i)}`}
-            />
-          })
-          ->React.array}
-        </div>
-      </div>
-    </div>
-  }
+let renderCompactToolCall = (~tc: Client__State__Types.Message.toolCall, ~messageId: string) => {
+  <ToolCallBlock
+    key={tc.id}
+    toolName={tc.toolName}
+    state={tc.state}
+    input={tc.input}
+    inputBuffer={tc.inputBuffer}
+    result={tc.result}
+    errorText={tc.errorText}
+    defaultExpanded=false
+    compact=true
+    messageId
+  />
 }
 
 @react.component
@@ -315,77 +214,13 @@ let make = (
       </span>
     </div>
     // Expanded Children - scrollable with max height
-    // For subagent groups, apply internal grouping to show nested "Explored" groups
     {
-      let renderContent = if isSubagent {
-        // Apply grouping to subagent tool calls
-        // Pass ~groupSubagents=false so tool calls are grouped by type (read vs write)
-        // instead of all being lumped together as a single subagent group
-        let groupedItems = Utils.groupToolCalls(
-          group.toolCalls,
-          ~minGroupSize=1,
-          ~groupSubagents=false,
-        )
-        let groupedItemsCount = Array.length(groupedItems)
-        // Find the index of the last ToolGroup (not just last item)
-        let lastNestedGroupIndex = groupedItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
-          switch item {
-          | Types.ToolGroup(_) => idx
-          | _ => acc
-          }
-        })
-        // Check if last nested group is also the last item (no items after it)
-        let isLastNestedGroupAlsoLastItem = lastNestedGroupIndex == groupedItemsCount - 1
-        groupedItems
-        ->Array.mapWithIndex((item, i) => {
-          let key = `${messageId}-${Int.toString(i)}`
-          let isLastNestedGroup = i == lastNestedGroupIndex && isLastNestedGroupAlsoLastItem
-          switch item {
-          | Types.SingleTool(tc) =>
-            <ToolCallBlock
-              key={tc.id}
-              toolName={tc.toolName}
-              state={tc.state}
-              input={tc.input}
-              inputBuffer={tc.inputBuffer}
-              result={tc.result}
-              errorText={tc.errorText}
-              defaultExpanded=false
-              compact=true
-              messageId={key}
-            />
-          | Types.ToolGroup(nestedGroup) =>
-            // Render nested group (e.g., "Explored 3 files" within subagent)
-            // Pass isParentOpen so nested groups know if parent subagent is still active
-            <NestedToolGroup
-              key={nestedGroup.id}
-              group={nestedGroup}
-              messageId={key}
-              isLastNestedGroup
-              isParentOpen={isOpen}
-            />
-          }
-        })
-        ->React.array
-      } else {
-        // Regular groups - render tool calls directly
+      let renderContent =
         group.toolCalls
         ->Array.mapWithIndex((tc, i) => {
-          <ToolCallBlock
-            key={tc.id}
-            toolName={tc.toolName}
-            state={tc.state}
-            input={tc.input}
-            inputBuffer={tc.inputBuffer}
-            result={tc.result}
-            errorText={tc.errorText}
-            defaultExpanded=false
-            compact=true
-            messageId={`${messageId}-${Int.toString(i)}`}
-          />
+          renderCompactToolCall(~tc, ~messageId=`${messageId}-${Int.toString(i)}`)
         })
         ->React.array
-      }
 
       <div
         className={`frontman-collapse-transition

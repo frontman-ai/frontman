@@ -28,8 +28,8 @@ let make = (
       None
     } else if wasEverShown {
       setDisplayState(_ => FadingOut)
-      let timer = Js.Global.setTimeout(() => setDisplayState(_ => Hidden), 300)
-      Some(() => Js.Global.clearTimeout(timer))
+      let timer = setTimeout(() => setDisplayState(_ => Hidden), 300)
+      Some(() => clearTimeout(timer))
     } else {
       setDisplayState(_ => Hidden)
       None

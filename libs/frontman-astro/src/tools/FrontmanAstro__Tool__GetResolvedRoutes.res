@@ -27,17 +27,26 @@ routes. Each route includes its pattern, entrypoint, type, origin, params,
 and prerender status.`
 
 @schema
-type input = {placeholder?: bool}
+type input = {
+  @live
+  placeholder?: bool,
+}
 
 @schema
 type routeEntry = {
+  @live
   path: string,
+  @live
   file: string,
+  @live
   isDynamic: bool,
+  @live
   params: array<string>,
-  @as("type")
+  @as("type") @live
   type_: string,
+  @live
   origin: string,
+  @live
   isPrerendered: bool,
 }
 

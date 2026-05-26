@@ -11,76 +11,6 @@ module AssistantContentPart = Client__Message.AssistantContentPart
 module Message = Client__Message
 
 module Annotation = Client__Annotation__Types
-
-module FigmaNode = {
-  // Selected node with DSL representation or full node data, and image
-  type selectedNodeData = {
-    nodeId: string,
-    nodeData: string, // DSL representation OR full JSON node data
-    image: option<string>, // Base64 data URL (data:image/jpeg;base64,... or data:image/png;base64,...)
-    isDsl: bool, // true if nodeData is DSL text, false if full JSON data
-  }
-
-  type t =
-    | NoSelection
-    | WaitingForSelection
-    | SelectedNode(selectedNodeData)
-}
-
-// Todo - single source of truth for todo state (updated by reducer)
-module Todo = {
-  type status =
-    | Pending
-    | InProgress
-    | Completed
-
-  type t = {
-    id: string,
-    content: string,
-    activeForm: string,
-    status: status,
-    createdAt: float,
-    updatedAt: float,
-  }
-
-  let parseStatus = (statusStr: string): status => {
-    switch String.toLowerCase(statusStr) {
-    | "in_progress" | "in-progress" | "inprogress" => InProgress
-    | "completed" | "complete" | "done" => Completed
-    | _ => Pending
-    }
-  }
-
-  // Parse a Todo from JSON tool result
-  let fromResult = (json: JSON.t): t => {
-    let statusSchema = S.string->S.transform(_ => {
-      parser: str => parseStatus(str),
-      serializer: status =>
-        switch status {
-        | Pending => "pending"
-        | InProgress => "in_progress"
-        | Completed => "completed"
-        },
-    })
-
-    let schema = S.object(s => (
-      s.field("id", S.string),
-      s.field("content", S.string),
-      s.field("active_form", S.string),
-      s.field("status", statusSchema),
-    ))
-
-    let (id, content, activeForm, status) = S.parseOrThrow(json, schema)
-    let now = Date.now()
-    {id, content, activeForm, status, createdAt: now, updatedAt: now}
-  }
-
-  // Extract todo ID from a remove result
-  let idFromResult = (json: JSON.t): string => {
-    S.parseOrThrow(json, S.object(s => s.field("id", S.string)))
-  }
-}
-
 // Re-export ACP types for convenience
 module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
@@ -120,7 +50,6 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
-        isAnimationFrozen: bool,
       })
     // Unloaded: persisted but only metadata loaded
     | Unloaded({id: string, title: string, createdAt: float, updatedAt: float})
@@ -135,7 +64,6 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
-        isAnimationFrozen: bool,
       })
     // Loaded: fully interactive
     // clientId is preserved from New state during promotion to maintain iframe identity
@@ -150,7 +78,6 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
-        isAnimationFrozen: bool,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
         turnError: option<turnErrorInfo>,
@@ -206,12 +133,6 @@ module Task = {
     | Unloaded({title}) | Loading({title}) | Loaded({title}) => Some(title)
     }
 
-  let getCreatedAt = (task: t): option<float> =>
-    switch task {
-    | New(_) => None
-    | Unloaded({createdAt}) | Loading({createdAt}) | Loaded({createdAt}) => Some(createdAt)
-    }
-
   let getUpdatedAt = (task: t): option<float> =>
     switch task {
     | New(_) => None
@@ -257,13 +178,6 @@ module Task = {
     | Unloaded(_) => None
     | Loading({activePopupAnnotationId})
     | Loaded({activePopupAnnotationId}) => activePopupAnnotationId
-    }
-
-  let getIsAnimationFrozen = (task: t): bool =>
-    switch task {
-    | New({isAnimationFrozen}) => isAnimationFrozen
-    | Unloaded(_) => false
-    | Loading({isAnimationFrozen}) | Loaded({isAnimationFrozen}) => isAnimationFrozen
     }
 
   let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
@@ -336,7 +250,6 @@ module Task = {
       annotationMode: Annotation.Off,
       annotations: [],
       activePopupAnnotationId: None,
-      isAnimationFrozen: false,
     })
   }
 
@@ -350,45 +263,12 @@ module Task = {
     })
   }
 
-  // Transition Unloaded -> Loading
-  let startLoading = (task: t, ~previewUrl: string): t =>
-    switch task {
-    | Unloaded({id, title, createdAt, updatedAt}) =>
-      Loading({
-        id,
-        title,
-        createdAt,
-        updatedAt,
-        messages: Client__MessageStore.make(),
-        previewFrame: {
-          url: previewUrl,
-          contentDocument: None,
-          contentWindow: None,
-          deviceMode: Client__DeviceMode.defaultDeviceMode,
-          orientation: Client__DeviceMode.defaultOrientation,
-        },
-        annotationMode: Annotation.Off,
-        annotations: [],
-        activePopupAnnotationId: None,
-        isAnimationFrozen: false,
-      })
-    | New(_) => failwith("[Task.startLoading] Cannot load a New task - it has no server session")
-    | Loading(_) | Loaded(_) => task
-    }
-
   // Atomic transition: New → Loaded (promotion when first message is sent)
   // Message insertion is handled separately by the task reducer's AddUserMessage
   // Preserves clientId for stable React keying (prevents iframe remount)
   let newToLoaded = (task: t, ~id: string, ~title: string): t => {
     switch task {
-    | New({
-        clientId,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-      }) =>
+    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) =>
       let timestamp = Date.now()
       Loaded({
         id,
@@ -401,7 +281,6 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        isAnimationFrozen,
         isAgentRunning: false,
         planEntries: [],
         turnError: None,
@@ -414,78 +293,15 @@ module Task = {
     }
   }
 
-  // Create a Loaded task directly (for new tasks with known session ID)
-  let makeLoaded = (
-    ~id: string,
-    ~title: string,
-    ~previewUrl: string,
-    ~createdAt: float,
-    ~messages: array<Message.t>=[],
-    ~isAgentRunning: bool=false,
-  ): t => {
-    Loaded({
-      id,
-      clientId: None,
-      title: normalizeTitle(title),
-      createdAt,
-      updatedAt: createdAt,
-      messages: Client__MessageStore.fromArray(messages),
-      previewFrame: {
-        url: previewUrl,
-        contentDocument: None,
-        contentWindow: None,
-        deviceMode: Client__DeviceMode.defaultDeviceMode,
-        orientation: Client__DeviceMode.defaultOrientation,
-      },
-      annotationMode: Annotation.Off,
-      annotations: [],
-      activePopupAnnotationId: None,
-      isAnimationFrozen: false,
-      isAgentRunning,
-      planEntries: [],
-      turnError: None,
-      retryStatus: None,
-      imageAttachments: Dict.make(),
-      pendingQuestion: None,
-    })
-  }
-
-  // ============================================================================
-  // Helper types and convenience constructors
-  // ============================================================================
-
   type loadedData = {
     messages: array<Message.t>,
     annotationMode: Annotation.annotationMode,
     annotations: array<Annotation.t>,
     activePopupAnnotationId: option<string>,
-    isAnimationFrozen: bool,
     isAgentRunning: bool,
     planEntries: array<ACPTypes.planEntry>,
     turnError: option<turnErrorInfo>,
     pendingQuestion: option<Client__Question__Types.pendingQuestion>,
-  }
-
-  type loadState =
-    | NotLoaded
-    | Loading(loadedData)
-    | Loaded(loadedData)
-
-  let makeLoadedData = (~messages=[]): loadedData => {
-    messages,
-    annotationMode: Annotation.Off,
-    annotations: [],
-    activePopupAnnotationId: None,
-    isAnimationFrozen: false,
-    isAgentRunning: false,
-    planEntries: [],
-    turnError: None,
-    pendingQuestion: None,
-  }
-
-  let make = (~title: string, ~previewUrl: string, ~messages=[]): t => {
-    let newId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
-    makeLoaded(~id=newId, ~title, ~previewUrl, ~createdAt=Date.now(), ~messages)
   }
 
   let makeWithId = (
@@ -493,77 +309,10 @@ module Task = {
     ~title: string,
     ~previewUrl: string,
     ~createdAt: float,
-    ~updatedAt: option<float>=?,
+    ~updatedAt: float,
   ): t => {
     let _ = previewUrl
-    makeUnloaded(~id, ~title, ~createdAt, ~updatedAt=updatedAt->Option.getOr(createdAt))
-  }
-
-  let makeWithIdLoaded = (
-    ~id: string,
-    ~title: string,
-    ~previewUrl: string,
-    ~createdAt: float,
-  ): t => {
-    makeLoaded(~id, ~title, ~previewUrl, ~createdAt)
-  }
-
-  let getLoadedData = (task: t): option<loadedData> => {
-    switch task {
-    | Loaded({
-        messages,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-        isAgentRunning,
-        planEntries,
-        turnError,
-        pendingQuestion,
-      }) =>
-      Some({
-        messages: Client__MessageStore.toArray(messages),
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-        isAgentRunning,
-        planEntries,
-        turnError,
-        pendingQuestion,
-      })
-    | Loading({
-        messages,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-      }) =>
-      Some({
-        messages: Client__MessageStore.toArray(messages),
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-        isAgentRunning: false,
-        planEntries: [],
-        turnError: None,
-        pendingQuestion: None,
-      })
-    | New({annotationMode, annotations, activePopupAnnotationId, isAnimationFrozen}) =>
-      Some({
-        messages: [],
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-        isAgentRunning: false,
-        planEntries: [],
-        turnError: None,
-        pendingQuestion: None,
-      })
-    | Unloaded(_) => None
-    }
+    makeUnloaded(~id, ~title, ~createdAt, ~updatedAt)
   }
 
   let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
@@ -579,7 +328,6 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        isAnimationFrozen,
         isAgentRunning,
         planEntries,
         turnError,
@@ -592,7 +340,6 @@ module Task = {
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAnimationFrozen,
           isAgentRunning,
           planEntries,
           turnError,
@@ -610,7 +357,6 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAnimationFrozen: updated.isAnimationFrozen,
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
           turnError: updated.turnError,
@@ -629,14 +375,12 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        isAnimationFrozen,
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAnimationFrozen,
           isAgentRunning: false,
           planEntries: [],
           turnError: None,
@@ -653,23 +397,14 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAnimationFrozen: updated.isAnimationFrozen,
         })
       }
-    | New({
-        clientId,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAnimationFrozen,
-      }) => {
+    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) => {
         let data = {
           messages: [],
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAnimationFrozen,
           isAgentRunning: false,
           planEntries: [],
           turnError: None,
@@ -682,7 +417,6 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAnimationFrozen: updated.isAnimationFrozen,
         })
       }
     | Unloaded(_) => task
@@ -772,6 +506,7 @@ let rec parentLocationToJson = (loc: parentLocationMeta): JSON.t => {
 // because the recursive parentLocationMeta cannot use S.recursive with S.dict(S.json).
 type annotationMeta = {
   annotation: bool,
+  @live
   annotationIndex: int,
   annotationId: string,
   tagName: string,
@@ -839,6 +574,7 @@ let nearbyTextWithElementorHint = (
 
 type screenshotMeta = {
   annotationScreenshot: bool,
+  @live
   annotationIndex: int,
   annotationId: string,
 }
@@ -1061,72 +797,6 @@ let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<
   annotationContentBlocks(blockData, ~index)
 }
 
-// Helper to create _meta JSON for figma node with nodeId and is_dsl flag
-let makeFigmaNodeMeta: (string, bool) => JSON.t = %raw(`
-  function(nodeId, isDsl) {
-    return {
-      "figma_node": true,
-      "node_id": nodeId,
-      "is_dsl": isDsl
-    };
-  }
-`)
-
-// Build a Resource ContentBlock from FigmaNode data
-// Contains the Figma node as DSL string (compact, token-efficient format) or full JSON data
-let figmaNodeToContentBlock = (
-  nodeId: string,
-  nodeData: string,
-  isDsl: bool,
-): ACPTypes.contentBlock => {
-  let textResource: ACPTypes.textResourceContents = {
-    uri: nodeId,
-    mimeType: Some("text/plain"),
-    text: nodeData,
-  }
-
-  // Create _meta with figma_node annotation, nodeId, and is_dsl flag
-  let _meta = makeFigmaNodeMeta(nodeId, isDsl)
-  let embeddedResource: ACPTypes.embeddedResource = {
-    _meta: Some(_meta),
-    annotations: None,
-    resource: ACPTypes.TextResourceContents(textResource),
-  }
-
-  ACPTypes.EmbeddedResource({
-    resource: embeddedResource,
-    _meta: None,
-    annotations: None,
-  })
-}
-
-// Build an Image ContentBlock from FigmaNode image data
-// Uses resource type with mimeType extracted from the data URL
-let figmaImageToContentBlock = (imageDataUrl: string): ACPTypes.contentBlock => {
-  let (mimeType, base64Data) = parseDataUrl(imageDataUrl)
-
-  let blobResource: ACPTypes.blobResourceContents = {
-    uri: "figma://node/image",
-    mimeType: Some(mimeType),
-    blob: base64Data,
-  }
-
-  // Create _meta with figma_image annotation
-  let _meta: JSON.t = %raw(`{"figma_image": true}`)
-
-  let embeddedResource: ACPTypes.embeddedResource = {
-    _meta: Some(_meta),
-    annotations: None,
-    resource: ACPTypes.BlobResourceContents(blobResource),
-  }
-
-  ACPTypes.EmbeddedResource({
-    resource: embeddedResource,
-    _meta: None,
-    annotations: None,
-  })
-}
-
 // Helper: read document.title from a document reference
 let getDocumentTitle: WebAPI.DOMAPI.document => string = %raw(`
   function(doc) { return doc.title || ""; }
@@ -1305,32 +975,6 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
     _meta: None,
     annotations: None,
   })
-}
-
-// Build ContentBlocks array from Task
-// Returns array of ContentBlocks to be added to the prompt
-// Each annotation produces 1-2 blocks (resource + optional screenshot)
-let taskToContentBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
-  switch task {
-  | Task.Unloaded(_) => []
-  | Task.New({annotations, previewFrame})
-  | Task.Loading({annotations, previewFrame})
-  | Task.Loaded({annotations, previewFrame}) => {
-      let blocks = []
-
-      // Add current page context (always included — implicit context)
-      let blocks = Array.concat(blocks, [currentPageToContentBlock(previewFrame)])
-
-      // Add annotation content blocks
-      let annotationBlocks =
-        annotations->Array.flatMapWithIndex((annotation, index) =>
-          annotationToContentBlocks(annotation, ~index)
-        )
-      let blocks = Array.concat(blocks, annotationBlocks)
-
-      blocks
-    }
-  }
 }
 
 // ============================================================================

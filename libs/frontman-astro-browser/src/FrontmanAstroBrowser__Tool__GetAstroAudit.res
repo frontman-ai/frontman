@@ -61,10 +61,10 @@ let emptyResult = (~message): Tool.toolResult<output> => Ok({audits: [], message
 // The audit data lives behind two shadow DOM layers, all mode: "open".
 
 // Resolve a rule field that can be string | (Element) => string.
-// Uses Js.typeof to check at runtime and calls if function.
+// Uses runtime typeof to call function-valued rule fields.
 let resolveRuleField = (field: 'a, element: WebAPI.DOMAPI.element): string => {
-  switch Js.typeof(field) {
-  | "function" =>
+  switch typeof(field) {
+  | #function =>
     let fn: WebAPI.DOMAPI.element => string = Obj.magic(field)
     fn(element)
   | _ => Obj.magic(field)

@@ -20,18 +20,14 @@ defmodule FrontmanServer.Tasks.Execution do
   metadata, which flows through all Swarm telemetry events.
   """
 
-  require Logger
-
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Image
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.ResolvedKey
-  alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Execution.{RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias FrontmanServer.Tools
-  alias SwarmAi.Message
 
   @doc """
   Cancels a running execution for the given task.
@@ -60,8 +56,6 @@ defmodule FrontmanServer.Tasks.Execution do
   ## Options
   - `:tools` - List of tool definitions for LLM (default: [])
   - `:model` - LLM model spec (defaults to provider default)
-  - `:agent` - Custom agent struct implementing SwarmAi.Agent (for testing)
-
   ## Returns
   - `{:ok, pid}` - Execution started successfully
   - `{:ok, :already_running}` - An execution is already running for this task
@@ -77,28 +71,56 @@ defmodule FrontmanServer.Tasks.Execution do
     # Resolve API key at the domain layer (earliest point)
     case Providers.prepare_api_key(scope, model) do
       {:ok, api_key_info} ->
+        max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
+        {model_spec, llm_opts} = Providers.to_llm_args(api_key_info, max_tokens: max_tokens)
+
+        llm_opts =
+          llm_opts
+          |> maybe_enable_prompt_cache(api_key_info.provider)
+
         task_id = task.task_id
-        framework = Framework.from_string(task.framework)
-        agent = build_agent(task, tools, opts, api_key_info, framework)
+        agent = build_agent(task, tools, model_spec, llm_opts, task.framework, opts)
 
         messages =
           task.interactions
-          |> Interaction.to_llm_messages()
-          |> Enum.map(&to_swarm_message/1)
-          |> maybe_constrain_images(api_key_info.provider)
+          |> Interaction.to_swarm_messages()
 
         mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
 
         backend_tool_modules =
           Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules())
 
-        submit_to_runtime(scope, agent, task_id, messages,
-          api_key_info: api_key_info,
-          mcp_tool_defs: mcp_tool_defs,
-          backend_tool_modules: backend_tool_modules,
-          execution_framework: framework,
-          interaction_id: Keyword.get(opts, :interaction_id)
-        )
+        tool_executor =
+          ToolExecutor.make_executor(scope, task_id,
+            backend_tool_modules: backend_tool_modules,
+            mcp_tool_defs: mcp_tool_defs
+          )
+
+        # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
+        # in event handlers — the agent may complete before this line returns.
+        TelemetryEvents.task_start(task_id)
+
+        case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
+               metadata: %{
+                 task_id: task_id,
+                 resolved_key: api_key_info,
+                 scope: scope,
+                 interaction_id: Keyword.get(opts, :interaction_id)
+               },
+               tool_executor: tool_executor,
+               tool_execution_mode: Frameworks.tool_execution_mode(task.framework)
+             ) do
+          {:ok, pid} ->
+            {:ok, pid}
+
+          {:error, :already_running} ->
+            TelemetryEvents.task_stop(task_id)
+            {:ok, :already_running}
+
+          error ->
+            TelemetryEvents.task_stop(task_id)
+            error
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -129,224 +151,39 @@ defmodule FrontmanServer.Tasks.Execution do
 
   # --- Private ---
 
-  # Dialyzer warning suppressed: protocol dispatch on Agent can't be statically proven.
-  @dialyzer {:nowarn_function, submit_to_runtime: 5}
-  defp submit_to_runtime(scope, agent, task_id, messages, opts) do
-    %ResolvedKey{} = resolved_key = Keyword.fetch!(opts, :api_key_info)
-    execution_framework = Keyword.fetch!(opts, :execution_framework)
-
-    mcp_tools = Map.get(agent, :tools, [])
-    mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
-    backend_tool_modules = Keyword.fetch!(opts, :backend_tool_modules)
-
-    llm_opts =
-      [api_key: resolved_key.api_key, model: resolved_key.model]
-      |> maybe_enable_prompt_cache(resolved_key.provider)
-
-    llm_opts = maybe_disable_parallel_tool_calls(execution_framework, llm_opts)
-
-    tool_executor =
-      ToolExecutor.make_executor(scope, task_id,
-        backend_tool_modules: backend_tool_modules,
-        mcp_tools: mcp_tools,
-        mcp_tool_defs: mcp_tool_defs,
-        llm_opts: llm_opts
-      )
-
-    # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
-    # in event handlers — the agent may complete before this line returns.
-    TelemetryEvents.task_start(task_id)
-
-    interaction_id = Keyword.get(opts, :interaction_id)
-
-    case SwarmAi.Runtime.run(FrontmanServer.AgentRuntime, task_id, agent, messages,
-           metadata: %{
-             task_id: task_id,
-             resolved_key: resolved_key,
-             scope: scope,
-             interaction_id: interaction_id
-           },
-           tool_executor: tool_executor,
-           tool_execution_mode: tool_execution_mode(execution_framework)
-         ) do
-      {:ok, pid} ->
-        {:ok, pid}
-
-      {:error, :already_running} ->
-        TelemetryEvents.task_stop(task_id)
-        {:ok, :already_running}
-
-      error ->
-        TelemetryEvents.task_stop(task_id)
-        error
-    end
-  end
-
   defp maybe_enable_prompt_cache(opts, "anthropic"),
     do: Keyword.put(opts, :anthropic_prompt_cache, true)
 
   defp maybe_enable_prompt_cache(opts, _provider), do: opts
 
-  defp maybe_disable_parallel_tool_calls(%Framework{id: :wordpress}, llm_opts) do
-    # WordPress tools mutate external state; serial calls avoid stale Elementor rollback races.
-    Keyword.put(llm_opts, :parallel_tool_calls, false)
+  defp build_agent(%Task{} = task, tools, model_spec, llm_opts, %Frameworks{} = fw, opts) do
+    # Derive prompt data from task interactions
+    project_rules =
+      task.interactions
+      |> Enum.filter(&match?(%Interaction.DiscoveredProjectRule{}, &1))
+
+    project_structure =
+      task.interactions
+      |> Enum.find(&match?(%Interaction.DiscoveredProjectStructure{}, &1))
+      |> case do
+        nil -> nil
+        struct -> struct.summary
+      end
+
+    RootAgent.new(
+      tools: tools,
+      has_annotations: Interaction.has_annotations?(task.interactions),
+      project_traits: Keyword.get(opts, :project_traits, []),
+      framework: fw,
+      model: model_spec,
+      llm_opts: llm_opts,
+      project_rules: project_rules,
+      project_structure: project_structure
+    )
   end
-
-  defp maybe_disable_parallel_tool_calls(_framework, llm_opts), do: llm_opts
-
-  defp tool_execution_mode(%Framework{id: :wordpress}), do: :serial
-  defp tool_execution_mode(_framework), do: :parallel
-
-  defp build_agent(%Task{} = task, tools, opts, %ResolvedKey{} = resolved_key, fw) do
-    case Keyword.get(opts, :agent) do
-      nil ->
-        has_typescript_react = Framework.has_typescript_react?(fw)
-
-        # Derive prompt data from task interactions
-        project_rules =
-          task.interactions
-          |> Enum.filter(&match?(%Interaction.DiscoveredProjectRule{}, &1))
-
-        project_structure =
-          task.interactions
-          |> Enum.find(&match?(%Interaction.DiscoveredProjectStructure{}, &1))
-          |> case do
-            nil -> nil
-            struct -> struct.summary
-          end
-
-        max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
-        {model_spec, llm_opts} = Providers.to_llm_args(resolved_key, max_tokens: max_tokens)
-        llm_opts = maybe_disable_parallel_tool_calls(fw, llm_opts)
-
-        RootAgent.new(
-          tools: tools,
-          has_annotations: Interaction.has_annotations?(task.interactions),
-          has_typescript_react: has_typescript_react,
-          framework: fw,
-          model: model_spec,
-          llm_opts: llm_opts,
-          project_rules: project_rules,
-          project_structure: project_structure
-        )
-
-      custom_agent ->
-        custom_agent
-    end
-  end
-
-  # Providers that declare a max_image_dimension hard-reject images exceeding
-  # that limit (e.g. Anthropic at 7680px). Others auto-resize so we skip.
-  defp maybe_constrain_images(messages, provider) do
-    case Providers.max_image_dimension(provider) do
-      nil -> messages
-      max -> Enum.map(messages, &constrain_message_images(&1, max))
-    end
-  end
-
-  defp constrain_message_images(msg, max) do
-    %{msg | content: Enum.map(msg.content, &constrain_image_part(&1, max))}
-  end
-
-  defp constrain_image_part(%Message.ContentPart{type: :image, data: data} = part, max) do
-    case Image.check_dimensions(data, max) do
-      :ok ->
-        part
-
-      {:too_large, width, height} ->
-        Sentry.capture_message("Image exceeded provider dimension limit",
-          level: :warning,
-          extra: %{width: width, height: height, max_dimension: max}
-        )
-
-        Logger.warning("Stripping oversized image (#{width}x#{height}px, max #{max}px)")
-
-        Message.ContentPart.text(
-          "[Image removed: dimensions #{width}x#{height}px exceed the #{max}px provider limit]"
-        )
-    end
-  end
-
-  defp constrain_image_part(part, _max), do: part
 
   defp encode_result_for_swarm(value) when is_binary(value), do: value
   defp encode_result_for_swarm(value), do: Jason.encode!(value)
-
-  # --- SwarmAi Message Conversion ---
-
-  defp to_swarm_message(%ReqLLM.Message{role: :system} = msg) do
-    %Message.System{content: convert_content(msg.content)}
-  end
-
-  defp to_swarm_message(%ReqLLM.Message{role: :user} = msg) do
-    %Message.User{content: convert_content(msg.content)}
-  end
-
-  defp to_swarm_message(%ReqLLM.Message{role: :assistant} = msg) do
-    %Message.Assistant{
-      content: convert_content(msg.content),
-      tool_calls: to_swarm_tool_calls(msg.tool_calls),
-      metadata: msg.metadata || %{}
-    }
-  end
-
-  defp to_swarm_message(%ReqLLM.Message{role: :tool} = msg) do
-    %Message.Tool{
-      content: convert_content(msg.content),
-      tool_call_id: msg.tool_call_id,
-      name: msg.name,
-      metadata: msg.metadata || %{}
-    }
-  end
-
-  defp convert_content(text) when is_binary(text),
-    do: [Message.ContentPart.text(text)]
-
-  defp convert_content(nil), do: []
-
-  defp convert_content(parts) when is_list(parts) do
-    Enum.flat_map(parts, &unwrap_content_part/1)
-  end
-
-  defp unwrap_content_part(part) do
-    case to_swarm_content_part(part) do
-      {:ok, content_part} -> [content_part]
-      :skip -> []
-    end
-  end
-
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :text, text: text}) do
-    {:ok, Message.ContentPart.text(text)}
-  end
-
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{
-         type: :image,
-         data: data,
-         media_type: mt
-       }) do
-    {:ok, Message.ContentPart.image(data, mt)}
-  end
-
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :image_url, url: url}) do
-    {:ok, Message.ContentPart.image_url(url)}
-  end
-
-  # Intentionally skip - these are transient/internal types not needed in conversation
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :thinking}), do: :skip
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :file}), do: :skip
-
-  defp to_swarm_tool_calls(nil), do: []
-  defp to_swarm_tool_calls([]), do: []
-
-  defp to_swarm_tool_calls(tool_calls) do
-    Enum.map(tool_calls, fn tc ->
-      %SwarmAi.ToolCall{
-        id: tc.id,
-        name: ReqLLM.ToolCall.name(tc),
-        arguments: ReqLLM.ToolCall.args_json(tc)
-      }
-    end)
-  end
 
   @doc false
   def error_message(%Scope{}, :usage_limit_exceeded),

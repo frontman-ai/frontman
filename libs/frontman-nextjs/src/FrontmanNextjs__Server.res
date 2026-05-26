@@ -5,7 +5,7 @@
 // Must use %raw with typeof guard: @val external won't work because __PACKAGE_VERSION__ is a
 // build-time constant replaced by tsup, not a runtime global.
 let packageVersion: string = %raw(`typeof __PACKAGE_VERSION__ !== "undefined" ? __PACKAGE_VERSION__ : undefined`)
-let () = if Js.typeof(packageVersion) == "undefined" {
+let () = if typeof(packageVersion) == #undefined {
   JsError.throwWithMessage("__PACKAGE_VERSION__ is not defined — tsup build is misconfigured")
 }
 
@@ -26,6 +26,7 @@ type t = {
   registry: ToolRegistry.t,
 }
 
+@@live
 let make = (
   ~projectRoot: string,
   ~sourceRoot: option<string>=?,
@@ -54,6 +55,7 @@ let toHandlerConfig = (config: config): CoreRequestHandlers.handlerConfig => {
 }
 
 // GET /frontman/tools
+@@live
 let handleGetTools = (server: t): WebAPI.FetchAPI.response => {
   CoreRequestHandlers.handleGetTools(
     ~registry=server.registry,
@@ -62,6 +64,7 @@ let handleGetTools = (server: t): WebAPI.FetchAPI.response => {
 }
 
 // POST /frontman/tools/call - executes tool with SSE streaming
+@@live
 let handleToolCall = async (server: t, req: WebAPI.FetchAPI.request): WebAPI.FetchAPI.response => {
   await CoreRequestHandlers.handleToolCall(
     ~registry=server.registry,
@@ -71,6 +74,7 @@ let handleToolCall = async (server: t, req: WebAPI.FetchAPI.request): WebAPI.Fet
 }
 
 // POST /frontman/resolve-source-location
+@@live
 let handleResolveSourceLocation = async (
   server: t,
   req: WebAPI.FetchAPI.request,

@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark" style={FrontmanServer.BrandTokens.root_style()}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="FrontmanServer" suffix=" · Phoenix Framework">
+    <.live_title default="" suffix=" | Frontman">
       {assigns[:page_title]}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
-    <%!-- Dark theme is always active --%>
   </head>
-  <body class="bg-[#0a0a0a] text-white antialiased">
+
+  <body class="bg-base-100 text-base-content font-sans antialiased">
     {@inner_content}
   </body>
 </html>

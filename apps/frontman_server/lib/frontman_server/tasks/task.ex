@@ -15,13 +15,14 @@ defmodule FrontmanServer.Tasks.Task do
 
   use TypedStruct
 
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.Interaction
 
   typedstruct enforce: true do
     field(:task_id, String.t())
     field(:short_desc, String.t())
     field(:interactions, list(Interaction.t()), default: [])
-    field(:framework, String.t() | nil, default: nil)
+    field(:framework, Frameworks.t())
   end
 
   @doc """

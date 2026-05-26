@@ -30,6 +30,7 @@ type t = {
   getToolResultMeta: ref<option<unit => Types.callToolResultMeta>>,
 }
 
+@@live
 let make = (
   ~relay: Relay.t,
   ~serverName="frontman-browser",

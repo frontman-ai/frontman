@@ -6,6 +6,7 @@ module Process = Bindings.Process
 module FsUtils = FrontmanAiFrontmanCore.FrontmanCore__FsUtils
 module ExnUtils = FrontmanAiFrontmanCore.FrontmanCore__ExnUtils
 module Semver = FrontmanAiFrontmanCore.FrontmanCore__Semver
+module PackageManager = FrontmanAiFrontmanCore.FrontmanCore__Cli__PackageManager
 
 // Node.js module resolution — handles monorepo hoisting, pnpm virtual store,
 // Yarn PnP, and all standard node_modules layouts.
@@ -19,7 +20,7 @@ type nextVersion = {
   raw: string,
 }
 
-type packageManager =
+type packageManager = PackageManager.t =
   | Npm
   | Yarn
   | Pnpm
@@ -128,59 +129,7 @@ let detectNextVersion = async (projectDir: string): result<nextVersion, string> 
   }
 }
 
-// Detect package manager from lock files
-// Checks current directory and parent directories (for monorepo setups)
-let detectPackageManager = async (projectDir: string): packageManager => {
-  // Check a directory for lock files
-  let checkDir = async (dir: string): option<packageManager> => {
-    let bunLockb = Path.join([dir, "bun.lockb"])
-    let bunLock = Path.join([dir, "bun.lock"])
-    let denoLock = Path.join([dir, "deno.lock"])
-    let pnpmLock = Path.join([dir, "pnpm-lock.yaml"])
-    let yarnLock = Path.join([dir, "yarn.lock"])
-    let npmLock = Path.join([dir, "package-lock.json"])
-
-    if (await FsUtils.pathExists(bunLockb)) || (await FsUtils.pathExists(bunLock)) {
-      Some(Bun)
-    } else if await FsUtils.pathExists(denoLock) {
-      Some(Deno)
-    } else if await FsUtils.pathExists(pnpmLock) {
-      Some(Pnpm)
-    } else if await FsUtils.pathExists(yarnLock) {
-      Some(Yarn)
-    } else if await FsUtils.pathExists(npmLock) {
-      Some(Npm)
-    } else {
-      None
-    }
-  }
-
-  // First check the project directory
-  switch await checkDir(projectDir) {
-  | Some(pm) => pm
-  | None =>
-    // Check parent directory (for monorepo setups)
-    let parentDir = Path.dirname(projectDir)
-    if parentDir != projectDir {
-      switch await checkDir(parentDir) {
-      | Some(pm) => pm
-      | None =>
-        // Check grandparent (for deeply nested monorepos)
-        let grandparentDir = Path.dirname(parentDir)
-        if grandparentDir != parentDir {
-          switch await checkDir(grandparentDir) {
-          | Some(pm) => pm
-          | None => Npm // Default to npm
-          }
-        } else {
-          Npm
-        }
-      }
-    } else {
-      Npm // Default to npm
-    }
-  }
-}
+let detectPackageManager = PackageManager.detect
 
 // Pattern to detect @frontman-ai/nextjs import
 let frontmanImportPattern = /@frontman-ai\/nextjs/
@@ -271,40 +220,8 @@ let isNextJs16Plus = (info: projectInfo): bool => {
   info.nextVersion.major >= 16
 }
 
-// Get package manager command
-// Uses npx to ensure the package manager is available even if not in PATH
-let getPackageManagerCommand = (pm: packageManager): string => {
-  switch pm {
-  | Npm => "npm"
-  | Yarn => "npx yarn"
-  | Pnpm => "npx pnpm"
-  | Bun => "bun"
-  | Deno => "deno"
-  }
-}
+let getPackageManagerCommand = PackageManager.command
 
-// Get the dev server command for display in success messages
-let getDevCommand = (pm: packageManager): string => {
-  switch pm {
-  | Npm => "npm run dev"
-  | Yarn => "yarn dev"
-  | Pnpm => "pnpm dev"
-  | Bun => "bun dev"
-  | Deno => "deno task dev"
-  }
-}
+let getDevCommand = PackageManager.devCommand
 
-// Get install command args for each package manager
-// Installs as devDependencies: Next.js bundles all imports at build time (both
-// middleware on Edge and instrumentation on Node.js), so these packages only need
-// to exist during `next build`, not at runtime. Every deployment platform runs
-// `npm install` (all deps) before `next build`, then prunes devDeps afterward.
-let getInstallArgs = (pm: packageManager): array<string> => {
-  switch pm {
-  | Npm => ["install", "-D"]
-  | Yarn => ["add", "-D"]
-  | Pnpm => ["add", "--save-dev"]
-  | Bun => ["add", "--dev"]
-  | Deno => ["add", "--dev"]
-  }
-}
+let getInstallArgs = PackageManager.devInstallArgs

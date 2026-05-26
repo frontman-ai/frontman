@@ -4,7 +4,7 @@
 // Must use %raw with typeof guard: @val external won't work because __PACKAGE_VERSION__ is a
 // build-time constant replaced by tsup, not a runtime global.
 let packageVersion: string = %raw(`typeof __PACKAGE_VERSION__ !== "undefined" ? __PACKAGE_VERSION__ : undefined`)
-let () = if Js.typeof(packageVersion) == "undefined" {
+let () = if typeof(packageVersion) == #undefined {
   JsError.throwWithMessage("__PACKAGE_VERSION__ is not defined — tsup build is misconfigured")
 }
 
@@ -42,7 +42,9 @@ let normalizeHost = (host: string): string => {
   }
 }
 
+@@live
 type t = {
+  @live
   isDev: bool,
   projectRoot: string,
   // sourceRoot: root for resolving file paths
@@ -51,6 +53,7 @@ type t = {
   basePath: string,
   serverName: string,
   serverVersion: string,
+  @live
   host: string,
   clientUrl: string,
   clientCssUrl: option<string>,

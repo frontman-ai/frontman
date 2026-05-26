@@ -18,6 +18,10 @@ HEALTH_PATH="/health"
 HEALTH_TIMEOUT=30
 HEALTH_INTERVAL=2
 KEEP_RELEASES=3
+HEX_ARCHIVE_URL="https://repo.hex.pm/installs/1.19.0/hex-2.4.2-otp-28.ez"
+HEX_ARCHIVE_SHA512="c0cd156be5d7a6d4e2a39e09e8248f5c5b1681bca882caabcec4a76d1ae38c3ec29516c70f73cf9336dd6cf2fbb2feaa5145a82424c40454e8e9ee8ef9122c55"
+REBAR_URL="https://s3.amazonaws.com/rebar3/rebar3"
+REBAR_SHA512="0d00494d849fdc521a55142278d1f6ba552954fbd65b80d40df8022f594f05d6c99ed1d731bc263691a04176e11d4c6e126c56ba20dca19c5e42d4ffab2e7e36"
 
 # --- Activate mise ---
 export PATH="/home/deploy/.local/bin:${PATH}"
@@ -27,15 +31,31 @@ echo "=== Frontman Build & Deploy ==="
 echo "Build dir: ${BUILD_DIR}"
 echo ""
 
+ensure_elixir_build_tools() {
+  echo "Installing pinned Hex archive..."
+  HEX_TMP=$(mktemp -t hex.XXXXXX.ez)
+  curl -fsSL "${HEX_ARCHIVE_URL}" -o "${HEX_TMP}"
+  mix archive.install "${HEX_TMP}" --sha512 "${HEX_ARCHIVE_SHA512}" --force
+  rm -f "${HEX_TMP}"
+
+  echo "Installing pinned Rebar..."
+  REBAR_TMP=$(mktemp -t rebar3.XXXXXX)
+  curl -fsSL "${REBAR_URL}" -o "${REBAR_TMP}"
+  chmod +x "${REBAR_TMP}"
+  mix local.rebar rebar3 "${REBAR_TMP}" --sha512 "${REBAR_SHA512}" --force
+  rm -f "${REBAR_TMP}"
+}
+
 # =============================================================================
 # Phase 1: Build (Elixir only — no JS/ReScript needed for server)
 # =============================================================================
 cd "${BUILD_DIR}/apps/frontman_server"
 export MIX_ENV=prod
 
+echo ">>> Ensuring Elixir build tools..."
+ensure_elixir_build_tools
+
 echo ">>> Installing Elixir dependencies..."
-mix local.hex --force --if-missing
-mix local.rebar --force --if-missing
 mix deps.get --only prod
 
 echo ">>> Compiling Elixir deps..."

@@ -1,10 +1,136 @@
-module Dialog = Bindings__UI__Dialog
-module Input = Bindings__UI__Input
-module Button = Bindings__UI__Button
-module Icons = Bindings__RadixUI__Icons
+module Dialog = FrontmanBindings.Bindings__UI__Dialog
+module Input = FrontmanBindings.Bindings__UI__Input
+module Button = FrontmanBindings.Bindings__UI__Button
+module Icons = FrontmanBindings.Bindings__RadixUI__Icons
 module State = Client__State
 module Types = Client__State__Types
 module RuntimeConfig = Client__RuntimeConfig
+
+type badgeTone = Blue | Emerald | Amber | Red | Zinc
+
+let badgeClass = tone =>
+  switch tone {
+  | Blue => "rounded-full bg-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-200"
+  | Emerald => "rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200"
+  | Amber => "rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200"
+  | Red => "rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-200"
+  | Zinc => "rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400"
+  }
+
+let renderBadge = (~label, ~tone) =>
+  <span className={badgeClass(tone)}> {React.string(label)} </span>
+
+let apiKeyPlaceholder = (source, emptyText) =>
+  switch source {
+  | Types.UserOverride => "Key saved - enter new key to replace"
+  | Types.FromEnv => "Using environment key - enter key to override"
+  | Types.None => emptyText
+  }
+
+let saveApiKey = (~key, ~save, ~clear) => {
+  let trimmedKey = String.trim(key)
+  switch trimmedKey {
+  | "" => ()
+  | key => {
+      save(key)
+      clear()
+    }
+  }
+}
+
+let renderSaveStatus = saveStatus =>
+  switch saveStatus {
+  | Types.Idle => React.null
+  | Types.Saving => <div className="mt-2 text-xs text-zinc-400"> {React.string("Saving...")} </div>
+  | Types.Saved => <div className="mt-2 text-xs text-emerald-300"> {React.string("Saved")} </div>
+  | Types.SaveError(msg) => <div className="mt-2 text-xs text-red-400"> {React.string(msg)} </div>
+  }
+
+let saveButtonLabel = saveStatus =>
+  switch saveStatus {
+  | Types.Saving => "Saving..."
+  | Types.Idle | Types.Saved | Types.SaveError(_) => "Save"
+  }
+
+let renderSourceBadge = (source: Types.apiKeySource) =>
+  switch source {
+  | Types.UserOverride => renderBadge(~label="User key", ~tone=Blue)
+  | Types.FromEnv => renderBadge(~label="From environment", ~tone=Emerald)
+  | Types.None => renderBadge(~label="Not configured", ~tone=Zinc)
+  }
+
+let tabButtonClass = isActive =>
+  switch isActive {
+  | true => "flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-100"
+  | false => "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-900"
+  }
+
+let renderConnectedToken = (~expiresAt, ~onDisconnect) => {
+  let expiryDate = Date.fromTime(expiresAt)
+  let expiryStr = Intl.DateTimeFormat.make()->Intl.DateTimeFormat.format(expiryDate)
+  <div className="space-y-2">
+    <div className="text-xs text-zinc-500"> {React.string(`Token expires: ${expiryStr}`)} </div>
+    <Button.Button variant=#secondary onClick={_ => onDisconnect()}>
+      {React.string("Disconnect")}
+    </Button.Button>
+  </div>
+}
+
+module APIKeyCard = {
+  @react.component
+  let make = (
+    ~title,
+    ~manageHref,
+    ~emptyPlaceholder,
+    ~description: option<string>=?,
+    ~settings: Types.apiKeySettings,
+    ~apiKey,
+    ~setApiKey,
+    ~save,
+    ~reset,
+  ) =>
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-zinc-100"> {React.string(title)} </span>
+          {renderSourceBadge(settings.source)}
+        </div>
+        <a
+          href=manageHref
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-zinc-400 hover:text-zinc-200"
+        >
+          {React.string("Manage keys")}
+        </a>
+      </div>
+      {switch description {
+      | Some(text) => <div className="mt-2 text-xs text-zinc-500"> {React.string(text)} </div>
+      | None => React.null
+      }}
+      <div className="mt-3 flex items-center gap-3">
+        <Input.Input
+          type_=#password
+          placeholder={apiKeyPlaceholder(settings.source, emptyPlaceholder)}
+          value={apiKey}
+          onChange={e => {
+            let target = ReactEvent.Form.target(e)
+            setApiKey(_ => target["value"])
+            reset()
+          }}
+          className="flex-1 min-w-0"
+        />
+        <Button.Button
+          variant=#secondary
+          onClick={_ => saveApiKey(~key=apiKey, ~save, ~clear=() => setApiKey(_ => ""))}
+          disabled={settings.saveStatus == Types.Saving}
+        >
+          {React.string(saveButtonLabel(settings.saveStatus))}
+        </Button.Button>
+      </div>
+      {renderSaveStatus(settings.saveStatus)}
+    </div>
+}
 
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
@@ -12,7 +138,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
 
-  // When the dialog opens with an initialTab, switch to it
   React.useEffect2(() => {
     switch (open_, initialTab) {
     | (true, Some(tab)) => setActiveTab(_ => tab)
@@ -23,148 +148,53 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let (openrouterKey, setOpenrouterKey) = React.useState(() => "")
   let (anthropicKey, setAnthropicKey) = React.useState(() => "")
   let (fireworksKey, setFireworksKey) = React.useState(() => "")
+  let (nvidiaKey, setNvidiaKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
   let userProfile = State.useSelector(State.Selectors.userProfile)
   let userEmail = userProfile->Option.map(p => p.email)
 
-  // Get ACP session for apiBaseUrl
   let acpSession = State.useSelector(State.Selectors.acpSession)
-
-  // Get API key settings from state
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
   let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
   let fireworksKeySettings = State.useSelector(State.Selectors.fireworksKeySettings)
-
-  // Get Anthropic OAuth status from state
+  let nvidiaKeySettings = State.useSelector(State.Selectors.nvidiaKeySettings)
   let anthropicOAuthStatus = State.useSelector(State.Selectors.anthropicOAuthStatus)
-
-  // Get ChatGPT OAuth status from state
   let chatgptOAuthStatus = State.useSelector(State.Selectors.chatgptOAuthStatus)
 
-  // Fetch API key settings and user info when modal opens (or when ACP session becomes active)
   React.useEffect2(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
       State.Actions.fetchAnthropicApiKeySettings()
       State.Actions.fetchFireworksApiKeySettings()
+      State.Actions.fetchNvidiaApiKeySettings()
       State.Actions.fetchAnthropicOAuthStatus()
       State.Actions.fetchChatGPTOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()
       State.Actions.resetAnthropicKeySaveStatus()
       State.Actions.resetFireworksKeySaveStatus()
+      State.Actions.resetNvidiaKeySaveStatus()
       State.Actions.resetAnthropicOAuthError()
       State.Actions.resetChatGPTOAuthError()
       setOpenrouterKey(_ => "")
       setAnthropicKey(_ => "")
       setFireworksKey(_ => "")
+      setNvidiaKey(_ => "")
       setOauthCode(_ => "")
     }
     None
   }, (open_, acpSession))
 
-  // Determine status label and style based on save status
-  let (statusLabel, statusClass) = switch keySettings.saveStatus {
-  | Types.Idle => ("", "mt-2 text-xs text-zinc-400")
-  | Types.Saving => ("Saving...", "mt-2 text-xs text-zinc-400")
-  | Types.Saved => ("Saved", "mt-2 text-xs text-emerald-300")
-  | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
-  }
-
-  // Anthropic key status label and style
-  let (anthropicStatusLabel, anthropicStatusClass) = switch anthropicKeySettings.saveStatus {
-  | Types.Idle => ("", "mt-2 text-xs text-zinc-400")
-  | Types.Saving => ("Saving...", "mt-2 text-xs text-zinc-400")
-  | Types.Saved => ("Saved", "mt-2 text-xs text-emerald-300")
-  | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
-  }
-
-  let (fireworksStatusLabel, fireworksStatusClass) = switch fireworksKeySettings.saveStatus {
-  | Types.Idle => ("", "mt-2 text-xs text-zinc-400")
-  | Types.Saving => ("Saving...", "mt-2 text-xs text-zinc-400")
-  | Types.Saved => ("Saved", "mt-2 text-xs text-emerald-300")
-  | Types.SaveError(msg) => (msg, "mt-2 text-xs text-red-400")
-  }
-
-  // Determine placeholder text based on key source
-  let placeholder = switch keySettings.source {
-  | Types.UserOverride => "Key saved - enter new key to replace"
-  | Types.FromEnv => "Using environment key - enter key to override"
-  | Types.None => "Enter OpenRouter API key"
-  }
-
-  let anthropicPlaceholder = switch anthropicKeySettings.source {
-  | Types.UserOverride => "Key saved - enter new key to replace"
-  | Types.FromEnv => "Using environment key - enter key to override"
-  | Types.None => "Enter Anthropic API key"
-  }
-
-  let fireworksPlaceholder = switch fireworksKeySettings.source {
-  | Types.UserOverride => "Key saved - enter new key to replace"
-  | Types.FromEnv => "Using environment key - enter key to override"
-  | Types.None => "Enter Fireworks API key"
-  }
-
-  let handleSave = () => {
-    let trimmedKey = String.trim(openrouterKey)
-    if trimmedKey == "" {
-      ()
-    } else {
-      State.Actions.saveOpenRouterKey(~key=trimmedKey)
-      setOpenrouterKey(_ => "")
-    }
-  }
-
-  let handleAnthropicSave = () => {
-    let trimmedKey = String.trim(anthropicKey)
-    if trimmedKey == "" {
-      ()
-    } else {
-      State.Actions.saveAnthropicKey(~key=trimmedKey)
-      setAnthropicKey(_ => "")
-    }
-  }
-
-  let handleFireworksSave = () => {
-    let trimmedKey = String.trim(fireworksKey)
-    if trimmedKey == "" {
-      ()
-    } else {
-      State.Actions.saveFireworksKey(~key=trimmedKey)
-      setFireworksKey(_ => "")
-    }
-  }
-
-  // Render the source badge for a given apiKeySource
-  let renderSourceBadge = (source: Types.apiKeySource) =>
-    switch source {
-    | Types.UserOverride =>
-      <span
-        className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[11px] font-semibold text-blue-200"
-      >
-        {React.string("User key")}
-      </span>
-    | Types.FromEnv =>
-      <span
-        className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200"
-      >
-        {React.string("From environment")}
-      </span>
-    | Types.None =>
-      <span
-        className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400"
-      >
-        {React.string("Not configured")}
-      </span>
-    }
-
-  let sourceBadge = renderSourceBadge(keySettings.source)
-  let fireworksSourceBadge = renderSourceBadge(fireworksKeySettings.source)
+  let anthropicPlaceholder = apiKeyPlaceholder(
+    anthropicKeySettings.source,
+    "Enter Anthropic API key",
+  )
 
   <Dialog.Dialog open_={open_} onOpenChange={onOpenChange}>
     <Dialog.DialogContent
       className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={false}
     >
       <div className="flex h-full overflow-hidden">
+        <Dialog.DialogTitle className="sr-only"> {React.string("Settings")} </Dialog.DialogTitle>
         <div className="w-56 border-r border-zinc-800 bg-zinc-950/60 px-4 py-5">
           <div className="text-lg font-semibold text-zinc-100"> {React.string("Settings")} </div>
           <div className="mt-1 text-xs text-zinc-500">
@@ -175,9 +205,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
           <div className="mt-6 flex flex-col gap-1">
             <button
               type_="button"
-              className={activeTab == "general"
-                ? "flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-100"
-                : "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-900"}
+              className={tabButtonClass(activeTab == "general")}
               onClick={_ => setActiveTab(_ => "general")}
             >
               <Icons.CubeIcon className="size-4" />
@@ -185,9 +213,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
             </button>
             <button
               type_="button"
-              className={activeTab == "providers"
-                ? "flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-100"
-                : "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-900"}
+              className={tabButtonClass(activeTab == "providers")}
               onClick={_ => setActiveTab(_ => "providers")}
             >
               <Icons.GlobeIcon className="size-4" />
@@ -207,7 +233,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
           <div className="flex-1 overflow-y-auto px-6 pb-6 pr-6">
             {activeTab == "general"
               ? <div className="space-y-6">
-                  // Account section
                   <div>
                     <div className="text-sm font-medium text-zinc-400">
                       {React.string("Account")}
@@ -264,7 +289,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       </div>
                     </div>
                   </div>
-                  // Framework detection
                   <div>
                     <div className="text-sm font-medium text-zinc-400">
                       {React.string("Environment")}
@@ -277,7 +301,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                   </div>
                 </div>
               : <div className="space-y-6">
-                  // Anthropic OAuth Section
                   <div className="text-sm text-zinc-400">
                     {React.string("Connect your account")}
                   </div>
@@ -288,30 +311,11 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           {React.string("Anthropic Claude Pro/Max")}
                         </span>
                         {switch anthropicOAuthStatus {
-                        | Types.Connected(_) =>
-                          <span
-                            className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200"
-                          >
-                            {React.string("Connected")}
-                          </span>
+                        | Types.Connected(_) => renderBadge(~label="Connected", ~tone=Emerald)
                         | Types.FetchingStatus | Types.Authorizing(_) | Types.Exchanging =>
-                          <span
-                            className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200"
-                          >
-                            {React.string("Connecting...")}
-                          </span>
-                        | Types.Error(_) =>
-                          <span
-                            className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-200"
-                          >
-                            {React.string("Error")}
-                          </span>
-                        | Types.NotConnected =>
-                          <span
-                            className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400"
-                          >
-                            {React.string("Not connected")}
-                          </span>
+                          renderBadge(~label="Connecting...", ~tone=Amber)
+                        | Types.Error(_) => renderBadge(~label="Error", ~tone=Red)
+                        | Types.NotConnected => renderBadge(~label="Not connected", ~tone=Zinc)
                         }}
                       </div>
                       <a
@@ -397,22 +401,10 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           />
                           {React.string("Connecting...")}
                         </div>
-                      | Types.Connected({expiresAt}) => {
-                          let expiryDate = Date.fromTime(expiresAt)
-                          let expiryStr =
-                            Intl.DateTimeFormat.make()->Intl.DateTimeFormat.format(expiryDate)
-                          <div className="space-y-2">
-                            <div className="text-xs text-zinc-500">
-                              {React.string(`Token expires: ${expiryStr}`)}
-                            </div>
-                            <Button.Button
-                              variant=#secondary
-                              onClick={_ => State.Actions.disconnectAnthropicOAuth()}
-                            >
-                              {React.string("Disconnect")}
-                            </Button.Button>
-                          </div>
-                        }
+                      | Types.Connected({expiresAt}) =>
+                        renderConnectedToken(~expiresAt, ~onDisconnect=() =>
+                          State.Actions.disconnectAnthropicOAuth()
+                        )
                       | Types.Error(msg) =>
                         <div className="space-y-2">
                           <div className="text-xs text-red-400"> {React.string(msg)} </div>
@@ -429,7 +421,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       }}
                     </div>
 
-                    // Anthropic API Key (alternative to OAuth) — hidden during active OAuth flow
                     {switch anthropicOAuthStatus {
                     | Types.Authorizing(_) | Types.Exchanging => React.null
                     | _ =>
@@ -471,26 +462,22 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           />
                           <Button.Button
                             variant=#secondary
-                            onClick={_ => handleAnthropicSave()}
+                            onClick={_ =>
+                              saveApiKey(
+                                ~key=anthropicKey,
+                                ~save=key => State.Actions.saveAnthropicKey(~key),
+                                ~clear=() => setAnthropicKey(_ => ""),
+                              )}
                             disabled={anthropicKeySettings.saveStatus == Types.Saving}
                           >
-                            {React.string(
-                              anthropicKeySettings.saveStatus == Types.Saving
-                                ? "Saving..."
-                                : "Save",
-                            )}
+                            {React.string(saveButtonLabel(anthropicKeySettings.saveStatus))}
                           </Button.Button>
                         </div>
-                        {anthropicStatusLabel != ""
-                          ? <div className={anthropicStatusClass}>
-                              {React.string(anthropicStatusLabel)}
-                            </div>
-                          : React.null}
+                        {renderSaveStatus(anthropicKeySettings.saveStatus)}
                       </div>
                     }}
                   </div>
 
-                  // ChatGPT OAuth Section
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -499,31 +486,14 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                         </span>
                         {switch chatgptOAuthStatus {
                         | Types.ChatGPTConnected(_) =>
-                          <span
-                            className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200"
-                          >
-                            {React.string("Connected")}
-                          </span>
+                          renderBadge(~label="Connected", ~tone=Emerald)
                         | Types.ChatGPTFetchingStatus
                         | Types.ChatGPTWaitingForCode
                         | Types.ChatGPTShowingCode(_) =>
-                          <span
-                            className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200"
-                          >
-                            {React.string("Connecting...")}
-                          </span>
-                        | Types.ChatGPTError(_) =>
-                          <span
-                            className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-semibold text-red-200"
-                          >
-                            {React.string("Error")}
-                          </span>
+                          renderBadge(~label="Connecting...", ~tone=Amber)
+                        | Types.ChatGPTError(_) => renderBadge(~label="Error", ~tone=Red)
                         | Types.ChatGPTNotConnected =>
-                          <span
-                            className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-[11px] font-semibold text-zinc-400"
-                          >
-                            {React.string("Not connected")}
-                          </span>
+                          renderBadge(~label="Not connected", ~tone=Zinc)
                         }}
                       </div>
                     </div>
@@ -573,22 +543,10 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             {React.string("Waiting for authorization...")}
                           </div>
                         </div>
-                      | Types.ChatGPTConnected({expiresAt}) => {
-                          let expiryDate = Date.fromTime(expiresAt)
-                          let expiryStr =
-                            Intl.DateTimeFormat.make()->Intl.DateTimeFormat.format(expiryDate)
-                          <div className="space-y-2">
-                            <div className="text-xs text-zinc-500">
-                              {React.string(`Token expires: ${expiryStr}`)}
-                            </div>
-                            <Button.Button
-                              variant=#secondary
-                              onClick={_ => State.Actions.disconnectChatGPTOAuth()}
-                            >
-                              {React.string("Disconnect")}
-                            </Button.Button>
-                          </div>
-                        }
+                      | Types.ChatGPTConnected({expiresAt}) =>
+                        renderConnectedToken(~expiresAt, ~onDisconnect=() =>
+                          State.Actions.disconnectChatGPTOAuth()
+                        )
                       | Types.ChatGPTError(msg) =>
                         <div className="space-y-2">
                           <div className="text-xs text-red-400"> {React.string(msg)} </div>
@@ -606,105 +564,41 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     </div>
                   </div>
 
-                  // OpenRouter API Key Section
                   <div className="text-sm text-zinc-400">
                     {React.string("Bring your own key")}
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-zinc-100">
-                          {React.string("Fireworks AI")}
-                        </span>
-                        {fireworksSourceBadge}
-                      </div>
-
-                      <a
-                        href="https://app.fireworks.ai/api-keys"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-zinc-400 hover:text-zinc-200"
-                      >
-                        {React.string("Manage keys")}
-                      </a>
-                    </div>
-                    <div className="mt-2 text-xs text-zinc-500">
-                      {React.string(
-                        "Use your Fireworks API key with Fire Pass to access Kimi K2.5 Turbo.",
-                      )}
-                    </div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <Input.Input
-                        type_=#password
-                        placeholder={fireworksPlaceholder}
-                        value={fireworksKey}
-                        onChange={e => {
-                          let target = ReactEvent.Form.target(e)
-                          setFireworksKey(_ => target["value"])
-                          State.Actions.resetFireworksKeySaveStatus()
-                        }}
-                        className="flex-1 min-w-0"
-                      />
-                      <Button.Button
-                        variant=#secondary
-                        onClick={_ => handleFireworksSave()}
-                        disabled={fireworksKeySettings.saveStatus == Types.Saving}
-                      >
-                        {React.string(
-                          fireworksKeySettings.saveStatus == Types.Saving ? "Saving..." : "Save",
-                        )}
-                      </Button.Button>
-                    </div>
-                    {fireworksStatusLabel != ""
-                      ? <div className={fireworksStatusClass}>
-                          {React.string(fireworksStatusLabel)}
-                        </div>
-                      : React.null}
-                  </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-zinc-100">
-                          {React.string("OpenRouter")}
-                        </span>
-                        {sourceBadge}
-                      </div>
-
-                      <a
-                        href="https://openrouter.ai/keys"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-zinc-400 hover:text-zinc-200"
-                      >
-                        {React.string("Manage keys")}
-                      </a>
-                    </div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <Input.Input
-                        type_=#password
-                        placeholder={placeholder}
-                        value={openrouterKey}
-                        onChange={e => {
-                          let target = ReactEvent.Form.target(e)
-                          setOpenrouterKey(_ => target["value"])
-                          State.Actions.resetOpenRouterKeySaveStatus()
-                        }}
-                        className="flex-1 min-w-0"
-                      />
-                      <Button.Button
-                        variant=#secondary
-                        onClick={_ => handleSave()}
-                        disabled={keySettings.saveStatus == Types.Saving}
-                      >
-                        {React.string(
-                          keySettings.saveStatus == Types.Saving ? "Saving..." : "Save",
-                        )}
-                      </Button.Button>
-                    </div>
-                    {statusLabel != ""
-                      ? <div className={statusClass}> {React.string(statusLabel)} </div>
-                      : React.null}
-                  </div>
+                  <APIKeyCard
+                    title="NVIDIA"
+                    manageHref="https://build.nvidia.com/settings/api-keys"
+                    emptyPlaceholder="Enter NVIDIA API key"
+                    description="Use your NVIDIA API key to access NVIDIA-hosted models."
+                    settings=nvidiaKeySettings
+                    apiKey=nvidiaKey
+                    setApiKey=setNvidiaKey
+                    save={key => State.Actions.saveNvidiaKey(~key)}
+                    reset={State.Actions.resetNvidiaKeySaveStatus}
+                  />
+                  <APIKeyCard
+                    title="Fireworks AI"
+                    manageHref="https://app.fireworks.ai/api-keys"
+                    emptyPlaceholder="Enter Fireworks API key"
+                    description="Use your Fireworks API key with Fire Pass to access Kimi K2.5 Turbo."
+                    settings=fireworksKeySettings
+                    apiKey=fireworksKey
+                    setApiKey=setFireworksKey
+                    save={key => State.Actions.saveFireworksKey(~key)}
+                    reset={State.Actions.resetFireworksKeySaveStatus}
+                  />
+                  <APIKeyCard
+                    title="OpenRouter"
+                    manageHref="https://openrouter.ai/keys"
+                    emptyPlaceholder="Enter OpenRouter API key"
+                    settings=keySettings
+                    apiKey=openrouterKey
+                    setApiKey=setOpenrouterKey
+                    save={key => State.Actions.saveOpenRouterKey(~key)}
+                    reset={State.Actions.resetOpenRouterKeySaveStatus}
+                  />
                 </div>}
           </div>
         </div>

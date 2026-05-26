@@ -456,6 +456,7 @@ if ( ! function_exists( 'wp_cache_flush' ) ) {
 }
 
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
+require_once __DIR__ . '/../includes/class-frontman-elementor-data.php';
 require_once __DIR__ . '/../tools/class-tool-posts.php';
 require_once __DIR__ . '/../tools/class-tool-blocks.php';
 require_once __DIR__ . '/../tools/class-tool-menus.php';
@@ -578,6 +579,15 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$updated = $tool->update_post( [ 'id' => 10, 'title' => 'After' ] );
 		$this->assert_same( 'Before', $updated['before']['title'], 'wp_update_post returns previous post snapshot' );
 		$this->assert_same( 'After', $updated['after']['title'], 'wp_update_post returns updated post snapshot' );
+		$this->assert_same( '<p>First</p>' . "\n\n" . 'RAW:<div>Loose HTML</div>' . "\n\n" . '<p>Second</p>', $updated['after']['content'], 'wp_update_post allows non-content metadata updates on Elementor pages' );
+
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->update_post( [ 'id' => 10, 'content' => '<style>bad overwrite</style>' ] );
+			},
+			'Refusing to update post_content for Elementor-managed page',
+			'wp_update_post rejects content updates on Elementor pages'
+		);
 
 		$slash_sensitive_content = '<style>.icon:before{content:"\\A";background:url("C:\\tmp\\icon.svg");}</style>';
 		$updated_content = $tool->update_post( [ 'id' => 11, 'content' => $slash_sensitive_content ] );

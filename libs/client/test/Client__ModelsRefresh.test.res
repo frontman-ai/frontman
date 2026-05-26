@@ -19,14 +19,7 @@ let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 let _apiBaseUrl = "http://localhost:4000"
 
 // Helper: base state with an active ACP session (needed to emit effects)
-let _makeState = (
-  ~anthropicOAuthStatus=Types.NotConnected,
-  ~chatgptOAuthStatus=Types.ChatGPTNotConnected,
-  ~openrouterKeySettings={Types.source: Types.None, saveStatus: Types.Idle},
-  ~fireworksKeySettings={Types.source: Types.None, saveStatus: Types.Idle},
-  ~selectedModelValue=None,
-  ~pendingProviderAutoSelect=None,
-): Types.state => {
+let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
   {
     tasks: Dict.make(),
     currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
@@ -41,14 +34,15 @@ let _makeState = (
     sessionInitialized: true,
     usageInfo: None,
     userProfile: None,
-    openrouterKeySettings,
+    openrouterKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     anthropicKeySettings: {
       source: Types.None,
       saveStatus: Types.Idle,
     },
-    fireworksKeySettings,
-    anthropicOAuthStatus,
-    chatgptOAuthStatus,
+    fireworksKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
+    nvidiaKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
+    anthropicOAuthStatus: Types.NotConnected,
+    chatgptOAuthStatus: Types.ChatGPTNotConnected,
     configOptions: None,
     selectedModelValue,
     pendingProviderAutoSelect,
@@ -193,28 +187,23 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("openai"))
   })
 
-  test("SaveOpenRouterKey sets pendingProviderAutoSelect to openrouter", t => {
-    let state = _makeState()
+  test("SaveApiKey sets pendingProviderAutoSelect for each provider", t => {
+    let providerCases: array<(Reducer.apiKeyProvider, string)> = [
+      (OpenRouter, "openrouter"),
+      (Anthropic, "anthropic"),
+      (Fireworks, "fireworks"),
+    ]
 
-    let (nextState, _effects) = Reducer.next(state, SaveOpenRouterKey({key: "test-key"}))
+    providerCases->Array.forEach(
+      ((provider, expectedProviderId)) => {
+        let (nextState, _effects) = Reducer.next(
+          _makeState(),
+          SaveApiKey({provider, key: "test-key"}),
+        )
 
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("openrouter"))
-  })
-
-  test("SaveAnthropicKey sets pendingProviderAutoSelect to anthropic", t => {
-    let state = _makeState()
-
-    let (nextState, _effects) = Reducer.next(state, SaveAnthropicKey({key: "test-key"}))
-
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("anthropic"))
-  })
-
-  test("SaveFireworksKey sets pendingProviderAutoSelect to fireworks", t => {
-    let state = _makeState()
-
-    let (nextState, _effects) = Reducer.next(state, SaveFireworksKey({key: "test-key"}))
-
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("fireworks"))
+        t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some(expectedProviderId))
+      },
+    )
   })
 })
 

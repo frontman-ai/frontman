@@ -259,24 +259,4 @@ defmodule FrontmanServer.ImageTest do
       assert {:ok, _binary, "image/jpeg"} = Image.decode_data_url(data_url)
     end
   end
-
-  # ── image_tool_config/1 ─────────────────────────────────────────────
-
-  describe "image_tool_config/1" do
-    test "returns config for take_screenshot" do
-      assert {:screenshot, []} = Image.image_tool_config("take_screenshot")
-    end
-
-    test "strips mcp_ prefix and returns config" do
-      assert {:screenshot, []} = Image.image_tool_config("mcp_take_screenshot")
-    end
-
-    test "returns nil for unknown tool" do
-      assert nil == Image.image_tool_config("read_file")
-    end
-
-    test "returns nil for unknown mcp_ tool" do
-      assert nil == Image.image_tool_config("mcp_read_file")
-    end
-  end
 end

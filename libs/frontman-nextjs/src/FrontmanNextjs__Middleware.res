@@ -21,6 +21,7 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   clientCssUrl: config.clientCssUrl,
   entrypointUrl: config.entrypointUrl,
   frameworkId: CoreMiddlewareConfig.Nextjs,
+  traits: ["react", "typescript"],
 }
 
 // Create middleware from a config input object (applies defaults)

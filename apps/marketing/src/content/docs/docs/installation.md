@@ -31,7 +31,7 @@ Then follow the [Vite integration guide →](/docs/integrations/vite/)
 
 ## WordPress (Beta)
 
-WordPress uses a standalone binary — no npm package required.
+Install **Frontman - Agentic AI Editor** from the WordPress Plugin Directory in wp-admin. No npm package required.
 
 See the [WordPress setup guide →](/docs/integrations/wordpress/)
 

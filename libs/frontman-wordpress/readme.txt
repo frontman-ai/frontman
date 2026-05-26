@@ -4,15 +4,21 @@ Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.16.1
+Stable tag: 0.18.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI agent for WordPress that edits posts, blocks, menus, templates, site options, and a Frontman-managed child theme from a conversational UI.
+AI agent for WordPress that edits posts, blocks, menus, templates, site options, Elementor pages, and WooCommerce stores from a conversational UI.
 
 == Description ==
 
-Agentic AI puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow — posts, pages, blocks, menus, templates, site settings, and more.
+Watch Frontman in action:
+
+https://www.youtube.com/watch?v=-4GD1GYwH8Y
+
+Learn more on the [Frontman Website](https://frontman.sh).
+
+Agentic AI puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow — posts, pages, blocks, menus, templates, site settings, WooCommerce store operations, and more.
 
 No code editor. No terminal. Just a chat interface alongside a live view of your site.
 
@@ -20,15 +26,13 @@ No code editor. No terminal. Just a chat interface alongside a live view of your
 
 * Create, edit, and delete posts and pages
 * Insert, update, and rearrange Gutenberg blocks
-* Inspect theme files — templates, `style.css`, `theme.json`, `functions.php`
-* Create and activate a Frontman-managed child theme for safe CSS, HTML, and JSON edits on block themes
-* Fork supported parent-theme files into that managed child theme before editing them
+* Edit Elementor pages with complete Elementor support and versioning
+* Manage WooCommerce products, orders, customers, coupons, shipping, taxes, reports, settings, and store data when WooCommerce is active
 * Update navigation menus and menu items
 * Read and change site options (title, tagline, permalinks, etc.)
 * Browse block templates and template parts
-* Search and read files across your WordPress installation
 
-Managed child-theme editing is available when the active site theme is a block-theme parent theme. If another child theme is already active, or if the current theme is not a block theme, Frontman keeps theme files read-only and falls back to inspection plus manual guidance.
+Frontman supports WordPress content workflows across Gutenberg, templates, menus, site options, Elementor pages, and WooCommerce stores.
 
 **Who it's for:**
 
@@ -47,14 +51,14 @@ This is an experimental release. It works, but it hasn't been tested across ever
 1. Download the Frontman plugin release ZIP or upload the `frontman-agentic-ai-editor` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu
 3. Navigate to `/frontman` on your site (you must be logged in as an admin)
-4. Use Frontman - WordPress tools, file inspection, and managed child-theme editing now run directly inside the plugin
+4. Use Frontman - WordPress tools, Elementor editing, and WooCommerce tools now run directly inside the plugin
 
 == Frequently Asked Questions ==
 
 
 = Do I need another server? =
 
-No. Frontman now runs the WordPress tools, file inspection tools, and managed child-theme editing tools directly in PHP inside the plugin.
+No. Frontman now runs the WordPress tools, Elementor editing tools, and WooCommerce tools directly in PHP inside the plugin.
 
 = Is it safe? =
 
@@ -66,7 +70,7 @@ Technically, yes — unlike the JavaScript framework integrations, the WordPress
 
 = Which themes work? =
 
-Frontman's content, menu, widget, option, and inspection tools work across WordPress themes. The managed child-theme editing workflow currently targets block themes (Full Site Editing) running without another child theme already active.
+Frontman's content, menu, widget, option, Elementor, and WooCommerce tools work across WordPress themes.
 
 == Third-Party Services ==
 
@@ -80,7 +84,7 @@ The chat interface is loaded from `https://app.frontman.sh`. This serves the Jav
 * Privacy Policy: [https://frontman.sh/terms](https://frontman.sh/terms)
 
 **Frontman API (api.frontman.sh)**
-The plugin connects via WebSocket to `wss://api.frontman.sh` for AI agent communication — sending tool results and receiving agent responses. Your site content is sent to this service when the agent processes requests.
+The plugin connects via WebSocket to `wss://api.frontman.sh` for AI agent communication — sending tool results and receiving agent responses. Your site content and, when you use WooCommerce tools, store data such as products, orders, customers, coupons, reports, and settings are sent to this service when the agent processes requests.
 
 * Service URL: [https://api.frontman.sh](https://api.frontman.sh)
 * Provider: Frontman AI
@@ -93,9 +97,38 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 
 == Screenshots ==
 
-1. The Frontman chat interface alongside your WordPress site
+1. Frontman understands the requested content change and prepares the edit from chat.
+2. Frontman runs beside a live WordPress page preview while you describe changes.
+3. Frontman highlights the selected product card directly on the site.
+4. Select mode lets you click page elements to target edits visually.
 
 == Changelog ==
+
+= 0.18.2 =
+* Improve Elementor mutation schemas so empty add-element, update-settings, full-page-data, and generated-child payloads are rejected before they reach Elementor
+
+= 0.18.1 =
+* Preserve existing WordPress page templates when saving or rolling back Elementor page data, and report any template side effect in Elementor tool responses
+
+= 0.18.0 =
+* Add WooCommerce tools for products, orders, customers, shipping, taxes, coupons, reports, settings, system status, and store data when WooCommerce is active
+
+= 0.17.2 =
+* Improve Elementor editing tool guidance and recovery errors for non-empty settings diffs and full-tree updates
+
+= 0.17.1 =
+* Sync the Frontman plugin release with Frontman v0.17.1
+
+= 0.17.0 =
+* Sync the Frontman plugin release with Frontman v0.17.0
+* See the GitHub release notes for the full cross-product changelog
+
+= 0.16.0 =
+* Sync the Frontman plugin release with Frontman v0.16.0
+* See the GitHub release notes for the full cross-product changelog
+
+= 0.17.0 =
+* Remove direct filesystem tools from the WordPress plugin while keeping WordPress API-based content editing tools
 
 = 0.16.1 =
 * Fix image attachment uploads for WordPress media replacement workflows

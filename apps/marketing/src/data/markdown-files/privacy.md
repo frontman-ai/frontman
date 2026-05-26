@@ -1,98 +1,135 @@
-## Introduction
+## Controller
 
-At Frontman, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform and services. Please read this policy carefully. By using Frontman, you consent to the practices described in this policy.
+This Privacy Policy explains how {{company.name}}, {{company.fullAddress}}, registered with the commercial register of {{company.registerCourt}} under {{company.registerNumber}}, represented by its managing director {{company.managingDirector}}, processes personal data in connection with Frontman.
 
-## Information We Collect
+You can contact us at {{company.supportMailto}}.
 
-### Information You Provide
+## Scope
 
-We may collect information that you voluntarily provide when using Frontman, including:
+This Privacy Policy applies to the Frontman website, hosted Frontman service, accounts, support, billing-related interactions, product analytics, and related communications.
 
-- Account information such as your name, email address, and password when you register
-- Profile information you choose to add to your account
-- Payment and billing information when you subscribe to paid features
-- Content you create, upload, or share through the platform
-- Communications you send to us, such as support requests or feedback
+When a business customer uses Frontman to process personal data contained in its own codebase, prompts, logs, screenshots, DOM data, or project history, the customer is usually the controller and we act as processor. In that case, our [Data Processing Agreement](/dpa/) applies in addition to this Privacy Policy.
 
-### Information Collected Automatically
+## Categories of Personal Data
 
-When you use Frontman, we may automatically collect certain information, including:
+We may process the following categories of personal data:
 
-- Device information such as your browser type, operating system, and device identifiers
-- Usage data such as pages visited, features used, and interaction patterns
-- Log data including IP address, access times, and referring URLs
-- Performance and error data to help us improve the service
+- account data, such as name, email address, login information, business information, and account settings;
+- billing and transaction data, such as billing address, subscription status, tax information, payment status, and Stripe or Link transaction identifiers;
+- support and communication data, such as messages, requests, feedback, and related metadata;
+- website usage data, such as pages visited, referrers, approximate location, device information, browser information, cookie consent status, and marketing analytics events;
+- product usage data, such as feature usage, interaction events, session metadata, diagnostics, error reports, performance data, and product analytics events;
+- Customer Content processed through Frontman, such as prompts, instructions, source-code snippets, project files, generated output, DOM structure, component information, screenshots, logs, routes, source maps, build errors, tool results, and task history;
+- credentials and connection data, such as encrypted API keys, OAuth connection metadata, provider identifiers, and provider configuration;
+- security data, such as IP addresses, authentication events, audit logs, abuse indicators, and fraud-prevention signals.
 
-### Code and Project Data
+## Purposes and Legal Bases
 
-Frontman operates within your development environment. We are committed to transparency about how we handle your code and project data:
+We process personal data for the following purposes and legal bases under the GDPR:
 
-- Frontman processes code context locally within your browser to provide AI-powered suggestions
-- Code snippets may be sent to AI model providers to generate responses to your requests
-- We do not store your source code on our servers beyond what is necessary to process your requests
-- We do not use your proprietary code to train AI models
+- to provide, operate, secure, and maintain Frontman, based on contract performance or pre-contractual steps under Article 6(1)(b) GDPR;
+- to manage accounts, subscriptions, trials, billing, and customer support, based on contract performance under Article 6(1)(b) GDPR;
+- to process payments, fraud prevention, tax, invoices, and subscription administration through Stripe or Link, based on contract performance, legal obligations, and legitimate interests under Articles 6(1)(b), 6(1)(c), and 6(1)(f) GDPR;
+- to improve and debug the service, analyze product usage, and understand feature adoption, based on legitimate interests under Article 6(1)(f) GDPR or consent where required;
+- to use marketing analytics on the website, based on consent under Article 6(1)(a) GDPR where required;
+- to send service, security, billing, and support communications, based on contract performance or legitimate interests under Articles 6(1)(b) and 6(1)(f) GDPR;
+- to comply with legal obligations, enforce rights, prevent abuse, and protect the service, based on Articles 6(1)(c) and 6(1)(f) GDPR.
 
-## How We Use Your Information
+## Customer Content and AI Providers
 
-We use the information we collect to:
+Frontman is an agentic development tool. To provide the service, Frontman may process Customer Content including prompts, code context, screenshots, DOM information, logs, source maps, build errors, project files, generated output, and task history.
 
-- Provide, operate, and maintain the Frontman platform
-- Process your transactions and manage your subscriptions
-- Improve, personalize, and expand our services
-- Communicate with you about updates, security alerts, and support
-- Monitor and analyze usage trends to improve user experience
-- Detect, prevent, and address technical issues and security threats
-- Comply with legal obligations
+Frontman uses a bring-your-own-key model. You choose and connect third-party AI providers using your own credentials or provider-authorized connection. When you use Frontman with a selected AI provider, we transmit the Customer Content needed for your request to that provider as instructed by you.
 
-## How We Share Your Information
+We do not use Customer Content to train or fine-tune AI models. Third-party AI providers process data according to their own terms, privacy notices, and data processing arrangements with you or with the relevant account holder.
 
-We do not sell your personal information. We may share your information in the following limited circumstances:
+## API Keys and Credentials
 
-- **Service providers:** With third-party vendors who assist us in operating our platform, such as hosting, analytics, and payment processing
-- **AI model providers:** Code context necessary to fulfill your AI requests may be shared with our AI model providers, subject to their data processing agreements
-- **Legal requirements:** When required by law, regulation, or legal process
-- **Business transfers:** In connection with a merger, acquisition, or sale of assets
-- **With your consent:** When you have given us explicit permission to share your information
+API keys and provider credentials stored in the hosted service are encrypted server-side using application-level encryption. Authorized Frontman personnel and systems may access or decrypt credentials where necessary to provide, secure, maintain, troubleshoot, or support the service.
+
+You should only connect credentials that you are authorized to use and should configure provider-side permissions, limits, and billing controls appropriately.
+
+## Cookies, Consent, and Analytics
+
+We use essential cookies, local storage, and similar technologies to operate the website and service, remember consent choices, authenticate users, secure sessions, and provide core functionality.
+
+On the marketing website, we use Google Analytics only after consent where required. Google Analytics helps us understand aggregate website usage such as pages visited, referrers, and marketing interactions.
+
+Inside the authenticated hosted Frontman service, we use Heap Analytics to understand product usage, improve onboarding, and identify usability issues. Where consent is required, Heap is used based on consent; otherwise it is used based on our legitimate interest in improving and operating a B2B SaaS product.
+
+You can manage cookie and analytics consent through the consent banner and browser settings. If you clear local storage or cookies, you may need to set your preferences again.
+
+## Error Monitoring and Diagnostics
+
+We use Sentry for error monitoring and diagnostics. Sentry may process error messages, stack traces, device and browser information, IP address, user identifiers, performance data, and related diagnostic metadata.
+
+We configure diagnostics to reduce the risk of collecting secrets, API keys, and Customer Content in error payloads. Because diagnostic filtering can be imperfect, you should avoid intentionally placing secrets in prompts, filenames, logs, URLs, or other fields that may appear in diagnostic data.
+
+## Payments and Billing
+
+Paid subscriptions may be processed through Stripe Managed Payments. For eligible transactions, Stripe or its affiliate acts as merchant of record and the customer may see the transaction as sold through Link.
+
+Stripe or Link may process payment details, billing address, tax information, invoices, receipts, fraud-prevention data, dispute data, subscription status, and transaction-level support data. Stripe or Link may communicate directly with you about payments, subscriptions, receipts, invoices, refunds, disputes, and order management.
+
+We do not receive full card numbers from Stripe. Payment data is processed according to Stripe's and Link's applicable terms and privacy notices.
+
+## Hosting and Storage
+
+The hosted Frontman service is hosted in the European Union using Hetzner infrastructure.
+
+Conversation and task history is stored until you delete it. When you delete history, it is deleted from active systems, but backup copies may retain deleted data for up to 3 months before automatic backup expiry.
+
+Some data may need to be retained longer where required for billing, tax, security, legal compliance, dispute resolution, or enforcement of rights.
+
+## Recipients and Subprocessors
+
+We may share personal data with service providers and subprocessors that help us provide, secure, analyze, bill, and support Frontman. Our current list is available at [Subprocessors](/subprocessors/).
+
+We may also disclose personal data where required by law, court order, governmental request, payment network rules, Stripe or Link transaction processes, or to protect rights, security, and service integrity.
+
+## International Transfers
+
+We primarily host the Frontman service in the European Union. Some providers, including analytics, payment, error monitoring, or customer-selected AI providers, may process data outside the European Economic Area.
+
+Where required, we rely on appropriate safeguards such as adequacy decisions, Standard Contractual Clauses, supplementary measures, or other lawful transfer mechanisms.
 
 ## Data Retention
 
-We retain your personal information only for as long as necessary to fulfill the purposes for which it was collected, including to satisfy legal, accounting, or reporting requirements. When your data is no longer needed, we will securely delete or anonymize it.
+We retain personal data only as long as necessary for the purposes described in this Privacy Policy, unless longer retention is required or permitted by law.
 
-## Data Security
+Typical retention periods include:
 
-We implement appropriate technical and organizational security measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the internet or electronic storage is completely secure, and we cannot guarantee absolute security.
+- account data for the duration of the account;
+- Customer Content and task history until user deletion, subject to backup retention up to 3 months;
+- billing and tax records for statutory retention periods;
+- support communications for as long as needed to handle the request and maintain business records;
+- security logs and diagnostic data for a limited period needed for security, debugging, and abuse prevention;
+- analytics data according to the retention settings of the relevant analytics provider.
 
 ## Your Rights
 
-Depending on your location, you may have the following rights regarding your personal data:
+Subject to legal requirements, you may have the right to request access, rectification, erasure, restriction, portability, and objection to processing of your personal data. Where processing is based on consent, you may withdraw consent at any time with effect for the future.
 
-- **Access:** Request a copy of the personal information we hold about you
-- **Correction:** Request correction of inaccurate or incomplete information
-- **Deletion:** Request deletion of your personal information
-- **Portability:** Request a portable copy of your data
-- **Objection:** Object to the processing of your personal information
-- **Restriction:** Request restriction of processing of your personal information
+You may exercise your rights by contacting {{company.supportMailto}}.
 
-To exercise any of these rights, please contact us at [support@frontman.sh](mailto:support@frontman.sh).
+You also have the right to lodge a complaint with a data protection supervisory authority. The supervisory authority responsible for Berlin is the Berliner Beauftragte fuer Datenschutz und Informationsfreiheit.
 
-## Cookies and Tracking
+## Security
 
-We use cookies and similar tracking technologies to collect usage information and improve our services. You can control cookie preferences through your browser settings. Disabling cookies may affect the functionality of certain features.
+We use technical and organizational measures designed to protect personal data, including encryption in transit, encrypted storage for sensitive credentials, access controls, backups, monitoring, and operational security processes. No internet-based service can be guaranteed to be absolutely secure.
 
-## Third-Party Links
+Additional security measures are described in our [Technical and Organizational Measures](/toms/).
 
-Frontman may contain links to third-party websites or services. We are not responsible for the privacy practices of these third parties. We encourage you to review the privacy policies of any third-party services you access through Frontman.
+## Children's Data
 
-## Children's Privacy
+Frontman is a B2B service and is not intended for children. We do not knowingly collect personal data from children.
 
-Frontman is not intended for use by individuals under the age of 16. We do not knowingly collect personal information from children. If we become aware that we have collected information from a child, we will take steps to delete it promptly.
+## Changes to This Privacy Policy
 
-## Changes to This Policy
+We may update this Privacy Policy from time to time. We will update the "Last updated" date and provide additional notice where required by law.
 
-We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the updated policy on our website and updating the "Last updated" date. Your continued use of Frontman after changes are posted constitutes your acceptance of the revised policy.
+## Contact
 
-## Contact Us
+For privacy questions or requests, contact us at {{company.supportMailto}}.
 
-If you have any questions or concerns about this Privacy Policy or our data practices, please contact us at [support@frontman.sh](mailto:support@frontman.sh).
-
-_Last updated: February 25, 2026_
+_Last updated: May 5, 2026_

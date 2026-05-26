@@ -10,15 +10,15 @@
 	},
 	"dependencies": {
 		"@frontman-ai/vite": "../../../libs/frontman-vite",
-		"@vitejs/plugin-vue": "^5.2.0",
+		"@vitejs/plugin-vue": "^6.0.5",
 		"axios": "^1.13.5",
 		"pinia": "^3.0.4",
 		"vue": "^3.5.28",
-		"vue-router": "^4.6.4"
+		"vue-router": "^5.0.4"
 	},
 	"devDependencies": {
-		"typescript": "^5.9.3",
-		"vite": "^6.4.2",
-		"vue-tsc": "^2.2.12"
+		"typescript": "^6.0.2",
+		"vite": "^8.0.5",
+		"vue-tsc": "^3.2.6"
 	}
 }

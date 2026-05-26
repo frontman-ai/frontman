@@ -29,6 +29,13 @@ describe("Next.js E2E", () => {
     await stopFramework(server);
   });
 
+  it("should render pages without breaking", async () => {
+    const res = await fetch(`http://127.0.0.1:${PORT}/`);
+    const html = await res.text();
+    expect(res.status).toBe(200);
+    expect(html).toContain("Hello World");
+  });
+
   it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 

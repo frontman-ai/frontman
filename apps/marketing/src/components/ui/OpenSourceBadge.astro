@@ -1,7 +1,7 @@
 ---
 // Open Source Badge
 // ------------
-// Description: A badge component to display "Open Source • Free Beta"
+// Description: A badge component to display open-source licensing.
 
 // Props
 type Props = {
@@ -11,7 +11,7 @@ const { classes } = Astro.props
 ---
 
 <a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class:list={['open-source-badge', { [`${classes}`]: classes }]}>
-	<span class="open-source-badge__text">Open Source <span class="open-source-badge__bullet">•</span> Apache 2.0 <span class="open-source-badge__bullet">•</span> Free Beta</span>
+	<span class="open-source-badge__text">Open Source <span class="open-source-badge__bullet">•</span> Apache 2.0 <span class="open-source-badge__bullet">•</span> AGPL-3.0</span>
 </a>
 
 <style>

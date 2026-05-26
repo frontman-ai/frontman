@@ -1,5 +1,5 @@
 ---
-title: 'Browser-Aware AI Coding Tools in 2026 — Compared by Architecture'
+title: 'Browser-Aware AI Coding Tools Compared'
 pubDate: 2026-02-23T06:00:00Z
 description: "Frontman, Stagewise, Tidewave, Chrome DevTools MCP, and Onlook: how each one connects to your running app, what they can and can't see, and who each is for."
 author: 'Danni Friedland'
@@ -24,7 +24,7 @@ Runtime-aware tools try to close this gap — what we call [the runtime context 
 
 Framework middleware for Next.js, Astro, and Vite. Installs _inside_ the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
 
-**Strengths:** Deepest framework integration. Fully free, no prompt limits, no account. BYOK — connect Claude, OpenAI, or OpenRouter directly. Open source with permissive client library licensing.
+**Strengths:** Deepest framework integration. BYOK — connect Claude, OpenAI, or OpenRouter directly. Open source with permissive client library licensing and self-hosting available.
 
 **Weaknesses:** Early stage. Rough edges, incomplete documentation, small community. Limited to supported frameworks. Source mapping breaks on deeply abstracted component libraries.
 
@@ -86,10 +86,10 @@ Google's experimental MCP server exposing DevTools state to AI agents. Your agen
 
 **Want the most polished UX and don't mind paying:** Stagewise. The YC backing shows.
 
-**Want free + deep framework integration + full control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-browser-aware-ai-coding-tools/). No prompt limits, no account, BYOK, open source. The tradeoff is that it's early-stage with rougher edges.
+**Want deep framework integration + local control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-browser-aware-ai-coding-tools/). Open-source core, BYOK for local development, and hosted plans coming soon. The tradeoff is that it's early-stage with rougher edges.
 
 **Want to add browser context to your existing agent:** Chrome DevTools MCP. Bare-bones but framework-agnostic and free.
 
 **Designer who wants a visual editor:** Onlook. Different category entirely.
 
-The category is real — and it's part of a broader wave of [open-source AI coding tools](/blog/best-open-source-ai-coding-tools-2026/). Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started/), [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/), or read the detailed [Frontman vs Cursor](/vs/cursor/) and [Frontman vs Stagewise](/vs/stagewise/) comparisons.
+The category is real — and it's part of a broader wave of [open-source AI coding tools](/blog/best-open-source-ai-coding-tools-2026/). Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started/), read the [frontend AI tools](/blog/best-frontend-coding-agent/) buyer guide, or see the detailed [Frontman vs Cursor](/vs/cursor/) and [Frontman vs Stagewise](/vs/stagewise/) comparisons.

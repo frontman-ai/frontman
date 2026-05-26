@@ -136,6 +136,7 @@ type pluginOptions = {
 // The array includes:
 //   1. The main Frontman middleware plugin
 //   2. The Vue SFC source annotation plugin (dev-only, no-ops for non-Vue projects)
+@@live
 let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
   let opts = options->Option.getOr({})
 

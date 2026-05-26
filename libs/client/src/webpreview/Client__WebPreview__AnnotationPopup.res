@@ -9,7 +9,7 @@
  * - Clicking another element auto-closes this popup (handled by parent)
  */
 module Annotation = Client__Annotation__Types
-module RadixUI__Icons = Bindings__RadixUI__Icons
+module RadixUI__Icons = FrontmanBindings.Bindings__RadixUI__Icons
 
 @react.component
 let make = (

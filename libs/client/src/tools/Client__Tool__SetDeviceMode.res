@@ -47,17 +47,17 @@ type input = {
 
 @schema
 type output = {
-  @s.describe("Whether the action was performed successfully")
+  @s.describe("Whether the action was performed successfully") @live
   success: bool,
-  @s.describe("Current device mode after the action")
+  @s.describe("Current device mode after the action") @live
   currentMode: option<string>,
-  @s.describe("Current viewport dimensions (width x height) after the action")
+  @s.describe("Current viewport dimensions (width x height) after the action") @live
   currentDimensions: option<string>,
-  @s.describe("Current orientation after the action")
+  @s.describe("Current orientation after the action") @live
   currentOrientation: option<string>,
-  @s.describe("Available device presets with dimensions (only for 'list_presets')")
+  @s.describe("Available device presets with dimensions (only for 'list_presets')") @live
   presets: option<array<string>>,
-  @s.describe("Error message if the action failed")
+  @s.describe("Error message if the action failed") @live
   error: option<string>,
 }
 

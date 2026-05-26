@@ -1,3 +1,5 @@
+@reference "tailwindcss";
+
 .markdown {
   @apply text-lg leading-relaxed;
 }

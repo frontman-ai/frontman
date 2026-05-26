@@ -4,19 +4,8 @@ defmodule FrontmanServer.Tools.WebFetchTest do
   alias FrontmanServer.Tools.WebFetch
 
   setup do
-    Application.put_env(:frontman_server, :web_fetch_req_options, plug: {Req.Test, :web_fetch})
-
-    on_exit(fn ->
-      Application.delete_env(:frontman_server, :web_fetch_req_options)
-    end)
-
     context = %FrontmanServer.Tools.Backend.Context{
-      scope: nil,
-      task: nil,
-      tool_executor: fn tool_calls ->
-        Enum.map(tool_calls, fn tc -> SwarmAi.ToolResult.make(tc.id, "mock result", false) end)
-      end,
-      llm_opts: [api_key: "test-key", model: "test-model"]
+      task: nil
     }
 
     %{context: context}
@@ -242,6 +231,31 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
   end
 
+  describe "execute/2 — transport retries" do
+    test "retries closed transport errors for safe GET requests", %{context: ctx} do
+      call_count = :counters.new(1, [:atomics])
+
+      Req.Test.stub(:web_fetch, fn conn ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        case count < 4 do
+          true ->
+            Req.Test.transport_error(conn, :closed)
+
+          false ->
+            conn
+            |> Plug.Conn.put_resp_content_type("text/plain")
+            |> Plug.Conn.send_resp(200, "Recovered after closed socket")
+        end
+      end)
+
+      assert {:ok, result} = execute("https://example.com/closed-repeatedly", ctx)
+      assert result["content"] =~ "Recovered after closed socket"
+      assert :counters.get(call_count, 1) == 5
+    end
+  end
+
   describe "execute/2 — pagination" do
     setup do
       body = Enum.map_join(1..10, "\n", fn i -> "Line #{i}" end)
@@ -320,21 +334,45 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
   end
 
-  describe "execute/2 — non-text content rejection" do
-    test "rejects image/png responses", %{context: ctx} do
-      # PNG header bytes
-      stub_resp(200, "image/png", <<137, 80, 78, 71, 13, 10, 26, 10>>)
+  describe "execute/2 — image support and non-text rejection" do
+    test "returns image/png responses as image results", %{context: ctx} do
+      image_bytes = <<137, 80, 78, 71, 13, 10, 26, 10>>
+      url = "https://example.com/logo.png"
 
-      assert {:error, msg} = execute("https://example.com/logo.png", ctx)
-      assert msg =~ "non-text"
-      assert msg =~ "image/png"
+      Req.Test.stub(:web_fetch, fn conn ->
+        accept = Plug.Conn.get_req_header(conn, "accept") |> List.first("")
+        assert accept =~ "image/png"
+        assert accept =~ "image/jpeg"
+        assert accept =~ "image/gif"
+        assert accept =~ "image/webp"
+
+        conn
+        |> Plug.Conn.put_resp_content_type("image/png")
+        |> Plug.Conn.send_resp(200, image_bytes)
+      end)
+
+      assert {:ok, result} = execute(url, ctx)
+      assert result["type"] == "image"
+      assert result["url"] == url
+      assert result["content_type"] =~ "image/png"
+      assert result["image"] == "data:image/png;base64,#{Base.encode64(image_bytes)}"
     end
 
-    test "rejects image/jpeg responses", %{context: ctx} do
-      stub_resp(200, "image/jpeg", <<255, 216, 255, 224>>)
+    test "returns image/jpeg responses with normalized data URL media type", %{context: ctx} do
+      image_bytes = <<255, 216, 255, 224, "fake-jpeg">>
+      url = "https://example.com/photo.jpg"
 
-      assert {:error, msg} = execute("https://example.com/photo.jpg", ctx)
-      assert msg =~ "non-text"
+      Req.Test.stub(:web_fetch, fn conn ->
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "image/jpeg; charset=binary")
+        |> Plug.Conn.send_resp(200, image_bytes)
+      end)
+
+      assert {:ok, result} = execute(url, ctx)
+      assert result["type"] == "image"
+      assert result["url"] == url
+      assert result["content_type"] == "image/jpeg; charset=binary"
+      assert result["image"] == "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
     end
 
     test "rejects application/octet-stream responses", %{context: ctx} do
@@ -351,6 +389,14 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       assert msg =~ "non-text"
     end
 
+    test "rejects image/svg+xml responses", %{context: ctx} do
+      stub_resp(200, "image/svg+xml", "<svg></svg>")
+
+      assert {:error, msg} = execute("https://example.com/vector.svg", ctx)
+      assert msg =~ "non-text"
+      assert msg =~ "image/svg+xml"
+    end
+
     test "allows text/html responses", %{context: ctx} do
       stub_resp(200, "text/html", "<h1>Hello</h1>")
 
@@ -364,7 +410,14 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
 
     test "allows application/json responses", %{context: ctx} do
-      stub_resp(200, "application/json", ~s({"key": "value"}))
+      Req.Test.stub(:web_fetch, fn conn ->
+        accept = Plug.Conn.get_req_header(conn, "accept") |> List.first("")
+        assert accept =~ "application/json"
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.send_resp(200, ~s({"key": "value"}))
+      end)
 
       assert {:ok, _} = execute("https://example.com/api", ctx)
     end

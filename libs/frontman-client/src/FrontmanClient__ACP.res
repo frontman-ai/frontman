@@ -14,6 +14,7 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 type messageDirection = Protocol.messageDirection
+@@live
 type config = {
   endpoint: string,
   tokenUrl: string,
@@ -25,6 +26,7 @@ type config = {
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
 }
 
+@@live
 let makeConfig = (
   ~endpoint: string,
   ~tokenUrl: string,
@@ -63,6 +65,7 @@ type connection = {
   onMessage: option<(messageDirection, JSON.t) => unit>,
 }
 
+@@live
 type session = {
   sessionId: string,
   channel: Channel.t,
@@ -148,6 +151,7 @@ let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
 }
 
 // Connect and initialize ACP
+@@live
 let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
   connection,
   connectError,
@@ -244,11 +248,13 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
 }
 
 // Get current connection state
+@@live
 let getState = (conn: connection): Client.acpState => {
   Client.getACPState(conn.state.contents)
 }
 
 // Check if initialized
+@@live
 let isInitialized = (conn: connection): bool => {
   Client.isInitialized(conn.state.contents)
 }
@@ -325,6 +331,7 @@ let joinSession = async (
 // Client generates sessionId (UUID) and sends it to the server
 // mcpServerInterface is attached before channel join to handle server's immediate MCP init
 // onUpdate receives (sessionId, update) per ACP session/update notification params
+@@live
 let createSession = async (
   conn: connection,
   ~sessionId: string,
@@ -363,6 +370,7 @@ let createSession = async (
 }
 
 // Send a prompt to the session with additional content blocks
+@@live
 let sendPrompt = async (
   session: session,
   text: string,
@@ -447,6 +455,7 @@ let deleteSession = (conn: connection, sessionId: string): promise<result<unit, 
 // Load an existing session (ACP compliant)
 // History is streamed via session/update notifications to onUpdate callback
 // onUpdate receives (sessionId, update) per ACP session/update notification params
+@@live
 let loadSession = async (
   conn: connection,
   sessionId: string,

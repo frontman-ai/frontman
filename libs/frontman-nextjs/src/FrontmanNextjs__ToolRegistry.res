@@ -22,5 +22,7 @@ let make = (): t => {
 // Re-export functions from core
 let getToolByName = CoreRegistry.getToolByName
 let getToolDefinitions = CoreRegistry.getToolDefinitions
+@@live
 let addTools = CoreRegistry.addTools
+@@live
 let count = CoreRegistry.count

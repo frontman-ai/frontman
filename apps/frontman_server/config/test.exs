@@ -57,8 +57,14 @@ config :phoenix_live_view,
 config :frontman_server,
   anthropic_api_key: "sk-ant-test-key",
   openai_api_key: "sk-proj-test-key",
+  llm_provider: FrontmanServer.Tasks.Execution.LLMProviderMock,
   # Test key for Cloak encryption (generated with :crypto.strong_rand_bytes(32) |> Base.encode64())
   cloak_key: "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleTEyMzQ="
+
+config :frontman_server, :web_fetch_req_options,
+  plug: {Req.Test, :web_fetch},
+  retry_delay: fn _ -> 0 end,
+  retry_log_level: false
 
 # OpenTelemetry - disable in tests
 config :opentelemetry,

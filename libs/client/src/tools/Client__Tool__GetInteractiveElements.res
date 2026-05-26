@@ -32,21 +32,23 @@ type input = {
 
 @schema
 type interactiveElement = {
-  @s.describe("Position in the returned list (0-based)")
+  @s.describe("Position in the returned list (0-based)") @live
   index: int,
-  @s.describe("ARIA role (computed from HTML semantics or explicit role attribute)")
+  @s.describe("ARIA role (computed from HTML semantics or explicit role attribute)") @live
   role: string,
-  @s.describe("Accessible name (from aria-label, label element, text content, etc.)")
+  @s.describe("Accessible name (from aria-label, label element, text content, etc.)") @live
   name: string,
-  @s.describe("HTML tag name")
+  @s.describe("HTML tag name") @live
   tag: string,
   @s.describe("CSS selector for targeting this element (absent if selector generation failed)")
+  @live
   selector: option<string>,
   @s.describe(
     "How this element was detected as interactive: 'semantic', 'cursor_pointer', or 'tabindex'"
   )
+  @live
   detectionMethod: string,
-  @s.describe("Truncated visible text content of the element")
+  @s.describe("Truncated visible text content of the element") @live
   visibleText: option<string>,
 }
 
@@ -54,15 +56,16 @@ let maxElements = 50
 
 @schema
 type output = {
-  @s.describe("Whether the discovery was performed successfully")
+  @s.describe("Whether the discovery was performed successfully") @live
   success: bool,
-  @s.describe("List of interactive elements found on the page")
+  @s.describe("List of interactive elements found on the page") @live
   elements: option<array<interactiveElement>>,
-  @s.describe("Total number of interactive elements returned")
+  @s.describe("Total number of interactive elements returned") @live
   totalCount: option<int>,
   @s.describe("True if results were capped at the limit and more elements may exist on the page")
+  @live
   truncated: option<bool>,
-  @s.describe("Error message if the discovery failed")
+  @s.describe("Error message if the discovery failed") @live
   error: option<string>,
 }
 

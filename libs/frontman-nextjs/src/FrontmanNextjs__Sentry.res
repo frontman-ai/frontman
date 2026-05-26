@@ -1,7 +1,7 @@
 // Frontman Sentry integration for Next.js library
 // Reports errors to Frontman's own Sentry project
 
-module Bindings = FrontmanNextjs__Sentry__Bindings
+module Bindings = FrontmanBindings.Sentry__Nextjs
 module SentryConfig = FrontmanBindings.Sentry__Config
 module SentryFilter = FrontmanBindings.Sentry__Filter
 
@@ -40,6 +40,7 @@ let initialize = (~transport: option<Bindings.transport>=?) => {
 
 let isEnabled = () => initialized.contents && Bindings.isInitialized()
 
+@@live
 let captureError = (error: exn, ~operation: option<string>=?, ~extra: option<Dict.t<JSON.t>>=?) => {
   if isEnabled() {
     Some(
@@ -98,4 +99,5 @@ let addBreadcrumb = (~category: string, ~message: string, ~data: option<Dict.t<J
   }
 }
 
+@@live
 let flush = (~timeout: int=2000) => Bindings.flush(timeout)

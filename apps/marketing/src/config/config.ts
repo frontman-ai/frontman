@@ -17,7 +17,6 @@ export interface Config {
 	canonical: boolean
 	noindex: boolean
 	mode: Mode
-	scrollAnimations: boolean
 }
 
 export const configData: Config = {
@@ -31,6 +30,5 @@ export const configData: Config = {
 	},
 	canonical: true,
 	noindex: false,
-	mode: 'dark',
-	scrollAnimations: true
+	mode: 'dark'
 }

@@ -4,9 +4,11 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import Ecto.Query, only: [where: 3]
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers.Model
+  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Workers.GenerateTitle
 
@@ -69,6 +71,21 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
           model: "openrouter:openai/gpt-5.5"
         }
       )
+    end
+
+    test "completed title jobs remain unique", %{user: user} do
+      scope = Scope.for_user(user)
+      task_id = Ecto.UUID.generate()
+
+      {:ok, first_job} = Tasks.enqueue_title_generation(scope, task_id, "Build a login page")
+
+      Oban.Job
+      |> where([job], job.id == ^first_job.id)
+      |> Repo.update_all(set: [state: "completed"])
+
+      {:ok, second_job} = Tasks.enqueue_title_generation(scope, task_id, "Now add signup")
+
+      assert first_job.id == second_job.id
     end
   end
 end

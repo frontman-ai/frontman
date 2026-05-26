@@ -1,0 +1,20 @@
+#adminmenu .toplevel_page_frontman .wp-menu-image img {
+	display: none;
+}
+
+#adminmenu .toplevel_page_frontman .wp-menu-image::before {
+	content: "";
+	display: block;
+	width: 20px;
+	height: 20px;
+	margin: 7px auto 0;
+	background-color: #a7aaad;
+	-webkit-mask: url("frontman-menu-icon.svg") center / 16px 16px no-repeat;
+	mask: url("frontman-menu-icon.svg") center / 16px 16px no-repeat;
+}
+
+#adminmenu .toplevel_page_frontman:hover .wp-menu-image::before,
+#adminmenu .toplevel_page_frontman.current .wp-menu-image::before,
+#adminmenu .toplevel_page_frontman.wp-has-current-submenu .wp-menu-image::before {
+	background-color: #fff;
+}

@@ -125,9 +125,6 @@ module Lens = {
     setAnnotations(task, updated)
   }
 
-  let setAnimationFrozen = (task: Task.t, frozen: bool): Task.t =>
-    updateTaskData(task, d => {...d, isAnimationFrozen: frozen})
-
   let setActivePopupAnnotationId = (task: Task.t, id: option<string>): Task.t =>
     updateTaskData(task, d => {...d, activePopupAnnotationId: id})
 }
@@ -173,18 +170,6 @@ module Selectors = {
     }
   }
 
-  // Get annotation mode
-  // None = Unloaded (we don't know)
-  let annotationMode = (task: Task.t): option<Annotation.annotationMode> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | Task.New({annotationMode})
-    | Task.Loading({annotationMode})
-    | Task.Loaded({annotationMode}) =>
-      Some(annotationMode)
-    }
-  }
-
   // Derive webPreviewIsSelecting from annotationMode
   let webPreviewIsSelecting = (task: Task.t): option<bool> => {
     switch task {
@@ -198,14 +183,6 @@ module Selectors = {
     annotations(task)->Option.map(anns =>
       anns->Array.some(a => a.enrichmentStatus == Annotation.Enriching)
     )
-  }
-
-  // Get animation frozen state
-  let isAnimationFrozen = (task: Task.t): option<bool> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | _ => Some(Task.getIsAnimationFrozen(task))
-    }
   }
 
   // Get active popup annotation ID
@@ -231,16 +208,6 @@ module Selectors = {
     switch task {
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
     | Task.Loaded({planEntries}) => Some(planEntries)
-    }
-  }
-
-  // Get preview frame
-  // None = Unloaded (we don't know)
-  let previewFrame = (task: Task.t): option<Task.previewFrame> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | Task.New({previewFrame}) | Task.Loading({previewFrame}) | Task.Loaded({previewFrame}) =>
-      Some(previewFrame)
     }
   }
 
@@ -328,7 +295,6 @@ module Selectors = {
 // Element data for batch annotation (drag selection)
 type annotationElement = {
   element: WebAPI.DOMAPI.element,
-  position: Annotation.position,
   tagName: string,
 }
 
@@ -350,12 +316,8 @@ type action =
   // Annotation actions — unified selection mode
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
-  | ToggleAnnotation({
-      element: WebAPI.DOMAPI.element,
-      position: Annotation.position,
-      tagName: string,
-    })
-  | AddAnnotation({element: WebAPI.DOMAPI.element, position: Annotation.position, tagName: string})
+  | ToggleAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
+  | AddAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
@@ -372,7 +334,6 @@ type action =
   | ClearAnnotations
   | UpdateAnnotationComment({id: string, comment: string})
   | SetActivePopupAnnotationId({id: option<string>})
-  | ToggleAnimationFrozen
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
       contentDocument: option<WebAPI.DOMAPI.document>,
@@ -387,7 +348,7 @@ type action =
   | TurnCompleted
   | CancelTurn
   // Error actions
-  | AgentError({error: string, timestamp: string, retryable: bool, category: string})
+  | AgentError({error: string, timestamp: string, category: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
@@ -471,7 +432,6 @@ let actionToString = (action: action): string =>
   | ClearAnnotations => "ClearAnnotations"
   | UpdateAnnotationComment(_) => "UpdateAnnotationComment"
   | SetActivePopupAnnotationId(_) => "SetActivePopupAnnotationId"
-  | ToggleAnimationFrozen => "ToggleAnimationFrozen"
   | SetPreviewUrl(_) => "SetPreviewUrl"
   | SetPreviewFrame(_) => "SetPreviewFrame"
   | SetDeviceMode(_) => "SetDeviceMode"
@@ -671,12 +631,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
       let updated = Lens.setAnnotationMode(task, mode)
-      // Close popup and unfreeze when switching to Off
+      // Close popup when switching to Off
       let updated = switch mode {
-      | Annotation.Off =>
-        updated
-        ->Lens.setActivePopupAnnotationId(None)
-        ->Lens.setAnimationFrozen(false)
+      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
       | _ => updated
       }
       (updated, [])
@@ -687,12 +644,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | _ => Annotation.Off
       }
       let updated = Lens.setAnnotationMode(task, newMode)
-      // Close popup and unfreeze when toggling off
+      // Close popup when toggling off
       let updated = switch newMode {
-      | Annotation.Off =>
-        updated
-        ->Lens.setActivePopupAnnotationId(None)
-        ->Lens.setAnimationFrozen(false)
+      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
       | _ => updated
       }
       (updated, [])
@@ -700,10 +654,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Toggle annotation: click already-annotated element removes it, click new element adds it
   | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
-  | (
-      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
-      ToggleAnnotation({element, position, tagName}),
-    ) => {
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({element, tagName})) => {
       let existing = Annotation.findByElement(Task.getAnnotations(task), element)
       switch existing {
       | Some(ann) =>
@@ -714,7 +665,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         (updated, [])
       | None =>
         // New element — add annotation immediately, open popup, fetch details
-        let annotation = Annotation.make(~element, ~position, ~tagName)
+        let annotation = Annotation.make(~element, ~tagName)
         let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
         let effects = [
           FetchAnnotationDetails({
@@ -733,11 +684,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // AddAnnotation: always adds without toggle semantics (used for tree navigation)
   | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
-  | (
-      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
-      AddAnnotation({element, position, tagName}),
-    ) => {
-      let annotation = Annotation.make(~element, ~position, ~tagName)
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
+      let annotation = Annotation.make(~element, ~tagName)
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let effects = [
         FetchAnnotationDetails({
@@ -788,9 +736,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let newAnnotations =
-        elements->Array.map(el =>
-          Annotation.make(~element=el.element, ~position=el.position, ~tagName=el.tagName)
-        )
+        elements->Array.map(el => Annotation.make(~element=el.element, ~tagName=el.tagName))
       let effects = newAnnotations->Array.map(annotation => FetchAnnotationDetails({
         id: annotation.id,
         element: annotation.element,
@@ -812,21 +758,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
       (updated, [])
     }
-
   | (Task.Unloaded(_), ClearAnnotations) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearAnnotations) => {
       let updated = Lens.setAnnotations(task, [])
       let updated = Lens.setActivePopupAnnotationId(updated, None)
       (updated, [])
     }
-
-  // Toggle animation freeze (only when in selection mode)
-  | (Task.Unloaded(_), ToggleAnimationFrozen) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnimationFrozen) => (
-      Lens.setAnimationFrozen(task, !Task.getIsAnimationFrozen(task)),
-      [],
-    )
-
   // Set active popup annotation ID (for opening/closing the comment popup)
   | (Task.Unloaded(_), SetActivePopupAnnotationId(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetActivePopupAnnotationId({id})) => (
@@ -1088,14 +1025,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(_), AgentError({error, timestamp, retryable, category})) =>
+  | (Task.Loading(_), AgentError({error, timestamp, category})) =>
     let id = `error-${getTaskIdForError(task)}-${timestamp}`
-    let errorMsg = Message.Error(
-      Message.ErrorMessage.make(~id, ~error, ~timestamp, ~retryable, ~category),
-    )
+    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~timestamp, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(data), AgentError({error, retryable: _, category, timestamp})) =>
+  | (Task.Loaded(data), AgentError({error, category, timestamp})) =>
     // Set turn error and stop agent running - user can still send messages
     let id = `error-${getTaskIdForError(task)}-${timestamp}`
     let completed = task->Lens.completeStreamingMessage
@@ -1154,7 +1089,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         annotations: [],
         activePopupAnnotationId: None,
-        isAnimationFrozen: false,
       }),
       [],
     )
@@ -1173,7 +1107,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        isAnimationFrozen,
       }) =>
       let sortedMessages = MessageStore.toSorted(messages, (a, b) =>
         Selectors.getMessageCreatedAt(a) -. Selectors.getMessageCreatedAt(b)
@@ -1190,7 +1123,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAnimationFrozen,
           isAgentRunning: false,
           planEntries: [],
           turnError: None,
@@ -1414,7 +1346,7 @@ let fetchAnnotationDetails = (
   let selectorPromise =
     Promise.resolve()
     ->Promise.then(_ => {
-      let selector = Bindings__Finder.finder(
+      let selector = FrontmanBindings.Bindings__Finder.finder(
         ~element,
         ~options={
           root: document
@@ -1445,7 +1377,7 @@ let fetchAnnotationDetails = (
     let limits = Client__ImageLimits.conservative
     let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
 
-    Bindings__Snapdom.snapdom(element)
+    FrontmanBindings.Bindings__Snapdom.snapdom(element)
     ->Promise.then(captureResult => {
       captureResult.toJpg({scale, quality: limits.quality})->Promise.then(img => {
         Promise.resolve(Ok(Some(img)))

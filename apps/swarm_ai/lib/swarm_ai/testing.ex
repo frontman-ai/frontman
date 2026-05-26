@@ -31,14 +31,12 @@ defmodule SwarmAi.Testing do
 
   defmodule TestAgent do
     @moduledoc false
-    defstruct [:name, :llm, tools: []]
+    defstruct [:name, :llm]
   end
 
   defimpl SwarmAi.Agent, for: SwarmAi.Testing.TestAgent do
     def system_prompt(%{name: name}), do: "You are #{name}"
     def llm(%{llm: llm}), do: llm
-    def init(%{tools: tools}), do: {:ok, %{}, tools}
-    def should_terminate?(_, _, _), do: false
   end
 
   # --- Test LLM Implementations ---
@@ -107,18 +105,9 @@ defmodule SwarmAi.Testing do
 
     defp to_stream_chunk_tool_call(%SwarmAi.ToolCall{} = tc, index) do
       args =
-        case tc.arguments do
-          arguments when is_map(arguments) ->
-            arguments
-
-          arguments when is_binary(arguments) ->
-            case Jason.decode(arguments) do
-              {:ok, decoded} when is_map(decoded) -> decoded
-              _other -> %{}
-            end
-
-          _other ->
-            %{}
+        case SwarmAi.ToolCall.parse_arguments(tc) do
+          {:ok, arguments} -> arguments
+          {:error, _reason} -> %{}
         end
 
       StreamChunk.tool_call(tc.name, args, %{id: tc.id, index: index})
@@ -328,13 +317,9 @@ defmodule SwarmAi.Testing do
 
   @doc """
   Creates a test agent with the given LLM client.
-
-  ## Options
-
-  - `:tools` - List of `SwarmAi.Tool.t()` the agent can use (default: [])
   """
-  def test_agent(llm, name \\ "TestBot", opts \\ []) do
-    %TestAgent{name: name, llm: llm, tools: Keyword.get(opts, :tools, [])}
+  def test_agent(llm, name \\ "TestBot") do
+    %TestAgent{name: name, llm: llm}
   end
 
   @doc """

@@ -8,6 +8,7 @@ defmodule FrontmanServerWeb.UserSessionController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Accounts
+  alias FrontmanServer.Frameworks
   alias FrontmanServerWeb.UserAuth
 
   def new(conn, params) do
@@ -118,17 +119,11 @@ defmodule FrontmanServerWeb.UserSessionController do
   defp maybe_put_user_return_to(conn, _), do: conn
 
   defp maybe_put_signup_framework(conn, framework) when is_binary(framework) do
-    case normalize_signup_framework(framework) do
-      {:ok, normalized} -> put_session(conn, :signup_framework, normalized)
-      :error -> delete_session(conn, :signup_framework)
+    case Frameworks.valid_signup_id?(framework) do
+      true -> put_session(conn, :signup_framework, framework)
+      false -> delete_session(conn, :signup_framework)
     end
   end
 
   defp maybe_put_signup_framework(conn, _), do: delete_session(conn, :signup_framework)
-
-  defp normalize_signup_framework("nextjs"), do: {:ok, "nextjs"}
-  defp normalize_signup_framework("vite"), do: {:ok, "vite"}
-  defp normalize_signup_framework("astro"), do: {:ok, "astro"}
-  defp normalize_signup_framework("wordpress"), do: {:ok, "wordpress"}
-  defp normalize_signup_framework(_), do: :error
 end

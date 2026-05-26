@@ -18,6 +18,7 @@ module SSE = FrontmanAiFrontmanCore.FrontmanCore__SSE
 
 // The main integration factory - accepts optional config
 // This is also exported as default for `astro add` compatibility
+@@live
 let frontmanIntegration = Integration.make
 
 // Re-export config types for advanced usage

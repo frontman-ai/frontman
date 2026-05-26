@@ -44,26 +44,25 @@ let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string 
         | false => None
         }
       )
-    let openrouterKey = getEnvKey("OPENROUTER_API_KEY")
-    let anthropicKey = getEnvKey("ANTHROPIC_API_KEY")
-    let fireworksKey = getEnvKey("FIREWORKS_API_KEY")
     // Build JSON payload using proper JSON encoding to handle special characters
     let configObj = Dict.fromArray([
       ("framework", JSON.Encode.string(MiddlewareConfig.frameworkIdToString(config.frameworkId))),
       ("basePath", JSON.Encode.string(config.basePath)),
       ("projectRoot", JSON.Encode.string(config.projectRoot)),
       ("sourceRoot", JSON.Encode.string(config.sourceRoot)),
+      ("traits", config.traits->Array.map(JSON.Encode.string)->JSON.Encode.array),
     ])
     // Add key values if present and non-empty
-    openrouterKey->Option.forEach(key => {
-      configObj->Dict.set("openrouterKeyValue", JSON.Encode.string(key))
-    })
-    anthropicKey->Option.forEach(key => {
-      configObj->Dict.set("anthropicKeyValue", JSON.Encode.string(key))
-    })
-    fireworksKey->Option.forEach(key => {
-      configObj->Dict.set("fireworksKeyValue", JSON.Encode.string(key))
-    })
+    [
+      ("OPENROUTER_API_KEY", "openrouterKeyValue"),
+      ("ANTHROPIC_API_KEY", "anthropicKeyValue"),
+      ("FIREWORKS_API_KEY", "fireworksKeyValue"),
+      ("NVIDIA_API_KEY", "nvidiaKeyValue"),
+    ]->Array.forEach(((envVar, keyName)) =>
+      getEnvKey(envVar)->Option.forEach(key =>
+        configObj->Dict.set(keyName, JSON.Encode.string(key))
+      )
+    )
     let payload = JSON.stringify(JSON.Encode.object(configObj))
     `<script>window.__frontmanRuntime=${payload}</script>`
   }

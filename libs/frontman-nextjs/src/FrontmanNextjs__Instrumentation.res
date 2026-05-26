@@ -1,6 +1,7 @@
 module LogCapture = FrontmanNextjs__LogCapture
 module Sentry = FrontmanNextjs__Sentry
 
+@@live
 let setup = (): (
   FrontmanNextjs__OpenTelemetry__Bindings.Logs.logRecordProcessor,
   FrontmanNextjs__OpenTelemetry__Bindings.Trace.spanProcessor,

@@ -6,11 +6,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
 
   setup do
-    Sentry.Test.start_collecting_sentry_reports()
+    Sentry.Test.setup_sentry(dedup_events: false)
     :ok
   end
 
-  # A minimal state in the tools loading phase
   defp tools_state(request_id) do
     %{
       status: :loading_tools,
@@ -22,11 +21,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: nil,
       mcp_capabilities: %{},
       mcp_server_info: %{},
+      load_project_context: true,
       tools: nil
     }
   end
 
-  # A minimal state in the project_rules loading phase
   defp rules_state(request_id) do
     %{
       status: :loading_project_rules,
@@ -38,11 +37,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: nil,
       mcp_capabilities: %{},
       mcp_server_info: %{},
+      load_project_context: true,
       tools: []
     }
   end
 
-  # A minimal state in the project_structure loading phase
   defp structure_state(request_id) do
     %{
       status: :loading_project_structure,
@@ -54,6 +53,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       project_structure_request_id: request_id,
       mcp_capabilities: %{},
       mcp_server_info: %{},
+      load_project_context: true,
       tools: []
     }
   end
@@ -98,8 +98,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       request_id = 1
       state = rules_state(request_id)
 
-      # This is the exact payload from the Sentry issue — a successful JSON-RPC
-      # response where the tool itself returned an error.
       result = %{
         "content" => [%{"text" => "Path escapes source root: .", "type" => "text"}],
         "isError" => true
@@ -162,8 +160,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       request_id = 1
       state = rules_state(request_id)
 
-      # JSON decodes successfully but to a map, not a list — the `when is_list` guard
-      # in the `with` block rejects it, and there's no matching `else` clause.
       result = %{
         "content" => [%{"text" => ~s({"key": "value"}), "type" => "text"}]
       }

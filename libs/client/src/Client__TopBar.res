@@ -1,6 +1,6 @@
-module Icons = Bindings__RadixUI__Icons
-module Button = Bindings__UI__Button
-module Tooltip = Bindings__UI__Tooltip
+module Icons = FrontmanBindings.Bindings__RadixUI__Icons
+module Button = FrontmanBindings.Bindings__UI__Button
+module Tooltip = FrontmanBindings.Bindings__UI__Tooltip
 module FrontmanLogo = Client__FrontmanLogo
 
 @send external locationAssign: ('a, string) => unit = "assign"

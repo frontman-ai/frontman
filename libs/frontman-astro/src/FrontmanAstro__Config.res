@@ -4,7 +4,7 @@
 // Must use %raw with typeof guard: @val external won't work because __PACKAGE_VERSION__ is a
 // build-time constant replaced by tsup, not a runtime global.
 let packageVersion: string = %raw(`typeof __PACKAGE_VERSION__ !== "undefined" ? __PACKAGE_VERSION__ : undefined`)
-let () = if Js.typeof(packageVersion) == "undefined" {
+let () = if typeof(packageVersion) == #undefined {
   JsError.throwWithMessage("__PACKAGE_VERSION__ is not defined — tsup build is misconfigured")
 }
 
@@ -17,6 +17,7 @@ let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | None => Hosts.apiHost
 }
 
+@@live
 type t = {
   isDev: bool,
   projectRoot: string,

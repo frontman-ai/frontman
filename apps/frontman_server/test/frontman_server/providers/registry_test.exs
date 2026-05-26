@@ -9,6 +9,7 @@ defmodule FrontmanServer.Providers.RegistryTest do
       assert Registry.known?("ANTHROPIC")
       assert Registry.known?("Fireworks")
       assert Registry.known?("fireworks")
+      assert Registry.known?("NVIDIA")
       assert Registry.known?("openrouter")
     end
   end
@@ -18,7 +19,8 @@ defmodule FrontmanServer.Providers.RegistryTest do
       metadata = %{
         "openrouterKeyValue" => "sk-or-123",
         "anthropicKeyValue" => "sk-ant-456",
-        "fireworksKeyValue" => "fw-789"
+        "fireworksKeyValue" => "fw-789",
+        "nvidiaKeyValue" => "nvapi-123"
       }
 
       result = Registry.extract_env_keys(metadata)
@@ -26,7 +28,8 @@ defmodule FrontmanServer.Providers.RegistryTest do
       assert result == %{
                "openrouter" => "sk-or-123",
                "anthropic" => "sk-ant-456",
-               "fireworks" => "fw-789"
+               "fireworks" => "fw-789",
+               "nvidia" => "nvapi-123"
              }
     end
 

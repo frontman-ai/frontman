@@ -26,13 +26,20 @@ type dynamicType =
   | @as("optional") OptionalParam // [[slug]]
 
 @schema
-type input = {placeholder?: bool}
+type input = {
+  @live
+  placeholder?: bool,
+}
 
 @schema
 type page = {
+  @live
   path: string,
+  @live
   file: string,
+  @live
   isDynamic: bool,
+  @live
   dynamicType: dynamicType,
 }
 

@@ -1,6 +1,6 @@
 open WebAPI.NotificationAPI
 
-let current = Notification.permission
+Notification.permission->ignore
 
 Notification.requestPermission()
 ->Promise.thenResolve(notificationPermission => {

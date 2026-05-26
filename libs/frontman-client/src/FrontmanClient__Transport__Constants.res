@@ -10,4 +10,5 @@ let makeTaskTopic = (taskId: string) => `${taskTopicPrefix}${taskId}`
 
 // Channel events
 let acpMessageEvent: Channel.channelEvent = #"acp:message"
+@@live
 let mcpMessageEvent: Channel.channelEvent = #"mcp:message"

@@ -10,11 +10,6 @@ let mapSeverity = (severityText: option<string>): LogCapture.logLevel => {
   }
 }
 
-let hrTimeToISO = ((seconds, nanos): hrTime): string => {
-  let ms = seconds *. 1000.0 +. nanos /. 1_000_000.0
-  ms->Date.fromTime->Date.toISOString
-}
-
 let make = (): Logs.logRecordProcessor => {
   let onEmit = (logRecord: Logs.sdkLogRecord, _context: option<context>): unit => {
     try {

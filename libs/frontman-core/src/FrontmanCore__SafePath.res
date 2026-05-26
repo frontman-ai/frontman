@@ -25,7 +25,7 @@ let endsWithSep = (path: string): bool => {
 // Accepts both absolute paths (must be under sourceRoot) and relative paths
 // Prevents directory traversal attacks like "../../etc/passwd"
 let resolve = (~sourceRoot: string, ~inputPath: string): result<t, string> => {
-  let normalizedRoot = Path.normalize(sourceRoot)
+  let normalizedRoot = Path.resolve(sourceRoot)
   // Ensure normalizedRoot ends with separator for proper prefix matching
   // Uses Path.sep for cross-platform compatibility (/ on Unix, \ on Windows)
   let rootWithSep = if endsWithSep(normalizedRoot) {
@@ -37,6 +37,7 @@ let resolve = (~sourceRoot: string, ~inputPath: string): result<t, string> => {
   if Path.isAbsolute(inputPath) {
     // Absolute paths must be under sourceRoot
     let normalizedPath = Path.normalize(inputPath)
+
     // Check if path equals root or starts with root/
     if normalizedPath == normalizedRoot || normalizedPath->String.startsWith(rootWithSep) {
       Ok({path: normalizedPath})
@@ -45,7 +46,8 @@ let resolve = (~sourceRoot: string, ~inputPath: string): result<t, string> => {
     }
   } else {
     // Relative paths: join with sourceRoot, normalize, then verify still under sourceRoot
-    let fullPath = Path.normalize(Path.join([sourceRoot, inputPath]))
+    let fullPath = Path.normalize(Path.join([normalizedRoot, inputPath]))
+
     // Check if path equals root or starts with root/
     if fullPath == normalizedRoot || fullPath->String.startsWith(rootWithSep) {
       Ok({path: fullPath})

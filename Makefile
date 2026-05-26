@@ -98,6 +98,8 @@ dev-nextjs: ## Start development server for Next.js test site
 	cd test/sites/blog-starter && $(MAKE) dev
 
 dev-marketing: ## Start development server for marketing site
+	@printf "$(YELLOW)Waiting for server on localhost:4000...$(RESET)\n"
+	@bash -c 'while ! (: > /dev/tcp/localhost/4000) 2>/dev/null; do sleep 1; done'
 	@printf "$(YELLOW)Starting marketing dev server...$(RESET)\n"
 	cd apps/marketing && $(MAKE) dev
 ## DEV_END
@@ -106,7 +108,7 @@ dev-marketing: ## Start development server for marketing site
 # Build & Quality
 # ============================================================================
 ## BUILD_START
-.PHONY: install build rescript-watch rescript-build clean hooks-install
+.PHONY: install build rescript-watch rescript-build reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins
 
 install: ## Install dependencies
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -122,6 +124,33 @@ hooks-install: ## Install git pre-commit hooks via Lefthook
 		printf "$(YELLOW)lefthook not found — run 'mise install' first.$(RESET)\n"; \
 	fi
 
+setup-elixir-tools: ## Install Hex/Rebar for the active mise Elixir
+	@printf "$(YELLOW)Installing Hex/Rebar for mise Elixir...$(RESET)\n"
+	@if ! mise exec -- mix hex.info >/dev/null 2>&1; then \
+		mise exec -- mix archive.install github hexpm/hex branch latest --force; \
+	fi
+	@tmp=$$(mktemp -t rebar3.XXXXXX); \
+	curl -fsSL "https://s3.amazonaws.com/rebar3/rebar3" -o "$$tmp"; \
+	chmod +x "$$tmp"; \
+	mise exec -- mix local.rebar rebar3 "$$tmp" --force; \
+	rm -f "$$tmp"
+	@printf "$(GREEN)Hex/Rebar ready.$(RESET)\n"
+
+verify-toolchain-pins: ## Verify Docker Elixir image matches mise.toml
+	@elixir_tool=$$(awk -F'"' '/^elixir *=/ {print $$2}' mise.toml); \
+	erlang_tool=$$(awk -F'"' '/^erlang *=/ {print $$2}' mise.toml); \
+	docker_image=$$(awk '/^FROM hexpm\/elixir:/ {print $$2; exit}' apps/frontman_server/Dockerfile); \
+	elixir_version="$${elixir_tool%%-otp-*}"; \
+	expected="hexpm/elixir:$${elixir_version}-erlang-$${erlang_tool}"; \
+	if [ -z "$$elixir_tool" ] || [ -z "$$erlang_tool" ] || [ -z "$$docker_image" ]; then \
+		printf "$(YELLOW)Could not read mise.toml or Dockerfile toolchain pins.$(RESET)\n"; \
+		exit 1; \
+	fi; \
+	case "$$docker_image" in \
+		$$expected*) printf "$(GREEN)Toolchain pins match: $$docker_image$(RESET)\n" ;; \
+		*) printf "$(YELLOW)Toolchain pin mismatch: expected Docker image prefix '$$expected', got '$$docker_image'.$(RESET)\n"; exit 1 ;; \
+	esac
+
 build: ## Build ReScript project
 	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"
 	yarn rescript
@@ -133,6 +162,10 @@ rescript-watch: ## Watch and rebuild ReScript on changes
 rescript-build: ## Build ReScript project (one-shot)
 	@printf "$(YELLOW)Starting ReScript build...$(RESET)\n"
 	yarn rescript build
+
+reanalyze: ## Run ReScript dead code analysis
+	@printf "$(YELLOW)Running ReScript dead code analysis...$(RESET)\n"
+	yarn rescript-tools reanalyze
 
 clean: ## Clean ReScript build artifacts
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
@@ -403,7 +436,7 @@ worktree-registry:
 # Release
 # ============================================================================
 ## REL_START
-.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin test-wordpress-core-tools
+.PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn test-wordpress-core-tools
 
 publish: publish-astro publish-vite publish-nextjs publish-react-statestore ## Publish all npm packages (pass OTP=<code> for 2FA)
 
@@ -439,6 +472,8 @@ release: ## Create a release PR from pending changesets
 		exit 1; \
 	fi; \
 	printf "$(GREEN)Found $$CHANGESETS pending changeset(s)$(RESET)\n"
+	@printf "$(CYAN)Validating changesets...$(RESET)\n"
+	@yarn changeset status
 	@printf "$(YELLOW)Triggering release workflow...$(RESET)\n"
 	@gh workflow run release-pr.yml --ref main
 	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
@@ -447,10 +482,14 @@ release: ## Create a release PR from pending changesets
 package-wordpress-plugin: ## Build WordPress ZIP and WordPress.org bundle
 	@VERSION=$(VERSION) bash ./scripts/package-wordpress-plugin.sh
 
-test-wordpress-core-tools: ## Run PHP tests for WordPress core tool implementations
-	@php libs/frontman-wordpress/tests/CoreToolsTest.php
+publish-wordpress-plugin-svn: package-wordpress-plugin ## Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
+	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
+
+test-wordpress-core-tools: ## Run PHP tests for WordPress tool implementations
+	@php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
 	@php libs/frontman-wordpress/tests/ElementorToolsTest.php
-	@php libs/frontman-wordpress/tests/ManagedThemeToolsTest.php
+	@php libs/frontman-wordpress/tests/MediaToolsTest.php
+	@php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
 	@php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
 	@php libs/frontman-wordpress/tests/RouterTest.php
 

@@ -1,13 +1,9 @@
 type result<'value> = {
-  all: array<'value>,
   current: 'value,
-  error: JsExn.t,
 }
 
 type renderHookResult<'props, 'value> = {
   result: result<'value>,
-  rerender: 'props => unit,
-  unmount: unit => unit,
 }
 
 @module("@testing-library/react")

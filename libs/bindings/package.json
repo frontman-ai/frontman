@@ -8,11 +8,12 @@
 		"./src/*.res.mjs": "./src/*.res.mjs"
 	},
 	"dependencies": {
-		"@rescript/runtime": "12.0.0-beta.14",
+		"@rescript/runtime": "12.2.0",
 		"dom-element-to-component-source": "^0.5.0"
 	},
 	"devDependencies": {
+		"@rescript/react": "^0.15.0",
 		"rescript": "catalog:",
-		"sentry-testkit": "^6.0.0"
+		"sentry-testkit": "^6.4.0"
 	}
 }

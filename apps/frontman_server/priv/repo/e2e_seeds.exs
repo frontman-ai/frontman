@@ -41,8 +41,9 @@ IO.puts("E2E user: #{user.email} (id: #{user.id})")
 access_token = System.get_env("E2E_CHATGPT_ACCESS_TOKEN")
 refresh_token = System.get_env("E2E_CHATGPT_REFRESH_TOKEN")
 account_id = System.get_env("E2E_CHATGPT_ACCOUNT_ID")
+token_present? = fn value -> is_binary(value) and value != "" end
 
-if access_token && refresh_token do
+if token_present?.(access_token) and token_present?.(refresh_token) do
   # Delete any existing token for this user+provider to allow re-seeding
   OAuthToken.for_user_and_provider(user.id, "chatgpt")
   |> Repo.delete_all()

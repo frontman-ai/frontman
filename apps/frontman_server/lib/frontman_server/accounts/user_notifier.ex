@@ -12,6 +12,7 @@ defmodule FrontmanServer.Accounts.UserNotifier do
   import Swoosh.Email
 
   alias FrontmanServer.Accounts.User
+  alias FrontmanServer.BrandTokens
   alias FrontmanServer.Mailer
 
   @from {"Danni from Frontman", "danni@frontman.sh"}
@@ -162,7 +163,7 @@ defmodule FrontmanServer.Accounts.UserNotifier do
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+    <body style="font-family: #{BrandTokens.font_sans()}; line-height: 1.6; background: #{BrandTokens.color(:neutral_950)}; color: #{BrandTokens.color(:neutral_50)}; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
       <p style="font-size: 16px;">Hey #{safe_name},</p>
 
       <p style="font-size: 16px;">Danni here — I’m the founder of Frontman.</p>
@@ -170,27 +171,27 @@ defmodule FrontmanServer.Accounts.UserNotifier do
       <p style="font-size: 16px;">Thanks for signing up. If you want the fastest path to value, start with the integrations page and docs:</p>
 
       <p style="margin: 20px 0;">
-        <a href="https://frontman.sh/integrations?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 600;">Start with Integrations</a>
+        <a href="https://frontman.sh/integrations?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="display: inline-block; background: #{BrandTokens.color(:primary)}; color: #{BrandTokens.color(:primary_content)}; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 600;">Start with Integrations</a>
       </p>
 
       <p style="font-size: 16px; margin-top: 0;">
-        <a href="https://frontman.sh/docs?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="color: #2563eb; text-decoration: none;">Read the docs</a>
+        <a href="https://frontman.sh/docs?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="color: #{BrandTokens.color(:primary)}; text-decoration: none;">Read the docs</a>
       </p>
 
-      <p style="font-size: 16px;">
+      <p style="font-size: 16px; color: #{BrandTokens.color(:neutral_400)};">
         Want hands-on help? Book a personal onboarding call with me:<br>
-        <a href="https://calendar.app.google/x72mHYFyQWp8p5eHA" style="color: #2563eb; text-decoration: none;">calendar.app.google/x72mHYFyQWp8p5eHA</a>
+        <a href="https://calendar.app.google/x72mHYFyQWp8p5eHA" style="color: #{BrandTokens.color(:primary_600)}; text-decoration: none;">calendar.app.google/x72mHYFyQWp8p5eHA</a>
       </p>
 
-      <p style="font-size: 16px;">
+      <p style="font-size: 16px; color: #{BrandTokens.color(:neutral_400)};">
         Prefer async support? Join the Discord:<br>
-        <a href="https://discord.gg/xk8uXJSvhC?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="color: #2563eb; text-decoration: none;">discord.gg/xk8uXJSvhC</a>
+        <a href="https://discord.gg/xk8uXJSvhC?utm_source=welcome_email&utm_medium=email&utm_campaign=new_user_welcome" style="color: #{BrandTokens.color(:primary_600)}; text-decoration: none;">discord.gg/xk8uXJSvhC</a>
       </p>
 
       <p style="font-size: 16px;">You can also just reply to this email — I read every reply.</p>
 
       <p style="font-size: 16px; margin-bottom: 0;">Danni</p>
-      <p style="font-size: 16px; margin-top: 0;">Founder, Frontman</p>
+      <p style="font-size: 16px; margin-top: 0; color: #{BrandTokens.color(:neutral_400)};">Founder, Frontman</p>
     </body>
     </html>
     """

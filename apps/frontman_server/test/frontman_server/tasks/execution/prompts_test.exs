@@ -7,7 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   """
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Tasks.Execution.Framework
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.Execution.Prompts
 
   describe "build/1 context-based guidance selection" do
@@ -22,7 +22,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
 
     test "nextjs framework adds framework-specific guidance" do
-      fw = Framework.from_string("nextjs")
+      fw = Frameworks.from_string("nextjs")
       prompt = Prompts.build(framework: fw)
 
       assert prompt =~ "Next.js"
@@ -30,24 +30,27 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "image_ref"
     end
 
-    test "wordpress framework marks file tools read-only" do
-      fw = Framework.from_string("wordpress")
+    test "wordpress framework excludes filesystem tool guidance" do
+      fw = Frameworks.from_string("wordpress")
       prompt = Prompts.build(framework: fw)
 
-      assert prompt =~ "read-only file tools"
-      assert prompt =~ "Do not attempt to edit unmanaged theme or plugin files"
-      assert prompt =~ "block themes only"
-      assert prompt =~ "already a child theme"
+      assert prompt =~ "Do not use filesystem tools in WordPress sessions"
+      assert prompt =~ "not available in the WordPress plugin runtime"
+      assert prompt =~ "wp_get_site_info"
+      assert prompt =~ "wp_read_template"
+      assert prompt =~ "manual guidance"
       refute prompt =~ "selection_scope"
       assert prompt =~ "Restore Elementor rollbacks one at a time"
       assert prompt =~ "navigate the preview to the returned permalink"
       refute prompt =~ "use `write_file` with the attachment's `image_ref`"
+      refute prompt =~ "wp_create_managed_theme"
+      refute prompt =~ "wp_write_managed_theme_file"
 
       assert prompt =~ "Do not upload unused attachments"
     end
 
     test "non-wordpress framework adds code attachment guidance" do
-      vite_prompt = Prompts.build(framework: Framework.from_string("vite"))
+      vite_prompt = Prompts.build(framework: Frameworks.from_string("vite"))
 
       assert vite_prompt =~ "write_file"
       assert vite_prompt =~ "image_ref"
@@ -106,32 +109,35 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "## UI & Layout Changes"
     end
 
-    test "has_typescript_react includes TypeScript / React section" do
-      prompt = Prompts.build(has_typescript_react: true)
+    test "TypeScript and React traits include TypeScript / React section" do
+      prompt = Prompts.build(project_traits: [:typescript, :react])
 
       assert prompt =~ "## TypeScript / React"
       assert prompt =~ "discriminated unions"
     end
 
-    test "has_typescript_react false excludes TypeScript / React section" do
-      prompt = Prompts.build(has_typescript_react: false)
+    test "React trait alone excludes TypeScript / React section" do
+      prompt = Prompts.build(project_traits: [:react])
+
+      refute prompt =~ "## TypeScript / React"
+    end
+
+    test "Next.js framework alone does not control TypeScript / React section" do
+      prompt = Prompts.build(framework: Frameworks.from_string("nextjs"))
 
       refute prompt =~ "## TypeScript / React"
     end
   end
 
   describe "build/1 UI and layout guidance" do
-    test "base prompt includes UI & Layout Changes section with before/after workflow" do
+    test "base prompt includes UI & Layout Changes section with structured-first workflow" do
       prompt = Prompts.build([])
 
       assert prompt =~ "## UI & Layout Changes"
       assert prompt =~ "get_dom"
       assert prompt =~ "take_screenshot"
-      # Before editing
-      assert prompt =~ "Before editing"
-      # After editing
-      assert prompt =~ "After editing"
-      assert prompt =~ "verify the result visually"
+      assert prompt =~ "cheap structured inspection first"
+      assert prompt =~ "only when appearance cannot be verified structurally"
     end
 
     test "base prompt includes structural over cosmetic preference" do

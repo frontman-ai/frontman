@@ -1,7 +1,7 @@
 // Frontman Sentry integration for browser client
 // Reports errors to Frontman's own Sentry project
 
-module Bindings = FrontmanClient__Sentry__Bindings
+module Bindings = FrontmanBindings.Sentry__Browser
 module SentryConfig = FrontmanBindings.Sentry__Config
 module SentryFilter = FrontmanBindings.Sentry__Filter
 
@@ -57,6 +57,7 @@ let captureProtocolError = (message: string, ~protocol: protocol, ~operation: st
   }
 }
 
+@@live
 let captureException = (error: exn, ~operation: option<string>=?) => {
   if isEnabled() {
     Bindings.withScope(scope => {

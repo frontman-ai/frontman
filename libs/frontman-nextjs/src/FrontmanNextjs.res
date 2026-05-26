@@ -13,6 +13,7 @@ module OpenTelemetry = FrontmanNextjs__OpenTelemetry
 module Instrumentation = FrontmanNextjs__Instrumentation
 
 // Re-export for convenience
+@@live
 let createMiddleware = Middleware.createMiddleware
 let makeConfig = Config.makeFromObject
 type config = Config.t

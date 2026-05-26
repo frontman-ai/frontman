@@ -1,5 +1,5 @@
 ---
-title: 'Why Vibe Coding Is Killing Your Production App'
+title: 'Why Vibe Coding Breaks Production Apps'
 pubDate: 2026-04-15T05:00:00Z
 description: "AI-generated code is fast to write and slow to understand. Here's what accumulates when you vibe-code your way through a codebase, and why the bill always comes due."
 author: 'Danni Friedland'

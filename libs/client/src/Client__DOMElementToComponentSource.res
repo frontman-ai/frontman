@@ -1,3 +1,4 @@
+@@live
 type getElementSourceLocationResult = {
   success: bool,
   data: Client__Types.SourceLocation.t,

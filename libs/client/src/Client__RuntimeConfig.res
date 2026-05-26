@@ -45,10 +45,13 @@ type parsed = {
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
   fireworksKeyValue: option<string>,
+  nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
+  traits: option<array<string>>,
 }
 
+@@live
 type t = {
   framework: frameworkId,
   basePath: string,
@@ -56,8 +59,10 @@ type t = {
   openrouterKeyValue: option<string>,
   anthropicKeyValue: option<string>,
   fireworksKeyValue: option<string>,
+  nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
   sourceRoot: option<string>,
+  traits: option<array<string>>,
 }
 
 let normalizeOptionalString = value =>
@@ -85,38 +90,24 @@ let read = (): t => {
     openrouterKeyValue: normalizeOptionalString(config.openrouterKeyValue),
     anthropicKeyValue: normalizeOptionalString(config.anthropicKeyValue),
     fireworksKeyValue: normalizeOptionalString(config.fireworksKeyValue),
+    nvidiaKeyValue: normalizeOptionalString(config.nvidiaKeyValue),
     projectRoot: config.projectRoot,
     sourceRoot: config.sourceRoot,
+    traits: config.traits,
   }
 }
 
 let toEnvApiKeyDict = (config: t): Dict.t<string> => {
   let envApiKey = Dict.make()
-  config.openrouterKeyValue->Option.forEach(key => {
-    envApiKey->Dict.set("openrouterKeyValue", key)
-  })
-  config.anthropicKeyValue->Option.forEach(key => {
-    envApiKey->Dict.set("anthropicKeyValue", key)
-  })
-  config.fireworksKeyValue->Option.forEach(key => {
-    envApiKey->Dict.set("fireworksKeyValue", key)
-  })
+  [
+    ("openrouterKeyValue", config.openrouterKeyValue),
+    ("anthropicKeyValue", config.anthropicKeyValue),
+    ("fireworksKeyValue", config.fireworksKeyValue),
+    ("nvidiaKeyValue", config.nvidiaKeyValue),
+  ]->Array.forEach(((keyName, maybeKey)) =>
+    maybeKey->Option.forEach(key => envApiKey->Dict.set(keyName, key))
+  )
   envApiKey
-}
-
-// Check if an OpenRouter API key is available from the project environment
-let hasOpenrouterKey = (config: t): bool => {
-  config.openrouterKeyValue->Option.isSome
-}
-
-// Check if an Anthropic API key is available from the project environment
-let hasAnthropicKey = (config: t): bool => {
-  config.anthropicKeyValue->Option.isSome
-}
-
-// Check if a Fireworks API key is available from the project environment
-let hasFireworksKey = (config: t): bool => {
-  config.fireworksKeyValue->Option.isSome
 }
 
 let hasAnyProviderKey = (config: t): bool => {
@@ -143,6 +134,9 @@ let toMeta = (config: t): JSON.t => {
   ])
   toEnvApiKeyDict(config)->Dict.forEachWithKey((keyValue, keyName) => {
     configObj->Dict.set(keyName, JSON.Encode.string(keyValue))
+  })
+  config.traits->Option.forEach(traits => {
+    configObj->Dict.set("traits", traits->Array.map(JSON.Encode.string)->JSON.Encode.array)
   })
   JSON.Encode.object(configObj)
 }

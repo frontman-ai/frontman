@@ -1,6 +1,7 @@
 let observer = IntersectionObserver.make(~callback=(entry, observer) => {
   Console.log2(entry, observer)
 })
+observer->ignore
 
 let root = Global.document->Document.querySelector("#root")->Null.getUnsafe
 
@@ -20,7 +21,7 @@ switch observer2.root->IntersectionObserverRoot.decode {
 | Document(_) => Console.log("Document")
 | Null => Console.log("Null")
 }
-let rootMargin2 = observer2.rootMargin
+observer2.rootMargin->ignore
 
 let targetElement = Global.document->Document.querySelector("#targetElement")->Null.toOption
 switch targetElement {

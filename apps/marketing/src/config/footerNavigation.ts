@@ -1,6 +1,8 @@
 // Footer Navigation
 // ------------
 // Description: The footer navigation data for the website.
+import { legalInfo } from '../data/legalInfo'
+
 export interface Logo {
 	src: string
 	alt: string
@@ -66,10 +68,6 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'Features',
 					subCategoryLink: '/features/'
-				},
-				{
-					subCategory: 'Pricing',
-					subCategoryLink: '/pricing/'
 				},
 				{
 					subCategory: 'Design System',
@@ -201,10 +199,14 @@ export const footerNavigationData: FooterData = {
 		}
 	],
 	subFooter: {
-		copywriteText: `© ${new Date().getFullYear()} Frontman. All rights reserved.`,
+		copywriteText: `© ${new Date().getFullYear()} ${legalInfo.companyName}. ${legalInfo.brandName} is a product of ${legalInfo.shortCompanyName}.`,
 		links: [
-			{ label: 'Terms of Service', href: '/terms/' },
-			{ label: 'Privacy Policy', href: '/privacy/' }
+			{ label: 'Terms', href: '/terms/' },
+			{ label: 'Privacy', href: '/privacy/' },
+			{ label: 'DPA', href: '/dpa/' },
+			{ label: 'Subprocessors', href: '/subprocessors/' },
+			{ label: 'TOMs', href: '/toms/' },
+			{ label: 'Impressum', href: '/impressum/' }
 		]
 	}
 }

@@ -25,6 +25,7 @@ type state = {
   pendingRequests: Dict.t<pendingRequest>,
 }
 
+@@live
 type config = {
   channel: Channel.t,
   clientInfo: Types.implementation,

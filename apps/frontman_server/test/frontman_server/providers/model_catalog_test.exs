@@ -30,13 +30,28 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
              )
     end
 
+    test "includes latest OpenRouter OSS models" do
+      models = ModelCatalog.models("openrouter", :full)
+
+      assert Enum.all?(
+               [
+                 %{displayName: "Kimi K2.6", value: "moonshotai/kimi-k2.6"},
+                 %{displayName: "MiniMax M2.7", value: "minimax/minimax-m2.7"}
+               ],
+               &(&1 in models)
+             )
+    end
+
     test "excludes retired GPT-5.2 and older GPT-5 family models" do
       openai_values = ModelCatalog.models("openai", :full) |> Enum.map(& &1.value) |> MapSet.new()
 
       openrouter_values =
         ModelCatalog.models("openrouter", :full) |> Enum.map(& &1.value) |> MapSet.new()
 
-      assert MapSet.subset?(MapSet.new(~w[gpt-5.5 gpt-5.4 gpt-5.3-codex]), openai_values)
+      assert MapSet.subset?(
+               MapSet.new(~w[gpt-5.5 gpt-5.4 gpt-5.4-mini gpt-5.3-codex]),
+               openai_values
+             )
 
       assert MapSet.disjoint?(
                openai_values,
@@ -59,19 +74,35 @@ defmodule FrontmanServer.Providers.ModelCatalogTest do
       assert ModelCatalog.models("fireworks", :full) == expected
       assert ModelCatalog.models("fireworks", :free) == expected
     end
+
+    test "returns NVIDIA models" do
+      expected = [
+        %{displayName: "Kimi K2.6", value: "moonshotai/kimi-k2.6"},
+        %{displayName: "DeepSeek V4 Flash", value: "deepseek-ai/deepseek-v4-flash"},
+        %{displayName: "MiniMax M2.7", value: "minimaxai/minimax-m2.7"},
+        %{displayName: "Qwen3 Coder 480B", value: "qwen/qwen3-coder-480b-a35b-instruct"}
+      ]
+
+      assert ModelCatalog.models("nvidia", :full) == expected
+
+      assert ModelCatalog.pick_default(["nvidia"]) == %{
+               provider: "nvidia",
+               value: hd(expected).value
+             }
+
+      Enum.each(expected, fn model ->
+        assert {:ok, reqllm_model} = ReqLLM.model("nvidia:#{model.value}")
+        assert :text in reqllm_model.modalities.input
+      end)
+    end
   end
 
   describe "catalog_providers/0" do
     test "providers are ordered by configured priority" do
       providers = ModelCatalog.catalog_providers()
+      expected = ~w[openai anthropic openrouter fireworks nvidia]
 
-      assert Enum.filter(providers, &(&1 in ["openai", "anthropic", "openrouter", "fireworks"])) ==
-               [
-                 "openai",
-                 "anthropic",
-                 "openrouter",
-                 "fireworks"
-               ]
+      assert Enum.filter(providers, &(&1 in expected)) == expected
     end
   end
 

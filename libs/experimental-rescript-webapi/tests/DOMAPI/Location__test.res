@@ -4,9 +4,7 @@ open Global
 let location = window.location
 
 // Access properties using `.`
-let href = location.href
+location.href->ignore
 
 // Invoke methods using the `->TypeModule`
 location->Location.reload
-
-let a = 0

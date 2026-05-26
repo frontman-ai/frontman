@@ -1,8 +1,8 @@
 // Device bar - secondary toolbar showing device mode controls
 // Only visible when device mode is active (not Responsive)
 
-module RadixUI__Icons = Bindings__RadixUI__Icons
-module DropdownMenu = Bindings__UI__DropdownMenu
+module RadixUI__Icons = FrontmanBindings.Bindings__RadixUI__Icons
+module DropdownMenu = FrontmanBindings.Bindings__UI__DropdownMenu
 
 module DimensionInput = {
   @react.component

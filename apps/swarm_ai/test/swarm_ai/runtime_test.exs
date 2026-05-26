@@ -256,7 +256,7 @@ defmodule SwarmAi.RuntimeTest do
                %SwarmAi.LLM.Response{
                  content: nil,
                  tool_calls: [
-                   %SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: %{}}
+                   %SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: "{}"}
                  ],
                  usage: %SwarmAi.LLM.Usage{input_tokens: 10, output_tokens: 5},
                  raw: nil
@@ -307,7 +307,7 @@ defmodule SwarmAi.RuntimeTest do
                %SwarmAi.LLM.Response{
                  content: nil,
                  tool_calls: [
-                   %SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: %{}}
+                   %SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: "{}"}
                  ],
                  usage: %SwarmAi.LLM.Usage{input_tokens: 10, output_tokens: 5},
                  raw: nil

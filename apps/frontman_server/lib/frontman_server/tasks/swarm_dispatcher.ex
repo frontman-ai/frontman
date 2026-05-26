@@ -57,8 +57,8 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   # Agent produced a response (may include tool calls in metadata).
   # Previously this only happened inside the channel's handle_info.
   defp persist(%Scope{} = scope, task_id, {:response, response}, _metadata) do
-    response_metadata = build_response_metadata(response)
-    Tasks.add_agent_response(scope, task_id, response.content || "", response_metadata)
+    metadata = response_metadata(response)
+    Tasks.add_agent_response(scope, task_id, response.content || "", metadata)
   end
 
   # Agent turn completed successfully.
@@ -161,53 +161,31 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
 
   # --- Helpers ---
 
-  defp build_response_metadata(response) do
-    tool_calls = Map.get(response, :tool_calls)
-    reasoning_details = Map.get(response, :reasoning_details)
-    response_meta = Map.get(response, :metadata) || %{}
+  defp response_metadata(response) do
+    meta = Map.get(response, :metadata) || %{}
+    response_id = meta[:response_id]
+    phase = meta[:phase]
 
-    %{}
-    |> maybe_put_tool_calls(tool_calls)
-    |> maybe_put_reasoning_details(reasoning_details)
-    |> maybe_put_string_metadata(:response_id, get_response_meta(response_meta, :response_id))
-    |> maybe_put_string_metadata(:phase, get_response_meta(response_meta, :phase))
-    |> maybe_put_phase_items(get_response_meta(response_meta, :phase_items))
+    %{
+      "tool_calls" => stored_tool_calls(Map.get(response, :tool_calls)),
+      "reasoning_details" => non_empty(Map.get(response, :reasoning_details)),
+      "response_id" => if(is_binary(response_id), do: response_id),
+      "phase" => if(is_binary(phase), do: phase),
+      "phase_items" => non_empty(meta[:phase_items])
+    }
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
   end
 
-  defp maybe_put_tool_calls(metadata, tool_calls) when is_list(tool_calls) and tool_calls != [] do
-    Map.put(metadata, :tool_calls, Enum.map(tool_calls, &to_reqllm_tool_call/1))
+  defp stored_tool_calls(tool_calls) when is_list(tool_calls) and tool_calls != [] do
+    Enum.map(tool_calls, fn %SwarmAi.ToolCall{id: id, name: name, arguments: arguments} ->
+      %{"id" => id, "name" => name, "arguments" => arguments}
+    end)
   end
 
-  defp maybe_put_tool_calls(metadata, _tool_calls), do: metadata
+  defp stored_tool_calls(_tool_calls), do: nil
 
-  defp maybe_put_reasoning_details(metadata, details) when is_list(details) and details != [] do
-    Map.put(metadata, :reasoning_details, details)
-  end
-
-  defp maybe_put_reasoning_details(metadata, _details), do: metadata
-
-  defp maybe_put_string_metadata(metadata, key, value) when is_binary(value) do
-    Map.put(metadata, key, value)
-  end
-
-  defp maybe_put_string_metadata(metadata, _key, _value), do: metadata
-
-  defp maybe_put_phase_items(metadata, phase_items)
-       when is_list(phase_items) and phase_items != [] do
-    Map.put(metadata, :phase_items, phase_items)
-  end
-
-  defp maybe_put_phase_items(metadata, _phase_items), do: metadata
-
-  defp get_response_meta(metadata, key) when is_map(metadata) do
-    Map.get(metadata, key) || Map.get(metadata, Atom.to_string(key))
-  end
-
-  defp get_response_meta(_metadata, _key), do: nil
-
-  defp to_reqllm_tool_call(%SwarmAi.ToolCall{} = tc) do
-    ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
-  end
+  defp non_empty(list) when is_list(list) and list != [], do: list
+  defp non_empty(_list), do: nil
 
   defp format_crash_reason(reason) do
     "Execution crashed: #{format_error_reason(reason)}"

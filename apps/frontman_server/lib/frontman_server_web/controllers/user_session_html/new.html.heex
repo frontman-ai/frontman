@@ -1,137 +1,126 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="space-y-8">
-    <%!-- Header --%>
-    <div class="text-center space-y-2">
-      <h1 class="text-2xl font-semibold text-white tracking-tight">
-        <%= if @current_scope do %>
-          Reauthenticate
-        <% else %>
-          Sign in to Frontman
-        <% end %>
-      </h1>
-      <p class="text-sm text-white/50">
-        <%= if @current_scope do %>
-          Please reauthenticate to perform sensitive actions on your account.
-        <% else %>
-          Continue with your GitHub or Google account.
-        <% end %>
-      </p>
-    </div>
-
-    <%!-- OAuth buttons --%>
-    <div class="flex flex-col gap-3">
-      <.link
-        href={~p"/auth/github"}
-        class={[
-          "group relative flex items-center justify-center gap-3 w-full",
-          "rounded-lg border border-white/[0.12] bg-white/[0.04]",
-          "px-4 py-3 text-sm font-medium text-white/90",
-          "transition-all duration-150",
-          "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
-          "active:scale-[0.98]"
-        ]}
-      >
-        <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-        </svg>
-        Continue with GitHub
-      </.link>
-
-      <.link
-        href={~p"/auth/google"}
-        class={[
-          "group relative flex items-center justify-center gap-3 w-full",
-          "rounded-lg border border-white/[0.12] bg-white/[0.04]",
-          "px-4 py-3 text-sm font-medium text-white/90",
-          "transition-all duration-150",
-          "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
-          "active:scale-[0.98]"
-        ]}
-      >
-        <svg class="size-5 shrink-0" viewBox="0 0 24 24">
-          <path
-            fill="#4285F4"
-            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-          />
-          <path
-            fill="#34A853"
-            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-          />
-          <path
-            fill="#FBBC05"
-            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-          />
-          <path
-            fill="#EA4335"
-            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-          />
-        </svg>
-        Continue with Google
-      </.link>
-    </div>
-
-    <%!-- Divider --%>
-    <div class="flex items-center gap-3">
-      <div class="flex-1 h-px bg-white/[0.08]"></div>
-      <span class="text-xs text-white/30 select-none">Secure authentication via WorkOS</span>
-      <div class="flex-1 h-px bg-white/[0.08]"></div>
-    </div>
-
-    <%!-- Dev/E2E email+password login form (only in dev/e2e, never production) --%>
-    <%= if Application.get_env(:frontman_server, :dev_routes) do %>
-      <div class="space-y-3">
-        <div class="flex items-center gap-3">
-          <div class="flex-1 h-px bg-white/[0.08]"></div>
-          <span class="text-xs text-white/30 select-none">Dev login</span>
-          <div class="flex-1 h-px bg-white/[0.08]"></div>
+  <div class="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
+    <section class="mx-auto w-full max-w-md space-y-8 text-center lg:mx-0 lg:max-w-2xl lg:text-left">
+      <div class="space-y-5">
+        <div class="space-y-4">
+          <h1 class="font-headings text-4xl font-bold leading-tight tracking-tight text-base-content sm:text-5xl lg:text-6xl">
+            Enter the runtime era.
+          </h1>
+          <p class="mx-auto max-w-xl text-base leading-relaxed text-base-content/70 sm:text-lg lg:mx-0">
+            Frontman sees your live product, understands the DOM, and turns plain-English changes into real code edits.
+          </p>
         </div>
-
-        <.form for={@form} action={~p"/users/log-in"} id="login-form" class="space-y-3">
-          <.input
-            field={@form[:email]}
-            type="email"
-            placeholder="Email"
-            required
-            class="w-full rounded-lg border border-white/[0.12] bg-white/[0.04] px-4 py-3 text-sm text-white/90 placeholder-white/30 focus:border-white/[0.24] focus:outline-none focus:ring-1 focus:ring-white/[0.12]"
-          />
-          <.input
-            field={@form[:password]}
-            type="password"
-            placeholder="Password"
-            required
-            class="w-full rounded-lg border border-white/[0.12] bg-white/[0.04] px-4 py-3 text-sm text-white/90 placeholder-white/30 focus:border-white/[0.24] focus:outline-none focus:ring-1 focus:ring-white/[0.12]"
-          />
-          <button
-            type="submit"
-            id="login-submit"
-            class={[
-              "flex items-center justify-center w-full",
-              "rounded-lg border border-white/[0.12] bg-white/[0.04]",
-              "px-4 py-3 text-sm font-medium text-white/90",
-              "transition-all duration-150",
-              "hover:bg-white/[0.08] hover:border-white/[0.18] hover:text-white",
-              "active:scale-[0.98]"
-            ]}
-          >
-            Sign in with email
-          </button>
-        </.form>
       </div>
-    <% end %>
 
-    <%!-- Terms --%>
-    <p class="text-center text-xs text-white/30 leading-relaxed">
-      By signing in, you agree to our
-      <a
-        href="https://frontman.sh/terms"
-        class="text-white/50 hover:text-white/70 underline underline-offset-2 transition-colors"
-      >
-        Terms of Service
-      </a>
-      and <a
-        href="https://frontman.sh/privacy"
-        class="text-white/50 hover:text-white/70 underline underline-offset-2 transition-colors"
-      >Privacy Policy</a>.
-    </p>
+      <div class="flex flex-wrap justify-center gap-3 lg:justify-start">
+        <span class="badge badge-success">Sees your live DOM</span>
+        <span class="badge badge-success">Understands your framework</span>
+        <span class="badge badge-success">Ships real code edits</span>
+      </div>
+    </section>
+
+    <section class="mx-auto w-full max-w-md lg:mx-0 lg:ml-auto">
+      <div class="card card-border bg-base-200 text-base-content shadow-xl">
+        <div class="card-body gap-6">
+          <div class="space-y-2 text-center">
+            <h2 class="card-title justify-center font-headings text-2xl tracking-tight">
+              <%= if @current_scope do %>
+                Reauthenticate
+              <% else %>
+                Sign in to Frontman
+              <% end %>
+            </h2>
+            <p class="text-sm leading-6 text-base-content/60">
+              <%= if @current_scope do %>
+                Please reauthenticate to perform sensitive actions on your account.
+              <% else %>
+                Choose your workspace identity to continue.
+              <% end %>
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-3">
+            <.link
+              href={~p"/auth/github"}
+              class="btn btn-lg btn-block border-black bg-black text-white"
+            >
+              <svg
+                aria-label="GitHub logo"
+                width="16"
+                height="16"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  fill="white"
+                  d="M12,2A10,10 0 0,0 2,12C2,16.42 4.87,20.17 8.84,21.5C9.34,21.58 9.5,21.27 9.5,21C9.5,20.77 9.5,20.14 9.5,19.31C6.73,19.91 6.14,17.97 6.14,17.97C5.68,16.81 5.03,16.5 5.03,16.5C4.12,15.88 5.1,15.9 5.1,15.9C6.1,15.97 6.63,16.93 6.63,16.93C7.5,18.45 8.97,18 9.54,17.76C9.63,17.11 9.89,16.67 10.17,16.42C7.95,16.17 5.62,15.31 5.62,11.5C5.62,10.39 6,9.5 6.65,8.79C6.55,8.54 6.2,7.5 6.75,6.15C6.75,6.15 7.59,5.88 9.5,7.17C10.29,6.95 11.15,6.84 12,6.84C12.85,6.84 13.71,6.95 14.5,7.17C16.41,5.88 17.25,6.15 17.25,6.15C17.8,7.5 17.45,8.54 17.35,8.79C18,9.5 18.38,10.39 18.38,11.5C18.38,15.32 16.04,16.16 13.81,16.41C14.17,16.72 14.5,17.33 14.5,18.26C14.5,19.6 14.5,20.68 14.5,21C14.5,21.27 14.66,21.59 15.17,21.5C19.14,20.16 22,16.42 22,12A10,10 0 0,0 12,2Z"
+                />
+              </svg>
+              Login with GitHub
+            </.link>
+
+            <.link
+              href={~p"/auth/google"}
+              class="btn btn-lg btn-block border-[#e5e5e5] bg-white text-black"
+            >
+              <svg
+                aria-label="Google logo"
+                width="16"
+                height="16"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 512 512"
+              >
+                <g>
+                  <path d="m0 0H512V512H0" fill="#fff" />
+                  <path fill="#34a853" d="M153 292c30 82 118 95 171 60h62v48A192 192 0 0190 341" />
+                  <path fill="#4285f4" d="m386 400a140 175 0 0053-179H260v74h102q-7 37-38 57" />
+                  <path fill="#fbbc02" d="m90 341a208 200 0 010-171l63 49q-12 37 0 73" />
+                  <path
+                    fill="#ea4335"
+                    d="m153 219c22-69 116-109 179-50l55-54c-78-75-230-72-297 55"
+                  />
+                </g>
+              </svg>
+              Login with Google
+            </.link>
+          </div>
+
+          <%= if Application.get_env(:frontman_server, :dev_routes) do %>
+            <div class="divider text-xs text-base-content/40">Password login</div>
+
+            <.form for={@form} action={~p"/users/log-in"} id="login-form" class="space-y-3">
+              <.input
+                field={@form[:email]}
+                type="email"
+                placeholder="Email"
+                required
+                class="input input-lg w-full"
+              />
+              <.input
+                field={@form[:password]}
+                type="password"
+                placeholder="Password"
+                required
+                class="input input-lg w-full"
+              />
+              <button type="submit" id="login-submit" class="btn btn-neutral btn-lg btn-block">
+                Sign in with email
+              </button>
+            </.form>
+          <% end %>
+
+          <p class="text-center text-xs leading-relaxed text-base-content/40">
+            By signing in, you agree to our
+            <a href="https://frontman.sh/terms/" class="link link-hover text-base-content/60">
+              Terms of Service
+            </a>
+            and <a
+              href="https://frontman.sh/privacy/"
+              class="link link-hover text-base-content/60"
+            >Privacy Policy</a>.
+          </p>
+        </div>
+      </div>
+    </section>
   </div>
 </Layouts.app>

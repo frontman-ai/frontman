@@ -18,20 +18,17 @@ defmodule SwarmAi.ToolResult do
   Handles string and other term types by converting them to text content.
   """
   @spec make(String.t(), term(), boolean()) :: t()
-  def make(id, raw_result, is_error \\ false)
+  def make(id, raw_result, is_error \\ false) do
+    content =
+      case raw_result do
+        [%ContentPart{} | _] = content_parts -> content_parts
+        raw_result when is_binary(raw_result) -> [ContentPart.text(raw_result)]
+        raw_result -> [ContentPart.text(Jason.encode!(raw_result))]
+      end
 
-  def make(id, [%ContentPart{} | _] = content_parts, is_error) do
-    %__MODULE__{id: id, content: content_parts, is_error: is_error}
-  end
-
-  def make(id, raw_result, is_error) when is_binary(raw_result) do
-    %__MODULE__{id: id, content: [ContentPart.text(raw_result)], is_error: is_error}
-  end
-
-  def make(id, raw_result, is_error) do
     %__MODULE__{
       id: id,
-      content: [ContentPart.text(Jason.encode!(raw_result))],
+      content: content,
       is_error: is_error
     }
   end

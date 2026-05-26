@@ -21,9 +21,6 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text, timestamp})}),
     )
 
-  let streamingStarted = (~taskId) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: StreamingStarted}))
-
   // TOOLS
   let toolCallReceived = (~taskId, ~toolCall) =>
     Client__State__Store.dispatch(
@@ -56,11 +53,6 @@ module Actions = {
       TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
     )
 
-  let setAnnotationMode = (~mode) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetAnnotationMode({mode: mode})}),
-    )
-
   // Device mode action creators
   let setDeviceMode = (~deviceMode) =>
     Client__State__Store.dispatch(
@@ -79,15 +71,15 @@ module Actions = {
   let toggleWebPreviewSelection = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
 
-  let toggleAnnotation = (~element, ~position, ~tagName) =>
+  let toggleAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: ToggleAnnotation({element, position, tagName})}),
+      TaskAction({target: CurrentTask, action: ToggleAnnotation({element, tagName})}),
     )
 
   // Unconditionally adds an annotation (no toggle semantics — used for tree navigation)
-  let addAnnotation = (~element, ~position, ~tagName) =>
+  let addAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: AddAnnotation({element, position, tagName})}),
+      TaskAction({target: CurrentTask, action: AddAnnotation({element, tagName})}),
     )
 
   let addAnnotations = (~elements) =>
@@ -108,18 +100,10 @@ module Actions = {
       TaskAction({target: CurrentTask, action: UpdateAnnotationComment({id, comment})}),
     )
 
-  let setActivePopupAnnotationId = (~id) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: id})}),
-    )
-
   let closeAnnotationPopup = () =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: None})}),
     )
-
-  let toggleAnimationFrozen = () =>
-    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnimationFrozen}))
 
   // Task management action creators
   // Note: Tasks are created implicitly when user sends first message (lazy session creation)
@@ -152,12 +136,6 @@ module Actions = {
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
-  // Task loading action creators (ForTask)
-  let taskLoadError = (~taskId, ~error) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: LoadError({error: error})}),
-    )
-
   // Turn completion action creators (ForTask)
   let turnCompleted = (~taskId: string) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
@@ -167,13 +145,12 @@ module Actions = {
     ~taskId: string,
     ~error: string,
     ~timestamp: string,
-    ~retryable: bool,
     ~category: string,
   ) =>
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: AgentError({error, timestamp, retryable, category}),
+        action: AgentError({error, timestamp, category}),
       }),
     )
 
@@ -194,9 +171,6 @@ module Actions = {
     )
   }
 
-  let clearTurnError = (~taskId: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ClearTurnError}))
-
   // Plan action creators (ForTask)
   let planReceived = (~taskId: string, ~entries) =>
     Client__State__Store.dispatch(
@@ -204,28 +178,42 @@ module Actions = {
     )
 
   // API key settings action creators
-  let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
+  let fetchApiKeySettings = () =>
+    Client__State__Store.dispatch(FetchApiKeySettings({provider: OpenRouter}))
 
-  let saveOpenRouterKey = (~key) => Client__State__Store.dispatch(SaveOpenRouterKey({key: key}))
+  let saveOpenRouterKey = (~key) =>
+    Client__State__Store.dispatch(SaveApiKey({provider: OpenRouter, key}))
 
   let resetOpenRouterKeySaveStatus = () =>
-    Client__State__Store.dispatch(ResetOpenRouterKeySaveStatus)
+    Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: OpenRouter}))
 
   // Anthropic API key settings action creators
   let fetchAnthropicApiKeySettings = () =>
-    Client__State__Store.dispatch(FetchAnthropicApiKeySettings)
+    Client__State__Store.dispatch(FetchApiKeySettings({provider: Anthropic}))
 
-  let saveAnthropicKey = (~key) => Client__State__Store.dispatch(SaveAnthropicKey({key: key}))
+  let saveAnthropicKey = (~key) =>
+    Client__State__Store.dispatch(SaveApiKey({provider: Anthropic, key}))
 
-  let resetAnthropicKeySaveStatus = () => Client__State__Store.dispatch(ResetAnthropicKeySaveStatus)
+  let resetAnthropicKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Anthropic}))
 
   // Fireworks API key settings action creators
   let fetchFireworksApiKeySettings = () =>
-    Client__State__Store.dispatch(FetchFireworksApiKeySettings)
+    Client__State__Store.dispatch(FetchApiKeySettings({provider: Fireworks}))
 
-  let saveFireworksKey = (~key) => Client__State__Store.dispatch(SaveFireworksKey({key: key}))
+  let saveFireworksKey = (~key) =>
+    Client__State__Store.dispatch(SaveApiKey({provider: Fireworks, key}))
 
-  let resetFireworksKeySaveStatus = () => Client__State__Store.dispatch(ResetFireworksKeySaveStatus)
+  let resetFireworksKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Fireworks}))
+
+  let fetchNvidiaApiKeySettings = () =>
+    Client__State__Store.dispatch(FetchApiKeySettings({provider: Nvidia}))
+
+  let saveNvidiaKey = (~key) => Client__State__Store.dispatch(SaveApiKey({provider: Nvidia, key}))
+
+  let resetNvidiaKeySaveStatus = () =>
+    Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Nvidia}))
 
   // ACP session config option action creators
   let configOptionsReceived = (~configOptions) =>

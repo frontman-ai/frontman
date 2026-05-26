@@ -26,7 +26,7 @@ Start here if Frontman isn't running in your project yet.
 | **Astro** | `astro add @frontman-ai/astro` | [Astro integration →](/docs/integrations/astro/) |
 | **Next.js** | `npx @frontman-ai/nextjs install` | [Next.js integration →](/docs/integrations/nextjs/) |
 | **Vite** | `npx @frontman-ai/vite install` | [Vite integration →](/docs/integrations/vite/) |
-| **WordPress** | Standalone binary (beta) | [WordPress setup →](/docs/integrations/wordpress/) |
+| **WordPress** | WordPress Plugin Directory (beta) | [WordPress setup →](/docs/integrations/wordpress/) |
 
 Then continue with:
 
@@ -41,6 +41,7 @@ Already running? Learn how to get the most out of it.
 - **[Sending Prompts](/docs/using/sending-prompts/)** — Write effective prompts with good examples
 - **[Annotations](/docs/using/annotations/)** — Point at elements instead of describing them
 - **[Prompt Strategies](/docs/using/prompt-strategies/)** — Patterns for getting better results over time
+- **[Best Frontend Coding Agent guide](/blog/best-frontend-coding-agent/)** — Compare tools if your team wants to build frontend with AI
 
 ### Deep dives
 

@@ -22,7 +22,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
   @minimal_fields %{
     Interaction.UserMessage => %{id: "t", messages: ["hi"], images: []},
     Interaction.AgentResponse => %{id: "t", content: "c"},
-    Interaction.AgentSpawned => %{id: "t"},
     Interaction.AgentCompleted => %{id: "t"},
     Interaction.ToolCall => %{id: "t", tool_call_id: "tc", tool_name: "t", arguments: %{}},
     Interaction.ToolResult => %{
@@ -140,15 +139,6 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
   end
 
   describe "non-conversation types return empty list" do
-    test "AgentSpawned" do
-      interaction = %Interaction.AgentSpawned{
-        id: "as-1",
-        timestamp: DateTime.utc_now()
-      }
-
-      assert ACPHistory.to_history_items(interaction, @session_id) == []
-    end
-
     test "AgentCompleted" do
       interaction = %Interaction.AgentCompleted{
         id: "ac-1",

@@ -8,7 +8,7 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   @moduledoc """
   Creates OpenTelemetry spans from Swarm telemetry events.
 
-  Swarm emits telemetry events for agent execution (loop, step, llm, tool, child).
+  Swarm emits telemetry events for agent execution (loop, step, llm, tool).
   This handler translates those into OTEL spans with proper parent-child relationships.
 
   The `task_id` comes from `loop.metadata` which is passed by FrontmanServer when
@@ -21,9 +21,7 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   └── loop [swarm:run]
       └── step 1 [swarm:step]
           ├── llm call [swarm:llm:call]
-          ├── tool execution [swarm:tool:execute]
-          └── child spawn [swarm:child:spawn]
-              └── child loop [nested swarm:run]
+          └── tool execution [swarm:tool:execute]
       └── step 2
           └── llm call
   ```
@@ -49,8 +47,7 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
     :frontman_spans_loop,
     :frontman_spans_swarm_step,
     :frontman_spans_llm,
-    :frontman_spans_tool,
-    :frontman_spans_spawn
+    :frontman_spans_tool
   ]
 
   @doc """
@@ -86,11 +83,7 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
       # Tool events
       {[:swarm_ai, :tool, :execute, :start], &__MODULE__.handle_tool_start/4},
       {[:swarm_ai, :tool, :execute, :stop], &__MODULE__.handle_tool_stop/4},
-      {[:swarm_ai, :tool, :execute, :exception], &__MODULE__.handle_tool_exception/4},
-      # Child spawn events
-      {[:swarm_ai, :child, :spawn, :start], &__MODULE__.handle_child_start/4},
-      {[:swarm_ai, :child, :spawn, :stop], &__MODULE__.handle_child_stop/4},
-      {[:swarm_ai, :child, :spawn, :exception], &__MODULE__.handle_child_exception/4}
+      {[:swarm_ai, :tool, :execute, :exception], &__MODULE__.handle_tool_exception/4}
     ]
 
     Enum.each(handlers, fn {event, handler} ->
@@ -397,71 +390,6 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
         :otel_span.set_status(span_ctx, :error, "Tool exception: #{reason}")
         :otel_span.end_span(span_ctx)
         delete_span(:frontman_spans_tool, tool_id)
-
-      :not_found ->
-        :ok
-    end
-  end
-
-  # =============================================================================
-  # Child Spawn Handlers
-  # =============================================================================
-
-  @doc false
-  def handle_child_start(_event, _measurements, metadata, _config) do
-    %{
-      parent_loop_id: parent_loop_id,
-      parent_step: parent_step,
-      tool_call_id: tool_call_id,
-      task: task
-    } = metadata
-
-    span_name = "spawn_child"
-
-    attributes = [
-      {:"openinference.span.kind", "CHAIN"},
-      {:"input.value", truncate(task, 2000)}
-    ]
-
-    tracer = :opentelemetry.get_tracer(:frontman_server)
-    ctx = with_parent_span(:frontman_spans_swarm_step, {parent_loop_id, parent_step})
-
-    span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
-    :otel_tracer.set_current_span(ctx, span_ctx)
-    store_span(:frontman_spans_spawn, tool_call_id, span_ctx)
-  end
-
-  @doc false
-  def handle_child_stop(_event, _measurements, metadata, _config) do
-    tool_call_id = metadata.tool_call_id
-    output = Map.get(metadata, :output)
-
-    case lookup_span(:frontman_spans_spawn, tool_call_id) do
-      {:ok, span_ctx} ->
-        if output do
-          :otel_span.set_attributes(span_ctx, [
-            {:"output.value", truncate(to_string(output), 10_000)}
-          ])
-        end
-
-        :otel_span.end_span(span_ctx)
-        delete_span(:frontman_spans_spawn, tool_call_id)
-
-      :not_found ->
-        Logger.warning("Orphaned child stop event: tool_call_id=#{tool_call_id} has no span")
-    end
-  end
-
-  @doc false
-  def handle_child_exception(_event, _measurements, metadata, _config) do
-    tool_call_id = metadata.tool_call_id
-
-    case lookup_span(:frontman_spans_spawn, tool_call_id) do
-      {:ok, span_ctx} ->
-        reason = inspect(metadata[:reason] || "unknown")
-        :otel_span.set_status(span_ctx, :error, "Child exception: #{reason}")
-        :otel_span.end_span(span_ctx)
-        delete_span(:frontman_spans_spawn, tool_call_id)
 
       :not_found ->
         :ok

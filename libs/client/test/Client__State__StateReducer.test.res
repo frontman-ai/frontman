@@ -1,23 +1,47 @@
 open Vitest
 
 module Reducer = Client__State__StateReducer
+module TaskReducer = Client__Task__Reducer
 module Task = Client__State__Types.Task
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module TestHelpers = {
+  let makeLoadedTask = (
+    ~id,
+    ~title,
+    ~previewUrl,
+    ~createdAt as _,
+    ~messages=[],
+    ~isAgentRunning=false,
+  ) =>
+    Task.makeNew(~previewUrl)
+    ->Task.newToLoaded(~id, ~title)
+    ->Task.updateLoadedData(data => {...data, messages, isAgentRunning})
+
+  let makeStateWithTasks = (
+    ~tasks,
+    ~currentTask,
+    ~sessionsLoadState=Client__State__Types.SessionsNotLoaded,
+  ) => {
+    ...Reducer.defaultState,
+    tasks,
+    currentTask,
+    selectedModelValue: None,
+    sessionsLoadState,
+  }
+
   let makeStateWithTask = (
     ~taskId="test-task-1",
     ~messages=[],
-    ~timestamp=1000.0,
     ~previewUrl="http://localhost:3000",
     ~isAgentRunning=false,
   ) => {
-    let task = Task.makeLoaded(
+    let task = makeLoadedTask(
       ~id=taskId,
       ~title="Test Task",
       ~previewUrl,
-      ~createdAt=timestamp,
+      ~createdAt=1000.0,
       ~messages,
       ~isAgentRunning,
     )
@@ -25,37 +49,7 @@ module TestHelpers = {
     let tasks = Dict.make()
     tasks->Dict.set(taskId, task)
 
-    (
-      {
-        tasks,
-        currentTask: Task.Selected(taskId),
-        acpSession: NoAcpSession,
-        sessionInitialized: false,
-        usageInfo: None,
-        userProfile: None,
-        openrouterKeySettings: {
-          source: Client__State__Types.None,
-          saveStatus: Client__State__Types.Idle,
-        },
-        anthropicKeySettings: {
-          source: Client__State__Types.None,
-          saveStatus: Client__State__Types.Idle,
-        },
-        fireworksKeySettings: {
-          source: Client__State__Types.None,
-          saveStatus: Client__State__Types.Idle,
-        },
-        anthropicOAuthStatus: Client__State__Types.NotConnected,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-        configOptions: None,
-        selectedModelValue: None,
-        pendingProviderAutoSelect: None,
-        sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-        updateInfo: None,
-        updateCheckStatus: UpdateNotChecked,
-        updateBannerDismissed: false,
-      }: Client__State__Types.state
-    )
+    makeStateWithTasks(~tasks, ~currentTask=Task.Selected(taskId))
   }
 
   let getMessages = Reducer.Selectors.messages
@@ -695,7 +689,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
 
 describe("Client State Reducer - Task Management Actions", () => {
   test("SwitchTask restores task messages", t => {
-    let task1 = Task.makeLoaded(
+    let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
       ~previewUrl="http://localhost:3000",
@@ -710,7 +704,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       ],
     )
 
-    let task2 = Task.makeLoaded(
+    let task2 = TestHelpers.makeLoadedTask(
       ~id="task-2",
       ~title="Task 2",
       ~previewUrl="http://localhost:3000",
@@ -729,35 +723,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     tasks->Dict.set("task-1", task1)
     tasks->Dict.set("task-2", task2)
 
-    let state: Reducer.state = {
-      tasks,
-      currentTask: Task.Selected("task-1"),
-      acpSession: NoAcpSession,
-      sessionInitialized: false,
-      usageInfo: None,
-      userProfile: None,
-      openrouterKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      fireworksKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicOAuthStatus: Client__State__Types.NotConnected,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-      configOptions: None,
-      selectedModelValue: None,
-      pendingProviderAutoSelect: None,
-      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-      updateInfo: None,
-      updateCheckStatus: UpdateNotChecked,
-      updateBannerDismissed: false,
-    }
+    let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
     let (nextState, _) = Reducer.next(state, SwitchTask({taskId: "task-2"}))
 
@@ -792,7 +758,7 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 
   test("DeleteTask switches to New when deleting only task", t => {
-    let task1 = Task.makeLoaded(
+    let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
       ~previewUrl="http://localhost:3000",
@@ -802,35 +768,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let tasks = Dict.make()
     tasks->Dict.set("task-1", task1)
 
-    let state: Reducer.state = {
-      tasks,
-      currentTask: Task.Selected("task-1"),
-      acpSession: NoAcpSession,
-      sessionInitialized: false,
-      usageInfo: None,
-      userProfile: None,
-      openrouterKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      fireworksKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicOAuthStatus: Client__State__Types.NotConnected,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-      configOptions: None,
-      selectedModelValue: None,
-      pendingProviderAutoSelect: None,
-      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-      updateInfo: None,
-      updateCheckStatus: UpdateNotChecked,
-      updateBannerDismissed: false,
-    }
+    let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
     let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
 
@@ -844,7 +782,7 @@ describe("Client State Reducer - Task Management Actions", () => {
 
   test("AddUserMessage after deleting last task creates new task", t => {
     // Start with a single task
-    let task1 = Task.makeLoaded(
+    let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
       ~previewUrl="http://localhost:3000",
@@ -862,35 +800,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let tasks = Dict.make()
     tasks->Dict.set("task-1", task1)
 
-    let state: Reducer.state = {
-      tasks,
-      currentTask: Task.Selected("task-1"),
-      acpSession: NoAcpSession,
-      sessionInitialized: false,
-      usageInfo: None,
-      userProfile: None,
-      openrouterKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      fireworksKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicOAuthStatus: Client__State__Types.NotConnected,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-      configOptions: None,
-      selectedModelValue: None,
-      pendingProviderAutoSelect: None,
-      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-      updateInfo: None,
-      updateCheckStatus: UpdateNotChecked,
-      updateBannerDismissed: false,
-    }
+    let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
     // Delete the only task
     let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
@@ -934,7 +844,7 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 
   test("Tasks maintain independent state across switches", t => {
-    let task1 = Task.makeLoaded(
+    let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
       ~previewUrl="http://localhost:3000",
@@ -943,35 +853,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let tasks = Dict.make()
     tasks->Dict.set("task-1", task1)
 
-    let state: Reducer.state = {
-      tasks,
-      currentTask: Task.Selected("task-1"),
-      acpSession: NoAcpSession,
-      sessionInitialized: false,
-      usageInfo: None,
-      userProfile: None,
-      openrouterKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      fireworksKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicOAuthStatus: Client__State__Types.NotConnected,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-      configOptions: None,
-      selectedModelValue: None,
-      pendingProviderAutoSelect: None,
-      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-      updateInfo: None,
-      updateCheckStatus: UpdateNotChecked,
-      updateBannerDismissed: false,
-    }
+    let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
     // Add message to task 1
     let (state1, effects1) = Reducer.next(
@@ -1056,7 +938,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
   test("SessionsLoadSuccess does not overwrite existing tasks", t => {
     // Create state with an existing task
-    let existingTask = Task.makeLoaded(
+    let existingTask = TestHelpers.makeLoadedTask(
       ~id="session-1",
       ~title="Existing Task",
       ~previewUrl="http://localhost:3000",
@@ -1074,35 +956,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
     let tasks = Dict.make()
     tasks->Dict.set("session-1", existingTask)
 
-    let state: Reducer.state = {
-      tasks,
-      currentTask: Task.Selected("task-1"),
-      acpSession: NoAcpSession,
-      sessionInitialized: false,
-      usageInfo: None,
-      userProfile: None,
-      openrouterKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      fireworksKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicOAuthStatus: Client__State__Types.NotConnected,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-      configOptions: None,
-      selectedModelValue: None,
-      pendingProviderAutoSelect: None,
-      sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-      updateInfo: None,
-      updateCheckStatus: UpdateNotChecked,
-      updateBannerDismissed: false,
-    }
+    let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
     // Load sessions including one with the same ID as existing task
     let sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary> = [
@@ -1171,40 +1025,17 @@ describe("Client State Reducer - Session Loading Actions", () => {
       ~createdAt=1000.0,
       ~updatedAt=1000.0,
     )
-    let loadingTask = Task.startLoading(task, ~previewUrl="http://localhost:3000")
+    let loadingTask =
+      TaskReducer.next(task, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
 
     let tasks = Dict.make()
     tasks->Dict.set("task-123", loadingTask)
 
-    let state: Reducer.state = {
-      tasks,
-      currentTask: Task.Selected("task-123"),
-      acpSession: NoAcpSession,
-      sessionInitialized: false,
-      usageInfo: None,
-      userProfile: None,
-      openrouterKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      fireworksKeySettings: {
-        source: Client__State__Types.None,
-        saveStatus: Client__State__Types.Idle,
-      },
-      anthropicOAuthStatus: Client__State__Types.NotConnected,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
-      configOptions: None,
-      selectedModelValue: None,
-      pendingProviderAutoSelect: None,
-      sessionsLoadState: Client__State__Types.SessionsLoaded,
-      updateInfo: None,
-      updateCheckStatus: UpdateNotChecked,
-      updateBannerDismissed: false,
-    }
+    let state = TestHelpers.makeStateWithTasks(
+      ~tasks,
+      ~currentTask=Task.Selected("task-123"),
+      ~sessionsLoadState=Client__State__Types.SessionsLoaded,
+    )
 
     let (nextState, _effects) = Reducer.next(
       state,
@@ -1415,7 +1246,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
   })
 
-  describe("Fireworks API key actions", () => {
+  describe("API key provider actions", () => {
     let _makeStateWithSession = () => {
       {
         ...Reducer.defaultState,
@@ -1432,45 +1263,152 @@ describe("Client State Reducer - Annotations on Messages", () => {
       }
     }
 
+    let _providerCases: array<(Reducer.apiKeyProvider, string)> = [
+      (OpenRouter, "openrouter"),
+      (Anthropic, "anthropic"),
+      (Fireworks, "fireworks"),
+      (Nvidia, "nvidia"),
+    ]
+
+    let _settingsForProvider = (
+      state: Client__State__Types.state,
+      provider: Reducer.apiKeyProvider,
+    ) =>
+      switch provider {
+      | OpenRouter => state.openrouterKeySettings
+      | Anthropic => state.anthropicKeySettings
+      | Fireworks => state.fireworksKeySettings
+      | Nvidia => state.nvidiaKeySettings
+      }
+
     test(
-      "SaveFireworksKey queues the save effect and pending auto-select",
+      "FetchApiKeySettings queues the provider-specific effect",
       t => {
-        let (nextState, effects) = Reducer.next(
-          _makeStateWithSession(),
-          SaveFireworksKey({key: "sk-fireworks-test-key"}),
+        _providerCases->Array.forEach(
+          ((provider, _expectedProviderId)) => {
+            let (_nextState, effects) = Reducer.next(
+              _makeStateWithSession(),
+              FetchApiKeySettings({provider: provider}),
+            )
+
+            t->expect(effects->Array.length)->Expect.toBe(1)
+            switch effects->Array.get(0) {
+            | Some(FetchApiKeySettingsEffect({apiBaseUrl, provider: effectProvider})) => {
+                t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
+                t->expect(effectProvider)->Expect.toEqual(provider)
+              }
+            | _ => JsExn.throw("Expected FetchApiKeySettingsEffect")
+            }
+          },
         )
-
-        t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("fireworks"))
-        t->expect(effects->Array.length)->Expect.toBe(1)
-
-        switch effects->Array.get(0) {
-        | Some(SaveFireworksKeyEffect({apiBaseUrl, key})) => {
-            t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
-            t->expect(key)->Expect.toBe("sk-fireworks-test-key")
-          }
-        | _ => JsExn.throw("Expected SaveFireworksKeyEffect")
-        }
       },
     )
 
     test(
-      "Fireworks save lifecycle updates save status and clears pending auto-select on error",
+      "SaveApiKey queues the save effect and pending auto-select for each provider",
       t => {
-        let state = _makeStateWithSession()
-        let (savingState, _effects) = Reducer.next(state, FireworksKeySaveStarted)
+        _providerCases->Array.forEach(
+          ((provider, expectedProviderId)) => {
+            let (nextState, effects) = Reducer.next(
+              _makeStateWithSession(),
+              SaveApiKey({provider, key: "sk-test-key"}),
+            )
 
-        t->expect(savingState.fireworksKeySettings.saveStatus)->Expect.toEqual(Saving)
+            t
+            ->expect(nextState.pendingProviderAutoSelect)
+            ->Expect.toEqual(Some(expectedProviderId))
+            t->expect(effects->Array.length)->Expect.toBe(1)
 
-        let (failedState, _effects) = Reducer.next(
-          {...savingState, pendingProviderAutoSelect: Some("fireworks")},
-          FireworksKeySaveError({error: "boom"}),
+            switch effects->Array.get(0) {
+            | Some(SaveApiKeyEffect({apiBaseUrl, provider: effectProvider, key})) => {
+                t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
+                t->expect(effectProvider)->Expect.toEqual(provider)
+                t->expect(key)->Expect.toBe("sk-test-key")
+              }
+            | _ => JsExn.throw("Expected SaveApiKeyEffect")
+            }
+          },
+        )
+      },
+    )
+
+    test(
+      "API key save lifecycle updates only the targeted provider",
+      t => {
+        _providerCases->Array.forEach(
+          ((provider, expectedProviderId)) => {
+            let state = _makeStateWithSession()
+            let (savingState, _effects) = Reducer.next(
+              state,
+              ApiKeySaveStarted({provider: provider}),
+            )
+
+            t
+            ->expect(_settingsForProvider(savingState, provider).saveStatus)
+            ->Expect.toEqual(Saving)
+
+            let (savedState, effects) = Reducer.next(savingState, ApiKeySaved({provider: provider}))
+
+            t
+            ->expect(_settingsForProvider(savedState, provider).source)
+            ->Expect.toEqual(UserOverride)
+            t->expect(_settingsForProvider(savedState, provider).saveStatus)->Expect.toEqual(Saved)
+            switch provider {
+            | OpenRouter => t->expect(effects->Array.length)->Expect.toBe(1)
+            | Anthropic | Fireworks | Nvidia => t->expect(effects->Array.length)->Expect.toBe(0)
+            }
+
+            let (failedState, _effects) = Reducer.next(
+              {...savingState, pendingProviderAutoSelect: Some(expectedProviderId)},
+              ApiKeySaveError({provider, error: "boom"}),
+            )
+
+            t->expect(failedState.pendingProviderAutoSelect)->Expect.toEqual(None)
+            t
+            ->expect(_settingsForProvider(failedState, provider).saveStatus)
+            ->Expect.toEqual(SaveError("boom"))
+
+            let (resetState, _effects) = Reducer.next(
+              failedState,
+              ResetApiKeySaveStatus({provider: provider}),
+            )
+            t->expect(_settingsForProvider(resetState, provider).saveStatus)->Expect.toEqual(Idle)
+          },
+        )
+      },
+    )
+
+    test(
+      "SaveApiKey without ACP session sets provider-specific error",
+      t => {
+        _providerCases->Array.forEach(
+          ((provider, _expectedProviderId)) => {
+            let (nextState, effects) = Reducer.next(
+              Reducer.defaultState,
+              SaveApiKey({provider, key: "sk-test-key"}),
+            )
+
+            t->expect(effects->Array.length)->Expect.toBe(0)
+            t
+            ->expect(_settingsForProvider(nextState, provider).saveStatus)
+            ->Expect.toEqual(SaveError("No active ACP session"))
+          },
+        )
+      },
+    )
+
+    test(
+      "ApiKeySettingsReceived updates only the targeted provider",
+      t => {
+        let (nextState, _effects) = Reducer.next(
+          Reducer.defaultState,
+          ApiKeySettingsReceived({provider: Anthropic, source: FromEnv}),
         )
 
-        t->expect(failedState.pendingProviderAutoSelect)->Expect.toEqual(None)
-        t->expect(failedState.fireworksKeySettings.saveStatus)->Expect.toEqual(SaveError("boom"))
-
-        let (resetState, _effects) = Reducer.next(failedState, ResetFireworksKeySaveStatus)
-        t->expect(resetState.fireworksKeySettings.saveStatus)->Expect.toEqual(Idle)
+        t->expect(nextState.openrouterKeySettings.source)->Expect.toEqual(Client__State__Types.None)
+        t->expect(nextState.anthropicKeySettings.source)->Expect.toEqual(FromEnv)
+        t->expect(nextState.fireworksKeySettings.source)->Expect.toEqual(Client__State__Types.None)
+        t->expect(nextState.nvidiaKeySettings.source)->Expect.toEqual(Client__State__Types.None)
       },
     )
   })

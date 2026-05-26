@@ -1,0 +1,11 @@
+/_build/
+/cover/
+/deps/
+/doc/
+/var/
+/.elixir_ls/
+*.ez
+
+# Root .gitignore excludes ReScript build directories named lib/.
+!lib/
+!lib/**

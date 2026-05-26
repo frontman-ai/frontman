@@ -22,9 +22,9 @@ type input = {
 
 @schema
 type output = {
-  @s.describe("Base64-encoded JPEG image data URL (data:image/jpeg;base64,...)")
+  @s.describe("Base64-encoded JPEG image data URL (data:image/jpeg;base64,...)") @live
   screenshot: option<string>,
-  @s.describe("Error message if the screenshot could not be taken")
+  @s.describe("Error message if the screenshot could not be taken") @live
   error: option<string>,
 }
 
@@ -142,7 +142,7 @@ let execute = async (
             let limits = Client__ImageLimits.forProvider(provider)
             let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
 
-            let captureResult = await Bindings__Snapdom.snapdom(element)
+            let captureResult = await FrontmanBindings.Bindings__Snapdom.snapdom(element)
 
             switch viewportCrop {
             | Some((viewportW, viewportH, scrollX, scrollY)) =>

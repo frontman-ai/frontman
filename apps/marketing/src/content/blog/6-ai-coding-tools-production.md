@@ -1,5 +1,5 @@
 ---
-title: 'AI Coding Tools That Work on Existing Codebases (2026)'
+title: 'AI Coding Tools for Existing Codebases'
 pubDate: 2026-03-23T05:00:00Z
 description: 'Most AI coding tools are built for greenfield. Six that actually work on production codebases — including one that runs in the browser for visual work.'
 author: 'Danni Friedland'
@@ -37,6 +37,8 @@ Here's what I cover in this post:
 - **[GitHub Copilot Edits](#5-github-copilot-edits)** — lowest friction if you're already on GitHub
 - **[Cline](#6-cline)** — open-source with browser automation
 - **[Comparison table](#comparison-table)** — side-by-side pricing, type, and best-for
+
+If your search is specifically frontend UI work, start with the [best frontend coding agent](/blog/best-frontend-coding-agent/) guide instead; it compares frontend-specific workflows, browser context, React UI generation, and reviewable diffs.
 
 ---
 
@@ -149,7 +151,7 @@ The trade-off is managing your own API costs. Cline shows real-time usage and es
 
 | Tool | Type | Price | Browser access | Open source | Best for |
 |------|------|-------|---------------|-------------|----------|
-| [Frontman](https://frontman.sh) | Browser agent | Free (BYOK) | Yes, full DOM | Yes (Apache 2.0) | Designers & PMs making visual changes |
+| [Frontman](https://frontman.sh) | Browser agent | Free self-hosting; paid hosted plans coming | Yes, full DOM | Yes (Apache 2.0) | Designers & PMs making visual changes |
 | [Cursor](https://cursor.sh) | VS Code fork | Credit-based | Limited | No | Deepest AI-native IDE experience |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | CLI | Usage-based | No | No | Terminal-native, massive context |
 | [Windsurf](https://windsurf.com) | VS Code fork | $15/mo | No | No | Flow awareness across sessions |
