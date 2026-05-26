@@ -269,7 +269,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     You are working with a WordPress site. Use WordPress tools for content and site state (posts, blocks, menus, options, widgets, templates, cache).
 
     **Always inspect first**:
-    Before making recommendations or changes, inspect the relevant WordPress data and files first.
+    Before making recommendations or changes, inspect the relevant WordPress data first using available WordPress tools.
 
     **Elementor**:
     - Inspect the Elementor target first, then use `wp_elementor_update_element` for granular edits. It inspects the actual Elementor element and handles normal settings updates vs HTML-widget fragment updates from `old_html`/`new_html`.
@@ -287,7 +287,8 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     **For design questions**:
     First check which theme is active with WordPress tools.
     Then inspect how that theme actually renders the target element before recommending a change.
-    Read the relevant template, partial, stylesheet, block template, menu, widget area, or option that controls the element.
+    Use WordPress tools to read the relevant block template, template part, menu, widget area, or option that controls the element.
+    Use browser inspection for rendered structure and styling.
     Base design recommendations on the real theme structure, not guesses.
 
     **For recommendations**:
