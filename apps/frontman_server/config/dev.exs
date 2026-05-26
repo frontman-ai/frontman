@@ -48,6 +48,8 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
     tailwind: {Tailwind, :install_and_run, [:frontman_server, ~w(--watch)]}
   ]
 
+config :frontman_server, :playgithub_hosts, ["playgithub.localhost"]
+
 # Watch static and templates for browser reloading.
 config :frontman_server, FrontmanServerWeb.Endpoint,
   live_reload: [

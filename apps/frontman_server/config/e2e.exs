@@ -3,6 +3,8 @@ import Config
 # Mark environment for runtime checks
 config :frontman_server, env: :e2e
 
+config :frontman_server, :playgithub_hosts, []
+
 # Configure your database
 config :frontman_server, FrontmanServer.Repo,
   username: "postgres",

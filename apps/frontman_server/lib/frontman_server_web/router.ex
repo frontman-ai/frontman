@@ -9,6 +9,8 @@ defmodule FrontmanServerWeb.Router do
 
   import FrontmanServerWeb.UserAuth
 
+  @playgithub_hosts Application.compile_env!(:frontman_server, :playgithub_hosts)
+
   pipeline :browser do
     plug(:accepts, ["html"])
     plug(:fetch_session)
@@ -28,6 +30,14 @@ defmodule FrontmanServerWeb.Router do
     plug(:fetch_session)
     plug(:fetch_current_scope_for_user)
     plug(:require_authenticated_user_api)
+  end
+
+  for host <- @playgithub_hosts do
+    scope "/", FrontmanServerWeb, host: host do
+      pipe_through([:browser, :require_authenticated_user])
+
+      get("/", PlayGithubController, :index)
+    end
   end
 
   ## Public routes
