@@ -89,7 +89,22 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   @impl true
   def call(conn, _opts) do
-    respond_to_control_request(conn, TargetPolicy.control_request(conn))
+    case proxy_request_host?(conn.host) do
+      true -> respond_to_control_request(conn, TargetPolicy.control_request(conn))
+      false -> conn
+    end
+  end
+
+  defp proxy_request_host?(host) when is_binary(host) do
+    host
+    |> String.downcase()
+    |> then(&(&1 in proxy_request_hosts()))
+  end
+
+  defp proxy_request_hosts do
+    :frontman_server
+    |> Application.get_env(:sandbox_proxy_request_hosts, [])
+    |> Enum.map(&String.downcase/1)
   end
 
   defp respond_to_control_request(conn, :not_handled), do: proxy_request(conn)

@@ -1,9 +1,14 @@
 defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
   use FrontmanServerWeb.ConnCase, async: false
 
+  alias FrontmanServerWeb.Plugs.SandboxProxy
+
   setup do
     previous_req_options = Application.get_env(:frontman_server, :sandbox_proxy_req_options)
     previous_allowed_hosts = Application.get_env(:frontman_server, :sandbox_proxy_allowed_hosts)
+
+    previous_request_hosts =
+      Application.get_env(:frontman_server, :sandbox_proxy_request_hosts)
 
     previous_allowed_schemes =
       Application.get_env(:frontman_server, :sandbox_proxy_allowed_schemes)
@@ -18,10 +23,12 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
     ])
 
     Application.put_env(:frontman_server, :sandbox_proxy_allowed_schemes, ["http", "https"])
+    Application.put_env(:frontman_server, :sandbox_proxy_request_hosts, ["www.example.com"])
 
     on_exit(fn ->
       restore_env(:sandbox_proxy_req_options, previous_req_options)
       restore_env(:sandbox_proxy_allowed_hosts, previous_allowed_hosts)
+      restore_env(:sandbox_proxy_request_hosts, previous_request_hosts)
       restore_env(:sandbox_proxy_allowed_schemes, previous_allowed_schemes)
     end)
 
@@ -55,6 +62,44 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
     assert response(conn, 200) == "<html>Frontman</html>"
     assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
     assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
+  end
+
+  test "passes through requests on non-proxy hosts", %{conn: conn} do
+    Application.put_env(:frontman_server, :sandbox_proxy_request_hosts, [
+      "playgithub.frontman.local"
+    ])
+
+    conn =
+      conn
+      |> put_request_host("frontman.local")
+      |> SandboxProxy.call([])
+
+    assert conn.state == :unset
+    refute conn.halted
+  end
+
+  test "proxies requests on configured proxy hosts", %{conn: conn} do
+    Application.put_env(:frontman_server, :sandbox_proxy_request_hosts, [
+      "playgithub.frontman.local"
+    ])
+
+    Req.Test.stub(:sandbox_proxy, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/frontman/"
+
+      conn
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, "<html>Proxy host</html>")
+    end)
+
+    target_url = URI.encode_www_form("http://localhost/frontman/")
+
+    conn =
+      conn
+      |> put_request_host("playgithub.frontman.local")
+      |> get("/sandbox?url=#{target_url}")
+
+    assert response(conn, 200) == "<html>Proxy host</html>"
   end
 
   test "rewrites Frontman iframe entrypoint through the sandbox proxy", %{conn: conn} do
@@ -382,6 +427,10 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
   defp source_url_cookie_header(raw_url) do
     encoded_url = Base.url_encode64(raw_url, padding: false)
     "_frontman_sandbox_source_url=#{encoded_url}"
+  end
+
+  defp put_request_host(conn, host) do
+    %{conn | host: host, req_headers: [{"host", host} | conn.req_headers]}
   end
 
   defp put_test_host_header(conn) do

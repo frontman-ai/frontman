@@ -60,6 +60,8 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :frontman_server, dev_routes: true
 
+config :frontman_server, sandbox_proxy_request_hosts: ["playgithub.frontman.local"]
+
 # Include metadata and timestamps in development logs for verbose debugging
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",

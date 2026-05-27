@@ -8,6 +8,8 @@ import Config
 config :frontman_server, FrontmanServerWeb.Endpoint,
   cache_static_manifest: "priv/static/cache_manifest.json"
 
+config :frontman_server, sandbox_proxy_request_hosts: ["playgithub.com"]
+
 # Configures Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Req
 
