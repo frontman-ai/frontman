@@ -14,28 +14,22 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   import Plug.Conn
 
-  alias FrontmanServerWeb.Plugs.SandboxProxy.{Daytona, WebSocket}
-  alias Plug.Conn.Utils, as: ConnUtils
+  alias FrontmanServerWeb.Plugs.SandboxProxy.{Daytona, FrontmanRuntime, Vite, WebSocket}
 
   require Logger
 
   @behaviour Plug
 
-  @path_segment_reserved_chars [33, 36, 38, 39, 40, 41, 42, 43, 44, 59, 61, 58, 64]
+  # Preserve RFC 3986 pchar reserved characters that are legal inside one path
+  # segment. Dev servers use these characters as path syntax, e.g. Vite routes
+  # like /@fs and scoped packages like /node_modules/@scope/pkg. Encoding them
+  # to %40/%3A/etc. changes upstream routing, while / remains encoded by being
+  # represented as the segment separator when we join path_info below.
+  @path_segment_reserved_chars ~c"!$&'()*+,;=:@"
   @source_url_cookie "_frontman_sandbox_source_url"
   @source_url_cookie_max_age_seconds 3_600
-  @vite_hmr_protocol "vite-hmr"
   @websocket_idle_timeout_ms 60_000
   @websocket_max_frame_size 10_485_760
-  @vite_asset_path_prefixes MapSet.new([
-                              "@fs",
-                              "@id",
-                              "@vite",
-                              "node_modules",
-                              "src",
-                              "_astro",
-                              "_image"
-                            ])
   @read_timeout_ms 30_000
   @receive_timeout_ms 30_000
   @max_request_body_bytes 10_485_760
@@ -109,38 +103,10 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   def call(conn, _opts) do
-    case vite_hmr_websocket_request?(conn) do
+    case Vite.hmr_websocket_request?(conn) do
       true -> proxy_vite_hmr_websocket(conn)
       false -> proxy_referred_path(conn)
     end
-  end
-
-  defp vite_hmr_websocket_request?(conn) do
-    case conn.method do
-      "GET" -> websocket_upgrade_with_vite_hmr_protocol?(conn)
-      _ -> false
-    end
-  end
-
-  defp websocket_upgrade_with_vite_hmr_protocol?(conn) do
-    case header_contains?(conn, "connection", "upgrade") do
-      true -> websocket_upgrade_with_vite_hmr_protocol_from_upgrade?(conn)
-      false -> false
-    end
-  end
-
-  defp websocket_upgrade_with_vite_hmr_protocol_from_upgrade?(conn) do
-    case header_contains?(conn, "upgrade", "websocket") do
-      true -> header_contains?(conn, "sec-websocket-protocol", @vite_hmr_protocol)
-      false -> false
-    end
-  end
-
-  defp header_contains?(conn, header, needle) do
-    conn
-    |> get_req_header(header)
-    |> Enum.flat_map(&ConnUtils.list/1)
-    |> Enum.any?(&(String.downcase(&1, :ascii) == needle))
   end
 
   defp proxy_vite_hmr_websocket(conn) do
@@ -161,7 +127,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
     with :ok <- Daytona.validate_target_url(raw_url),
          {:ok, target_url} <- build_websocket_target_url(raw_url, conn) do
       conn
-      |> put_resp_header("sec-websocket-protocol", @vite_hmr_protocol)
+      |> put_resp_header("sec-websocket-protocol", Vite.hmr_protocol())
       |> WebSockAdapter.upgrade(
         WebSocket,
         %{
@@ -258,17 +224,11 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp source_url_from_asset_cookie(conn) do
-    case vite_asset_path?(conn.path_info) do
+    case Vite.dev_asset_path?(conn.path_info) do
       true -> source_url_from_cookie(conn)
       false -> {:error, :missing_url}
     end
   end
-
-  defp vite_asset_path?([prefix | _path]) do
-    MapSet.member?(@vite_asset_path_prefixes, prefix)
-  end
-
-  defp vite_asset_path?([]), do: false
 
   defp run_proxy(conn, {:ok, target_url}) do
     with :ok <- Daytona.validate_target_url(target_url),
@@ -500,17 +460,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
     |> Enum.reject(fn {name, _value} ->
       MapSet.member?(@websocket_request_headers_blocklist, name)
     end)
-    |> put_vite_hmr_protocol_header()
+    |> Vite.put_hmr_protocol_header()
     |> Daytona.put_skip_preview_warning_header()
-  end
-
-  defp put_vite_hmr_protocol_header(headers) do
-    List.keystore(
-      headers,
-      "sec-websocket-protocol",
-      0,
-      {"sec-websocket-protocol", @vite_hmr_protocol}
-    )
   end
 
   defp normalize_response({:ok, %Req.Response{} = response}), do: {:ok, response}
@@ -586,69 +537,20 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp response_body(conn, target_url, %Req.Response{body: body}) when is_binary(body) do
     body
     |> rewrite_frontman_entrypoint(conn)
-    |> rewrite_vite_client_hmr_host(conn, target_url)
+    |> Vite.rewrite_client_hmr_host(target_url, conn)
   end
 
   defp response_body(_conn, _target_url, %Req.Response{body: nil}), do: ""
   defp response_body(_conn, _target_url, %Req.Response{body: body}), do: body
 
   defp rewrite_frontman_entrypoint(body, conn) do
-    case String.contains?(body, ~s(id="frontman-entrypoint-url")) do
-      true -> rewrite_frontman_entrypoint_url(conn, body)
-      false -> body
-    end
-  end
-
-  defp rewrite_vite_client_hmr_host(body, conn, target_url) do
-    case vite_client_url?(target_url) do
-      true -> replace_vite_client_hmr_host(body, conn)
-      false -> body
-    end
-  end
-
-  defp vite_client_url?(target_url) do
-    case URI.parse(target_url) do
-      %URI{path: "/@vite/client"} -> true
-      _ -> false
-    end
-  end
-
-  defp replace_vite_client_hmr_host(body, conn) do
-    hmr_host = request_hmr_host(conn)
-
-    body
-    |> replace_regex(~r/const serverHost = "[^"]*";/, ~s(const serverHost = "#{hmr_host}";))
-    |> replace_regex(~r/const socketHost = .+?;/, ~s(const socketHost = "#{hmr_host}";))
-    |> replace_regex(
-      ~r/const directSocketHost = "[^"]*";/,
-      ~s(const directSocketHost = "#{hmr_host}";)
-    )
-  end
-
-  defp replace_regex(body, regex, replacement), do: Regex.replace(regex, body, replacement)
-
-  defp request_hmr_host(conn) do
-    conn.host <> hmr_port(conn.port, Atom.to_string(conn.scheme)) <> "/"
-  end
-
-  defp hmr_port(nil, _scheme), do: ""
-  defp hmr_port(443, "https"), do: ""
-  defp hmr_port(80, "http"), do: ""
-  defp hmr_port(port, _scheme), do: ":" <> Integer.to_string(port)
-
-  defp rewrite_frontman_entrypoint_url(conn, body) do
     case source_url(conn) do
-      {:ok, raw_url} -> replace_frontman_entrypoint_url(body, sandbox_proxy_url(conn, raw_url))
-      {:error, :missing_url} -> body
-    end
-  end
+      {:ok, raw_url} ->
+        FrontmanRuntime.rewrite_entrypoint_url(body, sandbox_proxy_url(conn, raw_url))
 
-  defp replace_frontman_entrypoint_url(body, proxied_url) do
-    Regex.replace(
-      ~r/(<span id="frontman-entrypoint-url" hidden>)[^<]*(<\/span>)/,
-      body,
-      fn _match, opening_tag, closing_tag -> opening_tag <> proxied_url <> closing_tag end
-    )
+      {:error, :missing_url} ->
+        body
+    end
   end
 
   defp sandbox_proxy_url(conn, raw_url) do
