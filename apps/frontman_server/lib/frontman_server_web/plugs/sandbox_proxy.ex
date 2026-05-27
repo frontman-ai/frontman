@@ -45,6 +45,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   @receive_timeout_ms 30_000
   @max_request_body_bytes 10_485_760
   @request_headers_blocklist MapSet.new([
+                               "accept-encoding",
                                "authorization",
                                "connection",
                                "content-length",
@@ -550,6 +551,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
           url: target_url,
           headers: proxy_request_headers(conn.req_headers),
           receive_timeout: @receive_timeout_ms,
+          compressed: false,
           decode_body: false,
           redirect: false
         ]

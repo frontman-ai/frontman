@@ -33,6 +33,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
       assert conn.method == "GET"
       assert conn.request_path == "/frontman/"
       assert conn.query_string == "debug=1"
+      assert Plug.Conn.get_req_header(conn, "accept-encoding") == []
       assert Plug.Conn.get_req_header(conn, "authorization") == []
       assert Plug.Conn.get_req_header(conn, "cookie") == []
       assert Plug.Conn.get_req_header(conn, "x-daytona-skip-preview-warning") == ["true"]
@@ -46,6 +47,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
 
     conn =
       conn
+      |> put_req_header("accept-encoding", "gzip, br")
       |> put_req_header("authorization", "Bearer frontman-token")
       |> put_req_header("cookie", "frontman_session=secret")
       |> get("/sandbox?url=#{target_url}&debug=1")
