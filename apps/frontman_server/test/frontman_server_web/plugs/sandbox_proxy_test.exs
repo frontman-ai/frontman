@@ -287,8 +287,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
     assert get_resp_header(conn, "sec-websocket-protocol") == ["vite-hmr"]
 
     assert_received {_ref, :upgrade,
-                     {:websocket,
-                      {FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket, state, opts}}}
+                     {:websocket, {FrontmanServerWeb.Plugs.SandboxProxy.WebSocket, state, opts}}}
 
     assert state.target_url == "ws://localhost/?token=dev-token"
     assert {"sec-websocket-protocol", "vite-hmr"} in state.upstream_headers
@@ -313,8 +312,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
     assert conn.state == :upgraded
 
     assert_received {_ref, :upgrade,
-                     {:websocket,
-                      {FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket, state, _opts}}}
+                     {:websocket, {FrontmanServerWeb.Plugs.SandboxProxy.WebSocket, state, _opts}}}
 
     assert state.target_url == "wss://4321-test.daytonaproxy01.eu/?token=dev-token"
   end

@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket.Upstream do
+defmodule FrontmanServerWeb.Plugs.SandboxProxy.WebSocket.Upstream do
   @moduledoc false
 
   use WebSockex
@@ -23,18 +23,18 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket.Upstream do
 
   @impl true
   def handle_frame({:text, message}, %{owner_pid: owner_pid} = state) do
-    send(owner_pid, {:sandbox_hmr_upstream_frame, {:text, message}})
+    send(owner_pid, {:sandbox_proxy_upstream_frame, {:text, message}})
     {:ok, state}
   end
 
   def handle_frame({:binary, message}, %{owner_pid: owner_pid} = state) do
-    send(owner_pid, {:sandbox_hmr_upstream_frame, {:binary, message}})
+    send(owner_pid, {:sandbox_proxy_upstream_frame, {:binary, message}})
     {:ok, state}
   end
 
   @impl true
   def handle_disconnect(%{reason: reason}, %{owner_pid: owner_pid} = state) do
-    send(owner_pid, {:sandbox_hmr_upstream_disconnected, reason})
+    send(owner_pid, {:sandbox_proxy_upstream_disconnected, reason})
     {:ok, state}
   end
 

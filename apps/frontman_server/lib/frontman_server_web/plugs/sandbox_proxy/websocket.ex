@@ -4,12 +4,12 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket do
+defmodule FrontmanServerWeb.Plugs.SandboxProxy.WebSocket do
   @moduledoc false
 
   @behaviour WebSock
 
-  alias FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket.Upstream
+  alias FrontmanServerWeb.Plugs.SandboxProxy.WebSocket.Upstream
 
   require Logger
 
@@ -30,8 +30,10 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket do
          |> Map.put(:upstream_ref, Process.monitor(upstream_pid))}
 
       {:error, reason} ->
-        Logger.warning("Sandbox HMR websocket upstream connect failed: #{inspect(reason)}")
-        {:stop, {:upstream_connect_failed, reason}, {1011, "Sandbox HMR unavailable"}, state}
+        Logger.warning("Sandbox websocket upstream connect failed: #{inspect(reason)}")
+
+        {:stop, {:upstream_connect_failed, reason}, {1011, "Sandbox websocket unavailable"},
+         state}
     end
   end
 
@@ -45,16 +47,16 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket do
   end
 
   @impl true
-  def handle_info({:sandbox_hmr_upstream_frame, {:text, message}}, state) do
+  def handle_info({:sandbox_proxy_upstream_frame, {:text, message}}, state) do
     {:push, {:text, message}, state}
   end
 
-  def handle_info({:sandbox_hmr_upstream_frame, {:binary, message}}, state) do
+  def handle_info({:sandbox_proxy_upstream_frame, {:binary, message}}, state) do
     {:push, {:binary, message}, state}
   end
 
-  def handle_info({:sandbox_hmr_upstream_disconnected, reason}, state) do
-    Logger.debug("Sandbox HMR websocket upstream disconnected: #{inspect(reason)}")
+  def handle_info({:sandbox_proxy_upstream_disconnected, reason}, state) do
+    Logger.debug("Sandbox websocket upstream disconnected: #{inspect(reason)}")
     {:stop, {:upstream_disconnected, reason}, state}
   end
 

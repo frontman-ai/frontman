@@ -14,18 +14,13 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   import Plug.Conn
 
+  alias FrontmanServerWeb.Plugs.SandboxProxy.{Daytona, WebSocket}
   alias Plug.Conn.Utils, as: ConnUtils
 
   require Logger
 
   @behaviour Plug
 
-  @default_allowed_hosts [
-    "daytonaproxy01.eu",
-    "daytona.work",
-    "proxy.daytona.work"
-  ]
-  @default_allowed_schemes ["https"]
   @path_segment_reserved_chars [33, 36, 38, 39, 40, 41, 42, 43, 44, 59, 61, 58, 64]
   @source_url_cookie "_frontman_sandbox_source_url"
   @source_url_cookie_max_age_seconds 3_600
@@ -163,12 +158,12 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp upgrade_vite_hmr_websocket(conn, raw_url) do
-    with :ok <- validate_target_url(raw_url),
+    with :ok <- Daytona.validate_target_url(raw_url),
          {:ok, target_url} <- build_websocket_target_url(raw_url, conn) do
       conn
       |> put_resp_header("sec-websocket-protocol", @vite_hmr_protocol)
       |> WebSockAdapter.upgrade(
-        FrontmanServerWeb.Plugs.SandboxProxy.HmrWebSocket,
+        WebSocket,
         %{
           target_url: target_url,
           upstream_headers: proxy_websocket_request_headers(conn.req_headers)
@@ -178,14 +173,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
       )
       |> halt()
     else
-      {:error, :invalid_url} ->
-        send_error(conn, :bad_request, "Invalid Daytona URL")
-
-      {:error, :unsupported_host} ->
-        send_error(conn, :bad_request, "Unsupported Daytona host")
-
-      {:error, :unsupported_scheme} ->
-        send_error(conn, :bad_request, "Unsupported URL scheme")
+      {:error, reason} when reason in [:invalid_url, :unsupported_host, :unsupported_scheme] ->
+        send_daytona_target_error(conn, reason)
     end
   end
 
@@ -210,21 +199,19 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   defp accept_daytona_preview_warning(%{query_params: %{"redirect" => redirect_url}} = conn)
        when is_binary(redirect_url) do
-    case validate_target_url(redirect_url) do
-      :ok ->
+    case Daytona.preview_warning_redirect_path(redirect_url) do
+      {:ok, redirect_path} ->
         conn
-        |> Phoenix.Controller.redirect(
-          to: "/sandbox?" <> URI.encode_query(%{"url" => redirect_url})
-        )
+        |> Phoenix.Controller.redirect(to: redirect_path)
         |> halt()
 
       {:error, _reason} ->
-        send_error(conn, :bad_request, "Invalid Daytona redirect URL")
+        send_error(conn, :bad_request, Daytona.invalid_preview_redirect_message())
     end
   end
 
   defp accept_daytona_preview_warning(conn) do
-    send_error(conn, :bad_request, "Missing redirect query parameter")
+    send_error(conn, :bad_request, Daytona.missing_preview_redirect_message())
   end
 
   defp proxy(%{query_params: %{"url" => raw_url}} = conn, proxied_path)
@@ -284,19 +271,13 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp vite_asset_path?([]), do: false
 
   defp run_proxy(conn, {:ok, target_url}) do
-    with :ok <- validate_target_url(target_url),
+    with :ok <- Daytona.validate_target_url(target_url),
          {:ok, body, conn} <- read_proxy_body(conn),
          {:ok, response} <- request_target(conn, target_url, body) do
       send_proxy_response(conn, target_url, response)
     else
-      {:error, :invalid_url} ->
-        send_error(conn, :bad_request, "Invalid Daytona URL")
-
-      {:error, :unsupported_host} ->
-        send_error(conn, :bad_request, "Unsupported Daytona host")
-
-      {:error, :unsupported_scheme} ->
-        send_error(conn, :bad_request, "Unsupported URL scheme")
+      {:error, reason} when reason in [:invalid_url, :unsupported_host, :unsupported_scheme] ->
+        send_daytona_target_error(conn, reason)
 
       {:error, :request_body_too_large} ->
         send_error(conn, :payload_too_large, "Request body too large")
@@ -446,71 +427,6 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp merge_query("", forwarded_query), do: forwarded_query
   defp merge_query(query, forwarded_query), do: query <> "&" <> forwarded_query
 
-  defp validate_target_url(target_url) do
-    case URI.parse(target_url) do
-      %URI{scheme: scheme, host: host} ->
-        validate_parsed_url(scheme, host)
-
-      _ ->
-        {:error, :invalid_url}
-    end
-  end
-
-  defp validate_parsed_url(scheme, host) when is_binary(scheme) do
-    case is_binary(host) do
-      true ->
-        case validate_scheme(scheme) do
-          :ok -> validate_host(host)
-          {:error, reason} -> {:error, reason}
-        end
-
-      false ->
-        {:error, :invalid_url}
-    end
-  end
-
-  defp validate_parsed_url(_scheme, _host), do: {:error, :invalid_url}
-
-  defp validate_scheme(scheme) do
-    case scheme in allowed_schemes() do
-      true -> :ok
-      false -> {:error, :unsupported_scheme}
-    end
-  end
-
-  defp validate_host(host) do
-    case allowed_host?(host) do
-      true -> :ok
-      false -> {:error, :unsupported_host}
-    end
-  end
-
-  defp allowed_host?(host) when is_binary(host) do
-    normalized_host = String.downcase(host)
-    Enum.any?(allowed_hosts(), &host_matches_suffix?(normalized_host, &1))
-  end
-
-  defp host_matches_suffix?(host, suffix) do
-    case host do
-      ^suffix -> true
-      _ -> String.ends_with?(host, "." <> suffix)
-    end
-  end
-
-  defp allowed_hosts do
-    :frontman_server
-    |> Application.get_env(:sandbox_proxy_allowed_hosts, @default_allowed_hosts)
-    |> Enum.map(&String.downcase/1)
-  end
-
-  defp allowed_schemes do
-    Application.get_env(
-      :frontman_server,
-      :sandbox_proxy_allowed_schemes,
-      @default_allowed_schemes
-    )
-  end
-
   defp read_proxy_body(conn) do
     case body_allowed?(conn.method) do
       true -> read_limited_body(conn, [])
@@ -576,7 +492,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp proxy_request_headers(headers) do
     headers
     |> Enum.reject(fn {name, _value} -> MapSet.member?(@request_headers_blocklist, name) end)
-    |> put_daytona_preview_skip_header()
+    |> Daytona.put_skip_preview_warning_header()
   end
 
   defp proxy_websocket_request_headers(headers) do
@@ -585,7 +501,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
       MapSet.member?(@websocket_request_headers_blocklist, name)
     end)
     |> put_vite_hmr_protocol_header()
-    |> put_daytona_preview_skip_header()
+    |> Daytona.put_skip_preview_warning_header()
   end
 
   defp put_vite_hmr_protocol_header(headers) do
@@ -595,13 +511,6 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
       0,
       {"sec-websocket-protocol", @vite_hmr_protocol}
     )
-  end
-
-  defp put_daytona_preview_skip_header(headers) do
-    case List.keymember?(headers, "x-daytona-skip-preview-warning", 0) do
-      true -> headers
-      false -> [{"x-daytona-skip-preview-warning", "true"} | headers]
-    end
   end
 
   defp normalize_response({:ok, %Req.Response{} = response}), do: {:ok, response}
@@ -666,7 +575,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp proxied_location(target_url, location) do
     resolved_location = target_url |> URI.merge(location) |> URI.to_string()
 
-    case validate_target_url(resolved_location) do
+    case Daytona.validate_target_url(resolved_location) do
       :ok -> "/sandbox?" <> URI.encode_query(%{"url" => resolved_location}, :rfc3986)
       {:error, _reason} -> location
     end
@@ -774,6 +683,11 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
     |> put_resp_content_type("application/json")
     |> send_resp(status, body)
     |> halt()
+  end
+
+  defp send_daytona_target_error(conn, reason) do
+    {status, message} = Daytona.error_response(reason)
+    send_error(conn, status, message)
   end
 
   defp send_bad_gateway(conn, reason) do
