@@ -6,15 +6,18 @@
 
 defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   @moduledoc """
-  Proxies Daytona sandbox preview URLs through the Frontman API origin.
+  Proxies sandbox preview URLs through the Frontman API origin.
 
-  This is intentionally temporary: callers pass the Daytona URL in the `url`
+  This is intentionally temporary: callers pass the sandbox URL in the `url`
   query parameter until sandbox lookup is modeled by id.
   """
 
   import Plug.Conn
 
-  alias FrontmanServerWeb.Plugs.SandboxProxy.{Daytona, FrontmanRuntime, Vite, WebSocket}
+  alias FrontmanServerWeb.Plugs.SandboxProxy.Daytona, as: TargetPolicy
+  alias FrontmanServerWeb.Plugs.SandboxProxy.FrontmanRuntime, as: RuntimePolicy
+  alias FrontmanServerWeb.Plugs.SandboxProxy.Vite, as: DevServerPolicy
+  alias FrontmanServerWeb.Plugs.SandboxProxy.WebSocket
 
   require Logger
 
@@ -33,6 +36,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   @read_timeout_ms 30_000
   @receive_timeout_ms 30_000
   @max_request_body_bytes 10_485_760
+  @target_policy_error_reasons [:invalid_url, :unsupported_host, :unsupported_scheme]
   @request_headers_blocklist MapSet.new([
                                "accept-encoding",
                                "authorization",
@@ -84,34 +88,46 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   def init(opts), do: opts
 
   @impl true
-  def call(%{path_info: ["accept-daytona-preview-warning"]} = conn, _opts) do
-    accept_daytona_preview_warning(conn)
+  def call(conn, _opts) do
+    respond_to_control_request(conn, TargetPolicy.control_request(conn))
   end
 
-  def call(%{path_info: ["frontman" | _proxied_path]} = conn, _opts) do
+  defp respond_to_control_request(conn, :not_handled), do: proxy_request(conn)
+
+  defp respond_to_control_request(conn, {:redirect, redirect_path}) do
+    conn
+    |> Phoenix.Controller.redirect(to: redirect_path)
+    |> halt()
+  end
+
+  defp respond_to_control_request(conn, {:error, status, message}) do
+    send_error(conn, status, message)
+  end
+
+  defp proxy_request(%{path_info: ["frontman" | _proxied_path]} = conn) do
     case conn.method do
       "OPTIONS" -> send_preflight(conn)
       _ -> proxy_frontman_path(conn, proxied_path_from_request(conn, 0))
     end
   end
 
-  def call(%{path_info: ["sandbox" | _proxied_path]} = conn, _opts) do
+  defp proxy_request(%{path_info: ["sandbox" | _proxied_path]} = conn) do
     case conn.method do
       "OPTIONS" -> send_preflight(conn)
       _ -> proxy(conn, proxied_path_from_request(conn, 1))
     end
   end
 
-  def call(conn, _opts) do
-    case Vite.hmr_websocket_request?(conn) do
-      true -> proxy_vite_hmr_websocket(conn)
+  defp proxy_request(conn) do
+    case DevServerPolicy.websocket_request?(conn) do
+      true -> proxy_websocket(conn)
       false -> proxy_referred_path(conn)
     end
   end
 
-  defp proxy_vite_hmr_websocket(conn) do
+  defp proxy_websocket(conn) do
     case source_url_for_websocket(conn) do
-      {:ok, raw_url} -> upgrade_vite_hmr_websocket(conn, raw_url)
+      {:ok, raw_url} -> upgrade_websocket(conn, raw_url)
       {:error, :missing_url} -> send_error(conn, :bad_request, "Missing url query parameter")
     end
   end
@@ -123,11 +139,11 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
     end
   end
 
-  defp upgrade_vite_hmr_websocket(conn, raw_url) do
-    with :ok <- Daytona.validate_target_url(raw_url),
+  defp upgrade_websocket(conn, raw_url) do
+    with :ok <- TargetPolicy.validate_target_url(raw_url),
          {:ok, target_url} <- build_websocket_target_url(raw_url, conn) do
       conn
-      |> put_resp_header("sec-websocket-protocol", Vite.hmr_protocol())
+      |> put_resp_header("sec-websocket-protocol", DevServerPolicy.websocket_protocol())
       |> WebSockAdapter.upgrade(
         WebSocket,
         %{
@@ -139,8 +155,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
       )
       |> halt()
     else
-      {:error, reason} when reason in [:invalid_url, :unsupported_host, :unsupported_scheme] ->
-        send_daytona_target_error(conn, reason)
+      {:error, reason} when reason in @target_policy_error_reasons ->
+        send_target_policy_error(conn, reason)
     end
   end
 
@@ -162,23 +178,6 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp websocket_url_string(%URI{}), do: {:error, :unsupported_scheme}
-
-  defp accept_daytona_preview_warning(%{query_params: %{"redirect" => redirect_url}} = conn)
-       when is_binary(redirect_url) do
-    case Daytona.preview_warning_redirect_path(redirect_url) do
-      {:ok, redirect_path} ->
-        conn
-        |> Phoenix.Controller.redirect(to: redirect_path)
-        |> halt()
-
-      {:error, _reason} ->
-        send_error(conn, :bad_request, Daytona.invalid_preview_redirect_message())
-    end
-  end
-
-  defp accept_daytona_preview_warning(conn) do
-    send_error(conn, :bad_request, Daytona.missing_preview_redirect_message())
-  end
 
   defp proxy(%{query_params: %{"url" => raw_url}} = conn, proxied_path)
        when is_binary(raw_url) do
@@ -224,20 +223,20 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp source_url_from_asset_cookie(conn) do
-    case Vite.dev_asset_path?(conn.path_info) do
+    case DevServerPolicy.dev_asset_path?(conn.path_info) do
       true -> source_url_from_cookie(conn)
       false -> {:error, :missing_url}
     end
   end
 
   defp run_proxy(conn, {:ok, target_url}) do
-    with :ok <- Daytona.validate_target_url(target_url),
+    with :ok <- TargetPolicy.validate_target_url(target_url),
          {:ok, body, conn} <- read_proxy_body(conn),
          {:ok, response} <- request_target(conn, target_url, body) do
       send_proxy_response(conn, target_url, response)
     else
-      {:error, reason} when reason in [:invalid_url, :unsupported_host, :unsupported_scheme] ->
-        send_daytona_target_error(conn, reason)
+      {:error, reason} when reason in @target_policy_error_reasons ->
+        send_target_policy_error(conn, reason)
 
       {:error, :request_body_too_large} ->
         send_error(conn, :payload_too_large, "Request body too large")
@@ -452,7 +451,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp proxy_request_headers(headers) do
     headers
     |> Enum.reject(fn {name, _value} -> MapSet.member?(@request_headers_blocklist, name) end)
-    |> Daytona.put_skip_preview_warning_header()
+    |> TargetPolicy.put_request_headers()
   end
 
   defp proxy_websocket_request_headers(headers) do
@@ -460,8 +459,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
     |> Enum.reject(fn {name, _value} ->
       MapSet.member?(@websocket_request_headers_blocklist, name)
     end)
-    |> Vite.put_hmr_protocol_header()
-    |> Daytona.put_skip_preview_warning_header()
+    |> DevServerPolicy.put_websocket_protocol_header()
+    |> TargetPolicy.put_request_headers()
   end
 
   defp normalize_response({:ok, %Req.Response{} = response}), do: {:ok, response}
@@ -526,7 +525,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp proxied_location(target_url, location) do
     resolved_location = target_url |> URI.merge(location) |> URI.to_string()
 
-    case Daytona.validate_target_url(resolved_location) do
+    case TargetPolicy.validate_target_url(resolved_location) do
       :ok -> "/sandbox?" <> URI.encode_query(%{"url" => resolved_location}, :rfc3986)
       {:error, _reason} -> location
     end
@@ -536,17 +535,17 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   defp response_body(conn, target_url, %Req.Response{body: body}) when is_binary(body) do
     body
-    |> rewrite_frontman_entrypoint(conn)
-    |> Vite.rewrite_client_hmr_host(target_url, conn)
+    |> rewrite_runtime_response(conn)
+    |> DevServerPolicy.rewrite_client_websocket_host(target_url, conn)
   end
 
   defp response_body(_conn, _target_url, %Req.Response{body: nil}), do: ""
   defp response_body(_conn, _target_url, %Req.Response{body: body}), do: body
 
-  defp rewrite_frontman_entrypoint(body, conn) do
+  defp rewrite_runtime_response(body, conn) do
     case source_url(conn) do
       {:ok, raw_url} ->
-        FrontmanRuntime.rewrite_entrypoint_url(body, sandbox_proxy_url(conn, raw_url))
+        RuntimePolicy.rewrite_response_body(body, sandbox_proxy_url(conn, raw_url))
 
       {:error, :missing_url} ->
         body
@@ -587,8 +586,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
     |> halt()
   end
 
-  defp send_daytona_target_error(conn, reason) do
-    {status, message} = Daytona.error_response(reason)
+  defp send_target_policy_error(conn, reason) do
+    {status, message} = TargetPolicy.error_response(reason)
     send_error(conn, status, message)
   end
 

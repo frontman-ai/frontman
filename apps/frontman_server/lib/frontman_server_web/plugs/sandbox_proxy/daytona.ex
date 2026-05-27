@@ -15,6 +15,23 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Daytona do
   @default_allowed_schemes ["https"]
   @skip_preview_warning_header {"x-daytona-skip-preview-warning", "true"}
 
+  def control_request(%{
+        path_info: ["accept-daytona-preview-warning"],
+        query_params: %{"redirect" => redirect_url}
+      })
+      when is_binary(redirect_url) do
+    case preview_warning_redirect_path(redirect_url) do
+      {:ok, redirect_path} -> {:redirect, redirect_path}
+      {:error, _reason} -> {:error, :bad_request, invalid_preview_redirect_message()}
+    end
+  end
+
+  def control_request(%{path_info: ["accept-daytona-preview-warning"]}) do
+    {:error, :bad_request, missing_preview_redirect_message()}
+  end
+
+  def control_request(_conn), do: :not_handled
+
   def validate_target_url(target_url) do
     case URI.parse(target_url) do
       %URI{scheme: scheme, host: host} ->
@@ -25,14 +42,22 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Daytona do
     end
   end
 
-  def preview_warning_redirect_path(redirect_url) when is_binary(redirect_url) do
+  def put_request_headers(headers) do
+    put_skip_preview_warning_header(headers)
+  end
+
+  def error_response(:invalid_url), do: {:bad_request, "Invalid Daytona URL"}
+  def error_response(:unsupported_host), do: {:bad_request, "Unsupported Daytona host"}
+  def error_response(:unsupported_scheme), do: {:bad_request, "Unsupported URL scheme"}
+
+  defp preview_warning_redirect_path(redirect_url) when is_binary(redirect_url) do
     case validate_target_url(redirect_url) do
       :ok -> {:ok, "/sandbox?" <> URI.encode_query(%{"url" => redirect_url})}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  def put_skip_preview_warning_header(headers) do
+  defp put_skip_preview_warning_header(headers) do
     {name, _value} = @skip_preview_warning_header
 
     case List.keymember?(headers, name, 0) do
@@ -41,15 +66,11 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Daytona do
     end
   end
 
-  def error_response(:invalid_url), do: {:bad_request, "Invalid Daytona URL"}
-  def error_response(:unsupported_host), do: {:bad_request, "Unsupported Daytona host"}
-  def error_response(:unsupported_scheme), do: {:bad_request, "Unsupported URL scheme"}
-
-  def invalid_preview_redirect_message do
+  defp invalid_preview_redirect_message do
     "Invalid Daytona redirect URL"
   end
 
-  def missing_preview_redirect_message do
+  defp missing_preview_redirect_message do
     "Missing redirect query parameter"
   end
 

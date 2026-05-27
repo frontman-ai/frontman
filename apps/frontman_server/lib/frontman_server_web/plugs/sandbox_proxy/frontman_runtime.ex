@@ -10,7 +10,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.FrontmanRuntime do
   @entrypoint_id ~s(id="frontman-entrypoint-url")
   @entrypoint_pattern ~r/(<span id="frontman-entrypoint-url" hidden>)[^<]*(<\/span>)/
 
-  def rewrite_entrypoint_url(body, proxied_url) do
+  def rewrite_response_body(body, proxied_url) do
     case String.contains?(body, @entrypoint_id) do
       true -> replace_entrypoint_url(body, proxied_url)
       false -> body

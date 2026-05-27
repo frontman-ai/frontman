@@ -22,16 +22,16 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Vite do
                              "_image"
                            ])
 
-  def hmr_protocol, do: @hmr_protocol
+  def websocket_protocol, do: @hmr_protocol
 
-  def hmr_websocket_request?(%{method: "GET"} = conn) do
+  def websocket_request?(%{method: "GET"} = conn) do
     case header_contains?(conn, "connection", "upgrade") do
       true -> websocket_upgrade_with_hmr_protocol?(conn)
       false -> false
     end
   end
 
-  def hmr_websocket_request?(_conn), do: false
+  def websocket_request?(_conn), do: false
 
   def dev_asset_path?([prefix | _path]) do
     MapSet.member?(@dev_asset_path_prefixes, prefix)
@@ -39,7 +39,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Vite do
 
   def dev_asset_path?([]), do: false
 
-  def put_hmr_protocol_header(headers) do
+  def put_websocket_protocol_header(headers) do
     List.keystore(
       headers,
       "sec-websocket-protocol",
@@ -48,7 +48,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Vite do
     )
   end
 
-  def rewrite_client_hmr_host(body, target_url, conn) do
+  def rewrite_client_websocket_host(body, target_url, conn) do
     case client_url?(target_url) do
       true -> replace_client_hmr_host(body, proxy_hmr_host(conn))
       false -> body
