@@ -32,15 +32,12 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Daytona do
 
   def control_request(_conn), do: :not_handled
 
-  def validate_target_url(target_url) do
-    case URI.parse(target_url) do
-      %URI{scheme: scheme, host: host} ->
-        validate_parsed_url(scheme, host)
-
-      _ ->
-        {:error, :invalid_url}
-    end
+  def validate_target_url(target_url) when is_binary(target_url) do
+    %URI{scheme: scheme, host: host} = URI.parse(target_url)
+    validate_parsed_url(scheme, host)
   end
+
+  def validate_target_url(_target_url), do: {:error, :invalid_url}
 
   def put_request_headers(headers) do
     put_skip_preview_warning_header(headers)

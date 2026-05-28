@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   alias FrontmanServerWeb.Plugs.SandboxProxy.Daytona, as: TargetPolicy
   alias FrontmanServerWeb.Plugs.SandboxProxy.FrontmanRuntime, as: RuntimePolicy
+  alias FrontmanServerWeb.Plugs.SandboxProxy.Target
   alias FrontmanServerWeb.Plugs.SandboxProxy.Vite, as: DevServerPolicy
   alias FrontmanServerWeb.Plugs.SandboxProxy.WebSocket
 
@@ -23,14 +24,6 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   @behaviour Plug
 
-  # Preserve RFC 3986 pchar reserved characters that are legal inside one path
-  # segment. Dev servers use these characters as path syntax, e.g. Vite routes
-  # like /@fs and scoped packages like /node_modules/@scope/pkg. Encoding them
-  # to %40/%3A/etc. changes upstream routing, while / remains encoded by being
-  # represented as the segment separator when we join path_info below.
-  @path_segment_reserved_chars ~c"!$&'()*+,;=:@"
-  @source_url_cookie "_frontman_sandbox_source_url"
-  @source_url_cookie_max_age_seconds 3_600
   @websocket_idle_timeout_ms 60_000
   @websocket_max_frame_size 10_485_760
   @read_timeout_ms 30_000
@@ -122,14 +115,14 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp proxy_request(%{path_info: ["frontman" | _proxied_path]} = conn) do
     case conn.method do
       "OPTIONS" -> send_preflight(conn)
-      _ -> proxy_frontman_path(conn, proxied_path_from_request(conn, 0))
+      _ -> proxy_frontman_path(conn, Target.path_from_request(conn, 0))
     end
   end
 
   defp proxy_request(%{path_info: ["sandbox" | _proxied_path]} = conn) do
     case conn.method do
       "OPTIONS" -> send_preflight(conn)
-      _ -> proxy(conn, proxied_path_from_request(conn, 1))
+      _ -> proxy(conn, Target.path_from_request(conn, 1))
     end
   end
 
@@ -148,9 +141,9 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp source_url_for_websocket(conn) do
-    case source_url(conn) do
+    case Target.source_url(conn) do
       {:ok, raw_url} -> {:ok, raw_url}
-      {:error, :missing_url} -> source_url_from_cookie(conn)
+      {:error, :missing_url} -> Target.source_url_from_cookie(conn)
     end
   end
 
@@ -176,27 +169,12 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp build_websocket_target_url(raw_url, conn) do
-    raw_url
-    |> target_origin()
-    |> URI.parse()
-    |> put_request_path(proxied_path_from_request(conn, 0))
-    |> put_raw_query(conn.query_string)
-    |> websocket_url_string()
+    Target.websocket_url(raw_url, Target.path_from_request(conn, 0), conn.query_string)
   end
-
-  defp websocket_url_string(%URI{scheme: "https"} = uri) do
-    {:ok, URI.to_string(%{uri | scheme: "wss"})}
-  end
-
-  defp websocket_url_string(%URI{scheme: "http"} = uri) do
-    {:ok, URI.to_string(%{uri | scheme: "ws"})}
-  end
-
-  defp websocket_url_string(%URI{}), do: {:error, :unsupported_scheme}
 
   defp proxy(%{query_params: %{"url" => raw_url}} = conn, proxied_path)
        when is_binary(raw_url) do
-    run_proxy(conn, build_target_url(raw_url, proxied_path, conn.query_params))
+    run_proxy(conn, Target.url(raw_url, proxied_path, conn.query_params))
   end
 
   defp proxy(conn, _proxied_path) do
@@ -204,9 +182,9 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp proxy_frontman_path(conn, proxied_path) do
-    case source_url(conn) do
+    case Target.source_url(conn) do
       {:ok, raw_url} ->
-        run_proxy(conn, build_target_url_for_path(raw_url, proxied_path, conn.query_params))
+        run_proxy(conn, Target.url_for_path(raw_url, proxied_path, conn.query_params))
 
       {:error, :missing_url} ->
         send_error(conn, :bad_request, "Missing url query parameter")
@@ -218,9 +196,9 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
       {:ok, raw_url} ->
         run_proxy(
           conn,
-          build_target_url_for_referred_path(
+          Target.url_for_referred_path(
             raw_url,
-            proxied_path_from_request(conn, 0),
+            Target.path_from_request(conn, 0),
             conn.query_string
           )
         )
@@ -231,7 +209,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp source_url_for_referred_path(conn) do
-    case source_url_from_referer(conn) do
+    case Target.source_url_from_referer(conn) do
       {:ok, raw_url} -> {:ok, raw_url}
       {:error, :missing_url} -> source_url_from_asset_cookie(conn)
     end
@@ -239,7 +217,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   defp source_url_from_asset_cookie(conn) do
     case DevServerPolicy.dev_asset_path?(conn.path_info) do
-      true -> source_url_from_cookie(conn)
+      true -> Target.source_url_from_cookie(conn)
       false -> {:error, :missing_url}
     end
   end
@@ -266,140 +244,6 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
         send_bad_gateway(conn, reason)
     end
   end
-
-  defp build_target_url(raw_url, [], query_params) do
-    raw_url
-    |> URI.parse()
-    |> put_merged_query(query_params, :drop_proxy_url)
-    |> then(&{:ok, URI.to_string(&1)})
-  end
-
-  defp build_target_url(raw_url, proxied_path, query_params) do
-    raw_url
-    |> URI.parse()
-    |> put_proxied_path(proxied_path)
-    |> put_merged_query(query_params, :drop_proxy_url)
-    |> then(&{:ok, URI.to_string(&1)})
-  end
-
-  defp build_target_url_for_path(raw_url, proxied_path, query_params) do
-    raw_url
-    |> URI.parse()
-    |> put_request_path(proxied_path)
-    |> put_merged_query(query_params, :drop_proxy_url)
-    |> then(&{:ok, URI.to_string(&1)})
-  end
-
-  defp build_target_url_for_referred_path(raw_url, proxied_path, query_string) do
-    raw_url
-    |> URI.parse()
-    |> put_request_path(proxied_path)
-    |> put_raw_query(query_string)
-    |> then(&{:ok, URI.to_string(&1)})
-  end
-
-  defp proxied_path_from_request(conn, drop_segments) do
-    conn.path_info
-    |> Enum.drop(drop_segments)
-    |> maybe_keep_trailing_slash(conn.request_path)
-  end
-
-  defp maybe_keep_trailing_slash(proxied_path, request_path) do
-    case String.ends_with?(request_path, "/") do
-      true -> proxied_path ++ [""]
-      false -> proxied_path
-    end
-  end
-
-  defp put_request_path(%URI{} = uri, proxied_path) do
-    encoded_path = Enum.map_join(proxied_path, "/", &encode_path_segment/1)
-    %{uri | path: "/" <> encoded_path, query: nil, fragment: nil}
-  end
-
-  defp put_raw_query(%URI{} = uri, ""), do: uri
-  defp put_raw_query(%URI{} = uri, query_string), do: %{uri | query: query_string}
-
-  defp source_url(%{query_params: %{"url" => raw_url}}) when is_binary(raw_url) do
-    {:ok, raw_url}
-  end
-
-  defp source_url(conn), do: source_url_from_referer(conn)
-
-  defp source_url_from_referer(conn) do
-    case get_req_header(conn, "referer") do
-      [referer | _] -> source_url_from_referer_url(referer)
-      _ -> {:error, :missing_url}
-    end
-  end
-
-  defp source_url_from_referer_url(referer) do
-    case URI.parse(referer) do
-      %URI{query: query} when is_binary(query) -> source_url_from_query(query)
-      _ -> {:error, :missing_url}
-    end
-  end
-
-  defp source_url_from_query(query) do
-    case URI.decode_query(query) do
-      %{"url" => raw_url} when is_binary(raw_url) -> {:ok, raw_url}
-      _ -> {:error, :missing_url}
-    end
-  end
-
-  defp source_url_from_cookie(conn) do
-    cookies = fetch_cookies(conn).req_cookies
-
-    case Map.fetch(cookies, @source_url_cookie) do
-      {:ok, encoded_url} -> decode_source_url_cookie(encoded_url)
-      :error -> {:error, :missing_url}
-    end
-  end
-
-  defp decode_source_url_cookie(encoded_url) do
-    case Base.url_decode64(encoded_url, padding: false) do
-      {:ok, raw_url} -> {:ok, raw_url}
-      :error -> {:error, :missing_url}
-    end
-  end
-
-  defp put_proxied_path(%URI{} = uri, proxied_path) do
-    %{uri | path: join_url_paths(uri.path, proxied_path)}
-  end
-
-  defp join_url_paths(base_path, proxied_path) when is_list(proxied_path) do
-    encoded_path = Enum.map_join(proxied_path, "/", &encode_path_segment/1)
-
-    case String.trim_trailing(base_path || "", "/") do
-      "" -> "/" <> encoded_path
-      prefix -> prefix <> "/" <> encoded_path
-    end
-  end
-
-  defp encode_path_segment(segment) do
-    URI.encode(segment, &path_segment_char?/1)
-  end
-
-  defp path_segment_char?(char) do
-    URI.char_unreserved?(char) or char in @path_segment_reserved_chars
-  end
-
-  defp put_merged_query(%URI{} = uri, query_params, query_mode) do
-    forwarded_query =
-      query_params
-      |> forwarded_query_params(query_mode)
-      |> URI.encode_query(:rfc3986)
-
-    %{uri | query: merge_query(uri.query, forwarded_query)}
-  end
-
-  defp forwarded_query_params(query_params, :drop_proxy_url), do: Map.delete(query_params, "url")
-
-  defp merge_query(nil, ""), do: nil
-  defp merge_query("", ""), do: nil
-  defp merge_query(query, "") when is_binary(query), do: query
-  defp merge_query(nil, forwarded_query), do: forwarded_query
-  defp merge_query("", forwarded_query), do: forwarded_query
-  defp merge_query(query, forwarded_query), do: query <> "&" <> forwarded_query
 
   defp read_proxy_body(conn) do
     case body_allowed?(conn.method) do
@@ -489,31 +333,10 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp send_proxy_response(conn, target_url, %Req.Response{} = response) do
     conn
     |> put_proxy_response_headers(target_url, response.headers)
-    |> put_source_url_cookie(target_url)
+    |> Target.put_source_url_cookie(target_url)
     |> put_cors_headers()
     |> send_resp(response.status, response_body(conn, target_url, response))
     |> halt()
-  end
-
-  defp put_source_url_cookie(conn, target_url) do
-    put_resp_cookie(
-      conn,
-      @source_url_cookie,
-      target_url |> target_origin() |> encode_source_url_cookie(),
-      http_only: true,
-      max_age: @source_url_cookie_max_age_seconds,
-      same_site: "Lax",
-      secure: conn.scheme == :https
-    )
-  end
-
-  defp target_origin(target_url) do
-    %URI{scheme: scheme, host: host, port: port} = URI.parse(target_url)
-    %URI{scheme: scheme, host: host, port: port} |> URI.to_string()
-  end
-
-  defp encode_source_url_cookie(raw_url) do
-    Base.url_encode64(raw_url, padding: false)
   end
 
   defp put_proxy_response_headers(conn, target_url, headers) do
@@ -538,12 +361,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp proxied_location(target_url, location) do
-    resolved_location = target_url |> URI.merge(location) |> URI.to_string()
-
-    case TargetPolicy.validate_target_url(resolved_location) do
-      :ok -> "/sandbox?" <> URI.encode_query(%{"url" => resolved_location}, :rfc3986)
-      {:error, _reason} -> location
-    end
+    Target.proxied_location(target_url, location, &TargetPolicy.validate_target_url/1)
   end
 
   defp response_body(%{method: "HEAD"}, _target_url, _response), do: ""
@@ -558,31 +376,14 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   defp response_body(_conn, _target_url, %Req.Response{body: body}), do: body
 
   defp rewrite_runtime_response(body, conn) do
-    case source_url(conn) do
+    case Target.source_url(conn) do
       {:ok, raw_url} ->
-        RuntimePolicy.rewrite_response_body(body, sandbox_proxy_url(conn, raw_url))
+        RuntimePolicy.rewrite_response_body(body, Target.sandbox_proxy_url(conn, raw_url))
 
       {:error, :missing_url} ->
         body
     end
   end
-
-  defp sandbox_proxy_url(conn, raw_url) do
-    request_origin(conn) <> "/sandbox?" <> URI.encode_query(%{"url" => raw_url}, :rfc3986)
-  end
-
-  defp request_origin(conn) do
-    scheme = Atom.to_string(conn.scheme)
-
-    case default_port?(conn.scheme, conn.port) do
-      true -> scheme <> "://" <> conn.host
-      false -> scheme <> "://" <> conn.host <> ":" <> Integer.to_string(conn.port)
-    end
-  end
-
-  defp default_port?(:http, 80), do: true
-  defp default_port?(:https, 443), do: true
-  defp default_port?(_scheme, _port), do: false
 
   defp send_preflight(conn) do
     conn
