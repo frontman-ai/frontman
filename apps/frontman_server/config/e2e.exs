@@ -38,6 +38,8 @@ config :logger, level: :info
 # Keep dev routes available in E2E to match local development behavior.
 config :frontman_server, dev_routes: true
 
+config :frontman_server, sandbox_proxy_request_hosts: ["playgithub.frontman.local"]
+
 # Include metadata and timestamps in logs.
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",

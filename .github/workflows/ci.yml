@@ -49,6 +49,8 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Clean ReScript build cache
         run: yarn rescript clean
@@ -84,6 +86,8 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Run tests with coverage
         run: make -C libs/frontman-client test-coverage
@@ -123,6 +127,8 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Run tests with coverage
         run: make -C libs/frontman-core test-coverage
@@ -162,6 +168,8 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Run tests with coverage
         run: make -C libs/frontman-nextjs test-coverage
@@ -201,6 +209,8 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Run tests with coverage
         run: make -C libs/react-statestore test-coverage
@@ -292,6 +302,8 @@ jobs:
       - name: Install dependencies
         if: steps.changes.outputs.client == 'true'
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Run biome lint
         if: steps.changes.outputs.client == 'true'
@@ -338,6 +350,8 @@ jobs:
       - name: Install dependencies
         if: steps.changes.outputs.protocol == 'true'
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Build project
         if: steps.changes.outputs.protocol == 'true'
@@ -379,6 +393,8 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Build ReScript
         run: yarn rescript clean && yarn rescript
@@ -417,6 +433,8 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Build ReScript packages
         run: yarn rescript
