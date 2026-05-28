@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.Plugs.SandboxProxy.Target do
+defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Target do
   @moduledoc false
 
   import Plug.Conn, only: [fetch_cookies: 1, get_req_header: 2, put_resp_cookie: 4]

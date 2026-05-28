@@ -3,7 +3,9 @@ import Config
 # Mark environment for runtime checks
 config :frontman_server, env: :e2e
 
-config :frontman_server, :playgithub_hosts, []
+config :frontman_server, :playgithub, hosts: ["playgithub.frontman.local"]
+
+config :frontman_server, :cookie_domain, ".frontman.local"
 
 # Configure your database
 config :frontman_server, FrontmanServer.Repo,
@@ -16,7 +18,7 @@ config :frontman_server, FrontmanServer.Repo,
   pool_size: 10
 
 config :frontman_server, FrontmanServerWeb.Endpoint,
-  url: [host: "localhost", port: 4002, scheme: "https"],
+  url: [host: "frontman.local", port: 4002, scheme: "https"],
   https: [
     ip: {127, 0, 0, 1},
     port: 4002,
@@ -37,8 +39,6 @@ config :logger, level: :info
 
 # Keep dev routes available in E2E to match local development behavior.
 config :frontman_server, dev_routes: true
-
-config :frontman_server, sandbox_proxy_request_hosts: ["playgithub.frontman.local"]
 
 # Include metadata and timestamps in logs.
 config :logger, :default_formatter,

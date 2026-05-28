@@ -72,6 +72,35 @@ defmodule FrontmanServer.PlayGithub.DaytonaTest do
     end
   end
 
+  describe "execute_command/3" do
+    test "runs a command in the sandbox workspace" do
+      Req.Test.expect(:playgithub_daytona, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+
+        assert conn.method == "POST"
+        assert conn.request_path == "/api/toolbox/sandbox_123/toolbox/process/execute"
+        assert {"authorization", "Bearer test-daytona-key"} in conn.req_headers
+        assert {"x-daytona-organization-id", "test-daytona-org"} in conn.req_headers
+
+        assert Jason.decode!(body) == %{
+                 "command" => "npx astro add @frontman-ai/astro --yes",
+                 "cwd" => "workspace",
+                 "timeout" => 300
+               }
+
+        Req.Test.json(conn, %{"exitCode" => 0, "result" => "installed"})
+      end)
+
+      assert {:ok, %Req.Response{status: 200, body: %{"exitCode" => 0}}} =
+               Daytona.execute_command(
+                 "sandbox_123",
+                 "npx astro add @frontman-ai/astro --yes",
+                 cwd: "workspace",
+                 timeout_seconds: 300
+               )
+    end
+  end
+
   describe "replace_labels/2" do
     test "replaces sandbox labels" do
       Req.Test.expect(:playgithub_daytona, fn conn ->

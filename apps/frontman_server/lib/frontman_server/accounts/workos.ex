@@ -38,7 +38,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   ## Examples
 
-      iex> get_authorization_url("github", "http://localhost:4000/auth/github/callback")
+      iex> get_authorization_url("github", "https://frontman.local:4000/auth/github/callback")
       {:ok, "https://api.workos.com/..."}
 
   """

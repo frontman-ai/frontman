@@ -1,6 +1,15 @@
 import Config
 
-config :frontman_server, :playgithub_hosts, ["playgithub.localhost"]
+config :frontman_server, :cookie_domain, ".frontman.local"
+
+config :frontman_server, :playgithub,
+  hosts: ["playgithub.frontman.local"],
+  daytona: [
+    api_key: "test-daytona-key",
+    app_api_url: "https://daytona.test/api",
+    organization_id: "test-daytona-org",
+    req_options: [plug: {Req.Test, :playgithub_daytona}]
+  ]
 
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
@@ -22,11 +31,10 @@ config :frontman_server, FrontmanServer.Repo,
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :frontman_server, FrontmanServerWeb.Endpoint,
+  url: [host: "frontman.local", port: 4002, scheme: "https"],
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "G/GaF+myr6UzSNKYFjTUkCovxv4WghMsXaq4S3O275rp8dLDSEvwkXAn5kbkvUJn",
   server: false
-
-config :frontman_server, sandbox_proxy_request_hosts: ["www.example.com"]
 
 # In test we don't send emails
 config :frontman_server, FrontmanServer.Mailer,

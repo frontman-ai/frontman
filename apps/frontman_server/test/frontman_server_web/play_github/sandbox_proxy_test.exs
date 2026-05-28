@@ -1,35 +1,32 @@
-defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
+defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
   use FrontmanServerWeb.ConnCase, async: false
 
-  alias FrontmanServerWeb.Plugs.SandboxProxy
+  alias FrontmanServerWeb.PlayGithub.SandboxProxyPlug
 
   setup do
-    previous_req_options = Application.get_env(:frontman_server, :sandbox_proxy_req_options)
-    previous_allowed_hosts = Application.get_env(:frontman_server, :sandbox_proxy_allowed_hosts)
+    previous_playgithub = Application.get_env(:frontman_server, :playgithub)
 
-    previous_request_hosts =
-      Application.get_env(:frontman_server, :sandbox_proxy_request_hosts)
+    playgithub_config = previous_playgithub || []
 
-    previous_allowed_schemes =
-      Application.get_env(:frontman_server, :sandbox_proxy_allowed_schemes)
+    sandbox_proxy_config =
+      playgithub_config
+      |> Keyword.get(:sandbox_proxy, [])
+      |> Keyword.merge(
+        req_options: [plug: {Req.Test, :sandbox_proxy}],
+        target_hosts: ["localhost", "daytonaproxy01.eu"],
+        target_schemes: ["http", "https"]
+      )
 
-    Application.put_env(:frontman_server, :sandbox_proxy_req_options,
-      plug: {Req.Test, :sandbox_proxy}
+    Application.put_env(
+      :frontman_server,
+      :playgithub,
+      playgithub_config
+      |> Keyword.put(:hosts, ["www.example.com"])
+      |> Keyword.put(:sandbox_proxy, sandbox_proxy_config)
     )
 
-    Application.put_env(:frontman_server, :sandbox_proxy_allowed_hosts, [
-      "localhost",
-      "daytonaproxy01.eu"
-    ])
-
-    Application.put_env(:frontman_server, :sandbox_proxy_allowed_schemes, ["http", "https"])
-    Application.put_env(:frontman_server, :sandbox_proxy_request_hosts, ["www.example.com"])
-
     on_exit(fn ->
-      restore_env(:sandbox_proxy_req_options, previous_req_options)
-      restore_env(:sandbox_proxy_allowed_hosts, previous_allowed_hosts)
-      restore_env(:sandbox_proxy_request_hosts, previous_request_hosts)
-      restore_env(:sandbox_proxy_allowed_schemes, previous_allowed_schemes)
+      restore_env(:playgithub, previous_playgithub)
     end)
 
     :ok
@@ -65,23 +62,19 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
   end
 
   test "passes through requests on non-proxy hosts", %{conn: conn} do
-    Application.put_env(:frontman_server, :sandbox_proxy_request_hosts, [
-      "playgithub.frontman.local"
-    ])
+    put_playgithub_hosts(["playgithub.frontman.local"])
 
     conn =
       conn
       |> put_request_host("frontman.local")
-      |> SandboxProxy.call([])
+      |> SandboxProxyPlug.call([])
 
     assert conn.state == :unset
     refute conn.halted
   end
 
   test "proxies requests on configured proxy hosts", %{conn: conn} do
-    Application.put_env(:frontman_server, :sandbox_proxy_request_hosts, [
-      "playgithub.frontman.local"
-    ])
+    put_playgithub_hosts(["playgithub.frontman.local"])
 
     Req.Test.stub(:sandbox_proxy, fn conn ->
       assert conn.method == "GET"
@@ -332,7 +325,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
     assert get_resp_header(conn, "sec-websocket-protocol") == ["vite-hmr"]
 
     assert_received {_ref, :upgrade,
-                     {:websocket, {FrontmanServerWeb.Plugs.SandboxProxy.WebSocket, state, opts}}}
+                     {:websocket,
+                      {FrontmanServerWeb.PlayGithub.SandboxProxy.WebSocket, state, opts}}}
 
     assert state.target_url == "ws://localhost/?token=dev-token"
     assert {"sec-websocket-protocol", "vite-hmr"} in state.upstream_headers
@@ -357,7 +351,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
     assert conn.state == :upgraded
 
     assert_received {_ref, :upgrade,
-                     {:websocket, {FrontmanServerWeb.Plugs.SandboxProxy.WebSocket, state, _opts}}}
+                     {:websocket,
+                      {FrontmanServerWeb.PlayGithub.SandboxProxy.WebSocket, state, _opts}}}
 
     assert state.target_url == "wss://4321-test.daytonaproxy01.eu/?token=dev-token"
   end
@@ -423,6 +418,16 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxyTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:frontman_server, key)
   defp restore_env(key, value), do: Application.put_env(:frontman_server, key, value)
+
+  defp put_playgithub_hosts(hosts) do
+    playgithub_config = Application.get_env(:frontman_server, :playgithub, [])
+
+    Application.put_env(
+      :frontman_server,
+      :playgithub,
+      Keyword.put(playgithub_config, :hosts, hosts)
+    )
+  end
 
   defp source_url_cookie_header(raw_url) do
     encoded_url = Base.url_encode64(raw_url, padding: false)

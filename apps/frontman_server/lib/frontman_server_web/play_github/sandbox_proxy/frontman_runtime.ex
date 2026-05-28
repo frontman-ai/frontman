@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.Plugs.SandboxProxy.FrontmanRuntime do
+defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.FrontmanRuntime do
   @moduledoc false
 
   @entrypoint_id ~s(id="frontman-entrypoint-url")

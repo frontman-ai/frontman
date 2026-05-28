@@ -38,6 +38,25 @@ defmodule FrontmanServer.PlayGithub.Daytona do
     )
   end
 
+  def execute_command(sandbox_id, command, opts \\ [])
+      when is_binary(sandbox_id) and is_binary(command) do
+    timeout_seconds = Keyword.get(opts, :timeout_seconds, 300)
+
+    Req.post(
+      "#{app_api_url()}/toolbox/#{sandbox_id}/toolbox/process/execute",
+      [
+        auth: {:bearer, api_key()},
+        headers: daytona_headers(),
+        json: %{
+          command: command,
+          cwd: Keyword.get(opts, :cwd, "workspace"),
+          timeout: timeout_seconds
+        },
+        receive_timeout: timeout_seconds * 1_000 + 5_000
+      ] ++ req_options()
+    )
+  end
+
   def replace_labels(sandbox_id, labels) do
     Req.put(
       "#{app_api_url()}/sandbox/#{sandbox_id}/labels",
@@ -47,15 +66,11 @@ defmodule FrontmanServer.PlayGithub.Daytona do
   end
 
   defp app_api_url do
-    Application.get_env(
-      :frontman_server,
-      :playgithub_daytona_app_api_url,
-      @default_app_api_url
-    )
+    config() |> Keyword.get(:app_api_url, @default_app_api_url)
   end
 
   defp api_key do
-    Application.fetch_env!(:frontman_server, :playgithub_daytona_api_key)
+    config() |> Keyword.fetch!(:api_key)
   end
 
   defp daytona_headers do
@@ -63,10 +78,16 @@ defmodule FrontmanServer.PlayGithub.Daytona do
   end
 
   defp organization_id do
-    Application.fetch_env!(:frontman_server, :playgithub_daytona_organization_id)
+    config() |> Keyword.fetch!(:organization_id)
   end
 
   defp req_options do
-    Application.get_env(:frontman_server, :playgithub_daytona_req_options, [])
+    config() |> Keyword.get(:req_options, [])
+  end
+
+  defp config do
+    :frontman_server
+    |> Application.fetch_env!(:playgithub)
+    |> Keyword.fetch!(:daytona)
   end
 end

@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.Plugs.SandboxProxy do
+defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
   @moduledoc """
   Proxies sandbox preview URLs through the Frontman API origin.
 
@@ -14,15 +14,13 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
 
   import Plug.Conn
 
-  alias FrontmanServerWeb.Plugs.SandboxProxy.Daytona, as: TargetPolicy
-  alias FrontmanServerWeb.Plugs.SandboxProxy.FrontmanRuntime, as: RuntimePolicy
-  alias FrontmanServerWeb.Plugs.SandboxProxy.Target
-  alias FrontmanServerWeb.Plugs.SandboxProxy.Vite, as: DevServerPolicy
-  alias FrontmanServerWeb.Plugs.SandboxProxy.WebSocket
+  alias FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona, as: TargetPolicy
+  alias FrontmanServerWeb.PlayGithub.SandboxProxy.FrontmanRuntime, as: RuntimePolicy
+  alias FrontmanServerWeb.PlayGithub.SandboxProxy.Target
+  alias FrontmanServerWeb.PlayGithub.SandboxProxy.Vite, as: DevServerPolicy
+  alias FrontmanServerWeb.PlayGithub.SandboxProxy.WebSocket
 
   require Logger
-
-  @behaviour Plug
 
   @websocket_idle_timeout_ms 60_000
   @websocket_max_frame_size 10_485_760
@@ -77,27 +75,8 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
                                 "upgrade"
                               ])
 
-  @impl true
-  def init(opts), do: opts
-
-  @impl true
-  def call(conn, _opts) do
-    case proxy_request_host?(conn.host) do
-      true -> respond_to_control_request(conn, TargetPolicy.control_request(conn))
-      false -> conn
-    end
-  end
-
-  defp proxy_request_host?(host) when is_binary(host) do
-    host
-    |> String.downcase()
-    |> then(&(&1 in proxy_request_hosts()))
-  end
-
-  defp proxy_request_hosts do
-    :frontman_server
-    |> Application.get_env(:sandbox_proxy_request_hosts, [])
-    |> Enum.map(&String.downcase/1)
+  def dispatch(conn) do
+    respond_to_control_request(conn, TargetPolicy.control_request(conn))
   end
 
   defp respond_to_control_request(conn, :not_handled), do: proxy_request(conn)
@@ -438,6 +417,12 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy do
   end
 
   defp req_options do
-    Application.get_env(:frontman_server, :sandbox_proxy_req_options, [])
+    config() |> Keyword.get(:req_options, [])
+  end
+
+  defp config do
+    :frontman_server
+    |> Application.get_env(:playgithub, [])
+    |> Keyword.get(:sandbox_proxy, [])
   end
 end

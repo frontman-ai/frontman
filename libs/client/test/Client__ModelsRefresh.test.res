@@ -16,7 +16,7 @@ let _dummyRetryTurn: Types.retryTurnFn = _ => ()
 let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
 let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 
-let _apiBaseUrl = "http://localhost:4000"
+let _apiBaseUrl = "https://frontman.local:4000"
 
 // Helper: base state with an active ACP session (needed to emit effects)
 let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {

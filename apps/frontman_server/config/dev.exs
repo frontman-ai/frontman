@@ -48,7 +48,13 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
     tailwind: {Tailwind, :install_and_run, [:frontman_server, ~w(--watch)]}
   ]
 
-config :frontman_server, :playgithub_hosts, ["playgithub.localhost"]
+config :frontman_server, :cookie_domain, ".frontman.local"
+
+config :frontman_server, :playgithub,
+  hosts: ["playgithub.frontman.local"],
+  daytona: [
+    organization_id: "5d79dbea-e1d6-4c0b-9fab-771e7d73641d"
+  ]
 
 # Watch static and templates for browser reloading.
 config :frontman_server, FrontmanServerWeb.Endpoint,
@@ -63,8 +69,6 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
 
 # Enable dev routes for dashboard and mailbox
 config :frontman_server, dev_routes: true
-
-config :frontman_server, sandbox_proxy_request_hosts: ["playgithub.frontman.local"]
 
 # Include metadata and timestamps in development logs for verbose debugging
 config :logger, :default_formatter,

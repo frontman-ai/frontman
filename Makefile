@@ -211,10 +211,9 @@ ssl-setup: ## Setup local SSL certificates using mkcert
 	@printf "$(YELLOW)Setting up SSL certificates...$(RESET)\n"
 	@mkdir -p .certs
 	mkcert -install
-	cd .certs && mkcert frontman.local localhost playgithub.localhost 127.0.0.1 ::1
-	mv .certs/frontman.local+4.pem .certs/frontman.local.pem
-	mv .certs/frontman.local+4-key.pem .certs/frontman.local-key.pem
+	mkcert -cert-file .certs/frontman.local.pem -key-file .certs/frontman.local-key.pem frontman.local playgithub.frontman.local 127.0.0.1 ::1
 	sudo sh -c 'grep -q frontman.local /etc/hosts || echo "127.0.0.1 frontman.local" >> /etc/hosts'
+	sudo sh -c 'grep -q playgithub.frontman.local /etc/hosts || echo "127.0.0.1 playgithub.frontman.local" >> /etc/hosts'
 
 tunnel: ## Start SSH tunnel to DevPod server (fallback if dnsmasq not configured)
 	$(call require_devpod_server,tunnel)

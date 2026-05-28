@@ -9,14 +9,16 @@ defmodule FrontmanServerWeb.PageController do
 
   # In production, the root URL (api.frontman.sh) redirects to the marketing site.
   # In dev, redirect unauthenticated visitors to the sign-in page.
-  # Authenticated users in dev see a simple "you're signed in" page
-  # (avoids redirect loop with signed_in_path -> / -> /users/log-in).
+  # Authenticated users in dev see a simple "you're signed in" page.
+  # Do not redirect to sudo-only routes here; expired sudo sessions would loop.
   def home(conn, _params) do
     if Application.get_env(:frontman_server, :dev_routes) do
-      if conn.assigns[:current_scope] do
-        redirect(conn, to: ~p"/users/settings")
-      else
-        redirect(conn, to: ~p"/users/log-in")
+      case conn.assigns[:current_scope] do
+        %{user: user} when not is_nil(user) ->
+          text(conn, "Signed in to Frontman")
+
+        _ ->
+          redirect(conn, to: ~p"/users/log-in")
       end
     else
       redirect(conn, external: "https://frontman.sh")

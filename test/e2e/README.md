@@ -5,7 +5,7 @@
 ## Server environment
 
 - Config file: `apps/frontman_server/config/e2e.exs`
-- HTTPS endpoint: `https://localhost:4002`
+- HTTPS endpoint: `https://frontman.local:4002`
 - Default database: `frontman_server_e2e`
 - No code reloader/watchers/live reload
 

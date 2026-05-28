@@ -10,7 +10,7 @@
 
 import type { Page, Response } from "playwright";
 
-const PHOENIX_ORIGIN = "https://localhost:4002";
+const PHOENIX_ORIGIN = "https://frontman.local:4002";
 
 interface OpenFrontmanUIOptions {
   assertHealthy?: () => void;

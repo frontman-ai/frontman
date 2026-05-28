@@ -1,6 +1,6 @@
 import Config
 
-config :frontman_server, :playgithub_hosts, []
+config :frontman_server, :playgithub, hosts: ["playgithub.com"]
 
 # Note we also include the path to a cache manifest
 # containing the digested version of static files. This
@@ -9,8 +9,6 @@ config :frontman_server, :playgithub_hosts, []
 # before starting your production server.
 config :frontman_server, FrontmanServerWeb.Endpoint,
   cache_static_manifest: "priv/static/cache_manifest.json"
-
-config :frontman_server, sandbox_proxy_request_hosts: ["playgithub.com"]
 
 # Configures Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Req

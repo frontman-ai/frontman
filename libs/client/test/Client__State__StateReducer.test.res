@@ -1256,7 +1256,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
           retryTurn: _ => (),
           loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
           deleteSession: (_, ~onComplete as _) => (),
-          apiBaseUrl: "http://localhost:4000",
+          apiBaseUrl: "https://frontman.local:4000",
         }),
         sessionInitialized: true,
         selectedModelValue: None,
@@ -1289,7 +1289,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(effects->Array.length)->Expect.toBe(1)
         switch effects->Array.get(0) {
         | Some(FetchApiKeySettingsEffect({apiBaseUrl})) =>
-          t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
+          t->expect(apiBaseUrl)->Expect.toBe("https://frontman.local:4000")
         | _ => JsExn.throw("Expected FetchApiKeySettingsEffect")
         }
       },
@@ -1312,7 +1312,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
             switch effects->Array.get(0) {
             | Some(SaveApiKeyEffect({apiBaseUrl, provider: effectProvider, key})) => {
-                t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
+                t->expect(apiBaseUrl)->Expect.toBe("https://frontman.local:4000")
                 t->expect(effectProvider)->Expect.toEqual(provider)
                 t->expect(key)->Expect.toBe("sk-test-key")
               }

@@ -9,7 +9,7 @@ defmodule FrontmanServerWeb.Router do
 
   import FrontmanServerWeb.UserAuth
 
-  @playgithub_hosts Application.compile_env!(:frontman_server, :playgithub_hosts)
+  @playgithub_hosts Application.compile_env!(:frontman_server, [:playgithub, :hosts])
 
   pipeline :browser do
     plug(:accepts, ["html"])
@@ -36,8 +36,8 @@ defmodule FrontmanServerWeb.Router do
     scope "/", FrontmanServerWeb, host: host do
       pipe_through([:browser, :require_authenticated_user])
 
-      get("/", PlayGithubController, :index)
-      get("/*github_path", PlayGithubController, :show)
+      get("/", PlayGithub.Controller, :index)
+      get("/*github_path", PlayGithub.Controller, :show)
     end
   end
 
@@ -111,7 +111,11 @@ defmodule FrontmanServerWeb.Router do
     get("/integrations/latest-versions", IntegrationsController, :latest_versions)
   end
 
-  # API endpoint for socket token (uses browser pipeline for session cookie)
+  # HTTP -> WebSocket auth bridge.
+  # The Frontman client first makes a normal HTTP request here with browser credentials,
+  # so this route must use :browser to run fetch_session and fetch_current_scope_for_user.
+  # WebSocket channel joins do not go through router plugs, so the controller converts
+  # the authenticated HTTP session into a signed token passed as Phoenix socket params.
   scope "/api", FrontmanServerWeb do
     pipe_through(:browser)
 

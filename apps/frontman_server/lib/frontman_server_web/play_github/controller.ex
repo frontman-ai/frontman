@@ -4,7 +4,11 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.PlayGithubController do
+defmodule FrontmanServerWeb.PlayGithub.Controller do
+  @moduledoc """
+  Handles authenticated PlayGithub host requests.
+  """
+
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.PlayGithub
@@ -34,6 +38,7 @@ defmodule FrontmanServerWeb.PlayGithubController do
        %{
          repo_url: repo_url,
          clone_state: clone_state,
+         frontman_install_state: frontman_install_state,
          sandbox_id: sandbox_id,
          sandbox_name: sandbox_name,
          sandbox_reused: sandbox_reused,
@@ -44,6 +49,7 @@ defmodule FrontmanServerWeb.PlayGithubController do
           format_daytona_response(
             repo_url,
             clone_state,
+            frontman_install_state,
             sandbox_id,
             sandbox_name,
             sandbox_reused,
@@ -84,6 +90,22 @@ defmodule FrontmanServerWeb.PlayGithubController do
     |> text("error: daytona_clone_failed\nstatus: #{status}\nbody: #{inspect(body)}")
   end
 
+  defp handle_playgithub_error(
+         conn,
+         _parsed_path,
+         {:daytona_frontman_install_failed, status, body}
+       ) do
+    conn
+    |> put_status(:bad_gateway)
+    |> text("error: daytona_frontman_install_failed\nstatus: #{status}\nbody: #{inspect(body)}")
+  end
+
+  defp handle_playgithub_error(conn, _parsed_path, {:daytona_frontman_install_failed, body}) do
+    conn
+    |> put_status(:bad_gateway)
+    |> text("error: daytona_frontman_install_failed\nbody: #{inspect(body)}")
+  end
+
   defp handle_playgithub_error(conn, _parsed_path, {:daytona_get_failed, status, body}) do
     conn
     |> put_status(:bad_gateway)
@@ -111,6 +133,7 @@ defmodule FrontmanServerWeb.PlayGithubController do
   defp format_daytona_response(
          repo_url,
          clone_state,
+         frontman_install_state,
          sandbox_id,
          sandbox_name,
          sandbox_reused,
@@ -123,6 +146,7 @@ defmodule FrontmanServerWeb.PlayGithubController do
       "sandbox_state: #{sandbox_state}",
       "sandbox_reused: #{sandbox_reused}",
       "clone_state: #{clone_state}",
+      "frontman_install_state: #{frontman_install_state}",
       "next: open_frontman_editor"
     ]
     |> Enum.join("\n")

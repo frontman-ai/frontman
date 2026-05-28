@@ -11,13 +11,21 @@ defmodule FrontmanServerWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
-  @session_options [
-    store: :cookie,
-    key: "_frontman_server_key",
-    signing_salt: "4+DQeuxI",
-    same_site: "None",
-    secure: true
-  ]
+  @shared_cookie_options (case Application.compile_env(:frontman_server, :cookie_domain, nil) do
+                            nil -> []
+                            domain -> [domain: domain]
+                          end)
+
+  @session_options Keyword.merge(
+                     [
+                       store: :cookie,
+                       key: "_frontman_server_key",
+                       signing_salt: "4+DQeuxI",
+                       same_site: "None",
+                       secure: true
+                     ],
+                     @shared_cookie_options
+                   )
 
   socket("/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options]],
@@ -57,7 +65,7 @@ defmodule FrontmanServerWeb.Endpoint do
 
   plug(Plug.RequestId)
   plug(Plug.Telemetry, event_prefix: [:phoenix, :endpoint])
-  plug(FrontmanServerWeb.Plugs.SandboxProxy)
+  plug(FrontmanServerWeb.PlayGithub.SandboxProxyPlug)
 
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],

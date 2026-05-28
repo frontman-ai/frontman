@@ -21,11 +21,18 @@ defmodule FrontmanServerWeb.UserAuth do
   # the session validity setting in UserToken.
   @max_cookie_age_in_days 14
   @remember_me_cookie "_frontman_server_web_user_remember_me"
-  @remember_me_options [
-    sign: true,
-    max_age: @max_cookie_age_in_days * 24 * 60 * 60,
-    same_site: "Lax"
-  ]
+  @shared_cookie_options (case Application.compile_env(:frontman_server, :cookie_domain, nil) do
+                            nil -> []
+                            domain -> [domain: domain]
+                          end)
+  @remember_me_options Keyword.merge(
+                         [
+                           sign: true,
+                           max_age: @max_cookie_age_in_days * 24 * 60 * 60,
+                           same_site: "Lax"
+                         ],
+                         @shared_cookie_options
+                       )
 
   # How old the session token should be before a new one is issued. When a request is made
   # with a session token older than this value, then a new session token will be created
@@ -35,6 +42,7 @@ defmodule FrontmanServerWeb.UserAuth do
   # token. This can be set to a value greater than `@max_cookie_age_in_days` to disable
   # the reissuing of tokens completely.
   @session_reissue_age_in_days 7
+  @playgithub_hosts Application.compile_env(:frontman_server, [:playgithub, :hosts], [])
 
   @doc """
   Logs the user in.
@@ -121,7 +129,7 @@ defmodule FrontmanServerWeb.UserAuth do
 
     conn
     |> renew_session(nil)
-    |> delete_resp_cookie(@remember_me_cookie)
+    |> delete_resp_cookie(@remember_me_cookie, @shared_cookie_options)
     |> redirect(to: redirect_url)
   end
 
@@ -169,7 +177,7 @@ defmodule FrontmanServerWeb.UserAuth do
 
       :error ->
         conn
-        |> delete_resp_cookie(@remember_me_cookie)
+        |> delete_resp_cookie(@remember_me_cookie, @shared_cookie_options)
         |> assign(:current_scope, Scope.for_user(nil))
     end
   end
@@ -353,7 +361,7 @@ defmodule FrontmanServerWeb.UserAuth do
   redirects to that URL instead of the default signed-in path.
   """
   def redirect_if_user_is_authenticated(conn, _opts) do
-    if conn.assigns.current_scope do
+    if conn.assigns.current_scope && conn.assigns.current_scope.user do
       return_to = conn.params["return_to"]
 
       conn
@@ -376,7 +384,7 @@ defmodule FrontmanServerWeb.UserAuth do
       conn
       |> put_flash(:error, "You must log in to access this page.")
       |> maybe_store_return_to()
-      |> redirect(to: ~p"/users/log-in")
+      |> redirect_to_login()
       |> halt()
     end
   end
@@ -401,4 +409,15 @@ defmodule FrontmanServerWeb.UserAuth do
   end
 
   defp maybe_store_return_to(conn), do: conn
+
+  defp redirect_to_login(conn) do
+    case conn.host in @playgithub_hosts do
+      true ->
+        login_path = ~p"/users/log-in?#{%{"return_to" => current_url(conn)}}"
+        redirect(conn, external: FrontmanServerWeb.Endpoint.url() <> login_path)
+
+      false ->
+        redirect(conn, to: ~p"/users/log-in")
+    end
+  end
 end

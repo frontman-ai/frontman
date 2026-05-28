@@ -97,6 +97,8 @@ defmodule FrontmanServer.MixProject do
       {:sentry, "~> 13.0"},
       # WorkOS for OAuth (GitHub, Google)
       {:workos, "~> 1.1"},
+      # Override transitive dep to pick up charlist deprecation fix (not yet released to Hex)
+      {:toml, github: "bitwalker/toml-elixir", branch: "main", override: true},
       # ==================DEV/Test=========================
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
@@ -107,9 +109,7 @@ defmodule FrontmanServer.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_json_schema, "~> 0.10", only: :test},
       {:bypass, "~> 2.1", only: :test},
-      {:mox, "~> 1.2", only: :test},
-      # Override transitive dep to pick up charlist deprecation fix (not yet released to Hex)
-      {:toml, github: "bitwalker/toml-elixir", branch: "main", override: true}
+      {:mox, "~> 1.2", only: :test}
     ]
   end
 end

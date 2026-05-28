@@ -4,12 +4,12 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.Plugs.SandboxProxy.WebSocket do
+defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.WebSocket do
   @moduledoc false
 
   @behaviour WebSock
 
-  alias FrontmanServerWeb.Plugs.SandboxProxy.WebSocket.Upstream
+  alias FrontmanServerWeb.PlayGithub.SandboxProxy.WebSocket.Upstream
 
   require Logger
 

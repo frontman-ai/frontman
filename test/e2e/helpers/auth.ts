@@ -9,7 +9,7 @@ import type { Page } from "playwright";
 const E2E_EMAIL = "e2e@frontman.local";
 const E2E_PASSWORD = "e2epassword123!";
 
-const PHOENIX_ORIGIN = "https://localhost:4002";
+const PHOENIX_ORIGIN = "https://frontman.local:4002";
 
 /**
  * Log in the e2e test user via the dev email/password form.

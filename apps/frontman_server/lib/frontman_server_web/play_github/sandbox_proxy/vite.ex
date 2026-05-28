@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.Plugs.SandboxProxy.Vite do
+defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Vite do
   @moduledoc false
 
   import Plug.Conn, only: [get_req_header: 2]

@@ -216,7 +216,7 @@ cp envs/.dev.env envs/.dev.local.env
 
 # 5. Start server
 mix phx.server
-# Visit http://localhost:4000
+# Visit https://frontman.local:4000
 ```
 
 **Configuration:** Uses Dotenvy to load env files in this order:

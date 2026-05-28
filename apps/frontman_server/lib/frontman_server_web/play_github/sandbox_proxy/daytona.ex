@@ -4,15 +4,15 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServerWeb.Plugs.SandboxProxy.Daytona do
+defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
   @moduledoc false
 
-  @default_allowed_hosts [
+  @default_target_hosts [
     "daytonaproxy01.eu",
     "daytona.work",
     "proxy.daytona.work"
   ]
-  @default_allowed_schemes ["https"]
+  @default_target_schemes ["https"]
   @skip_preview_warning_header {"x-daytona-skip-preview-warning", "true"}
 
   def control_request(%{
@@ -102,7 +102,7 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Daytona do
 
   defp allowed_host?(host) when is_binary(host) do
     normalized_host = String.downcase(host)
-    Enum.any?(allowed_hosts(), &host_matches_suffix?(normalized_host, &1))
+    Enum.any?(target_hosts(), &host_matches_suffix?(normalized_host, &1))
   end
 
   defp host_matches_suffix?(host, suffix) do
@@ -112,17 +112,17 @@ defmodule FrontmanServerWeb.Plugs.SandboxProxy.Daytona do
     end
   end
 
-  defp allowed_hosts do
-    :frontman_server
-    |> Application.get_env(:sandbox_proxy_allowed_hosts, @default_allowed_hosts)
-    |> Enum.map(&String.downcase/1)
+  defp target_hosts do
+    config() |> Keyword.get(:target_hosts, @default_target_hosts) |> Enum.map(&String.downcase/1)
   end
 
   defp allowed_schemes do
-    Application.get_env(
-      :frontman_server,
-      :sandbox_proxy_allowed_schemes,
-      @default_allowed_schemes
-    )
+    config() |> Keyword.get(:target_schemes, @default_target_schemes)
+  end
+
+  defp config do
+    :frontman_server
+    |> Application.get_env(:playgithub, [])
+    |> Keyword.get(:sandbox_proxy, [])
   end
 end
