@@ -32,7 +32,7 @@ defmodule SwarmAi.Executor do
     Telemetry.run_span(
       %{
         loop_id: loop.id,
-        agent_id: SwarmAi.id!(agent),
+        agent_id: SwarmAi.Agent.id(agent),
         execution_module: agent.__struct__,
         metadata: loop.metadata,
         input_messages: messages
@@ -52,7 +52,7 @@ defmodule SwarmAi.Executor do
         {result,
          %{
            loop_id: loop.id,
-           agent_id: SwarmAi.id!(agent),
+           agent_id: SwarmAi.Agent.id(agent),
            status: final_status,
            step_count: step_count,
            metadata: loop.metadata,

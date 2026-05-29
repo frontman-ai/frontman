@@ -67,7 +67,7 @@ defmodule FrontmanServer.Providers do
           {:ok, ResolvedKey.t()} | {:error, :no_api_key}
   def prepare_api_key(scope, model) do
     model = model || default_model()
-    provider = provider_from_model(model)
+    provider = Model.provider_from_string(model)
 
     case resolve_api_key(scope, provider) do
       {:oauth_token, access_token, oauth_opts} ->
@@ -94,15 +94,6 @@ defmodule FrontmanServer.Providers do
       nil -> raise "missing default model for openrouter"
     end
   end
-
-  @doc """
-  Extracts provider name from model string.
-
-  Delegates to `Model.provider_from_string/1` which parses the "provider:name"
-  format. Falls back to "openrouter" for unprefixed strings.
-  """
-  @spec provider_from_model(String.t()) :: String.t()
-  defdelegate provider_from_model(model), to: Model, as: :provider_from_string
 
   @doc """
   Resolves a possibly nil model string to a concrete provider:model value.

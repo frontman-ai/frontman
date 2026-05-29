@@ -39,14 +39,16 @@ defmodule SwarmAi do
   @doc "Runs an agent in a supervised runtime."
   @spec run(atom(), SwarmAi.Agent.t()) :: {:ok, pid()} | {:error, term()}
   def run(runtime, agent) when is_atom(runtime) do
-    id!(agent)
+    task = %{agent: agent}
 
-    task = %{
-      agent: agent,
-      context: SwarmAi.Agent.context(agent)
-    }
-
-    start_execution_worker(runtime, task)
+    case DynamicSupervisor.start_child(
+           execution_supervisor_name(runtime),
+           {SwarmAi.ExecutionWorker, {runtime, task}}
+         ) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, _pid}} -> {:error, :already_running}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc "Returns true when an agent id is running."
@@ -81,42 +83,18 @@ defmodule SwarmAi do
   def execution_supervisor_name(runtime), do: :"#{runtime}.ExecutionSupervisor"
 
   @doc false
-  @spec id!(SwarmAi.Agent.t()) :: String.t()
-  def id!(agent) do
-    case SwarmAi.Agent.id(agent) do
-      id when is_binary(id) ->
-        id
-
-      other ->
-        raise ArgumentError,
-              "SwarmAi.Agent.id/1 must return a string, got: #{inspect(other)}"
-    end
-  end
-
-  @doc false
   @spec running_execution_registry_entry(String.t()) :: {:running, String.t()}
   def running_execution_registry_entry(id) when is_binary(id), do: {:running, id}
 
   @doc false
   @spec running_execution_registry_entry_for_agent(SwarmAi.Agent.t()) :: {:running, String.t()}
   def running_execution_registry_entry_for_agent(agent),
-    do: agent |> id!() |> running_execution_registry_entry()
+    do: agent |> SwarmAi.Agent.id() |> running_execution_registry_entry()
 
   defp running_lookup(runtime, agent_id) do
     Registry.lookup(
       registry_name(runtime),
       running_execution_registry_entry(agent_id)
     )
-  end
-
-  defp start_execution_worker(runtime, task) do
-    case DynamicSupervisor.start_child(
-           execution_supervisor_name(runtime),
-           {SwarmAi.ExecutionWorker, {runtime, task}}
-         ) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, _pid}} -> {:error, :already_running}
-      {:error, reason} -> {:error, reason}
-    end
   end
 end

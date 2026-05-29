@@ -13,8 +13,7 @@ defmodule SwarmAi.ExecutionRunner do
   ]
 
   @type task :: %{
-          required(:agent) => SwarmAi.Agent.t(),
-          required(:context) => map()
+          required(:agent) => SwarmAi.Agent.t()
         }
 
   @type t :: %__MODULE__{
@@ -30,8 +29,9 @@ defmodule SwarmAi.ExecutionRunner do
   def prepare(runtime, dispatcher, task) do
     registry = SwarmAi.registry_name(runtime)
     task_sup = SwarmAi.task_supervisor_name(runtime)
+    context = SwarmAi.Agent.context(task.agent)
 
-    watcher = spawn_death_watcher(dispatcher, task.agent, task.context)
+    watcher = spawn_death_watcher(dispatcher, task.agent, context)
 
     tool_executor =
       task.agent
@@ -40,12 +40,12 @@ defmodule SwarmAi.ExecutionRunner do
 
     streaming_opts =
       [tool_executor: tool_executor]
-      |> build_streaming_opts(dispatcher, task.agent, task.context, watcher)
+      |> build_streaming_opts(dispatcher, task.agent, context, watcher)
 
     %__MODULE__{
       registry: registry,
       dispatcher: dispatcher,
-      context: task.context,
+      context: context,
       agent: task.agent,
       watcher: watcher,
       streaming_opts: streaming_opts
@@ -74,7 +74,7 @@ defmodule SwarmAi.ExecutionRunner do
           :telemetry.execute(
             [:swarm_ai, :runtime, :paused],
             %{count: 1},
-            %{agent_id: SwarmAi.id!(runner.agent), reason: reason}
+            %{agent_id: SwarmAi.Agent.id(runner.agent), reason: reason}
           )
 
           dispatch_agent_event(
@@ -163,12 +163,12 @@ defmodule SwarmAi.ExecutionRunner do
             :ok
 
           :cancelled ->
-            Logger.info("Execution cancelled for #{inspect(SwarmAi.id!(agent))}")
+            Logger.info("Execution cancelled for #{inspect(SwarmAi.Agent.id(agent))}")
             dispatch_agent_event(dispatcher, agent, {:cancelled, %{loop: loop_snapshot}}, context)
 
           :shutdown ->
             Logger.info(
-              "Execution terminated by supervisor for #{inspect(SwarmAi.id!(agent))}, reason: :shutdown"
+              "Execution terminated by supervisor for #{inspect(SwarmAi.Agent.id(agent))}, reason: :shutdown"
             )
 
             dispatch_agent_event(
@@ -180,7 +180,7 @@ defmodule SwarmAi.ExecutionRunner do
 
           {:shutdown, _} = reason ->
             Logger.info(
-              "Execution terminated by supervisor for #{inspect(SwarmAi.id!(agent))}, reason: #{inspect(reason)}"
+              "Execution terminated by supervisor for #{inspect(SwarmAi.Agent.id(agent))}, reason: #{inspect(reason)}"
             )
 
             dispatch_agent_event(
@@ -194,7 +194,7 @@ defmodule SwarmAi.ExecutionRunner do
             {crash_reason, stacktrace} = normalize_crash_reason(reason)
 
             Logger.warning(
-              "Execution crashed for #{inspect(SwarmAi.id!(agent))}, reason: #{inspect(reason)}"
+              "Execution crashed for #{inspect(SwarmAi.Agent.id(agent))}, reason: #{inspect(reason)}"
             )
 
             dispatch_agent_event(
@@ -216,12 +216,12 @@ defmodule SwarmAi.ExecutionRunner do
     :telemetry.execute(
       [:swarm_ai, :runtime, :crash],
       %{count: 1},
-      %{agent_id: SwarmAi.id!(agent), pid: pid, reason: reason}
+      %{agent_id: SwarmAi.Agent.id(agent), pid: pid, reason: reason}
     )
   end
 
   defp dispatch_agent_event(dispatcher, agent, event, context) do
-    dispatch_event(dispatcher, SwarmAi.id!(agent), event, context)
+    dispatch_event(dispatcher, SwarmAi.Agent.id(agent), event, context)
   end
 
   defp dispatch_event(nil, _agent_id, _event, _context), do: :ok
