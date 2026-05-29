@@ -6,23 +6,17 @@ defmodule SwarmAi.Executor do
 
   import SwarmAi.Message, only: [is_message: 1]
 
-  @type tool_executor ::
-          ([SwarmAi.ToolCall.t()] ->
-             [SwarmAi.ToolResult.t()] | {:halt, SwarmAi.ParallelExecutor.halt_reason()})
-
   @type opts :: [
-          {:tool_executor, tool_executor()}
-          | {:on_chunk, (ReqLLM.StreamChunk.t() -> any())}
+          {:on_chunk, (ReqLLM.StreamChunk.t() -> any())}
           | {:on_response, (Response.t() -> any())}
           | {:on_tool_call, (SwarmAi.ToolCall.t() -> any())}
         ]
 
-  @spec run(SwarmAi.Agent.t(), opts()) ::
+  @spec run(atom(), SwarmAi.Agent.t(), opts()) ::
           {:ok, String.t(), SwarmAi.Id.t()}
           | {:error, term(), SwarmAi.Id.t()}
           | {:paused, SwarmAi.ParallelExecutor.halt_reason()}
-  def run(agent, opts) when is_list(opts) do
-    tool_executor = Keyword.fetch!(opts, :tool_executor)
+  def run(runtime, agent, opts) when is_atom(runtime) and is_list(opts) do
     callbacks = build_callbacks(opts)
 
     config = %Loop.Config{}
@@ -41,7 +35,7 @@ defmodule SwarmAi.Executor do
         {loop, effects} = Loop.execute(loop, messages)
 
         {result, final_status, step_count, output} =
-          case execute_loop(loop, effects, tool_executor, callbacks) do
+          case execute_loop(loop, effects, runtime, callbacks) do
             {:halt, halt_reason, halted_loop} ->
               {{:paused, halt_reason}, :paused, length(halted_loop.steps), nil}
 
@@ -73,35 +67,40 @@ defmodule SwarmAi.Executor do
     {result, final_loop.status, length(final_loop.steps), final_loop.result}
   end
 
-  defp execute_loop(loop, effects, tool_executor, callbacks) do
-    execute_loop(loop, effects, tool_executor, callbacks, loop.config.max_steps)
+  defp execute_loop(loop, effects, runtime, callbacks) do
+    execute_loop(loop, effects, runtime, callbacks, loop.config.max_steps)
   end
 
-  defp execute_loop(loop, [], _tool_executor, _callbacks, _steps_left), do: loop
+  defp execute_loop(loop, effects, runtime, callbacks, steps_left) do
+    case effects do
+      [] ->
+        loop
 
-  defp execute_loop(loop, [{:call_llm, _llm, _messages} | _], _tool_executor, _callbacks, 0) do
-    Loop.fail(loop, :max_steps)
+      [{:call_llm, _llm, _messages} | _] when steps_left == 0 ->
+        Loop.fail(loop, :max_steps)
+
+      [{:call_llm, llm, messages} | rest] ->
+        {updated_loop, new_effects} = execute_llm_call(loop, llm, messages, callbacks)
+        execute_loop(updated_loop, new_effects ++ rest, runtime, callbacks, steps_left - 1)
+
+      [{:execute_tool, _} | _] ->
+        execute_tool_effects(loop, effects, runtime, callbacks, steps_left)
+
+      [{:step_ended, step} | rest] ->
+        Telemetry.step_stop(loop.id, step, loop.metadata)
+        execute_loop(loop, rest, runtime, callbacks, steps_left)
+
+      [{:complete, _result} | _rest] ->
+        Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
+        loop
+
+      [{:fail, _error} | _rest] ->
+        Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
+        loop
+    end
   end
 
-  defp execute_loop(
-         loop,
-         [{:call_llm, llm, messages} | rest],
-         tool_executor,
-         callbacks,
-         steps_left
-       )
-       when steps_left > 0 do
-    {updated_loop, new_effects} = execute_llm_call(loop, llm, messages, callbacks)
-    execute_loop(updated_loop, new_effects ++ rest, tool_executor, callbacks, steps_left - 1)
-  end
-
-  defp execute_loop(
-         loop,
-         [{:execute_tool, _} | _] = effects,
-         tool_executor,
-         callbacks,
-         steps_left
-       ) do
+  defp execute_tool_effects(loop, effects, runtime, callbacks, steps_left) do
     {tool_effects, rest} = split_tool_effects(effects)
     tool_calls = Enum.map(tool_effects, fn {:execute_tool, tc} -> tc end)
 
@@ -115,7 +114,7 @@ defmodule SwarmAi.Executor do
 
     executor_result =
       try do
-        tool_executor.(tool_calls)
+        run_tools(loop.agent, tool_calls, runtime)
       rescue
         e ->
           Enum.each(tool_calls, &emit_tool_exception(loop_id, step, &1, e, metadata))
@@ -127,7 +126,7 @@ defmodule SwarmAi.Executor do
         Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
         {:halt, halt_reason, loop}
 
-      results when is_list(results) ->
+      {:ok, results} ->
         Enum.zip(tool_calls, results)
         |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result, metadata) end)
 
@@ -137,23 +136,27 @@ defmodule SwarmAi.Executor do
             {e, l}
           end)
 
-        execute_loop(updated_loop, new_effects ++ rest, tool_executor, callbacks, steps_left)
+        execute_loop(
+          updated_loop,
+          new_effects ++ rest,
+          runtime,
+          callbacks,
+          steps_left
+        )
     end
   end
 
-  defp execute_loop(loop, [{:step_ended, step} | rest], tool_executor, callbacks, steps_left) do
-    Telemetry.step_stop(loop.id, step, loop.metadata)
-    execute_loop(loop, rest, tool_executor, callbacks, steps_left)
-  end
+  defp run_tools(agent, tool_calls, runtime) do
+    task_supervisor = SwarmAi.task_supervisor_name(runtime)
+    tool_executor = SwarmAi.Agent.tool_executor(agent)
+    build = Map.fetch!(tool_executor, :build)
+    execution_mode = Map.fetch!(tool_executor, :execution_mode)
+    executions = build.(tool_calls)
 
-  defp execute_loop(loop, [{:complete, _result} | _rest], _tool_executor, _callbacks, _steps_left) do
-    Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
-    loop
-  end
-
-  defp execute_loop(loop, [{:fail, _error} | _rest], _tool_executor, _callbacks, _steps_left) do
-    Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
-    loop
+    case execution_mode do
+      :serial -> SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor)
+      :parallel -> SwarmAi.ParallelExecutor.run(executions, task_supervisor)
+    end
   end
 
   defp execute_llm_call(loop, llm, messages, callbacks) do

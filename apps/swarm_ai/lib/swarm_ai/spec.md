@@ -143,7 +143,7 @@ Telemetry hierarchy:
 
 ## Execution Flow
 
-1. **Entry**: `SwarmAi.run/2` starts supervised execution; `SwarmAi.Executor.run/2` creates a loop and calls `Runner.start/2`
+1. **Entry**: `SwarmAi.run/2` starts supervised execution; `SwarmAi.Executor.run/3` creates a loop and calls `Runner.start/2`
 2. **LLM Call**: `{:call_llm, ...}` effect triggers actual API call
 3. **Response**: `Runner.handle_llm_response/2` produces effects based on tool calls
 4. **Tool Execution**: `{:execute_tool, ...}` effects invoke the tool executor
