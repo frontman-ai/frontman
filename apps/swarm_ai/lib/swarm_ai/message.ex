@@ -1,6 +1,6 @@
 defmodule SwarmAi.Message do
   @moduledoc """
-  Namespace for role-specific message structs used in the agentic loop.
+  Namespace for role-specific message structs used in the execution loop.
 
   Messages form the conversation history passed to LLMs. Each role has its own
   struct so that invalid states (e.g. a system message with tool_calls) are
@@ -12,6 +12,7 @@ defmodule SwarmAi.Message do
 
   @type role :: :system | :user | :assistant | :tool
   @type t :: System.t() | User.t() | Assistant.t() | Tool.t()
+  @type input :: String.t() | t() | [t()]
 
   defguard is_message(msg)
            when is_struct(msg, System) or is_struct(msg, User) or

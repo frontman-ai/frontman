@@ -394,7 +394,6 @@ type effect =
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
     })
-  | NotifyTurnCompleted
   | CancelPrompt
   | RetryTurnEffect({retriedErrorId: string})
   // Resolve the question tool's blocking promise with the user's answer
@@ -409,7 +408,6 @@ type delegated =
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
     })
-  | NeedUsageRefresh
   | NeedCancelPrompt
   | NeedRetryTurn({retriedErrorId: string})
 
@@ -957,22 +955,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(data), TurnCompleted) =>
+  | (Task.Loaded(_data), TurnCompleted) =>
     // The ACP protocol has two overlapping signals for turn completion:
     // 1. The session/prompt RPC response (request-response channel)
     // 2. The agent_turn_complete notification (event channel)
     // The server sends both when an RPC is pending, so TurnCompleted may
-    // arrive twice per turn. The state transitions below are idempotent —
-    // only the NotifyTurnCompleted effect (usage refresh) is gated.
+    // arrive twice per turn. The state transitions below are idempotent.
     let completed = task->Lens.completeStreamingMessage
-    let effects = if data.isAgentRunning {
-      [NotifyTurnCompleted]
-    } else {
-      []
-    }
     switch completed {
-    | Task.Loaded(d) => (Task.Loaded({...d, isAgentRunning: false, retryStatus: None}), effects)
-    | other => (other->Task.updateLoadedData(d => {...d, isAgentRunning: false}), effects)
+    | Task.Loaded(d) => (Task.Loaded({...d, isAgentRunning: false, retryStatus: None}), [])
+    | other => (other->Task.updateLoadedData(d => {...d, isAgentRunning: false}), [])
     }
 
   // Cancel the current turn: complete any partial response, stop agent, dismiss pending question
@@ -1042,7 +1034,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           isAgentRunning: false,
           retryStatus: None,
         }),
-        [NotifyTurnCompleted],
+        [],
       )
     | _ => (
         Task.Loaded({
@@ -1051,7 +1043,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           isAgentRunning: false,
           retryStatus: None,
         }),
-        [NotifyTurnCompleted],
+        [],
       )
     }
 
@@ -1342,16 +1334,14 @@ let fetchAnnotationDetails = (
   ~contentWindow: option<WebAPI.DOMAPI.window>,
   ~dispatch: action => unit,
 ) => {
-  // Fetch selector — result captures success or per-field error
-  let selectorPromise =
+  let selectorPromise = switch document {
+  | Some(doc) =>
     Promise.resolve()
     ->Promise.then(_ => {
       let selector = FrontmanBindings.Bindings__Finder.finder(
         ~element,
         ~options={
-          root: document
-          ->Option.map(doc => doc.documentElement->Obj.magic)
-          ->Option.getOr(element),
+          root: doc.documentElement->WebAPI.HTMLElement.asElement,
           idName: (~name as _) => true,
           className: (~name as _) => true,
           tagName: (~name as _) => true,
@@ -1369,10 +1359,9 @@ let fetchAnnotationDetails = (
       )
       Promise.resolve(Error(msg))
     })
+  | None => Promise.resolve(Error("Preview document not available"))
+  }
 
-  // Fetch screenshot (with conservative dimension limits to stay within all provider caps).
-  // Uses conservative limits (7680px) — safe for every provider. The server-side gate
-  // in agents.ex strips anything that still exceeds the limit.
   let screenshotPromise = {
     let limits = Client__ImageLimits.conservative
     let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
@@ -1554,7 +1543,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
   | SendMessage({text, attachments, annotations}) =>
     delegate(NeedSendMessage({text, attachments, annotations}))
-  | NotifyTurnCompleted => delegate(NeedUsageRefresh)
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) =>
     let errorId = retriedErrorId

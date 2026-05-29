@@ -1,71 +1,10 @@
 defmodule SwarmAi.Telemetry do
   @moduledoc """
-  Telemetry instrumentation for Swarm agent execution.
+  Telemetry instrumentation for SwarmAi executions.
 
-  Swarm emits `:telemetry` events following Erlang/Elixir ecosystem conventions.
-  All events use the `[:swarm_ai, ...]` prefix and follow the start/stop/exception pattern.
-
-  ## Metadata Propagation
-
-  All events include a `metadata` field that is passed from the caller through `SwarmAi.run_streaming/3`
-  or `SwarmAi.run/3`. This allows callers to attach arbitrary context (like `task_id`) that flows
-  through all telemetry events, enabling correlation without requiring process-based hacks.
-
-  ## Events
-
-  ### Run Lifecycle (`[:swarm_ai, :run, ...]`)
-
-  Emitted around the full agent execution lifecycle.
-
-  | Event | Measurements | Metadata |
-  |-------|--------------|----------|
-  | `[:swarm_ai, :run, :start]` | `system_time` | `loop_id`, `agent_module`, `metadata` |
-  | `[:swarm_ai, :run, :stop]` | `duration` | `loop_id`, `status`, `step_count`, `result`, `error`, `metadata` |
-  | `[:swarm_ai, :run, :exception]` | `duration` | `loop_id`, `kind`, `reason`, `stacktrace`, `metadata` |
-
-  ### Step Lifecycle (`[:swarm_ai, :step, ...]`)
-
-  Emitted around each step (iteration) of the agent loop.
-
-  | Event | Measurements | Metadata |
-  |-------|--------------|----------|
-  | `[:swarm_ai, :step, :start]` | `system_time` | `loop_id`, `step`, `metadata` |
-  | `[:swarm_ai, :step, :stop]` | `duration` | `loop_id`, `step`, `metadata` |
-  | `[:swarm_ai, :step, :exception]` | `duration` | `loop_id`, `step`, `kind`, `reason`, `stacktrace`, `metadata` |
-
-  ### LLM Calls (`[:swarm_ai, :llm, :call, ...]`)
-
-  Emitted around each LLM API call within a run.
-
-  | Event | Measurements | Metadata |
-  |-------|--------------|----------|
-  | `[:swarm_ai, :llm, :call, :start]` | `system_time` | `loop_id`, `step`, `model`, `metadata` |
-  | `[:swarm_ai, :llm, :call, :stop]` | `duration` | `loop_id`, `step`, `input_tokens`, `output_tokens`, `tool_call_count`, `metadata` |
-  | `[:swarm_ai, :llm, :call, :exception]` | `duration` | `loop_id`, `step`, `kind`, `reason`, `stacktrace`, `metadata` |
-
-  ### Tool Execution (`[:swarm_ai, :tool, :execute, ...]`)
-
-  Emitted around each tool execution.
-
-  | Event | Measurements | Metadata |
-  |-------|--------------|----------|
-  | `[:swarm_ai, :tool, :execute, :start]` | `system_time` | `loop_id`, `step`, `tool_id`, `tool_name`, `metadata` |
-  | `[:swarm_ai, :tool, :execute, :stop]` | `duration` | `loop_id`, `step`, `tool_id`, `tool_name`, `is_error`, `metadata` |
-  | `[:swarm_ai, :tool, :execute, :exception]` | `duration` | `loop_id`, `step`, `tool_id`, `tool_name`, `kind`, `reason`, `stacktrace`, `metadata` |
-
-  ### Child Agent Spawning (`[:swarm_ai, :child, :spawn, ...]`)
-
-  Emitted when a parent agent spawns a child agent.
-
-  | Event | Measurements | Metadata |
-  |-------|--------------|----------|
-  | `[:swarm_ai, :child, :spawn, :start]` | `system_time` | `parent_loop_id`, `parent_step`, `tool_call_id`, `child_agent_module`, `task`, `metadata` |
-  | `[:swarm_ai, :child, :spawn, :stop]` | `duration` | `parent_loop_id`, `child_loop_id`, `child_status`, `child_step_count`, `child_total_tokens`, `metadata` |
-  | `[:swarm_ai, :child, :spawn, :exception]` | `duration` | `parent_loop_id`, `tool_call_id`, `kind`, `reason`, `stacktrace`, `metadata` |
-
-  ## Usage
-
-  ### Attaching Handlers
+  Events use the `[:swarm_ai, ...]` prefix and the start/stop/exception shape.
+  Run metadata identifies the run as `agent_id`, returned by `SwarmAi.Agent.id/1`.
+  Dispatcher context is not copied into telemetry.
 
       :telemetry.attach_many(
         "my-swarm-handler",
@@ -74,32 +13,22 @@ defmodule SwarmAi.Telemetry do
         nil
       )
 
-  ### Default Logger
-
-  Swarm provides a default logger for development:
-
-      SwarmAi.Telemetry.attach_default_logger()
-      SwarmAi.Telemetry.attach_default_logger(level: :debug)
-
-  ### OpenTelemetry Integration
-
-      OpentelemetryTelemetry.attach_telemetry_handlers("swarm", SwarmAi.Telemetry.Events.all())
+  Run events carry `loop_id`, `agent_id`, `execution_module`, `status`,
+  `step_count`, `result`, `error`, `output`, and `metadata` as applicable.
+  Step, LLM, and tool events carry `loop_id`, `step`, and their local fields.
   """
 
   require Logger
   alias SwarmAi.Telemetry.Events
 
-  # =============================================================================
-  # Run Lifecycle
-  # =============================================================================
-
   @doc "Emit run start event."
-  @spec run_start(String.t(), module(), map()) :: :ok
-  def run_start(loop_id, agent_module, metadata \\ %{}) do
+  @spec run_start(String.t(), module(), keyword()) :: :ok
+  def run_start(loop_id, execution_module, opts \\ []) do
     emit(Events.run_start(), %{
       loop_id: loop_id,
-      agent_module: agent_module,
-      metadata: metadata
+      agent_id: Keyword.get(opts, :agent_id),
+      execution_module: execution_module,
+      metadata: Keyword.get(opts, :metadata, %{})
     })
   end
 
@@ -108,6 +37,7 @@ defmodule SwarmAi.Telemetry do
   def run_stop(loop_id, opts \\ []) do
     emit(Events.run_stop(), %{
       loop_id: loop_id,
+      agent_id: Keyword.get(opts, :agent_id),
       status: Keyword.get(opts, :status),
       result: Keyword.get(opts, :result),
       error: Keyword.get(opts, :error),
@@ -117,20 +47,17 @@ defmodule SwarmAi.Telemetry do
   end
 
   @doc "Emit run exception event."
-  @spec run_exception(String.t(), atom(), term(), list(), map()) :: :ok
-  def run_exception(loop_id, kind, reason, stacktrace, metadata \\ %{}) do
+  @spec run_exception(String.t(), atom(), term(), list(), keyword()) :: :ok
+  def run_exception(loop_id, kind, reason, stacktrace, opts \\ []) do
     emit(Events.run_exception(), %{
       loop_id: loop_id,
+      agent_id: Keyword.get(opts, :agent_id),
       kind: kind,
       reason: reason,
       stacktrace: stacktrace,
-      metadata: metadata
+      metadata: Keyword.get(opts, :metadata, %{})
     })
   end
-
-  # =============================================================================
-  # Step Lifecycle
-  # =============================================================================
 
   @doc "Emit step start event."
   @spec step_start(String.t(), pos_integer(), map()) :: :ok
@@ -164,10 +91,6 @@ defmodule SwarmAi.Telemetry do
       metadata: metadata
     })
   end
-
-  # =============================================================================
-  # LLM Call
-  # =============================================================================
 
   @doc "Emit LLM call start event."
   @spec llm_call_start(String.t(), pos_integer(), String.t() | nil, map()) :: :ok
@@ -207,10 +130,6 @@ defmodule SwarmAi.Telemetry do
       metadata: metadata
     })
   end
-
-  # =============================================================================
-  # Tool Execution
-  # =============================================================================
 
   @doc "Emit tool execution start event."
   @spec tool_execute_start(String.t(), pos_integer(), String.t(), String.t(), map()) :: :ok
@@ -271,74 +190,6 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
-  # =============================================================================
-  # Child Spawn
-  # =============================================================================
-
-  @doc "Emit child spawn start event."
-  @spec child_spawn_start(
-          String.t(),
-          pos_integer(),
-          String.t(),
-          SwarmAi.SpawnChildAgent.t(),
-          map()
-        ) ::
-          :ok
-  def child_spawn_start(
-        parent_loop_id,
-        parent_step,
-        tool_call_id,
-        %SwarmAi.SpawnChildAgent{} = request,
-        metadata \\ %{}
-      ) do
-    emit(Events.child_spawn_start(), %{
-      parent_loop_id: parent_loop_id,
-      parent_step: parent_step,
-      tool_call_id: tool_call_id,
-      child_agent_module: request.agent.__struct__,
-      task: request.task,
-      metadata: metadata
-    })
-  end
-
-  @doc "Emit child spawn stop event."
-  @spec child_spawn_stop(String.t(), SwarmAi.ChildResult.t(), map()) :: :ok
-  def child_spawn_stop(parent_loop_id, %SwarmAi.ChildResult{} = result, metadata \\ %{}) do
-    emit(Events.child_spawn_stop(), %{
-      parent_loop_id: parent_loop_id,
-      child_loop_id: result.child_loop_id,
-      child_status: result.status,
-      child_step_count: result.step_count,
-      child_total_tokens: result.total_tokens,
-      duration_ms: result.duration_ms,
-      metadata: metadata
-    })
-  end
-
-  @doc "Emit child spawn exception event."
-  @spec child_spawn_exception(String.t(), String.t(), atom(), term(), list(), map()) :: :ok
-  def child_spawn_exception(
-        parent_loop_id,
-        tool_call_id,
-        kind,
-        reason,
-        stacktrace,
-        metadata \\ %{}
-      ) do
-    emit(Events.child_spawn_exception(), %{
-      parent_loop_id: parent_loop_id,
-      tool_call_id: tool_call_id,
-      kind: kind,
-      reason: reason,
-      stacktrace: stacktrace,
-      metadata: metadata
-    })
-  end
-
-  # =============================================================================
-  # Span Helpers
-  # =============================================================================
-
   @doc """
   Execute a function within a run telemetry span.
 
@@ -346,9 +197,9 @@ defmodule SwarmAi.Telemetry do
 
   ## Example
 
-      SwarmAi.Telemetry.run_span(%{loop_id: id, agent_module: MyAgent}, fn ->
+      SwarmAi.Telemetry.run_span(%{loop_id: id, agent_id: agent_id, execution_module: MyRun}, fn ->
         result = do_run()
-        {result, %{status: :completed, step_count: 3}}
+        {result, %{loop_id: id, agent_id: agent_id, status: :completed, step_count: 3}}
       end)
   """
   @spec run_span(map(), (-> {term(), map()})) :: term()
@@ -408,27 +259,6 @@ defmodule SwarmAi.Telemetry do
   end
 
   @doc """
-  Execute a function within a child spawn telemetry span.
-
-  Automatically emits `[:swarm_ai, :child, :spawn, :start/:stop/:exception]` events.
-
-  ## Example
-
-      SwarmAi.Telemetry.child_span(%{parent_loop_id: id, tool_call_id: tc_id, ...}, fn ->
-        result = run_child()
-        {result, %{child_loop_id: child.id, child_status: :completed, ...}}
-      end)
-  """
-  @spec child_span(map(), (-> {term(), map()})) :: term()
-  def child_span(metadata, fun) when is_function(fun, 0) do
-    :telemetry.span([:swarm_ai, :child, :spawn], metadata, fun)
-  end
-
-  # =============================================================================
-  # Default Logger
-  # =============================================================================
-
-  @doc """
   Attaches a default logger that logs all Swarm telemetry events.
 
   Useful for development and debugging. Uses Elixir's Logger.
@@ -463,6 +293,7 @@ defmodule SwarmAi.Telemetry do
   end
 
   @doc false
+  @spec handle_event([atom()], map(), map(), map()) :: :ok
   def handle_event(event, measurements, metadata, config) do
     level = Map.get(config, :level, :info)
     message = format_event(event, measurements, metadata)
@@ -470,7 +301,7 @@ defmodule SwarmAi.Telemetry do
   end
 
   defp format_event([:swarm_ai, :run, :start], _measurements, metadata) do
-    "[swarm_ai] run:start loop=#{short_id(metadata.loop_id)} agent=#{inspect(metadata.agent_module)}"
+    "[swarm_ai] run:start loop=#{short_id(metadata.loop_id)} execution=#{inspect(metadata.execution_module)}"
   end
 
   defp format_event([:swarm_ai, :run, :stop], measurements, metadata) do
@@ -545,36 +376,9 @@ defmodule SwarmAi.Telemetry do
       "#{metadata.kind}: #{inspect(metadata.reason)} (#{duration}ms)"
   end
 
-  defp format_event([:swarm_ai, :child, :spawn, :start], _measurements, metadata) do
-    task_preview = String.slice(metadata.task || "", 0, 50)
-
-    "[swarm_ai] child:start parent=#{short_id(metadata.parent_loop_id)} " <>
-      "agent=#{inspect(metadata.child_agent_module)} task=\"#{task_preview}...\""
-  end
-
-  defp format_event([:swarm_ai, :child, :spawn, :stop], measurements, metadata) do
-    duration = Map.get(measurements, :duration, 0) |> native_to_ms()
-    status = format_status(metadata.child_status)
-
-    "[swarm_ai] child:stop  parent=#{short_id(metadata.parent_loop_id)} " <>
-      "child=#{short_id(metadata.child_loop_id)} #{status} " <>
-      "steps=#{metadata.child_step_count} tokens=#{metadata.child_total_tokens} (#{duration}ms)"
-  end
-
-  defp format_event([:swarm_ai, :child, :spawn, :exception], measurements, metadata) do
-    duration = Map.get(measurements, :duration, 0) |> native_to_ms()
-
-    "[swarm_ai] child:exception parent=#{short_id(metadata.parent_loop_id)} " <>
-      "#{metadata.kind}: #{inspect(metadata.reason)} (#{duration}ms)"
-  end
-
   defp format_event(event, _measurements, _metadata) do
     "[swarm_ai] #{inspect(event)}"
   end
-
-  # =============================================================================
-  # Private Helpers
-  # =============================================================================
 
   defp emit(event, metadata) do
     :telemetry.execute(event, %{system_time: System.system_time()}, metadata)
@@ -583,7 +387,7 @@ defmodule SwarmAi.Telemetry do
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
   defp short_id(id), do: inspect(id)
 
-  # Format model for telemetry logging - handles both string models and LLMDB.Model structs
+  # Handles both string models and LLMDB.Model structs.
   defp format_model(nil), do: "unknown"
   defp format_model(model) when is_binary(model), do: model
   defp format_model(%{id: id}) when is_binary(id), do: id

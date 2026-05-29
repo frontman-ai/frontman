@@ -3,8 +3,8 @@ defmodule SwarmAi.Tool do
   Tool definition for LLM consumption.
 
   This is pure data describing a tool's interface and execution policy.
-  Swarm doesn't execute tools — it yields ToolCalls for the caller to
-  execute via the tool_executor function.
+  Agents return tool execution descriptors via `SwarmAi.Agent.tool_executor/1`,
+  and SwarmAi executes those descriptors under supervision.
 
   Both `timeout_ms` and `on_timeout` are required. There are no defaults —
   every tool must explicitly declare its execution policy. Missing either
@@ -12,7 +12,7 @@ defmodule SwarmAi.Tool do
 
   `on_timeout` semantics:
   - `:error` — return an error ToolResult to the LLM, agent continues
-  - `:pause_agent` — halt the agent loop cleanly; the caller persists context
+  - `:pause_agent` — halt the execution loop cleanly; the caller persists context
     and restarts on the next user message
   """
   use TypedStruct

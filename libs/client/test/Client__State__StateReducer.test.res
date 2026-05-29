@@ -1282,25 +1282,16 @@ describe("Client State Reducer - Annotations on Messages", () => {
       }
 
     test(
-      "FetchApiKeySettings queues the provider-specific effect",
+      "FetchApiKeySettings queues the key metadata effect",
       t => {
-        _providerCases->Array.forEach(
-          ((provider, _expectedProviderId)) => {
-            let (_nextState, effects) = Reducer.next(
-              _makeStateWithSession(),
-              FetchApiKeySettings({provider: provider}),
-            )
+        let (_nextState, effects) = Reducer.next(_makeStateWithSession(), FetchApiKeySettings)
 
-            t->expect(effects->Array.length)->Expect.toBe(1)
-            switch effects->Array.get(0) {
-            | Some(FetchApiKeySettingsEffect({apiBaseUrl, provider: effectProvider})) => {
-                t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
-                t->expect(effectProvider)->Expect.toEqual(provider)
-              }
-            | _ => JsExn.throw("Expected FetchApiKeySettingsEffect")
-            }
-          },
-        )
+        t->expect(effects->Array.length)->Expect.toBe(1)
+        switch effects->Array.get(0) {
+        | Some(FetchApiKeySettingsEffect({apiBaseUrl})) =>
+          t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
+        | _ => JsExn.throw("Expected FetchApiKeySettingsEffect")
+        }
       },
     )
 
@@ -1353,10 +1344,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
             ->expect(_settingsForProvider(savedState, provider).source)
             ->Expect.toEqual(UserOverride)
             t->expect(_settingsForProvider(savedState, provider).saveStatus)->Expect.toEqual(Saved)
-            switch provider {
-            | OpenRouter => t->expect(effects->Array.length)->Expect.toBe(1)
-            | Anthropic | Fireworks | Nvidia => t->expect(effects->Array.length)->Expect.toBe(0)
-            }
+            t->expect(effects->Array.length)->Expect.toBe(0)
 
             let (failedState, _effects) = Reducer.next(
               {...savingState, pendingProviderAutoSelect: Some(expectedProviderId)},

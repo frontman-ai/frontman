@@ -10,7 +10,6 @@ let _makeState = (~chatgptOAuthStatus: Types.chatgptOAuthStatus): Types.state =>
     currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
     acpSession: NoAcpSession,
     sessionInitialized: false,
-    usageInfo: None,
     userProfile: None,
     openrouterKeySettings: {
       source: Types.None,

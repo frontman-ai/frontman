@@ -11,8 +11,8 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   Swarm emits telemetry events for agent execution (loop, step, llm, tool).
   This handler translates those into OTEL spans with proper parent-child relationships.
 
-  The `task_id` comes from `loop.metadata` which is passed by FrontmanServer when
-  starting agent execution. This allows correlation back to the task span.
+  The `task_id` comes from the Swarm agent id. This allows correlation back to
+  the task span without passing application context through Swarm telemetry.
 
   ## Span Hierarchy
 
@@ -99,36 +99,28 @@ defmodule FrontmanServer.Observability.SwarmOtelHandler do
   @doc false
   def handle_run_start(_event, _measurements, metadata, _config) do
     loop_id = metadata.loop_id
-    agent_module = metadata.agent_module
-    loop_meta = Map.get(metadata, :metadata, %{})
-    task_id = Map.get(loop_meta, :task_id)
-    parent_agent_module = Map.get(loop_meta, :parent_agent_module)
+    agent_id = Map.get(metadata, :agent_id)
+    execution_module = metadata.execution_module
     input_messages = Map.get(metadata, :input_messages, [])
 
     span_name = "agent"
 
     base_attributes = [
       {:"openinference.span.kind", "AGENT"},
-      {:"agent.name", inspect(agent_module)},
+      {:"agent.name", inspect(execution_module)},
       # Arize agent graph attributes - use "agent" as node_id, steps reference this
       {:"graph.node.id", "agent"}
     ]
 
-    # Add parent reference for child agents (enables Arize agent graph visualization)
     base_attributes =
-      if parent_agent_module do
-        [{:"graph.node.parent_id", "agent"} | base_attributes]
-      else
-        base_attributes
-      end
-
-    base_attributes =
-      if task_id, do: [{:"session.id", task_id} | base_attributes], else: base_attributes
+      if agent_id,
+        do: [{:"session.id", to_string(agent_id)} | base_attributes],
+        else: base_attributes
 
     attributes = base_attributes ++ flatten_input_messages(input_messages)
 
     tracer = :opentelemetry.get_tracer(:frontman_server)
-    ctx = with_parent_span(:frontman_spans_task, task_id)
+    ctx = with_parent_span(:frontman_spans_task, agent_id)
 
     span_ctx = :otel_tracer.start_span(ctx, tracer, span_name, %{attributes: attributes})
     :otel_tracer.set_current_span(ctx, span_ctx)

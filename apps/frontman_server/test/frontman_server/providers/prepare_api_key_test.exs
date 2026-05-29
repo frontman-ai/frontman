@@ -1,10 +1,9 @@
 defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   @moduledoc """
-  Integration tests for the full `Providers.prepare_api_key/3` resolution chain.
+  Integration tests for the full `Providers.prepare_api_key/2` resolution chain.
 
-  Tests the priority order: OAuth > user key > env key > server key,
-  plus quota checks on server keys. This is the primary entry point for
-  all LLM key resolution in the system.
+  Tests the priority order: OAuth > user key > env key > server key.
+  This is the primary entry point for all LLM key resolution in the system.
   """
   use FrontmanServer.DataCase, async: true
 
@@ -21,7 +20,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     {:ok, scope: scope}
   end
 
-  describe "prepare_api_key/3 resolution priority" do
+  describe "prepare_api_key/2 resolution priority" do
     test "resolves OAuth token as highest priority for anthropic", %{scope: scope} do
       expires_at = DateTime.add(DateTime.utc_now(), 3600, :second)
 
@@ -81,31 +80,6 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
       assert {:error, :no_api_key} =
                Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5")
-    end
-
-    test "server key checks usage quota", %{scope: scope} do
-      with_server_key("anthropic", "server_key_quota")
-
-      for _ <- 1..Providers.usage_limit() do
-        Providers.increment_usage(scope, "anthropic")
-      end
-
-      assert {:error, :usage_limit_exceeded} =
-               Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5")
-    end
-
-    test "skip_quota bypasses usage limit on server key", %{scope: scope} do
-      with_server_key("anthropic", "server_key_skip")
-
-      for _ <- 1..Providers.usage_limit() do
-        Providers.increment_usage(scope, "anthropic")
-      end
-
-      {:ok, %ResolvedKey{} = resolved} =
-        Providers.prepare_api_key(scope, "anthropic:claude-sonnet-4-5", skip_quota: true)
-
-      assert resolved.key_source == :server_key
-      assert resolved.api_key == "server_key_skip"
     end
 
     test "openrouter env key resolves correctly", %{scope: scope} do

@@ -119,7 +119,7 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
       # Let the stream start consuming
       Process.sleep(50)
 
-      # Kill the consumer (simulates Runtime.cancel)
+      # Simulates SwarmAi.cancel terminating the worker.
       Process.exit(consumer, :cancelled)
 
       # The linked cleanup process should catch the EXIT and call cancel_fn
@@ -292,16 +292,6 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
     end
   end
 
-  # ==========================================================================
-  # Integration tests: SwarmAi.LLM protocol → Response.from_stream pipeline
-  #
-  # These tests exercise StreamCleanup through the real production consumption
-  # path. CleanupTrackingLLM implements SwarmAi.LLM, wraps the chunk stream
-  # with StreamCleanup.wrap_stream (just like LLMClient does), and the stream
-  # is consumed via Response.from_stream/1 (the same Enum.reduce path used by
-  # SwarmAi.execute_llm_call).
-  # ==========================================================================
-
   describe "integration: SwarmAi.LLM protocol → Response.from_stream" do
     test "cancel_fn fires after normal stream consumption through Response.from_stream" do
       llm = %CleanupTrackingLLM{
@@ -342,14 +332,8 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
           Response.from_stream(stream)
         end)
 
-      # Wait until the stream is actively producing chunks (no fixed sleep)
       assert_receive :stream_started, 5_000
-
-      # Simulate Runtime.cancel/2 — the exact kill signal used in production
       Process.exit(consumer, :cancelled)
-
-      # Cleanup process catches the EXIT and calls cancel_fn
-      # Use a generous timeout to avoid CI flakiness under load
       assert_receive :cancel_called, 5_000
     end
 
@@ -372,9 +356,7 @@ defmodule FrontmanServer.Tasks.StreamCleanupTest do
       assert_receive :cancel_called, 500
     end
 
-    test "cancel_fn fires with Stream.each callback (mirrors execute_llm_call pipeline)" do
-      # In production, SwarmAi wraps the stream with Stream.each(on_chunk)
-      # before passing to Response.from_stream. Verify cleanup still works.
+    test "cancel_fn fires with Stream.each callback before Response.from_stream" do
       collected_chunks = :ets.new(:chunks, [:bag, :public])
 
       llm = %CleanupTrackingLLM{

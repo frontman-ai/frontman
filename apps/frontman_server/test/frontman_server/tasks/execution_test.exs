@@ -92,34 +92,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     {:ok, socket: socket}
   end
 
-  # -- Cancel (low-level) ----------------------------------------------------
-
-  describe "cancel_execution/2 (registry-level)" do
-    setup [:setup_sandbox]
-
-    test "kills a running agent and returns :ok" do
-      task_id = Ecto.UUID.generate()
-      test_pid = self()
-
-      runtime_registry = SwarmAi.Runtime.registry_name(FrontmanServer.AgentRuntime)
-
-      agent_pid =
-        spawn(fn ->
-          Registry.register(runtime_registry, {:running, task_id}, %{})
-          send(test_pid, :registered)
-          Process.sleep(:infinity)
-        end)
-
-      ref = Process.monitor(agent_pid)
-      assert_receive :registered, 1_000
-
-      assert SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
-      assert :ok = Tasks.cancel_execution(%Scope{}, task_id)
-
-      assert_receive {:DOWN, ^ref, :process, ^agent_pid, :cancelled}, 1_000
-    end
-  end
-
   # -- Cancel (end-to-end) ---------------------------------------------------
 
   describe "cancel_execution/2 (end-to-end)" do
@@ -135,12 +107,19 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         Tasks.submit_user_message(scope, task_id, user_content("Hello"), [])
 
       Process.sleep(100)
-      assert SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
+      assert Tasks.execution_running?(scope, task_id)
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
 
       assert_receive {:execution_event, %ExecutionEvent{type: :cancelled}}, 5_000
-      refute SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
+      refute Tasks.execution_running?(scope, task_id)
+    end
+
+    test "cancel and running checks respect task ownership", %{task_id: task_id} do
+      other_scope = user_scope_fixture()
+
+      refute Tasks.execution_running?(other_scope, task_id)
+      assert Tasks.cancel_execution(other_scope, task_id) == {:error, :not_found}
     end
   end
 
@@ -159,7 +138,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         Tasks.submit_user_message(scope, task_id, user_content("First"), [])
 
       Process.sleep(100)
-      assert SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
+      assert Tasks.execution_running?(scope, task_id)
 
       assert {:error, :already_running} =
                Tasks.submit_user_message(scope, task_id, user_content("Second"), [])
@@ -199,7 +178,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      refute SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id),
+      refute Tasks.execution_running?(scope, task_id),
              "Agent should not be running after completion"
 
       {:ok, _} =
@@ -338,7 +317,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       # Agent should still be running (blocking on receive)
       Process.sleep(200)
-      assert SwarmAi.Runtime.running?(FrontmanServer.AgentRuntime, task_id)
+      assert Tasks.execution_running?(scope, task_id)
 
       # Submit the tool result — this unblocks the agent
       answer = Jason.encode!(%{"answers" => [%{"answer" => "A"}]})
@@ -914,8 +893,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
 
-      # Provider returns {:error, reason} from stream_text/3 — caught inside
-      # execute_llm_call at line 468 → Loop.handle_error → {:failed, ...}
       expect_llm_responses([{:error, :llm_error}])
 
       {:ok, _} =

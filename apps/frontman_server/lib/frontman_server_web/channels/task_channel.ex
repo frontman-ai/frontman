@@ -21,7 +21,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry}
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.{Execution, ExecutionEvent, RetryCoordinator, Todos}
+  alias FrontmanServer.Tasks.{ExecutionEvent, RetryCoordinator, Todos}
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.ACPHistory
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
@@ -243,8 +243,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  # Agent failed to start (e.g. no API key, usage limit). Broadcast by
-  # Tasks.maybe_start_execution when Execution.run returns an error.
   def handle_info({:execution_start_error, msg}, socket) do
     finalize_turn(socket, {:error, msg, "unknown"}, nil)
   end
@@ -287,7 +285,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     pending_requests = socket.assigns[:pending_requests] || %{}
 
     for {_request_id, {:tool_call, tc}} <- pending_requests do
-      Execution.notify_tool_result(scope, tc.tool_call_id, "Client disconnected", true)
+      Tasks.notify_tool_result(scope, task_id, tc.tool_call_id, "Client disconnected", true)
     end
 
     # Cancel any running execution. Without the channel, MCP tool results
@@ -297,6 +295,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Tasks.cancel_execution(scope, task_id) do
       :ok -> Logger.info("Cancelled execution for task #{task_id} on channel termination")
       {:error, :not_running} -> :ok
+      {:error, :not_found} -> :ok
     end
 
     :ok
@@ -545,6 +544,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         else
           {:noreply, socket}
         end
+
+      {:error, :not_found} ->
+        {:noreply, socket}
     end
   end
 
@@ -795,7 +797,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
-    unless Execution.running?(scope, task_id) do
+    unless Tasks.execution_running?(scope, task_id) do
       Tasks.add_agent_retry(scope, task_id, retried_error_id)
       opts = socket.assigns[:last_execution_opts] || []
       mcp_tools = socket.assigns[:mcp_tools] || []

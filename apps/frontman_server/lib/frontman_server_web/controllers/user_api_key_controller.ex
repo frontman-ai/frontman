@@ -10,6 +10,15 @@ defmodule FrontmanServerWeb.UserApiKeyController do
   alias FrontmanServer.Providers
 
   @doc """
+  Lists saved provider API key metadata for the current user without exposing key values.
+  """
+  def index(conn, _params) do
+    scope = conn.assigns.current_scope
+
+    json(conn, %{"providers" => Providers.list_api_key_providers(scope)})
+  end
+
+  @doc """
   Stores a provider API key for the current user.
   """
   def create(conn, %{"provider" => provider, "key" => key}) do
@@ -24,20 +33,6 @@ defmodule FrontmanServerWeb.UserApiKeyController do
         |> put_status(:unprocessable_entity)
         |> json(%{status: "error", errors: translate_errors(changeset)})
     end
-  end
-
-  def usage(conn, params) do
-    scope = conn.assigns.current_scope
-    provider = params["provider"] || "openrouter"
-    status = Providers.get_usage_status(scope, provider)
-
-    json(conn, %{
-      "limit" => status.limit,
-      "used" => status.used,
-      "remaining" => status.remaining,
-      "hasUserKey" => status.has_user_key,
-      "hasServerKey" => status.has_server_key
-    })
   end
 
   defp translate_errors(changeset) do

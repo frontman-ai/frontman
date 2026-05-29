@@ -31,7 +31,6 @@ Our default is:
   - Export it from the owner boundary.
   - Add a one-way dependency from consumer boundary to owner boundary.
   - Keep function specs and pattern matches explicit.
-  - Record it in the "Public Contract Registry" below.
 
 4. No dependency cycles
 - Never create two-way boundary deps.
@@ -47,7 +46,6 @@ Our default is:
 
 - `FrontmanServer.Accounts.UserIdentity`
 - `FrontmanServer.Providers.ApiKey`
-- `FrontmanServer.Providers.UserKeyUsage`
 
 Consume these via top-level context APIs (for example `Accounts.scope_user_id/1`,
 `Accounts.get_user/1`, `Providers.to_llm_args/2`) until they are intentionally
@@ -61,5 +59,4 @@ Before merging changes that touch boundaries:
   better than exporting a contract?
 - If a struct is used across boundaries, is it exported intentionally?
 - Are boundary deps one-way and cycle-free?
-- Is the contract listed in the registry?
 - Did `mix compile --warnings-as-errors` and `MIX_ENV=test mix compile --warnings-as-errors` pass?

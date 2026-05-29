@@ -8,7 +8,7 @@ defmodule FrontmanServer.Providers.ResolvedKey do
   @moduledoc """
   A resolved connection to an LLM provider.
 
-  Created by `Providers.prepare_api_key/3` at the domain layer, this struct
+  Created by `Providers.prepare_api_key/2` at the domain layer, this struct
   encapsulates everything needed to talk to a specific model: credentials,
   provider-specific wiring (Codex endpoint, OAuth mode)
 

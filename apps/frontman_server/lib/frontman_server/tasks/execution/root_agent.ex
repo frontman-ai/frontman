@@ -6,95 +6,84 @@
 
 defmodule FrontmanServer.Tasks.Execution.RootAgent do
   @moduledoc """
-  The main coordinating agent that handles user requests.
-
-  This agent receives user messages, can use tools,
-  and coordinates the overall task execution. It implements the SwarmAi.Agent protocol
-  directly, owning its system prompt generation logic.
-
-  The system prompt is dynamically built based on context:
-  - Selected component information
-  - Framework-specific guidance
-
-  API key resolution happens at the domain layer (Tasks context) before this agent
-  is created. The resolved key is passed via `llm_opts[:api_key]`.
+  Runnable root agent for a task turn.
   """
 
   use TypedStruct
 
+  alias FrontmanServer.Accounts
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Frameworks
-  alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts}
+  alias FrontmanServer.Tasks.Task
+  alias FrontmanServer.Tools.MCP
 
-  typedstruct do
-    field(:tools, [SwarmAi.Tool.t()], default: [])
-    field(:has_annotations, boolean(), default: false)
-    field(:project_traits, [Frameworks.project_trait()], default: [])
-    field(:framework, Frameworks.t() | nil, default: nil)
-    # llm_opts must include :api_key (resolved at domain layer)
-    # May also include :with_claude_subscription for OAuth
-    field(:llm_opts, keyword(), default: [])
-    field(:model, String.t() | nil, default: nil)
-    # Discovered project rules (AGENTS.md, etc.) to append to system prompt
-    field(:project_rules, list(), default: [])
-    # Discovered project structure summary (from list_tree during MCP init)
-    field(:project_structure, String.t() | nil, default: nil)
+  typedstruct enforce: true do
+    field(:task, Task.t())
+    field(:scope, Accounts.scope())
+    field(:interaction_id, String.t() | nil)
+    field(:tools, [SwarmAi.Tool.t()])
+    field(:backend_tool_modules, [module()])
+    field(:mcp_tool_defs, [MCP.t()])
+    field(:project_traits, [Frameworks.project_trait()])
+    field(:model, String.t() | map())
+    field(:llm_opts, keyword())
   end
 
-  @doc """
-  Creates a new RootAgent.
+  @doc "Creates a runnable root agent."
+  @spec new(map()) :: t()
+  def new(%{task: %Task{}, scope: %Scope{}} = attrs), do: struct!(__MODULE__, attrs)
 
-  ## Options
-
-  - `:tools` - List of SwarmAi.Tool structs available to the agent
-  - `:has_annotations` - Whether the user has annotated elements in the UI
-  - `:project_traits` - Derived project traits for prompt guidance
-  - `:framework` - `Framework.t()` struct for framework-specific guidance
-  - `:llm_opts` - LLM options, must include `:api_key`. May include
-    `:with_claude_subscription` for OAuth transformations.
-  - `:model` - LLM model spec (defaults to LLMClient default)
-  - `:project_rules` - List of discovered project rules (AGENTS.md, etc.)
-  - `:project_structure` - Discovered project structure summary (from list_tree)
-  """
-  @spec new(keyword()) :: t()
-  def new(opts \\ []) do
-    %__MODULE__{
-      tools: Keyword.get(opts, :tools, []),
-      has_annotations: Keyword.get(opts, :has_annotations, false),
-      project_traits: Keyword.get(opts, :project_traits, []),
-      framework: Keyword.get(opts, :framework),
-      llm_opts: Keyword.get(opts, :llm_opts, []),
-      model: Keyword.get(opts, :model),
-      project_rules: Keyword.get(opts, :project_rules, []),
-      project_structure: Keyword.get(opts, :project_structure)
-    }
-  end
+  @doc "Returns the stable SwarmAi agent id for a task."
+  @spec id(Task.t()) :: String.t()
+  def id(%Task{task_id: task_id}) when is_binary(task_id), do: task_id
 end
 
 defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
-  alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts, RootAgent}
+  alias FrontmanServer.Frameworks
+  alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts, RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.Task
 
-  def system_prompt(%RootAgent{} = agent) do
-    # Build system prompt - always returns a string
-    # OAuth transformations (identity prepend, content splitting) are handled by LLMClient
+  def id(%RootAgent{task: %Task{} = task}), do: RootAgent.id(task)
+
+  def messages(%RootAgent{task: %Task{interactions: interactions}}) do
+    Interaction.to_swarm_messages(interactions)
+  end
+
+  def context(%RootAgent{scope: scope, interaction_id: interaction_id}) do
+    %{scope: scope, interaction_id: interaction_id}
+  end
+
+  def tool_executor(%RootAgent{scope: scope, task: task} = agent) do
+    ToolExecutor.make(scope, task.task_id, %{
+      backend_tool_modules: agent.backend_tool_modules,
+      mcp_tool_defs: agent.mcp_tool_defs,
+      execution_mode: Frameworks.tool_execution_mode(task.framework)
+    })
+  end
+
+  def system_prompt(%RootAgent{task: task} = agent) do
     Prompts.build(
-      has_annotations: agent.has_annotations,
+      has_annotations: Interaction.has_annotations?(task.interactions),
       project_traits: agent.project_traits,
-      framework: agent.framework,
-      project_rules: agent.project_rules,
-      project_structure: agent.project_structure
+      framework: task.framework,
+      project_rules: project_rules(task.interactions),
+      project_structure: project_structure(task.interactions)
     )
   end
 
   def llm(%RootAgent{} = agent) do
-    opts =
-      [
-        tools: agent.tools,
-        llm_opts: agent.llm_opts
-      ]
-      |> then(fn opts ->
-        if agent.model, do: Keyword.put(opts, :model, agent.model), else: opts
-      end)
+    LLMClient.new(tools: agent.tools, llm_opts: agent.llm_opts, model: agent.model)
+  end
 
-    LLMClient.new(opts)
+  defp project_rules(interactions) do
+    Enum.filter(interactions, &match?(%Interaction.DiscoveredProjectRule{}, &1))
+  end
+
+  defp project_structure(interactions) do
+    case Enum.find(interactions, &match?(%Interaction.DiscoveredProjectStructure{}, &1)) do
+      nil -> nil
+      struct -> struct.summary
+    end
   end
 end

@@ -479,7 +479,7 @@ describe("Task - Error Handling", () => {
     }
   })
 
-  test("AgentError emits NotifyTurnCompleted effect", t => {
+  test("AgentError emits no effects", t => {
     let task = TestHelpers.makeLoadedTask()
     let (_, effects) = TaskReducer.next(
       task,
@@ -490,11 +490,7 @@ describe("Task - Error Handling", () => {
       }),
     )
 
-    t->expect(Array.length(effects))->Expect.toBe(1)
-    switch effects->Array.get(0) {
-    | Some(TaskReducer.NotifyTurnCompleted) => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect(false)->Expect.toBe(true)
-    }
+    t->expect(Array.length(effects))->Expect.toBe(0)
   })
 
   test("ClearTurnError clears the turnError", t => {

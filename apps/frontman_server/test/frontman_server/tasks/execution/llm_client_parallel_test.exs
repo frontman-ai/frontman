@@ -6,6 +6,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientParallelTest do
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
 
+  @model "openrouter:openai/gpt-5.5"
+
   setup :verify_on_exit!
 
   describe "parallel_tool_calls" do
@@ -15,7 +17,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientParallelTest do
         {:ok, stream_response([])}
       end)
 
-      client = LLMClient.new(llm_opts: [api_key: "test-key"])
+      client = LLMClient.new(model: @model, llm_opts: [api_key: "test-key"])
       assert {:ok, _stream} = SwarmAi.LLM.stream(client, [SwarmAi.Message.user("Hello")], [])
     end
 
@@ -25,7 +27,12 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientParallelTest do
         {:ok, stream_response([])}
       end)
 
-      client = LLMClient.new(llm_opts: [api_key: "test-key", parallel_tool_calls: false])
+      client =
+        LLMClient.new(
+          model: @model,
+          llm_opts: [api_key: "test-key", parallel_tool_calls: false]
+        )
+
       assert {:ok, _stream} = SwarmAi.LLM.stream(client, [SwarmAi.Message.user("Hello")], [])
     end
   end

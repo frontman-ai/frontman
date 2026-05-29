@@ -3,7 +3,7 @@ defmodule SwarmAi.Loop.Runner do
   Pure functional loop runner. No side effects.
 
   Takes loop state in, returns updated loop + effects to execute.
-  The `SwarmAi` module interprets effects.
+  `SwarmAi.Executor` interprets effects.
 
   ## Flow
 
@@ -27,11 +27,6 @@ defmodule SwarmAi.Loop.Runner do
   Prepends the system prompt, starts the loop, and returns effects to call
   the LLM.
 
-  ## Example
-
-      {loop, effects} = Runner.start(loop, [Message.user("Hello")])
-      loop.status # => :running
-       effects     # => [{:call_llm, llm, messages}]
   """
   @spec start(Loop.t(), [Message.t()]) :: {Loop.t(), [Effect.t()]}
   def start(%Loop{status: :ready, agent: agent} = loop, user_messages)
@@ -64,7 +59,7 @@ defmodule SwarmAi.Loop.Runner do
   @spec handle_llm_response(Loop.t(), LLM.Response.t()) :: {Loop.t(), [Effect.t()]}
   def handle_llm_response(%Loop{status: :running} = loop, %LLM.Response{} = response) do
     cond do
-      response.finish_reason == :length and LLM.Response.has_tool_calls?(response) ->
+      truncated_tool_calls?(response) ->
         # Model hit max_tokens mid-tool-use — tool call JSON is truncated.
         # Fail immediately rather than executing a malformed tool call.
         handle_truncation_error(loop)
@@ -76,6 +71,12 @@ defmodule SwarmAi.Loop.Runner do
         handle_completion(loop, response)
     end
   end
+
+  defp truncated_tool_calls?(%LLM.Response{finish_reason: :length} = response) do
+    LLM.Response.has_tool_calls?(response)
+  end
+
+  defp truncated_tool_calls?(%LLM.Response{}), do: false
 
   defp handle_completion(loop, response) do
     loop = Loop.complete(loop, response)

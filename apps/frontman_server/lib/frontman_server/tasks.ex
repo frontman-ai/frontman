@@ -52,6 +52,7 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Tasks.{
     Execution,
+    Execution.RootAgent,
     Interaction,
     InteractionSchema,
     Task,
@@ -309,7 +310,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp guard_not_running(scope, task_id) do
-    if Execution.running?(scope, task_id), do: {:error, :already_running}, else: :ok
+    if execution_running?(scope, task_id), do: {:error, :already_running}, else: :ok
   end
 
   @doc """
@@ -442,9 +443,17 @@ defmodule FrontmanServer.Tasks do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- append_interaction(schema, interaction) do
-      executor_status = Execution.notify_tool_result(scope, tool_call_id, result, is_error)
+      executor_status = Execution.notify_tool_result(tool_call_id, result, is_error)
 
       {:ok, interaction, executor_status}
+    end
+  end
+
+  @spec notify_tool_result(Accounts.scope(), String.t(), String.t(), term(), boolean()) ::
+          :notified | :no_executor | {:error, :not_found}
+  def notify_tool_result(scope, task_id, tool_call_id, result, is_error) do
+    with {:ok, _schema} <- get_task_by_id(scope, task_id) do
+      Execution.notify_tool_result(tool_call_id, result, is_error)
     end
   end
 
@@ -455,9 +464,20 @@ defmodule FrontmanServer.Tasks do
 
   Verifies the task exists and belongs to the user before cancelling.
   """
-  @spec cancel_execution(Accounts.scope(), String.t()) :: :ok | {:error, :not_running}
+  @spec cancel_execution(Accounts.scope(), String.t()) ::
+          :ok | {:error, :not_found | :not_running}
   def cancel_execution(scope, task_id) do
-    Execution.cancel(scope, task_id)
+    with {:ok, task} <- get_task(scope, task_id) do
+      SwarmAi.cancel(FrontmanServer.AgentRuntime, RootAgent.id(task))
+    end
+  end
+
+  @spec execution_running?(Accounts.scope(), String.t()) :: boolean()
+  def execution_running?(scope, task_id) do
+    case get_task(scope, task_id) do
+      {:ok, task} -> SwarmAi.running?(FrontmanServer.AgentRuntime, RootAgent.id(task))
+      {:error, :not_found} -> false
+    end
   end
 
   # --- Title Generation ---
@@ -479,29 +499,32 @@ defmodule FrontmanServer.Tasks do
   Fetches the task and delegates to Execution.run.
   """
   @spec maybe_start_execution(Accounts.scope(), String.t(), list(), keyword()) ::
-          :ok | :already_running
+          :ok | :already_running | {:error, :not_found}
   def maybe_start_execution(scope, task_id, tools, opts) do
-    if Execution.running?(scope, task_id) do
-      :already_running
-    else
-      {:ok, task} = get_task(scope, task_id)
-
-      case Execution.run(scope, task, Keyword.merge([tools: tools], opts)) do
-        {:ok, _pid_or_already_running} ->
-          :ok
-
-        {:error, reason} ->
-          # Broadcast as :execution_start_error so TaskChannel can handle it.
-          # This is NOT a swarm_event (the agent never started), so we use a
-          # separate message shape to avoid double-wrapping.
-          Phoenix.PubSub.broadcast(
-            FrontmanServer.PubSub,
-            topic(task_id),
-            {:execution_start_error, Execution.error_message(scope, reason)}
-          )
-
-          :ok
+    with {:ok, task} <- get_task(scope, task_id) do
+      case SwarmAi.running?(FrontmanServer.AgentRuntime, RootAgent.id(task)) do
+        true -> :already_running
+        false -> run_execution(scope, task, tools, opts)
       end
+    end
+  end
+
+  defp run_execution(scope, task, tools, opts) do
+    case Execution.run(scope, task, Keyword.merge([tools: tools], opts)) do
+      {:ok, _pid_or_already_running} ->
+        :ok
+
+      {:error, reason} ->
+        # Broadcast as :execution_start_error so TaskChannel can handle it.
+        # This is NOT a swarm_event (the agent never started), so we use a
+        # separate message shape to avoid double-wrapping.
+        Phoenix.PubSub.broadcast(
+          FrontmanServer.PubSub,
+          topic(task.task_id),
+          {:execution_start_error, Execution.error_message(scope, reason)}
+        )
+
+        :ok
     end
   end
 

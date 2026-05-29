@@ -5,11 +5,11 @@ defmodule SwarmAi.Loop.RunnerTest do
   alias SwarmAi.Loop.{Config, Runner, Step}
 
   setup do
-    agent = test_agent(mock_llm("test"))
+    agent = test_execution(mock_llm("test"))
     config = %Config{max_steps: 10, timeout_ms: 60_000, step_timeout_ms: 120_000}
     loop = Loop.make(agent, config)
 
-    %{agent: agent, loop: loop}
+    %{loop: loop}
   end
 
   describe "Runner.start/2" do

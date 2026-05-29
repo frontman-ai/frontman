@@ -111,8 +111,8 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:api_with_session)
 
     get("/user/me", UserMeController, :show)
+    get("/user/api-keys", UserApiKeyController, :index)
     post("/user/api-keys", UserApiKeyController, :create)
-    get("/user/api-key-usage", UserApiKeyController, :usage)
 
     # Anthropic OAuth routes
     get("/oauth/anthropic/authorize-url", AnthropicOAuthController, :authorize_url)

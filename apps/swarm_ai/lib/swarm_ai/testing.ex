@@ -1,25 +1,28 @@
 defmodule SwarmAi.Testing do
   @moduledoc """
-  Test helpers for SwarmAi framework tests.
+  Test helpers for SwarmAi execution tests.
 
-  Provides common fixtures, agents, and LLM mocks for testing SwarmAi execution.
+  Provides common fixtures, agents, and LLM mocks.
 
   ## Usage
 
       use SwarmAi.Testing, async: true
 
-      @tag echo_agent: true
-      test "executes agent", %{echo_agent: agent} do
-        {:ok, result, _loop_id} = SwarmAi.run_blocking(agent, "Hello", fn _ -> {:ok, ""} end)
-        assert "Echo: Hello" = result
+      @tag echo_execution: true
+      test "runs agent", %{echo_execution: agent} do
+        runtime = MyRuntime
+        start_supervised!({SwarmAi, name: runtime})
+        agent = %{agent | id: "task", messages: "Hello"}
+        {:ok, pid} = SwarmAi.run(runtime, agent)
+        assert is_pid(pid)
       end
 
   ## Available fixtures
 
   All fixtures are opt-in via setup tags:
 
-  - `:echo_agent` - Agent with EchoLLM that echoes back messages
-  - `:error_agent` - Agent with ErrorLLM that returns errors
+  - `:echo_execution` - Agent with EchoLLM that echoes back messages
+  - `:error_execution` - Agent with ErrorLLM that returns errors
   - `:mock_llm` - Configurable MockLLM (use `mock_llm: response`)
   """
 
@@ -27,19 +30,29 @@ defmodule SwarmAi.Testing do
 
   alias SwarmAi.LLM
 
-  # --- Test Agents ---
-
   defmodule TestAgent do
     @moduledoc false
-    defstruct [:name, :llm]
+
+    @type t :: %__MODULE__{
+            id: String.t() | nil,
+            name: String.t() | nil,
+            llm: SwarmAi.LLM.t() | nil,
+            messages: SwarmAi.Message.input() | nil,
+            context: map() | nil,
+            tool_executor: SwarmAi.Agent.tool_executor() | nil
+          }
+
+    defstruct [:id, :name, :llm, :messages, :context, :tool_executor]
   end
 
   defimpl SwarmAi.Agent, for: SwarmAi.Testing.TestAgent do
+    def id(%{id: id}) when is_binary(id), do: id
+    def messages(%{messages: messages}), do: messages
+    def context(%{context: context}), do: context
+    def tool_executor(%{tool_executor: tool_executor}), do: tool_executor
     def system_prompt(%{name: name}), do: "You are #{name}"
     def llm(%{llm: llm}), do: llm
   end
-
-  # --- Test LLM Implementations ---
 
   defmodule MockLLM do
     @moduledoc """
@@ -52,6 +65,12 @@ defmodule SwarmAi.Testing do
     - `delay_ms: integer` - Adds delay before response
     - `model: string` - Model name for telemetry
     """
+    @type t :: %__MODULE__{
+            response: term(),
+            delay_ms: non_neg_integer(),
+            model: String.t()
+          }
+
     defstruct response: "default response", delay_ms: 0, model: "mock"
   end
 
@@ -215,7 +234,7 @@ defmodule SwarmAi.Testing do
               {[StreamChunk.text("chunk-#{count}")], count + 1}
 
             _count ->
-              # Hang forever — simulates a stalled provider
+              # Hang forever to simulate a stalled provider.
               Process.sleep(:infinity)
               {:halt, nil}
           end,
@@ -256,8 +275,6 @@ defmodule SwarmAi.Testing do
     end
   end
 
-  # --- Setup ---
-
   using do
     quote do
       import SwarmAi.Testing
@@ -279,13 +296,11 @@ defmodule SwarmAi.Testing do
     {:ok, fixtures}
   end
 
-  # --- Fixture Builders ---
-
   defp build_fixtures(context) do
     context
     |> maybe_add_mock_llm()
-    |> maybe_add_echo_agent()
-    |> maybe_add_error_agent()
+    |> maybe_add_echo_execution()
+    |> maybe_add_error_execution()
   end
 
   defp maybe_add_mock_llm(%{mock_llm: response} = context) when is_map(response) do
@@ -299,32 +314,74 @@ defmodule SwarmAi.Testing do
 
   defp maybe_add_mock_llm(context), do: context
 
-  defp maybe_add_echo_agent(%{echo_agent: true} = context) do
-    agent = %TestAgent{name: "EchoBot", llm: %EchoLLM{}}
-    Map.put(context, :echo_agent, agent)
+  defp maybe_add_echo_execution(%{echo_execution: true} = context) do
+    execution = test_execution(%EchoLLM{}, "EchoBot")
+    Map.put(context, :echo_execution, execution)
   end
 
-  defp maybe_add_echo_agent(context), do: context
+  defp maybe_add_echo_execution(context), do: context
 
-  defp maybe_add_error_agent(%{error_agent: error} = context) do
-    agent = %TestAgent{name: "ErrorBot", llm: %ErrorLLM{error: error}}
-    Map.put(context, :error_agent, agent)
+  defp maybe_add_error_execution(%{error_execution: error} = context) do
+    execution = test_execution(%ErrorLLM{error: error}, "ErrorBot")
+    Map.put(context, :error_execution, execution)
   end
 
-  defp maybe_add_error_agent(context), do: context
-
-  # --- Helper Functions ---
+  defp maybe_add_error_execution(context), do: context
 
   @doc """
-  Creates a test agent with the given LLM client.
+  Creates a test execution with the given LLM client.
   """
-  def test_agent(llm, name \\ "TestBot") do
-    %TestAgent{name: name, llm: llm}
+  @spec test_execution(SwarmAi.LLM.t(), String.t(), keyword()) :: TestAgent.t()
+  def test_execution(llm, name \\ "TestBot", opts \\ []) do
+    defaults = [
+      id: "task-#{:erlang.unique_integer([:positive])}",
+      name: name,
+      llm: llm,
+      messages: "Hello",
+      context: %{},
+      tool_executor: default_tool_executor()
+    ]
+
+    struct!(TestAgent, Keyword.merge(defaults, opts))
   end
+
+  @doc false
+  @spec default_tool_executor() :: SwarmAi.Agent.tool_executor()
+  def default_tool_executor do
+    tool_executor(fn tool_calls ->
+      Enum.map(tool_calls, fn tc ->
+        %SwarmAi.ToolExecution.Sync{
+          tool_call: tc,
+          timeout_ms: 5_000,
+          on_timeout_policy: :error,
+          run: {__MODULE__, :default_tool_run, []},
+          on_timeout: {__MODULE__, :default_tool_timeout, []}
+        }
+      end)
+    end)
+  end
+
+  @doc false
+  @spec tool_executor(
+          ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolExecution.t()]),
+          :parallel | :serial
+        ) :: SwarmAi.Agent.tool_executor()
+  def tool_executor(build, execution_mode \\ :parallel) when is_function(build, 1) do
+    %{build: build, execution_mode: execution_mode}
+  end
+
+  @doc false
+  @spec default_tool_run(SwarmAi.ToolCall.t()) :: SwarmAi.ToolResult.t()
+  def default_tool_run(tool_call), do: SwarmAi.ToolResult.make(tool_call.id, "done", false)
+
+  @doc false
+  @spec default_tool_timeout(SwarmAi.ToolCall.t(), term()) :: :ok
+  def default_tool_timeout(_tool_call, _reason), do: :ok
 
   @doc """
   Creates a mock LLM with the given response.
   """
+  @spec mock_llm(term(), keyword()) :: MockLLM.t()
   def mock_llm(response, opts \\ []) do
     struct!(MockLLM, [{:response, response} | opts])
   end
@@ -339,6 +396,11 @@ defmodule SwarmAi.Testing do
         {:complete, "Here's the result"}
       ])
   """
+  @spec multi_turn_llm([
+          {:tool_calls, [SwarmAi.ToolCall.t()], String.t()}
+          | {:complete, String.t()}
+          | {:error, term()}
+        ]) :: MockLLM.t()
   def multi_turn_llm(responses) do
     {:ok, agent} = Agent.start_link(fn -> responses end)
 
@@ -379,6 +441,7 @@ defmodule SwarmAi.Testing do
   @doc """
   Creates an LLM that returns tool calls on first call, then a final response.
   """
+  @spec tool_then_complete_llm([SwarmAi.ToolCall.t()], String.t()) :: MockLLM.t()
   def tool_then_complete_llm(tool_calls, final_response) do
     multi_turn_llm([
       {:tool_calls, tool_calls, "Calling tools..."},
@@ -394,6 +457,7 @@ defmodule SwarmAi.Testing do
       tool_call("get_weather", %{"city" => "NYC"})
       tool_call("list_files", %{}, id: "call_123")
   """
+  @spec tool_call(String.t(), map(), keyword()) :: SwarmAi.ToolCall.t()
   def tool_call(name, args \\ %{}, opts \\ []) do
     id = Keyword.get(opts, :id, "tc_#{:erlang.unique_integer([:positive])}")
 
@@ -415,6 +479,8 @@ defmodule SwarmAi.Testing do
       tool_result(tc, "Sunny, 22°C")
       tool_result("call_123", "Error: not found", true)
   """
+  @spec tool_result(SwarmAi.ToolCall.t() | String.t(), term(), boolean()) ::
+          SwarmAi.ToolResult.t()
   def tool_result(id_or_tool_call, content, is_error \\ false)
 
   def tool_result(%SwarmAi.ToolCall{id: id}, content, is_error) do

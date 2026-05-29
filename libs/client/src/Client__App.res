@@ -15,6 +15,7 @@ let make = (~apiBaseUrl: string) => {
 
   React.useEffect(() => {
     switch connectionState {
+    | Connecting => ()
     | Connected | SessionActive(_) =>
       Client__State.Actions.setAcpSession(
         ~sendPrompt,
@@ -25,7 +26,6 @@ let make = (~apiBaseUrl: string) => {
         ~apiBaseUrl,
       )
     | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
-    | _ => ()
     }
     None
   }, (connectionState, sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl))
@@ -45,10 +45,9 @@ let make = (~apiBaseUrl: string) => {
   let hasProviderConfigured = Client__State.useSelector(
     Client__State.Selectors.hasAnyProviderConfigured,
   )
-  let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
 
   // Trigger post-signup celebration when session becomes active for first time after signup
-  React.useEffect2(() => {
+  React.useEffect(() => {
     switch (connectionState, ftueState) {
     | (Connected | SessionActive(_), Client__FtueState.WelcomeShown) =>
       setShowCelebration(_ => true)
@@ -74,10 +73,8 @@ let make = (~apiBaseUrl: string) => {
     openSettingsProviders()
   }
 
-  // Provider nudge: show when FTUE is completed, no provider configured, and not dismissed this session.
-  // Gate on usageInfo being loaded (Some) to avoid flashing the nudge before provider status is fetched.
-  let showNudge = switch (ftueState, hasProviderConfigured, providerNudgeDismissed, usageInfo) {
-  | (Client__FtueState.Completed, false, false, Some(_)) => true
+  let showNudge = switch (ftueState, hasProviderConfigured, providerNudgeDismissed) {
+  | (Client__FtueState.Completed, false, false) => true
   | _ => false
   }
   let showProviderNudgeBubble = showNudge && !nudgeBubbleDismissed

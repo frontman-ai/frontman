@@ -21,81 +21,58 @@ end
 
 ## Quick Start
 
-### Define an Agent
+### Define an Agent and Run
 
-Agents are structs that implement the `SwarmAi.Agent` protocol:
+Agents own lifecycle identity and execution data. `id/1` must return a stable string.
 
 ```elixir
 defmodule MyAgent do
-  use TypedStruct
-
-  typedstruct do
-    field :model, String.t(), default: "gpt-4o"
-  end
+  defstruct [:id, :messages, :tool_executor, context: %{}, model: "gpt-4o"]
 
   defimpl SwarmAi.Agent do
+    def id(%{id: id}) when is_binary(id), do: id
+    def messages(agent), do: agent.messages
+    def context(agent), do: agent.context
+    def tool_executor(agent), do: agent.tool_executor
     def system_prompt(_agent), do: "You are a helpful assistant."
-    def init(_agent), do: {:ok, %{}, []}
-    def should_terminate?(_agent, _loop, _response), do: false
     def llm(agent), do: MyLLMClient.new(agent.model)
   end
 end
 ```
 
-### Blocking Execution
+### Supervised Execution
 
 ```elixir
-agent = %MyAgent{}
+children = [
+  {SwarmAi,
+   name: MyApp.AgentRuntime,
+   event_dispatcher: {MyApp.SwarmDispatcher, :dispatch, []}}
+]
 
-{:ok, result, loop_id} = SwarmAi.run_blocking(agent, "Hello!", fn tool_call ->
-  case tool_call.name do
-    "search" -> {:ok, "search results here"}
-    _ -> {:error, "unknown tool"}
-  end
-end)
-```
+agent = %MyAgent{
+  id: task_id,
+  messages: "Analyze this code",
+  context: %{task_id: task_id},
+  tool_executor: %{build: &build_tool_executions/1, execution_mode: :parallel}
+}
 
-### Streaming Execution
+{:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, agent)
 
-```elixir
-{:ok, result, loop_id} = SwarmAi.run_streaming(agent, "Analyze this code",
-  tool_executor: &execute_tool/1,
-  on_chunk: fn chunk -> IO.write(chunk.text || "") end,
-  on_response: fn response -> Logger.info("Response complete") end,
-  on_tool_call: fn tc -> Logger.info("Calling #{tc.name}") end
-)
-```
-
-### Manual Control
-
-For fine-grained control over tool execution:
-
-```elixir
-case SwarmAi.run(agent, "What's the weather?") do
-  {:completed, loop} ->
-    loop.result
-
-  {:tool_calls, loop, tool_calls} ->
-    results = Enum.map(tool_calls, &execute_tool/1)
-    SwarmAi.continue(loop, results)
-
-  {:error, loop} ->
-    {:error, loop.error}
-end
+SwarmAi.running?(MyApp.AgentRuntime, SwarmAi.Agent.id(agent))
+SwarmAi.cancel(MyApp.AgentRuntime, SwarmAi.Agent.id(agent))
 ```
 
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────────┐
-│            SwarmAi Module (Impure Shell)          │
-│  Interprets effects, makes LLM calls,            │
-│  executes tools, spawns child agents              │
+│            SwarmAi Public API                     │
+│  Supervised runs, cancellation, execution events  │
 └────────────────────────┬─────────────────────────┘
                          │ produces/consumes
                          ▼
 ┌──────────────────────────────────────────────────┐
-│        Loop + Runner (Pure Functional Core)       │
+│        Executor + Loop (Functional Core)          │
 │  State machine for agent execution,               │
 │  returns {loop, effects} tuples, no side effects  │
 └──────────────────────────────────────────────────┘
@@ -103,12 +80,11 @@ end
 
 ### Key Concepts
 
-- **Agent Protocol** - Define agents as structs implementing `SwarmAi.Agent` (system prompt, tools, LLM config, termination logic)
+- **Agent Protocol** - Define stable string identity, messages, dispatcher context, tool executor, system prompt, and LLM config
 - **LLM Protocol** - Bring your own LLM client by implementing `SwarmAi.LLM` (streaming interface)
 - **Effect System** - Pure functions produce effects (`{:call_llm, ...}`, `{:execute_tool, ...}`) instead of performing I/O directly
-- **Tool Execution** - Tools are pure data structures; execution is delegated to your `tool_executor` function
-- **Child Agents** - Tools can spawn sub-agents by returning `{:spawn, SpawnChildAgent.t()}`
-- **Telemetry** - Built-in `:telemetry` events for runs, steps, LLM calls, tool executions, and child spawns
+- **Tool Execution** - Tools are pure data structures; execution is delegated to the agent's `tool_executor`
+- **Telemetry** - Built-in `:telemetry` events for runs, steps, LLM calls, and tool executions
 
 ## Telemetry Events
 
@@ -120,7 +96,6 @@ SwarmAi emits telemetry under the `[:swarm_ai, ...]` prefix:
 | `[:swarm_ai, :step, :start\|:stop]` | Individual step within a run |
 | `[:swarm_ai, :llm, :call, :start\|:stop\|:exception]` | LLM API calls |
 | `[:swarm_ai, :tool, :execute, :start\|:stop\|:exception]` | Tool executions |
-| `[:swarm_ai, :child, :spawn, :start\|:stop\|:exception]` | Child agent spawns |
 
 ## License
 

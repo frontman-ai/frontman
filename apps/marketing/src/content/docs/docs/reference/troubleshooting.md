@@ -85,7 +85,7 @@ When Frontman is not working, these checks resolve most issues:
 2. If a question drawer is open, answer it (the run is intentionally paused).
 3. Cancel and retry once.
 4. Switch to a different model/provider if available.
-5. Check provider/key/quota status (see [API key, model, or quota errors](#api-key-model-or-quota-errors)).
+5. Check provider/key status (see [API key or model errors](#api-key-or-model-errors)).
 
 ---
 
@@ -154,21 +154,20 @@ When Frontman is not working, these checks resolve most issues:
 
 ---
 
-## API key, model, or quota errors
+## API key or model errors
 
 ### Symptoms
 - Run fails immediately before agent output.
-- Errors about invalid key, model unavailable, or quota exceeded.
+- Errors about invalid key or unavailable model.
 
 ### Likely causes
 - Missing/invalid user key.
 - Provider outage or model access restrictions.
-- Free-tier/server-key usage limit reached.
 
 ### Fix
 1. Re-check key configuration in user settings.
 2. Try another model/provider to isolate provider-specific failures.
-3. If using free tier, wait for quota reset or add your own API key.
+3. If using free tier, add your own API key to use more models.
 4. Re-run after updating credentials.
 5. Review [Models](/docs/reference/models/) and [Configuration](/docs/reference/configuration/) to confirm your selected provider/model is supported for your setup.
 

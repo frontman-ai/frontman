@@ -3,13 +3,6 @@ defmodule SwarmAi.TelemetryTest do
 
   alias SwarmAi.Telemetry.Events, as: TelemetryEvents
 
-  @moduledoc """
-  Tests for Swarm telemetry events.
-
-  Note: With the new SwarmAi.run/2 and SwarmAi.continue/2 API, tool execution
-  telemetry is the caller's responsibility since the caller controls tool execution.
-  """
-
   describe "Telemetry.Events.all/0" do
     test "returns all event names for handler attachment" do
       events = TelemetryEvents.all()
@@ -29,29 +22,29 @@ defmodule SwarmAi.TelemetryTest do
   describe "Telemetry span helpers" do
     test "run_span executes function and returns result" do
       result =
-        SwarmAi.Telemetry.run_span(%{loop_id: "test", agent_module: TestAgent}, fn ->
+        SwarmAi.Telemetry.run_span(%{loop_id: "test", execution_module: TestExecution}, fn ->
           {"my_result", %{loop_id: "test", status: :completed, step_count: 1}}
         end)
 
       assert result == "my_result"
     end
 
-    test "run_span stop event includes loop_id from callback return" do
-      # This test verifies that ConsoleHandler can access loop_id in stop events.
-      # The callback MUST return loop_id in its metadata because :telemetry.span/3
-      # does NOT merge start metadata with stop metadata.
+    test "run_span stop event includes callback metadata" do
       events =
         capture_telemetry(fn ->
-          SwarmAi.Telemetry.run_span(%{loop_id: "loop_123", agent_module: TestAgent}, fn ->
-            # The callback must include loop_id in return metadata
-            {"result", %{loop_id: "loop_123", status: :completed, step_count: 3}}
-          end)
+          SwarmAi.Telemetry.run_span(
+            %{loop_id: "loop_123", agent_id: "agent_123", execution_module: TestExecution},
+            fn ->
+              {"result",
+               %{agent_id: "agent_123", loop_id: "loop_123", status: :completed, step_count: 3}}
+            end
+          )
         end)
 
       assert_event(events, [:swarm_ai, :run, :stop], fn _measurements, metadata ->
-        # loop_id MUST be present for ConsoleHandler to work
         assert Map.has_key?(metadata, :loop_id), "stop event must include loop_id"
         assert metadata.loop_id == "loop_123"
+        assert metadata.agent_id == "agent_123"
         assert metadata.status == :completed
         assert metadata.step_count == 3
       end)
@@ -83,13 +76,14 @@ defmodule SwarmAi.TelemetryTest do
     test "run_start emits correct event" do
       events =
         capture_telemetry(fn ->
-          SwarmAi.Telemetry.run_start("loop_123", TestAgent)
+          SwarmAi.Telemetry.run_start("loop_123", TestExecution, agent_id: "agent_123")
         end)
 
       assert_event(events, [:swarm_ai, :run, :start], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
         assert metadata.loop_id == "loop_123"
-        assert metadata.agent_module == TestAgent
+        assert metadata.agent_id == "agent_123"
+        assert metadata.execution_module == TestExecution
       end)
     end
 
@@ -97,6 +91,7 @@ defmodule SwarmAi.TelemetryTest do
       events =
         capture_telemetry(fn ->
           SwarmAi.Telemetry.run_stop("loop_123",
+            agent_id: "agent_123",
             status: :completed,
             result: "done",
             step_count: 2
@@ -106,6 +101,7 @@ defmodule SwarmAi.TelemetryTest do
       assert_event(events, [:swarm_ai, :run, :stop], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
         assert metadata.loop_id == "loop_123"
+        assert metadata.agent_id == "agent_123"
         assert metadata.status == :completed
         assert metadata.result == "done"
         assert metadata.step_count == 2
@@ -174,46 +170,6 @@ defmodule SwarmAi.TelemetryTest do
     end
   end
 
-  describe "run_streaming telemetry - paused" do
-    test "step_count reflects steps completed before halt" do
-      llm =
-        multi_turn_llm([
-          {:tool_calls, [%SwarmAi.ToolCall{id: "tc_1", name: "step1", arguments: "{}"}],
-           "Step 1"},
-          {:tool_calls, [%SwarmAi.ToolCall{id: "tc_2", name: "interactive", arguments: "{}"}],
-           "Step 2"}
-        ])
-
-      agent = test_agent(llm)
-
-      call_count = :counters.new(1, [])
-
-      tool_executor = fn tool_calls ->
-        :counters.add(call_count, 1, 1)
-
-        if :counters.get(call_count, 1) == 1 do
-          Enum.map(tool_calls, fn tc -> ToolResult.make(tc.id, "ok", false) end)
-        else
-          [tc] = tool_calls
-          {:halt, {:pause_agent, tc.id, tc.name, 5_000}}
-        end
-      end
-
-      events =
-        capture_telemetry(fn ->
-          assert {:paused, _reason} =
-                   SwarmAi.run_streaming(agent, "Go", tool_executor: tool_executor)
-        end)
-
-      assert_event(events, [:swarm_ai, :run, :stop], fn _measurements, metadata ->
-        assert metadata.status == :paused
-        assert metadata.step_count == 2
-      end)
-    end
-  end
-
-  # --- Test Helpers ---
-
   defp capture_telemetry(fun) do
     events = :ets.new(:telemetry_events, [:bag, :public])
     handler_id = "test-handler-#{:erlang.unique_integer()}"
@@ -223,8 +179,7 @@ defmodule SwarmAi.TelemetryTest do
       handler_id,
       TelemetryEvents.all(),
       fn event, measurements, metadata, _config ->
-        # Only capture events emitted by the test process to avoid
-        # interference from concurrent async tests running SwarmAi.run/2
+        # Capture only current-process events to avoid async test interference.
         if self() == test_pid do
           :ets.insert(events, {event, measurements, metadata})
         end

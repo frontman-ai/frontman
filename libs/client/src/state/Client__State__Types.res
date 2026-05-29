@@ -55,13 +55,9 @@ type acpSession =
       apiBaseUrl: string,
     })
 
-// Usage info from API
 @schema
-type usageInfo = {
-  limit: option<int>,
-  remaining: option<int>,
-  hasUserKey: option<bool>,
-  hasServerKey: option<bool>,
+type userApiKeysResponse = {
+  providers: array<string>,
 }
 
 @schema
@@ -74,6 +70,7 @@ type userApiKeySaveRequest = {
 
 // API key source status for settings display
 type apiKeySource =
+  | Loading //Still loading
   | None // No key configured
   | FromEnv // Key loaded from environment variable
   | UserOverride // User has saved their own key (stored in DB)
@@ -151,7 +148,6 @@ type state = {
   currentTask: Task.currentTask,
   acpSession: acpSession,
   sessionInitialized: bool,
-  usageInfo: option<usageInfo>,
   userProfile: option<userProfile>,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,

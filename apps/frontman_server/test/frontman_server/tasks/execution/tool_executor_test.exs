@@ -143,16 +143,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end
   end
 
-  describe "make_executor/3 — execution descriptors" do
-    test "executor returns ToolExecution.Sync for backend tools", %{
+  describe "make/3 — execution descriptors" do
+    test "executor build returns ToolExecution.Sync for backend tools", %{
       scope: scope,
       task_id: task_id
     } do
       executor =
-        ToolExecutor.make_executor(scope, task_id,
+        ToolExecutor.make(scope, task_id, %{
           backend_tool_modules: [PauseOnTimeoutTool],
-          mcp_tool_defs: []
-        )
+          mcp_tool_defs: [],
+          execution_mode: :parallel
+        })
 
       tc = %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
@@ -160,7 +161,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         arguments: "{}"
       }
 
-      [execution] = executor.([tc])
+      [execution] = executor.build.([tc])
+      assert executor.execution_mode == :parallel
 
       assert %SwarmAi.ToolExecution.Sync{
                on_timeout_policy: :pause_agent,
@@ -168,7 +170,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
              } = execution
     end
 
-    test "executor returns ToolExecution.Await for MCP tools", %{
+    test "executor build returns ToolExecution.Await for MCP tools", %{
       scope: scope,
       task_id: task_id
     } do
@@ -181,10 +183,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       }
 
       executor =
-        ToolExecutor.make_executor(scope, task_id,
+        ToolExecutor.make(scope, task_id, %{
           backend_tool_modules: [],
-          mcp_tool_defs: [pause_mcp_def]
-        )
+          mcp_tool_defs: [pause_mcp_def],
+          execution_mode: :serial
+        })
 
       tc = %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
@@ -192,7 +195,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         arguments: "{}"
       }
 
-      [execution] = executor.([tc])
+      [execution] = executor.build.([tc])
+      assert executor.execution_mode == :serial
 
       assert %SwarmAi.ToolExecution.Await{
                on_timeout_policy: :pause_agent,

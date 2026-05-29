@@ -24,6 +24,7 @@ let apiKeyPlaceholder = (source, emptyText) =>
   switch source {
   | Types.UserOverride => "Key saved - enter new key to replace"
   | Types.FromEnv => "Using environment key - enter key to override"
+  | Types.Loading => "Checking key status..."
   | Types.None => emptyText
   }
 
@@ -56,6 +57,7 @@ let renderSourceBadge = (source: Types.apiKeySource) =>
   switch source {
   | Types.UserOverride => renderBadge(~label="User key", ~tone=Blue)
   | Types.FromEnv => renderBadge(~label="From environment", ~tone=Emerald)
+  | Types.Loading => renderBadge(~label="Checking...", ~tone=Amber)
   | Types.None => renderBadge(~label="Not configured", ~tone=Zinc)
   }
 
@@ -164,9 +166,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   React.useEffect2(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
-      State.Actions.fetchAnthropicApiKeySettings()
-      State.Actions.fetchFireworksApiKeySettings()
-      State.Actions.fetchNvidiaApiKeySettings()
       State.Actions.fetchAnthropicOAuthStatus()
       State.Actions.fetchChatGPTOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()

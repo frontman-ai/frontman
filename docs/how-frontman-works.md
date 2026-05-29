@@ -10,7 +10,7 @@ This document explains how the system works, starting from the big picture and d
 
 - [The Big Picture](#the-big-picture)
 - [What Happens When You Send a Prompt](#what-happens-when-you-send-a-prompt)
-- [The Three Protocols](#the-three-protocols)
+- [Protocol Layers](#protocol-layers)
 - [Server Architecture](#server-architecture)
 - [Client Architecture](#client-architecture)
 - [The Agentic Loop](#the-agentic-loop)
@@ -78,11 +78,11 @@ The server figures out which API key and model to use based on a priority chain:
 | 1st | OAuth token | If you've connected your Anthropic or OpenAI account directly |
 | 2nd | Your API key | A key you've saved in your Frontman settings |
 | 3rd | Environment key | A key from your project's environment (e.g., `.env`) |
-| 4th | Server key | Frontman's built-in free tier (limited to 10 runs/day) |
+| 4th | Server key | Frontman's built-in free tier model access |
 
 ### 3. The agent loop begins
 
-The server builds an agent configuration (system prompt, available tools, conversation history) and submits it to the **SwarmAi Runtime** — a supervised process that manages the LLM conversation loop.
+The server builds a root agent run (system prompt, available tools, conversation history) and submits it to **SwarmAi** for supervised execution.
 
 ### 4. The LLM responds
 
@@ -105,7 +105,7 @@ Steps 4-5 repeat until the LLM decides it's done (returns a `turn_complete` sign
 
 ---
 
-## The Three Protocols
+## Protocol Layers
 
 All communication uses **JSON-RPC 2.0** as the wire format. On top of that, two application protocols handle different concerns:
 
@@ -158,14 +158,15 @@ All long-lived processes are supervised — if one crashes, it restarts automati
 
 ```
 Application
+├── Telemetry               Phoenix metrics
 ├── Repo                    PostgreSQL connection pool
 ├── Vault                   Encryption for API keys and tokens
-├── SwarmAi.Runtime         Agent execution engine
+├── DNSCluster              Distributed node discovery
+├── PubSub                  Phoenix broadcasts
+├── SwarmAi                 Agent execution engine
 ├── ToolCallRegistry        Routes tool results to waiting executors
 ├── Oban                    Background jobs (emails, title generation)
-├── Task.Supervisor         Ad-hoc concurrent work
-├── Endpoint                HTTP + WebSocket server
-└── Discord notifier        Production alerts (optional)
+└── Endpoint                HTTP + WebSocket server
 ```
 
 ### Domain Contexts
@@ -176,8 +177,8 @@ The server code is organized into bounded contexts, each owning a specific domai
 |---------|-------------|
 | **Accounts** | User registration, authentication (email/password, GitHub, Google via WorkOS), session management |
 | **Tasks** | Conversation sessions and their interactions. Each "task" is a conversation thread. Interactions are stored as typed JSONB documents (user messages, agent responses, tool calls, tool results). |
-| **Execution** | Orchestrates agent runs. Builds the agent config, submits to SwarmAi Runtime, routes tool calls, persists results. |
-| **Providers** | API key resolution, OAuth token management, model catalog, usage quota tracking. |
+| **Execution** | Orchestrates agent runs. Builds root agent runs, submits to SwarmAi, routes tool calls, persists results. |
+| **Providers** | API key resolution, OAuth token management, and model catalog data. |
 | **Tools** | Tool registry. Knows which tools exist, whether they run on the server or browser, and how to convert them for the LLM. |
 | **Organizations** | Team workspaces and membership roles. |
 
@@ -282,7 +283,7 @@ Runner.handle_tool_result(loop, result)
   → {loop, []}  (still waiting for other tools)
 ```
 
-The Runner is a pure state machine — it takes state and an event, returns new state and a list of effects to execute. The Runtime interprets those effects (actually calling the LLM, running tools, dispatching events).
+The Runner is a pure state machine — it takes state and an event, returns new state and a list of effects to execute. `SwarmAi.Executor` interprets those effects (calling the LLM and running tools); `ExecutionRunner` handles lifecycle dispatch.
 
 ### Loop State
 
@@ -294,10 +295,10 @@ Each agent run tracks:
 
 ### Lifecycle Management
 
-The Runtime supervises execution:
-- Each agent run is a supervised Task process
+SwarmAi supervises execution:
+- Each agent run is a supervised `ExecutionWorker`
 - A linked "death watcher" process detects crashes vs. cancellations
-- Duplicate runs for the same task are prevented via Registry
+- Duplicate runs for the same task are prevented via the runtime Registry
 - Cancellation kills the process and dispatches a clean `:cancelled` event
 
 ---
@@ -308,7 +309,7 @@ When the LLM requests a tool call, the **ToolExecutor** routes it:
 
 ### Backend tools (server-side)
 
-Executed directly in the Runtime process. Currently includes todo list management tools. The executor:
+Executed in supervised tasks. Currently includes todo list management tools. The executor:
 1. Looks up the tool module
 2. Parses JSON arguments
 3. Calls `module.execute(args, context)`

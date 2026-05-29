@@ -13,7 +13,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 module Icons = FrontmanBindings.Bindings__RadixUI__Icons
 module Message = Client__State__Types.Message
-module RuntimeConfig = Client__RuntimeConfig
 
 // Import Frontman UI components
 module UserMessage = Client__UserMessage
@@ -63,10 +62,9 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
         switch item {
         | ToolGroupTypes.SingleTool(tc) =>
           // Check if it's a TODO tool - render with special component
-          if TodoUtils.isTodoTool(tc.toolName) {
-            result->Array.push(TodoToolCall(tc))
-          } else {
-            result->Array.push(SingleToolCall(tc))
+          switch TodoUtils.isTodoTool(tc.toolName) {
+          | true => result->Array.push(TodoToolCall(tc))
+          | false => result->Array.push(SingleToolCall(tc))
           }
         | ToolGroupTypes.ToolGroup(group) => result->Array.push(ToolGroup(group))
         }
@@ -111,12 +109,8 @@ let make = () => {
   let lastErrorId = Client__State.useSelector(Client__State.Selectors.lastErrorId)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
-  let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
-  let hasProviderConfigured = Client__State.useSelector(
-    Client__State.Selectors.hasAnyProviderConfigured,
-  )
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -124,20 +118,11 @@ let make = () => {
   let hasEnrichingAnnotations = Client__State.useSelector(
     Client__State.Selectors.hasEnrichingAnnotations,
   )
-  let runtimeConfig = RuntimeConfig.read()
-  let hasEnvKey = RuntimeConfig.hasAnyProviderKey(runtimeConfig)
-  let hasAnyKey = hasProviderConfigured || hasEnvKey
-
   let modelConfigOption =
     configOptions->Option.flatMap(opts =>
       FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.findConfigOptionByCategory(opts, Model)
     )
   let isModelsConfigLoading = configOptions->Option.isNone
-
-  let isUsageExhausted = switch (usageInfo, hasAnyKey) {
-  | (Some({remaining: Some(remaining), hasServerKey: Some(true)}), false) if remaining <= 0 => true
-  | _ => false
-  }
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
@@ -394,16 +379,13 @@ let make = () => {
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
-        {
-          // Show loading indicator while initializing
-          if !sessionInitialized {
-            <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
-              <span className="shimmer-text"> {React.string("Loading project context...")} </span>
-            </div>
-          } else {
-            React.null
-          }
-        }
+        {switch sessionInitialized {
+        | true => React.null
+        | false =>
+          <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
+            <span className="shimmer-text"> {React.string("Loading project context...")} </span>
+          </div>
+        }}
 
         // Render grouped messages
         {displayItems
@@ -435,15 +417,6 @@ let make = () => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
-    {switch (usageInfo, hasAnyKey) {
-    | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
-      <div className="px-4 pb-1 text-xs text-zinc-400 shrink-0">
-        {React.string(
-          `Free requests remaining: ${remaining->Int.toString} / ${limit->Int.toString}. Add your API key in Settings to remove limits.`,
-        )}
-      </div>
-    | _ => React.null
-    }}
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {
@@ -458,8 +431,6 @@ let make = () => {
           onModelChange={value => Client__State.Actions.setSelectedModelValue(~value)}
           isAgentRunning
           hasActiveACPSession
-          disabled={isUsageExhausted}
-          disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
           isSelecting={webPreviewIsSelecting}
           hasAnnotations

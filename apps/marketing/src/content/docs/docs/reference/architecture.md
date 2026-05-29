@@ -120,7 +120,7 @@ The Phoenix application is responsible for orchestration, persistence, session m
 - Accept ACP and MCP messages over WebSocket channels.
 - Resolve model/provider credentials.
 - Build agent execution context.
-- Submit work to the `SwarmAi.Runtime`.
+- Submit work to `SwarmAi`.
 - Route tool calls to the correct execution environment.
 - Persist interactions and broadcast updates.
 - Expose authenticated HTTP endpoints for settings, OAuth, and token exchange.
@@ -129,12 +129,12 @@ The Phoenix application is responsible for orchestration, persistence, session m
 
 | Component | Responsibility |
 | --- | --- |
-| `SwarmAi.Runtime` | Runs the agent loop and coordinates LLM interactions |
+| `SwarmAi` | Runs the agent loop and coordinates LLM interactions |
 | `TaskChannel` | Handles per-task prompt traffic, tool routing, and streamed updates |
 | `TasksChannel` | Handles task listing, creation, deletion, and session initialization |
 | `ToolCallRegistry` | Tracks pending client-executed tool calls and resolves waiting processes |
 | `SwarmDispatcher` | Persists interactions and broadcasts them through PubSub |
-| `Providers` | Resolves API keys, OAuth tokens, usage limits, and model catalog data |
+| `Providers` | Resolves API keys, OAuth tokens, and model catalog data |
 | `Repo` | Stores tasks, interactions, credentials, identities, and organizations |
 
 ### Session and transport layer

@@ -1,6 +1,6 @@
 defmodule SwarmAi.Loop do
   @moduledoc """
-  Represents an agentic execution loop as an explicit, inspectable data structure.
+  Represents an agent loop as an explicit, inspectable data structure.
 
   The loop continues until a termination condition is met:
   - No more tool calls (LLM responds without requesting tools)
@@ -24,8 +24,6 @@ defmodule SwarmAi.Loop do
     field(:config, Config.t(), enforce: true)
     field(:result, term())
     field(:error, term())
-    field(:parent_id, SwarmAi.Id.t())
-    field(:parent_step, pos_integer())
     field(:metadata, map(), default: %{})
   end
 
@@ -49,35 +47,6 @@ defmodule SwarmAi.Loop do
       config: config,
       result: nil,
       error: nil,
-      parent_id: nil,
-      parent_step: nil,
-      metadata: metadata
-    }
-  end
-
-  @doc """
-  Creates a child loop linked to a parent.
-
-  The child inherits metadata from the parent loop by default.
-  Additional metadata can be passed via opts to merge or override.
-  """
-  @spec make_child(SwarmAi.Agent.t(), Config.t(), t(), keyword()) :: t()
-  def make_child(agent, %Config{} = config, parent_loop, opts \\ []) do
-    child_metadata = Keyword.get(opts, :metadata, %{})
-    # Merge parent metadata with child metadata (child overrides)
-    metadata = Map.merge(parent_loop.metadata, child_metadata)
-
-    %__MODULE__{
-      id: SwarmAi.Id.generate("loop"),
-      agent: agent,
-      status: :ready,
-      steps: [],
-      current_step: 0,
-      config: config,
-      result: nil,
-      error: nil,
-      parent_id: parent_loop.id,
-      parent_step: parent_loop.current_step,
       metadata: metadata
     }
   end

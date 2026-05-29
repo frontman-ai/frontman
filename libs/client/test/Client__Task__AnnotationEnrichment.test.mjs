@@ -68,6 +68,7 @@ function makeMockElement() {
 	return {
 		tagName: "BUTTON",
 		getAttribute: () => "btn-submit primary",
+		closest: () => null,
 		// WebAPI.Element.asNode -> textContent
 		textContent: "Submit",
 		// getBoundingClientRect
@@ -80,13 +81,20 @@ function makeMockElement() {
 	};
 }
 
+function makeMockDocument() {
+	return {
+		documentElement: {},
+		querySelector: () => null,
+	};
+}
+
 /** Create the FetchAnnotationDetails effect object matching ReScript's compiled shape */
 function makeEffect(overrides = {}) {
 	return {
 		TAG: "FetchAnnotationDetails",
 		id: "ann-test-1",
 		element: makeMockElement(),
-		document: undefined,
+		document: makeMockDocument(),
 		contentWindow: undefined, // None → source detection gets Ok(None)
 		...overrides,
 	};

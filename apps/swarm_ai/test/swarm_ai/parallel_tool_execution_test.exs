@@ -54,8 +54,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           {:complete, "All done"}
         ])
 
-      agent = test_agent(llm)
-
       # Collects :ready from all `total` tasks before releasing any.
       # If tools run sequentially, task 1 blocks on receive :go forever,
       # task 2 never starts, coordinator never gets total signals → timeout.
@@ -87,7 +85,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       end
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-parallel", agent, "Do work", tool_executor: executor)
+        run_execution(runtime, "task-parallel", llm, tool_executor: tool_executor(executor))
 
       assert_receive :all_concurrent, 5_000
       await_exit(pid)
@@ -106,8 +104,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
            ], "Running..."},
           {:complete, "Handled"}
         ])
-
-      agent = test_agent(llm)
 
       executor = fn tool_calls ->
         Enum.map(tool_calls, fn tc ->
@@ -128,7 +124,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       end
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-crash", agent, "Do work", tool_executor: executor)
+        run_execution(runtime, "task-crash", llm, tool_executor: tool_executor(executor))
 
       await_exit(pid)
       assert_receive {:test_event, "task-crash", {:completed, {:ok, "Handled", _}}, _}, 2_000
@@ -148,8 +144,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           {:complete, "All done"}
         ])
 
-      agent = test_agent(llm)
-
       executor = fn tool_calls ->
         Enum.map(tool_calls, fn tc ->
           %ToolExecution.Sync{
@@ -163,9 +157,8 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       end
 
       {:ok, pid} =
-        SwarmAi.Runtime.run(runtime, "task-serial", agent, "Do work",
-          tool_executor: executor,
-          tool_execution_mode: :serial
+        run_execution(runtime, "task-serial", llm,
+          tool_executor: tool_executor(executor, :serial)
         )
 
       assert_receive {:serial_started, "t1", first_pid}, 1_000
@@ -183,8 +176,8 @@ defmodule SwarmAi.ParallelToolExecutionTest do
   # --- Helpers ---
 
   defmodule TestDispatcher do
-    def dispatch(test_pid, key, event, metadata) do
-      send(test_pid, {:test_event, key, event, metadata})
+    def dispatch(test_pid, key, event, context) do
+      send(test_pid, {:test_event, key, event, context})
     end
   end
 
@@ -193,10 +186,21 @@ defmodule SwarmAi.ParallelToolExecutionTest do
     test_pid = self()
 
     start_supervised!(
-      {SwarmAi.Runtime, name: name, event_dispatcher: {TestDispatcher, :dispatch, [test_pid]}}
+      {SwarmAi, name: name, event_dispatcher: {TestDispatcher, :dispatch, [test_pid]}}
     )
 
     name
+  end
+
+  defp run_execution(runtime, id, llm, opts) do
+    agent =
+      test_execution(
+        llm,
+        "TestBot",
+        Keyword.merge([id: id, messages: "Do work"], opts)
+      )
+
+    SwarmAi.run(runtime, agent)
   end
 
   defp await_exit(pid) do

@@ -2,7 +2,7 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
   @moduledoc """
   Domain event emitted during task execution.
 
-  Wraps raw SwarmAi runtime events with causation context — which user
+  Wraps raw SwarmAi execution events with causation context — which user
   interaction triggered this execution. The SwarmDispatcher acts as an
   Anti-Corruption Layer, translating infrastructure events into these
   domain events before broadcasting on PubSub.

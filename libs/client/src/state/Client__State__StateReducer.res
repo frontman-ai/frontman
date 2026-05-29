@@ -51,10 +51,8 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
-  // Usage info actions
-  | UsageInfoReceived({usageInfo: Client__State__Types.usageInfo})
   // API key settings actions
-  | FetchApiKeySettings({provider: apiKeyProvider})
+  | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
   | SaveApiKey({provider: apiKeyProvider, key: string})
   | ApiKeySaveStarted({provider: apiKeyProvider})
@@ -103,8 +101,7 @@ type action =
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
-  | FetchUsageInfo({apiBaseUrl: string})
-  | FetchApiKeySettingsEffect({apiBaseUrl: string, provider: apiKeyProvider})
+  | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   // Anthropic OAuth effects
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
@@ -122,6 +119,7 @@ type effect =
   | LoadTaskEffect({taskId: string})
   // Update check effect
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
+  | IdentifyUserInAnalyticsEffect(Client__State__Types.userProfile)
 
 // ============================================================================
 // Lens helpers for state updates
@@ -188,12 +186,7 @@ let apiKeyProviderId = provider =>
   | Nvidia => "nvidia"
   }
 
-let apiKeyUsagePath = provider =>
-  switch provider {
-  | OpenRouter => "/api/user/api-key-usage"
-  | Anthropic | Fireworks | Nvidia =>
-    `/api/user/api-key-usage?provider=${apiKeyProviderId(provider)}`
-  }
+let apiKeyProviders: array<apiKeyProvider> = [OpenRouter, Anthropic, Fireworks, Nvidia]
 
 let apiKeyRuntimeKey = provider => `${apiKeyProviderId(provider)}KeyValue`
 
@@ -220,7 +213,7 @@ let markApiKeySaved = (state, provider) =>
 let hasApiKeySource = (source: Client__State__Types.apiKeySource) =>
   switch source {
   | UserOverride | FromEnv => true
-  | Client__State__Types.None => false
+  | Loading | Client__State__Types.None => false
   }
 
 let defaultState: state = {
@@ -228,7 +221,6 @@ let defaultState: state = {
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   acpSession: NoAcpSession,
   sessionInitialized: false,
-  usageInfo: None,
   userProfile: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
@@ -388,11 +380,6 @@ module Selectors = {
     state.sessionInitialized
   }
 
-  // Get usage info
-  let usageInfo = (state: state): option<Client__State__Types.usageInfo> => {
-    state.usageInfo
-  }
-
   // Get user profile
   let userProfile = (state: state): option<Client__State__Types.userProfile> => {
     state.userProfile
@@ -463,22 +450,17 @@ module Selectors = {
     }
   }
 
-  // Whether the user has any API provider configured via state-tracked sources plus OAuth.
-  // Env-injected keys (window.__frontmanRuntime) live outside state — check RuntimeConfig separately.
   let hasAnyProviderConfigured = (state: state): bool => {
-    switch state.usageInfo {
-    | Some({hasUserKey: Some(true)}) => true
+    switch state.anthropicOAuthStatus {
+    | Connected(_) => true
     | _ =>
-      switch state.anthropicOAuthStatus {
-      | Connected(_) => true
+      switch state.chatgptOAuthStatus {
+      | ChatGPTConnected(_) => true
       | _ =>
-        switch state.chatgptOAuthStatus {
-        | ChatGPTConnected(_) => true
-        | _ =>
-          hasApiKeySource(state.nvidiaKeySettings.source) ||
-          hasApiKeySource(state.fireworksKeySettings.source) ||
-          hasApiKeySource(state.anthropicKeySettings.source)
-        }
+        hasApiKeySource(state.openrouterKeySettings.source) ||
+        hasApiKeySource(state.nvidiaKeySettings.source) ||
+        hasApiKeySource(state.fireworksKeySettings.source) ||
+        hasApiKeySource(state.anthropicKeySettings.source)
       }
     }
   }
@@ -545,7 +527,6 @@ let sendMessageToAPIImpl = (
     let additionalBlocks =
       Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
 
-    // Include runtime config _meta (e.g., framework, openrouterKeyValue) with each prompt
     let runtimeConfig = Client__RuntimeConfig.read()
     let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
 
@@ -556,7 +537,7 @@ let sendMessageToAPIImpl = (
       | Some(dict) =>
         let newDict = dict->Dict.copy
         newDict->Dict.set("model", JSON.Encode.string(modelValue))
-        Some(newDict->Obj.magic)
+        Some(JSON.Encode.object(newDict))
       | None => Some(baseMeta)
       }
     | None => Some(baseMeta)
@@ -581,24 +562,6 @@ let sendMessageToAPIImpl = (
   }
 }
 
-let fetchUsageInfoImpl = (dispatch, ~apiBaseUrl) => {
-  let fetch = async () => {
-    let url = `${apiBaseUrl}/api/user/api-key-usage`
-
-    try {
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
-        dispatch(UsageInfoReceived({usageInfo: usageInfo}))
-      }
-    } catch {
-    | exn => Log.error(~error=JsExn.fromException(exn), "FetchUsageInfo failed")
-    }
-  }
-  fetch()->ignore
-}
-
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/me`
@@ -617,21 +580,14 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   fetch()->ignore
 }
 
-let deriveApiKeySource = (
-  ~usageInfo: Client__State__Types.usageInfo,
-  ~hasEnvKey,
-  ~logContext,
-): option<Client__State__Types.apiKeySource> => {
-  switch usageInfo.hasUserKey {
-  | Some(true) => Some(UserOverride)
-  | Some(false) =>
+let deriveApiKeySource = (~hasUserKey, ~hasEnvKey): Client__State__Types.apiKeySource => {
+  switch hasUserKey {
+  | true => UserOverride
+  | false =>
     switch hasEnvKey {
-    | true => Some(FromEnv)
-    | false => Some(Client__State__Types.None)
+    | true => FromEnv
+    | false => Client__State__Types.None
     }
-  | None =>
-    Log.error(`${logContext}: missing hasUserKey in API key usage response`)
-    None
   }
 }
 
@@ -646,26 +602,31 @@ let encodeUserApiKeySaveRequest = (~provider, ~key) => {
 let jsonContentHeaders = () =>
   WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
 
-let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider) => {
+let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
-    let logContext = `FetchApiKeySettings(${apiKeyProviderId(provider)})`
-    let url = `${apiBaseUrl}${apiKeyUsagePath(provider)}`
+    let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
       let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
-        let usageInfo = S.parseJsonOrThrow(json, Client__State__Types.usageInfoSchema)
+        let apiKeysResponse = S.parseJsonOrThrow(
+          json,
+          Client__State__Types.userApiKeysResponseSchema,
+        )
         let runtimeConfig = Client__RuntimeConfig.read()
-        let hasEnvKey = hasRuntimeApiKey(runtimeConfig, provider)
 
-        switch deriveApiKeySource(~usageInfo, ~hasEnvKey, ~logContext) {
-        | Some(source) => dispatch(ApiKeySettingsReceived({provider, source}))
-        | None => ()
-        }
+        apiKeyProviders->Array.forEach(provider => {
+          let providerId = apiKeyProviderId(provider)
+          let hasUserKey = apiKeysResponse.providers->Array.includes(providerId)
+          let hasEnvKey = hasRuntimeApiKey(runtimeConfig, provider)
+          let source = deriveApiKeySource(~hasUserKey, ~hasEnvKey)
+
+          dispatch(ApiKeySettingsReceived({provider, source}))
+        })
       }
     } catch {
-    | exn => Log.error(~error=JsExn.fromException(exn), `${logContext} failed`)
+    | exn => Log.error(~error=JsExn.fromException(exn), "FetchApiKeySettings failed")
     }
   }
   fetch()->ignore
@@ -711,7 +672,6 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
 
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
-  | FetchUsageInfo({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       // Resolve taskId for dispatching task actions back
@@ -734,11 +694,6 @@ let handleEffect = (effect, state: state, dispatch) => {
             }
           }
           sendMessageToAPIImpl(state, dispatch, ~message=text, ~attachments, ~annotations, ~taskId)
-        | NeedUsageRefresh =>
-          switch state.acpSession {
-          | AcpSessionActive({apiBaseUrl}) => fetchUsageInfoImpl(dispatch, ~apiBaseUrl)
-          | NoAcpSession => ()
-          }
         | NeedCancelPrompt =>
           switch state.acpSession {
           | AcpSessionActive({cancelPrompt}) => cancelPrompt()
@@ -754,8 +709,7 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
     }
-  | FetchApiKeySettingsEffect({apiBaseUrl, provider}) =>
-    fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl, ~provider)
+  | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
     saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
@@ -1091,6 +1045,12 @@ let handleEffect = (effect, state: state, dispatch) => {
         TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
       )
     }
+  | IdentifyUserInAnalyticsEffect(userProfile) =>
+    Client__Heap.identify(userProfile.id)
+    Client__Heap.addUserProperties({
+      "Email": userProfile.email,
+      "Name": userProfile.name->Option.getOr(""),
+    })
   | CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage}) =>
     let fetch = async () => {
       try {
@@ -1287,7 +1247,7 @@ let next = (state: state, action) => {
       sessionInitialized: true,
     }->StateReducer.update(
       ~sideEffects=[
-        FetchUsageInfo({apiBaseUrl: apiBaseUrl}),
+        FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
         FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
         FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
         FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
@@ -1317,24 +1277,16 @@ let next = (state: state, action) => {
   // Global state actions
   // ============================================================================
 
-  | UsageInfoReceived({usageInfo}) =>
-    // Update usage info in state
-    {...state, usageInfo: Some(usageInfo)}->StateReducer.update
-
-  | UserProfileReceived({userProfile}) =>
-    // Identify user in Heap Analytics
-    Client__Heap.identify(userProfile.id)
-    Client__Heap.addUserProperties({
-      "Email": userProfile.email,
-      "Name": userProfile.name->Option.getOr(""),
-    })
-    {...state, userProfile: Some(userProfile)}->StateReducer.update
-
+  | UserProfileReceived({userProfile: {id, email, name}}) =>
+    let userProfile: Client__State__Types.userProfile = {id, email, name}
+    {...state, userProfile: Some(userProfile)}->StateReducer.update(
+      ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
+    )
   // API key settings actions
-  | FetchApiKeySettings({provider}) =>
+  | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl, provider})])
+      state->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
     | NoAcpSession => state->StateReducer.update
     }
 
@@ -1358,14 +1310,9 @@ let next = (state: state, action) => {
     state->setApiKeySaveStatus(provider, Saving)->StateReducer.update
 
   | ApiKeySaved({provider}) =>
-    // After saving the API key, refresh usage info.
     // Config options will be pushed by the server via config_option_update notification.
     // pendingProviderAutoSelect was already set in SaveApiKey.
-    let effects = switch (provider, state.acpSession) {
-    | (OpenRouter, AcpSessionActive({apiBaseUrl})) => [FetchUsageInfo({apiBaseUrl: apiBaseUrl})]
-    | _ => []
-    }
-    state->markApiKeySaved(provider)->StateReducer.update(~sideEffects=effects)
+    state->markApiKeySaved(provider)->StateReducer.update
 
   | ApiKeySaveError({provider, error}) =>
     let state = state->setApiKeySaveStatus(provider, SaveError(error))

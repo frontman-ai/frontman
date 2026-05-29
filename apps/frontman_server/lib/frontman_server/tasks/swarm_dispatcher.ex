@@ -6,14 +6,14 @@
 
 defmodule FrontmanServer.Tasks.SwarmDispatcher do
   @moduledoc """
-  Bridges SwarmAi Runtime events to persistence and Phoenix PubSub.
+  Bridges SwarmAi events to persistence and Phoenix PubSub.
 
-  Configured as the `event_dispatcher` MFA for `SwarmAi.Runtime`.
+  Configured as the `event_dispatcher` MFA for `SwarmAi`.
 
   ## Persist-then-broadcast
 
   All agent lifecycle events are **persisted to the database first** (from the
-  Runtime Task process), then broadcast on PubSub for real-time UI updates.
+  SwarmAi task process), then broadcast on PubSub for real-time UI updates.
 
   This ensures data survives client disconnects — the channel process is only
   needed for live pushes, never for persistence.
@@ -23,16 +23,16 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Observability.TelemetryEvents
-  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.ExecutionEvent
 
-  def dispatch(key, event, metadata) do
-    scope = Map.get(metadata, :scope)
+  @spec dispatch(term(), {atom(), term()}, map()) :: :ok | {:error, term()}
+  def dispatch(key, event, context) do
+    scope = Map.get(context, :scope)
     task_id = to_string(key)
 
-    # 1. Persist (runs in the Runtime Task process — channel-independent)
-    persist(scope, task_id, event, metadata)
+    # 1. Persist (runs in the SwarmAi task process — channel-independent)
+    persist(scope, task_id, event)
 
     # 2. Broadcast as a domain event (ACL boundary).
     topic = Tasks.topic(task_id)
@@ -41,7 +41,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
     domain_event = %ExecutionEvent{
       type: type,
       payload: payload,
-      caused_by: metadata[:interaction_id]
+      caused_by: context[:interaction_id]
     }
 
     Phoenix.PubSub.broadcast(FrontmanServer.PubSub, topic, {:execution_event, domain_event})
@@ -52,26 +52,24 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   # Scope may be nil for recovered processes after a monitor restart.
   # In that case we can only broadcast, not persist — but the data was
   # likely already persisted before the restart.
-  defp persist(nil, _task_id, _event, _metadata), do: :ok
+  defp persist(nil, _task_id, _event), do: :ok
 
   # Agent produced a response (may include tool calls in metadata).
   # Previously this only happened inside the channel's handle_info.
-  defp persist(%Scope{} = scope, task_id, {:response, response}, _metadata) do
+  defp persist(%Scope{} = scope, task_id, {:response, response}) do
     metadata = response_metadata(response)
     Tasks.add_agent_response(scope, task_id, response.content || "", metadata)
   end
 
   # Agent turn completed successfully.
-  defp persist(%Scope{} = scope, task_id, {:completed, {:ok, _result, loop_id}}, metadata) do
-    resolved_key = Map.get(metadata, :resolved_key)
-    if resolved_key, do: Providers.record_usage(scope, resolved_key)
+  defp persist(%Scope{} = scope, task_id, {:completed, {:ok, _result, loop_id}}) do
     Tasks.add_agent_completed(scope, task_id)
     Logger.debug("Execution completed for task #{task_id}, loop_id: #{loop_id}")
     TelemetryEvents.task_stop(task_id)
   end
 
   # Agent turn failed (LLM error, tool error, etc.)
-  defp persist(%Scope{} = scope, task_id, {:failed, {:error, reason, loop_id}}, _metadata) do
+  defp persist(%Scope{} = scope, task_id, {:failed, {:error, reason, loop_id}}) do
     {reason_str, category, retryable} = ExecutionEvent.classify_error(reason)
 
     metadata = [
@@ -91,8 +89,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   defp persist(
          %Scope{} = scope,
          task_id,
-         {:crashed, %{reason: reason, stacktrace: stacktrace}},
-         _metadata
+         {:crashed, %{reason: reason, stacktrace: stacktrace}}
        ) do
     metadata = [
       crash_reason: {reason, stacktrace},
@@ -116,7 +113,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   end
 
   # Agent was cancelled (user requested cancel).
-  defp persist(%Scope{} = scope, task_id, {:cancelled, _}, _metadata) do
+  defp persist(%Scope{} = scope, task_id, {:cancelled, _}) do
     Tasks.add_agent_error(scope, task_id, "Cancelled", "cancelled", false, "unknown")
     TelemetryEvents.task_stop(task_id)
   end
@@ -124,7 +121,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   # Agent was terminated by supervisor (e.g. :rest_for_one restart).
   # Not a crash (nothing broke) and not a cancellation (user didn't ask).
   # No Sentry alert — this is infrastructure recovery, not a bug.
-  defp persist(%Scope{} = scope, task_id, {:terminated, _}, _metadata) do
+  defp persist(%Scope{} = scope, task_id, {:terminated, _}) do
     Logger.info("Execution terminated by supervisor for task #{task_id}")
     Tasks.add_agent_error(scope, task_id, "Terminated by supervisor", "terminated")
     TelemetryEvents.task_stop(task_id)
@@ -136,8 +133,7 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   defp persist(
          %Scope{} = scope,
          task_id,
-         {:paused, {:timeout, tool_call_id, tool_name, timeout_ms}},
-         _metadata
+         {:paused, {:timeout, tool_call_id, tool_name, timeout_ms}}
        ) do
     reason = "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)"
     Tasks.add_tool_result(scope, task_id, %{id: tool_call_id, name: tool_name}, reason, true)
@@ -146,10 +142,10 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   end
 
   # Streaming chunks — ephemeral, no persistence needed.
-  defp persist(_scope, _task_id, {:chunk, _}, _metadata), do: :ok
+  defp persist(_scope, _task_id, {:chunk, _}), do: :ok
 
   # Tool call announced — already persisted by ToolExecutor directly.
-  defp persist(_scope, _task_id, {:tool_call, _}, _metadata), do: :ok
+  defp persist(_scope, _task_id, {:tool_call, _}), do: :ok
 
   # --- Helpers ---
 

@@ -1,6 +1,6 @@
 defmodule SwarmAi.Loop.Step do
   @moduledoc """
-  Represents a single step in the agentic loop.
+  Represents a single step in the execution loop.
 
   Each step tracks one LLM iteration:
   - `input_messages` - Messages sent TO the LLM (system, user, assistant messages)

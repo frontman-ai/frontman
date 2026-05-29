@@ -17,7 +17,7 @@ defmodule SwarmAi.MixProject do
       docs: docs(),
       name: "SwarmAi",
       description:
-        "A simple agentic loop for Elixir. Bring your own LLM and tools, get streaming, tool execution, child agents, and telemetry out of the box.",
+        "An execution loop for Elixir with bring-your-own LLMs, tools, streaming, and telemetry.",
       source_url: @source_url,
       dialyzer: [
         plt_add_apps: [:mix],

@@ -8,7 +8,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @moduledoc """
   Builds `ToolExecution` descriptions for both backend and MCP tools.
 
-  `make_executor/3` returns a single function `[ToolCall.t()] -> [ToolExecution.t()]`.
+  `make/3` returns `%{build: fun, execution_mode: mode}`.
   `SwarmAi.ParallelExecutor` is the sole execution authority — this module only
   describes how tools should run.
 
@@ -38,21 +38,26 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias SwarmAi.ToolExecution
 
   @doc """
-  Returns an executor function for use with `SwarmAi.ParallelExecutor`.
+  Returns a tool executor config for use with `SwarmAi.ParallelExecutor`.
 
-  The returned function maps `[ToolCall.t()]` to `[ToolExecution.t()]`.
+  The `:build` function maps `[ToolCall.t()]` to `[ToolExecution.t()]`.
 
   ## Options
 
   - `:backend_tool_modules` - List of backend tool modules (required)
   - `:mcp_tool_defs` - List of `FrontmanServer.Tools.MCP.t()` with timeout/policy (required)
+  - `:execution_mode` - `:parallel` or `:serial` (required)
   """
-  @spec make_executor(Accounts.scope(), String.t(), keyword()) ::
-          ([SwarmAi.ToolCall.t()] -> [ToolExecution.Sync.t() | ToolExecution.Await.t()])
-  def make_executor(%Scope{} = scope, task_id, opts) do
+  @spec make(Accounts.scope(), String.t(), map()) :: SwarmAi.Agent.tool_executor()
+  def make(%Scope{} = scope, task_id, opts) when is_map(opts) do
     exec_opts = build_exec_opts(opts)
 
-    fn tool_calls -> Enum.map(tool_calls, &build_execution(&1, scope, task_id, exec_opts)) end
+    %{
+      build: fn tool_calls ->
+        Enum.map(tool_calls, &build_execution(&1, scope, task_id, exec_opts))
+      end,
+      execution_mode: Map.fetch!(opts, :execution_mode)
+    }
   end
 
   defp build_execution(tool_call, scope, task_id, exec_opts) do
@@ -164,11 +169,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp build_exec_opts(opts) do
-    backend_tool_modules = Keyword.fetch!(opts, :backend_tool_modules)
+    backend_tool_modules = Map.fetch!(opts, :backend_tool_modules)
 
     %{
       backend_module_map: Map.new(backend_tool_modules, &{&1.name(), &1}),
-      mcp_tool_defs: Keyword.fetch!(opts, :mcp_tool_defs)
+      mcp_tool_defs: Map.fetch!(opts, :mcp_tool_defs)
     }
   end
 

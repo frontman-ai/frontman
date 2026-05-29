@@ -67,12 +67,12 @@ Client                          Server                          LLM Provider
 
 **Sequence:**
 1. `TaskChannel.handle_in("acp:message")` receives prompt
-2. `Providers.prepare_api_key` resolves key (user → env → server, with quota check)
-3. `Execution.build_agent` assembles prompt template, model config, tool list
-4. `Execution.submit_to_runtime` submits to `SwarmAi.Runtime`
-5. Runtime calls LLM via `ReqLLM` (custom Req wrapper), receives response
-6. `ToolExecutor.make_executor` routes tool calls:
-   - Backend tools → `ToolExecution.Sync`: executed in Runtime process (todo list, web_fetch)
+2. `Providers.prepare_api_key` resolves key (user → env → server)
+3. `Execution.run` builds a root agent run from prompt, model config, and tools
+4. `SwarmAi.run(runtime, agent)` starts supervised execution
+5. SwarmAi calls LLM via `ReqLLM` (custom Req wrapper), receives response
+6. `ToolExecutor.make` routes tool calls:
+   - Backend tools → `ToolExecution.Sync`: executed in supervised tasks (todo list, web_fetch)
    - MCP tools → `ToolExecution.Await`: registered in `ToolCallRegistry`, published to client via channel, executor blocks until Registry receives result
 7. `SwarmDispatcher` persists each interaction to PostgreSQL, then broadcasts via PubSub
 8. Channel pushes events to client for UI rendering
@@ -103,14 +103,15 @@ The Frontman server has no direct filesystem access. All file operations execute
 
 ```
 Application
+├── Telemetry
 ├── Repo (PostgreSQL connection pool)
 ├── Vault (Cloak encryption)
-├── SwarmAi.Runtime (named: FrontmanServer.AgentRuntime)
+├── DNSCluster
+├── Phoenix.PubSub (FrontmanServer.PubSub)
+├── SwarmAi (named: FrontmanServer.AgentRuntime)
 ├── Registry (FrontmanServer.ToolCallRegistry)
 ├── Oban (background jobs)
-├── Task.Supervisor
-├── Endpoint (HTTP/WebSocket)
-└── Discord notifier (prod-only, PG LISTEN/NOTIFY)
+└── Endpoint (HTTP/WebSocket)
 ```
 
 ### Contexts
@@ -120,7 +121,7 @@ Application
 | Accounts | User, UserToken, UserIdentity | Registration, session tokens, OAuth (WorkOS for GitHub/Google), email verification |
 | Tasks | Task, Interaction | CRUD for conversation sessions, interaction storage (JSONB), PubSub topics |
 | Execution | Execution, SwarmDispatcher, ToolExecutor | Agent run orchestration, prompt building, tool routing, result notification |
-| Providers | ApiKey, OauthToken, UserKeyUsage, ModelCatalog | Key resolution hierarchy, usage quota tracking, OAuth token management, model catalog |
+| Providers | ApiKey, OauthToken, ModelCatalog | Key resolution hierarchy, OAuth token management, model catalog |
 | Tools | Backend, ToolExecutor | Tool registry, backend implementations (TodoList/Add/Update/Remove), MCP aggregation |
 | Organizations | Organization, Membership | Team workspaces, membership roles |
 
@@ -135,7 +136,6 @@ Application
 | api_keys | user_id, provider, key (encrypted binary via Cloak) |
 | user_identities | user_id, provider, provider_uid |
 | oauth_tokens | user_id, provider, access_token (encrypted), metadata |
-| user_key_usages | user_id, provider, usage_count |
 | organizations | id, name, slug, owner_id |
 | memberships | user_id, organization_id, role |
 
@@ -149,7 +149,6 @@ Interactions are typed domain events persisted as JSONB:
 |------|---------|
 | UserMessage | User sends text/images/annotations |
 | AgentResponse | LLM produced text chunks |
-| AgentSpawned | Agent process started |
 | AgentCompleted | Agent turn succeeded |
 | AgentError | LLM/tool/runtime error |
 | AgentPaused | Tool timeout (on_timeout: :pause_agent) |
@@ -184,12 +183,12 @@ Wire format: JSON-RPC 2.0. Event types: `"acp:message"`, `"mcp:message"`. No cat
 Priority order:
 1. User API key (encrypted in DB)
 2. Environment API key (passed from client)
-3. Server API key (from config, free tier — 10-run quota per user tracked in `user_key_usages`)
+3. Server API key (from config, free tier model access)
 
 ### Model Catalog
 
-Providers: OpenRouter (full + free tier), Anthropic (direct), OpenAI (direct).
-Defaults: Gemini 3 Flash (OpenRouter free), Claude Sonnet 4.5 (Anthropic), GPT-5.4 (OpenAI).
+Providers: OpenRouter (full + free tier), Anthropic, Fireworks, NVIDIA, OpenAI.
+Defaults: Gemini 3 Flash (OpenRouter free), Claude Sonnet 4.5 (Anthropic), Kimi K2.5 Turbo (Fireworks), Kimi K2.6 (NVIDIA), GPT-5.5 (OpenAI).
 Tier logic: full tier = user has own key; free tier = server key with limited model selection.
 
 ### Routes
@@ -225,7 +224,6 @@ state = {
   currentTask: New(...) | Selected(taskId)
   acpSession: acpSession callbacks
   sessionInitialized: bool
-  usageInfo: option<usageInfo>
   userProfile: option<userProfile>
   openrouterKeySettings / anthropicKeySettings: apiKeySettings
   anthropicOAuthStatus / chatgptOAuthStatus: OAuth state machines

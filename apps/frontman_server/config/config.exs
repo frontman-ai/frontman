@@ -30,9 +30,6 @@ config :req_llm,
     pools: %{
       :default => [
         protocols: [:http1],
-        # 1 connection per pool × 32 pools = 32 concurrent connections.
-        # Increased from default count: 8 to prevent pool exhaustion under
-        # concurrent agent executions + title generation.
         size: 1,
         count: 32
       ]
@@ -42,8 +39,6 @@ config :req_llm,
 config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
-  # Default usage limit for server-provided API keys
-  user_key_usage_limit: 10,
   # Max time to wait for the next LLM stream chunk before declaring a stall.
   # Anthropic ping keepalives now flow through as meta chunks, resetting this
   # timer during long-thinking requests (see issue #731).

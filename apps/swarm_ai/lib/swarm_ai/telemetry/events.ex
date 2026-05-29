@@ -11,47 +11,52 @@ defmodule SwarmAi.Telemetry.Events do
   [:swarm_ai, :run, :start/:stop/:exception]
   └── [:swarm_ai, :step, :start/:stop/:exception]
       ├── [:swarm_ai, :llm, :call, :start/:stop/:exception]
-      ├── [:swarm_ai, :tool, :execute, :start/:stop/:exception]
-      └── [:swarm_ai, :child, :spawn, :start/:stop/:exception]
+      └── [:swarm_ai, :tool, :execute, :start/:stop/:exception]
   ```
   """
 
   @prefix [:swarm_ai]
+  @type t :: [atom()]
 
-  @doc "Event: agent run started."
+  @doc "Event: execution run started."
+  @spec run_start() :: t()
   def run_start, do: @prefix ++ [:run, :start]
-  @doc "Event: agent run stopped."
+  @doc "Event: execution run stopped."
+  @spec run_stop() :: t()
   def run_stop, do: @prefix ++ [:run, :stop]
-  @doc "Event: agent run raised an exception."
+  @doc "Event: execution run raised an exception."
+  @spec run_exception() :: t()
   def run_exception, do: @prefix ++ [:run, :exception]
 
   @doc "Event: execution step started."
+  @spec step_start() :: t()
   def step_start, do: @prefix ++ [:step, :start]
   @doc "Event: execution step stopped."
+  @spec step_stop() :: t()
   def step_stop, do: @prefix ++ [:step, :stop]
   @doc "Event: execution step raised an exception."
+  @spec step_exception() :: t()
   def step_exception, do: @prefix ++ [:step, :exception]
 
   @doc "Event: LLM call started."
+  @spec llm_call_start() :: t()
   def llm_call_start, do: @prefix ++ [:llm, :call, :start]
   @doc "Event: LLM call stopped."
+  @spec llm_call_stop() :: t()
   def llm_call_stop, do: @prefix ++ [:llm, :call, :stop]
   @doc "Event: LLM call raised an exception."
+  @spec llm_call_exception() :: t()
   def llm_call_exception, do: @prefix ++ [:llm, :call, :exception]
 
   @doc "Event: tool execution started."
+  @spec tool_execute_start() :: t()
   def tool_execute_start, do: @prefix ++ [:tool, :execute, :start]
   @doc "Event: tool execution stopped."
+  @spec tool_execute_stop() :: t()
   def tool_execute_stop, do: @prefix ++ [:tool, :execute, :stop]
   @doc "Event: tool execution raised an exception."
+  @spec tool_execute_exception() :: t()
   def tool_execute_exception, do: @prefix ++ [:tool, :execute, :exception]
-
-  @doc "Event: child agent spawn started."
-  def child_spawn_start, do: @prefix ++ [:child, :spawn, :start]
-  @doc "Event: child agent spawn stopped."
-  def child_spawn_stop, do: @prefix ++ [:child, :spawn, :stop]
-  @doc "Event: child agent spawn raised an exception."
-  def child_spawn_exception, do: @prefix ++ [:child, :spawn, :exception]
 
   @doc """
   Returns all event names for handler attachment.
@@ -60,6 +65,7 @@ defmodule SwarmAi.Telemetry.Events do
 
       :telemetry.attach_many("my-handler", SwarmAi.Telemetry.Events.all(), &handler/4, nil)
   """
+  @spec all() :: [t()]
   def all do
     [
       run_start(),
@@ -73,10 +79,7 @@ defmodule SwarmAi.Telemetry.Events do
       llm_call_exception(),
       tool_execute_start(),
       tool_execute_stop(),
-      tool_execute_exception(),
-      child_spawn_start(),
-      child_spawn_stop(),
-      child_spawn_exception()
+      tool_execute_exception()
     ]
   end
 end

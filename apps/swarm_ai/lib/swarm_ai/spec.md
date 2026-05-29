@@ -4,7 +4,7 @@
 
 ## Summary
 
-The `swarm_ai` package implements a **functional core, imperative shell** architecture for executing AI agent loops. It orchestrates LLM interactions, tool execution, and parent-child agent spawning through a pure functional state machine that produces **effects** (instructions for side effects) which are interpreted by an impure execution layer.
+The `swarm_ai` package implements a **functional core, imperative shell** architecture for executing AI loops. It orchestrates LLM interactions and tool execution through a pure functional state machine that produces **effects** (instructions for side effects) which are interpreted by an impure execution layer.
 
 ---
 
@@ -12,11 +12,10 @@ The `swarm_ai` package implements a **functional core, imperative shell** archit
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                          Swarm Module (Impure Shell)                │
+│                          SwarmAi Module (Impure Shell)              │
 │   - Interprets effects                                              │
 │   - Makes LLM API calls                                             │
 │   - Executes tools                                                  │
-│   - Spawns child agents                                             │
 └────────────────────────────────────┬────────────────────────────────┘
                                      │ produces/consumes
                                      ▼
@@ -32,30 +31,29 @@ The `swarm_ai` package implements a **functional core, imperative shell** archit
 
 ## Core Components
 
-### 1. Agent Protocol (`agent.ex`)
+### Agent Protocol (`agent.ex`)
 
-Defines the contract for all agents via the `SwarmAi.Agent` protocol:
+Defines runnable agent data via the `SwarmAi.Agent` protocol:
 
 | Function | Purpose |
 |----------|---------|
+| `id/1` | Returns stable string identity for lifecycle operations |
+| `messages/1` | Returns input messages for this run |
+| `context/1` | Returns dispatcher-only app context |
+| `tool_executor/1` | Returns tool execution builder and mode |
 | `system_prompt/1` | Returns the system prompt string |
-| `init/1` | Initializes agent state and returns tools |
-| `should_terminate?/3` | Custom termination logic |
 | `llm/1` | Returns the LLM client configuration |
 
-Agents are structs that implement this protocol. Any struct can become an agent using `@derive SwarmAi.Agent`.
-
-### 2. Loop State Machine (`loop.ex`, `loop/`)
+### Loop State Machine (`loop.ex`, `loop/`)
 
 The `SwarmAi.Loop` struct tracks execution state:
 
 | Field | Purpose |
 |-------|---------|
 | `id` | UUIDv7-based unique identifier |
-| `agent` | The agent being executed |
-| `status` | `:ready`, `:running`, `:waiting_for_tools`, `:completed`, `:failed`, `:max_steps` |
+| `agent` | The agent being run |
+| `status` | `:ready`, `:running`, `:waiting_for_tools`, `:completed`, `:failed`, `:paused`, `:max_steps` |
 | `steps` | History of all execution steps |
-| `parent_id` | Parent loop ID for child agents |
 
 **Status Transitions:**
 ```
@@ -63,17 +61,15 @@ The `SwarmAi.Loop` struct tracks execution state:
                                                        ↘ :failed
 ```
 
-### 3. Runner (`loop/runner.ex`)
+### Runner (`loop/runner.ex`)
 
 Pure functional module that produces effects without performing side effects:
 
 ```elixir
-# Example: Starting a loop returns effects, not side effects
 {loop, effects} = Runner.start(loop, messages)
-# effects = [{:emit_event, Started}, {:call_llm, llm, messages}]
 ```
 
-### 4. Effect System (`effect.ex`)
+### Effect System (`effect.ex`)
 
 Effects are tagged tuples representing instructions:
 
@@ -81,12 +77,11 @@ Effects are tagged tuples representing instructions:
 |--------|--------|
 | `{:call_llm, llm, messages}` | Make an LLM API call |
 | `{:execute_tool, tool_call}` | Execute a tool |
-| `{:emit_event, event}` | Emit a domain event |
 | `{:step_ended, step}` | A step completed |
 | `{:complete, result}` | Loop finished successfully |
 | `{:fail, error}` | Loop failed |
 
-### 5. LLM Integration (`llm.ex`, `llm/`)
+### LLM Integration (`llm.ex`, `llm/`)
 
 Protocol-based streaming interface:
 
@@ -98,7 +93,7 @@ Protocol-based streaming interface:
 
 Production implementations should implement this protocol to support their preferred LLM providers.
 
-### 6. Message System (`message.ex`, `message/`)
+### Message System (`message.ex`, `message/`)
 
 Messages have roles (`:system`, `:user`, `:assistant`, `:tool`) and multi-modal content:
 
@@ -112,53 +107,48 @@ Message.tool_result("search", "call_123", [ContentPart.text("Results here")])
 
 Content parts support `:text`, `:image` (binary data), and `:image_url`.
 
-### 7. Tool System (`tool.ex`, `tool_call.ex`, `tool_result.ex`)
+### Tool System (`tool.ex`, `tool_call.ex`, `tool_result.ex`)
 
 Tools are pure data structures describing interfaces:
 
 ```elixir
-Tool.new("search", "Search the web", %{"query" => %{"type" => "string"}})
+Tool.new(
+  name: "search",
+  description: "Search the web",
+  parameter_schema: %{"query" => %{"type" => "string"}},
+  timeout_ms: 30_000,
+  on_timeout: :error
+)
 ```
 
-Tool execution is delegated to external executors:
+Agents return execution descriptors for SwarmAi to run:
 ```elixir
-@type tool_executor :: (ToolCall.t() -> {:ok, String.t()} | {:error, String.t()} | {:spawn, SpawnChildAgent.t()})
+@type tool_executor :: %{
+  build: ([ToolCall.t()] -> [ToolExecution.t()]),
+  execution_mode: :parallel | :serial
+}
 ```
 
-### 8. Child Agent Spawning (`spawn_child_agent.ex`, `child_result.ex`)
-
-Agents can spawn children by returning `{:spawn, SpawnChildAgent.t()}` from a tool executor:
-
-```elixir
-SpawnChildAgent.new(child_agent, "Analyze this deeply", max_steps: 10)
-```
-
-Child loops inherit metadata and track parent via `parent_id` and `parent_step` fields.
-
-### 9. Events & Telemetry (`events.ex`, `telemetry.ex`, `telemetry/`)
-
-Domain events: `Started`, `Completed`, `Failed`, `ToolCallRequested`
+### Telemetry (`telemetry.ex`, `telemetry/events.ex`)
 
 Telemetry hierarchy:
 ```
 [:swarm_ai, :run, :start/:stop/:exception]
 └── [:swarm_ai, :step, :start/:stop/:exception]
     ├── [:swarm_ai, :llm, :call, :start/:stop/:exception]
-    ├── [:swarm_ai, :tool, :execute, :start/:stop/:exception]
-    └── [:swarm_ai, :child, :spawn, :start/:stop/:exception]
+    └── [:swarm_ai, :tool, :execute, :start/:stop/:exception]
 ```
 
 ---
 
 ## Execution Flow
 
-1. **Entry**: `SwarmAi.run_streaming/3` creates a loop and calls `Runner.start/2`
+1. **Entry**: `SwarmAi.run/2` starts supervised execution; `SwarmAi.Executor.run/2` creates a loop and calls `Runner.start/2`
 2. **LLM Call**: `{:call_llm, ...}` effect triggers actual API call
 3. **Response**: `Runner.handle_llm_response/2` produces effects based on tool calls
 4. **Tool Execution**: `{:execute_tool, ...}` effects invoke the tool executor
-5. **Child Spawning**: If executor returns `{:spawn, ...}`, a child loop is created
-6. **Continuation**: Tool results are added, next step starts with `{:call_llm, ...}`
-7. **Completion**: `{:complete, result}` or `{:fail, error}` ends execution
+5. **Continuation**: Tool results are added, next step starts with `{:call_llm, ...}`
+6. **Completion**: `{:complete, result}` or `{:fail, error}` ends execution
 
 ---
 
@@ -167,6 +157,7 @@ Telemetry hierarchy:
 | File | Purpose |
 |------|---------|
 | `agent.ex` | Agent protocol definition |
+| `executor.ex` | Runtime side-effect interpreter |
 | `loop.ex` | Loop struct and state transitions |
 | `loop/runner.ex` | Pure functional effect producer |
 | `loop/step.ex` | Step data structure |
@@ -179,9 +170,6 @@ Telemetry hierarchy:
 | `tool_call.ex` | Tool invocation tracking |
 | `tool_result.ex` | Tool execution result |
 | `effect.ex` | Effect type definitions |
-| `events.ex` | Domain event structs |
-| `spawn_child_agent.ex` | Child agent spawn request |
-| `child_result.ex` | Child execution result |
 | `telemetry.ex` | Telemetry instrumentation |
 | `id.ex` | UUIDv7-based ID generation |
 

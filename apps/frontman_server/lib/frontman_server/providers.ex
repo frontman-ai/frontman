@@ -8,17 +8,14 @@ defmodule FrontmanServer.Providers do
   @moduledoc """
   The Providers context.
 
-  Manages API keys and usage tracking for LLM providers.
+  Manages API keys and model provider access.
 
   ## API Key Resolution Flow
 
-  The primary entry point for agent execution is `prepare_api_key/3`, which:
+  The primary entry point for agent execution is `prepare_api_key/2`, which:
   1. Resolves the model to determine the provider
   2. Finds the best available API key (user key > env key > server key)
-  3. Checks usage quota for server keys
-  4. Returns the key info for use in LLM calls
-
-  After a successful agent run, call `record_usage/3` to track server key usage.
+  3. Returns the key info for use in LLM calls
   """
 
   use Boundary,
@@ -46,25 +43,13 @@ defmodule FrontmanServer.Providers do
     ModelCatalog,
     OAuthToken,
     Registry,
-    ResolvedKey,
-    UserKeyUsage
+    ResolvedKey
   }
 
   ## High-Level API (Domain Entry Points)
 
   @doc """
-  Returns the default model.
-  """
-  def default_model do
-    case ModelCatalog.default_model("openrouter") do
-      %{provider: provider, value: value} -> "#{provider}:#{value}"
-      nil -> raise "missing default model for openrouter"
-    end
-  end
-
-  @doc """
-  Prepares API key for a request. Resolves model, checks availability and quota.
-  Does NOT track usage - call `record_usage/1` after successful LLM response.
+  Prepares API key for a request. Resolves model and key availability.
 
   This is the primary entry point for API key resolution at the domain layer.
   Call this before making LLM calls, not inside LLM implementations.
@@ -74,20 +59,13 @@ defmodule FrontmanServer.Providers do
       populated if project-level keys should be considered.
     - model: The model string (e.g., "openrouter:openai/gpt-4"), or nil for default
 
-  ## Options
-
-    - `:skip_quota` - When `true`, bypasses usage quota checks on server keys.
-      Use for cheap internal operations (e.g., title generation) that should
-      always succeed regardless of the user's free-tier usage.
-
   ## Returns
     - `{:ok, ResolvedKey.t()}` - Ready to use for LLM calls
     - `{:error, :no_api_key}` - No API key available
-    - `{:error, :usage_limit_exceeded}` - Server key quota exhausted
   """
-  @spec prepare_api_key(Accounts.scope() | nil, String.t() | nil, keyword()) ::
-          {:ok, ResolvedKey.t()} | {:error, :no_api_key | :usage_limit_exceeded}
-  def prepare_api_key(scope, model, opts \\ []) do
+  @spec prepare_api_key(Accounts.scope() | nil, String.t() | nil) ::
+          {:ok, ResolvedKey.t()} | {:error, :no_api_key}
+  def prepare_api_key(scope, model) do
     model = model || default_model()
     provider = provider_from_model(model)
 
@@ -101,46 +79,19 @@ defmodule FrontmanServer.Providers do
       {:env_key, key} ->
         {:ok, ResolvedKey.new(provider, key, :env_key, model)}
 
-      {:server_key, key} ->
-        prepare_server_key(scope, provider, key, model, opts)
+      {:server_key, key} when is_binary(key) and key != "" ->
+        {:ok, ResolvedKey.new(provider, key, :server_key, model)}
+
+      {:server_key, _} ->
+        {:error, :no_api_key}
     end
   end
 
-  defp prepare_server_key(_scope, _provider, key, _model, _opts)
-       when not is_binary(key) or key == "" do
-    {:error, :no_api_key}
-  end
-
-  defp prepare_server_key(nil, provider, key, model, _opts) do
-    {:ok, ResolvedKey.new(provider, key, :server_key, model)}
-  end
-
-  defp prepare_server_key(scope, provider, key, model, opts) do
-    if opts[:skip_quota] || has_remaining_usage?(scope, provider) do
-      {:ok, ResolvedKey.new(provider, key, :server_key, model)}
-    else
-      {:error, :usage_limit_exceeded}
-    end
-  end
-
-  @doc """
-  Records successful API key usage. Call this after a successful agent run.
-  Only increments usage for server keys.
-
-  ## Parameters
-    - scope: The user scope (or nil)
-    - resolved_key: The ResolvedKey struct from prepare_api_key/3
-  """
-  @spec record_usage(Accounts.scope() | nil, ResolvedKey.t()) :: :ok | {:error, term()}
-  def record_usage(nil, %ResolvedKey{}), do: :ok
-  def record_usage(_scope, %ResolvedKey{key_source: :user_key}), do: :ok
-  def record_usage(_scope, %ResolvedKey{key_source: :env_key}), do: :ok
-  def record_usage(_scope, %ResolvedKey{key_source: :oauth_token}), do: :ok
-
-  def record_usage(%Scope{} = scope, %ResolvedKey{key_source: :server_key, provider: provider}) do
-    case increment_usage(scope, provider) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
+  @spec default_model() :: String.t()
+  defp default_model do
+    case ModelCatalog.default_model("openrouter") do
+      %{provider: provider, value: value} -> "#{provider}:#{value}"
+      nil -> raise "missing default model for openrouter"
     end
   end
 
@@ -220,104 +171,23 @@ defmodule FrontmanServer.Providers do
   end
 
   @doc """
+  Lists providers with saved API keys for the user.
+  """
+  def list_api_key_providers(%Scope{user: %User{} = user}) do
+    ApiKey
+    |> ApiKey.for_user(user.id)
+    |> order_by([key], asc: key.provider)
+    |> select([key], key.provider)
+    |> Repo.all()
+  end
+
+  @doc """
   Fetches a user API key for a provider.
   """
   def get_api_key(%Scope{user: %User{} = user}, provider) do
     ApiKey
     |> ApiKey.for_user_and_provider(user.id, provider)
     |> Repo.one()
-  end
-
-  @doc """
-  Returns the user's API key value for a provider, if present.
-  """
-  def get_api_key_value(scope, provider) do
-    case get_api_key(scope, provider) do
-      %ApiKey{key: key} -> key
-      _ -> nil
-    end
-  end
-
-  @doc """
-  Returns true if the user has a stored API key for the provider.
-  """
-  def has_api_key?(scope, provider) do
-    case get_api_key(scope, provider) do
-      %ApiKey{} -> true
-      _ -> false
-    end
-  end
-
-  ## Usage Tracking
-
-  @doc """
-  Returns the server key usage limit from config.
-  """
-  def usage_limit do
-    Application.get_env(:frontman_server, :user_key_usage_limit, 10)
-  end
-
-  @doc """
-  Returns the user key usage record if it exists.
-  """
-  def get_usage(%Scope{user: %User{} = user}, provider) do
-    Repo.get_by(UserKeyUsage, user_id: user.id, provider: provider)
-  end
-
-  @doc """
-  Returns the remaining server-key requests for the user and provider.
-  """
-  def get_usage_remaining(scope, provider) do
-    case get_usage(scope, provider) do
-      %UserKeyUsage{count: count} -> max(usage_limit() - count, 0)
-      nil -> usage_limit()
-    end
-  end
-
-  @doc """
-  Returns true if the user has remaining server-key requests.
-  """
-  def has_remaining_usage?(scope, provider) do
-    get_usage_remaining(scope, provider) > 0
-  end
-
-  @doc """
-  Returns usage details for the user's server key usage.
-  """
-  def get_usage_status(scope, provider) do
-    limit = usage_limit()
-    used = usage_count(get_usage(scope, provider))
-    remaining = max(limit - used, 0)
-
-    %{
-      limit: limit,
-      used: used,
-      remaining: remaining,
-      has_user_key: has_api_key?(scope, provider),
-      has_server_key: is_binary(get_server_api_key(provider))
-    }
-  end
-
-  defp usage_count(nil), do: 0
-  defp usage_count(%UserKeyUsage{count: count}) when is_integer(count), do: count
-
-  @doc """
-  Increments the user's server-key usage count.
-
-  Uses an upsert to atomically insert or increment, avoiding the race condition
-  in a check-then-act pattern where two concurrent requests could both find nil
-  and both attempt to insert.
-  """
-  def increment_usage(%Scope{user: %User{} = user}, provider) do
-    now = DateTime.utc_now(:second)
-    usage = %UserKeyUsage{user_id: user.id}
-    changeset = UserKeyUsage.changeset(usage, %{count: 1, provider: provider, last_used_at: now})
-
-    Repo.insert(changeset,
-      on_conflict: [inc: [count: 1], set: [last_used_at: now, updated_at: now]],
-      conflict_target: [:user_id, :provider],
-      returning: true
-    )
   end
 
   ## API Key Resolution
@@ -343,8 +213,8 @@ defmodule FrontmanServer.Providers do
         result
 
       :no_oauth_token ->
-        case get_api_key_value(scope, provider) do
-          key when is_binary(key) and key != "" ->
+        case get_api_key(scope, provider) do
+          %ApiKey{key: key} when is_binary(key) and key != "" ->
             {:user_key, key}
 
           _ ->

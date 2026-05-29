@@ -54,7 +54,7 @@ The server resolves which AI model and API key to use, checking in this order:
 1. **OAuth connection** — if you've linked your Anthropic or OpenAI account directly
 2. **Your API key** — a key you've saved in Frontman settings
 3. **Environment key** — a key from your project's `.env` file
-4. **Free tier** — Frontman's built-in key (limited to 10 runs/day)
+4. **Free tier** — Frontman's built-in model access
 
 See [API Keys & Providers](/docs/api-keys/) for setup details.
 

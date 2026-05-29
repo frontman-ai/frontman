@@ -66,48 +66,40 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
     end
   end
 
-  describe "GET /api/user/api-key-usage" do
+  describe "GET /api/user/api-keys" do
     setup :register_and_log_in_user
 
-    test "returns usage metadata", %{conn: conn} do
-      conn = get(conn, ~p"/api/user/api-key-usage")
+    test "returns saved key metadata", %{conn: conn} do
+      conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 200)
 
-      assert response["limit"] == Providers.usage_limit()
-      assert response["used"] == 0
-      assert response["remaining"] == Providers.usage_limit()
-      assert response["hasUserKey"] == false
-      assert response["hasServerKey"] in [true, false]
+      assert response["providers"] == []
     end
 
-    test "returns usage metadata for Fireworks", %{conn: conn, user: user} do
+    test "returns saved key providers", %{conn: conn, user: user} do
       {:ok, _} =
         Providers.upsert_api_key(Scope.for_user(user), "fireworks", "sk-fireworks-user-key")
 
-      conn = get(conn, ~p"/api/user/api-key-usage?provider=fireworks")
+      conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 200)
 
-      assert response["limit"] == Providers.usage_limit()
-      assert response["used"] == 0
-      assert response["remaining"] == Providers.usage_limit()
-      assert response["hasUserKey"] == true
-      assert response["hasServerKey"] == true
+      assert response["providers"] == ["fireworks"]
     end
 
-    test "returns Fireworks usage for the logged-in user only", %{conn: conn} do
+    test "returns saved key providers for the logged-in user only", %{conn: conn} do
       other_user = AccountsFixtures.user_fixture()
       other_scope = Scope.for_user(other_user)
       {:ok, _} = Providers.upsert_api_key(other_scope, "fireworks", "sk-fireworks-other-user")
 
-      conn = get(conn, ~p"/api/user/api-key-usage?provider=fireworks")
+      conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 200)
 
-      assert response["hasUserKey"] == false
+      assert response["providers"] == []
     end
 
     test "returns unauthorized without user" do
       conn = build_conn()
-      conn = get(conn, ~p"/api/user/api-key-usage")
+      conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 401)
 
       assert response["error"] == "authentication_required"

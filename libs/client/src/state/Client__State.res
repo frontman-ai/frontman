@@ -178,8 +178,7 @@ module Actions = {
     )
 
   // API key settings action creators
-  let fetchApiKeySettings = () =>
-    Client__State__Store.dispatch(FetchApiKeySettings({provider: OpenRouter}))
+  let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
 
   let saveOpenRouterKey = (~key) =>
     Client__State__Store.dispatch(SaveApiKey({provider: OpenRouter, key}))
@@ -188,9 +187,6 @@ module Actions = {
     Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: OpenRouter}))
 
   // Anthropic API key settings action creators
-  let fetchAnthropicApiKeySettings = () =>
-    Client__State__Store.dispatch(FetchApiKeySettings({provider: Anthropic}))
-
   let saveAnthropicKey = (~key) =>
     Client__State__Store.dispatch(SaveApiKey({provider: Anthropic, key}))
 
@@ -198,17 +194,11 @@ module Actions = {
     Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Anthropic}))
 
   // Fireworks API key settings action creators
-  let fetchFireworksApiKeySettings = () =>
-    Client__State__Store.dispatch(FetchApiKeySettings({provider: Fireworks}))
-
   let saveFireworksKey = (~key) =>
     Client__State__Store.dispatch(SaveApiKey({provider: Fireworks, key}))
 
   let resetFireworksKeySaveStatus = () =>
     Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Fireworks}))
-
-  let fetchNvidiaApiKeySettings = () =>
-    Client__State__Store.dispatch(FetchApiKeySettings({provider: Nvidia}))
 
   let saveNvidiaKey = (~key) => Client__State__Store.dispatch(SaveApiKey({provider: Nvidia, key}))
 
