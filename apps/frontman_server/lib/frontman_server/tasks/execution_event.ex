@@ -47,7 +47,7 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
   def classify(%__MODULE__{type: :paused}), do: :agent_paused
   def classify(%__MODULE__{type: :tool_call}), do: :ok
 
-  def classify(%__MODULE__{type: :failed, payload: {:error, reason, _loop_id}}) do
+  def classify(%__MODULE__{type: :failed, payload: %{reason: reason}}) do
     {msg, category, retryable} = classify_error(reason)
     {:agent_error, %{message: msg, category: category, retryable: retryable}}
   end

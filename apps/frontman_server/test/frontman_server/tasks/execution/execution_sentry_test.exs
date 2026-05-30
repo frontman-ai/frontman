@@ -36,9 +36,13 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     } do
       loop_id = "loop_test_failed"
 
-      SwarmDispatcher.dispatch(task_id, {:failed, {:error, :llm_api_failure, loop_id}}, %{
-        scope: scope
-      })
+      SwarmDispatcher.dispatch(
+        task_id,
+        {:failed, %{reason: :llm_api_failure, loop_id: loop_id}},
+        %{
+          scope: scope
+        }
+      )
 
       assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
       reports = Sentry.Test.pop_sentry_reports()
@@ -66,7 +70,9 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       loop_id = "loop_test_stream_error"
       reason = %RuntimeError{message: "Sentry test: simulated stream error"}
 
-      SwarmDispatcher.dispatch(task_id, {:failed, {:error, reason, loop_id}}, %{scope: scope})
+      SwarmDispatcher.dispatch(task_id, {:failed, %{reason: reason, loop_id: loop_id}}, %{
+        scope: scope
+      })
 
       assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
       reports = Sentry.Test.pop_sentry_reports()

@@ -34,7 +34,7 @@ defmodule SwarmAi.SupervisorTest do
       {:ok, pid2} = run_after_recovery(runtime, "task-post", mock_llm("after crash"))
       await_exit(pid2)
 
-      assert_receive {:test_event, "task-post", {:completed, {:ok, "after crash", _}}}
+      assert_receive {:test_event, "task-post", {:completed, nil}}
     end
   end
 
@@ -62,7 +62,7 @@ defmodule SwarmAi.SupervisorTest do
       {:ok, pid2} = run_after_recovery(runtime, "task-post", mock_llm("recovered"))
       await_exit(pid2)
 
-      assert_receive {:test_event, "task-post", {:completed, {:ok, "recovered", _}}}
+      assert_receive {:test_event, "task-post", {:completed, nil}}
     end
   end
 

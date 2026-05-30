@@ -12,13 +12,14 @@ defmodule SwarmAi.ParallelExecutor do
   ## Return values
 
   - `{:ok, [ToolResult.t()]}` — all tools completed; results in original call order
-  - `{:halt, {:pause_agent, tool_call_id, tool_name, timeout_ms}}` — a `:pause_agent`
-    deadline fired; all remaining tasks cancelled; first deadline wins
+  - `{:halt, {:timeout, tool_call_id, tool_name, timeout_ms}}` — a deadline fired
+    for a tool with `on_timeout: :pause_agent`; all remaining tasks cancelled;
+    first deadline wins
   """
 
   alias SwarmAi.{ToolCall, ToolExecution, ToolResult}
 
-  @type halt_reason :: {:pause_agent, String.t(), String.t(), pos_integer()}
+  @type halt_reason :: {:timeout, String.t(), String.t(), pos_integer()}
   @type result :: {:ok, [ToolResult.t()]} | {:halt, halt_reason()}
 
   @typep sync_entry :: %{
@@ -194,7 +195,7 @@ defmodule SwarmAi.ParallelExecutor do
       :pause_agent ->
         # First :pause_agent wins. Cancel all remaining.
         cancel_remaining(Map.delete(pending, ref), awaiting, task_supervisor)
-        {:halt, {:pause_agent, exec.tool_call.id, exec.tool_call.name, exec.timeout_ms}}
+        {:halt, {:timeout, exec.tool_call.id, exec.tool_call.name, exec.timeout_ms}}
     end
   end
 

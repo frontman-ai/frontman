@@ -62,14 +62,13 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
   end
 
   # Agent turn completed successfully.
-  defp persist(%Scope{} = scope, task_id, {:completed, {:ok, _result, loop_id}}) do
+  defp persist(%Scope{} = scope, task_id, {:completed, _}) do
     Tasks.add_agent_completed(scope, task_id)
-    Logger.debug("Execution completed for task #{task_id}, loop_id: #{loop_id}")
     TelemetryEvents.task_stop(task_id)
   end
 
   # Agent turn failed (LLM error, tool error, etc.)
-  defp persist(%Scope{} = scope, task_id, {:failed, {:error, reason, loop_id}}) do
+  defp persist(%Scope{} = scope, task_id, {:failed, %{reason: reason, loop_id: loop_id}}) do
     {reason_str, category, retryable} = ExecutionEvent.classify_error(reason)
 
     metadata = [

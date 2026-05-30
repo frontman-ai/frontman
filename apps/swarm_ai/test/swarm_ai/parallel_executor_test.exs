@@ -196,7 +196,7 @@ defmodule SwarmAi.ParallelExecutorTest do
         on_timeout: {__MODULE__, :noop_timeout, []}
       }
 
-      assert {:halt, {:pause_agent, "id1", "interactive", 10}} =
+      assert {:halt, {:timeout, "id1", "interactive", 10}} =
                ParallelExecutor.run([exec], sup)
     end
 
@@ -212,7 +212,7 @@ defmodule SwarmAi.ParallelExecutorTest do
         on_timeout: {__MODULE__, :noop_timeout, []}
       }
 
-      assert {:halt, {:pause_agent, "id1", "mcp_interactive", 10}} =
+      assert {:halt, {:timeout, "id1", "mcp_interactive", 10}} =
                ParallelExecutor.run([exec], sup)
     end
 
@@ -237,7 +237,7 @@ defmodule SwarmAi.ParallelExecutorTest do
         on_timeout: {__MODULE__, :noop_timeout, []}
       }
 
-      assert {:halt, {:pause_agent, "id1", "interactive", 20}} =
+      assert {:halt, {:timeout, "id1", "interactive", 20}} =
                ParallelExecutor.run([pause_exec, normal_exec], sup)
     end
 
@@ -257,7 +257,7 @@ defmodule SwarmAi.ParallelExecutorTest do
       end
 
       result = ParallelExecutor.run([make_pause.(tc1), make_pause.(tc2)], sup)
-      assert {:halt, {:pause_agent, _id, _name, 10}} = result
+      assert {:halt, {:timeout, _id, _name, 10}} = result
     end
   end
 

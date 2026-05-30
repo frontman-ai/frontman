@@ -33,7 +33,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:execution_event,
        %ExecutionEvent{
          type: :completed,
-         payload: {:ok, nil, System.unique_integer([:positive])},
+         payload: nil,
          caused_by: nil
        }}
 
@@ -42,13 +42,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:execution_event,
        %ExecutionEvent{
          type: :failed,
-         payload: {:error, reason, System.unique_integer([:positive])},
+         payload: %{reason: reason, loop_id: System.unique_integer([:positive])},
          caused_by: nil
        }}
 
   defp execution_cancelled,
-    do:
-      {:execution_event, %ExecutionEvent{type: :cancelled, payload: %{loop: nil}, caused_by: nil}}
+    do: {:execution_event, %ExecutionEvent{type: :cancelled, payload: nil, caused_by: nil}}
 
   # Collects all pending push messages from the test process mailbox.
   # Phoenix.ChannelTest sends pushes as {:socket_push, event, payload} messages.

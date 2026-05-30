@@ -43,7 +43,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
 
     event = %ExecutionEvent{
       type: :failed,
-      payload: {:error, error, System.unique_integer([:positive])}
+      payload: %{reason: error, loop_id: System.unique_integer([:positive])}
     }
 
     send(socket.channel_pid, {:execution_event, event})

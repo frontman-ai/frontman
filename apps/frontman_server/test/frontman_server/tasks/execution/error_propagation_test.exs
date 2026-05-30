@@ -52,7 +52,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       # Stream errors are now caught and surfaced as graceful failures
       assert_receive {:execution_event,
-                      %ExecutionEvent{type: :failed, payload: {:error, reason, _loop_id}}},
+                      %ExecutionEvent{type: :failed, payload: %{reason: reason}}},
                      5_000
 
       assert Exception.message(reason) =~ "image exceeds the maximum allowed size"
@@ -72,7 +72,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       # Should receive a failed event broadcast
       assert_receive {:execution_event,
-                      %ExecutionEvent{type: :failed, payload: {:error, _reason, _loop_id}}},
+                      %ExecutionEvent{type: :failed, payload: %{reason: _reason}}},
                      5_000
     end
   end

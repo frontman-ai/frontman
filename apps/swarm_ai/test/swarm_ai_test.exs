@@ -11,6 +11,15 @@ defmodule SwarmAiTest do
   def noop_timeout(_tool_call, _reason), do: :ok
 
   describe "run/2" do
+    test "runs without event dispatcher" do
+      runtime = start_runtime_without_dispatcher!()
+
+      {:ok, pid} = run_agent(runtime, "task-no-dispatch", %MockLLM{response: "done"})
+      await_exit(pid)
+
+      refute SwarmAi.running?(runtime, "task-no-dispatch")
+    end
+
     test "prevents duplicate execution for same key" do
       runtime = start_runtime!()
       llm = %MockLLM{response: "slow", delay_ms: 500}
@@ -144,6 +153,12 @@ defmodule SwarmAiTest do
       {SwarmAi, name: name, event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
     )
 
+    name
+  end
+
+  defp start_runtime_without_dispatcher! do
+    name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
+    start_supervised!({SwarmAi, name: name})
     name
   end
 

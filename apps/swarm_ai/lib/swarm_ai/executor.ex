@@ -6,19 +6,12 @@ defmodule SwarmAi.Executor do
 
   import SwarmAi.Message, only: [is_message: 1]
 
-  @type opts :: [
-          {:on_chunk, (ReqLLM.StreamChunk.t() -> any())}
-          | {:on_response, (Response.t() -> any())}
-          | {:on_tool_call, (SwarmAi.ToolCall.t() -> any())}
-        ]
+  @type dispatch_event :: ({atom(), term()} -> any())
 
-  @spec run(atom(), SwarmAi.Agent.t(), opts()) ::
-          {:ok, String.t(), SwarmAi.Id.t()}
-          | {:error, term(), SwarmAi.Id.t()}
-          | {:paused, SwarmAi.ParallelExecutor.halt_reason()}
-  def run(runtime, agent, opts) when is_atom(runtime) and is_list(opts) do
-    callbacks = build_callbacks(opts)
-
+  @spec run(atom(), SwarmAi.Agent.t(), dispatch_event()) ::
+          {:completed | :failed | :paused, term()}
+  def run(runtime, agent, dispatch_event)
+      when is_atom(runtime) and is_function(dispatch_event, 1) do
     config = %Loop.Config{}
     messages = agent |> SwarmAi.Agent.messages() |> normalize_messages()
     loop = Loop.make(agent, config)
@@ -34,16 +27,16 @@ defmodule SwarmAi.Executor do
       fn ->
         {loop, effects} = Loop.execute(loop, messages)
 
-        {result, final_status, step_count, output} =
-          case execute_loop(loop, effects, runtime, callbacks) do
+        {event, final_status, step_count, output} =
+          case execute_loop(loop, effects, runtime, dispatch_event) do
             {:halt, halt_reason, halted_loop} ->
               {{:paused, halt_reason}, :paused, length(halted_loop.steps), nil}
 
             %Loop{} = final_loop ->
-              execution_result(final_loop, loop.id)
+              execution_event(final_loop, loop.id)
           end
 
-        {result,
+        {event,
          %{
            loop_id: loop.id,
            agent_id: SwarmAi.Agent.id(agent),
@@ -56,22 +49,23 @@ defmodule SwarmAi.Executor do
     )
   end
 
-  defp execution_result(%Loop{} = final_loop, loop_id) do
-    result =
-      case final_loop.status do
-        :completed -> {:ok, final_loop.result, loop_id}
-        :failed -> {:error, final_loop.error, loop_id}
-        other -> {:error, {:unexpected_status, other}, loop_id}
-      end
+  defp execution_event(%Loop{status: :completed} = loop, _loop_id),
+    do: {{:completed, nil}, :completed, length(loop.steps), loop.result}
 
-    {result, final_loop.status, length(final_loop.steps), final_loop.result}
+  defp execution_event(%Loop{status: :failed} = loop, loop_id),
+    do: failed_event(loop, loop.error, loop_id, :failed)
+
+  defp execution_event(%Loop{} = loop, loop_id),
+    do: failed_event(loop, {:unexpected_status, loop.status}, loop_id, loop.status)
+
+  defp failed_event(loop, reason, loop_id, status),
+    do: {{:failed, %{reason: reason, loop_id: loop_id}}, status, length(loop.steps), loop.result}
+
+  defp execute_loop(loop, effects, runtime, dispatch_event) do
+    execute_loop(loop, effects, runtime, dispatch_event, loop.config.max_steps)
   end
 
-  defp execute_loop(loop, effects, runtime, callbacks) do
-    execute_loop(loop, effects, runtime, callbacks, loop.config.max_steps)
-  end
-
-  defp execute_loop(loop, effects, runtime, callbacks, steps_left) do
+  defp execute_loop(loop, effects, runtime, dispatch_event, steps_left) do
     case effects do
       [] ->
         loop
@@ -80,15 +74,15 @@ defmodule SwarmAi.Executor do
         Loop.fail(loop, :max_steps)
 
       [{:call_llm, llm, messages} | rest] ->
-        {updated_loop, new_effects} = execute_llm_call(loop, llm, messages, callbacks)
-        execute_loop(updated_loop, new_effects ++ rest, runtime, callbacks, steps_left - 1)
+        {updated_loop, new_effects} = execute_llm_call(loop, llm, messages, dispatch_event)
+        execute_loop(updated_loop, new_effects ++ rest, runtime, dispatch_event, steps_left - 1)
 
       [{:execute_tool, _} | _] ->
-        execute_tool_effects(loop, effects, runtime, callbacks, steps_left)
+        execute_tool_effects(loop, effects, runtime, dispatch_event, steps_left)
 
       [{:step_ended, step} | rest] ->
         Telemetry.step_stop(loop.id, step, loop.metadata)
-        execute_loop(loop, rest, runtime, callbacks, steps_left)
+        execute_loop(loop, rest, runtime, dispatch_event, steps_left)
 
       [{:complete, _result} | _rest] ->
         Telemetry.step_stop(loop.id, loop.current_step, loop.metadata)
@@ -100,11 +94,11 @@ defmodule SwarmAi.Executor do
     end
   end
 
-  defp execute_tool_effects(loop, effects, runtime, callbacks, steps_left) do
+  defp execute_tool_effects(loop, effects, runtime, dispatch_event, steps_left) do
     {tool_effects, rest} = split_tool_effects(effects)
     tool_calls = Enum.map(tool_effects, fn {:execute_tool, tc} -> tc end)
 
-    Enum.each(tool_calls, callbacks.on_tool_call)
+    Enum.each(tool_calls, fn tool_call -> dispatch_event.({:tool_call, tool_call}) end)
 
     loop_id = loop.id
     step = loop.current_step
@@ -140,7 +134,7 @@ defmodule SwarmAi.Executor do
           updated_loop,
           new_effects ++ rest,
           runtime,
-          callbacks,
+          dispatch_event,
           steps_left
         )
     end
@@ -159,7 +153,7 @@ defmodule SwarmAi.Executor do
     end
   end
 
-  defp execute_llm_call(loop, llm, messages, callbacks) do
+  defp execute_llm_call(loop, llm, messages, dispatch_event) do
     loop_id = loop.id
     step = loop.current_step
 
@@ -177,10 +171,11 @@ defmodule SwarmAi.Executor do
         case SwarmAi.LLM.stream(llm, messages, timeout_ms: loop.config.step_timeout_ms) do
           {:ok, stream} ->
             try do
-              stream_with_callbacks = Stream.each(stream, callbacks.on_chunk)
+              stream_with_events =
+                Stream.each(stream, fn chunk -> dispatch_event.({:chunk, chunk}) end)
 
-              response = Response.from_stream(stream_with_callbacks)
-              callbacks.on_response.(response)
+              response = Response.from_stream(stream_with_events)
+              dispatch_event.({:response, response})
 
               {loop, new_effects} = Loop.handle_response(loop, response)
               usage = response.usage || %{}
@@ -217,14 +212,6 @@ defmodule SwarmAi.Executor do
         end
       end
     )
-  end
-
-  defp build_callbacks(opts) do
-    %{
-      on_chunk: Keyword.get(opts, :on_chunk, fn _ -> :ok end),
-      on_response: Keyword.get(opts, :on_response, fn _ -> :ok end),
-      on_tool_call: Keyword.get(opts, :on_tool_call, fn _ -> :ok end)
-    }
   end
 
   defp normalize_messages(msg) when is_binary(msg), do: [Message.user(msg)]

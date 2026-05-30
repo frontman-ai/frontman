@@ -39,11 +39,9 @@ defmodule SwarmAi do
   @doc "Runs an agent in a supervised runtime."
   @spec run(atom(), SwarmAi.Agent.t()) :: {:ok, pid()} | {:error, term()}
   def run(runtime, agent) when is_atom(runtime) do
-    task = %{agent: agent}
-
     case DynamicSupervisor.start_child(
            execution_supervisor_name(runtime),
-           {SwarmAi.ExecutionWorker, {runtime, task}}
+           {SwarmAi.ExecutionWorker, {runtime, agent}}
          ) do
       {:ok, pid} -> {:ok, pid}
       {:error, {:already_started, _pid}} -> {:error, :already_running}

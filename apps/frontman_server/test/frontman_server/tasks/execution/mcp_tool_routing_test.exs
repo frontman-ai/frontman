@@ -107,7 +107,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       assert_receive {:execution_event,
                       %Tasks.ExecutionEvent{
                         type: :completed,
-                        payload: {:ok, "Component implemented!", _loop_id}
+                        payload: nil
                       }},
                      10_000
     end

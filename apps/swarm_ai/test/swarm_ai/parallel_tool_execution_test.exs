@@ -89,7 +89,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
       assert_receive :all_concurrent, 5_000
       await_exit(pid)
-      assert_receive {:test_event, "task-parallel", {:completed, {:ok, "All done", _}}, _}, 2_000
+      assert_receive {:test_event, "task-parallel", {:completed, nil}, _}, 2_000
     end
 
     test "fault isolation - crashing tool produces error result, agent continues" do
@@ -127,7 +127,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         run_execution(runtime, "task-crash", llm, tool_executor: tool_executor(executor))
 
       await_exit(pid)
-      assert_receive {:test_event, "task-crash", {:completed, {:ok, "Handled", _}}, _}, 2_000
+      assert_receive {:test_event, "task-crash", {:completed, nil}, _}, 2_000
     end
 
     test "can execute a tool batch serially" do
@@ -169,7 +169,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       send(second_pid, :go)
 
       await_exit(pid)
-      assert_receive {:test_event, "task-serial", {:completed, {:ok, "All done", _}}, _}, 2_000
+      assert_receive {:test_event, "task-serial", {:completed, nil}, _}, 2_000
     end
   end
 
