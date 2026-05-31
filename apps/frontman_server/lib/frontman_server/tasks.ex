@@ -52,7 +52,6 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Tasks.{
     Execution,
-    Execution.RootAgent,
     Interaction,
     InteractionSchema,
     Task,
@@ -301,16 +300,18 @@ defmodule FrontmanServer.Tasks do
   @spec submit_user_message(Accounts.scope(), String.t(), list(), list(), keyword()) ::
           {:ok, Interaction.UserMessage.t()} | {:error, :already_running} | {:error, :not_found}
   def submit_user_message(scope, task_id, content_blocks, tools, opts \\ []) do
-    with :ok <- guard_not_running(scope, task_id),
-         {:ok, interaction} <- add_user_message(scope, task_id, content_blocks) do
-      opts = Keyword.put(opts, :interaction_id, interaction.id)
-      maybe_start_execution(scope, task_id, tools, opts)
-      {:ok, interaction}
-    end
-  end
+    interaction = Interaction.UserMessage.new(content_blocks)
 
-  defp guard_not_running(scope, task_id) do
-    if execution_running?(scope, task_id), do: {:error, :already_running}, else: :ok
+    with {:ok, schema} <- get_task_by_id(scope, task_id),
+         false <- SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
+         {:ok, interaction} <- append_interaction(schema, interaction) do
+      opts = Keyword.put(opts, :interaction_id, interaction.id)
+      start_execution(scope, task_id, tools, opts)
+      {:ok, interaction}
+    else
+      true -> {:error, :already_running}
+      error -> error
+    end
   end
 
   @doc """
@@ -396,18 +397,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Creates and appends an AgentRetry interaction.
-  """
-  @spec add_agent_retry(Accounts.scope(), String.t(), String.t()) ::
-          {:ok, Interaction.AgentRetry.t()} | {:error, :not_found}
-  def add_agent_retry(scope, task_id, retried_error_id) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      interaction = Interaction.AgentRetry.new(retried_error_id)
-      append_interaction(schema, interaction)
-    end
-  end
-
-  @doc """
   Creates and appends a ToolCall interaction.
   """
   @spec add_tool_call(Accounts.scope(), String.t(), SwarmAi.ToolCall.t()) ::
@@ -459,6 +448,19 @@ defmodule FrontmanServer.Tasks do
 
   # --- Execution Management ---
 
+  @doc "Records a retry request and starts execution."
+  @spec retry_execution(Accounts.scope(), map()) ::
+          :ok | :already_running | {:error, :not_found | Ecto.Changeset.t()}
+  def retry_execution(
+        scope,
+        %{task_id: task_id, retried_error_id: retried_error_id, tools: tools} = attrs
+      ) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id),
+         {:ok, _retry} <- append_interaction(schema, Interaction.AgentRetry.new(retried_error_id)) do
+      start_execution(scope, task_id, tools, Map.get(attrs, :opts, []))
+    end
+  end
+
   @doc """
   Cancels a running execution for the given task.
 
@@ -467,16 +469,8 @@ defmodule FrontmanServer.Tasks do
   @spec cancel_execution(Accounts.scope(), String.t()) ::
           :ok | {:error, :not_found | :not_running}
   def cancel_execution(scope, task_id) do
-    with {:ok, task} <- get_task(scope, task_id) do
-      SwarmAi.cancel(FrontmanServer.AgentRuntime, RootAgent.id(task))
-    end
-  end
-
-  @spec execution_running?(Accounts.scope(), String.t()) :: boolean()
-  def execution_running?(scope, task_id) do
-    case get_task(scope, task_id) do
-      {:ok, task} -> SwarmAi.running?(FrontmanServer.AgentRuntime, RootAgent.id(task))
-      {:error, :not_found} -> false
+    with {:ok, _schema} <- get_task_by_id(scope, task_id) do
+      SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
     end
   end
 
@@ -498,29 +492,29 @@ defmodule FrontmanServer.Tasks do
   Starts an execution if none is already running for this task.
   Fetches the task and delegates to Execution.run.
   """
-  @spec maybe_start_execution(Accounts.scope(), String.t(), list(), keyword()) ::
+  @spec start_execution(Accounts.scope(), String.t(), list(), keyword()) ::
           :ok | :already_running | {:error, :not_found}
-  def maybe_start_execution(scope, task_id, tools, opts) do
-    with {:ok, task} <- get_task(scope, task_id) do
-      case SwarmAi.running?(FrontmanServer.AgentRuntime, RootAgent.id(task)) do
-        true -> :already_running
-        false -> run_execution(scope, task, tools, opts)
-      end
+  def start_execution(scope, task_id, tools, opts) do
+    case get_task(scope, task_id) do
+      {:ok, task} -> start_execution(scope, task, tools, opts)
+      {:error, :not_found} -> {:error, :not_found}
     end
   end
 
-  defp run_execution(scope, task, tools, opts) do
-    case Execution.run(scope, task, Keyword.merge([tools: tools], opts)) do
-      {:ok, _pid_or_already_running} ->
+  defp start_execution(scope, task, tools, opts) do
+    case Execution.run(scope, task, tools, opts) do
+      {:ok, :already_running} ->
+        :already_running
+
+      {:ok, _pid} ->
         :ok
 
       {:error, reason} ->
         # Broadcast as :execution_start_error so TaskChannel can handle it.
         # This is NOT a swarm_event (the agent never started), so we use a
         # separate message shape to avoid double-wrapping.
-        Phoenix.PubSub.broadcast(
-          FrontmanServer.PubSub,
-          topic(task.task_id),
+        broadcast_task(
+          task.task_id,
           {:execution_start_error, Execution.error_message(scope, reason)}
         )
 

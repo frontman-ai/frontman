@@ -21,9 +21,9 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
   end
 
   defp wait_for_execution_idle(socket, attempts \\ 20) do
-    %{assigns: %{scope: scope, task_id: task_id}} = :sys.get_state(socket.channel_pid)
+    %{assigns: %{task_id: task_id}} = :sys.get_state(socket.channel_pid)
 
-    case Tasks.execution_running?(scope, task_id) do
+    case SwarmAi.running?(FrontmanServer.AgentRuntime, task_id) do
       false ->
         :ok
 

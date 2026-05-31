@@ -254,7 +254,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       opts = socket.assigns[:last_execution_opts] || []
       mcp_tools = socket.assigns[:mcp_tools] || []
       all_tools = Tools.prepare_for_task(mcp_tools, task_id)
-      Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
+      Tasks.start_execution(scope, task_id, all_tools, opts)
     end
 
     {:noreply, socket}
@@ -401,7 +401,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     opts = execution_opts(socket, model, mcp_tools, meta)
 
-    Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
+    Tasks.start_execution(scope, task_id, all_tools, opts)
   end
 
   defp handle_mcp_error(id, error, socket) do
@@ -795,15 +795,13 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_retry_turn(retried_error_id, socket) do
     task_id = socket.assigns.task_id
-    scope = socket.assigns.scope
 
-    unless Tasks.execution_running?(scope, task_id) do
-      Tasks.add_agent_retry(scope, task_id, retried_error_id)
-      opts = socket.assigns[:last_execution_opts] || []
-      mcp_tools = socket.assigns[:mcp_tools] || []
-      all_tools = Tools.prepare_for_task(mcp_tools, task_id)
-      Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
-    end
+    Tasks.retry_execution(socket.assigns.scope, %{
+      task_id: task_id,
+      retried_error_id: retried_error_id,
+      tools: Tools.prepare_for_task(socket.assigns[:mcp_tools] || [], task_id),
+      opts: socket.assigns[:last_execution_opts] || []
+    })
 
     {:noreply, socket}
   end

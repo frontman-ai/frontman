@@ -107,18 +107,17 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         Tasks.submit_user_message(scope, task_id, user_content("Hello"), [])
 
       Process.sleep(100)
-      assert Tasks.execution_running?(scope, task_id)
+      assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
 
       assert_receive {:execution_event, %ExecutionEvent{type: :cancelled}}, 5_000
-      refute Tasks.execution_running?(scope, task_id)
+      refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
     end
 
-    test "cancel and running checks respect task ownership", %{task_id: task_id} do
+    test "cancel respects task ownership", %{task_id: task_id} do
       other_scope = user_scope_fixture()
 
-      refute Tasks.execution_running?(other_scope, task_id)
       assert Tasks.cancel_execution(other_scope, task_id) == {:error, :not_found}
     end
   end
@@ -138,7 +137,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         Tasks.submit_user_message(scope, task_id, user_content("First"), [])
 
       Process.sleep(100)
-      assert Tasks.execution_running?(scope, task_id)
+      assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       assert {:error, :already_running} =
                Tasks.submit_user_message(scope, task_id, user_content("Second"), [])
@@ -178,7 +177,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
-      refute Tasks.execution_running?(scope, task_id),
+      refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
              "Agent should not be running after completion"
 
       {:ok, _} =
@@ -317,7 +316,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       # Agent should still be running (blocking on receive)
       Process.sleep(200)
-      assert Tasks.execution_running?(scope, task_id)
+      assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       # Submit the tool result — this unblocks the agent
       answer = Jason.encode!(%{"answers" => [%{"answer" => "A"}]})

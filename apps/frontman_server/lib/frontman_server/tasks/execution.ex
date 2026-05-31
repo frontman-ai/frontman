@@ -23,8 +23,8 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
-  alias FrontmanServer.Tasks.Execution.RootAgent
-  alias FrontmanServer.Tasks.Task
+  alias FrontmanServer.Tasks.Execution.{Prompts, RootAgent}
+  alias FrontmanServer.Tasks.{Interaction, Task}
   alias FrontmanServer.Tools
 
   @doc """
@@ -34,17 +34,15 @@ defmodule FrontmanServer.Tasks.Execution do
   and submits the agent to SwarmAi.
 
   ## Options
-  - `:tools` - List of tool definitions for LLM (default: [])
   - `:model` - LLM model spec (defaults to provider default)
   ## Returns
   - `{:ok, pid}` - Execution started successfully
   - `{:ok, :already_running}` - An execution is already running for this task
   - `{:error, :no_api_key}` - No API key available
   """
-  @spec run(Accounts.scope(), Task.t(), keyword()) ::
+  @spec run(Accounts.scope(), Task.t(), [SwarmAi.Tool.t()], keyword()) ::
           {:ok, pid() | :already_running} | {:error, :no_api_key | term()}
-  def run(%Scope{} = scope, %Task{} = task, opts \\ []) do
-    tools = Keyword.get(opts, :tools, [])
+  def run(%Scope{} = scope, %Task{} = task, tools, opts \\ []) when is_list(tools) do
     model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
 
     # Resolve API key at the domain layer (earliest point)
@@ -57,19 +55,20 @@ defmodule FrontmanServer.Tasks.Execution do
           llm_opts
           |> maybe_enable_prompt_cache(api_key_info.provider)
 
-        agent =
-          RootAgent.new(%{
-            task: task,
-            scope: scope,
-            interaction_id: Keyword.get(opts, :interaction_id),
-            tools: tools,
-            backend_tool_modules:
-              Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules()),
-            mcp_tool_defs: Keyword.get(opts, :mcp_tool_defs, []),
-            project_traits: Keyword.get(opts, :project_traits, []),
-            model: model_spec,
-            llm_opts: llm_opts
-          })
+        project_traits = Keyword.get(opts, :project_traits, [])
+
+        agent = %RootAgent{
+          task: task,
+          scope: scope,
+          interaction_id: Keyword.get(opts, :interaction_id),
+          tools: tools,
+          backend_tool_modules:
+            Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules()),
+          mcp_tool_defs: Keyword.get(opts, :mcp_tool_defs, []),
+          system_prompt: system_prompt(task, project_traits),
+          model: model_spec,
+          llm_opts: llm_opts
+        }
 
         # Emit task start telemetry BEFORE SwarmAi.run to avoid race with task_stop
         # in event handlers — the agent may complete before this line returns.
@@ -116,6 +115,25 @@ defmodule FrontmanServer.Tasks.Execution do
   end
 
   # --- Private ---
+
+  defp system_prompt(%Task{} = task, project_traits) do
+    interactions = task.interactions
+
+    Prompts.build(
+      has_annotations: Interaction.has_annotations?(interactions),
+      project_traits: project_traits,
+      framework: task.framework,
+      project_rules: Enum.filter(interactions, &match?(%Interaction.DiscoveredProjectRule{}, &1)),
+      project_structure: project_structure(interactions)
+    )
+  end
+
+  defp project_structure(interactions) do
+    case Enum.find(interactions, &match?(%Interaction.DiscoveredProjectStructure{}, &1)) do
+      nil -> nil
+      struct -> struct.summary
+    end
+  end
 
   defp maybe_enable_prompt_cache(opts, "anthropic"),
     do: Keyword.put(opts, :anthropic_prompt_cache, true)
