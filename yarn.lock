@@ -2342,7 +2342,7 @@ __metadata:
   resolution: "@frontman/test-blog-starter@workspace:test/sites/blog-starter"
   dependencies:
     "@frontman-ai/nextjs": "workspace:*"
-    "@opentelemetry/api": "npm:^1.9.0"
+    "@opentelemetry/api": "npm:^1.9.1"
     "@opentelemetry/sdk-logs": "npm:^0.215.0"
     "@opentelemetry/sdk-node": "npm:^0.215.0"
     "@opentelemetry/sdk-trace-base": "npm:^2.6.1"
