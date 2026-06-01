@@ -19,8 +19,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.{ExecutionEvent, Interaction}
+  alias FrontmanServer.Tasks.{ExecutionEvent, Interaction, InteractionSchema}
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Workers.GenerateTitle
 
@@ -122,68 +123,35 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
-  # -- Concurrent execution prevention ----------------------------------------
+  # -- Turn lifecycle ----------------------------------------------------------
 
-  describe "concurrent execution prevention" do
+  describe "turn lifecycle" do
     setup [:setup_sandbox, :setup_user, :setup_task]
 
-    test "second submit returns :already_running while agent is executing", %{
+    test "allocates sequential turns and rejects active submit", %{
       task_id: task_id,
       scope: scope
     } do
-      expect_llm_responses([{:delay, "slow response", 5_000}])
+      expect_llm_responses([{:delay, "First response", 500}, "Second response"])
 
-      {:ok, _interaction, _turn_number} =
-        Tasks.submit_user_message(scope, task_id, user_content("First"), [])
+      {:ok, _, 1} =
+        Tasks.submit_user_message(scope, task_id, user_content("First message"), [])
 
       Process.sleep(100)
-      assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       assert {:error, :already_running} =
-               Tasks.submit_user_message(scope, task_id, user_content("Second"), [])
-
-      # Only one completion should fire
-      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 6_000
-      refute_receive {:interaction, %Interaction.AgentCompleted{}}, 500
-
-      # Only one agent response persisted — second message was rejected entirely
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      agent_responses =
-        Enum.filter(task.interactions, &match?(%Interaction.AgentResponse{}, &1))
-
-      assert length(agent_responses) == 1
-
-      user_messages =
-        Enum.filter(task.interactions, &match?(%Interaction.UserMessage{}, &1))
-
-      assert length(user_messages) == 1
-    end
-  end
-
-  # -- Consecutive messages --------------------------------------------------
-
-  describe "consecutive messages" do
-    setup [:setup_sandbox, :setup_user, :setup_task]
-
-    test "processes second message after first message completes", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      expect_llm_responses(["First response", "Second response"])
-
-      {:ok, _, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("First message"), [])
+               Tasks.submit_user_message(scope, task_id, user_content("Blocked"), [])
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
 
       refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
              "Agent should not be running after completion"
 
-      {:ok, _, _} =
+      {:ok, _, 2} =
         Tasks.submit_user_message(scope, task_id, user_content("Second message"), [])
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+      refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -192,6 +160,26 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert length(agent_responses) == 2,
              "Expected 2 agent responses, got #{length(agent_responses)}"
+
+      assert task.interactions |> Enum.filter(&match?(%Interaction.UserMessage{}, &1)) |> length() ==
+               2
+    end
+
+    test "startup failure persists terminal error on the same turn" do
+      scope = user_scope_fixture()
+      task_id = task_with_pubsub_fixture(scope)
+
+      {:ok, _, 1} =
+        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [],
+          model: %{"provider" => "missing", "value" => "test"}
+        )
+
+      assert_receive {:execution_start_error, "No API key available for this request.", 1}
+
+      assert %InteractionSchema{turn_number: 1} =
+               Repo.get_by!(InteractionSchema, task_id: task_id, type: "agent_error")
+
+      assert {:ok, :no_open_turn} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
     end
 
     test "conversation with tool calls supports follow-up messages", %{

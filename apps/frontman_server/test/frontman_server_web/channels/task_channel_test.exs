@@ -98,6 +98,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
   end
 
+  defp redispatched_question_header?(
+         {"mcp:message",
+          %{
+            "method" => "tools/call",
+            "params" => %{"name" => "question", "arguments" => %{"questions" => questions}}
+          }},
+         header
+       ),
+       do: match?([%{"header" => ^header}], questions)
+
+  defp redispatched_question_header?(_message, _header), do: false
+
   defp question_answer_response(id, answer) do
     JsonRpc.success_response(id, %{
       "content" => [
@@ -1116,21 +1128,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       messages = collect_all_pushes()
 
-      tools_call =
-        Enum.find(messages, fn
-          {"mcp:message",
-           %{
-             "method" => "tools/call",
-             "params" => %{"name" => "question", "arguments" => %{"questions" => questions}}
-           }} ->
-            match?([%{"header" => "Second turn"}], questions)
-
-          _ ->
-            false
-        end)
-
-      assert tools_call,
-             "tools/call for the unresolved second turn was not re-dispatched after reconnect"
+      assert Enum.any?(messages, &redispatched_question_header?(&1, "Second turn"))
+      refute Enum.any?(messages, &redispatched_question_header?(&1, "First turn"))
     end
 
     test "e2e: session/load before MCP handshake → answer after handshake → persisted", %{

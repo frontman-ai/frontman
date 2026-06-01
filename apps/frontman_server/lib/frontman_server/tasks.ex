@@ -856,12 +856,15 @@ defmodule FrontmanServer.Tasks do
     case get_task(scope, task_id) do
       {:ok, task} ->
         turn_number = execution_turn_number!(task_id, opts)
+        rows = load_interaction_rows(task_id)
 
         run_execution(
           scope,
           task,
           tools,
-          Keyword.put(opts, :turn_number, turn_number),
+          opts
+          |> Keyword.put(:turn_number, turn_number)
+          |> Keyword.put(:interaction_rows, rows),
           turn_number
         )
 

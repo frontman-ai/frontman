@@ -23,86 +23,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
   @tool_result_max_bytes 100
 
   describe "run/2" do
-    test "full pipeline: decays old images, leaves old tool results intact, dedupes context" do
-      tool_json =
-        Jason.encode!(%{
-          "content" => "file data",
-          "start_line" => 1,
-          "lines_returned" => 50,
-          "total_lines" => 200
-        })
-
-      messages = [
-        # Turn 1: user with screenshot + page context
-        %Message.User{
-          content: [
-            ContentPart.text("click the button" <> @page_context),
-            ContentPart.image("screenshot_data", "image/png")
-          ]
-        },
-        # Assistant response
-        %Message.Assistant{content: [ContentPart.text("I clicked it")]},
-        # Tool result with pagination metadata
-        %Message.Tool{
-          name: "read_file",
-          content: [ContentPart.text(tool_json)],
-          tool_call_id: "tc1"
-        },
-        # Second assistant response
-        %Message.Assistant{content: [ContentPart.text("read the file")]},
-        # Turn 2: user with same page context + new screenshot
-        %Message.User{
-          content: [
-            ContentPart.text("now scroll down" <> @page_context),
-            ContentPart.image("new_screenshot", "image/png")
-          ]
-        }
-      ]
-
-      result = LLMRequestPreflight.run(messages)
-
-      # Old screenshot (index 0) replaced with placeholder
-      user1_content = Enum.at(result, 0).content
-      assert Enum.any?(user1_content, &(&1.text == "[image: previously analyzed]"))
-      refute Enum.any?(user1_content, &(&1.type == :image))
-
-      # Old tool result decay is intentionally a no-op.
-      tool_text = Enum.at(result, 2).content |> hd() |> Map.get(:text)
-
-      assert tool_text == tool_json
-
-      # Duplicate page context stripped from second user message
-      user2_text =
-        Enum.at(result, 4).content
-        |> Enum.find(&(&1.type == :text))
-        |> Map.get(:text)
-
-      refute user2_text =~ "[Current Page Context]"
-
-      # Live screenshot (index 4) preserved
-      assert Enum.any?(Enum.at(result, 4).content, &(&1.type == :image))
-    end
-
     test "handles empty message list" do
       assert LLMRequestPreflight.run([]) == []
-    end
-
-    test "treats all messages as live before the first assistant response" do
-      messages = [
-        %Message.User{
-          content: [
-            ContentPart.text("inspect this"),
-            ContentPart.image("live-image", "image/png")
-          ]
-        }
-      ]
-
-      [result] = LLMRequestPreflight.run(messages)
-
-      assert Enum.any?(result.content, fn
-               %ContentPart{type: :image, data: "live-image"} -> true
-               _other -> false
-             end)
     end
 
     test "expands image-producing tool result JSON into image content" do
@@ -185,30 +107,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert image_placeholder.text =~ "7680px provider limit"
 
       assert [] = Sentry.Test.pop_sentry_reports()
-    end
-
-    test "decays old image_url parts" do
-      messages = [
-        %Message.User{content: [ContentPart.image_url("https://example.com/image.png")]},
-        %Message.Assistant{content: [ContentPart.text("ok")]}
-      ]
-
-      [result | _] = LLMRequestPreflight.run(messages)
-      assert result.content == [ContentPart.text("[image: previously analyzed]")]
-    end
-
-    test "keeps old tool results without tool_call_id unchanged" do
-      messages = [
-        %Message.Tool{
-          name: "read_file",
-          tool_call_id: nil,
-          content: [ContentPart.text("plain text result")]
-        },
-        %Message.Assistant{content: [ContentPart.text("ok")]}
-      ]
-
-      [result | _] = LLMRequestPreflight.run(messages)
-      assert result.content == [ContentPart.text("plain text result")]
     end
 
     test "keeps changed page context" do
@@ -372,12 +270,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert second.text == small_text
     end
 
-    # Regression test: long tool-calling chains accumulate many tool results
-    # inside the swarm loop without going through LLMRequestPreflight. When the
-    # LLMClient calls LLMRequestPreflight.run() before each API request, old
-    # large tool results must be truncated to stay within Anthropic's body limit.
     test "truncates large tool results accumulated across many loop steps" do
-      # Simulate 10 tool call/result pairs (loop steps), each result 100KB
       large_payload = String.duplicate("x", 100_000)
 
       tool_pairs =
@@ -397,7 +290,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
           ]
         end)
 
-      # Final (live) assistant turn, not yet replied — still needs full tool result
       messages =
         [%Message.User{content: [ContentPart.text("do work")]}] ++
           tool_pairs
@@ -461,39 +353,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert image_placeholder.type == :text
       assert image_placeholder.text =~ "Image omitted"
       refute image_placeholder.text =~ "Image removed"
-    end
-
-    test "leaves recovered get_tool_result image intact after the assistant has read it" do
-      data_url = "data:image/png;base64,#{Base.encode64("image-bytes")}"
-      source_tool_call_id = "tc-screenshot"
-      get_tool_call_id = "tc-get"
-
-      messages = [
-        %Message.User{content: [ContentPart.text("recover screenshot")]},
-        %Message.Assistant{
-          content: [ContentPart.text("")],
-          tool_calls: [
-            %SwarmAi.ToolCall{
-              id: get_tool_call_id,
-              name: "get_tool_result",
-              arguments: Jason.encode!(%{"tool_call_id" => source_tool_call_id})
-            }
-          ]
-        },
-        %Message.Tool{
-          name: "get_tool_result",
-          tool_call_id: get_tool_call_id,
-          content: [ContentPart.text(Jason.encode!(%{"screenshot" => data_url}))]
-        },
-        %Message.Assistant{content: [ContentPart.text("I saw it")]},
-        %Message.User{content: [ContentPart.text("continue")]}
-      ]
-
-      preflighted = LLMRequestPreflight.run(messages)
-
-      [part] = Enum.at(preflighted, 2).content
-
-      assert part == ContentPart.image("image-bytes", "image/png")
     end
   end
 

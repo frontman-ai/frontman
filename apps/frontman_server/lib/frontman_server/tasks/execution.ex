@@ -24,8 +24,9 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.{Prompts, RootAgent}
-  alias FrontmanServer.Tasks.{Interaction, Task}
+  alias FrontmanServer.Tasks.{Interaction, InteractionSchema, Task}
   alias FrontmanServer.Tools
+  alias SwarmAi.Message.ContentPart
 
   @doc """
   Runs an agent execution for a task.
@@ -45,6 +46,7 @@ defmodule FrontmanServer.Tasks.Execution do
   def run(%Scope{} = scope, %Task{} = task, tools, opts \\ []) when is_list(tools) do
     model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
     turn_number = Keyword.fetch!(opts, :turn_number)
+    interaction_rows = Keyword.fetch!(opts, :interaction_rows)
 
     # Resolve API key at the domain layer (earliest point)
     case Providers.prepare_api_key(scope, model) do
@@ -62,6 +64,7 @@ defmodule FrontmanServer.Tasks.Execution do
           task: task,
           scope: scope,
           turn_number: turn_number,
+          messages: prompt_messages(interaction_rows, turn_number),
           tools: tools,
           backend_tool_modules:
             Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules()),
@@ -114,7 +117,59 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
+  @doc false
+  @spec prompt_messages([InteractionSchema.t()], pos_integer()) :: [SwarmAi.Message.t()]
+  def prompt_messages(rows, turn_number)
+      when is_list(rows) and is_integer(turn_number) and turn_number > 0 do
+    {reversed_messages, old_message_count} =
+      Enum.reduce(rows, {[], 0}, fn row, {acc, count} ->
+        {messages, old?} = row_prompt_messages(row, turn_number)
+        count = if old?, do: count + length(messages), else: count
+        {Enum.reverse(messages, acc), count}
+      end)
+
+    messages = Enum.reverse(reversed_messages)
+    {old_messages, current_messages} = Enum.split(messages, old_message_count)
+    Enum.map(old_messages, &decay_images/1) ++ current_messages
+  end
+
   # --- Private ---
+
+  defp row_prompt_messages(%InteractionSchema{turn_number: nil, type: type}, _turn_number)
+       when type in ["discovered_project_rule", "discovered_project_structure"],
+       do: {[], false}
+
+  defp row_prompt_messages(%InteractionSchema{turn_number: nil, type: type}, _turn_number),
+    do: raise("Missing turn_number for prompt interaction type: #{type}")
+
+  defp row_prompt_messages(%InteractionSchema{turn_number: row_turn} = row, turn_number)
+       when is_integer(row_turn) and row_turn > 0 and row_turn < turn_number,
+       do: {row_to_messages(row), true}
+
+  defp row_prompt_messages(%InteractionSchema{turn_number: row_turn} = row, turn_number)
+       when is_integer(row_turn) and row_turn == turn_number,
+       do: {row_to_messages(row), false}
+
+  defp row_prompt_messages(%InteractionSchema{turn_number: row_turn}, turn_number),
+    do: raise("Prompt row turn_number #{inspect(row_turn)} is invalid for turn #{turn_number}")
+
+  defp row_to_messages(row) do
+    row
+    |> InteractionSchema.to_struct()
+    |> List.wrap()
+    |> Interaction.to_swarm_messages()
+  end
+
+  defp decay_images(%{content: content} = msg) when is_list(content) do
+    %{msg | content: Enum.map(content, &decay_image_part/1)}
+  end
+
+  defp decay_images(msg), do: msg
+
+  defp decay_image_part(%ContentPart{type: type}) when type in [:image, :image_url],
+    do: ContentPart.text("[image: previously analyzed]")
+
+  defp decay_image_part(part), do: part
 
   defp system_prompt(%Task{} = task, project_traits) do
     interactions = task.interactions

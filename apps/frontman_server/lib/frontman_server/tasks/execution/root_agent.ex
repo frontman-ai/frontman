@@ -14,11 +14,13 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Tasks.Task
   alias FrontmanServer.Tools.MCP
+  alias SwarmAi.Message
 
   typedstruct enforce: true do
     field(:task, Task.t())
     field(:scope, Accounts.scope())
     field(:turn_number, pos_integer())
+    field(:messages, [Message.t()])
     field(:tools, [SwarmAi.Tool.t()])
     field(:backend_tool_modules, [module()])
     field(:mcp_tool_defs, [MCP.t()])
@@ -31,14 +33,11 @@ end
 defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.Execution.{LLMClient, RootAgent, ToolExecutor}
-  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.Task
 
   def id(%RootAgent{task: %Task{task_id: task_id}}), do: task_id
 
-  def messages(%RootAgent{task: %Task{interactions: interactions}}) do
-    Interaction.to_swarm_messages(interactions)
-  end
+  def messages(%RootAgent{messages: messages}), do: messages
 
   def context(%RootAgent{scope: scope, turn_number: turn_number}) do
     %{scope: scope, turn_number: turn_number}

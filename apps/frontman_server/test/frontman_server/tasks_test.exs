@@ -1,11 +1,13 @@
 defmodule FrontmanServer.TasksTest do
-  use FrontmanServer.DataCase, async: true
+  use FrontmanServer.DataCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias Ecto.Migration.Runner
   alias FrontmanServer.Frameworks
+  alias FrontmanServer.Repo.Migrations.BackfillInteractionTurnNumbers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -51,50 +53,66 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "get_open_turn_unresolved_tool_calls/2" do
-    test "returns no open turn when there is no open turn", %{scope: scope} do
+    test "returns unresolved tool calls only for open turns", %{scope: scope} do
       task_id = task_fixture(scope)
 
       assert {:ok, :no_open_turn} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
-    end
-
-    test "returns unresolved tool calls", %{scope: scope} do
-      task_id = task_fixture(scope)
 
       insert_interaction_row(task_id, "user_message", 1)
       insert_interaction_row(task_id, "tool_call", 1, %{"tool_call_id" => "call_1"})
 
-      assert {:ok, [tool_call]} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
+      assert {:ok, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
+               Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
 
-      assert %Interaction.ToolCall{tool_call_id: "call_1"} = tool_call
-    end
-
-    test "returns empty list when all tool results are present", %{scope: scope} do
-      task_id = task_fixture(scope)
-
-      insert_interaction_row(task_id, "user_message", 1)
-      insert_interaction_row(task_id, "tool_call", 1, %{"tool_call_id" => "call_1"})
       insert_interaction_row(task_id, "tool_result", 1, %{"tool_call_id" => "call_1"})
 
       assert {:ok, []} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
     end
+  end
 
-    test "terminal interaction closes the turn", %{scope: scope} do
+  describe "turn-number backfill migration" do
+    test "backfills multi-turn history and leaves context rows nil", %{scope: scope} do
       task_id = task_fixture(scope)
 
-      insert_interaction_row(task_id, "user_message", 1)
-      insert_interaction_row(task_id, "agent_completed", 1)
+      for {type, data} <- [
+            {"discovered_project_rule", %{}},
+            {"user_message", %{}},
+            {"agent_response", %{}},
+            {"agent_completed", %{}},
+            {"discovered_project_structure", %{}},
+            {"user_message", %{}},
+            {"tool_call", %{"tool_call_id" => "call_2"}},
+            {"tool_result", %{"tool_call_id" => "call_2"}}
+          ] do
+        insert_interaction_row(task_id, type, nil, data)
+      end
 
-      assert {:ok, :no_open_turn} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
-    end
+      Code.require_file(
+        "priv/repo/migrations/20260531130646_backfill_interaction_turn_numbers.exs"
+      )
 
-    test "agent retry reopens a terminal turn", %{scope: scope} do
-      task_id = task_fixture(scope)
+      assert :ok =
+               Runner.run(
+                 Repo,
+                 Repo.config(),
+                 0,
+                 BackfillInteractionTurnNumbers,
+                 :forward,
+                 :up,
+                 :up,
+                 log: false
+               )
 
-      insert_interaction_row(task_id, "user_message", 1)
-      insert_interaction_row(task_id, "agent_error", 1)
-      insert_interaction_row(task_id, "agent_retry", 1)
-
-      assert {:ok, []} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
+      assert [
+               {"discovered_project_rule", nil},
+               {"user_message", 1},
+               {"agent_response", 1},
+               {"agent_completed", 1},
+               {"discovered_project_structure", nil},
+               {"user_message", 2},
+               {"tool_call", 2},
+               {"tool_result", 2}
+             ] = db_type_turns(task_id)
     end
   end
 
@@ -114,28 +132,6 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "Swarm message conversion" do
-    test "returns all messages for task", %{scope: scope} do
-      task_id = task_fixture(scope)
-
-      # Add a user message
-      user_message_fixture(scope, task_id, user_content("Hello"))
-      turn_number = latest_turn_number(task_id)
-
-      # Add responses
-      Tasks.agent_replied(scope, task_id, turn_number, "Response from agent", %{})
-      Tasks.agent_replied(scope, task_id, turn_number, "Another response", %{})
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
-
-      # Should have: UserMessage + 2 responses = 3 messages
-      assert length(messages) == 3
-
-      # Should have assistant messages
-      assistant_messages = Enum.filter(messages, &(SwarmAi.Message.role(&1) == :assistant))
-      assert length(assistant_messages) == 2
-    end
-
     test "full tool_call + tool_result round-trip produces valid Swarm messages", %{scope: scope} do
       task_id = task_fixture(scope)
 
@@ -185,6 +181,14 @@ defmodule FrontmanServer.TasksTest do
       assert length(sequences) == 5
       assert sequences == Enum.sort(sequences), "sequences should be strictly increasing"
       assert sequences == Enum.uniq(sequences), "sequences should be unique"
+
+      assert [
+               {"user_message", ^turn_number},
+               {"agent_response", ^turn_number},
+               {"tool_call", ^turn_number},
+               {"tool_result", ^turn_number},
+               {"agent_response", ^turn_number}
+             ] = db_type_turns(task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       messages = Tasks.Interaction.to_swarm_messages(task.interactions)
@@ -404,11 +408,22 @@ defmodule FrontmanServer.TasksTest do
   end
 
   defp db_sequences(task_id) do
+    task_id
+    |> db_rows()
+    |> Enum.map(& &1.sequence)
+  end
+
+  defp db_type_turns(task_id) do
+    task_id
+    |> db_rows()
+    |> Enum.map(&{&1.type, &1.turn_number})
+  end
+
+  defp db_rows(task_id) do
     InteractionSchema
     |> InteractionSchema.for_task(task_id)
     |> InteractionSchema.ordered()
     |> Repo.all()
-    |> Enum.map(& &1.sequence)
   end
 
   defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
@@ -438,6 +453,9 @@ defmodule FrontmanServer.TasksTest do
 
       assert rule.path == "/project/AGENTS.md"
       assert rule.content == "# Rules"
+
+      assert Repo.get_by!(InteractionSchema, task_id: task_id, type: "discovered_project_rule").turn_number ==
+               nil
     end
 
     test "deduplicates by path", %{scope: scope} do
@@ -468,10 +486,6 @@ defmodule FrontmanServer.TasksTest do
     test "handles content with null bytes without crashing", %{scope: scope} do
       task_id = task_fixture(scope)
 
-      # Simulate a project rule file containing null bytes (e.g., from a
-      # Windows UTF-16 file, binary artifact, or corrupted file).
-      # PostgreSQL rejects \0 in text/jsonb columns with:
-      #   Postgrex.Error: ERROR 22P05 (untranslatable_character)
       content_with_null = "# Rules\0with null\0bytes"
 
       {:ok, _rule} =
@@ -482,7 +496,6 @@ defmodule FrontmanServer.TasksTest do
           content_with_null
         )
 
-      # Verify it round-trips through the database with null bytes stripped
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       [db_rule] =
@@ -522,6 +535,11 @@ defmodule FrontmanServer.TasksTest do
         Tasks.add_discovered_project_structure(scope, task_id, summary)
 
       assert structure.summary == summary
+
+      assert Repo.get_by!(InteractionSchema,
+               task_id: task_id,
+               type: "discovered_project_structure"
+             ).turn_number == nil
     end
 
     test "returns error for non-existent task", %{scope: scope} do
@@ -529,43 +547,6 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :not_found} =
                Tasks.add_discovered_project_structure(scope, nonexistent_id, "summary")
-    end
-  end
-
-  describe "Swarm message conversion excludes non-conversational interactions" do
-    test "structure is excluded from Swarm messages", %{scope: scope} do
-      task_id = task_fixture(scope)
-
-      Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
-
-      user_message_fixture(scope, task_id, user_content("Hello"))
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
-
-      # Only the user message should be present — structure goes in system prompt
-      assert length(messages) == 1
-      [msg] = messages
-      assert SwarmAi.Message.role(msg) == :user
-    end
-
-    test "rules are excluded from Swarm messages", %{scope: scope} do
-      task_id = task_fixture(scope)
-
-      Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
-
-      user_message_fixture(scope, task_id, user_content("Hello"))
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
-
-      assert length(messages) == 1
-      [msg] = messages
-      assert SwarmAi.Message.role(msg) == :user
-
-      content_text = extract_content_text(msg.content)
-      refute content_text =~ "# Project Rules"
-      assert content_text =~ "Hello"
     end
   end
 
@@ -709,10 +690,6 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # AgentPaused DB round-trip (regression tests for bugs 5 & 6)
-  # ---------------------------------------------------------------------------
-
   describe "end_agent_turn/3 paused DB round-trip" do
     test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
@@ -727,7 +704,6 @@ defmodule FrontmanServer.TasksTest do
           {:paused_for_tool_timeout, "question", 120_000}
         )
 
-      # Bug 6: to_struct/1 had no "agent_paused" clause — get_task crashes
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       paused = Enum.find(task.interactions, &match?(%Interaction.AgentPaused{}, &1))
@@ -755,10 +731,8 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
-      # Bug 5: conversation_message?/1 had no AgentPaused clause — FunctionClauseError
       messages = Interaction.to_swarm_messages(task.interactions)
 
-      # AgentPaused is not a conversation message — only the UserMessage should appear
       assert length(messages) == 1
       assert SwarmAi.Message.role(hd(messages)) == :user
     end

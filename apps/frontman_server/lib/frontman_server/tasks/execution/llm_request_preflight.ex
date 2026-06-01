@@ -11,9 +11,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   Runs in `LLMClient` before each provider request. Each pass is a pure
   function over a list of `SwarmAi.Message` structs.
 
-  Core principle: recent context is sacred, old context is compactable.
-  A message is "old" if an assistant message appears after it — the model
-  has already processed it.
   """
 
   use Boundary,
@@ -28,7 +25,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   alias SwarmAi.Message.ContentPart
 
   @default_tool_result_max_bytes 51_200
-  @old_image_placeholder "[image: previously analyzed]"
   @unsupported_image_placeholder "[Image omitted: selected model does not support image input]"
 
   @type opts :: keyword()
@@ -40,30 +36,13 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   """
   @spec run([Message.t()], opts()) :: [Message.t()]
   def run(messages, opts \\ []) do
-    live_start_index = live_message_start_index(messages)
-
     messages
-    |> compact_old_tool_results(live_start_index)
     |> expand_tool_result_images()
-    |> decay_old_images(live_start_index)
     |> strip_unsupported_images(opts)
     |> constrain_image_dimensions(opts)
     |> truncate_tool_results(opts)
     |> dedup_page_context()
   end
-
-  # Index after the last assistant message. Earlier messages have already been
-  # processed by the model; later messages still belong to the live turn.
-  @spec live_message_start_index([Message.t()]) :: non_neg_integer()
-  defp live_message_start_index(messages) do
-    messages
-    |> Enum.with_index()
-    |> Enum.reduce(0, fn {msg, idx}, acc ->
-      if match?(%Message.Assistant{}, msg), do: idx + 1, else: acc
-    end)
-  end
-
-  defp compact_old_tool_results(messages, _live_start_index), do: messages
 
   defp expand_tool_result_images(messages) do
     Enum.map(messages, &expand_tool_image/1)
@@ -118,35 +97,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
 
   defp canonical_tool_name(name) when is_binary(name), do: String.replace_prefix(name, "mcp_", "")
   defp canonical_tool_name(name), do: name
-
-  defp decay_old_images(messages, live_start_index) do
-    messages
-    |> Enum.with_index()
-    |> Enum.map(&decay_old_image(&1, live_start_index))
-  end
-
-  defp decay_old_image({msg, idx}, live_start_index) when idx < live_start_index do
-    decay_images(msg)
-  end
-
-  defp decay_old_image({msg, _idx}, _live_start_index), do: msg
-
-  defp decay_images(%Message.Tool{} = msg), do: msg
-
-  defp decay_images(%{content: content} = msg) when is_list(content) do
-    new_content =
-      Enum.map(content, fn
-        %ContentPart{type: type} when type in [:image, :image_url] ->
-          ContentPart.text(@old_image_placeholder)
-
-        other ->
-          other
-      end)
-
-    %{msg | content: new_content}
-  end
-
-  defp decay_images(msg), do: msg
 
   defp strip_unsupported_images(messages, opts) do
     case Keyword.get(opts, :images_supported, true) do
