@@ -2132,7 +2132,7 @@ __metadata:
     "@frontman/bindings": "npm:0.3.1"
     "@rescript/runtime": "npm:12.2.0"
     "@rescript/webapi": "npm:*"
-    "@vscode/ripgrep": "npm:^1.15.0"
+    "@vscode/ripgrep": "npm:^1.17.1"
     chrome-launcher: "npm:^1.1.2"
     lighthouse: "npm:^12.5.1"
     rescript: "catalog:"
@@ -7183,14 +7183,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vscode/ripgrep@npm:^1.15.0":
-  version: 1.17.0
-  resolution: "@vscode/ripgrep@npm:1.17.0"
+"@vscode/ripgrep@npm:^1.17.1":
+  version: 1.17.1
+  resolution: "@vscode/ripgrep@npm:1.17.1"
   dependencies:
     https-proxy-agent: "npm:^7.0.2"
     proxy-from-env: "npm:^1.1.0"
     yauzl: "npm:^2.9.2"
-  checksum: 10c0/8cf41015209cf149ae6f4dd694ce375860f6b7329de71e3ee5857029b9513ee88d331d301b75de39938f7d87b79e70edd3f9789f38bfbc5da9eab56b5baea7a4
+  checksum: 10c0/bedb5d039e8b12f711d4fd9de36125c0d81a6aa9c96c78d6d9f629acbfc0da9a5c6ccf0264c88f91565cf0e7429e7e07b72f15a7f83b543cdb47b6b14c3e014a
   languageName: node
   linkType: hard
 
