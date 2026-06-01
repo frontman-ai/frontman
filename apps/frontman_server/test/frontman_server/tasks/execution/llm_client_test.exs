@@ -9,6 +9,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   alias ReqLLM.Error.API.{Request, Stream}
   alias SwarmAi.Message.ContentPart
 
+  setup :set_mox_from_context
   setup :verify_on_exit!
 
   describe "ReqLLM stream exception contract" do
