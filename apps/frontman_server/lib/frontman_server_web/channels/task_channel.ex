@@ -302,17 +302,17 @@ defmodule FrontmanServerWeb.TaskChannel do
     :ok
   end
 
-  defp handle_mcp_response(id, result, socket) when is_integer(id) do
+  defp handle_mcp_response(id, result, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
     init_state = socket.assigns[:mcp_init_state]
 
     Logger.debug(
-      "MCP response received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
+      "MCP response received: id=#{inspect(id)}, pending_keys=#{inspect(Map.keys(pending_requests))}"
     )
 
     case {Map.pop(pending_requests, id), init_state} do
       {{{:tool_call, tool_call}, remaining_requests}, _init_state} ->
-        Logger.debug("MCP response #{id} matched pending tool call")
+        Logger.debug("MCP response #{inspect(id)} matched pending tool call")
         handle_tool_call_response(tool_call, result, socket, remaining_requests)
 
       {{nil, _},
@@ -328,14 +328,14 @@ defmodule FrontmanServerWeb.TaskChannel do
              project_rules_request_id,
              project_structure_request_id
            ] ->
-        Logger.debug("MCP response #{id} matched MCPInitializer")
+        Logger.debug("MCP response #{inspect(id)} matched MCPInitializer")
         {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
         socket = assign(socket, :mcp_init_state, new_state)
         socket = execute_init_actions(actions, socket)
         maybe_process_queued_prompt(socket)
 
       {{nil, _}, _init_state} ->
-        Logger.warning("Received MCP response for unknown request_id: #{id}")
+        Logger.warning("Received MCP response for unknown request_id: #{inspect(id)}")
         {:noreply, socket}
     end
   end
@@ -405,12 +405,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
   end
 
-  defp handle_mcp_error(id, error, socket) when is_integer(id) do
+  defp handle_mcp_error(id, error, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
     init_state = socket.assigns[:mcp_init_state]
 
     Logger.debug(
-      "MCP error received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
+      "MCP error received: id=#{inspect(id)}, pending_keys=#{inspect(Map.keys(pending_requests))}"
     )
 
     case {Map.pop(pending_requests, id), init_state} do
@@ -436,7 +436,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         maybe_process_queued_prompt(socket)
 
       {{nil, _}, _init_state} ->
-        Logger.warning("Received MCP error for unknown request_id: #{id}")
+        Logger.warning("Received MCP error for unknown request_id: #{inspect(id)}")
         {:noreply, socket}
     end
   end

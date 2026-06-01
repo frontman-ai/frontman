@@ -630,6 +630,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
     end
+
+    test "ignores MCP responses with string IDs instead of crashing", %{socket: socket} do
+      log =
+        capture_log(fn ->
+          push(socket, "mcp:message", JsonRpc.success_response("unknown-success", %{}))
+
+          push(
+            socket,
+            "mcp:message",
+            JsonRpc.error_response("unknown-error", -32_000, "Tool failed")
+          )
+
+          :sys.get_state(socket.channel_pid)
+        end)
+
+      assert Process.alive?(socket.channel_pid)
+      assert log =~ ~s(Received MCP response for unknown request_id: "unknown-success")
+      assert log =~ ~s(Received MCP error for unknown request_id: "unknown-error")
+    end
   end
 
   describe "MCP tool result flows to waiting executor" do
