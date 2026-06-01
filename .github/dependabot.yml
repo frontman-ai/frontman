@@ -32,6 +32,7 @@ updates:
       default-days: 30
     exclude-paths:
       - "libs/frontman-nextjs/test/cli/fixtures/**"
+      - "test/sites/blog-starter/**"
     groups:
       rescript:
         patterns:
