@@ -44,6 +44,7 @@ defmodule FrontmanServer.Tasks.Execution do
           {:ok, pid() | :already_running} | {:error, :no_api_key | term()}
   def run(%Scope{} = scope, %Task{} = task, tools, opts \\ []) when is_list(tools) do
     model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
+    turn_number = Keyword.fetch!(opts, :turn_number)
 
     # Resolve API key at the domain layer (earliest point)
     case Providers.prepare_api_key(scope, model) do
@@ -60,7 +61,7 @@ defmodule FrontmanServer.Tasks.Execution do
         agent = %RootAgent{
           task: task,
           scope: scope,
-          interaction_id: Keyword.get(opts, :interaction_id),
+          turn_number: turn_number,
           tools: tools,
           backend_tool_modules:
             Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules()),
@@ -96,7 +97,6 @@ defmodule FrontmanServer.Tasks.Execution do
   Notifies that a tool result has arrived.
 
   Routes the result to the blocking executor via Registry metadata.
-  Called by the Tasks facade after persisting the tool result interaction.
   Returns `:notified` when the result was delivered to a live executor,
   `:no_executor` when no executor was waiting (e.g., server restarted).
   """
@@ -120,7 +120,8 @@ defmodule FrontmanServer.Tasks.Execution do
     interactions = task.interactions
 
     Prompts.build(
-      has_annotations: Interaction.has_annotations?(interactions),
+      has_annotations:
+        Enum.any?(interactions, &match?(%Interaction.UserMessage{annotations: [_ | _]}, &1)),
       project_traits: project_traits,
       framework: task.framework,
       project_rules: Enum.filter(interactions, &match?(%Interaction.DiscoveredProjectRule{}, &1)),

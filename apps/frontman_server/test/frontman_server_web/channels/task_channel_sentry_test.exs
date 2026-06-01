@@ -10,6 +10,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   use FrontmanServerWeb.ChannelCase, async: false
 
   import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.Test.Fixtures.Tasks
 
   setup %{scope: scope} do
     Sentry.Test.setup_sentry(dedup_events: false)
@@ -17,7 +18,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     {socket, task_id} = join_task_channel(scope, framework: "nextjs")
     complete_mcp_handshake(socket)
 
-    {:ok, socket: socket, task_id: task_id}
+    turn_number = start_turn_fixture(scope, task_id)
+    {:ok, socket: socket, task_id: task_id, turn_number: turn_number}
   end
 
   describe "backend tool result status normalization (Gap 1)" do
@@ -73,13 +75,15 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     @tag :capture_log
     test "reports MCP tool error to Sentry with context", %{
       socket: socket,
-      task_id: task_id
+      task_id: task_id,
+      scope: scope,
+      turn_number: turn_number
     } do
       # Send a tool call interaction that will be routed to MCP
       tool_call =
         tool_call("call_mcp_err_#{:rand.uniform(1_000_000)}", "testMcpTool", %{"key" => "value"})
 
-      send(socket.channel_pid, {:interaction, tool_call})
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 
       # Get the MCP request ID
       assert_push("mcp:message", %{
@@ -130,12 +134,15 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
     @tag :capture_log
     test "MCP tool error with missing message field defaults to 'Unknown MCP error'", %{
-      socket: socket
+      socket: socket,
+      task_id: task_id,
+      scope: scope,
+      turn_number: turn_number
     } do
       tool_call =
         tool_call("call_mcp_no_msg_#{:rand.uniform(1_000_000)}", "anotherMcpTool")
 
-      send(socket.channel_pid, {:interaction, tool_call})
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",

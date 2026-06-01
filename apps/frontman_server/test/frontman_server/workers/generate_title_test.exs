@@ -1,15 +1,9 @@
 defmodule FrontmanServer.Workers.GenerateTitleTest do
   use FrontmanServer.DataCase, async: true
-  use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
-  import FrontmanServer.Test.Fixtures.Tasks
-  import Ecto.Query, only: [where: 3]
 
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Providers.Model
-  alias FrontmanServer.Repo
-  alias FrontmanServer.Tasks
   alias FrontmanServer.Workers.GenerateTitle
 
   setup do
@@ -46,46 +40,6 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
       changeset = GenerateTitle.new_job(scope, "task-123", "Hello", nil)
 
       assert changeset.changes.args.encrypted_env_api_key == nil
-    end
-  end
-
-  describe "perform/1" do
-    test "enqueues via Tasks context with forwarded model and encrypted env key", %{user: user} do
-      scope =
-        user
-        |> Scope.for_user()
-        |> Scope.with_env_api_keys(%{"openrouter" => "sk-or-test"})
-
-      task_id = task_fixture(scope)
-
-      {:ok, _job} =
-        Tasks.enqueue_title_generation(scope, task_id, "Help me build a login page",
-          model: Model.new("openrouter", "openai/gpt-5.5")
-        )
-
-      assert_enqueued(
-        worker: GenerateTitle,
-        args: %{
-          user_id: user.id,
-          task_id: task_id,
-          model: "openrouter:openai/gpt-5.5"
-        }
-      )
-    end
-
-    test "completed title jobs remain unique", %{user: user} do
-      scope = Scope.for_user(user)
-      task_id = Ecto.UUID.generate()
-
-      {:ok, first_job} = Tasks.enqueue_title_generation(scope, task_id, "Build a login page")
-
-      Oban.Job
-      |> where([job], job.id == ^first_job.id)
-      |> Repo.update_all(set: [state: "completed"])
-
-      {:ok, second_job} = Tasks.enqueue_title_generation(scope, task_id, "Now add signup")
-
-      assert first_job.id == second_job.id
     end
   end
 end

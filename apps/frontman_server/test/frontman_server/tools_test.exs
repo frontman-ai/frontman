@@ -12,9 +12,9 @@ defmodule FrontmanServer.ToolsTest do
 
   setup do
     scope = user_scope_fixture()
-    task_id = task_fixture(scope, framework: "nextjs")
+    task_id = task_with_open_turn_fixture(scope, framework: "nextjs")
     {:ok, task} = Tasks.get_task(scope, task_id)
-    {:ok, task_id: task_id, task: task, scope: scope}
+    {:ok, task_id: task_id, task: task, scope: scope, turn_number: latest_turn_number(task_id)}
   end
 
   describe "backend_tools/0" do
@@ -181,14 +181,19 @@ defmodule FrontmanServer.ToolsTest do
   end
 
   describe "GetToolResult.execute/2" do
-    test "returns the actual tool result by tool call ID", %{task_id: task_id, scope: scope} do
+    test "returns the actual tool result by tool call ID", %{
+      task_id: task_id,
+      scope: scope,
+      turn_number: turn_number
+    } do
       {:ok, interaction, :no_executor} =
-        Tasks.add_tool_result(
+        Tasks.resolve_tool_request(
           scope,
           task_id,
           %{id: "tc-read", name: "read_file"},
           %{"content" => "file contents"},
-          false
+          false,
+          turn_number: turn_number
         )
 
       {:ok, task} = Tasks.get_task(scope, task_id)

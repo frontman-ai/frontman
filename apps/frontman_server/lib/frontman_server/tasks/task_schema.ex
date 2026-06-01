@@ -66,11 +66,6 @@ defmodule FrontmanServer.Tasks.TaskSchema do
     from(t in query, where: t.user_id == ^user_id)
   end
 
-  @spec with_interactions(Ecto.Queryable.t()) :: Ecto.Query.t()
-  def with_interactions(query \\ __MODULE__) do
-    from(t in query, preload: [:interactions])
-  end
-
   @spec ordered_by_updated(Ecto.Queryable.t()) :: Ecto.Query.t()
   def ordered_by_updated(query \\ __MODULE__) do
     from(t in query, order_by: [desc: t.updated_at])

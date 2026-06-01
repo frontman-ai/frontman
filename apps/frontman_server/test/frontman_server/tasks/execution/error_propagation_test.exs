@@ -47,7 +47,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
 
-      {:ok, _} =
+      {:ok, _, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Take a screenshot"), [])
 
       # Stream errors are now caught and surfaced as graceful failures
@@ -67,7 +67,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
 
-      {:ok, _} =
+      {:ok, _, _} =
         Tasks.submit_user_message(scope, task_id, user_content("Hello"), [])
 
       # Should receive a failed event broadcast

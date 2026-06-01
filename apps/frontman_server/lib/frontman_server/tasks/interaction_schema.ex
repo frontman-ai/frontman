@@ -26,8 +26,9 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   schema "interactions" do
     field(:type, :string)
     field(:data, :map)
-    # Monotonic sequence for deterministic ordering (avoids DB insert race conditions)
+    # Monotonic sequence avoids DB insert race conditions.
     field(:sequence, :integer)
+    field(:turn_number, :integer)
 
     belongs_to(:task, TaskSchema)
 
@@ -38,55 +39,58 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   @doc """
   Changeset for creating an interaction from a domain struct.
-  Persists ordering in the DB `sequence` column; domain interactions do not carry it.
+  Persists row metadata in DB columns; domain interactions do not carry it.
   """
-  @spec create_changeset(TaskSchema.t(), struct()) :: Ecto.Changeset.t()
-  def create_changeset(%TaskSchema{} = task, interaction) do
+  @spec create_changeset(TaskSchema.t(), struct(), integer() | nil) :: Ecto.Changeset.t()
+  def create_changeset(%TaskSchema{} = task, interaction, turn_number)
+      when is_struct(interaction) and (is_integer(turn_number) or is_nil(turn_number)) do
     type = interaction.__struct__ |> Module.split() |> List.last() |> Macro.underscore()
 
     task
     |> Ecto.build_assoc(:interactions)
-    |> change(type: type, data: Map.from_struct(interaction), sequence: generate_sequence())
+    |> change(
+      type: type,
+      data: Map.from_struct(interaction),
+      sequence: generate_sequence(),
+      turn_number: turn_number
+    )
     |> validate_required([:task_id, :type, :data, :sequence])
     |> strip_null_bytes(:data)
     |> validate_json_encodable(:data)
+    |> validate_turn_number()
     |> foreign_key_constraint(:task_id)
     |> unique_constraint([:task_id, :data],
-      name: :interactions_tool_result_uniqueness,
+      name: :interactions_tool_result_turn_uniqueness,
       message: "duplicate tool result for this tool_call_id"
     )
   end
 
-  # Reserve 6 decimal digits for the tiebreaker (0–999_999).
-  # This allows up to 1 million sequence calls per second before
-  # wrapping, which is far beyond any realistic throughput.
+  defp validate_turn_number(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :turn_number)} do
+      {type, nil} when type in ["discovered_project_rule", "discovered_project_structure"] ->
+        changeset
+
+      {_type, turn_number} when is_integer(turn_number) and turn_number > 0 ->
+        changeset
+
+      {type, nil} ->
+        add_error(changeset, :turn_number, "missing for #{type}")
+
+      {_type, _turn_number} ->
+        add_error(changeset, :turn_number, "must be positive")
+    end
+  end
+
   @tiebreaker_range 1_000_000
 
-  @doc """
-  Generates a monotonic sequence number from wall-clock time + a BEAM-unique tiebreaker.
-
-  The value is `unix_seconds * 1_000_000 + (monotonic_counter mod 1_000_000)`.
-
-  - **Cross-restart monotonicity** — the timestamp component always moves forward.
-  - **Within-BEAM uniqueness** — `System.unique_integer([:monotonic, :positive])` never
-    repeats within a single BEAM instance, breaking ties when two calls land in the
-    same second.
-  - **No DB round-trip** — purely in-memory, no TOCTOU race.
-
-  At the current epoch the result is ~1.7 × 10¹², fitting comfortably in a
-  Postgres `bigint` (max ~9.2 × 10¹⁸).
-  """
-  @spec generate_sequence() :: integer()
-  def generate_sequence do
+  defp generate_sequence do
     unix_s = DateTime.utc_now() |> DateTime.to_unix(:second)
     tiebreaker = System.unique_integer([:monotonic, :positive])
     unix_s * @tiebreaker_range + rem(tiebreaker, @tiebreaker_range)
   end
 
-  # Query helpers
-
   @spec for_task(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
-  def for_task(query \\ __MODULE__, task_id) do
+  def for_task(query \\ __MODULE__, task_id) when is_binary(task_id) do
     from(i in query, where: i.task_id == ^task_id)
   end
 
@@ -96,7 +100,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   """
   @spec ordered(Ecto.Queryable.t()) :: Ecto.Query.t()
   def ordered(query \\ __MODULE__) do
-    from(i in query, order_by: [asc: coalesce(i.sequence, 0), asc: i.inserted_at])
+    from(i in query, order_by: [asc: coalesce(i.sequence, 0), asc: i.inserted_at, asc: i.id])
   end
 
   # --- JSONB to Domain Struct Conversion ---
@@ -206,7 +210,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     raise "Unknown interaction type: #{type}"
   end
 
-  @spec parse_datetime(DateTime.t() | String.t() | nil) :: DateTime.t() | nil
+  @spec parse_datetime(DateTime.t() | String.t()) :: DateTime.t()
   defp parse_datetime(%DateTime{} = dt), do: dt
 
   defp parse_datetime(str) when is_binary(str) do
@@ -214,13 +218,11 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     dt
   end
 
-  # Parse annotations list from stored data — delegates to domain Annotation.from_map/1
   defp parse_annotations(nil), do: []
 
   defp parse_annotations(annotations) when is_list(annotations),
     do: Enum.map(annotations, &Interaction.Annotation.from_map/1)
 
-  # Parse user-uploaded images from stored data — delegates to domain UserImage.from_map/1
   defp parse_images(nil), do: []
 
   defp parse_images(images) when is_list(images),

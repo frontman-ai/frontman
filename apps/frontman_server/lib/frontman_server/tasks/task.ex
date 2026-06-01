@@ -28,11 +28,10 @@ defmodule FrontmanServer.Tasks.Task do
   @doc """
   Returns the default short description for a new task.
 
-  Titles are later generated asynchronously via the `GenerateTitle`
-  Oban worker after the first user message.
+  Titles are later suggested asynchronously after the first user message.
   """
-  @spec short_description(String.t()) :: String.t()
-  def short_description(_task_id) do
+  @spec default_title() :: String.t()
+  def default_title do
     "New Task"
   end
 end

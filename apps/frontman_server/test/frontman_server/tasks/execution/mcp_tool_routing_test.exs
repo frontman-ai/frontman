@@ -29,7 +29,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       assert_push("mcp:message", %{"method" => "initialize"})
 
       # Subscribe to PubSub to see what interactions are published
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Tasks.topic(task_id))
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
@@ -38,9 +38,12 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       task_id: task_id,
       scope: scope
     } do
+      {:ok, _message} = user_message_fixture(scope, task_id, user_content("test turn"))
+      turn_number = latest_turn_number(task_id)
+
       tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#main"}))
 
-      ToolExecutor.start_mcp_tool(scope, task_id, tool_call)
+      ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tool_call)
 
       assert_push(
         "mcp:message",
@@ -73,7 +76,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "test-key"})
 
-      {:ok, _interaction} =
+      {:ok, _interaction, _turn_number} =
         Tasks.submit_user_message(
           scope,
           task_id,

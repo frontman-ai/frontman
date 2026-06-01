@@ -47,7 +47,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       # Create an LLM that returns a tool call on first turn, then completes
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
-      {:ok, _} =
+      {:ok, _, _} =
         Tasks.submit_user_message(
           scope,
           task_id,
@@ -64,7 +64,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       # If this fails with count > 1, we have the duplicate bug
       assert length(tool_call_broadcasts) == 1,
              "Expected exactly 1 tool call broadcast, got #{length(tool_call_broadcasts)}. " <>
-               "This indicates Tasks.add_tool_call is being called multiple times."
+               "This indicates Tasks.request_client_tool is being called multiple times."
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -127,7 +127,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
-      {:ok, _} =
+      {:ok, _, _} =
         Tasks.submit_user_message(
           scope,
           task_id,

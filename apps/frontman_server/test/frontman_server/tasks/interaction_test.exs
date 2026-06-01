@@ -161,25 +161,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   # ---------------------------------------------------------------------------
-  # has_annotations?/1
-  # ---------------------------------------------------------------------------
-
-  describe "has_annotations?/1" do
-    test "returns true when UserMessage has annotations, false otherwise" do
-      with_ann =
-        UserMessage.new([
-          text_block("Hello"),
-          annotation_block("ann-1", "div", "/path/to/file.tsx", 1, 1)
-        ])
-
-      without_ann = UserMessage.new([text_block("Hello")])
-
-      assert Interaction.has_annotations?([with_ann]) == true
-      assert Interaction.has_annotations?([without_ann]) == false
-    end
-  end
-
-  # ---------------------------------------------------------------------------
   # to_swarm_messages/1
   # ---------------------------------------------------------------------------
 
@@ -548,105 +529,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert %SwarmAi.ToolCall{} = tc
       assert tc.id == "call_flat_1"
       assert tc.name == "get_weather"
-    end
-  end
-
-  # ---------------------------------------------------------------------------
-  # all_pending_tools_resolved?/1
-  # ---------------------------------------------------------------------------
-
-  describe "all_pending_tools_resolved?/1" do
-    test "returns true when no interactions or no AgentResponse present" do
-      assert Interaction.all_pending_tools_resolved?([]) == true
-      assert Interaction.all_pending_tools_resolved?([user_msg("Hello")]) == true
-    end
-
-    test "returns true when last AgentResponse has nil/empty/no tool_calls" do
-      for metadata <- [nil, %{}, %{"tool_calls" => []}, %{"tool_calls" => nil}] do
-        interactions = [agent_resp("Done", metadata)]
-        assert Interaction.all_pending_tools_resolved?(interactions) == true
-      end
-    end
-
-    test "returns true when all tool_calls have matching ToolResults" do
-      interactions = [
-        agent_resp("Let me use tools", %{
-          "tool_calls" => [
-            db_tool_call("call_1", "read_file"),
-            db_tool_call("call_2", "question")
-          ]
-        }),
-        tool_result("call_1", "read_file", "file contents"),
-        tool_result("call_2", "question", "user answer")
-      ]
-
-      assert Interaction.all_pending_tools_resolved?(interactions) == true
-    end
-
-    test "returns false when some tool_calls are missing ToolResults" do
-      interactions = [
-        agent_resp("Let me use tools", %{
-          "tool_calls" => [
-            db_tool_call("call_1", "read_file"),
-            db_tool_call("call_2", "question")
-          ]
-        }),
-        tool_result("call_1", "read_file", "file contents")
-        # call_2 has no matching ToolResult
-      ]
-
-      assert Interaction.all_pending_tools_resolved?(interactions) == false
-    end
-
-    test "returns false when no tool_calls have matching ToolResults" do
-      interactions = [
-        agent_resp("Asking a question", %{
-          "tool_calls" => [flat_tool_call("call_q", "question", "{}")]
-        })
-      ]
-
-      assert Interaction.all_pending_tools_resolved?(interactions) == false
-    end
-
-    test "only checks the LAST AgentResponse, not earlier ones" do
-      interactions = [
-        # First AgentResponse with unresolved tool call
-        agent_resp("First response", %{
-          "tool_calls" => [flat_tool_call("call_old", "read_file", "{}")]
-        }),
-        # Second (last) AgentResponse with no tool calls
-        agent_resp("Final response", %{})
-      ]
-
-      assert Interaction.all_pending_tools_resolved?(interactions) == true
-    end
-
-    test "ignores ToolResults that appear BEFORE the last AgentResponse" do
-      interactions = [
-        tool_result("call_1", "question", "old answer"),
-        agent_resp("Asking again", %{
-          "tool_calls" => [flat_tool_call("call_1", "question", "{}")]
-        })
-        # No ToolResult after the latest AgentResponse.
-      ]
-
-      assert Interaction.all_pending_tools_resolved?(interactions) == false
-    end
-
-    test "handles flat and nested string-key tool call maps" do
-      for tool_calls <- [
-            [%{"id" => "call_a", "name" => "question", "arguments" => "{}"}],
-            [%{"id" => "call_nested", "function" => %{"name" => "question", "arguments" => "{}"}}]
-          ] do
-        %{"id" => call_id} = hd(tool_calls)
-
-        interactions = [
-          agent_resp("Using tool", %{"tool_calls" => tool_calls}),
-          tool_result(call_id, "question", "answer")
-        ]
-
-        assert Interaction.all_pending_tools_resolved?(interactions) == true
-      end
     end
   end
 

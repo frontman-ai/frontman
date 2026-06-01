@@ -27,16 +27,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
-    task_id = task_fixture(scope, framework: "nextjs")
+    task_id = task_with_open_turn_fixture(scope, framework: "nextjs")
 
-    {:ok, task_id: task_id, scope: scope}
+    {:ok, task_id: task_id, scope: scope, turn_number: latest_turn_number(task_id)}
   end
 
   describe "backend tool soft error Sentry reporting (Gap 2)" do
     @tag :capture_log
     test "reports {:error, reason} to Sentry with tool context", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      turn_number: turn_number
     } do
       # Sending an invalid status triggers an {:error, reason} return
       tool_call =
@@ -56,6 +57,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
+          turn_number,
           tool_call
         )
 
@@ -86,7 +88,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     @tag :capture_log
     test "reports malformed JSON arguments to Sentry", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      turn_number: turn_number
     } do
       # Intentionally malformed JSON
       tool_call = swarm_tool_call("todo_write", "{invalid json!!!}")
@@ -98,6 +101,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
+          turn_number,
           tool_call
         )
 
@@ -129,7 +133,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
     test "does not report valid JSON arguments to Sentry", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      turn_number: turn_number
     } do
       tool_call = swarm_tool_call("todo_write", Jason.encode!(%{"todos" => []}))
 
@@ -140,6 +145,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
+          turn_number,
           tool_call
         )
 
@@ -157,7 +163,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     @tag :capture_log
     test "truncates long raw arguments in Sentry report", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      turn_number: turn_number
     } do
       # Create a long malformed string (> 500 chars) to verify truncation
       long_invalid_json = String.duplicate("x", 1000)
@@ -171,6 +178,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
+          turn_number,
           tool_call
         )
 
@@ -199,10 +207,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     @tag :capture_log
     test "persists error ToolResult and reports to Sentry", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      turn_number: turn_number
     } do
       tc = %SwarmAi.ToolCall{id: "tc-deadline-1", name: "todo_write", arguments: "{}"}
-      ToolExecutor.handle_timeout(scope, task_id, :error, tc, :triggered)
+      ToolExecutor.handle_timeout(scope, task_id, turn_number, :error, tc, :triggered)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -223,10 +232,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
     test "handle_timeout(:triggered) is a no-op for :pause_agent policy", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      turn_number: turn_number
     } do
       tc = %SwarmAi.ToolCall{id: "tc-pause-1", name: "some_mcp_tool", arguments: "{}"}
-      ToolExecutor.handle_timeout(scope, task_id, :pause_agent, tc, :triggered)
+      ToolExecutor.handle_timeout(scope, task_id, turn_number, :pause_agent, tc, :triggered)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 

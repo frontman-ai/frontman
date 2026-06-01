@@ -27,6 +27,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.StreamCleanup
   alias FrontmanServer.Vault
   alias ReqLLM.Message.ContentPart
 
@@ -77,7 +78,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
          {:ok, raw_title} <- call_llm(resolved_key, user_prompt_text),
          title = String.trim(raw_title),
          false <- title == "",
-         :ok <- Tasks.set_generated_title(scope, task_id, title) do
+         :ok <- Tasks.apply_title_suggestion(scope, task_id, title) do
       :ok
     else
       {:error, :no_api_key} ->
@@ -111,7 +112,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
           response.stream
           |> Stream.filter(fn chunk -> chunk.type == :content end)
           |> Stream.map(fn chunk -> chunk.text || "" end)
-          |> Tasks.wrap_stream(response.cancel)
+          |> StreamCleanup.wrap_stream(response.cancel)
           |> Enum.join("")
 
         {:ok, title}

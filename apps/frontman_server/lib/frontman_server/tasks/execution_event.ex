@@ -2,16 +2,13 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
   @moduledoc """
   Domain event emitted during task execution.
 
-  Wraps raw SwarmAi execution events with causation context — which user
-  interaction triggered this execution. The SwarmDispatcher acts as an
-  Anti-Corruption Layer, translating infrastructure events into these
-  domain events before broadcasting on PubSub.
+  Wraps raw SwarmAi execution events with turn context. The Tasks context
+  translates infrastructure events into these domain events before broadcasting
+  on PubSub.
   """
 
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.StreamStallTimeout
-
-  @type interaction_id :: String.t()
 
   @type event_type ::
           :chunk
@@ -24,19 +21,19 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
           | :terminated
           | :paused
 
-  @enforce_keys [:type]
-  defstruct [:type, :payload, :caused_by]
+  @enforce_keys [:type, :turn_number]
+  defstruct [:type, :payload, :turn_number]
 
   @type t :: %__MODULE__{
           type: event_type(),
           payload: term(),
-          caused_by: interaction_id() | nil
+          turn_number: pos_integer()
         }
 
   @doc """
   Classifies an execution event into a channel action.
 
-  Persistence is handled by SwarmDispatcher — this function only determines
+  Persistence is handled by the Tasks context — this function only determines
   what the channel should do in response.
   """
   @spec classify(t()) :: term()

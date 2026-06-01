@@ -18,7 +18,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   typedstruct enforce: true do
     field(:task, Task.t())
     field(:scope, Accounts.scope())
-    field(:interaction_id, String.t() | nil)
+    field(:turn_number, pos_integer())
     field(:tools, [SwarmAi.Tool.t()])
     field(:backend_tool_modules, [module()])
     field(:mcp_tool_defs, [MCP.t()])
@@ -40,12 +40,12 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
     Interaction.to_swarm_messages(interactions)
   end
 
-  def context(%RootAgent{scope: scope, interaction_id: interaction_id}) do
-    %{scope: scope, interaction_id: interaction_id}
+  def context(%RootAgent{scope: scope, turn_number: turn_number}) do
+    %{scope: scope, turn_number: turn_number}
   end
 
-  def tool_executor(%RootAgent{scope: scope, task: task} = agent) do
-    ToolExecutor.make(scope, task.task_id, %{
+  def tool_executor(%RootAgent{scope: scope, task: task, turn_number: turn_number} = agent) do
+    ToolExecutor.make(scope, task.task_id, turn_number, %{
       backend_tool_modules: agent.backend_tool_modules,
       mcp_tool_defs: agent.mcp_tool_defs,
       execution_mode: Frameworks.tool_execution_mode(task.framework)

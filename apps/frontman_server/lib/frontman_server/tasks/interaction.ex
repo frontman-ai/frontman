@@ -691,7 +691,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents an agent execution ending with an error (failed, crashed, or cancelled).
 
-    Persisted so that reconnecting clients see the final state of every agent turn,
+    Persisted so that reconnecting clients see the terminal interaction for every agent turn,
     even when the channel process was dead when the error occurred.
     """
     use TypedStruct
@@ -1014,62 +1014,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
-  Checks if an interaction is a user message.
-  """
-  @spec user_message?(t()) :: boolean()
-  def user_message?(%UserMessage{}), do: true
-  def user_message?(_), do: false
-
-  @doc """
-  Checks whether all tool_calls from the last AgentResponse have matching
-  ToolResult interactions.
-
-  Returns `true` when there is no pending AgentResponse, or when every
-  tool_call in the last AgentResponse has a corresponding later ToolResult.
-
-  Used to gate re-execution after a late-arriving interactive tool result:
-  we only restart the agent loop when ALL tool results are present so the
-  conversation is valid for the LLM.
-  """
-  @spec all_pending_tools_resolved?(list(t())) :: boolean()
-  def all_pending_tools_resolved?(interactions) do
-    case last_agent_response_with_following_interactions(interactions) do
-      {tool_calls, following_interactions} ->
-        expected_ids = MapSet.new(tool_calls, &tool_call_id/1)
-
-        result_ids =
-          following_interactions
-          |> Enum.filter(&match?(%ToolResult{}, &1))
-          |> MapSet.new(& &1.tool_call_id)
-
-        MapSet.subset?(expected_ids, result_ids)
-
-      nil ->
-        true
-    end
-  end
-
-  defp last_agent_response_with_following_interactions(interactions) do
-    interactions
-    |> Enum.with_index()
-    |> Enum.filter(&match?({%AgentResponse{}, _index}, &1))
-    |> List.last()
-    |> case do
-      {%AgentResponse{metadata: meta}, index} ->
-        case (meta || %{})["tool_calls"] do
-          tool_calls when is_list(tool_calls) and tool_calls != [] ->
-            {tool_calls, Enum.drop(interactions, index + 1)}
-
-          _ ->
-            nil
-        end
-
-      nil ->
-        nil
-    end
-  end
-
-  @doc """
   Converts interactions to Swarm message format.
 
   This is the boundary translation from Tasks domain (Interactions)
@@ -1352,18 +1296,5 @@ defmodule FrontmanServer.Tasks.Interaction do
       [] -> nil
       filtered -> filtered
     end
-  end
-
-  defp tool_call_id(%{"id" => id}), do: id
-
-  @doc """
-  Checks if any user messages in the interactions contain annotations.
-  """
-  @spec has_annotations?(list(t())) :: boolean()
-  def has_annotations?(interactions) do
-    Enum.any?(interactions, fn
-      %UserMessage{annotations: anns} when anns != [] -> true
-      _ -> false
-    end)
   end
 end

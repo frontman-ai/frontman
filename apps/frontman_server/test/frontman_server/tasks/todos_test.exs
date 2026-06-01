@@ -9,9 +9,9 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
   setup do
     scope = user_scope_fixture()
-    task_id = task_fixture(scope, framework: "nextjs")
+    task_id = task_with_open_turn_fixture(scope, framework: "nextjs")
 
-    {:ok, task_id: task_id, scope: scope}
+    {:ok, task_id: task_id, scope: scope, turn_number: latest_turn_number(task_id)}
   end
 
   describe "list_todos/1" do
@@ -20,7 +20,11 @@ defmodule FrontmanServer.Tasks.TodosTest do
       assert %{} = Todos.list_todos(task.interactions)
     end
 
-    test "parses todos from a todo_write result", %{task_id: task_id, scope: scope} do
+    test "parses todos from a todo_write result", %{
+      task_id: task_id,
+      scope: scope,
+      turn_number: turn_number
+    } do
       write_result = %{
         "todos" => [
           %{
@@ -44,7 +48,14 @@ defmodule FrontmanServer.Tasks.TodosTest do
         ]
       }
 
-      Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_write"}, write_result, false)
+      Tasks.resolve_tool_request(
+        scope,
+        task_id,
+        %{id: "c1", name: "todo_write"},
+        write_result,
+        false,
+        turn_number: turn_number
+      )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       todos = Todos.list_todos(task.interactions)
@@ -55,7 +66,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       assert Enum.any?(todo_list, &(&1.content == "Write tests" and &1.status == :in_progress))
     end
 
-    test "last todo_write wins", %{task_id: task_id, scope: scope} do
+    test "last todo_write wins", %{task_id: task_id, scope: scope, turn_number: turn_number} do
       first_result = %{
         "todos" => [
           %{
@@ -84,14 +95,22 @@ defmodule FrontmanServer.Tasks.TodosTest do
         ]
       }
 
-      Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_write"}, first_result, false)
+      Tasks.resolve_tool_request(
+        scope,
+        task_id,
+        %{id: "c1", name: "todo_write"},
+        first_result,
+        false,
+        turn_number: turn_number
+      )
 
-      Tasks.add_tool_result(
+      Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
         second_result,
-        false
+        false,
+        turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -103,7 +122,11 @@ defmodule FrontmanServer.Tasks.TodosTest do
       assert todo.priority == :high
     end
 
-    test "error todo_write results are ignored", %{task_id: task_id, scope: scope} do
+    test "error todo_write results are ignored", %{
+      task_id: task_id,
+      scope: scope,
+      turn_number: turn_number
+    } do
       good_result = %{
         "todos" => [
           %{
@@ -118,15 +141,23 @@ defmodule FrontmanServer.Tasks.TodosTest do
         ]
       }
 
-      Tasks.add_tool_result(scope, task_id, %{id: "c1", name: "todo_write"}, good_result, false)
+      Tasks.resolve_tool_request(
+        scope,
+        task_id,
+        %{id: "c1", name: "todo_write"},
+        good_result,
+        false,
+        turn_number: turn_number
+      )
 
       # Error result should be ignored
-      Tasks.add_tool_result(
+      Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
         "Invalid todo at index 0",
-        true
+        true,
+        turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -135,13 +166,18 @@ defmodule FrontmanServer.Tasks.TodosTest do
       assert [%{content: "Good task"}] = Map.values(todos)
     end
 
-    test "empty todos array returns empty map", %{task_id: task_id, scope: scope} do
-      Tasks.add_tool_result(
+    test "empty todos array returns empty map", %{
+      task_id: task_id,
+      scope: scope,
+      turn_number: turn_number
+    } do
+      Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
         %{"todos" => []},
-        false
+        false,
+        turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -150,23 +186,26 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
     test "old todo_add/update/remove interactions are ignored", %{
       task_id: task_id,
-      scope: scope
+      scope: scope,
+      turn_number: turn_number
     } do
       # Simulate legacy interactions
-      Tasks.add_tool_result(
+      Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c1", name: "todo_add"},
         %{"id" => "fake", "content" => "Old todo"},
-        false
+        false,
+        turn_number: turn_number
       )
 
-      Tasks.add_tool_result(
+      Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c2", name: "todo_update"},
         %{"id" => "fake", "status" => "completed"},
-        false
+        false,
+        turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)

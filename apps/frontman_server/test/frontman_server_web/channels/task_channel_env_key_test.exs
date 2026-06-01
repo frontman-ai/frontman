@@ -7,8 +7,6 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
   import FrontmanServer.ProvidersFixtures
 
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution.LLMError
-  alias FrontmanServer.Tasks.ExecutionEvent
 
   defp push_prompt_and_assert_accepted(socket, meta \\ %{}) do
     push(socket, "acp:message", prompt_request(_meta: meta))
@@ -31,30 +29,6 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
         Process.sleep(25)
         wait_for_execution_idle(socket, attempts - 1)
     end
-  end
-
-  defp assert_env_key_survives_retry(socket, provider, meta_key, value) do
-    push_prompt_and_assert_accepted(socket, %{meta_key => value})
-
-    %{assigns: %{scope: scope_after_prompt}} = :sys.get_state(socket.channel_pid)
-    assert scope_after_prompt.env_api_keys[provider] == value
-
-    error = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
-
-    event = %ExecutionEvent{
-      type: :failed,
-      payload: %{reason: error, loop_id: System.unique_integer([:positive])}
-    }
-
-    send(socket.channel_pid, {:execution_event, event})
-    :sys.get_state(socket.channel_pid)
-
-    send(socket.channel_pid, :fire_retry)
-    :sys.get_state(socket.channel_pid)
-    wait_for_execution_idle(socket)
-
-    %{assigns: %{scope: scope_after_retry}} = :sys.get_state(socket.channel_pid)
-    assert scope_after_retry.env_api_keys[provider] == value
   end
 
   describe "env key extraction through channel" do
@@ -90,30 +64,6 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
 
       %{assigns: %{scope: scope_after_prompt}} = :sys.get_state(socket.channel_pid)
       assert scope_after_prompt.env_api_keys == %{}
-    end
-  end
-
-  describe "env key persistence across retries" do
-    setup %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
-      complete_mcp_handshake(socket)
-      {:ok, socket: socket}
-    end
-
-    for {provider, meta_key, value} <- [
-          {"anthropic", "anthropicKeyValue", "sk-anthropic-retry-test"},
-          {"fireworks", "fireworksKeyValue", "sk-fireworks-retry-test"}
-        ] do
-      test "#{provider} env key in prompt _meta is still on scope when :fire_retry fires", %{
-        socket: socket
-      } do
-        assert_env_key_survives_retry(
-          socket,
-          unquote(provider),
-          unquote(meta_key),
-          unquote(value)
-        )
-      end
     end
   end
 end

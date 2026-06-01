@@ -152,8 +152,7 @@ defmodule Mix.Tasks.DebugTask do
     limit = Keyword.get(opts, :limit, 100)
 
     query =
-      InteractionSchema
-      |> InteractionSchema.for_task(task_id)
+      InteractionSchema.for_task(task_id)
       |> InteractionSchema.ordered()
       |> apply_filters(opts)
       |> limit(^limit)
@@ -173,8 +172,7 @@ defmodule Mix.Tasks.DebugTask do
 
   defp show_detail(task_id, seq) do
     interaction =
-      InteractionSchema
-      |> InteractionSchema.for_task(task_id)
+      InteractionSchema.for_task(task_id)
       |> where([i], i.sequence == ^seq)
       |> Repo.one()
 
@@ -228,8 +226,7 @@ defmodule Mix.Tasks.DebugTask do
 
   defp find_originating_tool_call(task_id, tool_call_id) do
     stored_call =
-      InteractionSchema
-      |> InteractionSchema.for_task(task_id)
+      InteractionSchema.for_task(task_id)
       |> where([i], i.type == "tool_call")
       |> where([i], fragment("?->>'tool_call_id' = ?", i.data, ^tool_call_id))
       |> Repo.one()
@@ -242,8 +239,7 @@ defmodule Mix.Tasks.DebugTask do
 
   defp find_embedded_tool_call(task_id, tool_call_id) do
     responses =
-      InteractionSchema
-      |> InteractionSchema.for_task(task_id)
+      InteractionSchema.for_task(task_id)
       |> where([i], i.type == "agent_response")
       |> InteractionSchema.ordered()
       |> Repo.all()
@@ -548,15 +544,13 @@ defmodule Mix.Tasks.DebugTask do
   end
 
   defp interaction_count(task_id) do
-    InteractionSchema
-    |> InteractionSchema.for_task(task_id)
+    InteractionSchema.for_task(task_id)
     |> select([i], count(i.id))
     |> Repo.one()
   end
 
   defp error_count(task_id) do
-    InteractionSchema
-    |> InteractionSchema.for_task(task_id)
+    InteractionSchema.for_task(task_id)
     |> where([i], i.type == "tool_result")
     |> where([i], fragment("(?->>'is_error')::boolean = true", i.data))
     |> select([i], count(i.id))

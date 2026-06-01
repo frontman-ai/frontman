@@ -23,7 +23,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
-    task_id = task_with_pubsub_fixture(scope, framework: "nextjs")
+    task_id = task_with_open_turn_fixture(scope, framework: "nextjs")
+    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
     {:ok, task_id: task_id, scope: scope}
   end
@@ -40,7 +41,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         task_id,
         {:failed, %{reason: :llm_api_failure, loop_id: loop_id}},
         %{
-          scope: scope
+          scope: scope,
+          turn_number: latest_turn_number(task_id)
         }
       )
 
@@ -71,7 +73,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       reason = %RuntimeError{message: "Sentry test: simulated stream error"}
 
       SwarmDispatcher.dispatch(task_id, {:failed, %{reason: reason, loop_id: loop_id}}, %{
-        scope: scope
+        scope: scope,
+        turn_number: latest_turn_number(task_id)
       })
 
       assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
