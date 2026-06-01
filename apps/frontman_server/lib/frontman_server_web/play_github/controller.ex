@@ -12,23 +12,20 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.PlayGithub
+  alias FrontmanServer.PlayGithub.GithubReference
 
   @command_usage "?command=create|start|clone|install|dev"
 
-  def index(conn, _params) do
-    html(
-      conn,
-      "PlayGithub local subdomain is routed for #{conn.assigns.current_scope.user.email}"
-    )
-  end
-
   def show(conn, %{"github_path" => github_path} = params) do
-    case PlayGithub.parse_path(github_path) do
-      {:ok, parsed_path} ->
-        case parse_command(params["command"]) do
-          {:ok, command} -> show_parsed_path(conn, parsed_path, command, params)
-          {:error, reason} -> handle_command_error(conn, reason)
-        end
+    with {:ok, parsed_path} <- GithubReference.parse_path(github_path),
+         {:ok, command} <- parse_command(params["command"]) do
+      show_parsed_path(conn, parsed_path, command, params)
+    else
+      {:error, :missing_command} ->
+        handle_command_error(conn, :missing_command)
+
+      {:error, {:unsupported_command, command}} ->
+        handle_command_error(conn, {:unsupported_command, command})
 
       {:error, reason} ->
         conn
@@ -79,7 +76,7 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
   end
 
   defp handle_playgithub_error(conn, parsed_path, :not_repository_path) do
-    text(conn, PlayGithub.format_path(parsed_path))
+    text(conn, GithubReference.format(parsed_path))
   end
 
   defp handle_playgithub_error(conn, _parsed_path, :daytona_sandbox_not_found) do

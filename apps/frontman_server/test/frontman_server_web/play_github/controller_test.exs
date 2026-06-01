@@ -2,6 +2,7 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
   use FrontmanServerWeb.ConnCase, async: false
 
   alias FrontmanServer.PlayGithub
+  alias FrontmanServer.PlayGithub.GithubReference
 
   setup do
     previous_playgithub = Application.get_env(:frontman_server, :playgithub)
@@ -962,14 +963,14 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
   end
 
   defp sandbox_name do
-    {:ok, github_path} = PlayGithub.parse_path(["octocat", "Hello-World"])
+    {:ok, github_path} = GithubReference.parse_path(["octocat", "Hello-World"])
 
     PlayGithub.sandbox_name(github_path)
   end
 
   defp tree_sandbox_name do
     {:ok, github_path} =
-      PlayGithub.parse_path(["octocat", "Hello-World", "tree", "main", "apps", "marketing"])
+      GithubReference.parse_path(["octocat", "Hello-World", "tree", "main", "apps", "marketing"])
 
     PlayGithub.sandbox_name(github_path)
   end

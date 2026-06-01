@@ -36,7 +36,6 @@ defmodule FrontmanServerWeb.Router do
     scope "/", FrontmanServerWeb, host: host do
       pipe_through([:browser, :require_authenticated_user])
 
-      get("/", PlayGithub.Controller, :index)
       get("/*github_path", PlayGithub.Controller, :show)
     end
   end

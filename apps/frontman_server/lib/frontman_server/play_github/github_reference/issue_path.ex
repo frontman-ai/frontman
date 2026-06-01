@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServer.PlayGithub.GithubIssuePath do
+defmodule FrontmanServer.PlayGithub.GithubReference.IssuePath do
   @moduledoc """
   GitHub issue path.
   """
