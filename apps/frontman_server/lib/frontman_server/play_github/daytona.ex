@@ -27,6 +27,22 @@ defmodule FrontmanServer.PlayGithub.Daytona do
     )
   end
 
+  def start_sandbox(sandbox_id) do
+    Req.post(
+      "#{app_api_url()}/sandbox/#{sandbox_id}/start",
+      [auth: {:bearer, api_key()}, headers: daytona_headers()] ++ req_options()
+    )
+  end
+
+  def create_signed_preview_url(sandbox_id, port, expires_seconds) do
+    query = URI.encode_query(%{"expiresInSeconds" => expires_seconds})
+
+    Req.get(
+      "#{app_api_url()}/sandbox/#{sandbox_id}/ports/#{port}/signed-preview-url?#{query}",
+      [auth: {:bearer, api_key()}, headers: daytona_headers()] ++ req_options()
+    )
+  end
+
   def clone_repository(sandbox_id, repo_url) do
     Req.post(
       "#{app_api_url()}/toolbox/#{sandbox_id}/toolbox/git/clone",

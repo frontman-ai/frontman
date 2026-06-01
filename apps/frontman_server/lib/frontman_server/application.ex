@@ -51,6 +51,7 @@ defmodule FrontmanServer.Application do
       FrontmanServer.Vault,
       {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: FrontmanServer.PubSub},
+      {Task.Supervisor, name: FrontmanServer.PlayGithub.TaskSupervisor},
       {SwarmAi, name: FrontmanServer.AgentRuntime},
       # Registry for MCP tool call result routing (separate from agent execution tracking)
       {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
