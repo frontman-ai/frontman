@@ -22,7 +22,7 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.2",
     "astro": "^6.1.6",
-    "astro-broken-links-checker": "^1.0.7",
+    "astro-broken-links-checker": "^1.1.0",
     "astro-consent": "^2.0.0",
     "astro-icon": "^1.1.5",
     "hc-starlight": "^0.0.8",
