@@ -59,4 +59,11 @@ Before merging changes that touch boundaries:
   better than exporting a contract?
 - If a struct is used across boundaries, is it exported intentionally?
 - Are boundary deps one-way and cycle-free?
+- Is the contract listed in the registry?
 - Did `mix compile --warnings-as-errors --all-warnings` and `MIX_ENV=test mix compile --warnings-as-errors --all-warnings` pass?
+
+## Public Contract Registry
+
+- `FrontmanServer.PlayGithub.GithubReference` — parsed PlayGithub route reference
+  consumed by the web controller before sandbox orchestration. Resource variant
+  modules remain internal to the PlayGithub boundary.
