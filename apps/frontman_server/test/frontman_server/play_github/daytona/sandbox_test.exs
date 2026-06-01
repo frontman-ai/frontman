@@ -147,6 +147,27 @@ defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
     end
   end
 
+  describe "get_preview_link/2" do
+    test "fetches a Daytona sandbox preview link for a port" do
+      Req.Test.expect(:playgithub_daytona, fn conn ->
+        assert conn.method == "GET"
+        assert conn.request_path == "/api/sandbox/sandbox_123/ports/4321/preview-url"
+        assert {"authorization", "Bearer test-daytona-key"} in conn.req_headers
+        assert {"x-daytona-organization-id", "test-daytona-org"} in conn.req_headers
+
+        Req.Test.json(conn, %{
+          "token" => "preview-token",
+          "url" => "https://4321-sandbox-123.proxy.daytona.work"
+        })
+      end)
+
+      assert {:ok, %Req.Response{status: 200, body: %{"url" => preview_url}}} =
+               Sandbox.get_preview_link("sandbox_123", 4321)
+
+      assert preview_url == "https://4321-sandbox-123.proxy.daytona.work"
+    end
+  end
+
   describe "replace_labels/2" do
     test "replaces sandbox labels" do
       Req.Test.expect(:playgithub_daytona, fn conn ->

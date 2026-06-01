@@ -49,10 +49,19 @@ if env_boolean.("PHX_SERVER", false) do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
 
+playgithub_config = Application.get_env(:frontman_server, :playgithub, [])
+daytona_config = Keyword.get(playgithub_config, :daytona, [])
+
+daytona_organization_id =
+  case config_env() do
+    :prod -> env!("DAYTONA_ORGANIZATION_ID", :string!)
+    _ -> env!("DAYTONA_ORGANIZATION_ID", :string, Keyword.get(daytona_config, :organization_id))
+  end
+
 config :frontman_server, :playgithub,
   daytona: [
     api_key: env!("DAYTONA_API_KEY", :string!),
-    organization_id: env!("DAYTONA_ORGANIZATION_ID", :string!)
+    organization_id: daytona_organization_id
   ]
 
 # Cloak encryption key for API keys at rest (required)

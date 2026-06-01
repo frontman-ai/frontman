@@ -42,6 +42,44 @@ defmodule FrontmanServer.PlayGithub do
     RepositorySandbox.sandbox_name(github_reference)
   end
 
+  def get_or_create_repository_sandbox(%GithubReference{} = github_reference) do
+    run_repository_command(github_reference, :create)
+  end
+
+  def get_sandbox_preview_link(sandbox_id, port)
+      when is_binary(sandbox_id) and is_integer(port) do
+    case Sandbox.get_preview_link(sandbox_id, port) do
+      {:ok, %Req.Response{} = response} -> preview_link_from_response(response)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp preview_link_from_response(%Req.Response{
+         status: status,
+         body: %{"url" => url, "token" => token}
+       })
+       when status in 200..299 and is_binary(url) and is_binary(token) do
+    {:ok, %{url: url, preview_token: token}}
+  end
+
+  defp preview_link_from_response(%Req.Response{status: status, body: %{"url" => url}})
+       when status in 200..299 and is_binary(url) do
+    {:ok, %{url: url, preview_token: nil}}
+  end
+
+  defp preview_link_from_response(%Req.Response{status: 404}) do
+    {:error, :daytona_sandbox_not_found}
+  end
+
+  defp preview_link_from_response(%Req.Response{status: status, body: body})
+       when status in 200..299 do
+    {:error, {:malformed_daytona_preview_response, body}}
+  end
+
+  defp preview_link_from_response(%Req.Response{status: status, body: body}) do
+    {:error, {:daytona_preview_lookup_failed, status, body}}
+  end
+
   @spec run_repository_command(GithubReference.t(), repository_command(), keyword()) ::
           {:ok, %{command: String.t(), sandbox: RepositorySandbox.t()}}
           | {:error, term()}

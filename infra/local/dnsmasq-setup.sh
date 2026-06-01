@@ -2,8 +2,9 @@
 # dnsmasq-setup.sh — One-time setup for wildcard DNS resolution.
 #
 # Configures dnsmasq to resolve *.frontman.local -> 127.0.0.1
-# so all worktree subdomains (e.g. a1b2.api.frontman.local) work
-# without manual /etc/hosts entries.
+# so all worktree subdomains (e.g. a1b2.api.frontman.local) and local
+# PlayGithub sandbox hosts (e.g. sandboxid-port.playgithub.frontman.local)
+# work without manual /etc/hosts entries.
 #
 # Usage: sudo ./infra/local/dnsmasq-setup.sh
 
@@ -152,6 +153,15 @@ else
     echo -e "${YELLOW}Warning: Could not verify DNS resolution.${RESET}"
     echo "Try manually: dig test.frontman.local @$DNS_ADDR"
     echo "You may need to restart your network or flush DNS cache."
+fi
+
+if dig +short sandbox.playgithub.frontman.local @"$DNS_ADDR" 2>/dev/null | grep -q "127.0.0.1" || \
+   resolvectl query sandbox.playgithub.frontman.local 2>/dev/null | grep -q "127.0.0.1" || \
+   getent hosts sandbox.playgithub.frontman.local 2>/dev/null | grep -q "127.0.0.1"; then
+    echo -e "${GREEN}PlayGithub sandbox DNS is working: *.playgithub.frontman.local -> 127.0.0.1${RESET}"
+else
+    echo -e "${YELLOW}Warning: Could not verify PlayGithub sandbox DNS resolution.${RESET}"
+    echo "Try manually: dig sandbox.playgithub.frontman.local @$DNS_ADDR"
 fi
 
 echo ""

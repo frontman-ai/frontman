@@ -8,8 +8,9 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
   @moduledoc """
   Proxies sandbox preview URLs through the Frontman API origin.
 
-  This is intentionally temporary: callers pass the sandbox URL in the `url`
-  query parameter until sandbox lookup is modeled by id.
+  The `/sandbox?url=...` query parameter path is temporary. Host-scoped
+  PlayGithub requests resolve sandbox preview URLs through Daytona by id and
+  port.
   """
 
   import Plug.Conn
@@ -91,30 +92,71 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
     send_error(conn, status, message)
   end
 
-  defp proxy_request(%{path_info: ["frontman" | _proxied_path]} = conn) do
+  defp proxy_request(conn) do
+    case TargetPolicy.target_from_request_host(conn.host, playgithub_hosts()) do
+      {:ok, %{url: raw_url, preview_token: preview_token}} ->
+        proxy_host_target(conn, raw_url, preview_token)
+
+      {:error, :missing_url} ->
+        proxy_path_request(conn)
+
+      {:error, :daytona_sandbox_not_found} ->
+        send_error(conn, :not_found, "Sandbox not found")
+
+      {:error, reason} ->
+        send_bad_gateway(conn, reason)
+    end
+  end
+
+  defp proxy_path_request(%{path_info: ["frontman" | _proxied_path]} = conn) do
     case conn.method do
       "OPTIONS" -> send_preflight(conn)
       _ -> proxy_frontman_path(conn, Target.path_from_request(conn, 0))
     end
   end
 
-  defp proxy_request(%{path_info: ["sandbox" | _proxied_path]} = conn) do
+  defp proxy_path_request(%{path_info: ["sandbox" | _proxied_path]} = conn) do
     case conn.method do
       "OPTIONS" -> send_preflight(conn)
       _ -> proxy(conn, Target.path_from_request(conn, 1))
     end
   end
 
-  defp proxy_request(conn) do
+  defp proxy_path_request(conn) do
     case DevServerPolicy.websocket_request?(conn) do
       true -> proxy_websocket(conn)
       false -> proxy_referred_path(conn)
     end
   end
 
+  defp proxy_host_target(conn, raw_url, preview_token) do
+    case conn.method do
+      "OPTIONS" ->
+        send_preflight(conn)
+
+      _ ->
+        case DevServerPolicy.websocket_request?(conn) do
+          true -> upgrade_websocket(conn, raw_url, preview_token)
+          false -> proxy_host_path(conn, raw_url, preview_token)
+        end
+    end
+  end
+
+  defp proxy_host_path(conn, raw_url, preview_token) do
+    run_proxy(
+      conn,
+      Target.url_for_referred_path(
+        raw_url,
+        Target.path_from_request(conn, 0),
+        conn.query_string
+      ),
+      preview_token
+    )
+  end
+
   defp proxy_websocket(conn) do
     case source_url_for_websocket(conn) do
-      {:ok, raw_url} -> upgrade_websocket(conn, raw_url)
+      {:ok, raw_url} -> upgrade_websocket(conn, raw_url, nil)
       {:error, :missing_url} -> send_error(conn, :bad_request, "Missing url query parameter")
     end
   end
@@ -126,7 +168,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
     end
   end
 
-  defp upgrade_websocket(conn, raw_url) do
+  defp upgrade_websocket(conn, raw_url, preview_token) do
     with :ok <- TargetPolicy.validate_target_url(raw_url),
          {:ok, target_url} <- build_websocket_target_url(raw_url, conn) do
       conn
@@ -135,7 +177,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
         WebSocket,
         %{
           target_url: target_url,
-          upstream_headers: proxy_websocket_request_headers(conn.req_headers)
+          upstream_headers: proxy_websocket_request_headers(conn.req_headers, preview_token)
         },
         timeout: @websocket_idle_timeout_ms,
         max_frame_size: @websocket_max_frame_size
@@ -153,7 +195,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
 
   defp proxy(%{query_params: %{"url" => raw_url}} = conn, proxied_path)
        when is_binary(raw_url) do
-    run_proxy(conn, Target.url(raw_url, proxied_path, conn.query_params))
+    run_proxy(conn, Target.url(raw_url, proxied_path, conn.query_params), nil)
   end
 
   defp proxy(conn, _proxied_path) do
@@ -163,7 +205,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
   defp proxy_frontman_path(conn, proxied_path) do
     case Target.source_url(conn) do
       {:ok, raw_url} ->
-        run_proxy(conn, Target.url_for_path(raw_url, proxied_path, conn.query_params))
+        run_proxy(conn, Target.url_for_path(raw_url, proxied_path, conn.query_params), nil)
 
       {:error, :missing_url} ->
         send_error(conn, :bad_request, "Missing url query parameter")
@@ -179,7 +221,8 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
             raw_url,
             Target.path_from_request(conn, 0),
             conn.query_string
-          )
+          ),
+          nil
         )
 
       {:error, :missing_url} ->
@@ -201,10 +244,10 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
     end
   end
 
-  defp run_proxy(conn, {:ok, target_url}) do
+  defp run_proxy(conn, {:ok, target_url}, preview_token) do
     with :ok <- TargetPolicy.validate_target_url(target_url),
          {:ok, body, conn} <- read_proxy_body(conn),
-         {:ok, response} <- request_target(conn, target_url, body) do
+         {:ok, response} <- request_target(conn, target_url, body, preview_token) do
       send_proxy_response(conn, target_url, response)
     else
       {:error, reason} when reason in @target_policy_error_reasons ->
@@ -248,21 +291,21 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
     end
   end
 
-  defp request_target(conn, target_url, body) do
-    with {:ok, options} <- request_options(conn, target_url, body) do
+  defp request_target(conn, target_url, body, preview_token) do
+    with {:ok, options} <- request_options(conn, target_url, body, preview_token) do
       options
       |> Req.request()
       |> normalize_response()
     end
   end
 
-  defp request_options(conn, target_url, body) do
+  defp request_options(conn, target_url, body, preview_token) do
     with {:ok, method} <- req_method(conn.method) do
       options =
         [
           method: method,
           url: target_url,
-          headers: proxy_request_headers(conn.req_headers),
+          headers: proxy_request_headers(conn.req_headers, preview_token),
           receive_timeout: @receive_timeout_ms,
           compressed: false,
           decode_body: false,
@@ -286,19 +329,19 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
   defp req_method("HEAD"), do: {:ok, :head}
   defp req_method(_method), do: {:error, :unsupported_method}
 
-  defp proxy_request_headers(headers) do
+  defp proxy_request_headers(headers, preview_token) do
     headers
     |> Enum.reject(fn {name, _value} -> MapSet.member?(@request_headers_blocklist, name) end)
-    |> TargetPolicy.put_request_headers()
+    |> TargetPolicy.put_request_headers(preview_token)
   end
 
-  defp proxy_websocket_request_headers(headers) do
+  defp proxy_websocket_request_headers(headers, preview_token) do
     headers
     |> Enum.reject(fn {name, _value} ->
       MapSet.member?(@websocket_request_headers_blocklist, name)
     end)
     |> DevServerPolicy.put_websocket_protocol_header()
-    |> TargetPolicy.put_request_headers()
+    |> TargetPolicy.put_request_headers(preview_token)
   end
 
   defp normalize_response({:ok, %Req.Response{} = response}), do: {:ok, response}
@@ -332,7 +375,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
   end
 
   defp put_allowed_response_header(conn, target_url, "location", [location | _values]) do
-    put_resp_header(conn, "location", proxied_location(target_url, location))
+    put_resp_header(conn, "location", proxied_location(conn, target_url, location))
   end
 
   defp put_allowed_response_header(conn, _target_url, name, values) do
@@ -341,6 +384,20 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
 
   defp proxied_location(target_url, location) do
     Target.proxied_location(target_url, location, &TargetPolicy.validate_target_url/1)
+  end
+
+  defp proxied_location(conn, target_url, location) do
+    case TargetPolicy.host_scoped_request?(conn.host, playgithub_hosts()) do
+      true ->
+        Target.proxied_location_for_host(
+          target_url,
+          location,
+          &TargetPolicy.validate_target_url/1
+        )
+
+      false ->
+        proxied_location(target_url, location)
+    end
   end
 
   defp response_body(%{method: "HEAD"}, _target_url, _response), do: ""
@@ -355,12 +412,25 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
   defp response_body(_conn, _target_url, %Req.Response{body: body}), do: body
 
   defp rewrite_runtime_response(body, conn) do
-    case Target.source_url(conn) do
-      {:ok, raw_url} ->
-        RuntimePolicy.rewrite_response_body(body, Target.sandbox_proxy_url(conn, raw_url))
+    case runtime_proxy_url(conn) do
+      {:ok, proxy_url} ->
+        RuntimePolicy.rewrite_response_body(body, proxy_url)
 
       {:error, :missing_url} ->
         body
+    end
+  end
+
+  defp runtime_proxy_url(conn) do
+    case TargetPolicy.host_scoped_request?(conn.host, playgithub_hosts()) do
+      true ->
+        {:ok, Target.request_origin(conn)}
+
+      false ->
+        case Target.source_url(conn) do
+          {:ok, raw_url} -> {:ok, Target.sandbox_proxy_url(conn, raw_url)}
+          {:error, :missing_url} -> {:error, :missing_url}
+        end
     end
   end
 
@@ -424,5 +494,12 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
     :frontman_server
     |> Application.get_env(:playgithub, [])
     |> Keyword.get(:sandbox_proxy, [])
+  end
+
+  defp playgithub_hosts do
+    :frontman_server
+    |> Application.get_env(:playgithub, [])
+    |> Keyword.get(:hosts, [])
+    |> Enum.map(&String.downcase/1)
   end
 end

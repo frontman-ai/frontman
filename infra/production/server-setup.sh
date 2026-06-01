@@ -8,6 +8,7 @@
 # Prerequisites:
 #   - Fresh Hetzner server with Ubuntu 24.04 (x86_64 or ARM64)
 #   - DNS A record for api.frontman.sh pointing to server IP (Cloudflare DNS-only mode)
+#   - Proxied wildcard DNS record for *.playgithub.com pointing to server IP
 #   - CI SSH public key ready to paste
 # =============================================================================
 set -euo pipefail
@@ -18,11 +19,13 @@ DEPLOY_ROOT="/opt/${APP_NAME}"
 DB_NAME="frontman_server_prod"
 DB_USER="frontman"
 DOMAIN="api.frontman.sh"
+PLAYGITHUB_WILDCARD_DOMAIN="*.playgithub.com"
 
 echo "=== Frontman Production Server Setup ==="
 echo "Deploy root: ${DEPLOY_ROOT}"
 echo "Database:    ${DB_NAME}"
 echo "Domain:      ${DOMAIN}"
+echo "PlayGithub:  ${PLAYGITHUB_WILDCARD_DOMAIN}"
 echo ""
 
 # =============================================================================
@@ -196,6 +199,15 @@ cat > /etc/caddy/Caddyfile <<CADDYFILE
 ${DOMAIN} {
     reverse_proxy localhost:4000
 }
+
+http://${PLAYGITHUB_WILDCARD_DOMAIN} {
+    reverse_proxy localhost:4000
+}
+
+https://${PLAYGITHUB_WILDCARD_DOMAIN} {
+    tls internal
+    reverse_proxy localhost:4000
+}
 CADDYFILE
 
 systemctl enable caddy
@@ -331,8 +343,9 @@ echo "2. Edit the environment files with real secrets:"
 echo "   nano /opt/frontman/blue/env"
 echo "   nano /opt/frontman/green/env"
 echo ""
-echo "3. Ensure DNS A record for ${DOMAIN} points to this server"
-echo "   (Use Cloudflare DNS-only mode, grey cloud)"
+echo "3. Ensure DNS records point to this server"
+echo "   ${DOMAIN}: DNS-only mode, grey cloud"
+echo "   ${PLAYGITHUB_WILDCARD_DOMAIN}: proxied mode, orange cloud"
 echo ""
 echo "4. Add CI SSH key to /home/deploy/.ssh/authorized_keys (if skipped)"
 echo ""

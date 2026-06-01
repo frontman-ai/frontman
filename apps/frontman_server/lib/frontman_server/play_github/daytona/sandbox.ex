@@ -35,6 +35,14 @@ defmodule FrontmanServer.PlayGithub.Daytona.Sandbox do
     )
   end
 
+  def get_preview_link(sandbox_id, port) when is_binary(sandbox_id) and is_integer(port) do
+    Client.app_request()
+    |> Req.get(
+      url: "/sandbox/:sandbox_id/ports/:port/preview-url",
+      path_params: [sandbox_id: sandbox_id, port: port]
+    )
+  end
+
   def replace_labels(sandbox_id, labels) when is_binary(sandbox_id) and is_map(labels) do
     Client.app_request()
     |> Req.put(

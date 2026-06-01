@@ -21,6 +21,7 @@ set -euo pipefail
 APP_NAME="frontman_server"
 DEPLOY_ROOT="/opt/frontman"
 DOMAIN="api.frontman.sh"
+PLAYGITHUB_WILDCARD_DOMAIN="*.playgithub.com"
 HEALTH_PATH="/health"
 HEALTH_TIMEOUT=30
 HEALTH_INTERVAL=2
@@ -114,6 +115,15 @@ echo ""
 echo ">>> Switching Caddy to ${INACTIVE_SLOT} (port ${INACTIVE_PORT})..."
 cat > /tmp/Caddyfile.new <<EOF
 ${DOMAIN} {
+    reverse_proxy localhost:${INACTIVE_PORT}
+}
+
+http://${PLAYGITHUB_WILDCARD_DOMAIN} {
+    reverse_proxy localhost:${INACTIVE_PORT}
+}
+
+https://${PLAYGITHUB_WILDCARD_DOMAIN} {
+    tls internal
     reverse_proxy localhost:${INACTIVE_PORT}
 }
 EOF

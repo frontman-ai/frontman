@@ -18,8 +18,8 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyPlug do
   @behaviour Plug
 
   @impl true
-
   def init(opts), do: opts
+
   @impl true
   def call(conn, _opts) do
     case playgithub_host?(conn.host) do
@@ -29,12 +29,16 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyPlug do
   end
 
   defp playgithub_host?(host) when is_binary(host) do
-    host
-    |> String.downcase()
-    |> then(&(&1 in playgithub_hosts()))
+    normalized_host = String.downcase(host)
+
+    Enum.any?(playgithub_hosts(), &playgithub_host_matches?(normalized_host, &1))
   end
 
   defp playgithub_host?(_host), do: false
+
+  defp playgithub_host_matches?(host, configured_host) do
+    host == configured_host or String.ends_with?(host, "." <> configured_host)
+  end
 
   defp playgithub_hosts do
     :frontman_server

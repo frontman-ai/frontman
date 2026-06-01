@@ -7,6 +7,8 @@
 defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
   @moduledoc false
 
+  alias FrontmanServer.PlayGithub
+
   @default_target_hosts [
     "daytonaproxy01.eu",
     "daytona.work",
@@ -14,6 +16,11 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
   ]
   @default_target_schemes ["https"]
   @skip_preview_warning_header {"x-daytona-skip-preview-warning", "true"}
+  @preview_token_header "x-daytona-preview-token"
+  @sandbox_id_pattern ~r/\A[a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?\z/
+  @sandbox_preview_host_pattern ~r/\A(?<sandbox_id>[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)-(?<port>[0-9]+)\z/
+  @preview_port_min 3_000
+  @preview_port_max 9_999
 
   def control_request(%{
         path_info: ["accept-daytona-preview-warning"],
@@ -39,8 +46,38 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
 
   def validate_target_url(_target_url), do: {:error, :invalid_url}
 
+  def target_from_request_host(host, request_hosts) when is_binary(host) do
+    host
+    |> sandbox_preview_from_request_host(request_hosts)
+    |> case do
+      {:ok, %{sandbox_id: sandbox_id, port: port}} -> preview_link(sandbox_id, port)
+      {:error, :missing_url} -> {:error, :missing_url}
+    end
+  end
+
+  def target_from_request_host(_host, _request_hosts), do: {:error, :missing_url}
+
+  def host_scoped_request?(host, request_hosts) when is_binary(host) do
+    case sandbox_preview_from_request_host(host, request_hosts) do
+      {:ok, _sandbox_preview} -> true
+      {:error, :missing_url} -> false
+    end
+  end
+
+  def host_scoped_request?(_host, _request_hosts), do: false
+
   def put_request_headers(headers) do
+    put_request_headers(headers, nil)
+  end
+
+  def put_request_headers(headers, nil) do
     put_skip_preview_warning_header(headers)
+  end
+
+  def put_request_headers(headers, preview_token) when is_binary(preview_token) do
+    headers
+    |> put_skip_preview_warning_header()
+    |> put_preview_token_header(preview_token)
   end
 
   def error_response(:invalid_url), do: {:bad_request, "Invalid Daytona URL"}
@@ -56,11 +93,13 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
 
   defp put_skip_preview_warning_header(headers) do
     {name, _value} = @skip_preview_warning_header
+    headers = List.keydelete(headers, name, 0)
+    [@skip_preview_warning_header | headers]
+  end
 
-    case List.keymember?(headers, name, 0) do
-      true -> headers
-      false -> [@skip_preview_warning_header | headers]
-    end
+  defp put_preview_token_header(headers, preview_token) do
+    headers = List.keydelete(headers, @preview_token_header, 0)
+    [{@preview_token_header, preview_token} | headers]
   end
 
   defp invalid_preview_redirect_message do
@@ -85,6 +124,66 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
   end
 
   defp validate_parsed_url(_scheme, _host), do: {:error, :invalid_url}
+
+  defp sandbox_preview_from_request_host(host, request_hosts) do
+    normalized_host = String.downcase(host)
+
+    Enum.find_value(request_hosts, {:error, :missing_url}, fn request_host ->
+      sandbox_preview_from_request_host_suffix(normalized_host, String.downcase(request_host))
+    end)
+  end
+
+  defp sandbox_preview_from_request_host_suffix(host, request_host) do
+    suffix = "." <> request_host
+
+    case String.ends_with?(host, suffix) do
+      true -> parse_sandbox_preview(String.replace_suffix(host, suffix, ""))
+      false -> false
+    end
+  end
+
+  defp parse_sandbox_preview(host_prefix) do
+    case Regex.named_captures(@sandbox_preview_host_pattern, host_prefix) do
+      %{"sandbox_id" => sandbox_id, "port" => raw_port} ->
+        validate_sandbox_preview(sandbox_id, raw_port)
+
+      nil ->
+        {:error, :missing_url}
+    end
+  end
+
+  defp validate_sandbox_preview(sandbox_id, raw_port) do
+    with {:ok, sandbox_id} <- validate_sandbox_id(sandbox_id),
+         {:ok, port} <- parse_preview_port(raw_port) do
+      {:ok, %{sandbox_id: sandbox_id, port: port}}
+    else
+      {:error, :missing_url} -> {:error, :missing_url}
+    end
+  end
+
+  defp validate_sandbox_id(sandbox_id) do
+    case Regex.match?(@sandbox_id_pattern, sandbox_id) do
+      true -> {:ok, sandbox_id}
+      false -> {:error, :missing_url}
+    end
+  end
+
+  defp parse_preview_port(raw_port) do
+    case Integer.parse(raw_port) do
+      {port, ""} -> validate_preview_port(port)
+      _ -> {:error, :missing_url}
+    end
+  end
+
+  defp validate_preview_port(port) when port in @preview_port_min..@preview_port_max do
+    {:ok, port}
+  end
+
+  defp validate_preview_port(_port), do: {:error, :missing_url}
+
+  defp preview_link(sandbox_id, port) do
+    PlayGithub.get_sandbox_preview_link(sandbox_id, port)
+  end
 
   defp validate_scheme(scheme) do
     case scheme in allowed_schemes() do

@@ -95,6 +95,53 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
     assert response(conn, 200) == "<html>Proxy host</html>"
   end
 
+  test "proxies host-scoped sandbox IDs through Daytona preview links", %{conn: conn} do
+    put_playgithub_hosts(["playgithub.frontman.local"])
+    expect_daytona_preview_link("sandbox-123", 4321)
+
+    Req.Test.stub(:sandbox_proxy, fn conn ->
+      assert conn.method == "GET"
+      assert conn.host == "localhost"
+      assert conn.request_path == "/frontman/"
+      assert conn.query_string == "debug=1"
+      assert Plug.Conn.get_req_header(conn, "x-daytona-preview-token") == ["preview-token"]
+
+      conn
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, "<html>Host scoped proxy</html>")
+    end)
+
+    conn =
+      conn
+      |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
+      |> get("/frontman/?debug=1")
+
+    assert response(conn, 200) == "<html>Host scoped proxy</html>"
+  end
+
+  test "rewrites runtime responses to host-scoped sandbox proxy URLs", %{conn: conn} do
+    put_playgithub_hosts(["playgithub.frontman.local"])
+    expect_daytona_preview_link("sandbox-123", 4321)
+
+    Req.Test.stub(:sandbox_proxy, fn conn ->
+      body = ~s(<span id="frontman-entrypoint-url" hidden>http://localhost/</span>)
+
+      conn
+      |> Plug.Conn.put_resp_content_type("text/html")
+      |> Plug.Conn.send_resp(200, body)
+    end)
+
+    conn =
+      conn
+      |> put_req_header("x-forwarded-proto", "https")
+      |> put_req_header("x-forwarded-port", "443")
+      |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
+      |> get("/frontman/")
+
+    assert response(conn, 200) =~
+             ~s(<span id="frontman-entrypoint-url" hidden>https://sandbox-123-4321.playgithub.frontman.local</span>)
+  end
+
   test "rewrites Frontman iframe entrypoint through the sandbox proxy", %{conn: conn} do
     Req.Test.stub(:sandbox_proxy, fn conn ->
       assert conn.method == "GET"
@@ -427,6 +474,17 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
       :playgithub,
       Keyword.put(playgithub_config, :hosts, hosts)
     )
+  end
+
+  defp expect_daytona_preview_link(sandbox_id, port) do
+    Req.Test.expect(:playgithub_daytona, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/sandbox/#{sandbox_id}/ports/#{port}/preview-url"
+      assert {"authorization", "Bearer test-daytona-key"} in conn.req_headers
+      assert {"x-daytona-organization-id", "test-daytona-org"} in conn.req_headers
+
+      Req.Test.json(conn, %{"token" => "preview-token", "url" => "http://localhost"})
+    end)
   end
 
   defp source_url_cookie_header(raw_url) do

@@ -111,6 +111,26 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Target do
     end
   end
 
+  def proxied_location_for_host(target_url, location, validate_url) do
+    resolved_uri = URI.merge(target_url, location)
+    resolved_location = URI.to_string(resolved_uri)
+
+    case validate_url.(resolved_location) do
+      :ok -> path_and_query(resolved_uri)
+      {:error, _reason} -> location
+    end
+  end
+
+  def request_origin(conn) do
+    scheme = forwarded_proto(conn) || Atom.to_string(conn.scheme)
+    port = forwarded_port(conn) || conn.port
+
+    case default_port?(scheme, port) do
+      true -> scheme <> "://" <> conn.host
+      false -> scheme <> "://" <> conn.host <> ":" <> Integer.to_string(port)
+    end
+  end
+
   defp websocket_url_string(%URI{scheme: "https"} = uri) do
     {:ok, URI.to_string(%{uri | scheme: "wss"})}
   end
@@ -205,16 +225,47 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Target do
     Base.url_encode64(raw_url, padding: false)
   end
 
-  defp request_origin(conn) do
-    scheme = Atom.to_string(conn.scheme)
+  defp path_and_query(uri) do
+    path = path_or_root(uri.path)
 
-    case default_port?(conn.scheme, conn.port) do
-      true -> scheme <> "://" <> conn.host
-      false -> scheme <> "://" <> conn.host <> ":" <> Integer.to_string(conn.port)
+    path <> query_suffix(uri.query) <> fragment_suffix(uri.fragment)
+  end
+
+  defp path_or_root(nil), do: "/"
+  defp path_or_root(""), do: "/"
+  defp path_or_root(path), do: path
+
+  defp query_suffix(nil), do: ""
+  defp query_suffix(""), do: ""
+  defp query_suffix(query), do: "?" <> query
+
+  defp fragment_suffix(nil), do: ""
+  defp fragment_suffix(""), do: ""
+  defp fragment_suffix(fragment), do: "#" <> fragment
+
+  defp forwarded_proto(conn) do
+    case get_req_header(conn, "x-forwarded-proto") do
+      ["http" | _rest] -> "http"
+      ["https" | _rest] -> "https"
+      _ -> nil
     end
   end
 
-  defp default_port?(:http, 80), do: true
-  defp default_port?(:https, 443), do: true
+  defp forwarded_port(conn) do
+    case get_req_header(conn, "x-forwarded-port") do
+      [port | _rest] -> parse_port(port)
+      _ -> nil
+    end
+  end
+
+  defp parse_port(port) do
+    case Integer.parse(port) do
+      {parsed_port, ""} -> parsed_port
+      _ -> nil
+    end
+  end
+
+  defp default_port?("http", 80), do: true
+  defp default_port?("https", 443), do: true
   defp default_port?(_scheme, _port), do: false
 end
