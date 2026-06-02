@@ -23,10 +23,10 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
   describe "GET / on playgithub.frontman.local for authenticated users" do
     setup :register_and_log_in_user
 
-    test "routes authenticated users through PlayGithub", %{conn: conn} do
+    test "confirms the PlayGithub host is routed", %{conn: conn} do
       conn = get_playgithub(conn, ~p"/")
 
-      assert text_response(conn, 400) =~ "error: missing_owner_or_repo"
+      assert html_response(conn, 200) =~ "PlayGithub local subdomain is routed"
     end
 
     test "serves a launcher that advances commands to the sandbox preview", %{conn: conn} do
@@ -40,11 +40,11 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
 
       assert response =~ "Launching PlayGithub sandbox"
       assert response =~ ~s(let command = "create")
-      assert response =~ ~s(data.next && data.next.startsWith("?command="))
-      assert response =~ ~s(if (next === "wait_for_clone") return "clone")
-      assert response =~ ~s(if (next === "wait_for_install") return "install")
+      assert response =~ ~s|data.next && data.next.startsWith("?command=")|
+      assert response =~ ~s|if (next === "wait_for_clone") return "clone"|
+      assert response =~ ~s|if (next === "wait_for_install") return "install"|
       assert response =~ ~s(return {command: "install", retry: true)
-      assert response =~ ~s(if (next === "wait_for_dev_server") return "dev")
+      assert response =~ ~s|if (next === "wait_for_dev_server") return "dev"|
       assert response =~ ~s(data.next === "open_frontman_preview")
       assert response =~ ~s(window.location.href = step.redirect)
     end
