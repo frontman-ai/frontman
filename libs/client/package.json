@@ -56,7 +56,7 @@
 		"@rescript/webapi": "*",
 		"@tailwindcss/vite": "^4.2.2",
 		"@types/babel__core": "^7",
-		"@types/react": "^19.2.2",
+		"@types/react": "^19.2.14",
 		"@zumer/snapdom": "^2.9.0",
 		"babel-plugin-react-compiler": "^1.0.0",
 		"class-variance-authority": "^0.7.1",
