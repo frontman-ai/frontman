@@ -26,6 +26,9 @@ defmodule FrontmanServer.PlayGithub do
   @dev_server_preview_expires_seconds 3_600
   @dependency_install_timeout_seconds 600
   @frontman_install_timeout_seconds 300
+  @frontman_repository_owner "frontman-ai"
+  @frontman_repository_name "frontman"
+  @frontman_repository_app_path "apps/marketing"
   @clone_stale_after_seconds 600
   @install_stale_after_seconds 600
   @dev_server_stale_after_seconds 60
@@ -44,6 +47,11 @@ defmodule FrontmanServer.PlayGithub do
 
   def get_or_create_repository_sandbox(%GithubReference{} = github_reference) do
     run_repository_command(github_reference, :create)
+  end
+
+  @spec workspace_path(GithubReference.t()) :: String.t()
+  def workspace_path(%GithubReference{} = github_reference) do
+    launch_workspace_path(github_reference)
   end
 
   @spec dev_server_port() :: pos_integer()
@@ -316,7 +324,10 @@ defmodule FrontmanServer.PlayGithub do
         persist_lifecycle(sandbox, :clone_finished)
 
       {:ok, %Req.Response{body: body}} ->
-        persist_lifecycle(sandbox, :clone_failed, failure_reason(body))
+        case repository_already_cloned_response?(body) do
+          true -> persist_lifecycle(sandbox, :clone_finished)
+          false -> persist_lifecycle(sandbox, :clone_failed, failure_reason(body))
+        end
 
       {:error, reason} ->
         persist_lifecycle(sandbox, :clone_failed, failure_reason(reason))
@@ -330,6 +341,14 @@ defmodule FrontmanServer.PlayGithub do
 
   defp maybe_put_branch(request, nil), do: request
   defp maybe_put_branch(request, branch), do: Map.put(request, :branch, branch)
+
+  defp repository_already_cloned_response?(%{
+         "code" => "CONFLICT",
+         "message" => "conflict: repository already exists"
+       }),
+       do: true
+
+  defp repository_already_cloned_response?(_body), do: false
 
   defp install_action(%RepositorySandbox{lifecycle: :clone_finished}, _retry?), do: :start
   defp install_action(%RepositorySandbox{lifecycle: :clone_starting}, _retry?), do: :wait
@@ -441,8 +460,12 @@ defmodule FrontmanServer.PlayGithub do
     case Toolbox.execute_command(
            client,
            sandbox.id,
-           logged_install_command(@frontman_install_command, "frontman install", false),
-           cwd: GithubReference.workspace_path(sandbox.github_reference),
+           logged_install_command(
+             frontman_install_command(sandbox.github_reference),
+             "frontman install",
+             false
+           ),
+           cwd: launch_workspace_path(sandbox.github_reference),
            timeout_seconds: @frontman_install_timeout_seconds
          ) do
       {:ok, %Req.Response{status: status, body: %{"exitCode" => 0}}} when status in 200..299 ->
@@ -514,7 +537,7 @@ defmodule FrontmanServer.PlayGithub do
            client,
            sandbox.id,
            dev_server_command(),
-           cwd: GithubReference.workspace_path(sandbox.github_reference),
+           cwd: launch_workspace_path(sandbox.github_reference),
            timeout_seconds: @dev_server_start_timeout_seconds
          ) do
       {:ok, %Req.Response{status: status, body: %{"exitCode" => 0}}} when status in 200..299 ->
@@ -748,26 +771,68 @@ defmodule FrontmanServer.PlayGithub do
   end
 
   defp ensure_workspace_path_exists(client, sandbox) do
-    case GithubReference.repository_path(sandbox.github_reference) do
-      nil ->
+    case launch_workspace_path(sandbox.github_reference) do
+      "workspace" ->
         :ok
 
-      _path ->
+      workspace_path ->
         ensure_workspace_path_exists(
           client,
           sandbox,
-          GithubReference.workspace_path(sandbox.github_reference)
+          workspace_path
         )
     end
   end
 
+  defp launch_workspace_path(github_reference) do
+    case frontman_repository_root?(github_reference) do
+      true -> "workspace/#{@frontman_repository_app_path}"
+      false -> GithubReference.workspace_path(github_reference)
+    end
+  end
+
+  defp frontman_repository_root?(%GithubReference{} = github_reference) do
+    github_reference.owner == @frontman_repository_owner and
+      github_reference.repo == @frontman_repository_name and
+      GithubReference.repository_path(github_reference) == nil
+  end
+
   defp dependency_install_command(github_reference) do
+    case frontman_repository_root?(github_reference) do
+      true -> frontman_repository_dependency_install_command()
+      false -> default_dependency_install_command(github_reference)
+    end
+  end
+
+  defp default_dependency_install_command(github_reference) do
     [
       dependency_install_cwd_command(github_reference),
       package_manager_install_command(),
       maybe_build_frontman_astro_command()
     ]
     |> Enum.join(" && ")
+  end
+
+  defp frontman_repository_dependency_install_command do
+    [
+      "cd workspace",
+      use_published_frontman_astro_command(),
+      "YARN_ENABLE_IMMUTABLE_INSTALLS=false YARN_NETWORK_CONCURRENCY=1 NODE_OPTIONS=--max-old-space-size=512 corepack yarn workspaces focus marketing"
+    ]
+    |> Enum.join(" && ")
+  end
+
+  defp use_published_frontman_astro_command do
+    script = """
+    const fs = require("fs");
+    const path = "#{@frontman_repository_app_path}/package.json";
+    const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+    pkg.devDependencies = pkg.devDependencies || {};
+    pkg.devDependencies["@frontman-ai/astro"] = "npm:latest";
+    fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\\n");
+    """
+
+    "node -e #{shell_quote(script)}"
   end
 
   defp dependency_install_cwd_command(github_reference) do
@@ -789,7 +854,7 @@ defmodule FrontmanServer.PlayGithub do
 
   defp package_manager_install_command do
     [
-      "if [ -f yarn.lock ]; then YARN_ENABLE_IMMUTABLE_INSTALLS=false corepack yarn install;",
+      "if [ -f yarn.lock ]; then YARN_ENABLE_IMMUTABLE_INSTALLS=false YARN_NETWORK_CONCURRENCY=1 NODE_OPTIONS=--max-old-space-size=512 corepack yarn install;",
       "elif [ -f pnpm-lock.yaml ]; then corepack pnpm install;",
       "elif [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then npm install;",
       "elif [ -f bun.lock ] || [ -f bun.lockb ]; then bun install;",
@@ -808,6 +873,16 @@ defmodule FrontmanServer.PlayGithub do
       "fi"
     ]
     |> Enum.join(" ")
+  end
+
+  defp frontman_install_command(github_reference) do
+    case frontman_repository_root?(github_reference) do
+      true ->
+        "printf '%s\n' #{shell_quote("Frontman integration already configured in #{@frontman_repository_app_path}; skipping astro add")}"
+
+      false ->
+        @frontman_install_command
+    end
   end
 
   defp dev_server_command do

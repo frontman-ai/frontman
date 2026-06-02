@@ -205,7 +205,7 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
       "repository_url: #{GithubReference.repository_url(github_reference)}",
       format_optional_field("branch", GithubReference.branch(github_reference)),
       format_optional_field("repository_path", GithubReference.repository_path(github_reference)),
-      "workspace_path: #{GithubReference.workspace_path(github_reference)}",
+      "workspace_path: #{PlayGithub.workspace_path(github_reference)}",
       "sandbox_name: #{sandbox.name}",
       "sandbox_id: #{sandbox.id}",
       "provider_state: #{Atom.to_string(sandbox.provider_state)}",

@@ -1,10 +1,12 @@
 defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
   use FrontmanServerWeb.ConnCase, async: false
 
+  alias FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona, as: TargetPolicy
   alias FrontmanServerWeb.PlayGithub.SandboxProxyPlug
 
   setup do
     previous_playgithub = Application.get_env(:frontman_server, :playgithub)
+    TargetPolicy.clear_preview_link_cache()
 
     playgithub_config = previous_playgithub || []
 
@@ -26,6 +28,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
     )
 
     on_exit(fn ->
+      TargetPolicy.clear_preview_link_cache()
       restore_env(:playgithub, previous_playgithub)
     end)
 
@@ -117,6 +120,40 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
       |> get("/frontman/?debug=1")
 
     assert response(conn, 200) == "<html>Host scoped proxy</html>"
+  end
+
+  test "caches host-scoped Daytona preview links for repeated sandbox requests", %{conn: conn} do
+    put_playgithub_hosts(["playgithub.frontman.local"])
+    expect_daytona_preview_link("sandbox-123", 4321)
+
+    test_pid = self()
+
+    Req.Test.stub(:sandbox_proxy, fn conn ->
+      send(
+        test_pid,
+        {:proxied_request, conn.request_path,
+         Plug.Conn.get_req_header(conn, "x-daytona-preview-token")}
+      )
+
+      Plug.Conn.send_resp(conn, 200, "ok")
+    end)
+
+    conn =
+      conn
+      |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
+      |> get("/frontman/")
+
+    assert response(conn, 200) == "ok"
+
+    conn =
+      conn
+      |> recycle()
+      |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
+      |> get("/@vite/client")
+
+    assert response(conn, 200) == "ok"
+    assert_received {:proxied_request, "/frontman/", ["preview-token"]}
+    assert_received {:proxied_request, "/@vite/client", ["preview-token"]}
   end
 
   test "rewrites runtime responses to host-scoped sandbox proxy URLs", %{conn: conn} do

@@ -19,8 +19,16 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
   @preview_token_header "x-daytona-preview-token"
   @sandbox_id_pattern ~r/\A[a-z0-9](?:[a-z0-9-]{0,56}[a-z0-9])?\z/
   @sandbox_preview_host_pattern ~r/\A(?<sandbox_id>[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)-(?<port>[0-9]+)\z/
+  @preview_link_cache_key {__MODULE__, :preview_link_cache}
+  @preview_link_cache_ttl_ms 60_000
   @preview_port_min 3_000
   @preview_port_max 9_999
+
+  @doc false
+  def clear_preview_link_cache do
+    :persistent_term.erase(@preview_link_cache_key)
+    :ok
+  end
 
   def control_request(%{
         path_info: ["accept-daytona-preview-warning"],
@@ -182,8 +190,54 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
   defp validate_preview_port(_port), do: {:error, :missing_url}
 
   defp preview_link(sandbox_id, port) do
-    PlayGithub.get_sandbox_preview_link(sandbox_id, port)
+    key = {sandbox_id, port}
+    now = System.monotonic_time(:millisecond)
+
+    case cached_preview_link(key, now) do
+      {:ok, preview_link} ->
+        {:ok, preview_link}
+
+      :miss ->
+        case PlayGithub.get_sandbox_preview_link(sandbox_id, port) do
+          {:ok, preview_link} = result ->
+            cache_preview_link(key, preview_link, now)
+            result
+
+          error ->
+            error
+        end
+    end
   end
+
+  defp cached_preview_link(key, now) do
+    case Map.get(preview_link_cache(), key) do
+      {expires_at, preview_link} when expires_at > now ->
+        {:ok, preview_link}
+
+      {_expires_at, _preview_link} ->
+        delete_cached_preview_link(key)
+        :miss
+
+      nil ->
+        :miss
+    end
+  end
+
+  defp cache_preview_link(key, preview_link, now) do
+    expires_at = now + @preview_link_cache_ttl_ms
+
+    @preview_link_cache_key
+    |> :persistent_term.get(%{})
+    |> Map.put(key, {expires_at, preview_link})
+    |> then(&:persistent_term.put(@preview_link_cache_key, &1))
+  end
+
+  defp delete_cached_preview_link(key) do
+    cache = Map.delete(preview_link_cache(), key)
+    :persistent_term.put(@preview_link_cache_key, cache)
+  end
+
+  defp preview_link_cache, do: :persistent_term.get(@preview_link_cache_key, %{})
 
   defp validate_scheme(scheme) do
     case scheme in allowed_schemes() do
