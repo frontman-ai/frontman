@@ -1,0 +1,18 @@
+load("//tools/bazel/rescript:defs.bzl", "rescript_package")
+
+package(default_visibility = ["//visibility:public"])
+
+rescript_package(
+    name = "experimental-rescript-webapi",
+    package_name = "@rescript/webapi",
+    srcs = glob([
+        "package.json",
+        "rescript.json",
+        "src/**/*.res",
+        "src/**/*.resi",
+    ], allow_empty = True),
+    dev_srcs = glob([
+        "tests/**/*.res",
+    ], allow_empty = True),
+    test_runner = "compile",
+)

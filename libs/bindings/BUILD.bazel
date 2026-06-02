@@ -1,0 +1,15 @@
+load("//tools/bazel/rescript:defs.bzl", "rescript_package")
+
+package(default_visibility = ["//visibility:public"])
+
+rescript_package(
+    name = "bindings",
+    package_name = "@frontman/bindings",
+    srcs = glob([
+        "package.json",
+        "rescript.json",
+        "src/**/*.res",
+        "src/**/*.resi",
+    ], allow_empty = True),
+    deps = ["//libs/experimental-rescript-webapi"],
+)

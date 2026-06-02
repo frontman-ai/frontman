@@ -1,0 +1,19 @@
+load("//tools/bazel/rescript:defs.bzl", "rescript_package")
+
+package(default_visibility = ["//visibility:public"])
+
+rescript_package(
+    name = "frontman-protocol",
+    package_name = "@frontman-ai/frontman-protocol",
+    srcs = glob([
+        "package.json",
+        "rescript.json",
+        "schemas/**/*.json",
+        "src/**/*.res",
+        "src/**/*.resi",
+    ], allow_empty = True),
+    deps = [
+        "//libs/bindings",
+        "//libs/experimental-rescript-webapi",
+    ],
+)

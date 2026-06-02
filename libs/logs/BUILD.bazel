@@ -1,0 +1,20 @@
+load("//tools/bazel/rescript:defs.bzl", "rescript_package")
+
+package(default_visibility = ["//visibility:public"])
+
+rescript_package(
+    name = "logs",
+    package_name = "@frontman/logs",
+    srcs = glob([
+        "package.json",
+        "rescript.json",
+        "src/**/*.res",
+        "src/**/*.resi",
+    ], allow_empty = True),
+    dev_srcs = glob([
+        "test/**/*.res",
+        "test/**/*.resi",
+        "vitest.config.*",
+    ], allow_empty = True),
+    test_runner = "vitest",
+)

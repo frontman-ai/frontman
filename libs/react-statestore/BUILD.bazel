@@ -1,0 +1,21 @@
+load("//tools/bazel/rescript:defs.bzl", "rescript_package")
+
+package(default_visibility = ["//visibility:public"])
+
+rescript_package(
+    name = "react-statestore",
+    package_name = "@frontman-ai/react-statestore",
+    srcs = glob([
+        "package.json",
+        "rescript.json",
+        "src/**/*.res",
+        "src/**/*.resi",
+    ], allow_empty = True),
+    dev_srcs = glob([
+        "test/**/*.res",
+        "test/**/*.resi",
+        "test/**/*.ts",
+        "vitest.config.*",
+    ], allow_empty = True),
+    test_runner = "vitest",
+)

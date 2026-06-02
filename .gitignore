@@ -16,6 +16,9 @@ lib/
 # Node
 node_modules/
 
+# Bazel convenience symlinks
+bazel-*
+
 # Environment variables
 .env.local
 test/e2e/.env

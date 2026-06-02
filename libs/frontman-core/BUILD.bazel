@@ -1,0 +1,27 @@
+load("//tools/bazel/rescript:defs.bzl", "rescript_package")
+
+package(default_visibility = ["//visibility:public"])
+
+rescript_package(
+    name = "frontman-core",
+    package_name = "@frontman-ai/frontman-core",
+    srcs = glob([
+        "package.json",
+        "rescript.json",
+        "src/**/*.res",
+        "src/**/*.resi",
+    ], allow_empty = True),
+    dev_srcs = glob([
+        "test/**",
+        "vitest.config.*",
+    ], exclude = [
+        "test/**/*.res.mjs",
+        "test/**/*.res.mjs.map",
+    ], allow_empty = True),
+    deps = [
+        "//libs/bindings",
+        "//libs/experimental-rescript-webapi",
+        "//libs/frontman-protocol",
+    ],
+    test_runner = "vitest",
+)
