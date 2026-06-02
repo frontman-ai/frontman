@@ -1,5 +1,5 @@
 ---
-// /vs/copilot — Frontman vs GitHub Copilot Comparison Page
+// /vs/copilot - Frontman vs GitHub Copilot Comparison Page
 // ICP: Designers/PMs at Round A+ startups with multiple teams and an existing design system
 // Targets "copilot alternative for design teams" and "github copilot vs" queries
 // Positions Frontman as the tool that lets non-developers participate in UI iteration
@@ -16,7 +16,7 @@ import type {
 const seo: SEOInfo = {
   title: 'Frontman vs GitHub Copilot: Visual UI Editing',
   description:
-    'Copilot is for developers in the IDE. Frontman is for everyone who thinks in what they see — designers, PMs, engineers doing visual work. No IDE required.',
+    'Copilot is for developers in the IDE. Frontman is for everyone who thinks in what they see: designers, PMs, and engineers doing visual work. No IDE required.',
 }
 
 const frontmanPricingFeatures = [
@@ -29,10 +29,10 @@ const frontmanPricingFeatures = [
 
 const competitorPricingFeatures = [
   'Free: 50 chats/month, 2,000 completions/month',
-  'Pro: $10/month — unlimited completions, 300 premium requests',
-  'Pro+: $39/month — 1,500 premium requests, all models',
-  'Business: $19/user/month — policy management, SSO',
-  'Enterprise: $39/user/month — custom models, IP indemnity',
+  'Pro: $10/month, unlimited completions, 300 premium requests',
+  'Pro+: $39/month, 1,500 premium requests, all models',
+  'Business: $19/user/month, policy management, SSO',
+  'Enterprise: $39/user/month, custom models, IP indemnity',
 ]
 
 const competitor: CompetitorInfo = {
@@ -60,7 +60,7 @@ type Feature = {
 }
 
 const features: Feature[] = [
-  { name: 'Designer/PM friendly', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE needed — click elements in the browser', copilotNote: 'Requires IDE proficiency' },
+  { name: 'Designer/PM friendly', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE needed; click elements in the browser', copilotNote: 'Requires IDE proficiency' },
   { name: 'Click-to-select elements', frontman: 'yes', copilot: 'no', frontmanNote: 'Point at any component to edit it', copilotNote: 'Must describe or find in file tree' },
   { name: 'Works in the browser', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE or dev environment required', copilotNote: 'IDE extension (VS Code, JetBrains, etc.)' },
   { name: 'Sees live DOM & styles', frontman: 'yes', copilot: 'no', frontmanNote: 'Inspects the running page, not just source files', copilotNote: 'File-only context; no browser awareness' },
@@ -73,10 +73,10 @@ const features: Feature[] = [
   { name: 'Multi-file refactoring', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can edit multiple files, but not primary workflow', copilotNote: 'Full cross-file edits via agent mode' },
   { name: 'Code review', frontman: 'no', copilot: 'yes', copilotNote: 'PR reviews on GitHub, diff reviews in IDE' },
   { name: 'Open source', frontman: 'yes', copilot: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', copilotNote: 'Proprietary (extension and service)' },
-  { name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'no', frontmanNote: 'Any LLM provider directly', copilotNote: 'Uses GitHub\'s model pool; no custom API keys' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'no', frontmanNote: 'Any LLM provider directly', copilotNote: "Uses GitHub's model pool; no custom API keys" },
   { name: 'Self-hostable', frontman: 'yes', copilot: 'no', frontmanNote: 'Runs in your own infrastructure', copilotNote: 'Cloud service, GitHub-hosted' },
   { name: 'Backend coding', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', copilotNote: 'Any language, any framework' },
-  { name: 'Multi-model choice', frontman: 'yes', copilot: 'yes', frontmanNote: 'BYOK: Claude, GPT, OpenRouter, any provider', copilotNote: 'Claude, GPT, Gemini, Grok — GitHub-hosted' },
+  { name: 'Multi-model choice', frontman: 'yes', copilot: 'yes', frontmanNote: 'BYOK: Claude, GPT, OpenRouter, any provider', copilotNote: 'Claude, GPT, Gemini, Grok through GitHub hosting' },
 ]
 
 const comparisonFeatures: ComparisonFeature[] = features.map((feature) => ({
@@ -91,22 +91,22 @@ const faqs: FAQ[] = [
   {
     question: 'Can designers and PMs actually use Frontman without developer help?',
     answer:
-      'Yes. Frontman runs as an overlay on your existing app — no IDE, terminal, or dev environment needed. A designer or PM opens the app in their browser, clicks an element, describes what they want changed in plain English, and Frontman edits the source code. The change shows up instantly via hot reload. All edits produce real code diffs that developers review through their normal PR process. It is designed so non-developers can contribute UI changes without bottlenecking the engineering team.',
+      'Yes. Frontman runs as an overlay on your existing app, with no IDE, terminal, or dev environment needed. A designer or PM opens the app in their browser, clicks an element, describes what they want changed in plain English, and Frontman edits the source code. The change shows up instantly via hot reload. All edits produce real code diffs that developers review through their normal PR process. It is designed so non-developers can contribute UI changes without bottlenecking the engineering team.',
   },
   {
     question: 'How does Frontman help teams maintain a design system?',
     answer:
-      'When someone clicks a component in the browser, Frontman sees the actual rendered output — computed styles, spacing, typography — not just the source code. This means a design system lead can spot where a component deviates from the system (wrong padding, incorrect color token, mismatched font size), click it, and describe the fix. The AI sees the gap between what is rendered and what should be rendered, and edits the source to match. It closes the feedback loop between design intent and shipped UI without filing a ticket and waiting for a sprint.',
+      'When someone clicks a component in the browser, Frontman sees the actual rendered output: computed styles, spacing, and typography, not just the source code. This means a design system lead can spot where a component deviates from the system (wrong padding, incorrect color token, mismatched font size), click it, and describe the fix. The AI sees the gap between what is rendered and what should be rendered, and edits the source to match. It closes the feedback loop between design intent and shipped UI without filing a ticket and waiting for a sprint.',
   },
   {
     question: 'Does Frontman replace GitHub Copilot for our engineering team?',
     answer:
-      'No, and it should not. Copilot is the better tool for your developers — autocomplete, multi-file refactoring, code review, backend work. Frontman solves a different problem: letting non-developers participate in UI iteration and giving everyone browser-level context for visual changes. Most teams use both. Developers keep Copilot in their IDE. Designers, PMs, and frontend devs use Frontman in the browser when the change is visual and the AI needs to see what is actually rendered.',
+      'No, and it should not. Copilot is the better tool for your developers: autocomplete, multi-file refactoring, code review, and backend work. Frontman solves a different problem: letting non-developers participate in UI iteration and giving everyone browser-level context for visual changes. Most teams use both. Developers keep Copilot in their IDE. Designers, PMs, and frontend devs use Frontman in the browser when the change is visual and the AI needs to see what is actually rendered.',
   },
   {
     question: 'Does Frontman work alongside GitHub Copilot?',
     answer:
-      'Yes. Frontman runs in the browser as framework middleware (Next.js, Astro, Vite). Copilot runs in your IDE. They edit the same source files. Changes from either tool are reflected via hot reload and normal file watching. There is no conflict — they operate in completely separate environments.',
+      'Yes. Frontman runs in the browser as framework middleware (Next.js, Astro, Vite). Copilot runs in your IDE. They edit the same source files. Changes from either tool are reflected via hot reload and normal file watching. There is no conflict because they operate in completely separate environments.',
   },
   {
     question: 'What does Frontman see that GitHub Copilot cannot?',
@@ -132,51 +132,51 @@ const faqs: FAQ[] = [
 >
   <Fragment slot="hero-summary">
     <p>
-      <a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. Designers, PMs, and developers click elements in a running app, describe changes in plain English, and Frontman edits the actual source code — with hot reload showing results instantly. No IDE required. It integrates with your framework (Next.js, Astro, or Vite) as a plugin, using a browser-side MCP server to inspect the live DOM, computed styles, and component tree.
+      <a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. Designers, PMs, and developers click elements in a running app, describe changes in plain English, and Frontman edits the actual source code, with hot reload showing results instantly. No IDE required. It integrates with your framework (Next.js, Astro, or Vite) as a plugin, using a browser-side MCP server to inspect the live DOM, computed styles, and component tree.
     </p>
     <p>
-      <a href="https://github.com/features/copilot" class="text-link" rel="nofollow">GitHub Copilot</a> is an AI coding assistant built into your IDE. It provides inline autocomplete, agent mode with multi-file editing, code review, and terminal integration. Copilot makes your developers faster across any language and framework — but it requires IDE proficiency and does not see what the app actually renders in a browser.
+      <a href="https://github.com/features/copilot" class="text-link" rel="nofollow">GitHub Copilot</a> is an AI coding assistant built into your IDE. It provides inline autocomplete, agent mode with multi-file editing, code review, and terminal integration. Copilot makes your developers faster across any language and framework, but it requires IDE proficiency and does not see what the app actually renders in a browser.
     </p>
     <p class="summary-emphasis">
-      Copilot accelerates your engineering team in the IDE. Frontman lets your entire product team — designers, PMs, and developers — iterate on UI together in the browser. Growing teams use both.
+      Copilot accelerates your engineering team in the IDE. Frontman lets your entire product team, including designers, PMs, and developers, iterate on UI together in the browser. Growing teams use both.
     </p>
   </Fragment>
 
   <Fragment slot="competitor-strengths">
-    <p>GitHub Copilot is the most widely adopted AI coding tool in the world, and for real reasons. It is the right choice for your engineering team\'s day-to-day coding work.</p>
-    <p><strong>Autocomplete accelerates developers.</strong> Copilot\'s inline suggestions predict what you are about to type — often multiple lines ahead. For raw coding speed, it is hard to beat. This is a developer productivity tool through and through.</p>
-    <p><strong>Agentic coding and code review.</strong> Copilot\'s agent can plan multi-step changes across files, run terminal commands, and create pull requests from GitHub issues. It also reviews PRs directly on GitHub. For teams on GitHub, this integration is hard to match.</p>
-    <p><strong>Any language, any framework.</strong> Python, Go, Rust, TypeScript, Java, SQL — Copilot handles your full stack. Frontman is focused on frontend frameworks (Next.js, Astro, Vite).</p>
-    <p>If your goal is to make your developers faster in the IDE, Copilot is the proven tool. The question is what happens when the people who care most about UI quality — designers, PMs, design system leads — cannot use an IDE.</p>
+    <p>GitHub Copilot is the most widely adopted AI coding tool in the world, and for real reasons. It is the right choice for your engineering team's day-to-day coding work.</p>
+    <p><strong>Autocomplete accelerates developers.</strong> Copilot's inline suggestions predict what you are about to type, often multiple lines ahead. For raw coding speed, it is hard to beat. This is a developer productivity tool through and through.</p>
+    <p><strong>Agentic coding and code review.</strong> Copilot's agent can plan multi-step changes across files, run terminal commands, and create pull requests from GitHub issues. It also reviews PRs directly on GitHub. For teams on GitHub, this integration is hard to match.</p>
+    <p><strong>Any language, any framework.</strong> Python, Go, Rust, TypeScript, Java, SQL: Copilot handles your full stack. Frontman is focused on frontend frameworks (Next.js, Astro, Vite).</p>
+    <p>If your goal is to make your developers faster in the IDE, Copilot is the proven tool. The question is what happens when the people who care most about UI quality, including designers, PMs, and design system leads, cannot use an IDE.</p>
   </Fragment>
 
   <Fragment slot="frontman-differentiators">
-    <p>In most teams, the people closest to UI quality — designers, PMs, design system leads — cannot directly fix what they see. They file tickets, write specs, and wait. <strong>Frontman closes that gap.</strong></p>
-    <p><strong>Anyone on the team can edit UI.</strong> Frontman runs in the browser as an overlay on your running app. No IDE, no terminal, no dev environment. A designer spots a component that is off-brand — wrong spacing, incorrect color token — clicks it, describes the fix, and Frontman edits the source code. Hot reload shows the result instantly. The change goes through your normal code review process.</p>
-    <p><strong>The AI sees what is actually rendered.</strong> IDE-based tools like Copilot read source files but never see the browser. Frontman\'s browser-side MCP server inspects the live DOM, computed CSS (actual pixel values, not just class names), the component tree, and viewport behavior. When someone says "this card does not match the design system," Frontman can measure the gap between what is rendered and what should be.</p>
-    <p><strong>Click-to-edit, not file-to-edit.</strong> Instead of knowing which file to open, you point at the element. Frontman resolves the source location via source maps — the exact file, component, and line. This is the interaction model that makes it accessible to non-developers.</p>
-    <p><strong>Design system consistency at scale.</strong> When multiple teams ship UI against a shared design system, drift is inevitable. Frontman lets the people who own the system — not just the developers who implement it — spot and fix inconsistencies directly. No ticket, no sprint, no context loss.</p>
+    <p>In most teams, the people closest to UI quality, including designers, PMs, and design system leads, cannot directly fix what they see. They file tickets, write specs, and wait. <strong>Frontman closes that gap.</strong></p>
+    <p><strong>Anyone on the team can edit UI.</strong> Frontman runs in the browser as an overlay on your running app. No IDE, no terminal, no dev environment. A designer spots a component that is off-brand, such as wrong spacing or an incorrect color token, clicks it, describes the fix, and Frontman edits the source code. Hot reload shows the result instantly. The change goes through your normal code review process.</p>
+    <p><strong>The AI sees what is actually rendered.</strong> IDE-based tools like Copilot read source files but never see the browser. Frontman's browser-side MCP server inspects the live DOM, computed CSS (actual pixel values, not just class names), the component tree, and viewport behavior. When someone says "this card does not match the design system," Frontman can measure the gap between what is rendered and what should be.</p>
+    <p><strong>Click-to-edit, not file-to-edit.</strong> Instead of knowing which file to open, you point at the element. Frontman resolves the source location via source maps: the exact file, component, and line. This is the interaction model that makes it accessible to non-developers.</p>
+    <p><strong>Design system consistency at scale.</strong> When multiple teams ship UI against a shared design system, drift is inevitable. Frontman lets the people who own the system, not just the developers who implement it, spot and fix inconsistencies directly. No ticket, no sprint, no context loss.</p>
 	<p><strong>Open source and BYOK.</strong> Apache 2.0 client, AGPL-3.0 server. Self-hosting remains available, and you connect your own API keys to Claude, ChatGPT, or OpenRouter. Hosted Frontman plans are moving to paid subscriptions.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">
-    <p>Copilot is the right tool for your engineering team\'s coding workflow:</p>
+    <p>Copilot is the right tool for your engineering team's coding workflow:</p>
     <ul>
-      <li><strong>Your developers</strong> — autocomplete, agent mode, and code review make them faster in the IDE across any language</li>
-      <li><strong>Full-stack and backend work</strong> — Python, Go, Rust, Java, infrastructure — Copilot covers everything beyond the frontend</li>
-      <li><strong>Teams on GitHub</strong> — the platform integration (issues, PRs, code review, autonomous coding agent) is unmatched</li>
-      <li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
+      <li><strong>Your developers</strong>: autocomplete, agent mode, and code review make them faster in the IDE across any language</li>
+      <li><strong>Full-stack and backend work</strong>: Python, Go, Rust, Java, and infrastructure. Copilot covers everything beyond the frontend</li>
+      <li><strong>Teams on GitHub</strong>: the platform integration (issues, PRs, code review, autonomous coding agent) is unmatched</li>
+      <li><strong>Large codebase refactoring</strong>: renaming across dozens of files, updating APIs, migrating patterns</li>
     </ul>
   </Fragment>
 
   <Fragment slot="who-should-use-frontman">
-    <p>Frontman is built for teams where UI quality is a shared responsibility — not just a developer task:</p>
+    <p>Frontman is built for teams where UI quality is a shared responsibility, not just a developer task:</p>
     <ul>
-      <li><strong>Design system teams</strong> — designers and system leads can spot and fix component inconsistencies directly in the browser, without filing tickets or waiting for sprint capacity</li>
-      <li><strong>Product managers who iterate on UI</strong> — click the element, describe the change, see it live. No IDE setup, no context-switching through Figma-to-Jira-to-PR workflows</li>
-      <li><strong>Growing startups with multiple product teams</strong> — when several teams ship against a shared system, Frontman gives non-developers a way to maintain consistency without bottlenecking engineering</li>
-      <li><strong>Frontend developers who want browser context</strong> — the AI sees computed styles, rendered output, and viewport behavior, not just class names in source files</li>
-      <li><strong>Next.js, Astro, or Vite projects</strong> — deep framework plugin integration provides richer context than generic file reading</li>
+      <li><strong>Design system teams</strong>: designers and system leads can spot and fix component inconsistencies directly in the browser, without filing tickets or waiting for sprint capacity</li>
+      <li><strong>Product managers who iterate on UI</strong>: click the element, describe the change, see it live. No IDE setup, no context-switching through Figma-to-Jira-to-PR workflows</li>
+      <li><strong>Growing startups with multiple product teams</strong>: when several teams ship against a shared system, Frontman gives non-developers a way to maintain consistency without bottlenecking engineering</li>
+      <li><strong>Frontend developers who want browser context</strong>: the AI sees computed styles, rendered output, and viewport behavior, not just class names in source files</li>
+      <li><strong>Next.js, Astro, or Vite projects</strong>: deep framework plugin integration provides richer context than generic file reading</li>
     </ul>
     <p>Most teams use both. Copilot in the IDE for your developers. Frontman in the browser for your whole product team.</p>
   </Fragment>
@@ -185,7 +185,7 @@ const faqs: FAQ[] = [
     <section class="flex justify-center border-t border-zinc-800 bg-zinc-950 px-6 py-20 max-md:px-5 max-md:py-12">
       <div class="w-full max-w-[720px]">
         <h2 class="mb-2 text-4xl font-bold tracking-tight text-zinc-50 max-md:text-[28px]">Try Frontman With Your Team</h2>
-        <p class="mb-8 text-[17px] text-zinc-300">Share these with your frontend developer — one command adds Frontman to your app. Then anyone on the team can start editing UI in the browser.</p>
+        <p class="mb-8 text-[17px] text-zinc-300">Share these with your frontend developer. One command adds Frontman to your app, then anyone on the team can start editing UI in the browser.</p>
         <div class="mb-8 flex flex-col gap-3">
           <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
             <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>
