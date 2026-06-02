@@ -7,7 +7,6 @@ import brokenLinksChecker from "astro-broken-links-checker";
 import astroConsent from "astro-consent";
 import path from "node:path";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
 import hcStarlight from 'hc-starlight';
 import starlight from "@astrojs/starlight";
 
@@ -103,33 +102,6 @@ function validateDocsDescriptions() {
   }
 
   return { name: "validate-docs-descriptions", hooks: { "astro:config:done": () => {} } };
-}
-
-function stripUnusedSitemapNamespaces() {
-  return {
-    name: "strip-unused-sitemap-namespaces",
-    hooks: {
-      "astro:build:done": ({ dir }) => {
-        const distDir = fileURLToPath(dir);
-        for (const file of fs.readdirSync(distDir).filter((entry) => /^sitemap.*\.xml$/.test(entry))) {
-          const filePath = path.join(distDir, file);
-          let xml = fs.readFileSync(filePath, "utf-8");
-
-          if (!xml.includes("<image:image")) {
-            xml = xml.replace(/\s+xmlns:image="http:\/\/www\.google\.com\/schemas\/sitemap-image\/1\.1"/g, "");
-          }
-          if (!xml.includes("<video:video")) {
-            xml = xml.replace(/\s+xmlns:video="http:\/\/www\.google\.com\/schemas\/sitemap-video\/1\.1"/g, "");
-          }
-          if (!xml.includes("<news:news")) {
-            xml = xml.replace(/\s+xmlns:news="http:\/\/www\.google\.com\/schemas\/sitemap-news\/0\.9"/g, "");
-          }
-
-          fs.writeFileSync(filePath, xml);
-        }
-      },
-    },
-  };
 }
 
 // https://astro.build/config
@@ -324,5 +296,5 @@ export default defineConfig({
         if (/\/docs\//.test(item.url)) return item;
       },
     },
-  }), stripUnusedSitemapNamespaces()],
+  })],
 });
