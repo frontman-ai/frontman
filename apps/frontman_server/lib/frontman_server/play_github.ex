@@ -46,6 +46,9 @@ defmodule FrontmanServer.PlayGithub do
     run_repository_command(github_reference, :create)
   end
 
+  @spec dev_server_port() :: pos_integer()
+  def dev_server_port, do: @dev_server_port
+
   def get_sandbox_preview_link(sandbox_id, port)
       when is_binary(sandbox_id) and is_integer(port) do
     case Sandbox.get_preview_link(sandbox_id, port) do

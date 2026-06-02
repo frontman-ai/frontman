@@ -340,6 +340,26 @@ defmodule FrontmanServerWeb.UserAuthTest do
       assert redirected_to(conn) == ~p"/"
     end
 
+    test "refreshes the shared session cookie before redirecting to PlayGithub", %{
+      conn: conn,
+      user: user
+    } do
+      user_token = Accounts.generate_user_session_token(user)
+
+      conn =
+        conn
+        |> assign(:current_scope, Scope.for_user(user))
+        |> put_session(:user_token, user_token)
+        |> Map.put(:params, %{
+          "return_to" => "https://playgithub.frontman.local:4000/frontman-ai/frontman"
+        })
+        |> UserAuth.redirect_if_user_is_authenticated([])
+
+      assert conn.halted
+      assert redirected_to(conn) == "https://playgithub.frontman.local:4000/frontman-ai/frontman"
+      assert get_session(conn, :user_token) == user_token
+    end
+
     test "does not redirect if user is not authenticated", %{conn: conn} do
       conn = UserAuth.redirect_if_user_is_authenticated(conn, [])
       refute conn.halted

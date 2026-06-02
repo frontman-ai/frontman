@@ -9,14 +9,14 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
       conn = get_playgithub(conn, ~p"/")
 
       assert redirected_to(conn) =~ "https://frontman.local:4002/users/log-in"
-      assert redirected_to(conn) =~ "return_to="
+      assert login_return_to(conn) == "http://playgithub.frontman.local/"
     end
 
     test "redirects unauthenticated nested paths to log in", %{conn: conn} do
       conn = get_playgithub(conn, "/octocat/Hello-World")
 
       assert redirected_to(conn) =~ "https://frontman.local:4002/users/log-in"
-      assert redirected_to(conn) =~ "return_to="
+      assert login_return_to(conn) == "http://playgithub.frontman.local/octocat/Hello-World"
     end
   end
 
@@ -29,10 +29,24 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
       assert text_response(conn, 400) =~ "error: missing_owner_or_repo"
     end
 
-    test "requires explicit repository command", %{conn: conn} do
-      conn = get_playgithub(conn, "/octocat/Hello-World")
+    test "serves a launcher that advances commands to the sandbox preview", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-forwarded-proto", "https")
+        |> put_req_header("x-forwarded-port", "4000")
+        |> get_playgithub("/octocat/Hello-World")
 
-      assert text_response(conn, 400) =~ "error: missing_command"
+      response = html_response(conn, 200)
+
+      assert response =~ "Launching PlayGithub sandbox"
+      assert response =~ ~s(let command = "create")
+      assert response =~ ~s(data.next && data.next.startsWith("?command="))
+      assert response =~ ~s(if (next === "wait_for_clone") return "clone")
+      assert response =~ ~s(if (next === "wait_for_install") return "install")
+      assert response =~ ~s(return {command: "install", retry: true)
+      assert response =~ ~s(if (next === "wait_for_dev_server") return "dev")
+      assert response =~ ~s(data.next === "open_frontman_preview")
+      assert response =~ ~s(window.location.href = step.redirect)
     end
 
     test "rejects unsupported repository commands", %{conn: conn} do
@@ -80,6 +94,15 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
     conn
     |> Map.put(:host, "playgithub.frontman.local")
     |> get(path)
+  end
+
+  defp login_return_to(conn) do
+    conn
+    |> redirected_to()
+    |> URI.parse()
+    |> Map.fetch!(:query)
+    |> URI.decode_query()
+    |> Map.fetch!("return_to")
   end
 
   defp sandbox_name do

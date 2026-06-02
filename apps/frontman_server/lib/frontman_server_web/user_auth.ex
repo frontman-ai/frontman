@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.UserAuth do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServerWeb.PlayGithub.SandboxProxy.Target
 
   # Make the remember me cookie valid for 14 days. This should match
   # the session validity setting in UserToken.
@@ -363,6 +364,7 @@ defmodule FrontmanServerWeb.UserAuth do
       return_to = conn.params["return_to"]
 
       conn
+      |> maybe_refresh_session_cookie_for_return_to(return_to)
       |> redirect_to_return_path(return_to)
       |> halt()
     else
@@ -371,6 +373,48 @@ defmodule FrontmanServerWeb.UserAuth do
   end
 
   defp signed_in_path(_conn), do: ~p"/"
+
+  defp maybe_refresh_session_cookie_for_return_to(conn, return_to) when is_binary(return_to) do
+    case playgithub_return_url?(return_to) do
+      true -> refresh_session_cookie(conn)
+      false -> conn
+    end
+  end
+
+  defp maybe_refresh_session_cookie_for_return_to(conn, _return_to), do: conn
+
+  defp refresh_session_cookie(conn) do
+    case get_session(conn, :user_token) do
+      token when is_binary(token) -> put_session(conn, :user_token, token)
+      _token -> conn
+    end
+  end
+
+  defp playgithub_return_url?(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
+        playgithub_host?(host)
+
+      _uri ->
+        false
+    end
+  end
+
+  defp playgithub_host?(host) when is_binary(host) do
+    normalized_host = String.downcase(host)
+
+    :frontman_server
+    |> Application.get_env(:playgithub, [])
+    |> Keyword.get(:hosts, [])
+    |> Enum.any?(fn configured_host ->
+      configured_host = String.downcase(configured_host)
+
+      normalized_host == configured_host or
+        String.ends_with?(normalized_host, "." <> configured_host)
+    end)
+  end
+
+  defp playgithub_host?(_host), do: false
 
   @doc """
   Plug for routes that require the user to be authenticated.
@@ -411,7 +455,9 @@ defmodule FrontmanServerWeb.UserAuth do
   defp redirect_to_login(conn) do
     case playgithub_host?(conn.host) do
       true ->
-        login_path = ~p"/users/log-in?#{%{"return_to" => current_url(conn)}}"
+        login_path =
+          ~p"/users/log-in?#{%{"return_to" => request_origin(conn) <> current_path(conn)}}"
+
         redirect(conn, external: FrontmanServerWeb.Endpoint.url() <> login_path)
 
       false ->
@@ -419,12 +465,7 @@ defmodule FrontmanServerWeb.UserAuth do
     end
   end
 
-  defp playgithub_host?(host) when is_binary(host) do
-    :frontman_server
-    |> Application.get_env(:playgithub, [])
-    |> Keyword.get(:hosts, [])
-    |> Enum.member?(host)
+  defp request_origin(conn) do
+    Target.request_origin(conn)
   end
-
-  defp playgithub_host?(_host), do: false
 end
