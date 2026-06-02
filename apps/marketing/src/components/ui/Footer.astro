@@ -97,7 +97,7 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 		@apply flex flex-col gap-8;
 	}
 	.footer__brand {
-		@apply flex items-center gap-2 whitespace-nowrap font-headings text-base font-semibold text-neutral-700 focus:outline-none dark:text-neutral-100;
+		@apply flex items-center gap-2 whitespace-nowrap font-headings text-base font-semibold text-neutral-700 dark:text-neutral-100;
 	}
 	.footer__nav-columns {
 		@apply grid grid-cols-2 gap-x-8 gap-y-8
@@ -131,5 +131,10 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 	}
 	.footer__bottom a {
 		@apply [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0;
+	}
+	.footer__bottom nav[aria-label="Social media links"] a {
+		@apply flex items-center justify-center rounded-lg;
+		min-height: 44px;
+		min-width: 44px;
 	}
 </style>

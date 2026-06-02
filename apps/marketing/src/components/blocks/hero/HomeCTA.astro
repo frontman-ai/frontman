@@ -42,8 +42,9 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
           properties: {},
           additionalProperties: false,
         },
-        execute: async () => {
-          document.querySelector('#install')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+			execute: async () => {
+				const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+				document.querySelector('#install')?.scrollIntoView({ behavior, block: 'start' })
           return { ok: true }
         },
       },
@@ -56,7 +57,7 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 <section id="intro" class="hero-section bg-primary-500">
 	<script is:inline set:html={webMcpScript} />
 	<div class="hero-section__bg">
-		<img src={gridNetBackground.src} alt="Decorative grid background pattern" class="hero-section__bg-image" width="1440" height="900" fetchpriority="high" />
+		<img src={gridNetBackground.src} alt="" aria-hidden="true" class="hero-section__bg-image" width="1440" height="900" fetchpriority="high" />
 	</div>
 	<div class="hero-section__container">
 		<div class="hero-section__top">

@@ -207,7 +207,6 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(pricingJsonLd)} />
 	<script is:inline>
 			document.addEventListener('DOMContentLoaded', () => {
-			const billingToggleGroup = document.querySelector('[data-billing-toggle-group]')
 			const billingToggleButtons = document.querySelectorAll('[data-billing-toggle]')
 			const priceAmount = document.querySelector('[data-price-amount]')
 			const priceOriginal = document.querySelector('[data-price-original]')
@@ -251,15 +250,6 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 				button.addEventListener('click', () => setBillingPlan(button))
 			})
 
-			billingToggleGroup.addEventListener('click', (event) => {
-				if (event.target.closest('[data-billing-toggle]')) {
-					return
-				}
-
-				const activeButton = billingToggleGroup.querySelector('[aria-pressed="true"]')
-				const nextButton = Array.from(billingToggleButtons).find((button) => button !== activeButton)
-				setBillingPlan(nextButton)
-			})
 		})
 	</script>
 
@@ -271,7 +261,7 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 			<Col span="10" classes="lg:col-start-2">
 				<div class="relative mx-auto max-w-5xl text-center">
 					<h1 class="mx-auto max-w-4xl text-4xl leading-tight tracking-[-0.04em] text-white md:text-6xl lg:text-7xl">Simple pricing for reviewable frontend code changes.</h1>
-					<p class="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-white/85 md:text-xl">
+					<p class="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-white md:text-xl">
 						Frontman Pro helps designers, PMs, and product teams turn visual requests into source-file edits your developers can review and ship.
 					</p>
 					<div class="mt-8 flex flex-wrap justify-center gap-3" aria-label="Pricing highlights">
@@ -294,10 +284,10 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 						</div>
 						<p class="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-sm font-bold text-white">Most teams</p>
 					</div>
-					<p class="relative mt-4 max-w-2xl text-lg leading-relaxed text-white/85">
+					<p class="relative mt-4 max-w-2xl text-lg leading-relaxed text-white">
 						For product teams that want visual AI frontend editing without running infrastructure.
 					</p>
-					<div class="mt-6 inline-flex w-fit max-w-full cursor-pointer rounded-full border border-white/20 bg-primary-700/25 p-1" aria-label="Billing frequency" data-billing-toggle-group>
+					<div class="mt-6 inline-flex w-fit max-w-full rounded-full border border-white/20 bg-primary-700/25 p-1" aria-label="Billing frequency" data-billing-toggle-group>
 						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-bold text-primary-700 shadow-sm" data-billing-toggle="monthly" aria-pressed="true">Monthly</button>
 						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold text-white/70 transition-colors hover:text-white" data-billing-toggle="yearly" aria-pressed="false">Yearly · save 17%</button>
 					</div>
@@ -315,7 +305,7 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 							</div>
 							<p class="text-lg font-bold leading-none text-white/90" data-price-period>per seat / month</p>
 						</div>
-						<p class="mt-4 text-sm font-semibold text-white/80" data-price-note>Billed monthly. Switch to yearly to save 17% per seat.</p>
+						<p class="mt-4 text-sm font-semibold text-white" data-price-note>Billed monthly. Switch to yearly to save 17% per seat.</p>
 					</div>
 					<Button type="link" link="/contact/" size="lg" classes={ctaButtonClass}>Contact us about Frontman Pro</Button>
 					<p class="mt-4 text-sm leading-relaxed text-white/70">Credit card required. Cancel before day 14. We’ll send a reminder before billing. Taxes calculated at checkout.</p>
@@ -383,19 +373,26 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 				</p>
 			</Col>
 			<Col span="12">
-				<div class="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] backdrop-blur" role="table" aria-label="Frontman Pro compared with traditional UI change workflow">
-					<div class="grid gap-0 border-t border-white/10 first:border-t-0 md:grid-cols-3" role="row">
-						<div class="border-t border-white/10 bg-white/[0.05] px-5 py-4 text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-neutral-400 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="columnheader">Workflow</div>
-						<div class="border-t border-white/10 bg-primary-500 px-5 py-4 text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-white first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="columnheader">Frontman Pro</div>
-						<div class="border-t border-white/10 bg-white/[0.05] px-5 py-4 text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-neutral-400 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="columnheader">Traditional UI handoff</div>
-					</div>
-					{comparisonRows.map((row) => (
-						<div class="grid gap-0 border-t border-white/10 first:border-t-0 md:grid-cols-3" role="row">
-							<div class="border-t border-white/10 px-5 py-4 text-sm font-semibold leading-relaxed text-neutral-50 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="cell">{row[0]}</div>
-							<div class="border-t border-white/10 bg-primary-500/10 px-5 py-4 text-sm leading-relaxed text-primary-100 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="cell">{row[1]}</div>
-							<div class="border-t border-white/10 px-5 py-4 text-sm leading-relaxed text-neutral-300 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5" role="cell">{row[2]}</div>
-						</div>
-					))}
+				<div class="overflow-x-auto rounded-[1.5rem] border border-white/10 bg-white/[0.04] backdrop-blur">
+					<table class="w-full min-w-[760px] border-collapse">
+						<caption class="sr-only">Frontman Pro compared with traditional UI change workflow</caption>
+						<thead>
+							<tr>
+								<th scope="col" class="border-t border-white/10 bg-white/[0.05] px-5 py-4 text-left text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-neutral-300 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">Workflow</th>
+								<th scope="col" class="border-t border-white/10 bg-primary-500 px-5 py-4 text-left text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-white first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">Frontman Pro</th>
+								<th scope="col" class="border-t border-white/10 bg-white/[0.05] px-5 py-4 text-left text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-neutral-300 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">Traditional UI handoff</th>
+							</tr>
+						</thead>
+						<tbody>
+							{comparisonRows.map((row) => (
+								<tr>
+									<th scope="row" class="border-t border-white/10 px-5 py-4 text-left text-sm font-semibold leading-relaxed text-neutral-50 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">{row[0]}</th>
+									<td class="border-t border-white/10 bg-primary-500/10 px-5 py-4 text-sm leading-relaxed text-primary-100 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">{row[1]}</td>
+									<td class="border-t border-white/10 px-5 py-4 text-sm leading-relaxed text-neutral-300 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">{row[2]}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
 				</div>
 			</Col>
 		</Row>
@@ -465,7 +462,7 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 					<div class="relative">
 						<p class="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-white/75">Start visually editing your frontend</p>
 						<h2 class="mx-auto max-w-3xl text-white">One simple hosted plan. 14-day free trial.</h2>
-						<p class="mx-auto max-w-2xl text-lg leading-relaxed text-white/85">Cancel before billing. Bring your own AI key. Give your developers reviewable source-file diffs.</p>
+						<p class="mx-auto max-w-2xl text-lg leading-relaxed text-white">Cancel before billing. Bring your own AI key. Give your developers reviewable source-file diffs.</p>
 						<Button type="link" link="/contact/" size="lg" classes={ctaButtonClass}>Contact us about Frontman Pro</Button>
 					</div>
 				</div>

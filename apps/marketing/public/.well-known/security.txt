@@ -1,0 +1,5 @@
+Contact: https://github.com/frontman-ai/frontman/security/advisories/new
+Policy: https://github.com/frontman-ai/frontman/security/policy
+Preferred-Languages: en
+Canonical: https://frontman.sh/.well-known/security.txt
+Expires: 2027-06-02T00:00:00Z

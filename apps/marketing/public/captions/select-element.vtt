@@ -1,0 +1,7 @@
+WEBVTT
+
+00:00.000 --> 00:04.000
+Frontman lets you click a rendered element in the browser and select it for editing.
+
+00:04.000 --> 00:08.000
+After selection, describe the desired UI change and Frontman maps the element back to source code.

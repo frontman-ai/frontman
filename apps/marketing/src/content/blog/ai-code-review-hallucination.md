@@ -47,14 +47,14 @@ FUNCTION TRACE TABLE:
 (List every function you examined.)
 
 DATA FLOW ANALYSIS:
-Variable: [name]
-- Created at: [file:line]
-- Modified at: [file:line(s), or NEVER MODIFIED]
-- Used at: [file:line(s)]
+Variable: <name>
+- Created at: <file:line>
+- Modified at: <file:line(s)> or NEVER MODIFIED
+- Used at: <file:line(s)>
 
 SEMANTIC PROPERTIES:
-Property N: [factual claim about the code]
-- Evidence: [file:line]
+Property N: <factual claim about the code>
+- Evidence: <file:line>
 
 ALTERNATIVE HYPOTHESIS CHECK:
 If the OPPOSITE of your answer were true, what would you expect?

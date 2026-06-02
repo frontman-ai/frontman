@@ -1,4 +1,4 @@
-import { defineConfig } from "astro/config"; // force rebuild // force rebuild
+import { defineConfig } from "astro/config";
 import tailwindcss from "@tailwindcss/vite";
 import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
@@ -7,6 +7,7 @@ import brokenLinksChecker from "astro-broken-links-checker";
 import astroConsent from "astro-consent";
 import path from "node:path";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import hcStarlight from 'hc-starlight';
 import starlight from "@astrojs/starlight";
 
@@ -104,18 +105,37 @@ function validateDocsDescriptions() {
   return { name: "validate-docs-descriptions", hooks: { "astro:config:done": () => {} } };
 }
 
+function stripUnusedSitemapNamespaces() {
+  return {
+    name: "strip-unused-sitemap-namespaces",
+    hooks: {
+      "astro:build:done": ({ dir }) => {
+        const distDir = fileURLToPath(dir);
+        for (const file of fs.readdirSync(distDir).filter((entry) => /^sitemap.*\.xml$/.test(entry))) {
+          const filePath = path.join(distDir, file);
+          let xml = fs.readFileSync(filePath, "utf-8");
+
+          if (!xml.includes("<image:image")) {
+            xml = xml.replace(/\s+xmlns:image="http:\/\/www\.google\.com\/schemas\/sitemap-image\/1\.1"/g, "");
+          }
+          if (!xml.includes("<video:video")) {
+            xml = xml.replace(/\s+xmlns:video="http:\/\/www\.google\.com\/schemas\/sitemap-video\/1\.1"/g, "");
+          }
+          if (!xml.includes("<news:news")) {
+            xml = xml.replace(/\s+xmlns:news="http:\/\/www\.google\.com\/schemas\/sitemap-news\/0\.9"/g, "");
+          }
+
+          fs.writeFileSync(filePath, xml);
+        }
+      },
+    },
+  };
+}
+
 // https://astro.build/config
 export default defineConfig({
   site: "https://frontman.sh",
   trailingSlash: "always",
-  redirects: {
-    "/blog/gpt-5.4-support": "/blog/gpt-54-support/",
-    "/blog/mobile-app": "/blog/ai-coding-agents-blind-to-ui/",
-    "/blog/user-stories": "/blog/frontman-vs-cursor-vs-claude-code/",
-    "/blog/welcome": "/blog/introducing-frontman/",
-    "/blog/what-are-framework-aware-ai-coding-tools": "/blog/what-are-browser-aware-ai-coding-tools/",
-    "/blog/user-feedback": "/changelog/",
-  },
   vite: {
     plugins: [tailwindcss()],
     server: {
@@ -246,6 +266,8 @@ export default defineConfig({
       if (/(?<!\/docs)\/integrations\/(astro|nextjs|vite)\/?$/.test(item.url)) return undefined;
       // Exclude noindexed stub pages that exist only for sidebar navigation.
       if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
+      // Exclude explicit noindex pages from sitemap output.
+      if (/\/(404|pricing)\/?$/.test(item.url)) return undefined;
 
       // Use the real pubDate for blog and release posts; fall back to
       // build date for everything else.
@@ -302,5 +324,5 @@ export default defineConfig({
         if (/\/docs\//.test(item.url)) return item;
       },
     },
-  })],
+  }), stripUnusedSitemapNamespaces()],
 });

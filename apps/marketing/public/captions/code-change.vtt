@@ -1,0 +1,7 @@
+WEBVTT
+
+00:00.000 --> 00:04.000
+Frontman applies the requested change to source files while the running app hot reloads.
+
+00:04.000 --> 00:08.000
+The browser preview updates so the UI change can be reviewed immediately.

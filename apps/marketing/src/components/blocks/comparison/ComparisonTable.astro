@@ -110,12 +110,13 @@ function toolKey(tool: string): keyof Feature {
 
 		<!-- Desktop table (hidden on mobile) -->
 		<div class="table-wrapper" id="comparison-table">
-			<table class="comparison-table" role="grid">
+			<table class="comparison-table">
+				<caption class="sr-only">Feature comparison across Frontman, Claude Desktop, Cursor, and Copilot</caption>
 				<thead>
 					<tr>
-						<th class="feature-header">Feature</th>
+						<th scope="col" class="feature-header">Feature</th>
 						{tools.map((tool) => (
-							<th class={tool === 'Frontman' ? 'tool-header tool-header--highlighted' : 'tool-header'}>
+							<th scope="col" class={tool === 'Frontman' ? 'tool-header tool-header--highlighted' : 'tool-header'}>
 								{tool}
 							</th>
 						))}
@@ -124,7 +125,7 @@ function toolKey(tool: string): keyof Feature {
 				<tbody>
 					{features.map((feature) => (
 						<tr>
-							<td class="feature-cell">{feature.name}</td>
+							<th scope="row" class="feature-cell">{feature.name}</th>
 							{tools.map((tool) => {
 								const key = toolKey(tool)
 								const status = feature[key] as Status

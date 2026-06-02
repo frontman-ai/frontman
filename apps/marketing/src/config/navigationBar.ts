@@ -55,9 +55,9 @@ export const navigationBarData: NavData = {
 			link: '/integrations/',
 			submenu: [
 				{ name: 'All integrations', link: '/integrations/' },
-				{ name: 'Next.js', link: '/integrations/nextjs/' },
-				{ name: 'Astro', link: '/integrations/astro/' },
-				{ name: 'Vite', link: '/integrations/vite/' }
+				{ name: 'Next.js', link: '/docs/integrations/nextjs/' },
+				{ name: 'Astro', link: '/docs/integrations/astro/' },
+				{ name: 'Vite', link: '/docs/integrations/vite/' }
 			]
 		},
 		{ name: 'Changelog', link: '/changelog/' },

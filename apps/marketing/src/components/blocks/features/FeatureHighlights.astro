@@ -112,6 +112,7 @@ const compactFeatures: CompactFeature[] = [
 						preload="none"
 						data-src={feature.videoSrc}
 					>
+						<track kind="captions" src={index === 0 ? '/captions/select-element.vtt' : '/captions/code-change.vtt'} srclang="en" label="English" default />
 					</video>
 						) : feature.svgSrc ? (
 					<img
@@ -171,6 +172,7 @@ const compactFeatures: CompactFeature[] = [
 </section>
 
 <script>
+	if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
 	const observer = new IntersectionObserver(
 		(entries) => {
 			entries.forEach((entry) => {
@@ -196,6 +198,7 @@ const compactFeatures: CompactFeature[] = [
 	document.querySelectorAll<HTMLVideoElement>('.lazy-video').forEach((video) => {
 		observer.observe(video)
 	})
+	}
 </script>
 
 <style>

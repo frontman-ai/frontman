@@ -1,0 +1,34 @@
+# Frontman Full LLM Context
+
+Frontman is an open-source AI agent for frontend development. It runs inside framework dev servers, exposes browser and server runtime context to an AI agent, and edits source files with hot reload feedback.
+
+## Primary Resources
+
+- Homepage: https://frontman.sh/
+- Documentation: https://frontman.sh/docs/
+- Installation: https://frontman.sh/docs/installation/
+- API keys and providers: https://frontman.sh/docs/api-keys/
+- Architecture: https://frontman.sh/docs/reference/architecture/
+- Configuration: https://frontman.sh/docs/reference/configuration/
+- Self-hosting: https://frontman.sh/docs/reference/self-hosting/
+- Changelog: https://frontman.sh/changelog/
+- GitHub: https://github.com/frontman-ai/frontman
+
+## Product Summary
+
+Frontman integrates with Next.js, Astro, and Vite. The framework plugin exposes routes, logs, source files, and build/runtime state. The browser-side client exposes DOM inspection, computed CSS, screenshots, element selection, and viewport behavior. The agent combines both views to make frontend edits with visual context that file-only coding tools lack.
+
+## Suitable Uses
+
+- Click a rendered element and ask for copy, spacing, color, or layout changes.
+- Debug frontend issues where rendered DOM, CSS cascade, or responsive behavior matters.
+- Let designers and product managers propose changes while preserving reviewable git diffs.
+- Run local-development workflows with bring-your-own-key model providers.
+
+## Discovery
+
+- LLM summary: https://frontman.sh/llms.txt
+- Sitemap: https://frontman.sh/sitemap-index.xml
+- RSS: https://frontman.sh/rss.xml
+- API catalog: https://frontman.sh/.well-known/api-catalog
+- Agent skills: https://frontman.sh/.well-known/agent-skills/index.json

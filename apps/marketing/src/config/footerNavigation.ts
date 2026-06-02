@@ -96,15 +96,15 @@ export const footerNavigationData: FooterData = {
 				},
 				{
 					subCategory: 'Next.js',
-					subCategoryLink: '/integrations/nextjs/'
+					subCategoryLink: '/docs/integrations/nextjs/'
 				},
 				{
 					subCategory: 'Astro',
-					subCategoryLink: '/integrations/astro/'
+					subCategoryLink: '/docs/integrations/astro/'
 				},
 				{
 					subCategory: 'Vite (React, Vue, Svelte)',
-					subCategoryLink: '/integrations/vite/'
+					subCategoryLink: '/docs/integrations/vite/'
 				}
 			]
 		},

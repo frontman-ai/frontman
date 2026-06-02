@@ -52,17 +52,22 @@ const imageType = absoluteOgImage?.endsWith('.webp')
 			? 'image/jpeg'
 			: 'image/png'
 const ogType = article ? 'article' : 'website'
+
+const normalizedDescription = (description ?? '').replace(/\s+/g, ' ').trim()
+const metaDescription = normalizedDescription.length > 160
+	? `${normalizedDescription.slice(0, 157).trimEnd()}...`
+	: normalizedDescription
 ---
 
 <Fragment>
 	<title>{title}</title>
-	<meta name="description" content={description} />
+	<meta name="description" content={metaDescription} />
 
 	<!-- Open Graph (Facebook, WhatsApp, Discord, LinkedIn, Slack, Telegram, iMessage, Reddit) -->
 	<meta property="og:type" content={ogType} />
 	<meta property="og:url" content={Astro.url} />
 	<meta property="og:title" content={title} />
-	<meta property="og:description" content={description} />
+	<meta property="og:description" content={metaDescription} />
 	<meta property="og:site_name" content="Frontman" />
 	<meta property="og:locale" content="en_US" />
 	<meta property="og:image" content={absoluteOgImage} />
@@ -82,7 +87,7 @@ const ogType = article ? 'article' : 'website'
 	<meta name="twitter:site" content="@frontman_agent" />
 	<meta name="twitter:creator" content="@frontman_agent" />
 	<meta name="twitter:title" content={title} />
-	<meta name="twitter:description" content={description} />
+	<meta name="twitter:description" content={metaDescription} />
 	<meta name="twitter:image" content={absoluteTwitterImage} />
 	<meta name="twitter:image:alt" content={imageAlt} />
 

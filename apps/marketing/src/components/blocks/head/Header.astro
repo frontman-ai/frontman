@@ -46,12 +46,12 @@ const {
 <head>
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="color-scheme" content="dark light" />
 	<link rel="preload" href={interLatinUrl} as="font" type="font/woff2" crossorigin />
 	<link rel="preload" href={outfitLatinUrl} as="font" type="font/woff2" crossorigin />
 	{googleAnalyticsMeasurementID && <GoogleAnalytics />}
 	<GoogleSearchConsole />
 	<meta name="yandex-verification" content="f7cb42505a6da42d" />
-	<link rel="preconnect" href="https://www.googletagmanager.com" />
 	<Seo
 		title={title}
 		description={description}
@@ -66,9 +66,11 @@ const {
 	<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 	<link rel="icon" href="/favicon.ico" sizes="48x48" />
 	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+	<link rel="manifest" href="/site.webmanifest" />
 	<link rel="sitemap" href="/sitemap-index.xml" />
 	<link rel="alternate" type="application/rss+xml" title="Frontman Blog" href="/rss.xml" />
 	<meta name="generator" content={Astro.generator} />
-	<meta name="theme-color" content="#020617" />
+	<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+	<meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
 	<StructuredData />
 </head>

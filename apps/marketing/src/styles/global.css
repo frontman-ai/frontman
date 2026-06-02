@@ -1,10 +1,10 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* Exclude prose content files — they don't use Tailwind classes but contain
-   bracket notation like [file:line] that Tailwind misreads as arbitrary values */
+/* Exclude prose files that do not contain Tailwind classes. */
 @source not "../content/**/*.md";
 @source not "../content/**/*.mdx";
+@source not "../../dist/**/*";
 
 /* --- Dark mode is always on. The dark variant matches unconditionally. --- */
 @custom-variant dark (&);
@@ -83,9 +83,40 @@
 /* Layout rules */
 html {
 	@apply scroll-smooth antialiased;
+	color-scheme: dark light;
+	scrollbar-gutter: stable;
 }
 body {
 	@apply overflow-x-hidden bg-neutral-950 text-neutral-400 has-[.header\_\_menu--open]:overflow-hidden lg:has-[.header\_\_menu--open]:overflow-auto;
+}
+
+main:focus {
+	outline: none;
+}
+
+.skip-link {
+	@apply fixed left-4 top-4 z-[1000] -translate-y-20 rounded-lg bg-white px-4 py-3 text-sm font-semibold text-neutral-950 shadow-lg transition-transform focus-visible:translate-y-0;
+}
+
+:where(a, button, input, textarea, select, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+	outline: 2px solid #ffffff;
+	outline-offset: 3px;
+	box-shadow: 0 0 0 5px rgba(162, 89, 255, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.001ms !important;
+	}
+
+	html {
+		scroll-behavior: auto;
+	}
 }
 
 /* Main typography */
@@ -196,8 +227,10 @@ main a:not(.text-white):not(.dark\:text-white):not([class*="-link"]):not([class*
 }
 /* Copy button — injected via JS */
 .basic-text pre.astro-code .code-copy-btn {
-	@apply absolute right-3 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md text-neutral-500 opacity-0 transition-all duration-150;
+	@apply absolute right-2 top-1 z-10 flex items-center justify-center rounded-md text-neutral-500 opacity-0 transition-all duration-150;
 	@apply hover:text-neutral-200;
+	min-height: 44px;
+	min-width: 44px;
 }
 .basic-text pre.astro-code:hover .code-copy-btn {
 	@apply opacity-100;

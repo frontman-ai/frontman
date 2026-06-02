@@ -18,10 +18,10 @@ const skillDocs = [
     url: `${origin}/docs/`,
   },
   {
-    name: 'markdown-negotiation',
-    type: 'content-negotiation',
-    description: 'Request markdown responses for the homepage with Accept: text/markdown.',
-    url: `${origin}/`,
+    name: 'llms-full-context',
+    type: 'llm-context',
+    description: 'Read the expanded LLM-facing summary of Frontman resources.',
+    url: `${origin}/llms-full.txt`,
   },
   {
     name: 'webmcp-site-tools',

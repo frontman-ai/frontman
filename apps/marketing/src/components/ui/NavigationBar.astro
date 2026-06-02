@@ -26,7 +26,7 @@ function isActivePath(currentPath: string): boolean {
 
 <header class="header">
 	<div class="header__container">
-		<nav aria-label="main navigation" role="navigation" class="header__nav">
+		<nav aria-label="Main navigation" class="header__nav">
 			<!-- Logo -->
 			<a href="/" class="header__logo">
 				<img src={logo.src} alt={logo.alt} width="32" height="32" />
@@ -49,14 +49,13 @@ function isActivePath(currentPath: string): boolean {
 
 			<!-- Navigation action buttons -->
 			<!-- Navigation links -->
-			<ul role="menubar" aria-label="Select page" class="header__menu">
+			<ul class="header__menu">
 				{
 					filteredNavItems.map((item) => (
-						<li role="none" class="header__menu-item">
+						<li class="header__menu-item">
 							{!item.submenu ? (
 								<a
 									href={item.link}
-									role="menuitem"
 									class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
 								>
 									{item.name}
@@ -64,7 +63,6 @@ function isActivePath(currentPath: string): boolean {
 							) : (
 								<a
 									href={item.link}
-									role="menuitem"
 									aria-haspopup="true"
 									aria-expanded="false"
 									class={`header__menu-link ${isActivePath(item.link) ? 'active' : ''}`}
@@ -76,10 +74,9 @@ function isActivePath(currentPath: string): boolean {
 							{item.submenu && (
 								<ul class="header__submenu">
 									{item.submenu.map((subItem) => (
-										<li role="none" class="header__submenu-item">
+										<li class="header__submenu-item">
 											<a
 												href={subItem.link}
-												role="menuitem"
 												class={`header__submenu-link ${isActivePath(subItem.link) ? 'active' : ''}`}
 											>
 												{subItem.name}
@@ -146,7 +143,7 @@ function isActivePath(currentPath: string): boolean {
 
 	/* -- Logo -- */
 	.header__logo {
-		@apply flex flex-none items-center gap-2 whitespace-nowrap text-white focus:outline-none;
+		@apply flex flex-none items-center gap-2 whitespace-nowrap text-white;
 		font-size: 16px;
 		font-weight: 500;
 		letter-spacing: -0.01em;
@@ -186,7 +183,7 @@ function isActivePath(currentPath: string): boolean {
 		list-style: none;
 	}
 	.header__menu-link {
-		@apply relative flex items-center gap-1 text-white/70 transition-colors duration-200 focus:outline-none focus-visible:outline-none;
+		@apply relative flex items-center gap-1 text-white/70 transition-colors duration-200;
 		font-size: 14px;
 		line-height: 20px;
 		font-weight: 400;
@@ -210,7 +207,8 @@ function isActivePath(currentPath: string): boolean {
 		opacity: 0.5;
 	}
 	@media (min-width: 1024px) {
-		.header__menu-item:hover > .header__menu-link .header__menu-chevron {
+		.header__menu-item:hover > .header__menu-link .header__menu-chevron,
+		.header__menu-item:focus-within > .header__menu-link .header__menu-chevron {
 			transform: rotate(180deg);
 		}
 	}
@@ -249,7 +247,8 @@ function isActivePath(currentPath: string): boolean {
 		}
 	}
 	@media (min-width: 1024px) {
-		.header__menu-item:hover > .header__submenu {
+		.header__menu-item:hover > .header__submenu,
+		.header__menu-item:focus-within > .header__submenu {
 			display: block;
 		}
 		/* Add 4px vertical offset to maintain spacing */

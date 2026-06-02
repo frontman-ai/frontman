@@ -152,9 +152,9 @@
 
 			var placement = getGitHubClickPlacement(link)
 
-			window.dataLayer = window.dataLayer || []
-			window.dataLayer.push({
-				event: 'github_click',
+			if (typeof window.trackEvent !== 'function') return
+
+			window.trackEvent('github_click', {
 				link_url: link.href,
 				link_text: (link.textContent || '').trim().substring(0, 100),
 				link_placement: placement,

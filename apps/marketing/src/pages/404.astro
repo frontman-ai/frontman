@@ -19,13 +19,14 @@ const SEO = {
 }
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
+<Layout title={SEO.title} description={SEO.description} noindex={true}>
 	<Section>
 		<Row flex classes="text-center">
 			<Col span="2" />
 			<Col span="8">
 				<svg
 					class="h-60 w-full lg:h-96"
+					aria-hidden="true"
 					width="433"
 					height="338"
 					viewBox="0 0 433 338"
@@ -129,6 +130,8 @@ const SEO = {
 		<Row flex classes="text-center items-center justify-center">
 			<Col span="2" />
 			<Col span="8">
+				<h1>Page not found</h1>
+				<p class="mx-auto max-w-xl text-neutral-300">The page may have moved or the link may be outdated.</p>
 				<Spacer size="2" desktopSize="4" />
 				<Button link="/"> Return to homepage <Icon name="long-arrow-right" /> </Button>
 			</Col>

@@ -36,12 +36,13 @@ function statusLabel(status: Status): string {
 
     <!-- Desktop table -->
     <div class="hidden md:block">
-      <table class="w-full border-separate border-spacing-0" role="grid">
+      <table class="w-full border-separate border-spacing-0">
+        <caption class="sr-only">Feature comparison between Frontman and {competitorName}</caption>
         <thead>
           <tr>
-            <th class="border-b border-white/10 px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider text-white/40">Feature</th>
-            <th class="w-60 border-b border-primary-500/20 border-t-[3px] border-t-primary-500 bg-primary-500/[0.08] px-6 py-4 text-center text-base font-bold text-primary-500">Frontman</th>
-            <th class="w-60 border-b border-white/10 px-6 py-4 text-center text-base font-bold text-white/70">{competitorName}</th>
+            <th scope="col" class="border-b border-white/10 px-6 py-4 text-left text-sm font-semibold uppercase tracking-wider text-white/40">Feature</th>
+            <th scope="col" class="w-60 border-b border-primary-500/20 border-t-[3px] border-t-primary-500 bg-primary-500/[0.08] px-6 py-4 text-center text-base font-bold text-primary-500">Frontman</th>
+            <th scope="col" class="w-60 border-b border-white/10 px-6 py-4 text-center text-base font-bold text-white/70">{competitorName}</th>
           </tr>
         </thead>
         <tbody>
@@ -49,7 +50,7 @@ function statusLabel(status: Status): string {
             const isLast = i === features.length - 1
             return (
               <tr>
-                <td class:list={['px-6 py-4 text-left text-base text-white/90', !isLast && 'border-b border-white/[0.06]']}>{feature.name}</td>
+                <th scope="row" class:list={['px-6 py-4 text-left text-base font-semibold text-white/90', !isLast && 'border-b border-white/[0.06]']}>{feature.name}</th>
                 <td class:list={['bg-primary-500/[0.08] px-6 py-4', !isLast && 'border-b border-white/[0.06]']} aria-label={statusLabel(feature.frontman)}>
                   <div class="flex items-center gap-2">
                     {feature.frontman === 'yes' && <svg class="inline-block text-green-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}

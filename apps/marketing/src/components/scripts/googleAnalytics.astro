@@ -3,38 +3,146 @@
 import { googleAnalyticsMeasurementID } from '../../../src/config/analytics.ts'
 ---
 
-<script
-	is:inline
-	async
-	src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsMeasurementID}`}></script>
+<script is:inline data-ga-measurement-id={googleAnalyticsMeasurementID} id="ga-consent-loader">
+	(() => {
+		const loader = document.getElementById('ga-consent-loader')
+		const measurementId = loader?.getAttribute('data-ga-measurement-id')
+		const consentStorageKey = 'frontman-cookie-consent'
+		let analyticsLoaded = false
 
-<script is:inline data-ga-measurement-id={googleAnalyticsMeasurementID} id="ga-init">
-	const measurementId = document.getElementById('ga-init').getAttribute('data-ga-measurement-id')
-	window.dataLayer = window.dataLayer || []
-	function gtag() {
-		dataLayer.push(arguments)
-	}
-	gtag('js', new Date())
-	gtag('config', measurementId)
+		window.dataLayer = window.dataLayer || []
+		window.gtag = window.gtag || function () {
+			window.dataLayer.push(arguments)
+		}
 
-	window.trackEvent = function(eventName, params) {
-		gtag('event', eventName, params)
-	}
-</script>
-
-<script is:inline>
-	document.addEventListener('DOMContentLoaded', function() {
-		document.body.addEventListener('click', function(e) {
-			const target = e.target.closest('[data-ga-event]')
-			if (target) {
-				const eventName = target.getAttribute('data-ga-event')
-				const eventCategory = target.getAttribute('data-ga-category') || 'engagement'
-				const eventLabel = target.getAttribute('data-ga-label') || ''
-				window.trackEvent(eventName, {
-					event_category: eventCategory,
-					event_label: eventLabel
-				})
-			}
+		window.gtag('consent', 'default', {
+			ad_storage: 'denied',
+			ad_user_data: 'denied',
+			ad_personalization: 'denied',
+			analytics_storage: 'denied',
 		})
-	})
+
+		function hasGlobalPrivacyControl() {
+			return navigator.globalPrivacyControl === true
+		}
+
+		function analyticsAccepted(value) {
+			if (!value) return false
+
+			if (typeof value === 'string') {
+				try {
+					return analyticsAccepted(JSON.parse(value))
+				} catch (_error) {
+					return value === 'analytics' || value === 'all' || value === 'accepted'
+				}
+			}
+
+			if (Array.isArray(value)) return value.includes('analytics')
+			if (value.analytics === true) return true
+			if (value.categories?.analytics === true) return true
+			if (value.consent?.analytics === true) return true
+			if (value.accepted?.includes?.('analytics')) return true
+			if (value.enabled?.includes?.('analytics')) return true
+
+			return false
+		}
+
+		function storedConsentAccepted() {
+			try {
+				if (analyticsAccepted(localStorage.getItem(consentStorageKey))) return true
+			} catch (_error) {}
+
+			const cookieValue = document.cookie
+				.split('; ')
+				.find((row) => row.startsWith(`${consentStorageKey}=`))
+				?.split('=')[1]
+
+			if (!cookieValue) return false
+			return analyticsAccepted(decodeURIComponent(cookieValue))
+		}
+
+		function apiConsentAccepted() {
+			const consentApi = window.astroConsent
+			if (!consentApi) return false
+
+			for (const method of ['get', 'getConsent', 'getState', 'getCategories']) {
+				try {
+					if (typeof consentApi[method] === 'function' && analyticsAccepted(consentApi[method]())) {
+						return true
+					}
+				} catch (_error) {}
+			}
+
+			return false
+		}
+
+		function hasAnalyticsConsent() {
+			return !hasGlobalPrivacyControl() && (apiConsentAccepted() || storedConsentAccepted())
+		}
+
+		function loadAnalytics() {
+			if (!measurementId || analyticsLoaded || !hasAnalyticsConsent()) return
+			analyticsLoaded = true
+
+			window.gtag('consent', 'update', {
+				analytics_storage: 'granted',
+			})
+
+			const preconnect = document.createElement('link')
+			preconnect.rel = 'preconnect'
+			preconnect.href = 'https://www.googletagmanager.com'
+			document.head.appendChild(preconnect)
+
+			const script = document.createElement('script')
+			script.async = true
+			script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`
+			document.head.appendChild(script)
+
+			window.gtag('js', new Date())
+			window.gtag('config', measurementId, {
+				anonymize_ip: true,
+				allow_google_signals: false,
+				allow_ad_personalization_signals: false,
+			})
+		}
+
+		window.trackEvent = function (eventName, params) {
+			if (!analyticsLoaded || !hasAnalyticsConsent()) return
+			window.gtag('event', eventName, params)
+		}
+
+		document.addEventListener('DOMContentLoaded', function () {
+			loadAnalytics()
+
+			document.body.addEventListener('click', function (event) {
+				const target = event.target.closest('[data-ga-event]')
+				if (!target) return
+
+				window.trackEvent(target.getAttribute('data-ga-event'), {
+					event_category: target.getAttribute('data-ga-category') || 'engagement',
+					event_label: target.getAttribute('data-ga-label') || '',
+				})
+			})
+		})
+
+		for (const eventName of ['astro:consent:set', 'astro-consent:set', 'consentchange']) {
+			document.addEventListener(eventName, loadAnalytics)
+		}
+
+		const patchConsentApi = () => {
+			const consentApi = window.astroConsent
+			if (!consentApi || consentApi.__frontmanAnalyticsPatched || typeof consentApi.set !== 'function') return
+
+			const originalSet = consentApi.set.bind(consentApi)
+			consentApi.set = (...args) => {
+				const result = originalSet(...args)
+				setTimeout(loadAnalytics, 0)
+				return result
+			}
+			consentApi.__frontmanAnalyticsPatched = true
+		}
+
+		patchConsentApi()
+		setTimeout(patchConsentApi, 0)
+	})()
 </script>

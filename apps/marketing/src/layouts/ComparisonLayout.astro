@@ -93,6 +93,16 @@ const shouldShowAlternatives = showAlternatives && alternatives.length > 0
     seo={seo}
   />
 
+  <nav aria-label="Breadcrumb" class="mx-auto mt-28 flex w-full max-w-[900px] px-6 text-sm text-zinc-300 max-md:mt-24">
+    <ol class="flex flex-wrap items-center gap-2">
+      <li><a href="/" class="hover:text-white">Home</a></li>
+      <li aria-hidden="true">/</li>
+      <li><a href="/vs/" class="hover:text-white">Comparisons</a></li>
+      <li aria-hidden="true">/</li>
+      <li aria-current="page" class="text-white">{competitor.name}</li>
+    </ol>
+  </nav>
+
   <!-- Hero -->
   <ComparisonHero title={heroTitle} subtitle={heroSubtitle}>
     <slot name="hero-summary" />

@@ -380,17 +380,17 @@ If you manage multiple client sites, consider keeping a WordPress 6.9 staging en
 
 Use this to audit your site before upgrading. Each item maps to a breaking change section above.
 
-- [ ] PHP version is 7.4+ (`php -v`)
-- [ ] All custom blocks are on `apiVersion: 3` (`grep -r "apiVersion" wp-content/ --include="*.json"`)
-- [ ] No plugins use `effect()` from the Interactivity API (`grep -r "effect(" wp-content/plugins/ --include="*.js" -l`)
-- [ ] No plugins reference `state.navigation.hasStarted` or `state.navigation.hasFinished`
-- [ ] All admin scripts use `enqueue_block_editor_assets`, not `admin_enqueue_scripts`
-- [ ] Classic meta boxes are identified (`grep -r "add_meta_box" wp-content/plugins/ --include="*.php" -l`)
-- [ ] WooCommerce is version 9.x+ (if applicable)
-- [ ] Full backup taken (files + database)
-- [ ] Staging environment mirrors production (same plugins, theme, PHP version)
-- [ ] Rollback process tested on staging before production upgrade
-- [ ] Plugin developers contacted for any extension without a WP7 compatibility statement
+- PHP version is 7.4+ (`php -v`)
+- All custom blocks are on `apiVersion: 3` (`grep -r "apiVersion" wp-content/ --include="*.json"`)
+- No plugins use `effect()` from the Interactivity API (`grep -r "effect(" wp-content/plugins/ --include="*.js" -l`)
+- No plugins reference `state.navigation.hasStarted` or `state.navigation.hasFinished`
+- All admin scripts use `enqueue_block_editor_assets`, not `admin_enqueue_scripts`
+- Classic meta boxes are identified (`grep -r "add_meta_box" wp-content/plugins/ --include="*.php" -l`)
+- WooCommerce is version 9.x+ (if applicable)
+- Full backup taken (files + database)
+- Staging environment mirrors production (same plugins, theme, PHP version)
+- Rollback process tested on staging before production upgrade
+- Plugin developers contacted for any extension without a WP7 compatibility statement
 
 ## What this means for the WordPress ecosystem
 

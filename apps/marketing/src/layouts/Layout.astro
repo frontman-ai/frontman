@@ -39,6 +39,7 @@ const { title, description, ogImage, ogImageWidth, ogImageHeight, ogImageAlt, no
 <html lang="en" class="relative">
 	<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} noindex={noindex} article={article} />
 	<body class:list={[{ [`${classes}`]: classes }]}>
+		<a href="#main-content" class="skip-link">Skip to main content</a>
 		<NavigationBar />
 		<Main>
 			<slot />

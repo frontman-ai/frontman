@@ -247,12 +247,13 @@ const linkCardClass =
 			<p class={darkSectionDescriptionClass}>How each tool handles 16 capabilities that matter for AI-assisted development.</p>
 
 			<div class="overflow-x-auto [-webkit-overflow-scrolling:touch]">
-				<table class="w-full min-w-[800px] border-separate border-spacing-0" role="grid">
+				<table class="w-full min-w-[800px] border-separate border-spacing-0">
+					<caption class="sr-only">AI coding tools feature matrix</caption>
 					<thead>
 						<tr>
-							<th class={matrixFeatureHeaderClass}>Feature</th>
+							<th scope="col" class={matrixFeatureHeaderClass}>Feature</th>
 							{tools.map((tool) => (
-								<th class={tool.slug === '' ? matrixToolHeaderHighlightedClass : matrixToolHeaderClass}>
+								<th scope="col" class={tool.slug === '' ? matrixToolHeaderHighlightedClass : matrixToolHeaderClass}>
 									{tool.slug ? (
 										<a href={`/vs/${tool.slug}/`} class="text-inherit no-underline hover:underline hover:underline-offset-2">{tool.name}</a>
 									) : (
@@ -265,7 +266,7 @@ const linkCardClass =
 					<tbody>
 						{matrixFeatures.map((feature) => (
 							<tr>
-								<td class={matrixFeatureCellClass}>{feature.name}</td>
+								<th scope="row" class={matrixFeatureCellClass}>{feature.name}</th>
 								{tools.map((tool) => {
 									const status = feature.values[tool.name] || 'n/a'
 									return (
@@ -305,20 +306,21 @@ const linkCardClass =
 			<h2 class={lightSectionTitleClass}>Pricing at a Glance</h2>
 			<div class="overflow-x-auto">
 				<table class="w-full border-collapse">
+					<caption class="sr-only">Pricing comparison across AI coding tools</caption>
 					<thead>
 						<tr>
-							<th class={pricingHeaderClass}>Tool</th>
-							<th class={pricingHeaderClass}>Price</th>
-							<th class={pricingHeaderClass}>Model</th>
-							<th class={pricingHeaderClass}>Note</th>
+							<th scope="col" class={pricingHeaderClass}>Tool</th>
+							<th scope="col" class={pricingHeaderClass}>Price</th>
+							<th scope="col" class={pricingHeaderClass}>Model</th>
+							<th scope="col" class={pricingHeaderClass}>Note</th>
 						</tr>
 					</thead>
 					<tbody>
 						{pricing.map((p) => (
 							<tr>
-								<td class={p.name === 'Frontman' ? `${pricingCellHighlightedClass} font-semibold text-primary-500` : `${pricingCellClass} font-semibold text-zinc-950`}>
+								<th scope="row" class={p.name === 'Frontman' ? `${pricingCellHighlightedClass} font-semibold text-primary-500` : `${pricingCellClass} font-semibold text-zinc-950`}>
 									{p.name}
-								</td>
+								</th>
 								<td class={p.name === 'Frontman' ? `${pricingCellHighlightedClass} font-bold text-zinc-950` : `${pricingCellClass} font-bold text-zinc-950`}>
 									{p.price}
 								</td>
