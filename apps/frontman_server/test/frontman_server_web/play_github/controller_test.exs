@@ -59,7 +59,6 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
     test "creates Daytona sandbox for new repository path", %{conn: conn} do
       sandbox_name = sandbox_name()
 
-      expect_daytona_config()
       expect_daytona_get_missing_sandbox(sandbox_name)
       expect_daytona_create_sandbox(sandbox_name)
 
@@ -109,17 +108,6 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
     {:ok, github_path} = GithubReference.parse_path(["octocat", "Hello-World"])
 
     PlayGithub.sandbox_name(github_path)
-  end
-
-  defp expect_daytona_config do
-    Req.Test.expect(:playgithub_daytona, fn conn ->
-      assert conn.method == "GET"
-      assert conn.request_path == "/api/config"
-      assert {"authorization", "Bearer test-daytona-key"} in conn.req_headers
-      assert {"x-daytona-organization-id", "test-daytona-org"} in conn.req_headers
-
-      Req.Test.json(conn, %{"proxyToolboxUrl" => "https://daytona.test/toolbox"})
-    end)
   end
 
   defp expect_daytona_get_missing_sandbox(sandbox_name) do

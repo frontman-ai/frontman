@@ -7,38 +7,54 @@
 defmodule FrontmanServer.PlayGithub.Daytona.Toolbox do
   @moduledoc false
 
-  alias FrontmanServer.PlayGithub.Daytona.Client
+  alias FrontmanServer.PlayGithub.Daytona
 
-  def execute_command(%Client{} = client, sandbox_id, command)
-      when is_binary(sandbox_id) and is_binary(command) do
-    execute_command(client, sandbox_id, command, [])
-  end
+  @schema Zoi.struct(
+            __MODULE__,
+            %{
+              daytona: Zoi.any() |> Zoi.optional(),
+              proxyToolboxUrl:
+                Zoi.url(typespec: quote(do: URI.t()))
+                |> Zoi.transform(&URI.parse/1)
+            },
+            coerce: true
+          )
 
-  def execute_command(sandbox_id, command, opts)
-      when is_binary(sandbox_id) and is_binary(command) and is_list(opts) do
-    with {:ok, client} <- Client.new() do
-      execute_command(client, sandbox_id, command, opts)
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
+
+  @spec fetch(Daytona.t()) :: {:ok, t()} | {:error, term()}
+  def fetch(%Daytona{} = daytona) do
+    with {:ok, %Req.Response{status: status, body: body}} when status in 200..299 <-
+           daytona |> Daytona.app_request() |> Req.get(url: "/config"),
+         {:ok, toolbox} <- Zoi.parse(@schema, body) do
+      {:ok, %{toolbox | daytona: daytona}}
+    else
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, {:daytona_config_failed, status, body}}
+
+      {:error, [%Zoi.Error{} | _] = errors} ->
+        {:error, {:malformed_daytona_config, Zoi.prettify_errors(errors)}}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  def execute_command(%Client{} = client, sandbox_id, command, opts)
-      when is_binary(sandbox_id) and is_binary(command) and is_list(opts) do
-    timeout_seconds = Keyword.get(opts, :timeout_seconds, 300)
-
-    client
-    |> Client.toolbox_request(sandbox_id)
-    |> Req.post(
-      url: "/process/execute",
-      json: %{
-        command: command,
-        cwd: Keyword.get(opts, :cwd, "workspace"),
-        timeout: timeout_seconds
-      },
-      receive_timeout: timeout_seconds * 1_000 + 5_000
-    )
+  def request(
+        %__MODULE__{daytona: %Daytona{} = daytona, proxyToolboxUrl: proxy_toolbox_url},
+        sandbox_id
+      )
+      when is_binary(sandbox_id) do
+    daytona
+    |> Daytona.app_request()
+    |> Req.merge(base_url: toolbox_base_url(proxy_toolbox_url, sandbox_id))
   end
 
-  def execute_command(sandbox_id, command) when is_binary(sandbox_id) and is_binary(command) do
-    execute_command(sandbox_id, command, [])
+  defp toolbox_base_url(%URI{} = proxy_toolbox_url, sandbox_id) do
+    proxy_toolbox_url
+    |> URI.append_path("/#{sandbox_id}")
+    |> URI.to_string()
   end
 end

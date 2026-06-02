@@ -7,27 +7,67 @@
 defmodule FrontmanServer.PlayGithub.Daytona.Sandbox do
   @moduledoc false
 
-  alias FrontmanServer.PlayGithub.Daytona.Client
-  alias FrontmanServer.PlayGithub.Daytona.Sandbox.CreateSandbox
+  alias FrontmanServer.PlayGithub.Daytona
 
-  def create(%CreateSandbox{} = sandbox) do
-    Client.app_request()
-    |> Req.post(url: "/sandbox", json: sandbox)
+  @create_build_info_schema Zoi.map(
+                              %{
+                                "dockerfileContent" => Zoi.string(),
+                                "contextHashes" => Zoi.array(Zoi.string()) |> Zoi.optional()
+                              },
+                              coerce: true
+                            )
+
+  @create_sandbox_schema Zoi.map(
+                           %{
+                             "name" => Zoi.string() |> Zoi.optional(),
+                             "snapshot" => Zoi.string() |> Zoi.optional(),
+                             "user" => Zoi.string() |> Zoi.optional(),
+                             "env" => Zoi.map(Zoi.any(), Zoi.any()) |> Zoi.optional(),
+                             "labels" => Zoi.map(Zoi.any(), Zoi.any()) |> Zoi.optional(),
+                             "public" => Zoi.boolean() |> Zoi.optional(),
+                             "networkBlockAll" => Zoi.boolean() |> Zoi.optional(),
+                             "networkAllowList" => Zoi.string() |> Zoi.optional(),
+                             "target" => Zoi.string() |> Zoi.optional(),
+                             "cpu" => Zoi.integer() |> Zoi.optional(),
+                             "gpu" => Zoi.integer() |> Zoi.optional(),
+                             "memory" => Zoi.integer() |> Zoi.optional(),
+                             "disk" => Zoi.integer() |> Zoi.optional(),
+                             "autoStopInterval" => Zoi.integer() |> Zoi.optional(),
+                             "autoArchiveInterval" => Zoi.integer() |> Zoi.optional(),
+                             "autoDeleteInterval" => Zoi.integer() |> Zoi.optional(),
+                             "volumes" =>
+                               Zoi.array(Zoi.map(Zoi.any(), Zoi.any())) |> Zoi.optional(),
+                             "buildInfo" => @create_build_info_schema |> Zoi.optional(),
+                             "linkedSandbox" => Zoi.string() |> Zoi.optional()
+                           },
+                           coerce: true
+                         )
+
+  @type create_request :: unquote(Zoi.type_spec(@create_sandbox_schema))
+
+  @spec create(Daytona.t(), create_request()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
+  def create(%Daytona{} = daytona, sandbox) when is_map(sandbox) do
+    daytona
+    |> Daytona.app_request()
+    |> Req.post(url: "/sandbox", json: Zoi.parse!(@create_sandbox_schema, sandbox))
   end
 
-  def get(sandbox_id) when is_binary(sandbox_id) do
-    Client.app_request()
+  def get(%Daytona{} = daytona, sandbox_id) when is_binary(sandbox_id) do
+    daytona
+    |> Daytona.app_request()
     |> Req.get(url: "/sandbox/:sandbox_id", path_params: [sandbox_id: sandbox_id])
   end
 
-  def start(sandbox_id) when is_binary(sandbox_id) do
-    Client.app_request()
+  def start(%Daytona{} = daytona, sandbox_id) when is_binary(sandbox_id) do
+    daytona
+    |> Daytona.app_request()
     |> Req.post(url: "/sandbox/:sandbox_id/start", path_params: [sandbox_id: sandbox_id])
   end
 
-  def get_signed_preview_url(sandbox_id, port, expires_seconds)
+  def get_signed_preview_url(%Daytona{} = daytona, sandbox_id, port, expires_seconds)
       when is_binary(sandbox_id) and is_integer(port) and is_integer(expires_seconds) do
-    Client.app_request()
+    daytona
+    |> Daytona.app_request()
     |> Req.get(
       url: "/sandbox/:sandbox_id/ports/:port/signed-preview-url",
       path_params: [sandbox_id: sandbox_id, port: port],
@@ -35,16 +75,20 @@ defmodule FrontmanServer.PlayGithub.Daytona.Sandbox do
     )
   end
 
-  def get_preview_link(sandbox_id, port) when is_binary(sandbox_id) and is_integer(port) do
-    Client.app_request()
+  def get_preview_link(%Daytona{} = daytona, sandbox_id, port)
+      when is_binary(sandbox_id) and is_integer(port) do
+    daytona
+    |> Daytona.app_request()
     |> Req.get(
       url: "/sandbox/:sandbox_id/ports/:port/preview-url",
       path_params: [sandbox_id: sandbox_id, port: port]
     )
   end
 
-  def replace_labels(sandbox_id, labels) when is_binary(sandbox_id) and is_map(labels) do
-    Client.app_request()
+  def replace_labels(%Daytona{} = daytona, sandbox_id, labels)
+      when is_binary(sandbox_id) and is_map(labels) do
+    daytona
+    |> Daytona.app_request()
     |> Req.put(
       url: "/sandbox/:sandbox_id/labels",
       path_params: [sandbox_id: sandbox_id],

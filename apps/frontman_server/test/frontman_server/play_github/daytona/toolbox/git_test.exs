@@ -1,17 +1,11 @@
 defmodule FrontmanServer.PlayGithub.Daytona.Toolbox.GitTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.PlayGithub.Daytona.Client
+  alias FrontmanServer.PlayGithub.Daytona
+  alias FrontmanServer.PlayGithub.Daytona.Toolbox
   alias FrontmanServer.PlayGithub.Daytona.Toolbox.Git
 
   test "clones repository through Daytona git API" do
-    Req.Test.expect(:playgithub_daytona, fn conn ->
-      assert conn.method == "GET"
-      assert conn.request_path == "/api/config"
-
-      Req.Test.json(conn, %{"proxyToolboxUrl" => "https://daytona.test/toolbox"})
-    end)
-
     Req.Test.expect(:playgithub_daytona, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
 
@@ -20,20 +14,28 @@ defmodule FrontmanServer.PlayGithub.Daytona.Toolbox.GitTest do
 
       assert Jason.decode!(body) == %{
                "branch" => "main",
+               "commit_id" => "abc123",
+               "password" => "ghp_secret",
                "path" => "workspace",
-               "url" => "https://github.com/octocat/Hello-World"
+               "url" => "https://github.com/octocat/Hello-World",
+               "username" => "octocat"
              }
 
       Req.Test.json(conn, %{})
     end)
 
-    assert {:ok, client} = Client.new()
-
     assert {:ok, %Req.Response{status: 200}} =
-             Git.clone(client, "sandbox_123", %{
+             Git.clone(toolbox(), "sandbox_123", %{
                branch: "main",
+               commit_id: "abc123",
+               password: "ghp_secret",
                path: "workspace",
-               url: "https://github.com/octocat/Hello-World"
+               url: "https://github.com/octocat/Hello-World",
+               username: "octocat"
              })
+  end
+
+  defp toolbox do
+    %Toolbox{daytona: Daytona.new(), proxyToolboxUrl: URI.parse("https://daytona.test/toolbox")}
   end
 end

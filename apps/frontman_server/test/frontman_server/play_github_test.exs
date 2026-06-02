@@ -63,7 +63,6 @@ defmodule FrontmanServer.PlayGithubTest do
       {:ok, github_reference} = GithubReference.parse_path(["octocat", "Hello-World"])
       sandbox_name = PlayGithub.sandbox_name(github_reference)
 
-      expect_daytona_config()
       expect_daytona_get_missing_sandbox(sandbox_name)
       expect_daytona_create_sandbox(sandbox_name)
 
@@ -89,7 +88,6 @@ defmodule FrontmanServer.PlayGithubTest do
 
       sandbox_name = PlayGithub.sandbox_name(github_reference)
 
-      expect_daytona_config()
       expect_daytona_get_existing_sandbox(sandbox_name, "sandbox_created")
       expect_daytona_replace_lifecycle("clone_starting")
 
@@ -98,10 +96,15 @@ defmodule FrontmanServer.PlayGithubTest do
 
       assert sandbox.lifecycle == :clone_starting
 
+      expect_daytona_toolbox_config()
+
       expect_daytona_git_clone(%{
         "branch" => "main",
+        "commit_id" => "",
+        "password" => "",
         "path" => "workspace",
-        "url" => "https://github.com/octocat/Hello-World"
+        "url" => "https://github.com/octocat/Hello-World",
+        "username" => ""
       })
 
       expect_daytona_replace_lifecycle("clone_finished")
@@ -112,7 +115,6 @@ defmodule FrontmanServer.PlayGithubTest do
       {:ok, github_reference} = GithubReference.parse_path(["octocat", "Hello-World"])
       sandbox_name = PlayGithub.sandbox_name(github_reference)
 
-      expect_daytona_config()
       expect_daytona_get_existing_sandbox(sandbox_name, "sandbox_created")
       expect_daytona_replace_lifecycle("clone_starting")
 
@@ -121,9 +123,15 @@ defmodule FrontmanServer.PlayGithubTest do
 
       assert sandbox.lifecycle == :clone_starting
 
+      expect_daytona_toolbox_config()
+
       expect_daytona_git_clone_repository_exists(%{
+        "branch" => "",
+        "commit_id" => "",
+        "password" => "",
         "path" => "workspace",
-        "url" => "https://github.com/octocat/Hello-World"
+        "url" => "https://github.com/octocat/Hello-World",
+        "username" => ""
       })
 
       expect_daytona_replace_lifecycle("clone_finished")
@@ -135,7 +143,6 @@ defmodule FrontmanServer.PlayGithubTest do
       sandbox_name = PlayGithub.sandbox_name(github_reference)
       repo_url = "https://github.com/frontman-ai/frontman"
 
-      expect_daytona_config()
       expect_daytona_get_existing_sandbox(sandbox_name, "clone_finished", repo_url)
       expect_daytona_replace_lifecycle("install_starting", repo_url)
 
@@ -143,6 +150,8 @@ defmodule FrontmanServer.PlayGithubTest do
                PlayGithub.run_repository_command(github_reference, :install)
 
       assert sandbox.lifecycle == :install_starting
+
+      expect_daytona_toolbox_config()
 
       expect_daytona_execute_command(fn body ->
         assert body["command"] == "test -d 'workspace/apps/marketing'"
@@ -181,7 +190,7 @@ defmodule FrontmanServer.PlayGithubTest do
     job.()
   end
 
-  defp expect_daytona_config do
+  defp expect_daytona_toolbox_config do
     Req.Test.expect(:playgithub_daytona, fn conn ->
       assert conn.method == "GET"
       assert conn.request_path == "/api/config"

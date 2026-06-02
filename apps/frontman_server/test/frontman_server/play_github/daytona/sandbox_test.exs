@@ -1,10 +1,10 @@
 defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
   use ExUnit.Case, async: true
 
+  alias FrontmanServer.PlayGithub.Daytona
   alias FrontmanServer.PlayGithub.Daytona.Sandbox
-  alias FrontmanServer.PlayGithub.Daytona.Sandbox.{CreateBuildInfo, CreateSandbox}
 
-  describe "create/1" do
+  describe "create/2" do
     test "creates Daytona sandbox with typed attrs" do
       Req.Test.expect(:playgithub_daytona, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -25,7 +25,7 @@ defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
       end)
 
       assert {:ok, %Req.Response{status: 200}} =
-               Sandbox.create(%CreateSandbox{
+               Sandbox.create(daytona(), %{
                  name: "playgithub-test",
                  labels: %{
                    "frontman.playgithub.repo_url" => "https://github.com/octocat/Hello-World"
@@ -70,33 +70,33 @@ defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
       end)
 
       assert {:ok, %Req.Response{status: 200}} =
-               Sandbox.create(%CreateSandbox{
+               Sandbox.create(daytona(), %{
                  name: "playgithub-test",
                  snapshot: "ubuntu-4vcpu-8ram-100gb",
                  user: "daytona",
                  env: %{"NODE_ENV" => "production"},
                  labels: %{"daytona.io/public" => "true"},
                  public: false,
-                 network_block_all: true,
-                 network_allow_list: "192.168.1.0/16",
+                 networkBlockAll: true,
+                 networkAllowList: "192.168.1.0/16",
                  target: "us",
                  cpu: 2,
                  gpu: 1,
                  memory: 4,
                  disk: 20,
-                 auto_stop_interval: 30,
-                 auto_archive_interval: 10_080,
-                 auto_delete_interval: 0,
-                 build_info: %CreateBuildInfo{
-                   dockerfile_content: "FROM node:20",
-                   context_hashes: ["hash1"]
+                 autoStopInterval: 30,
+                 autoArchiveInterval: 10_080,
+                 autoDeleteInterval: 0,
+                 buildInfo: %{
+                   dockerfileContent: "FROM node:20",
+                   contextHashes: ["hash1"]
                  },
-                 linked_sandbox: "sandbox-parent"
+                 linkedSandbox: "sandbox-parent"
                })
     end
   end
 
-  describe "get/1" do
+  describe "get/2" do
     test "fetches Daytona sandbox state" do
       Req.Test.expect(:playgithub_daytona, fn conn ->
         assert conn.method == "GET"
@@ -108,11 +108,11 @@ defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
       end)
 
       assert {:ok, %Req.Response{status: 200, body: %{"state" => "started"}}} =
-               Sandbox.get("sandbox_123")
+               Sandbox.get(daytona(), "sandbox_123")
     end
   end
 
-  describe "start/1" do
+  describe "start/2" do
     test "starts Daytona sandbox" do
       Req.Test.expect(:playgithub_daytona, fn conn ->
         assert conn.method == "POST"
@@ -124,11 +124,11 @@ defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
       end)
 
       assert {:ok, %Req.Response{status: 200, body: %{"state" => "started"}}} =
-               Sandbox.start("sandbox_123")
+               Sandbox.start(daytona(), "sandbox_123")
     end
   end
 
-  describe "get_signed_preview_url/3" do
+  describe "get_signed_preview_url/4" do
     test "fetches a signed Daytona preview URL" do
       Req.Test.expect(:playgithub_daytona, fn conn ->
         assert conn.method == "GET"
@@ -141,13 +141,13 @@ defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
       end)
 
       assert {:ok, %Req.Response{status: 200, body: %{"url" => preview_url}}} =
-               Sandbox.get_signed_preview_url("sandbox_123", 4321, 3600)
+               Sandbox.get_signed_preview_url(daytona(), "sandbox_123", 4321, 3600)
 
       assert preview_url == "https://4321-preview.proxy.daytona.work"
     end
   end
 
-  describe "get_preview_link/2" do
+  describe "get_preview_link/3" do
     test "fetches a Daytona sandbox preview link for a port" do
       Req.Test.expect(:playgithub_daytona, fn conn ->
         assert conn.method == "GET"
@@ -162,13 +162,13 @@ defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
       end)
 
       assert {:ok, %Req.Response{status: 200, body: %{"url" => preview_url}}} =
-               Sandbox.get_preview_link("sandbox_123", 4321)
+               Sandbox.get_preview_link(daytona(), "sandbox_123", 4321)
 
       assert preview_url == "https://4321-sandbox-123.proxy.daytona.work"
     end
   end
 
-  describe "replace_labels/2" do
+  describe "replace_labels/3" do
     test "replaces sandbox labels" do
       Req.Test.expect(:playgithub_daytona, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -189,10 +189,14 @@ defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
       end)
 
       assert {:ok, %Req.Response{status: 200}} =
-               Sandbox.replace_labels("sandbox_123", %{
+               Sandbox.replace_labels(daytona(), "sandbox_123", %{
                  "frontman.playgithub.cloned" => "true",
                  "frontman.playgithub.repo_url" => "https://github.com/octocat/Hello-World"
                })
     end
+  end
+
+  defp daytona do
+    Daytona.new()
   end
 end

@@ -7,17 +7,33 @@
 defmodule FrontmanServer.PlayGithub.Daytona.Toolbox.Git do
   @moduledoc false
 
-  alias FrontmanServer.PlayGithub.Daytona.Client
+  alias FrontmanServer.PlayGithub.Daytona.Toolbox
 
-  def clone(%Client{} = client, sandbox_id, request, opts \\ [])
+  @clone_request_schema Zoi.map(
+                          %{
+                            "branch" => Zoi.string() |> Zoi.optional() |> Zoi.default(""),
+                            "commit_id" => Zoi.string() |> Zoi.optional() |> Zoi.default(""),
+                            "password" => Zoi.string() |> Zoi.optional() |> Zoi.default(""),
+                            "path" => Zoi.string() |> Zoi.gte(1),
+                            "url" => Zoi.string() |> Zoi.gte(1),
+                            "username" => Zoi.string() |> Zoi.optional() |> Zoi.default("")
+                          },
+                          coerce: true
+                        )
+
+  @type clone_request :: unquote(Zoi.type_spec(@clone_request_schema))
+
+  @spec clone(Toolbox.t(), String.t(), clone_request(), keyword()) ::
+          {:ok, Req.Response.t()} | {:error, Exception.t()}
+  def clone(%Toolbox{} = toolbox, sandbox_id, request, opts \\ [])
       when is_binary(sandbox_id) and is_map(request) and is_list(opts) do
     timeout_seconds = Keyword.get(opts, :timeout_seconds, 300)
 
-    client
-    |> Client.toolbox_request(sandbox_id)
+    toolbox
+    |> Toolbox.request(sandbox_id)
     |> Req.post(
       url: "/git/clone",
-      json: request,
+      json: Zoi.parse!(@clone_request_schema, request),
       receive_timeout: timeout_seconds * 1_000 + 5_000
     )
   end
