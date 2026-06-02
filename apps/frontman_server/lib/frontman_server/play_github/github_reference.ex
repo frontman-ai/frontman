@@ -9,18 +9,25 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
   Parses and formats GitHub-shaped references routed through PlayGithub.
   """
 
-  use TypedStruct
-
   alias __MODULE__.{IssuePath, RepositoryPath, TreePath}
 
-  @type resource :: RepositoryPath.t() | TreePath.t() | IssuePath.t()
+  @resource_schema Zoi.union([
+                     Zoi.struct(RepositoryPath),
+                     Zoi.struct(TreePath),
+                     Zoi.struct(IssuePath)
+                   ])
 
-  typedstruct enforce: true do
-    field(:owner, String.t())
-    field(:repo, String.t())
-    field(:resource, resource())
-    field(:raw_segments, [String.t()])
-  end
+  @schema Zoi.struct(__MODULE__, %{
+            owner: Zoi.string(),
+            repo: Zoi.string(),
+            resource: @resource_schema,
+            raw_segments: Zoi.array(Zoi.string())
+          })
+
+  @type resource :: unquote(Zoi.type_spec(@resource_schema))
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 
   @spec parse_path([String.t()]) ::
           {:ok, t()}
@@ -83,29 +90,36 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
     {:error, {:unsupported_github_path, extra_segments}}
   end
 
-  @spec format(t()) :: String.t()
-  def format(
-        %__MODULE__{
-          owner: owner,
-          repo: repo,
-          resource: resource,
-          raw_segments: raw_segments
-        } = github_reference
-      ) do
-    [
-      "owner: #{owner}",
-      "repo: #{repo}",
-      "github_url: #{github_url(github_reference)}",
-      format_resource(resource),
-      "raw_segments: #{Enum.join(raw_segments, "/")}"
-    ]
-    |> List.flatten()
-    |> Enum.join("\n")
-  end
-
   @spec github_url(t()) :: String.t()
   def github_url(%__MODULE__{owner: owner, repo: repo}) do
     "https://github.com/#{owner}/#{repo}"
+  end
+
+  @spec repository_backed?(t()) :: boolean()
+  def repository_backed?(%__MODULE__{resource: %RepositoryPath{}}), do: true
+  def repository_backed?(%__MODULE__{resource: %TreePath{}}), do: true
+  def repository_backed?(%__MODULE__{}), do: false
+
+  @spec repository_url(t()) :: String.t()
+  def repository_url(%__MODULE__{} = github_reference), do: github_url(github_reference)
+
+  @spec branch(t()) :: String.t() | nil
+  def branch(%__MODULE__{resource: %TreePath{ref: ref}}), do: ref
+  def branch(%__MODULE__{}), do: nil
+
+  @spec repository_path(t()) :: String.t() | nil
+  def repository_path(%__MODULE__{resource: %TreePath{} = tree_path}) do
+    TreePath.repo_path(tree_path)
+  end
+
+  def repository_path(%__MODULE__{}), do: nil
+
+  @spec workspace_path(t()) :: String.t()
+  def workspace_path(%__MODULE__{} = github_reference) do
+    case repository_path(github_reference) do
+      nil -> "workspace"
+      repository_path -> "workspace/#{repository_path}"
+    end
   end
 
   @spec repository_identity(t()) :: String.t()
@@ -121,26 +135,4 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
   def repository_identity(%__MODULE__{} = github_reference) do
     github_url(github_reference)
   end
-
-  defp format_resource(%RepositoryPath{}) do
-    "resource: repository"
-  end
-
-  defp format_resource(%TreePath{} = tree_path) do
-    [
-      "resource: tree",
-      "ref: #{tree_path.ref}",
-      "path: #{format_repo_path(TreePath.repo_path(tree_path))}"
-    ]
-  end
-
-  defp format_resource(%IssuePath{number: number}) do
-    [
-      "resource: issue",
-      "issue_number: #{number}"
-    ]
-  end
-
-  defp format_repo_path(nil), do: ""
-  defp format_repo_path(repo_path), do: repo_path
 end

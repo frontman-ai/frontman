@@ -52,6 +52,8 @@ jobs:
       DB_NAME: frontman_server_e2e_${{ github.run_id }}
       # Cloak encryption key (same test key used in dev)
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
+      DAYTONA_API_KEY: "test-daytona-key"
+      DAYTONA_ORGANIZATION_ID: "test-daytona-org"
       # Disable Yarn hardened mode — adds ~20s to resolution for public-PR detection.
       # --immutable already prevents lockfile changes, so hardened mode is redundant.
       YARN_ENABLE_HARDENED_MODE: "0"
@@ -93,6 +95,11 @@ jobs:
         run: |
           sudo apt-get update -qq > /dev/null
           sudo apt-get install -y -qq libssl-dev libncurses5-dev libnss3-tools > /dev/null
+
+      - name: Configure local hosts
+        run: |
+          getent hosts frontman.local >/dev/null || printf '127.0.0.1 frontman.local\n' | sudo tee -a /etc/hosts >/dev/null
+          getent hosts playgithub.frontman.local >/dev/null || printf '127.0.0.1 playgithub.frontman.local\n' | sudo tee -a /etc/hosts >/dev/null
 
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
@@ -197,7 +204,7 @@ jobs:
           mkdir -p .certs
           mkcert -key-file .certs/frontman.local-key.pem \
                  -cert-file .certs/frontman.local.pem \
-                 frontman.local localhost 127.0.0.1 ::1
+                 frontman.local playgithub.frontman.local localhost 127.0.0.1 ::1
 
       # ── Install Playwright browser ──────────────────────────────────────
       - name: Cache Playwright browsers

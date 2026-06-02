@@ -9,8 +9,9 @@ defmodule FrontmanServer.PlayGithub.GithubReference.RepositoryPath do
   GitHub repository root path.
   """
 
-  use TypedStruct
+  @schema Zoi.struct(__MODULE__, %{})
 
-  typedstruct enforce: true do
-  end
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 end

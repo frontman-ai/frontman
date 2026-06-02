@@ -9,9 +9,9 @@ defmodule FrontmanServer.PlayGithub.GithubReference.IssuePath do
   GitHub issue path.
   """
 
-  use TypedStruct
+  @schema Zoi.struct(__MODULE__, %{number: Zoi.integer() |> Zoi.positive()})
 
-  typedstruct enforce: true do
-    field(:number, pos_integer())
-  end
+  @type t :: unquote(Zoi.type_spec(@schema))
+  @enforce_keys Zoi.Struct.enforce_keys(@schema)
+  defstruct Zoi.Struct.struct_fields(@schema)
 end

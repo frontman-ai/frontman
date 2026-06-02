@@ -1,6 +1,6 @@
 import Config
 
-config :frontman_server, :playgithub, hosts: ["playgithub.com"]
+config :frontman_server, :playgithub, hosts: []
 
 # Note we also include the path to a cache manifest
 # containing the digested version of static files. This

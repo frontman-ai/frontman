@@ -49,7 +49,11 @@ if env_boolean.("PHX_SERVER", false) do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
 
-config :frontman_server, :playgithub, daytona: [api_key: env!("DAYTONA_API_KEY", :string!)]
+config :frontman_server, :playgithub,
+  daytona: [
+    api_key: env!("DAYTONA_API_KEY", :string!),
+    organization_id: env!("DAYTONA_ORGANIZATION_ID", :string!)
+  ]
 
 # Cloak encryption key for API keys at rest (required)
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)

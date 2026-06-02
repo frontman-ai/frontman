@@ -42,8 +42,6 @@ defmodule FrontmanServerWeb.UserAuth do
   # token. This can be set to a value greater than `@max_cookie_age_in_days` to disable
   # the reissuing of tokens completely.
   @session_reissue_age_in_days 7
-  @playgithub_hosts Application.compile_env(:frontman_server, [:playgithub, :hosts], [])
-
   @doc """
   Logs the user in.
 
@@ -411,7 +409,7 @@ defmodule FrontmanServerWeb.UserAuth do
   defp maybe_store_return_to(conn), do: conn
 
   defp redirect_to_login(conn) do
-    case conn.host in @playgithub_hosts do
+    case playgithub_host?(conn.host) do
       true ->
         login_path = ~p"/users/log-in?#{%{"return_to" => current_url(conn)}}"
         redirect(conn, external: FrontmanServerWeb.Endpoint.url() <> login_path)
@@ -420,4 +418,13 @@ defmodule FrontmanServerWeb.UserAuth do
         redirect(conn, to: ~p"/users/log-in")
     end
   end
+
+  defp playgithub_host?(host) when is_binary(host) do
+    :frontman_server
+    |> Application.get_env(:playgithub, [])
+    |> Keyword.get(:hosts, [])
+    |> Enum.member?(host)
+  end
+
+  defp playgithub_host?(_host), do: false
 end

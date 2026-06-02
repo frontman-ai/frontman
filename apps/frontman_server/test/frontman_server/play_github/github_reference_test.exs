@@ -5,20 +5,11 @@ defmodule FrontmanServer.PlayGithub.GithubReferenceTest do
 
   describe "parse_path/1" do
     test "parses repository paths" do
-      assert {:ok, github_reference} = GithubReference.parse_path(["octocat", "Hello-World"])
-
-      assert GithubReference.format(github_reference) ==
-               join_lines([
-                 "owner: octocat",
-                 "repo: Hello-World",
-                 "github_url: https://github.com/octocat/Hello-World",
-                 "resource: repository",
-                 "raw_segments: octocat/Hello-World"
-               ])
+      assert {:ok, _github_reference} = GithubReference.parse_path(["octocat", "Hello-World"])
     end
 
     test "parses tree paths" do
-      assert {:ok, github_reference} =
+      assert {:ok, _github_reference} =
                GithubReference.parse_path([
                  "octocat",
                  "Hello-World",
@@ -27,32 +18,11 @@ defmodule FrontmanServer.PlayGithub.GithubReferenceTest do
                  "apps",
                  "web"
                ])
-
-      assert GithubReference.format(github_reference) ==
-               join_lines([
-                 "owner: octocat",
-                 "repo: Hello-World",
-                 "github_url: https://github.com/octocat/Hello-World",
-                 "resource: tree",
-                 "ref: main",
-                 "path: apps/web",
-                 "raw_segments: octocat/Hello-World/tree/main/apps/web"
-               ])
     end
 
     test "parses issue paths" do
-      assert {:ok, github_reference} =
+      assert {:ok, _github_reference} =
                GithubReference.parse_path(["octocat", "Hello-World", "issues", "123"])
-
-      assert GithubReference.format(github_reference) ==
-               join_lines([
-                 "owner: octocat",
-                 "repo: Hello-World",
-                 "github_url: https://github.com/octocat/Hello-World",
-                 "resource: issue",
-                 "issue_number: 123",
-                 "raw_segments: octocat/Hello-World/issues/123"
-               ])
     end
 
     test "rejects invalid paths" do
@@ -79,5 +49,35 @@ defmodule FrontmanServer.PlayGithub.GithubReferenceTest do
     end
   end
 
-  defp join_lines(lines), do: Enum.join(lines, "\n")
+  describe "repository-backed helpers" do
+    test "derive repository execution fields from repository paths" do
+      {:ok, github_reference} = GithubReference.parse_path(["octocat", "Hello-World"])
+
+      assert GithubReference.repository_backed?(github_reference)
+
+      assert GithubReference.repository_url(github_reference) ==
+               "https://github.com/octocat/Hello-World"
+
+      assert GithubReference.branch(github_reference) == nil
+      assert GithubReference.repository_path(github_reference) == nil
+      assert GithubReference.workspace_path(github_reference) == "workspace"
+    end
+
+    test "derive repository execution fields from tree paths" do
+      {:ok, github_reference} =
+        GithubReference.parse_path(["octocat", "Hello-World", "tree", "main", "apps", "web"])
+
+      assert GithubReference.repository_backed?(github_reference)
+      assert GithubReference.branch(github_reference) == "main"
+      assert GithubReference.repository_path(github_reference) == "apps/web"
+      assert GithubReference.workspace_path(github_reference) == "workspace/apps/web"
+    end
+
+    test "issue paths are not repository-backed" do
+      {:ok, github_reference} =
+        GithubReference.parse_path(["octocat", "Hello-World", "issues", "123"])
+
+      refute GithubReference.repository_backed?(github_reference)
+    end
+  end
 end
