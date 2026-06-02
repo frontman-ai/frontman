@@ -121,10 +121,11 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         end)
 
       assert [report] = mcp_error_reports
+      metadata = report.extra[:logger_metadata]
       assert report.message.formatted == "MCP tool execution failed"
-      assert report.extra[:tool_name] == "testMcpTool"
-      assert report.extra[:task_id] == task_id
-      assert report.extra[:error_message] =~ "permission denied"
+      assert metadata[:tool_name] == "testMcpTool"
+      assert metadata[:task_id] == task_id
+      assert metadata[:error_message] =~ "permission denied"
     end
 
     @tag :capture_log
@@ -158,7 +159,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         end)
 
       assert [report] = mcp_error_reports
-      assert report.extra[:error_message] == "Unknown MCP error"
+      assert report.extra[:logger_metadata][:error_message] == "Unknown MCP error"
     end
   end
 end

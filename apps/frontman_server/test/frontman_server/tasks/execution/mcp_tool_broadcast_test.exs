@@ -15,6 +15,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tools.MCP
 
   describe "MCP tool call broadcast" do
     setup do
@@ -35,14 +36,13 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       mcp_tool_call = swarm_tool_call("some_mcp_tool", ~s({"arg": "value"}))
 
       # Provide a tool def so ParallelExecutor can find and route the call
-      some_mcp_tool_def =
-        SwarmAi.Tool.new(
-          name: "some_mcp_tool",
-          description: "A test MCP tool",
-          parameter_schema: %{},
-          timeout_ms: 60_000,
-          on_timeout: :pause_agent
-        )
+      some_mcp_tool_def = %MCP{
+        name: "some_mcp_tool",
+        description: "A test MCP tool",
+        input_schema: %{},
+        timeout_ms: 60_000,
+        on_timeout: :pause_agent
+      }
 
       # Create an LLM that returns a tool call on first turn, then completes
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
@@ -52,7 +52,8 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
           scope,
           task_id,
           user_content("Please call the MCP tool"),
-          [some_mcp_tool_def]
+          MCP.to_swarm_tools([some_mcp_tool_def]),
+          mcp_tool_defs: [some_mcp_tool_def]
         )
 
       # Collect all tool call interactions broadcast via PubSub
@@ -64,6 +65,16 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       assert length(tool_call_broadcasts) == 1,
              "Expected exactly 1 tool call broadcast, got #{length(tool_call_broadcasts)}. " <>
                "This indicates Tasks.add_tool_call is being called multiple times."
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert %Tasks.Interaction.AgentResponse{metadata: %{"tool_calls" => [persisted_call]}} =
+               Enum.find(task.interactions, &match?(%Tasks.Interaction.AgentResponse{}, &1))
+
+      assert persisted_call["id"] == mcp_tool_call.id
+      assert persisted_call["name"] == "some_mcp_tool"
+      assert Jason.decode!(persisted_call["arguments"]) == %{"arg" => "value"}
+      refute Map.has_key?(persisted_call, "function")
     end
   end
 
@@ -101,24 +112,29 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
     test "agent is registered before interaction is broadcast", %{task_id: task_id, scope: scope} do
       # Verify registration happens BEFORE broadcast to prevent race condition.
-      # ToolExecutor registers in AgentRegistry, then publishes interaction.
+      # ToolExecutor registers in ToolCallRegistry, then publishes interaction.
       # When we receive the interaction broadcast, the agent should be registered.
       mcp_tool_call = swarm_tool_call("mcp_tool")
       expected_id = mcp_tool_call.id
 
-      mcp_tool_def =
-        SwarmAi.Tool.new(
-          name: "mcp_tool",
-          description: "A test MCP tool",
-          parameter_schema: %{},
-          timeout_ms: 60_000,
-          on_timeout: :pause_agent
-        )
+      mcp_tool_def = %MCP{
+        name: "mcp_tool",
+        description: "A test MCP tool",
+        input_schema: %{},
+        timeout_ms: 60_000,
+        on_timeout: :pause_agent
+      }
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
       {:ok, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Call tool"), [mcp_tool_def])
+        Tasks.submit_user_message(
+          scope,
+          task_id,
+          user_content("Call tool"),
+          MCP.to_swarm_tools([mcp_tool_def]),
+          mcp_tool_defs: [mcp_tool_def]
+        )
 
       # Wait for the interaction broadcast
       assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id}},

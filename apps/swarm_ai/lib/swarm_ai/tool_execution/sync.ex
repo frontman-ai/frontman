@@ -21,7 +21,7 @@ defmodule SwarmAi.ToolExecution.Sync do
     # apply(mod, fun, args ++ [tool_call]) :: ToolResult.t()
     field(:run, {module(), atom(), list()})
 
-    # apply(mod, fun, args ++ [tool_call, :triggered | :cancelled]) :: :ok
+    # apply(mod, fun, args ++ [tool_call, :triggered | :cancelled]) :: term()
     field(:on_timeout, {module(), atom(), list()})
   end
 end

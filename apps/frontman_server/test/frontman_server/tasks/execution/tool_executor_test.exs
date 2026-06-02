@@ -43,9 +43,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     task_id = Ecto.UUID.generate()
     {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
-    llm_opts = [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
-
-    {:ok, scope: scope, task_id: task_id, llm_opts: llm_opts}
+    {:ok, scope: scope, task_id: task_id}
   end
 
   defp tool_results(task, tool_call_id) do
@@ -53,6 +51,31 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       %Interaction.ToolResult{tool_call_id: ^tool_call_id} -> true
       _ -> false
     end)
+  end
+
+  describe "start_mcp_tool/3" do
+    test "persists MCP tool call interactions", %{
+      scope: scope,
+      task_id: task_id
+    } do
+      tool_call = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: "take_screenshot",
+        arguments: ~s({"selector":"#main"})
+      }
+
+      assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, tool_call)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert %Interaction.ToolCall{
+               tool_call_id: tool_call_id,
+               tool_name: "take_screenshot",
+               arguments: %{"selector" => "#main"}
+             } = Enum.find(task.interactions, &match?(%Interaction.ToolCall{}, &1))
+
+      assert tool_call_id == tool_call.id
+    end
   end
 
   describe "handle_timeout/5 — cancelled tools" do
@@ -86,7 +109,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end
   end
 
-  describe "run_backend_tool/5 — non-JSON-serializable result" do
+  describe "run_backend_tool/4 — non-JSON-serializable result" do
     defmodule BinaryResultTool do
       @behaviour Backend
 
@@ -103,17 +126,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     @tag :capture_log
     test "converts non-JSON-serializable result to error instead of crashing", %{
       scope: scope,
-      task_id: task_id,
-      llm_opts: llm_opts
+      task_id: task_id
     } do
-      exec_opts = %{
-        backend_tool_modules: [BinaryResultTool],
-        backend_module_map: %{BinaryResultTool.name() => BinaryResultTool},
-        mcp_tools: [],
-        mcp_tool_defs: [],
-        llm_opts: llm_opts
-      }
-
       tool_call = %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
         name: BinaryResultTool.name(),
@@ -121,7 +135,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       }
 
       result =
-        ToolExecutor.run_backend_tool(scope, BinaryResultTool, task_id, exec_opts, tool_call)
+        ToolExecutor.run_backend_tool(scope, BinaryResultTool, task_id, tool_call)
 
       assert %SwarmAi.ToolResult{is_error: true} = result
       assert [%SwarmAi.Message.ContentPart{type: :text, text: text}] = result.content
@@ -132,15 +146,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   describe "make_executor/3 — execution descriptors" do
     test "executor returns ToolExecution.Sync for backend tools", %{
       scope: scope,
-      task_id: task_id,
-      llm_opts: llm_opts
+      task_id: task_id
     } do
       executor =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [PauseOnTimeoutTool],
-          mcp_tools: [],
-          mcp_tool_defs: [],
-          llm_opts: llm_opts
+          mcp_tool_defs: []
         )
 
       tc = %SwarmAi.ToolCall{
@@ -159,8 +170,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
     test "executor returns ToolExecution.Await for MCP tools", %{
       scope: scope,
-      task_id: task_id,
-      llm_opts: llm_opts
+      task_id: task_id
     } do
       pause_mcp_def = %FrontmanServer.Tools.MCP{
         name: "some_mcp_tool",
@@ -173,9 +183,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       executor =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [],
-          mcp_tools: [],
-          mcp_tool_defs: [pause_mcp_def],
-          llm_opts: llm_opts
+          mcp_tool_defs: [pause_mcp_def]
         )
 
       tc = %SwarmAi.ToolCall{
@@ -188,57 +196,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
       assert %SwarmAi.ToolExecution.Await{
                on_timeout_policy: :pause_agent,
-               message_key: tc_id,
                on_timeout: {ToolExecutor, :handle_timeout, [^scope, ^task_id, :pause_agent]}
              } = execution
-
-      assert tc_id == tc.id
-
-      assert execution.process_result == {ToolExecutor, :make_mcp_tool_result, [tc.name]}
-    end
-  end
-
-  describe "make_mcp_tool_result/4" do
-    test "enriches web_fetch image result with image content part" do
-      image_bytes = <<255, 216, 255, 224, "fake-jpeg">>
-      image_url = "https://example.com/cat.jpg"
-
-      json_content =
-        Jason.encode!(%{
-          "type" => "image",
-          "url" => image_url,
-          "content_type" => "image/jpeg",
-          "image" => "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
-        })
-
-      tool_call = %SwarmAi.ToolCall{id: "tc_web_fetch", name: "web_fetch", arguments: "{}"}
-
-      result = ToolExecutor.make_mcp_tool_result("web_fetch", tool_call, json_content, false)
-
-      assert %SwarmAi.ToolResult{id: "tc_web_fetch", is_error: false} = result
-
-      assert [
-               %SwarmAi.Message.ContentPart{
-                 type: :image,
-                 data: ^image_bytes,
-                 media_type: "image/jpeg"
-               }
-             ] = result.content
-    end
-
-    test "returns plain text ToolResult for non-image tool" do
-      json_content = Jason.encode!(%{"output" => "hello world"})
-
-      tool_call = %SwarmAi.ToolCall{
-        id: "tc_read",
-        name: "mcp_read_file",
-        arguments: "{}"
-      }
-
-      result = ToolExecutor.make_mcp_tool_result("mcp_read_file", tool_call, json_content, false)
-
-      assert %SwarmAi.ToolResult{id: "tc_read", is_error: false} = result
-      assert [%SwarmAi.Message.ContentPart{type: :text, text: ^json_content}] = result.content
     end
   end
 end

@@ -1,5 +1,5 @@
 ---
-title: 'Browser-Aware AI Coding Tools in 2026 — Compared by Architecture'
+title: 'Browser-Aware AI Coding Tools Compared'
 pubDate: 2026-02-23T06:00:00Z
 description: "Frontman, Stagewise, Tidewave, Chrome DevTools MCP, and Onlook: how each one connects to your running app, what they can and can't see, and who each is for."
 author: 'Danni Friedland'
@@ -92,4 +92,4 @@ Google's experimental MCP server exposing DevTools state to AI agents. Your agen
 
 **Designer who wants a visual editor:** Onlook. Different category entirely.
 
-The category is real — and it's part of a broader wave of [open-source AI coding tools](/blog/best-open-source-ai-coding-tools-2026/). Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started/), [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/), or read the detailed [Frontman vs Cursor](/vs/cursor/) and [Frontman vs Stagewise](/vs/stagewise/) comparisons.
+The category is real — and it's part of a broader wave of [open-source AI coding tools](/blog/best-open-source-ai-coding-tools-2026/). Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started/), read the [frontend AI tools](/blog/best-frontend-coding-agent/) buyer guide, or see the detailed [Frontman vs Cursor](/vs/cursor/) and [Frontman vs Stagewise](/vs/stagewise/) comparisons.

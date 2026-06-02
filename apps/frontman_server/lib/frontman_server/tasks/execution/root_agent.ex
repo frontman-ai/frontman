@@ -8,7 +8,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   @moduledoc """
   The main coordinating agent that handles user requests.
 
-  This agent receives user messages, can use tools (including spawning sub-agents),
+  This agent receives user messages, can use tools,
   and coordinates the overall task execution. It implements the SwarmAi.Agent protocol
   directly, owning its system prompt generation logic.
 
@@ -22,14 +22,14 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
 
   use TypedStruct
 
-  alias FrontmanServer.Tasks.Execution.Framework
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts}
 
   typedstruct do
     field(:tools, [SwarmAi.Tool.t()], default: [])
     field(:has_annotations, boolean(), default: false)
-    field(:has_typescript_react, boolean(), default: false)
-    field(:framework, Framework.t() | nil, default: nil)
+    field(:project_traits, [Frameworks.project_trait()], default: [])
+    field(:framework, Frameworks.t() | nil, default: nil)
     # llm_opts must include :api_key (resolved at domain layer)
     # May also include :with_claude_subscription for OAuth
     field(:llm_opts, keyword(), default: [])
@@ -47,6 +47,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
 
   - `:tools` - List of SwarmAi.Tool structs available to the agent
   - `:has_annotations` - Whether the user has annotated elements in the UI
+  - `:project_traits` - Derived project traits for prompt guidance
   - `:framework` - `Framework.t()` struct for framework-specific guidance
   - `:llm_opts` - LLM options, must include `:api_key`. May include
     `:with_claude_subscription` for OAuth transformations.
@@ -59,7 +60,7 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
     %__MODULE__{
       tools: Keyword.get(opts, :tools, []),
       has_annotations: Keyword.get(opts, :has_annotations, false),
-      has_typescript_react: Keyword.get(opts, :has_typescript_react, false),
+      project_traits: Keyword.get(opts, :project_traits, []),
       framework: Keyword.get(opts, :framework),
       llm_opts: Keyword.get(opts, :llm_opts, []),
       model: Keyword.get(opts, :model),
@@ -77,7 +78,7 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
     # OAuth transformations (identity prepend, content splitting) are handled by LLMClient
     Prompts.build(
       has_annotations: agent.has_annotations,
-      has_typescript_react: agent.has_typescript_react,
+      project_traits: agent.project_traits,
       framework: agent.framework,
       project_rules: agent.project_rules,
       project_structure: agent.project_structure

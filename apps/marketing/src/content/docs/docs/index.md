@@ -41,6 +41,7 @@ Already running? Learn how to get the most out of it.
 - **[Sending Prompts](/docs/using/sending-prompts/)** — Write effective prompts with good examples
 - **[Annotations](/docs/using/annotations/)** — Point at elements instead of describing them
 - **[Prompt Strategies](/docs/using/prompt-strategies/)** — Patterns for getting better results over time
+- **[Best Frontend Coding Agent guide](/blog/best-frontend-coding-agent/)** — Compare tools if your team wants to build frontend with AI
 
 ### Deep dives
 

@@ -39,7 +39,6 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 }
 
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
-require_once __DIR__ . '/../includes/class-frontman-agent-instructions-tool.php';
 require_once __DIR__ . '/../tools/class-tool-posts.php';
 require_once __DIR__ . '/../tools/class-tool-blocks.php';
 require_once __DIR__ . '/../tools/class-tool-media.php';
@@ -54,7 +53,6 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 
 	public function run(): void {
 		$tools = new Frontman_Tools();
-		( new Frontman_Agent_Instructions_Tool() )->register( $tools );
 		( new Frontman_Tool_Posts() )->register( $tools );
 		( new Frontman_Tool_Blocks() )->register( $tools );
 		( new Frontman_Tool_Media() )->register( $tools );
@@ -66,6 +64,7 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 
 		$tool_names = array_column( $tools->all_definitions(), 'name' );
 		$blocked = [
+			'load_agent_instructions',
 			'read_file',
 			'list_files',
 			'file_exists',
@@ -85,18 +84,7 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 			$this->assert_false( in_array( $tool_name, $tool_names, true ), $tool_name . ' must not be exposed by the WordPress plugin' );
 		}
 
-		$load_agent_instructions = $tools->get( 'load_agent_instructions' );
-		$this->assert_same( false, $load_agent_instructions->visible_to_agent, 'load_agent_instructions remains hidden from the agent' );
-		$this->assert_same( [], call_user_func( $load_agent_instructions->handler, [] ), 'load_agent_instructions must not read from disk in WordPress' );
-
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
-	}
-
-	private function assert_same( $expected, $actual, string $message ): void {
-		$this->assertions++;
-		if ( $expected !== $actual ) {
-			throw new RuntimeException( $message . ' expected ' . var_export( $expected, true ) . ' got ' . var_export( $actual, true ) );
-		}
 	}
 
 	private function assert_false( bool $condition, string $message ): void {

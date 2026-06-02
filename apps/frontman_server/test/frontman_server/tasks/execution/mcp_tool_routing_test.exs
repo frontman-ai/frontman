@@ -1,10 +1,6 @@
-defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
+defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   @moduledoc """
-  Tests for MCP tool routing from sub-agents spawned by backend tools.
-
-  These tests verify that when backend tools spawn sub-agents that call MCP
-  tools, the MCP requests are properly routed through the TaskChannel to the
-  client.
+  Tests MCP tool routing through TaskChannel.
 
   ## Architecture
 
@@ -12,7 +8,8 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
   1. Register PE's pid in ToolCallRegistry (so {:tool_result, ...} routes back to PE)
   2. Publish the ToolCall interaction (for TaskChannel routing to the client)
 
-  This ensures MCP tools work correctly for both main agents and sub-agents.
+  This ensures MCP tools route to the browser client and deliver results back
+  to the waiting executor.
   """
 
   use FrontmanServer.ExecutionCase
@@ -94,9 +91,7 @@ defmodule FrontmanServer.Tasks.Execution.SubAgentMcpRoutingTest do
       raw_executor =
         ToolExecutor.make_executor(scope, task_id,
           backend_tool_modules: [],
-          mcp_tools: [],
-          mcp_tool_defs: [mcp_tool_def],
-          llm_opts: llm_opts
+          mcp_tool_defs: [mcp_tool_def]
         )
 
       # Wrap executor with PE so run_streaming receives plain ToolResults.

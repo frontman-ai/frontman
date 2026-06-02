@@ -13,7 +13,7 @@
   "dependencies": {
     "@astrojs/check": "^0.9.8",
     "@astrojs/preact": "^5.1.1",
-    "@astrojs/rss": "^4.0.17",
+    "@astrojs/rss": "^4.0.18",
     "@astrojs/sitemap": "^3.7.2",
     "@astrojs/starlight": "^0.38.3",
     "@astrojs/starlight-tailwind": "^5.0.0",
@@ -22,18 +22,18 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.2",
     "astro": "^6.1.6",
-    "astro-broken-links-checker": "^1.0.7",
+    "astro-broken-links-checker": "^1.1.0",
     "astro-consent": "^2.0.0",
     "astro-icon": "^1.1.5",
     "hc-starlight": "^0.0.8",
     "marked": "^18.0.0",
     "prettier": "^3.8.2",
     "prettier-plugin-astro": "^0.14.0",
-    "prettier-plugin-tailwindcss": "^0.6.4",
+    "prettier-plugin-tailwindcss": "^0.8.0",
     "satori": "^0.26.0",
     "sharp": "^0.34.0",
-    "tailwindcss": "^4.2.2",
-    "typescript": "^5.4.5"
+    "tailwindcss": "^4.2.4",
+    "typescript": "^6.0.3"
   },
   "devDependencies": {
     "@frontman-ai/astro": "workspace:*"

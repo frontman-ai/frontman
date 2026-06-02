@@ -9,7 +9,7 @@ import Accordion from '../components/ui/Accordion.astro'
 import gridNetBackground from '../assets/grid-net-background.svg'
 
 const SEO = {
-	title: 'Frontman Pro Pricing | Visual AI Frontend Editing for Teams',
+	title: 'Frontman Pro Pricing | AI Frontend Editing',
 	description:
 		'Frontman Pro pricing for visual AI frontend editing: €15 per seat/month, 14-day free trial, BYOK AI billing, and free self-hosting while available.'
 }
@@ -89,6 +89,11 @@ const trustLinks = [
 		title: 'DPA',
 		href: '/dpa/',
 		text: 'Use the data processing agreement for vendor and compliance review.'
+	},
+	{
+		title: 'AI coding agent pricing',
+		href: '/blog/best-frontend-coding-agent/',
+		text: 'Compare Frontman pricing with Cursor, Claude Code, GitHub Copilot, v0, Bolt.new, Kombai, and Stagewise.'
 	}
 ]
 
@@ -423,7 +428,7 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 				</p>
 			</Col>
 			{trustLinks.map((link) => (
-				<Col span="4">
+				<Col span="3">
 					<a href={link.href} class={`${valueCardClass} block`}>
 						<h3 class="text-xl">{link.title}</h3>
 						<p class={mutedCopyClass}>{link.text}</p>

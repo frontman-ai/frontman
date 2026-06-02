@@ -43,13 +43,13 @@
 	},
 	{
 		"question": "Which frameworks are supported?",
-		"reply": "Frontman supports Next.js, Astro, Vite, and WordPress. For JavaScript frameworks it integrates as middleware, turning your local dev server into an MCP server. For WordPress it installs as a plugin that exposes WordPress-specific tools alongside PHP-native read-only file inspection and Frontman-managed child-theme editing tools.",
+		"reply": "Frontman supports Next.js, Astro, Vite, and WordPress. For JavaScript frameworks it integrates as middleware, turning your local dev server into an MCP server. For WordPress it installs as a plugin that exposes WordPress-specific tools for posts, pages, blocks, Elementor content, menus, templates, widgets, settings, and WooCommerce when active.",
 		"category": "technical",
 		"open": true
 	},
 	{
 		"question": "How does it get context about my app?",
-		"reply": "Frontman gets context from the runtime it is installed into. For JavaScript frameworks, it hooks into your local dev server and browser tools. For WordPress, the plugin exposes WordPress-native tools and read-only site inspection directly from the running site. In both cases, the agent queries live runtime context instead of relying only on static files.",
+		"reply": "Frontman gets context from the runtime it is installed into. For JavaScript frameworks, it hooks into your local dev server and browser tools. For WordPress, the plugin exposes WordPress-native content, template, menu, widget, option, Elementor, and WooCommerce tools directly from the running site. In both cases, the agent queries live runtime context instead of relying only on static files.",
 		"category": "technical",
 		"open": false
 	},

@@ -385,10 +385,6 @@ config :frontman_server, :providers, %{
   }
 }
 
-config :frontman_server, FrontmanServer.Tasks.MessageOptimizer,
-  enabled: true,
-  tool_result_strip_keys: ["start_line", "lines_returned", "total_lines"]
-
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

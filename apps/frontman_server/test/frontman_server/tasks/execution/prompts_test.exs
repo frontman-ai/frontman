@@ -7,7 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   """
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Tasks.Execution.Framework
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.Execution.Prompts
 
   describe "build/1 context-based guidance selection" do
@@ -22,7 +22,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
 
     test "nextjs framework adds framework-specific guidance" do
-      fw = Framework.from_string("nextjs")
+      fw = Frameworks.from_string("nextjs")
       prompt = Prompts.build(framework: fw)
 
       assert prompt =~ "Next.js"
@@ -31,7 +31,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
 
     test "wordpress framework excludes filesystem tool guidance" do
-      fw = Framework.from_string("wordpress")
+      fw = Frameworks.from_string("wordpress")
       prompt = Prompts.build(framework: fw)
 
       assert prompt =~ "Do not use filesystem tools in WordPress sessions"
@@ -50,7 +50,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
 
     test "non-wordpress framework adds code attachment guidance" do
-      vite_prompt = Prompts.build(framework: Framework.from_string("vite"))
+      vite_prompt = Prompts.build(framework: Frameworks.from_string("vite"))
 
       assert vite_prompt =~ "write_file"
       assert vite_prompt =~ "image_ref"
@@ -109,15 +109,21 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
       assert prompt =~ "## UI & Layout Changes"
     end
 
-    test "has_typescript_react includes TypeScript / React section" do
-      prompt = Prompts.build(has_typescript_react: true)
+    test "TypeScript and React traits include TypeScript / React section" do
+      prompt = Prompts.build(project_traits: [:typescript, :react])
 
       assert prompt =~ "## TypeScript / React"
       assert prompt =~ "discriminated unions"
     end
 
-    test "has_typescript_react false excludes TypeScript / React section" do
-      prompt = Prompts.build(has_typescript_react: false)
+    test "React trait alone excludes TypeScript / React section" do
+      prompt = Prompts.build(project_traits: [:react])
+
+      refute prompt =~ "## TypeScript / React"
+    end
+
+    test "Next.js framework alone does not control TypeScript / React section" do
+      prompt = Prompts.build(framework: Frameworks.from_string("nextjs"))
 
       refute prompt =~ "## TypeScript / React"
     end

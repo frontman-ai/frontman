@@ -8,7 +8,8 @@ if (typeof process === "undefined") {
 	window.__frontmanRuntime = {
 		framework: config ? config.getAttribute("data-framework") || "wordpress" : "wordpress",
 		basePath: config ? config.getAttribute("data-base-path") || "frontman" : "frontman",
-		wpNonce: config ? config.getAttribute("data-wp-nonce") || "" : ""
+		wpNonce: config ? config.getAttribute("data-wp-nonce") || "" : "",
+		traits: []
 	};
 })();
 

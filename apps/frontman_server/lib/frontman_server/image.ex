@@ -21,30 +21,7 @@ defmodule FrontmanServer.Image do
   # Other providers (OpenAI, OpenRouter, Google) auto-resize.
   @max_dimension 7680
 
-  @type decoded_tool_image :: %{
-          required(:data) => binary(),
-          required(:media_type) => String.t()
-        }
-
   # ── Public API ──────────────────────────────────────────────────────
-
-  @doc """
-  Decodes image-producing tool results into runtime LLM image input data.
-
-  The returned binary payload is for constructing LLM content parts only. Do
-  not persist it; persisted interactions should keep the original JSON-safe
-  tool result with its base64 data URL.
-  """
-  @spec decode_tool_image_for_llm(String.t(), map()) :: {:ok, decoded_tool_image()} | :no_image
-  def decode_tool_image_for_llm("take_screenshot", %{"screenshot" => data_url})
-      when is_binary(data_url),
-      do: decode_tool_data_url(data_url)
-
-  def decode_tool_image_for_llm("web_fetch", %{"image" => data_url})
-      when is_binary(data_url),
-      do: decode_tool_data_url(data_url)
-
-  def decode_tool_image_for_llm(_tool_name, _result), do: :no_image
 
   @doc """
   Checks whether a binary image exceeds a dimension limit on either axis.
@@ -139,13 +116,6 @@ defmodule FrontmanServer.Image do
   def parse_dimensions(_), do: :unknown
 
   # ── Private ─────────────────────────────────────────────────────────
-
-  defp decode_tool_data_url(data_url) do
-    case decode_data_url(data_url) do
-      {:ok, data, media_type} -> {:ok, %{data: data, media_type: media_type}}
-      :error -> :no_image
-    end
-  end
 
   # Scan JPEG markers looking for any SOFn (Start of Frame) marker.
   # SOFn markers are 0xFFC0-0xFFCF except 0xFFC4 (DHT), 0xFFC8 (JPG extension),

@@ -32,16 +32,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     {:ok, task_id: task_id, scope: scope}
   end
 
-  defp backend_exec_opts do
-    %{
-      backend_tool_modules: Tools.backend_tool_modules(),
-      backend_module_map: Map.new(Tools.backend_tool_modules(), &{&1.name(), &1}),
-      mcp_tools: [],
-      mcp_tool_defs: [],
-      llm_opts: [api_key: "test", model: "mock"]
-    }
-  end
-
   describe "backend tool soft error Sentry reporting (Gap 2)" do
     @tag :capture_log
     test "reports {:error, reason} to Sentry with tool context", %{
@@ -66,7 +56,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
-          backend_exec_opts(),
           tool_call
         )
 
@@ -84,11 +73,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
              "Expected at least one tool_soft_error Sentry report, got none"
 
       [report | _] = tool_error_reports
+      metadata = report.extra[:logger_metadata]
       assert report.message.formatted == "Tool execution failed"
-      assert report.extra[:tool_name] == "todo_write"
-      assert report.extra[:tool_call_id] == tool_call.id
-      assert report.extra[:task_id] == task_id
-      assert is_binary(report.extra[:reason])
+      assert metadata[:tool_name] == "todo_write"
+      assert metadata[:tool_call_id] == tool_call.id
+      assert metadata[:task_id] == task_id
+      assert is_binary(metadata[:reason])
     end
   end
 
@@ -108,7 +98,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
-          backend_exec_opts(),
           tool_call
         )
 
@@ -122,11 +111,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
         end)
 
       assert [report] = parse_error_reports
+      metadata = report.extra[:logger_metadata]
       assert report.message.formatted == "Tool argument parse failure"
       assert report.tags[:tool_name] == "todo_write"
-      assert report.extra[:tool_name] == "todo_write"
-      assert report.extra[:raw_arguments] == "{invalid json!!!}"
-      assert is_binary(report.extra[:decode_error])
+      assert metadata[:tool_name] == "todo_write"
+      assert metadata[:raw_arguments] == "{invalid json!!!}"
+      assert is_binary(metadata[:decode_error])
 
       # No duplicate "tool execution failed" report — parse_arguments handles its own reporting
       soft_error_reports =
@@ -150,7 +140,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
-          backend_exec_opts(),
           tool_call
         )
 
@@ -182,7 +171,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           scope,
           todo_write_module,
           task_id,
-          backend_exec_opts(),
           tool_call
         )
 
@@ -198,7 +186,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert [report] = parse_error_reports
 
       # Verify raw_arguments is truncated to 500 chars
-      assert String.length(report.extra[:raw_arguments]) == 500
+      assert String.length(report.extra[:logger_metadata][:raw_arguments]) == 500
     end
   end
 

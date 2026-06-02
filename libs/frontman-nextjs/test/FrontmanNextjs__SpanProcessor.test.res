@@ -9,11 +9,7 @@ module LogCapture = FrontmanNextjs__LogCapture
 
 // OTEL Setup - use real SDK for integration testing
 @new @module("@opentelemetry/sdk-trace-node")
-external makeBasicTracerProvider: unit => Bindings.Trace.tracerProvider = "BasicTracerProvider"
-
-@send
-external addSpanProcessor: (Bindings.Trace.tracerProvider, Bindings.Trace.spanProcessor) => unit =
-  "addSpanProcessor"
+external makeBasicTracerProvider: {..} => Bindings.Trace.tracerProvider = "BasicTracerProvider"
 
 @send
 external getTracer: (Bindings.Trace.tracerProvider, string) => Bindings.Trace.tracer = "getTracer"
@@ -70,8 +66,7 @@ module TestHelpers = {
 
   // Setup provider and tracer - eliminates 3 lines per test
   let setup = (): testContext => {
-    let provider = makeBasicTracerProvider()
-    provider->addSpanProcessor(SpanProcessor.make())
+    let provider = makeBasicTracerProvider({"spanProcessors": [SpanProcessor.make()]})
     let tracer = provider->getTracer("test")
     {provider, tracer}
   }

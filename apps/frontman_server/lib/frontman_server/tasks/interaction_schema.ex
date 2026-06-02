@@ -17,6 +17,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   import Ecto.Query
   import FrontmanServer.ChangesetSanitizer
 
+  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.TaskSchema
 
@@ -112,7 +113,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       annotations: parse_annotations(data["annotations"]),
       selected_figma_node: Interaction.FigmaNode.from_map(data["selected_figma_node"]),
       images: parse_images(data["images"]),
-      current_page: Interaction.CurrentPage.from_map(data["current_page"])
+      current_page: Interaction.CurrentPage.from_map(data[CurrentPageContext.data_key()])
     }
   end
 
@@ -160,14 +161,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       }) do
     %Interaction.DiscoveredProjectStructure{
       summary: data["summary"],
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_spawned", data: data}) do
-    %Interaction.AgentSpawned{
-      id: data["id"],
-      config: data["config"] || %{},
       timestamp: parse_datetime(data["timestamp"])
     }
   end

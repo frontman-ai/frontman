@@ -20,6 +20,7 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   clientCssUrl: config.clientCssUrl,
   entrypointUrl: config.entrypointUrl,
   frameworkId: CoreMiddlewareConfig.Vite,
+  traits: [],
 }
 
 // Create middleware from a config

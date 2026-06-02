@@ -1,5 +1,5 @@
 ---
-title: 'Frontman vs v0: Generated Code vs Your Code'
+title: 'Frontman vs v0 for Existing Codebases'
 pubDate: 2026-04-16T05:00:00Z
 description: 'v0 generates new components from scratch. Frontman edits the components you already have. These solve different problems — here is which one you actually need.'
 author: 'Danni Friedland'

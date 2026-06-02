@@ -61,13 +61,14 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
+  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.Execution.LLMProvider
-  alias FrontmanServer.Tasks.{MessageOptimizer, StreamCleanup, StreamStallTimeout}
+  alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
+  alias FrontmanServer.Tasks.{StreamCleanup, StreamStallTimeout}
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
-  alias SwarmAi.SchemaTransformer
 
   require Logger
 
@@ -84,15 +85,21 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
         {_key, value} -> value == []
       end)
 
-    # Run MessageOptimizer here (not just at task startup) so that tool results
+    provider = Providers.model_provider_name(client.model)
+
+    preflight_opts = [
+      images_supported: images_supported?(client.model),
+      max_image_dimension: Providers.max_image_dimension(provider)
+    ]
+
+    # Run request preflight here (not just at task startup) so that tool results
     # accumulated inside the swarm loop are also truncated. Without this, long
     # tool-calling chains accumulate dozens of full-size tool results and the
     # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
+      |> LLMRequestPreflight.run(preflight_opts)
       |> Enum.map(&to_reqllm_message/1)
-      |> MessageOptimizer.optimize()
-      |> strip_images_unless_supported(client.model)
 
     case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do
       {:ok, response} ->
@@ -177,6 +184,13 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   defp normalize_reqllm_chunk(malformed_chunk) do
     raise "Malformed chunk from ReqLLM (missing or invalid type): #{inspect(malformed_chunk, limit: :infinity)}"
+  end
+
+  defp images_supported?(model) do
+    case ReqLLM.model(model) do
+      {:ok, %{modalities: %{input: input}}} when is_list(input) -> :image in input
+      _ -> true
+    end
   end
 
   defp normalize_index(index) when is_integer(index), do: index
@@ -274,7 +288,8 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       role: :assistant,
       content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_calls: to_reqllm_tool_calls(msg.tool_calls),
-      metadata: msg.metadata
+      metadata: msg.metadata,
+      reasoning_details: msg.reasoning_details
     }
   end
 
@@ -300,51 +315,13 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     ReqLLM.Message.ContentPart.image_url(url)
   end
 
-  defp strip_images_unless_supported(messages, model) do
-    case ReqLLM.model(model) do
-      {:ok, %{modalities: %{input: input}}} when is_list(input) ->
-        if :image in input, do: messages, else: Enum.map(messages, &strip_message_images/1)
-
-      _ ->
-        messages
-    end
-  end
-
-  defp strip_message_images(%ReqLLM.Message{content: content} = message) do
-    %{message | content: Enum.map(content, &strip_image_part/1)}
-  end
-
-  defp strip_image_part(%ReqLLM.Message.ContentPart{type: type})
-       when type in [:image, :image_url] do
-    ReqLLM.Message.ContentPart.text(
-      "[Image omitted: selected model does not support image input]"
-    )
-  end
-
-  defp strip_image_part(part), do: part
-
   defp to_reqllm_tool_calls([]), do: nil
   defp to_reqllm_tool_calls(nil), do: nil
 
   defp to_reqllm_tool_calls(tool_calls) do
     Enum.map(tool_calls, fn tc ->
-      arguments = strip_null_args(tc.arguments)
-      ReqLLM.ToolCall.new(tc.id, tc.name, arguments)
+      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+      ReqLLM.ToolCall.new(tc.id, tc.name, tc.arguments)
     end)
   end
-
-  # Strip null values from tool call arguments in conversation history.
-  # OpenAI strict mode makes optional fields nullable, so the model sends null.
-  # Clean these before sending back in the next turn.
-  defp strip_null_args(arguments) when is_binary(arguments) do
-    case Jason.decode(arguments) do
-      {:ok, args} when is_map(args) ->
-        Jason.encode!(SwarmAi.SchemaTransformer.strip_nulls(args))
-
-      _ ->
-        arguments
-    end
-  end
-
-  defp strip_null_args(arguments), do: arguments
 end

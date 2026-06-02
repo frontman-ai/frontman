@@ -7,6 +7,7 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend.Context
+  alias FrontmanServer.Tools.GetToolResult
   alias FrontmanServer.Tools.TodoWrite
 
   setup do
@@ -33,6 +34,9 @@ defmodule FrontmanServer.ToolsTest do
     test "finds existing tool" do
       assert {:ok, module} = Tools.find_tool("todo_write")
       assert module == TodoWrite
+
+      assert {:ok, module} = Tools.find_tool("get_tool_result")
+      assert module == GetToolResult
     end
 
     test "finds web_fetch tool" do
@@ -84,20 +88,13 @@ defmodule FrontmanServer.ToolsTest do
     end
   end
 
-  defp build_context(scope, task) do
-    %Context{
-      scope: scope,
-      task: task,
-      tool_executor: fn tool_calls ->
-        Enum.map(tool_calls, fn tc -> SwarmAi.ToolResult.make(tc.id, "mock result", false) end)
-      end,
-      llm_opts: [api_key: "test-key", model: "openrouter:anthropic/claude-sonnet-4-20250514"]
-    }
+  defp build_context(task) do
+    %Context{task: task}
   end
 
   describe "TodoWrite.execute/2" do
-    test "writes a valid todo list", %{task: task, scope: scope} do
-      context = build_context(scope, task)
+    test "writes a valid todo list", %{task: task} do
+      context = build_context(task)
 
       args = %{
         "todos" => [
@@ -130,13 +127,13 @@ defmodule FrontmanServer.ToolsTest do
       assert second["status"] == "in_progress"
     end
 
-    test "accepts empty todos array", %{task: task, scope: scope} do
-      context = build_context(scope, task)
+    test "accepts empty todos array", %{task: task} do
+      context = build_context(task)
       assert {:ok, %{"todos" => []}} = TodoWrite.execute(%{"todos" => []}, context)
     end
 
-    test "rejects invalid status", %{task: task, scope: scope} do
-      context = build_context(scope, task)
+    test "rejects invalid status", %{task: task} do
+      context = build_context(task)
 
       args = %{
         "todos" => [
@@ -152,8 +149,8 @@ defmodule FrontmanServer.ToolsTest do
       assert msg =~ "index 0"
     end
 
-    test "rejects invalid priority", %{task: task, scope: scope} do
-      context = build_context(scope, task)
+    test "rejects invalid priority", %{task: task} do
+      context = build_context(task)
 
       args = %{
         "todos" => [
@@ -170,8 +167,8 @@ defmodule FrontmanServer.ToolsTest do
       assert msg =~ "index 0"
     end
 
-    test "rejects missing required fields", %{task: task, scope: scope} do
-      context = build_context(scope, task)
+    test "rejects missing required fields", %{task: task} do
+      context = build_context(task)
 
       args = %{
         "todos" => [
@@ -180,6 +177,34 @@ defmodule FrontmanServer.ToolsTest do
       }
 
       assert {:error, _} = TodoWrite.execute(args, context)
+    end
+  end
+
+  describe "GetToolResult.execute/2" do
+    test "returns the actual tool result by tool call ID", %{task_id: task_id, scope: scope} do
+      {:ok, interaction, :no_executor} =
+        Tasks.add_tool_result(
+          scope,
+          task_id,
+          %{id: "tc-read", name: "read_file"},
+          %{"content" => "file contents"},
+          false
+        )
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      context = build_context(task)
+
+      assert {:ok, result} = GetToolResult.execute(%{"tool_call_id" => "tc-read"}, context)
+
+      assert result == %{"content" => "file contents"}
+      assert interaction.tool_call_id == "tc-read"
+    end
+
+    test "returns an error when the interaction does not exist", %{task: task} do
+      context = build_context(task)
+
+      assert {:error, "Tool result not found: missing"} =
+               GetToolResult.execute(%{"tool_call_id" => "missing"}, context)
     end
   end
 end

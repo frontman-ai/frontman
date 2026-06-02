@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tools do
   alias FrontmanServer.Tools.MCP
 
   @backend_tools [
+    FrontmanServer.Tools.GetToolResult,
     FrontmanServer.Tools.TodoWrite,
     FrontmanServer.Tools.WebFetch
   ]
@@ -56,10 +57,9 @@ defmodule FrontmanServer.Tools do
   Prepares all available tools for a task.
 
   Aggregates backend tools and MCP tools into LLM format.
-  MCP tools are passed through the agent execution chain via Backend.Context.
 
   ## Example
-      mcp_tools |> Tools.prepare_for_task(task_id)
+      Tools.prepare_for_task(mcp_tools, task_id)
   """
   @spec prepare_for_task([FrontmanServer.Tools.MCP.t()], String.t()) :: [SwarmAi.Tool.t()]
   def prepare_for_task(mcp_tools, _task_id) do

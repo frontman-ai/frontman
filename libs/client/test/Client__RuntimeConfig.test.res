@@ -23,6 +23,41 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(config.framework)->Expect.toBe(Client__RuntimeConfig.Nextjs)
     t->expect(config.basePath)->Expect.toBe("frontman")
     t->expect(config.wpNonce)->Expect.toBe(None)
+    t->expect(config.traits)->Expect.toBe(None)
+  })
+
+  test("read forwards runtime traits to ACP metadata", t => {
+    _setRuntime(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("nextjs")),
+          ("basePath", JSON.Encode.string("frontman")),
+          (
+            "traits",
+            [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
+          ),
+        ]),
+      ),
+    )
+
+    let config = Client__RuntimeConfig.read()
+
+    t->expect(config.traits)->Expect.toEqual(Some(["react", "typescript"]))
+
+    t
+    ->expect(Client__RuntimeConfig.toMeta(config))
+    ->Expect.toEqual(
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("framework", JSON.Encode.string("nextjs")),
+          ("basePath", JSON.Encode.string("frontman")),
+          (
+            "traits",
+            [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
+          ),
+        ]),
+      ),
+    )
   })
 
   test("read preserves wpNonce for WordPress integrations", t => {
@@ -70,6 +105,7 @@ describe("Client__RuntimeConfig", _t => {
       nvidiaKeyValue: None,
       projectRoot: None,
       sourceRoot: None,
+      traits: None,
     })
 
     t
@@ -95,6 +131,7 @@ describe("Client__RuntimeConfig", _t => {
       nvidiaKeyValue: Some("nvapi-test-123"),
       projectRoot: None,
       sourceRoot: None,
+      traits: None,
     })
 
     t

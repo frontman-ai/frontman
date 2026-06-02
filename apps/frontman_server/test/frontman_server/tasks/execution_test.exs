@@ -249,7 +249,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   describe "web_fetch image results" do
     setup [:setup_sandbox, :setup_user, :setup_task]
 
-    test "fetched image URL is persisted and converts back to LLM image content",
+    test "fetched image URL is persisted as JSON tool content for provider conversion",
          %{
            task_id: task_id,
            scope: scope
@@ -301,16 +301,17 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       tool_message =
         task.interactions
-        |> Interaction.to_llm_messages()
+        |> Interaction.to_swarm_messages()
         |> Enum.find(fn message ->
-          message.role == :tool && message.tool_call_id == tool_call_id
+          SwarmAi.Message.role(message) == :tool && message.tool_call_id == tool_call_id
         end)
 
       assert tool_message != nil
 
-      assert [
-               %{type: :image, data: ^image_bytes, media_type: "image/jpeg"}
-             ] = tool_message.content
+      assert [%{type: :text, text: text}] = tool_message.content
+
+      assert Jason.decode!(text)["image"] ==
+               "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
     end
   end
 
@@ -567,16 +568,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
-  # -- Backend tool execution — regression: parallel executor missing backend tool_defs ------
+  # -- Backend tool execution — regression: backend tools available to executor ------
 
   describe "backend tool execution — Tasks facade level" do
     setup [:setup_sandbox, :setup_user, :setup_task]
 
-    # Regression: execution.ex passes `tool_defs: mcp_tools` to Runtime.run, where
-    # `mcp_tools` only contains the agent's MCP (SwarmAi.Tool.t()) entries.
-    # Backend tools (todo_write, web_fetch) are absent from `tool_defs`, so
-    # ParallelExecutor.spawn_or_reject immediately returns "Unknown tool: <name>"
-    # instead of dispatching to the ToolExecutor closure.
+    # Regression: backend tools must remain available to ToolExecutor even when
+    # the task has no browser-provided MCP tools.
     test "todo_write executes successfully — not rejected as Unknown tool", %{
       task_id: task_id,
       scope: scope
@@ -603,7 +601,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert meta.is_error == false,
              "todo_write returned an error — " <>
-               "backend tool was rejected by ParallelExecutor (missing from tool_defs). " <>
+               "backend tool was rejected as unavailable. " <>
                "Got: #{inspect(meta.output)}"
     end
   end
@@ -657,7 +655,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert meta.is_error == false,
              "todo_write returned an error through the channel pipeline — " <>
-               "backend tool was rejected by ParallelExecutor (missing from tool_defs). " <>
+               "backend tool was rejected as unavailable. " <>
                "Got: #{inspect(meta.output)}"
     end
   end

@@ -18,10 +18,10 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.Registry
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution.Framework
   alias FrontmanServerWeb.ACPHistory
 
   @acp_protocol_version ACP.protocol_version()
@@ -136,12 +136,12 @@ defmodule FrontmanServerWeb.TasksChannel do
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
-         fw = Framework.from_client_label(raw_framework),
+         fw = Frameworks.from_string(raw_framework),
          {:ok, ^session_id} <-
            Tasks.create_task(
              socket.assigns.scope,
              session_id,
-             Framework.to_string(fw)
+             Frameworks.to_string(fw)
            ) do
       push_response(
         socket,

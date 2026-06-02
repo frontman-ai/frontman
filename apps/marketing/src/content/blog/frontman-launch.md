@@ -1,5 +1,5 @@
 ---
-title: 'Frontman Launch: Ship UI Fixes From the Browser'
+title: 'Frontman Launch: UI Fixes From Browser'
 pubDate: 2026-02-23T05:00:00Z
 description: 'Frontman is an open-source AI agent that connects to your browser and your dev server. Click any element, describe a change in plain English, and see it applied to your actual source code. Runs locally, code never leaves your machine.'
 author: 'Danni Friedland'

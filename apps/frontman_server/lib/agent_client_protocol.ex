@@ -331,10 +331,6 @@ defmodule AgentClientProtocol do
   Creates a new tool call notification (sessionUpdate: "tool_call").
 
   Used when the LLM first requests a tool invocation.
-
-  Options:
-    - `:parent_agent_id` - If present, indicates this tool call is from a sub-agent
-    - `:spawning_tool_name` - Name of the tool that spawned this agent
   """
   def tool_call_create(
         session_id,
@@ -342,31 +338,17 @@ defmodule AgentClientProtocol do
         title,
         kind,
         timestamp,
-        status \\ @tool_call_status_pending,
-        opts \\ []
+        status \\ @tool_call_status_pending
       )
       when status in @tool_call_statuses do
-    optional =
-      opts
-      |> Keyword.take([:parent_agent_id, :spawning_tool_name])
-      |> Enum.reduce(%{}, fn
-        {:parent_agent_id, v}, acc when not is_nil(v) -> Map.put(acc, "parentAgentId", v)
-        {:spawning_tool_name, v}, acc when not is_nil(v) -> Map.put(acc, "spawningToolName", v)
-        _, acc -> acc
-      end)
-
-    update =
-      Map.merge(
-        %{
-          "sessionUpdate" => "tool_call",
-          "toolCallId" => tool_call_id,
-          "title" => title,
-          "kind" => kind,
-          "status" => status,
-          "timestamp" => DateTime.to_iso8601(timestamp)
-        },
-        optional
-      )
+    update = %{
+      "sessionUpdate" => "tool_call",
+      "toolCallId" => tool_call_id,
+      "title" => title,
+      "kind" => kind,
+      "status" => status,
+      "timestamp" => DateTime.to_iso8601(timestamp)
+    }
 
     JsonRpc.notification(@method_session_update, %{
       "sessionId" => session_id,
@@ -449,53 +431,6 @@ defmodule AgentClientProtocol do
        })
        when is_binary(content) and priority in @plan_priorities and status in @plan_statuses do
     :ok
-  end
-
-  @doc """
-  Extracts text content from ACP prompt content blocks.
-
-  Filters for text blocks and joins their text content with newlines.
-  Used for logging and analysis of prompts.
-  """
-  @spec extract_text_content(list(map())) :: String.t()
-  def extract_text_content(prompt_content) when is_list(prompt_content) do
-    prompt_content
-    |> Enum.filter(&(&1["type"] == "text"))
-    |> Enum.map_join("\n", &(&1["text"] || ""))
-  end
-
-  @doc """
-  Checks if prompt content includes embedded resources.
-
-  Returns true if any content blocks are of type "resource_link" or "resource".
-  These indicate the client has embedded context into the prompt.
-  """
-  @spec has_embedded_resources?(list(map())) :: boolean()
-  def has_embedded_resources?(prompt_content) when is_list(prompt_content) do
-    Enum.any?(prompt_content, fn block ->
-      block["type"] in ["resource_link", "resource"]
-    end)
-  end
-
-  @doc """
-  Parses ACP session/prompt params into a structured format.
-
-  Returns a map with:
-  - `content`: The full ACP content blocks (for passing to agent)
-  - `text_summary`: Extracted text for logging
-  - `has_resources`: Whether embedded resources are present
-  """
-  @spec parse_prompt_params(map()) :: %{
-          content: list(map()),
-          text_summary: String.t(),
-          has_resources: boolean()
-        }
-  def parse_prompt_params(%{"prompt" => content}) do
-    %{
-      content: content,
-      text_summary: extract_text_content(content),
-      has_resources: has_embedded_resources?(content)
-    }
   end
 
   # ---------------------------------------------------------------------------

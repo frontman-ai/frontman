@@ -40,7 +40,7 @@ defmodule Mix.Tasks.DebugTask do
   ## Interaction types
 
   user_message, agent_response, tool_call, tool_result,
-  agent_spawned, agent_completed, discovered_project_rule,
+  agent_completed, discovered_project_rule,
   discovered_project_structure
   """
 
@@ -266,6 +266,14 @@ defmodule Mix.Tasks.DebugTask do
     }
   end
 
+  defp format_embedded_tool_call(%{"id" => id, "name" => name, "arguments" => arguments}) do
+    %{
+      "arguments" => decode_embedded_tool_arguments(arguments),
+      "tool_call_id" => id,
+      "tool_name" => name
+    }
+  end
+
   defp format_embedded_tool_call(call), do: call
 
   defp decode_embedded_tool_arguments(arguments) when is_binary(arguments) do
@@ -388,7 +396,6 @@ defmodule Mix.Tasks.DebugTask do
   defp format_type("tool_result"), do: magenta("tool_result    ")
   defp format_type("agent_response"), do: green("agent_response ")
   defp format_type("user_message"), do: cyan("user_message   ")
-  defp format_type("agent_spawned"), do: dim("agent_spawned  ")
   defp format_type("agent_completed"), do: dim("agent_completed")
   defp format_type("discovered_project_rule"), do: dim("project_rule   ")
   defp format_type("discovered_project_structure"), do: dim("project_struct ")
@@ -443,7 +450,7 @@ defmodule Mix.Tasks.DebugTask do
         truncate(first["content"] || first["text"] || "", 80)
 
       _ ->
-        "(#{length(messages)} messages)"
+        summarize_annotation_comments(data) || "(#{length(messages)} messages)"
     end
   end
 
@@ -455,16 +462,26 @@ defmodule Mix.Tasks.DebugTask do
     truncate(data["summary"] || "", 80)
   end
 
-  defp interaction_summary(%{type: "agent_spawned", data: data}) do
-    truncate(inspect(data["config"] || %{}), 80)
-  end
-
   defp interaction_summary(%{type: "agent_completed", data: data}) do
     truncate(data["result"] || "", 80)
   end
 
   defp interaction_summary(%{data: data}) do
     truncate(inspect(data), 60)
+  end
+
+  defp summarize_annotation_comments(data) do
+    comments =
+      data
+      |> Map.get("annotations", [])
+      |> Enum.map(& &1["comment"])
+      |> Enum.filter(&is_binary/1)
+
+    case comments do
+      [] -> nil
+      [comment] -> truncate(comment, 80)
+      _ -> truncate(Enum.join(comments, "; "), 80)
+    end
   end
 
   defp summarize_tool_result_map(result) do

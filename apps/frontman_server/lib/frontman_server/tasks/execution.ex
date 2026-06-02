@@ -20,17 +20,14 @@ defmodule FrontmanServer.Tasks.Execution do
   metadata, which flows through all Swarm telemetry events.
   """
 
-  require Logger
-
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Image
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
-  alias FrontmanServer.Tasks.Execution.{Framework, RootAgent, ToolExecutor}
+  alias FrontmanServer.Tasks.Execution.{RootAgent, ToolExecutor}
   alias FrontmanServer.Tasks.{Interaction, Task}
   alias FrontmanServer.Tools
-  alias SwarmAi.Message
 
   @doc """
   Cancels a running execution for the given task.
@@ -82,13 +79,11 @@ defmodule FrontmanServer.Tasks.Execution do
           |> maybe_enable_prompt_cache(api_key_info.provider)
 
         task_id = task.task_id
-        agent = build_agent(task, tools, model_spec, llm_opts, task.framework)
+        agent = build_agent(task, tools, model_spec, llm_opts, task.framework, opts)
 
         messages =
           task.interactions
-          |> Interaction.to_llm_messages()
-          |> Enum.map(&to_swarm_message/1)
-          |> maybe_constrain_images(api_key_info.provider)
+          |> Interaction.to_swarm_messages()
 
         mcp_tool_defs = Keyword.get(opts, :mcp_tool_defs, [])
 
@@ -98,9 +93,7 @@ defmodule FrontmanServer.Tasks.Execution do
         tool_executor =
           ToolExecutor.make_executor(scope, task_id,
             backend_tool_modules: backend_tool_modules,
-            mcp_tools: tools,
-            mcp_tool_defs: mcp_tool_defs,
-            llm_opts: Keyword.put(llm_opts, :model, model_spec)
+            mcp_tool_defs: mcp_tool_defs
           )
 
         # Emit task start telemetry BEFORE Runtime.run to avoid race with task_stop
@@ -115,7 +108,7 @@ defmodule FrontmanServer.Tasks.Execution do
                  interaction_id: Keyword.get(opts, :interaction_id)
                },
                tool_executor: tool_executor,
-               tool_execution_mode: tool_execution_mode(task.framework)
+               tool_execution_mode: Frameworks.tool_execution_mode(task.framework)
              ) do
           {:ok, pid} ->
             {:ok, pid}
@@ -163,12 +156,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
   defp maybe_enable_prompt_cache(opts, _provider), do: opts
 
-  defp tool_execution_mode(%Framework{id: :wordpress}), do: :serial
-  defp tool_execution_mode(_framework), do: :parallel
-
-  defp build_agent(%Task{} = task, tools, model_spec, llm_opts, %Framework{} = fw) do
-    has_typescript_react = Framework.has_typescript_react?(fw)
-
+  defp build_agent(%Task{} = task, tools, model_spec, llm_opts, %Frameworks{} = fw, opts) do
     # Derive prompt data from task interactions
     project_rules =
       task.interactions
@@ -185,7 +173,7 @@ defmodule FrontmanServer.Tasks.Execution do
     RootAgent.new(
       tools: tools,
       has_annotations: Interaction.has_annotations?(task.interactions),
-      has_typescript_react: has_typescript_react,
+      project_traits: Keyword.get(opts, :project_traits, []),
       framework: fw,
       model: model_spec,
       llm_opts: llm_opts,
@@ -194,118 +182,8 @@ defmodule FrontmanServer.Tasks.Execution do
     )
   end
 
-  # Providers that declare a max_image_dimension hard-reject images exceeding
-  # that limit (e.g. Anthropic at 7680px). Others auto-resize so we skip.
-  defp maybe_constrain_images(messages, provider) do
-    case Providers.max_image_dimension(provider) do
-      nil -> messages
-      max -> Enum.map(messages, &constrain_message_images(&1, max))
-    end
-  end
-
-  defp constrain_message_images(msg, max) do
-    %{msg | content: Enum.map(msg.content, &constrain_image_part(&1, max))}
-  end
-
-  defp constrain_image_part(%Message.ContentPart{type: :image, data: data} = part, max) do
-    case Image.check_dimensions(data, max) do
-      :ok ->
-        part
-
-      {:too_large, width, height} ->
-        Sentry.capture_message("Image exceeded provider dimension limit",
-          level: :warning,
-          extra: %{width: width, height: height, max_dimension: max}
-        )
-
-        Logger.warning("Stripping oversized image (#{width}x#{height}px, max #{max}px)")
-
-        Message.ContentPart.text(
-          "[Image removed: dimensions #{width}x#{height}px exceed the #{max}px provider limit]"
-        )
-    end
-  end
-
-  defp constrain_image_part(part, _max), do: part
-
   defp encode_result_for_swarm(value) when is_binary(value), do: value
   defp encode_result_for_swarm(value), do: Jason.encode!(value)
-
-  # --- SwarmAi Message Conversion ---
-
-  defp to_swarm_message(%ReqLLM.Message{role: :system} = msg) do
-    %Message.System{content: convert_content(msg.content)}
-  end
-
-  defp to_swarm_message(%ReqLLM.Message{role: :user} = msg) do
-    %Message.User{content: convert_content(msg.content)}
-  end
-
-  defp to_swarm_message(%ReqLLM.Message{role: :assistant} = msg) do
-    %Message.Assistant{
-      content: convert_content(msg.content),
-      tool_calls: to_swarm_tool_calls(msg.tool_calls),
-      metadata: msg.metadata || %{}
-    }
-  end
-
-  defp to_swarm_message(%ReqLLM.Message{role: :tool} = msg) do
-    %Message.Tool{
-      content: convert_content(msg.content),
-      tool_call_id: msg.tool_call_id,
-      name: msg.name,
-      metadata: msg.metadata || %{}
-    }
-  end
-
-  defp convert_content(text) when is_binary(text),
-    do: [Message.ContentPart.text(text)]
-
-  defp convert_content(nil), do: []
-
-  defp convert_content(parts) when is_list(parts) do
-    Enum.flat_map(parts, &unwrap_content_part/1)
-  end
-
-  defp unwrap_content_part(part) do
-    case to_swarm_content_part(part) do
-      {:ok, content_part} -> [content_part]
-      :skip -> []
-    end
-  end
-
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :text, text: text}) do
-    {:ok, Message.ContentPart.text(text)}
-  end
-
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{
-         type: :image,
-         data: data,
-         media_type: mt
-       }) do
-    {:ok, Message.ContentPart.image(data, mt)}
-  end
-
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :image_url, url: url}) do
-    {:ok, Message.ContentPart.image_url(url)}
-  end
-
-  # Intentionally skip - these are transient/internal types not needed in conversation
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :thinking}), do: :skip
-  defp to_swarm_content_part(%ReqLLM.Message.ContentPart{type: :file}), do: :skip
-
-  defp to_swarm_tool_calls(nil), do: []
-  defp to_swarm_tool_calls([]), do: []
-
-  defp to_swarm_tool_calls(tool_calls) do
-    Enum.map(tool_calls, fn tc ->
-      %SwarmAi.ToolCall{
-        id: tc.id,
-        name: ReqLLM.ToolCall.name(tc),
-        arguments: ReqLLM.ToolCall.args_json(tc)
-      }
-    end)
-  end
 
   @doc false
   def error_message(%Scope{}, :usage_limit_exceeded),

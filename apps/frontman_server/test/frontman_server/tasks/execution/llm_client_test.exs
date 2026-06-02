@@ -1,13 +1,15 @@
 defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   import Mox
+  import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias ReqLLM.Error.API.{Request, Stream}
   alias SwarmAi.Message.ContentPart
 
+  setup :set_mox_from_context
   setup :verify_on_exit!
 
   describe "ReqLLM stream exception contract" do
@@ -107,6 +109,60 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
             ContentPart.text("look"),
             ContentPart.image("image-bytes", "image/png")
           ]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
+
+    test "replaces oversized images before provider requests" do
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert Enum.map(message.content, & &1.type) == [:text, :text]
+        assert Enum.at(message.content, 1).text =~ "Image removed"
+        assert Enum.at(message.content, 1).text =~ "9000x1080px"
+
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "anthropic:claude-sonnet-4-5",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.User{
+          content: [
+            ContentPart.text("look"),
+            ContentPart.image(png_fixture(9000, 1080), "image/png")
+          ]
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
+  end
+
+  describe "assistant reasoning details" do
+    test "serializes reasoning details from Swarm assistant messages" do
+      reasoning = [%{"type" => "reasoning.encrypted", "data" => "encrypted-data"}]
+
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert message.role == :assistant
+        assert message.reasoning_details == reasoning
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "openrouter:openai/gpt-5.5",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.Assistant{
+          content: [ContentPart.text("thinking done")],
+          reasoning_details: reasoning
         }
       ]
 

@@ -1,5 +1,5 @@
 ---
-title: 'AI Coding Tools and the Runtime Context Gap'
+title: 'Runtime Context Gap in AI Coding Tools'
 pubDate: 2026-02-20T05:00:00Z
 description: 'AI coding tools read your source files but never see the running application. Here is what that means technically — on both the client and server side — and which tools are building the bridge.'
 author: 'Danni Friedland'
@@ -68,7 +68,7 @@ The critical piece is the **source mapping** — connecting "this DOM element at
 
 ### The Tools Building This
 
-A few projects are working on this — letting you [click any element in your running application](/blog/tutorial-nextjs-runtime-context/) and describe changes in plain language — each with different tradeoffs. [Frontman](https://frontman.sh) hooks into the framework as middleware for the deepest integration. [Stagewise](https://stagewise.io) uses a browser proxy approach with more polish. [Tidewave](https://tidewave.ai) goes deep on backend runtime for Phoenix/Rails/Django. Chrome DevTools MCP exposes browser state to any agent. For a detailed comparison, see our [roundup of browser-aware AI tools](/blog/browser-aware-ai-tools-2026/).
+A few projects are working on this — letting you [click any element in your running application](/blog/tutorial-nextjs-runtime-context/) and describe changes in plain language — each with different tradeoffs. [Frontman](https://frontman.sh) hooks into the framework as middleware for the deepest integration. [Stagewise](https://stagewise.io) uses a browser proxy approach with more polish. [Tidewave](https://tidewave.ai) goes deep on backend runtime for Phoenix/Rails/Django. Chrome DevTools MCP exposes browser state to any agent. For a detailed comparison, see our [roundup of browser-aware AI tools](/blog/browser-aware-ai-tools-2026/) or the [best AI coding agent for frontend](/blog/best-frontend-coding-agent/) guide.
 
 ### The Maintenance Trap
 

@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry}
   alias FrontmanServer.Tasks
@@ -37,7 +38,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
 
     case Tasks.get_task(scope, task_id) do
-      {:ok, _task} ->
+      {:ok, task} ->
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
         # Start MCP initialization as a synchronous state machine.
@@ -45,16 +46,17 @@ defmodule FrontmanServerWeb.TaskChannel do
         # Each websocket connection needs its own MCP session because:
         # 1. MCPInitializer performs a stateful handshake with the browser-side MCP client
         # 2. Project rules loading depends on client-specific context
-        # Tools are stored in socket assigns and passed through Backend.Context for agent access.
+        # Tools are stored in socket assigns for LLM availability and browser routing.
         #
         # Note: Phoenix channels prohibit push() during join/3, so we defer
         # the initial MCP request push to handle_info(:start_mcp_init).
         # All subsequent MCP responses are processed synchronously in handle_in.
-        {init_state, init_actions} = MCPInitializer.start(task_id, scope)
+        {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
 
         socket =
           socket
           |> assign(:task_id, task_id)
+          |> assign(:framework, task.framework)
           |> assign(:mcp_init_state, init_state)
           |> assign(:mcp_status, :pending)
 
@@ -131,30 +133,210 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  @impl true
+  def handle_info({:start_mcp_init, actions}, socket) do
+    # Deferred from join/3 because Phoenix channels prohibit push() during join.
+    # The init state and actions were already created in join — we just need
+    # to execute the deferred push actions now that the socket is fully joined.
+    socket = execute_init_actions(actions, socket)
+    {:noreply, socket}
+  end
+
+  # --- Execution events (domain events from SwarmDispatcher via PubSub) ---
+
+  def handle_info({:execution_event, %ExecutionEvent{type: :chunk, payload: chunk}}, socket) do
+    {:noreply, handle_execution_chunk(socket, chunk)}
+  end
+
+  def handle_info({:execution_event, %ExecutionEvent{} = event}, socket) do
+    case ExecutionEvent.classify(event) do
+      :agent_completed ->
+        finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, event.caused_by)
+
+      :agent_cancelled ->
+        finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, event.caused_by)
+
+      :agent_paused ->
+        finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, event.caused_by)
+
+      {:agent_error, %{retryable: true} = error_info} ->
+        handle_transient_error(socket, error_info, event.caused_by)
+
+      {:agent_error, %{retryable: false} = error_info} ->
+        finalize_turn(socket, {:error, error_info.message, error_info.category}, event.caused_by)
+
+      :ok ->
+        {:noreply, socket}
+    end
+  end
+
+  # --- Interaction events (from Tasks persistence layer via PubSub) ---
+
+  def handle_info({:interaction, %Tasks.Interaction.ToolCall{} = tool_call}, socket) do
+    task_id = socket.assigns.task_id
+
+    announced = socket.assigns[:announced_tool_calls] || MapSet.new()
+
+    unless MapSet.member?(announced, tool_call.tool_call_id) do
+      pending_notification =
+        ACP.tool_call_create(
+          task_id,
+          tool_call.tool_call_id,
+          tool_call.tool_name,
+          "other",
+          DateTime.utc_now()
+        )
+
+      push(socket, @acp_message, pending_notification)
+    end
+
+    args_content = ACP.Content.from_tool_result(tool_call.arguments)
+
+    args_notification =
+      ACP.tool_call_update(
+        task_id,
+        tool_call.tool_call_id,
+        ACP.tool_call_status_pending(),
+        args_content
+      )
+
+    push(socket, @acp_message, args_notification)
+
+    case Tools.execution_target(tool_call.tool_name) do
+      :backend ->
+        {:noreply, socket}
+
+      :mcp ->
+        route_to_mcp(tool_call, socket)
+    end
+  end
+
+  def handle_info({:interaction, %Tasks.Interaction.ToolResult{} = tool_result}, socket) do
+    task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
+
+    if Tools.todo_mutation?(tool_result.tool_name) do
+      case Tasks.list_todos(scope, task_id) do
+        {:ok, todos} ->
+          entries = Enum.map(todos, &to_plan_entry/1)
+          plan_notification = ACP.plan_update(task_id, entries)
+          push(socket, @acp_message, plan_notification)
+
+        {:error, _reason} ->
+          :ok
+      end
+    else
+      status =
+        if tool_result.is_error,
+          do: ACP.tool_call_status_failed(),
+          else: ACP.tool_call_status_completed()
+
+      content = ACP.Content.from_tool_result(tool_result.result)
+      notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
+      push(socket, @acp_message, notification)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:interaction, _interaction}, socket) do
+    {:noreply, socket}
+  end
+
+  # Agent failed to start (e.g. no API key, usage limit). Broadcast by
+  # Tasks.maybe_start_execution when Execution.run returns an error.
+  def handle_info({:execution_start_error, msg}, socket) do
+    finalize_turn(socket, {:error, msg, "unknown"}, nil)
+  end
+
+  def handle_info(:fire_retry, socket) do
+    if socket.assigns[:retry_state] do
+      scope = socket.assigns.scope
+      task_id = socket.assigns.task_id
+      opts = socket.assigns[:last_execution_opts] || []
+      mcp_tools = socket.assigns[:mcp_tools] || []
+      all_tools = Tools.prepare_for_task(mcp_tools, task_id)
+      Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:title_updated, task_id, title}, socket) do
+    push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
+    {:noreply, socket}
+  end
+
+  def handle_info(msg, _socket) do
+    raise "Unhandled message in TaskChannel: #{inspect(msg)}"
+  end
+
+  @impl true
+  def terminate(reason, socket) do
+    task_id = socket.assigns[:task_id]
+    Logger.info("Client disconnected from task #{task_id}: #{inspect(reason)}")
+
+    scope = socket.assigns.scope
+
+    # Notify any interactive tool executors waiting on this task's pending
+    # tool calls. Without this, executors block until the 24h safety-net
+    # timeout. On reconnect, reexecute_unresolved_tool_calls re-sends
+    # tools/call to the new client, which provides a fresh tool result.
+    RetryCoordinator.clear(socket.assigns[:retry_state])
+
+    pending_requests = socket.assigns[:pending_requests] || %{}
+
+    for {_request_id, {:tool_call, tc}} <- pending_requests do
+      Execution.notify_tool_result(scope, tc.tool_call_id, "Client disconnected", true)
+    end
+
+    # Cancel any running execution. Without the channel, MCP tool results
+    # can never arrive — the executor processes would hang until their
+    # safety-net timeout. Cancellation is persisted by SwarmDispatcher so
+    # the user sees the interrupted state on reconnect.
+    case Tasks.cancel_execution(scope, task_id) do
+      :ok -> Logger.info("Cancelled execution for task #{task_id} on channel termination")
+      {:error, :not_running} -> :ok
+    end
+
+    :ok
+  end
+
   defp handle_mcp_response(id, result, socket) do
     pending_requests = socket.assigns[:pending_requests] || %{}
     init_state = socket.assigns[:mcp_init_state]
 
     Logger.debug(
-      "MCP response received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
+      "MCP response received: id=#{inspect(id)}, pending_keys=#{inspect(Map.keys(pending_requests))}"
     )
 
-    case Map.pop(pending_requests, id) do
-      {{:tool_call, tool_call}, remaining_requests} ->
-        Logger.debug("MCP response #{id} matched pending tool call")
+    case {Map.pop(pending_requests, id), init_state} do
+      {{{:tool_call, tool_call}, remaining_requests}, _init_state} ->
+        Logger.debug("MCP response #{inspect(id)} matched pending tool call")
         handle_tool_call_response(tool_call, result, socket, remaining_requests)
 
-      {nil, _} ->
-        if init_state && MCPInitializer.expects_response?(init_state, id) do
-          Logger.debug("MCP response #{id} matched MCPInitializer")
-          {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
-          socket = assign(socket, :mcp_init_state, new_state)
-          socket = execute_init_actions(actions, socket)
-          maybe_process_queued_prompt(socket)
-        else
-          Logger.warning("Received MCP response for unknown request_id: #{id}")
-          {:noreply, socket}
-        end
+      {{nil, _},
+       %{
+         mcp_init_request_id: mcp_init_request_id,
+         tools_request_id: tools_request_id,
+         project_rules_request_id: project_rules_request_id,
+         project_structure_request_id: project_structure_request_id
+       } = init_state}
+      when id in [
+             mcp_init_request_id,
+             tools_request_id,
+             project_rules_request_id,
+             project_structure_request_id
+           ] ->
+        Logger.debug("MCP response #{inspect(id)} matched MCPInitializer")
+        {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
+        socket = assign(socket, :mcp_init_state, new_state)
+        socket = execute_init_actions(actions, socket)
+        maybe_process_queued_prompt(socket)
+
+      {{nil, _}, _init_state} ->
+        Logger.warning("Received MCP response for unknown request_id: #{inspect(id)}")
+        {:noreply, socket}
     end
   end
 
@@ -216,9 +398,9 @@ defmodule FrontmanServerWeb.TaskChannel do
       end
 
     mcp_tools = socket.assigns[:mcp_tools] || []
-    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+    all_tools = Tools.prepare_for_task(mcp_tools, task_id)
 
-    opts = execution_opts(socket, model, mcp_tools)
+    opts = execution_opts(socket, model, mcp_tools, meta)
 
     Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
   end
@@ -228,23 +410,34 @@ defmodule FrontmanServerWeb.TaskChannel do
     init_state = socket.assigns[:mcp_init_state]
 
     Logger.debug(
-      "MCP error received: id=#{id}, pending_keys=#{inspect(Map.keys(pending_requests))}"
+      "MCP error received: id=#{inspect(id)}, pending_keys=#{inspect(Map.keys(pending_requests))}"
     )
 
-    case Map.pop(pending_requests, id) do
-      {{:tool_call, tool_call}, remaining_requests} ->
+    case {Map.pop(pending_requests, id), init_state} do
+      {{{:tool_call, tool_call}, remaining_requests}, _init_state} ->
         handle_tool_call_error(tool_call, error, socket, remaining_requests)
 
-      {nil, _} ->
-        if init_state && MCPInitializer.expects_response?(init_state, id) do
-          {new_state, actions} = MCPInitializer.handle_error(init_state, id, error)
-          socket = assign(socket, :mcp_init_state, new_state)
-          socket = execute_init_actions(actions, socket)
-          maybe_process_queued_prompt(socket)
-        else
-          Logger.warning("Received MCP error for unknown request_id: #{id}")
-          {:noreply, socket}
-        end
+      {{nil, _},
+       %{
+         mcp_init_request_id: mcp_init_request_id,
+         tools_request_id: tools_request_id,
+         project_rules_request_id: project_rules_request_id,
+         project_structure_request_id: project_structure_request_id
+       } = init_state}
+      when id in [
+             mcp_init_request_id,
+             tools_request_id,
+             project_rules_request_id,
+             project_structure_request_id
+           ] ->
+        {new_state, actions} = MCPInitializer.handle_error(init_state, id, error)
+        socket = assign(socket, :mcp_init_state, new_state)
+        socket = execute_init_actions(actions, socket)
+        maybe_process_queued_prompt(socket)
+
+      {{nil, _}, _init_state} ->
+        Logger.warning("Received MCP error for unknown request_id: #{inspect(id)}")
+        {:noreply, socket}
     end
   end
 
@@ -252,18 +445,16 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
     error_message = error["message"] || "Unknown MCP error"
-    Logger.error("MCP tool #{tool_call.tool_name} failed: #{error_message}")
 
-    Sentry.capture_message("MCP tool execution failed",
-      level: :error,
-      tags: %{error_type: "mcp_tool_error"},
-      extra: %{
-        tool_name: tool_call.tool_name,
-        tool_call_id: tool_call.tool_call_id,
-        task_id: task_id,
-        error_message: error_message
-      }
-    )
+    metadata = [
+      error_type: "mcp_tool_error",
+      tool_name: tool_call.tool_name,
+      tool_call_id: tool_call.tool_call_id,
+      task_id: task_id,
+      error_message: error_message
+    ]
+
+    Logger.error("MCP tool execution failed", metadata)
 
     failed_content = ACP.Content.from_tool_result(error_message)
 
@@ -458,7 +649,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp process_prompt(id, params, socket) do
+  defp process_prompt(id, %{"prompt" => prompt_content} = params, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
     mcp_tools = socket.assigns[:mcp_tools] || []
@@ -467,23 +658,19 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket = assign(socket, :scope, scope)
 
     model = extract_model_from_params(params)
-    prompt = ACP.parse_prompt_params(params)
 
-    Logger.info("Received prompt for task #{task_id}: #{prompt.text_summary}")
+    text_summary =
+      prompt_content
+      |> Enum.filter(&(&1["type"] == "text"))
+      |> Enum.map_join("\n", &(&1["text"] || ""))
 
-    if prompt.has_resources do
-      Logger.info("Prompt includes embedded context")
-    end
+    Logger.info("process_prompt", %{task_id: task_id, model: model, text_summary: text_summary})
 
-    if model do
-      Logger.info("Using model: #{model}")
-    end
+    all_tools = Tools.prepare_for_task(mcp_tools, task_id)
 
-    all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+    opts = execution_opts(socket, model, mcp_tools, prompt_meta(params))
 
-    opts = execution_opts(socket, model, mcp_tools)
-
-    case Tasks.submit_user_message(scope, task_id, prompt.content, all_tools, opts) do
+    case Tasks.submit_user_message(scope, task_id, prompt_content, all_tools, opts) do
       {:error, :already_running} ->
         Logger.info("Rejected prompt — agent already running for task #{task_id}")
         error_response = JsonRpc.error_response(id, -32_000, "Agent already running")
@@ -501,7 +688,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         Logger.info("User message added, agent spawned for task #{task_id}")
 
-        Tasks.enqueue_title_generation(scope, task_id, prompt.text_summary, model: model)
+        Tasks.enqueue_title_generation(scope, task_id, text_summary, model: model)
 
         {:noreply, socket}
 
@@ -519,153 +706,22 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp enrich_scope_from_params(scope, _), do: scope
 
-  defp execution_opts(_socket, model, mcp_tools), do: [model: model, mcp_tool_defs: mcp_tools]
+  defp execution_opts(socket, model, mcp_tools, meta) do
+    [
+      model: model,
+      mcp_tool_defs: mcp_tools,
+      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+    ]
+  end
+
+  defp prompt_meta(%{"_meta" => meta}) when is_map(meta), do: meta
+  defp prompt_meta(_params), do: nil
 
   defp extract_model_from_params(params) when is_map(params) do
     case Model.from_client_params(get_in(params, ["_meta", "model"])) do
       {:ok, model} -> model
       :error -> nil
     end
-  end
-
-  defp extract_model_from_params(_), do: nil
-
-  @impl true
-  def handle_info({:start_mcp_init, actions}, socket) do
-    # Deferred from join/3 because Phoenix channels prohibit push() during join.
-    # The init state and actions were already created in join — we just need
-    # to execute the deferred push actions now that the socket is fully joined.
-    socket = execute_init_actions(actions, socket)
-    {:noreply, socket}
-  end
-
-  # --- Execution events (domain events from SwarmDispatcher via PubSub) ---
-
-  def handle_info({:execution_event, %ExecutionEvent{type: :chunk, payload: chunk}}, socket) do
-    {:noreply, handle_execution_chunk(socket, chunk)}
-  end
-
-  def handle_info({:execution_event, %ExecutionEvent{} = event}, socket) do
-    case ExecutionEvent.classify(event) do
-      :agent_completed ->
-        finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, event.caused_by)
-
-      :agent_cancelled ->
-        finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, event.caused_by)
-
-      :agent_paused ->
-        finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, event.caused_by)
-
-      {:agent_error, %{retryable: true} = error_info} ->
-        handle_transient_error(socket, error_info, event.caused_by)
-
-      {:agent_error, %{retryable: false} = error_info} ->
-        finalize_turn(socket, {:error, error_info.message, error_info.category}, event.caused_by)
-
-      :ok ->
-        {:noreply, socket}
-    end
-  end
-
-  # --- Interaction events (from Tasks persistence layer via PubSub) ---
-
-  def handle_info({:interaction, %Tasks.Interaction.ToolCall{} = tool_call}, socket) do
-    task_id = socket.assigns.task_id
-
-    announced = socket.assigns[:announced_tool_calls] || MapSet.new()
-
-    unless MapSet.member?(announced, tool_call.tool_call_id) do
-      pending_notification =
-        ACP.tool_call_create(
-          task_id,
-          tool_call.tool_call_id,
-          tool_call.tool_name,
-          "other",
-          DateTime.utc_now()
-        )
-
-      push(socket, @acp_message, pending_notification)
-    end
-
-    args_content = ACP.Content.from_tool_result(tool_call.arguments)
-
-    args_notification =
-      ACP.tool_call_update(
-        task_id,
-        tool_call.tool_call_id,
-        ACP.tool_call_status_pending(),
-        args_content
-      )
-
-    push(socket, @acp_message, args_notification)
-
-    case Tools.execution_target(tool_call.tool_name) do
-      :backend ->
-        {:noreply, socket}
-
-      :mcp ->
-        route_to_mcp(tool_call, socket)
-    end
-  end
-
-  def handle_info({:interaction, %Tasks.Interaction.ToolResult{} = tool_result}, socket) do
-    task_id = socket.assigns.task_id
-    scope = socket.assigns.scope
-
-    if Tools.todo_mutation?(tool_result.tool_name) do
-      case Tasks.list_todos(scope, task_id) do
-        {:ok, todos} ->
-          entries = Enum.map(todos, &to_plan_entry/1)
-          plan_notification = ACP.plan_update(task_id, entries)
-          push(socket, @acp_message, plan_notification)
-
-        {:error, _reason} ->
-          :ok
-      end
-    else
-      status =
-        if tool_result.is_error,
-          do: ACP.tool_call_status_failed(),
-          else: ACP.tool_call_status_completed()
-
-      content = ACP.Content.from_tool_result(tool_result.result)
-      notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
-      push(socket, @acp_message, notification)
-    end
-
-    {:noreply, socket}
-  end
-
-  def handle_info({:interaction, _interaction}, socket) do
-    {:noreply, socket}
-  end
-
-  # Agent failed to start (e.g. no API key, usage limit). Broadcast by
-  # Tasks.maybe_start_execution when Execution.run returns an error.
-  def handle_info({:execution_start_error, msg}, socket) do
-    finalize_turn(socket, {:error, msg, "unknown"}, nil)
-  end
-
-  def handle_info(:fire_retry, socket) do
-    if socket.assigns[:retry_state] do
-      scope = socket.assigns.scope
-      task_id = socket.assigns.task_id
-      opts = socket.assigns[:last_execution_opts] || []
-      mcp_tools = socket.assigns[:mcp_tools] || []
-      all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
-      Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
-    end
-
-    {:noreply, socket}
-  end
-
-  def handle_info({:title_updated, task_id, title}, socket) do
-    push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
-    {:noreply, socket}
-  end
-
-  def handle_info(msg, _socket) do
-    raise "Unhandled message in TaskChannel: #{inspect(msg)}"
   end
 
   defp handle_execution_chunk(socket, %{type: :content, text: text})
@@ -743,7 +799,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       Tasks.add_agent_retry(scope, task_id, retried_error_id)
       opts = socket.assigns[:last_execution_opts] || []
       mcp_tools = socket.assigns[:mcp_tools] || []
-      all_tools = mcp_tools |> Tools.prepare_for_task(task_id)
+      all_tools = Tools.prepare_for_task(mcp_tools, task_id)
       Tasks.maybe_start_execution(scope, task_id, all_tools, opts)
     end
 
@@ -808,11 +864,18 @@ defmodule FrontmanServerWeb.TaskChannel do
           socket
 
         %{interaction_id: interaction_id, jsonrpc_id: prompt_id} ->
-          if caused_by && caused_by != interaction_id do
-            Logger.warning(
-              "Causation mismatch resolving prompt for task #{task_id}: " <>
-                "pending interaction #{interaction_id}, event caused by #{caused_by}"
-            )
+          case caused_by do
+            nil ->
+              :ok
+
+            ^interaction_id ->
+              :ok
+
+            other ->
+              Logger.warning(
+                "Causation mismatch resolving prompt for task #{task_id}: " <>
+                  "pending interaction #{interaction_id}, event caused by #{other}"
+              )
           end
 
           response =
@@ -953,36 +1016,5 @@ defmodule FrontmanServerWeb.TaskChannel do
       "priority" => Atom.to_string(todo.priority),
       "status" => Atom.to_string(todo.status)
     }
-  end
-
-  @impl true
-  def terminate(reason, socket) do
-    task_id = socket.assigns[:task_id]
-    Logger.info("Client disconnected from task #{task_id}: #{inspect(reason)}")
-
-    scope = socket.assigns.scope
-
-    # Notify any interactive tool executors waiting on this task's pending
-    # tool calls. Without this, executors block until the 24h safety-net
-    # timeout. On reconnect, reexecute_unresolved_tool_calls re-sends
-    # tools/call to the new client, which provides a fresh tool result.
-    RetryCoordinator.clear(socket.assigns[:retry_state])
-
-    pending_requests = socket.assigns[:pending_requests] || %{}
-
-    for {_request_id, {:tool_call, tc}} <- pending_requests do
-      Execution.notify_tool_result(scope, tc.tool_call_id, "Client disconnected", true)
-    end
-
-    # Cancel any running execution. Without the channel, MCP tool results
-    # can never arrive — the executor processes would hang until their
-    # safety-net timeout. Cancellation is persisted by SwarmDispatcher so
-    # the user sees the interrupted state on reconnect.
-    case Tasks.cancel_execution(scope, task_id) do
-      :ok -> Logger.info("Cancelled execution for task #{task_id} on channel termination")
-      {:error, :not_running} -> :ok
-    end
-
-    :ok
   end
 end

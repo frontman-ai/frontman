@@ -20,6 +20,7 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.User
+  alias FrontmanServer.Frameworks
 
   require Logger
 
@@ -80,12 +81,8 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
     Application.get_env(:frontman_server, :notify_discord_req_options, [])
   end
 
-  defp framework_display_name("nextjs"), do: "Next.js"
-  defp framework_display_name("vite"), do: "Vite"
-  defp framework_display_name("astro"), do: "Astro"
-  defp framework_display_name("wordpress"), do: "WordPress"
   defp framework_display_name(nil), do: "—"
-  defp framework_display_name(""), do: "—"
-  defp framework_display_name(framework) when is_binary(framework), do: framework
-  defp framework_display_name(_), do: "—"
+
+  defp framework_display_name(framework) when is_binary(framework),
+    do: Frameworks.display_name(framework)
 end

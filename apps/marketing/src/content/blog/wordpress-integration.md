@@ -1,5 +1,5 @@
 ---
-title: 'Frontman Now Supports WordPress'
+title: 'AI Editing for WordPress'
 pubDate: 2026-03-31T05:00:00Z
 description: 'Frontman brings AI-powered editing to WordPress. Describe changes in plain English, edit content, Elementor pages, menus, templates, and settings, then see results live on your site.'
 author: 'Itay A'

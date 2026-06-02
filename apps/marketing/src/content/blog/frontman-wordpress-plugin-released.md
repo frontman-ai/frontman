@@ -1,5 +1,5 @@
 ---
-title: 'Frontman WordPress Plugin Released'
+title: 'Frontman WordPress Plugin Is Live'
 pubDate: 2026-05-14T05:00:00Z
 description: 'The Frontman WordPress plugin is now live in the WordPress Plugin Directory. Install it from wp-admin and edit your site with an AI agent.'
 author: 'Itay A'

@@ -5,8 +5,8 @@ defmodule FrontmanServer.TasksTest do
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution.Framework
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
@@ -29,7 +29,7 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.task_id == task_id
-      assert task.framework == Framework.from_string(framework)
+      assert task.framework == Frameworks.from_string(framework)
     end
   end
 
@@ -80,7 +80,7 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "LLM message conversion" do
+  describe "Swarm message conversion" do
     test "returns all messages for task", %{scope: scope} do
       task_id = task_fixture(scope)
 
@@ -92,17 +92,17 @@ defmodule FrontmanServer.TasksTest do
       Tasks.add_agent_response(scope, task_id, "Another response", %{})
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_llm_messages(task.interactions)
+      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
 
       # Should have: UserMessage + 2 responses = 3 messages
       assert length(messages) == 3
 
       # Should have assistant messages
-      assistant_messages = Enum.filter(messages, &(&1.role == :assistant))
+      assistant_messages = Enum.filter(messages, &(SwarmAi.Message.role(&1) == :assistant))
       assert length(assistant_messages) == 2
     end
 
-    test "full tool_call + tool_result round-trip produces valid LLM messages", %{scope: scope} do
+    test "full tool_call + tool_result round-trip produces valid Swarm messages", %{scope: scope} do
       task_id = task_fixture(scope)
 
       tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
@@ -124,7 +124,12 @@ defmodule FrontmanServer.TasksTest do
           ]
         })
 
-      tc = ReqLLM.ToolCall.new(tool_call_id, "calculator", ~s({"expression": "2+2"}))
+      tc = %SwarmAi.ToolCall{
+        id: tool_call_id,
+        name: "calculator",
+        arguments: ~s({"expression": "2+2"})
+      }
+
       {:ok, _} = Tasks.add_tool_call(scope, task_id, tc)
 
       {:ok, _, _} =
@@ -139,18 +144,18 @@ defmodule FrontmanServer.TasksTest do
       assert sequences == Enum.uniq(sequences), "sequences should be unique"
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_llm_messages(task.interactions)
+      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
 
       assert length(messages) == 4,
-             "expected 4 LLM messages, got #{length(messages)}: #{inspect(Enum.map(messages, & &1.role))}"
+             "expected 4 Swarm messages, got #{length(messages)}: #{inspect(Enum.map(messages, &SwarmAi.Message.role/1))}"
 
       [_user_msg, assistant_with_tool, tool_result_msg, final_assistant] = messages
 
-      assert Enum.map(messages, & &1.role) == [:user, :assistant, :tool, :assistant]
+      assert Enum.map(messages, &SwarmAi.Message.role/1) == [:user, :assistant, :tool, :assistant]
 
-      assert [%ReqLLM.ToolCall{} = tc_in_msg] = assistant_with_tool.tool_calls
+      assert [%SwarmAi.ToolCall{} = tc_in_msg] = assistant_with_tool.tool_calls
       assert tc_in_msg.id == tool_call_id
-      assert tc_in_msg.function.name == "calculator"
+      assert tc_in_msg.name == "calculator"
 
       assert tool_result_msg.tool_call_id == tool_call_id
       assert [%{type: :text, text: "4"}] = tool_result_msg.content
@@ -163,7 +168,11 @@ defmodule FrontmanServer.TasksTest do
     test "creates tool call interaction", %{scope: scope} do
       task_id = task_fixture(scope)
 
-      tool_call = ReqLLM.ToolCall.new("call_123", "calculator", ~s({"expression": "1 + 1"}))
+      tool_call = %SwarmAi.ToolCall{
+        id: "call_123",
+        name: "calculator",
+        arguments: ~s({"expression": "1 + 1"})
+      }
 
       {:ok, interaction} = Tasks.add_tool_call(scope, task_id, tool_call)
 
@@ -172,9 +181,52 @@ defmodule FrontmanServer.TasksTest do
       assert interaction.arguments == %{"expression" => "1 + 1"}
     end
 
+    test "stores blank tool call arguments as an empty map", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "call_blank",
+        name: "calculator",
+        arguments: "  \n  "
+      }
+
+      assert {:ok, interaction} = Tasks.add_tool_call(scope, task_id, tool_call)
+      assert interaction.arguments == %{}
+    end
+
+    test "returns an error for malformed tool call arguments", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "call_bad_json",
+        name: "calculator",
+        arguments: ~s({"expression":)
+      }
+
+      assert {:error, {:invalid_tool_arguments, reason}} =
+               Tasks.add_tool_call(scope, task_id, tool_call)
+
+      assert reason =~ "unexpected end of input"
+    end
+
+    test "returns an error for non-object tool call arguments", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      tool_call = %SwarmAi.ToolCall{
+        id: "call_array",
+        name: "calculator",
+        arguments: ~s(["not", "object"])
+      }
+
+      assert {:error, {:invalid_tool_arguments, reason}} =
+               Tasks.add_tool_call(scope, task_id, tool_call)
+
+      assert reason =~ "expected JSON object"
+    end
+
     test "returns error for non-existent task", %{scope: scope} do
       nonexistent_id = Ecto.UUID.generate()
-      tool_call = ReqLLM.ToolCall.new("call_123", "test", "{}")
+      tool_call = %SwarmAi.ToolCall{id: "call_123", name: "test", arguments: "{}"}
 
       assert {:error, :not_found} =
                Tasks.add_tool_call(scope, nonexistent_id, tool_call)
@@ -396,8 +448,8 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "LLM message conversion excludes non-conversational interactions" do
-    test "structure is excluded from LLM messages", %{scope: scope} do
+  describe "Swarm message conversion excludes non-conversational interactions" do
+    test "structure is excluded from Swarm messages", %{scope: scope} do
       task_id = task_fixture(scope)
 
       Tasks.add_discovered_project_structure(scope, task_id, "Project layout...")
@@ -405,15 +457,15 @@ defmodule FrontmanServer.TasksTest do
       Tasks.add_user_message(scope, task_id, user_content("Hello"))
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_llm_messages(task.interactions)
+      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
 
       # Only the user message should be present — structure goes in system prompt
       assert length(messages) == 1
       [msg] = messages
-      assert msg.role == :user
+      assert SwarmAi.Message.role(msg) == :user
     end
 
-    test "rules are excluded from LLM messages", %{scope: scope} do
+    test "rules are excluded from Swarm messages", %{scope: scope} do
       task_id = task_fixture(scope)
 
       Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Project Rules")
@@ -421,11 +473,11 @@ defmodule FrontmanServer.TasksTest do
       Tasks.add_user_message(scope, task_id, user_content("Hello"))
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_llm_messages(task.interactions)
+      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
 
       assert length(messages) == 1
       [msg] = messages
-      assert msg.role == :user
+      assert SwarmAi.Message.role(msg) == :user
 
       content_text = extract_content_text(msg.content)
       refute content_text =~ "# Project Rules"
@@ -434,7 +486,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "annotation round-trip through JSONB" do
-    test "annotation survives DB round-trip and appears in LLM messages", %{
+    test "annotation survives DB round-trip and appears in Swarm messages", %{
       scope: scope
     } do
       task_id = task_fixture(scope)
@@ -448,13 +500,13 @@ defmodule FrontmanServer.TasksTest do
       {:ok, _interaction} =
         Tasks.add_user_message(scope, task_id, content_blocks)
 
-      # Retrieve via LLM conversion (exercises the full JSONB round-trip)
+      # Retrieve via Swarm conversion (exercises the full JSONB round-trip)
       {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_llm_messages(task.interactions)
+      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
 
       assert length(messages) == 1
       [msg] = messages
-      assert msg.role == :user
+      assert SwarmAi.Message.role(msg) == :user
 
       # Extract text from content parts
       content_text = extract_content_text(msg.content)
@@ -577,7 +629,7 @@ defmodule FrontmanServer.TasksTest do
       assert paused.timeout_ms == 120_000
     end
 
-    test "to_llm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
+    test "to_swarm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
 
@@ -588,11 +640,11 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       # Bug 5: conversation_message?/1 had no AgentPaused clause — FunctionClauseError
-      messages = Interaction.to_llm_messages(task.interactions)
+      messages = Interaction.to_swarm_messages(task.interactions)
 
       # AgentPaused is not a conversation message — only the UserMessage should appear
       assert length(messages) == 1
-      assert hd(messages).role == :user
+      assert SwarmAi.Message.role(hd(messages)) == :user
     end
   end
 end

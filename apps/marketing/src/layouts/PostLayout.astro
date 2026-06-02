@@ -11,7 +11,7 @@ import BlogPostHero from '../components/blocks/blog/BlogPostHero.astro'
 // Content
 // - SEO
 const SEO = {
-	title: `${frontmatter.title} | Frontman`,
+	title: `${frontmatter.seoTitle ?? frontmatter.title} | Frontman`,
 	description: `${frontmatter.description}`
 }
 
@@ -52,7 +52,7 @@ const blogPostJsonLd = {
 	},
 	"speakable": {
 		"@type": "SpeakableSpecification",
-		"cssSelector": [".post-body h1", ".post-body h2", ".post-body p:first-of-type"]
+		"cssSelector": [".post-header__title", ".post-body h2", ".post-body p:first-of-type"]
 	},
 	"mainEntityOfPage": {
 		"@type": "WebPage",
@@ -73,6 +73,77 @@ const faqJsonLd = frontmatter.faq?.length
 					"text": item.answer
 				}
 			}))
+		}
+	: null
+
+// ItemList JSON-LD (optional, driven by frontmatter.comparisonItems)
+const itemListJsonLd = frontmatter.comparisonItems?.length
+	? {
+			"@context": "https://schema.org",
+			"@type": "ItemList",
+			"name": `${frontmatter.title} compared tools`,
+			"itemListElement": frontmatter.comparisonItems.map(
+				(item: { name: string; url: string; description?: string }, index: number) => ({
+					"@type": "ListItem",
+					"position": index + 1,
+					"item": {
+						"@type": "SoftwareApplication",
+						"name": item.name,
+						"url": item.url,
+						"applicationCategory": "DeveloperApplication",
+						...(item.description ? { "description": item.description } : {})
+					}
+				})
+			)
+		}
+	: null
+
+// SoftwareApplication JSON-LD (optional, driven by frontmatter.softwareApplication)
+const softwareApplicationJsonLd = frontmatter.softwareApplication
+	? {
+			"@context": "https://schema.org",
+			"@type": "SoftwareApplication",
+			"name": frontmatter.softwareApplication.name,
+			"url": frontmatter.softwareApplication.url,
+			"applicationCategory": frontmatter.softwareApplication.applicationCategory,
+			"operatingSystem": frontmatter.softwareApplication.operatingSystem,
+			"description": frontmatter.softwareApplication.description,
+			"author": {
+				"@type": "Organization",
+				"name": "Frontman",
+				"url": "https://frontman.sh/"
+			},
+			...(frontmatter.softwareApplication.license
+				? { "license": frontmatter.softwareApplication.license }
+				: {}),
+			...(frontmatter.softwareApplication.codeRepository
+				? { "codeRepository": frontmatter.softwareApplication.codeRepository }
+				: {}),
+			...(frontmatter.softwareApplication.featureList?.length
+				? { "featureList": frontmatter.softwareApplication.featureList }
+				: {}),
+			...(frontmatter.softwareApplication.offers?.length
+				? {
+						"offers": frontmatter.softwareApplication.offers.map(
+							(offer: {
+								name: string
+								price: string
+								priceCurrency: string
+								url: string
+								category?: string
+								description?: string
+							}) => ({
+								"@type": "Offer",
+								"name": offer.name,
+								"price": offer.price,
+								"priceCurrency": offer.priceCurrency,
+								"url": offer.url,
+								...(offer.category ? { "category": offer.category } : {}),
+								...(offer.description ? { "description": offer.description } : {})
+							})
+						)
+					}
+				: {})
 		}
 	: null
 
@@ -98,6 +169,9 @@ const videoJsonLd = frontmatter.video
 	title={SEO.title}
 	description={SEO.description}
 	ogImage={frontmatter.image}
+	ogImageWidth={frontmatter.imageWidth}
+	ogImageHeight={frontmatter.imageHeight}
+	ogImageAlt={frontmatter.imageAlt}
 	article={{
 		publishedTime: pubDateISO,
 		modifiedTime: updatedDateISO || pubDateISO,
@@ -106,6 +180,8 @@ const videoJsonLd = frontmatter.video
 >
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(blogPostJsonLd)} />
 	{faqJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
+	{itemListJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(itemListJsonLd)} />}
+	{softwareApplicationJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(softwareApplicationJsonLd)} />}
 	{videoJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(videoJsonLd)} />}
 	<BlogPostHero
 		tags={frontmatter.tags}
@@ -123,7 +199,7 @@ const videoJsonLd = frontmatter.video
 	{frontmatter.faq?.length && (
 		<section class="post-faq">
 			<div class="post-faq__container">
-				<h2 class="post-faq__title">Frequently Asked Questions</h2>
+				<h2 class="post-faq__title">FAQ</h2>
 				<div class="post-faq__list">
 					{frontmatter.faq.map((item: { question: string; answer: string }) => (
 						<details class="post-faq__item group">
@@ -161,6 +237,17 @@ const videoJsonLd = frontmatter.video
 		width: max-content;
 		min-width: 100%;
 		margin: 0;
+	}
+	.post-body :global(.table-scroll th:first-child),
+	.post-body :global(.table-scroll td:first-child) {
+		position: sticky;
+		left: 0;
+		z-index: 1;
+		background: #18181b;
+		box-shadow: 1px 0 0 rgba(63, 63, 70, 0.8);
+	}
+	.post-body :global(.table-scroll th:first-child) {
+		z-index: 2;
 	}
 	.post-body :global(.table-scroll::-webkit-scrollbar) {
 		height: 10px;

@@ -18,6 +18,9 @@ type Props = {
 	title?: string
 	description?: string
 	ogImage?: string
+	ogImageWidth?: number
+	ogImageHeight?: number
+	ogImageAlt?: string
 	canonical?: boolean
 	noindex?: boolean
 	article?: {
@@ -31,6 +34,9 @@ const {
 	title = configData.siteTitle,
 	description = configData.siteDescription,
 	ogImage = configData.ogImage,
+	ogImageWidth,
+	ogImageHeight,
+	ogImageAlt,
 	canonical = configData.canonical,
 	noindex = configData.noindex,
 	article
@@ -50,6 +56,9 @@ const {
 		title={title}
 		description={description}
 		ogImage={ogImage}
+		ogImageWidth={ogImageWidth}
+		ogImageHeight={ogImageHeight}
+		ogImageAlt={ogImageAlt}
 		canonical={canonical}
 		noindex={noindex}
 		article={article}
