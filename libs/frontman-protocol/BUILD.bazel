@@ -29,7 +29,6 @@ rescript_package(
     srcs = glob([
         "package.json",
         "rescript.json",
-        "schemas/**/*.json",
         "scripts/**/*.res",
         "src/**/*.res",
         "src/**/*.resi",
@@ -45,6 +44,7 @@ rescript_schema_export(
     name = "schemas",
     package = ":frontman-protocol_schemas_pkg",
     script = "scripts/ExportSchemas.res.mjs",
+    static_schema_files = ["schemas/acp/contentBlock.json"],
 )
 
 schema_check_test(

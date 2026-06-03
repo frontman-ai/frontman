@@ -323,7 +323,7 @@ _rescript_package_test = rule(
     test = True,
 )
 
-def _schema_export_command(package, script, schemas_dir, out):
+def _schema_export_command(package, script, schemas_dir, static_manifest, out):
     dep_links = []
     for dep in package.direct_deps:
         dep_links.append("copy_package_dep \"$pkg\" %s \"$execroot/%s\"" % (
@@ -350,7 +350,14 @@ ensure_node
 setup_node_modules "$pkg" "$execroot/node_modules"
 __DEP_LINKS__
 
+rm -rf "$pkg/__SCHEMAS_DIR__"
 mkdir -p "$pkg/__SCHEMAS_DIR__"
+
+while IFS=$'\t' read -r src rel; do
+  [ -n "$src" ] || continue
+  mkdir -p "$pkg/$(dirname "$rel")"
+  cp "$src" "$pkg/$rel"
+done < "$execroot/__STATIC_MANIFEST__"
 
 cd "$pkg"
 node "__SCRIPT__"
@@ -368,6 +375,9 @@ cp -a "$pkg/__SCHEMAS_DIR__/." "$execroot/__OUT__/"
         "__DEP_LINKS__",
         "\n".join(dep_links),
     ).replace(
+        "__STATIC_MANIFEST__",
+        static_manifest.path,
+    ).replace(
         "__SCHEMAS_DIR__",
         schemas_dir,
     ).replace(
@@ -381,11 +391,21 @@ cp -a "$pkg/__SCHEMAS_DIR__/." "$execroot/__OUT__/"
 def _rescript_schema_export_impl(ctx):
     package = ctx.attr.package[RescriptPackageInfo]
     out = ctx.actions.declare_directory(ctx.label.name + "_out")
+    static_manifest = ctx.actions.declare_file(ctx.label.name + "_static_schemas.txt")
+
+    ctx.actions.write(
+        output = static_manifest,
+        content = _copy_manifest_lines(ctx.files.static_schema_files, ctx.label.package),
+    )
 
     ctx.actions.run_shell(
-        inputs = depset([package.output] + [dep.output for dep in package.direct_deps]),
+        inputs = depset(
+            [package.output, static_manifest] +
+            ctx.files.static_schema_files +
+            [dep.output for dep in package.direct_deps],
+        ),
         outputs = [out],
-        command = _schema_export_command(package, ctx.attr.script, ctx.attr.schemas_dir, out),
+        command = _schema_export_command(package, ctx.attr.script, ctx.attr.schemas_dir, static_manifest, out),
         execution_requirements = {
             "local": "1",
             "no-remote": "1",
@@ -404,6 +424,7 @@ rescript_schema_export = rule(
         "package": attr.label(mandatory = True, providers = [RescriptPackageInfo]),
         "script": attr.string(mandatory = True),
         "schemas_dir": attr.string(default = "schemas"),
+        "static_schema_files": attr.label_list(allow_files = True),
     },
 )
 
