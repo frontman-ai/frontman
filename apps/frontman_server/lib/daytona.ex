@@ -4,9 +4,10 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServer.PlayGithub.Daytona do
+defmodule Daytona do
   @moduledoc false
 
+  use Boundary, exports: [Sandbox, Toolbox, Toolbox.Git, Toolbox.Process]
   use TypedStruct
 
   typedstruct enforce: true do
@@ -44,8 +45,6 @@ defmodule FrontmanServer.PlayGithub.Daytona do
   end
 
   defp config do
-    :frontman_server
-    |> Application.fetch_env!(:playgithub)
-    |> Keyword.fetch!(:daytona)
+    Application.fetch_env!(:frontman_server, __MODULE__)
   end
 end

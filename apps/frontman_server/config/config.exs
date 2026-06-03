@@ -48,10 +48,7 @@ config :frontman_server, FrontmanServer.Providers.AnthropicOAuth,
   redirect_uri: "https://console.anthropic.com/oauth/code/callback",
   scopes: "org:create_api_key user:profile user:inference"
 
-config :frontman_server, :playgithub,
-  daytona: [
-    app_api_url: "https://app.daytona.io/api"
-  ]
+config :frontman_server, Daytona, app_api_url: "https://app.daytona.io/api"
 
 # Configures the endpoint
 config :frontman_server, FrontmanServerWeb.Endpoint,

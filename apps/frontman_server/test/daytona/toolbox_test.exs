@@ -1,8 +1,7 @@
-defmodule FrontmanServer.PlayGithub.Daytona.ToolboxTest do
+defmodule Daytona.ToolboxTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.PlayGithub.Daytona
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox
+  alias Daytona.Toolbox
 
   describe "fetch/1" do
     test "loads toolbox proxy URL from Daytona config" do

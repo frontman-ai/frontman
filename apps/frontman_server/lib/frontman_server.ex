@@ -44,5 +44,5 @@ defmodule FrontmanServer do
               _ -> @base_exports
             end)
 
-  use Boundary, deps: [ModelContextProtocol], exports: @exports
+  use Boundary, deps: [Daytona, ModelContextProtocol], exports: @exports
 end

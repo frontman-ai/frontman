@@ -1,9 +1,8 @@
-defmodule FrontmanServer.PlayGithub.Daytona.Toolbox.ProcessTest do
+defmodule Daytona.Toolbox.ProcessTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.PlayGithub.Daytona
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox.Process, as: ToolboxProcess
+  alias Daytona.Toolbox
+  alias Daytona.Toolbox.Process, as: ToolboxProcess
 
   describe "execute/4" do
     test "runs a command in the sandbox workspace" do

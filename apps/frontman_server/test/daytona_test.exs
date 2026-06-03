@@ -1,7 +1,5 @@
-defmodule FrontmanServer.PlayGithub.DaytonaTest do
+defmodule DaytonaTest do
   use ExUnit.Case, async: true
-
-  alias FrontmanServer.PlayGithub.Daytona
 
   describe "new/0" do
     test "builds a Daytona app client from local config" do

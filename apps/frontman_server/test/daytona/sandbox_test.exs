@@ -1,8 +1,7 @@
-defmodule FrontmanServer.PlayGithub.Daytona.SandboxTest do
+defmodule Daytona.SandboxTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.PlayGithub.Daytona
-  alias FrontmanServer.PlayGithub.Daytona.Sandbox
+  alias Daytona.Sandbox
 
   describe "create/2" do
     test "creates Daytona sandbox with typed attrs" do

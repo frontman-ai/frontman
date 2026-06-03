@@ -4,10 +4,10 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServer.PlayGithub.Daytona.Toolbox.Process do
+defmodule Daytona.Toolbox.Process do
   @moduledoc false
 
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox
+  alias Daytona.Toolbox
 
   @execute_request_schema Zoi.map(
                             %{

@@ -9,11 +9,10 @@ defmodule FrontmanServer.PlayGithub do
   Coordinates PlayGithub repository sandboxes.
   """
 
-  alias FrontmanServer.PlayGithub.Daytona
-  alias FrontmanServer.PlayGithub.Daytona.Sandbox
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox.Git
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox.Process, as: ToolboxProcess
+  alias Daytona.Sandbox
+  alias Daytona.Toolbox
+  alias Daytona.Toolbox.Git
+  alias Daytona.Toolbox.Process, as: ToolboxProcess
   alias FrontmanServer.PlayGithub.GithubReference
   alias FrontmanServer.PlayGithub.RepositorySandbox
 

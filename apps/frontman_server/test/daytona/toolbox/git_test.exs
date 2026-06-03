@@ -1,9 +1,8 @@
-defmodule FrontmanServer.PlayGithub.Daytona.Toolbox.GitTest do
+defmodule Daytona.Toolbox.GitTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.PlayGithub.Daytona
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox
-  alias FrontmanServer.PlayGithub.Daytona.Toolbox.Git
+  alias Daytona.Toolbox
+  alias Daytona.Toolbox.Git
 
   test "clones repository through Daytona git API" do
     Req.Test.expect(:playgithub_daytona, fn conn ->

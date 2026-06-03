@@ -4,10 +4,10 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServer.PlayGithub.Daytona.Sandbox do
+defmodule Daytona.Sandbox do
   @moduledoc false
 
-  alias FrontmanServer.PlayGithub.Daytona
+  alias Daytona
 
   @create_build_info_schema Zoi.map(
                               %{

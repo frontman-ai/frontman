@@ -50,11 +50,9 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
 
 config :frontman_server, :cookie_domain, ".frontman.local"
 
-config :frontman_server, :playgithub,
-  hosts: ["playgithub.frontman.local"],
-  daytona: [
-    organization_id: "5d79dbea-e1d6-4c0b-9fab-771e7d73641d"
-  ]
+config :frontman_server, :playgithub, hosts: ["playgithub.frontman.local"]
+
+config :frontman_server, Daytona, organization_id: "5d79dbea-e1d6-4c0b-9fab-771e7d73641d"
 
 # Watch static and templates for browser reloading.
 config :frontman_server, FrontmanServerWeb.Endpoint,

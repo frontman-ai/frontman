@@ -2,14 +2,13 @@ import Config
 
 config :frontman_server, :cookie_domain, ".frontman.local"
 
-config :frontman_server, :playgithub,
-  hosts: ["playgithub.frontman.local"],
-  daytona: [
-    api_key: "test-daytona-key",
-    app_api_url: "https://daytona.test/api",
-    organization_id: "test-daytona-org",
-    req_options: [plug: {Req.Test, :playgithub_daytona}]
-  ]
+config :frontman_server, :playgithub, hosts: ["playgithub.frontman.local"]
+
+config :frontman_server, Daytona,
+  api_key: "test-daytona-key",
+  app_api_url: "https://daytona.test/api",
+  organization_id: "test-daytona-org",
+  req_options: [plug: {Req.Test, :playgithub_daytona}]
 
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
