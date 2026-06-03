@@ -11,11 +11,13 @@ rescript_package(
         "src/**/*.css",
         "src/**/*.res",
         "src/**/*.resi",
+        "src/**/*.ts",
         "src/**/*.tsx",
     ], allow_empty = True),
     dev_srcs = glob([
         "test/**/*.js",
         "test/**/*.json",
+        "test/**/*.mjs",
         "test/**/*.res",
         "test/**/*.resi",
         "test/**/*.ts",
