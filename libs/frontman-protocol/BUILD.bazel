@@ -1,4 +1,9 @@
-load("//tools/bazel/rescript:defs.bzl", "rescript_package")
+load(
+    "//tools/bazel/rescript:defs.bzl",
+    "rescript_package",
+    "rescript_schema_export",
+    "schema_check_test",
+)
 
 package(default_visibility = ["//visibility:public"])
 
@@ -16,4 +21,35 @@ rescript_package(
         "//libs/bindings",
         "//libs/experimental-rescript-webapi",
     ],
+)
+
+rescript_package(
+    name = "frontman-protocol_schemas_pkg",
+    package_name = "@frontman-ai/frontman-protocol",
+    srcs = glob([
+        "package.json",
+        "rescript.json",
+        "scripts/**/*.res",
+        "src/**/*.res",
+        "src/**/*.resi",
+    ], allow_empty = True),
+    deps = [
+        "//libs/bindings",
+        "//libs/experimental-rescript-webapi",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+rescript_schema_export(
+    name = "schemas",
+    package = ":frontman-protocol_schemas_pkg",
+    script = "scripts/ExportSchemas.res.mjs",
+    static_schema_files = ["schemas/acp/contentBlock.json"],
+)
+
+schema_check_test(
+    name = "check_schemas",
+    generated = ":schemas",
+    schema_files = glob(["schemas/**/*.json"]),
+    tags = ["local", "no-remote", "no-sandbox"],
 )
