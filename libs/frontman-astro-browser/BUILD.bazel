@@ -1,4 +1,4 @@
-load("//tools/bazel/rescript:defs.bzl", "rescript_package")
+load("//tools/bazel/rescript:defs.bzl", "RESCRIPT_OUTPUT_EXCLUDES", "rescript_package")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -8,14 +8,12 @@ rescript_package(
     srcs = glob([
         "package.json",
         "rescript.json",
-        "src/**/*.res",
-        "src/**/*.resi",
-    ], allow_empty = True),
+        "src/**",
+    ], exclude = RESCRIPT_OUTPUT_EXCLUDES, allow_empty = True),
     dev_srcs = glob([
-        "test/**/*.res",
-        "test/**/*.resi",
+        "test/**",
         "vitest.config.*",
-    ], allow_empty = True),
+    ], exclude = RESCRIPT_OUTPUT_EXCLUDES, allow_empty = True),
     deps = [
         "//libs/experimental-rescript-webapi",
         "//libs/frontman-protocol",

@@ -1,5 +1,6 @@
 load(
     "//tools/bazel/rescript:defs.bzl",
+    "RESCRIPT_OUTPUT_EXCLUDES",
     "rescript_package",
     "rescript_schema_export",
     "schema_check_test",
@@ -13,10 +14,9 @@ rescript_package(
     srcs = glob([
         "package.json",
         "rescript.json",
-        "schemas/**/*.json",
-        "src/**/*.res",
-        "src/**/*.resi",
-    ], allow_empty = True),
+        "schemas/**",
+        "src/**",
+    ], exclude = RESCRIPT_OUTPUT_EXCLUDES, allow_empty = True),
     deps = [
         "//libs/bindings",
         "//libs/experimental-rescript-webapi",
@@ -29,10 +29,9 @@ rescript_package(
     srcs = glob([
         "package.json",
         "rescript.json",
-        "scripts/**/*.res",
-        "src/**/*.res",
-        "src/**/*.resi",
-    ], allow_empty = True),
+        "scripts/**",
+        "src/**",
+    ], exclude = RESCRIPT_OUTPUT_EXCLUDES, allow_empty = True),
     deps = [
         "//libs/bindings",
         "//libs/experimental-rescript-webapi",

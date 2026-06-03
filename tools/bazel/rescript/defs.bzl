@@ -6,6 +6,15 @@ RescriptPackageInfo = provider(
     },
 )
 
+RESCRIPT_OUTPUT_EXCLUDES = [
+    "**/*.gen.tsx",
+    "**/*.res.d.ts",
+    "**/*.res.js",
+    "**/*.res.js.map",
+    "**/*.res.mjs",
+    "**/*.res.mjs.map",
+]
+
 _MIGRATED_PACKAGES = [
     "@rescript/webapi",
     "@frontman/bindings",
