@@ -2383,7 +2383,7 @@ __metadata:
     "@opentelemetry/sdk-trace-base": "npm:^2.6.1"
     "@tailwindcss/postcss": "npm:4.2.4"
     "@types/node": "npm:^25.6.0"
-    "@types/react": "npm:19.2.14"
+    "@types/react": "npm:^19.2.14"
     "@types/react-dom": "npm:^19.2.2"
     autoprefixer: "npm:^10.5.0"
     classnames: "npm:^2.5.1"
@@ -6991,7 +6991,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:19.2.14, @types/react@npm:^19.2.14":
+"@types/react@npm:^19.2.14":
   version: 19.2.14
   resolution: "@types/react@npm:19.2.14"
   dependencies:
