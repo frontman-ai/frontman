@@ -403,8 +403,9 @@ defmodule FrontmanServer.Tasks do
       )
     end
 
-    {:ok, interaction} =
-      end_agent_turn(scope, task_id, turn_number, {:crashed, format_crash_reason(reason)})
+    {reason_str, _category, _retryable} = ExecutionEvent.classify_error(reason)
+
+    {:ok, interaction} = end_agent_turn(scope, task_id, turn_number, {:crashed, reason_str})
 
     TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
@@ -542,14 +543,6 @@ defmodule FrontmanServer.Tasks do
   defp non_empty(list) when is_list(list) and list != [], do: list
   defp non_empty(_list), do: nil
 
-  defp format_crash_reason(reason) do
-    "Execution crashed: #{format_error_reason(reason)}"
-  end
-
-  defp format_error_reason(reason) when is_exception(reason), do: Exception.message(reason)
-  defp format_error_reason(reason) when is_binary(reason), do: reason
-  defp format_error_reason(reason), do: inspect(reason)
-
   # --- Turn Lifecycle ---
 
   @doc """
@@ -621,7 +614,7 @@ defmodule FrontmanServer.Tasks do
            | :terminated
            | {:failed, String.t()}
            | {:failed, String.t(), boolean(), String.t()}
-           | {:crashed, term()}
+           | {:crashed, String.t()}
            | {:paused_for_tool_timeout, String.t(), pos_integer()}
 
   @doc "Records an agent reply in the given turn."
