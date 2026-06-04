@@ -847,20 +847,8 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 		$registry = new Frontman_Tools();
 		( new Frontman_Tool_Options() )->register( $registry );
-		$inactive_registry_input = $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => '.inactive { color: red; }', 'stylesheet' => 'inactive-theme', 'confirm' => true ] );
-		$inactive_registry_result = $registry->call( 'wp_update_custom_css', $inactive_registry_input );
-		$this->assert_same( true, $inactive_registry_result['isError'] ?? false, 'wp_update_custom_css registry path rejects non-active stylesheet writes' );
-		$this->assert_true(
-			false !== strpos( $inactive_registry_result['content'][0]['text'], 'active stylesheet' ),
-			'wp_update_custom_css registry path returns active stylesheet rejection reason'
-		);
-		$non_string_registry_input = $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => [ '.bad { color: red; }' ], 'confirm' => true ] );
-		$non_string_registry_result = $registry->call( 'wp_update_custom_css', $non_string_registry_input );
-		$this->assert_same( true, $non_string_registry_result['isError'] ?? false, 'wp_update_custom_css registry path rejects non-string CSS' );
-		$this->assert_true(
-			false !== strpos( $non_string_registry_result['content'][0]['text'], 'css is required' ),
-			'wp_update_custom_css registry path returns non-string CSS rejection reason'
-		);
+		$this->assert_tool_error_result_contains( $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => '.inactive { color: red; }', 'stylesheet' => 'inactive-theme', 'confirm' => true ] ) ), 'active stylesheet', 'wp_update_custom_css registry path rejects non-active stylesheet writes' );
+		$this->assert_tool_error_result_contains( $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => [ '.bad { color: red; }' ], 'confirm' => true ] ) ), 'css is required', 'wp_update_custom_css registry path rejects non-string CSS' );
 		$registry_css = '.selector::before { content: "{C:\\Tools}"; }';
 		$registry_input = $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => $registry_css, 'confirm' => true ] );
 		$registry_result = $registry->call( 'wp_update_custom_css', $registry_input );
@@ -1047,6 +1035,14 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			if ( false === strpos( $e->getMessage(), $needle ) ) {
 				throw new RuntimeException( $message . ' (wrong error: ' . $e->getMessage() . ')' );
 			}
+		}
+	}
+
+	private function assert_tool_error_result_contains( array $result, string $needle, string $message ): void {
+		$this->assertions++;
+		$error_message = $result['content'][0]['text'] ?? '';
+		if ( true !== ( $result['isError'] ?? false ) || false === strpos( $error_message, $needle ) ) {
+			throw new RuntimeException( $message . ' (wrong result: ' . wp_json_encode( $result ) . ')' );
 		}
 	}
 }
