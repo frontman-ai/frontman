@@ -128,21 +128,7 @@ defmodule FrontmanServer.TasksTest do
         insert_interaction_row(task_id, type, nil, data)
       end
 
-      Code.require_file(
-        "priv/repo/migrations/20260531130646_backfill_interaction_turn_numbers.exs"
-      )
-
-      assert :ok =
-               Runner.run(
-                 Repo,
-                 Repo.config(),
-                 0,
-                 BackfillInteractionTurnNumbers,
-                 :forward,
-                 :up,
-                 :up,
-                 log: false
-               )
+      run_backfill_migration()
 
       assert [
                {Interaction.DiscoveredProjectRule, nil},
@@ -483,6 +469,22 @@ defmodule FrontmanServer.TasksTest do
       sequence: System.unique_integer([:monotonic, :positive]),
       data: Map.merge(defaults, data)
     })
+  end
+
+  defp run_backfill_migration do
+    Code.require_file("priv/repo/migrations/20260531130646_backfill_interaction_turn_numbers.exs")
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               BackfillInteractionTurnNumbers,
+               :forward,
+               :up,
+               :up,
+               log: false
+             )
   end
 
   defp named_swarm_tool_call(id, name, args \\ %{}) do
