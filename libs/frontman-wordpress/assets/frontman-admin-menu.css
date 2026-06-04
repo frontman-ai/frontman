@@ -7,7 +7,7 @@
 	display: block;
 	width: 20px;
 	height: 20px;
-	margin-top: 0px;
+	margin: 0 auto;
 	padding: 0;
 	background-color: #a7aaad;
 	-webkit-mask: url("frontman-menu-icon.svg") center / 16px 16px no-repeat;
