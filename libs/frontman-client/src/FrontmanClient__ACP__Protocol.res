@@ -12,6 +12,12 @@ module Log = FrontmanLogs.Logs.Make({
 
 type messageDirection = Send | Receive
 
+let sessionIdFromParams = (params: option<JSON.t>): option<string> =>
+  params
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.flatMap(obj => obj->Dict.get("sessionId"))
+  ->Option.flatMap(JSON.Decode.string)
+
 // Generic request sender - eliminates duplication across sendInitialize, createSession, sendPrompt
 let sendRequest = (
   ~channel: Channel.t,
@@ -26,6 +32,8 @@ let sendRequest = (
     let request = JsonRpc.Request.make(~id, ~method, ~params)
 
     let pending: Client.pendingRequest = {
+      method,
+      sessionId: sessionIdFromParams(params),
       resolve: json => {
         switch parseResult(json) {
         | Ok(result) => resolve(Ok(result))
@@ -170,6 +178,20 @@ let handleIncomingMessage = (
     switch Client.parseSessionUpdateNotification(payload) {
     | Ok(notification) =>
       onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
+      switch notification.params.update {
+      | AgentTurnComplete({stopReason}) =>
+        // After server restart, resumed turns may not have a live session/prompt
+        // request id to answer. The completion notification still closes the prompt.
+        let result: Types.promptResult = {stopReason: stopReason}
+        let resultJson = result->S.reverseConvertToJsonOrThrow(Types.promptResultSchema)
+        state :=
+          state.contents->Client.resolvePendingSessionRequest(
+            ~method="session/prompt",
+            ~sessionId=notification.params.sessionId,
+            ~result=resultJson,
+          )
+      | _ => ()
+      }
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake

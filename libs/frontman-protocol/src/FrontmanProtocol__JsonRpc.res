@@ -17,6 +17,38 @@ module ErrorCode = {
   let urlElicitationRequired = -32042
 }
 
+module Id: {
+  type t
+
+  let toJson: t => JSON.t
+  let schema: S.t<t>
+} = {
+  type t = IntId(int) | StringId(string)
+
+  let fromJson = id =>
+    switch (id->JSON.Decode.string, id->JSON.Decode.float) {
+    | (Some(value), _) => Some(StringId(value))
+    | (_, Some(value)) if Float.fromInt(Float.toInt(value)) == value =>
+      Some(IntId(Float.toInt(value)))
+    | _ => None
+    }
+
+  let toJson = id =>
+    switch id {
+    | IntId(value) => JSON.Encode.int(value)
+    | StringId(value) => JSON.Encode.string(value)
+    }
+
+  let schema: S.t<t> = S.json->S.transform(s => {
+    parser: value =>
+      switch value->fromJson {
+      | Some(id) => id
+      | None => s.fail("JSON-RPC id must be a string or number")
+      },
+    serializer: id => id->toJson,
+  })
+}
+
 // JSON-RPC Error
 // Uses int for code to accept any valid JSON-RPC error code (including server-defined ones
 // in the -32000..-32099 range). A restrictive enum previously caused parse failures when
@@ -85,7 +117,9 @@ module Response: {
   type t
 
   let makeSuccess: (~id: int, ~result: JSON.t) => t
+  let makeSuccessPayloadWithId: (~id: Id.t, ~result: JSON.t) => JSON.t
   let makeError: (~id: int, ~error: RpcError.t) => t
+  let makeErrorPayloadWithId: (~id: Id.t, ~error: RpcError.t) => JSON.t
   let id: t => int
   let result: t => option<JSON.t>
   let error: t => option<RpcError.t>
@@ -109,12 +143,30 @@ module Response: {
     error: None,
   }
 
+  let makeSuccessPayloadWithId = (~id: Id.t, ~result: JSON.t) =>
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("jsonrpc", JSON.Encode.string(version)),
+        ("id", Id.toJson(id)),
+        ("result", result),
+      ]),
+    )
+
   let makeError = (~id: int, ~error: RpcError.t) => {
     jsonrpc: version,
     id,
     result: None,
     error: Some(error),
   }
+
+  let makeErrorPayloadWithId = (~id: Id.t, ~error: RpcError.t) =>
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("jsonrpc", JSON.Encode.string(version)),
+        ("id", Id.toJson(id)),
+        ("error", error->S.reverseConvertToJsonOrThrow(RpcError.schema)),
+      ]),
+    )
 
   let id = t => t.id
   let result = t => t.result

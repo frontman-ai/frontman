@@ -26,18 +26,21 @@ module MockChannel = {
 }
 
 // Build a tools/call JSON-RPC request payload
-let buildToolsCallPayload = (~id: int, ~name: string, ~callId: string) => {
+let buildToolsCallPayloadWithJsonId = (~id: JSON.t, ~name: string, ~callId: string) => {
   let params = Dict.make()
   params->Dict.set("name", JSON.Encode.string(name))
   params->Dict.set("callId", JSON.Encode.string(callId))
 
   let msg = Dict.make()
   msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
-  msg->Dict.set("id", JSON.Encode.int(id))
+  msg->Dict.set("id", id)
   msg->Dict.set("method", JSON.Encode.string("tools/call"))
   msg->Dict.set("params", JSON.Encode.object(params))
   JSON.Encode.object(msg)
 }
+
+let buildToolsCallPayload = (~id: int, ~name: string, ~callId: string) =>
+  buildToolsCallPayloadWithJsonId(~id=JSON.Encode.int(id), ~name, ~callId)
 
 // Build a mock serverInterface that returns a Completed result
 let makeCompletedServerInterface = (result: Types.callToolResult) => {
@@ -209,6 +212,40 @@ describe("handleToolsCall", () => {
       }
     | None => t->expect("response push")->Expect.toBe("found")
     }
+  })
+
+  testAsync("echoes string request id for durable tool calls", async t => {
+    let (channel, calls) = MockChannel.make()
+
+    let handler: MCP.mcpHandler<unit> = {
+      serverInterface: makeCompletedServerInterface({
+        content: [{type_: Types.Text, text: "tool output"}],
+        isError: None,
+        _meta: Types.emptyMeta,
+      }),
+      channel,
+      sessionId: "test-task",
+      onMessage: None,
+    }
+
+    let payload = buildToolsCallPayloadWithJsonId(
+      ~id=JSON.Encode.string("call_1"),
+      ~name="take_screenshot",
+      ~callId="call_1",
+    )
+
+    await MCP.handleMessage(handler, payload)
+
+    let responsePush = calls.contents->Array.find(
+      p => {
+        switch p.payload->JSON.Decode.object {
+        | Some(obj) => obj->Dict.get("id") == Some(JSON.Encode.string("call_1"))
+        | None => false
+        }
+      },
+    )
+
+    t->expect(responsePush->Option.isSome)->Expect.toBe(true)
   })
 
   testAsync("sends MCP error response when tool throws S.Error", async t => {

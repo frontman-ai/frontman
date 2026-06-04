@@ -10,9 +10,9 @@ defmodule FrontmanServer.Frameworks do
   """
 
   use Boundary
-  use TypedStruct
 
   @type id :: :nextjs | :vite | :astro | :wordpress
+  @type t :: id()
   @type stored_id :: String.t()
   @type project_trait :: :typescript | :react
   @type tool_execution_mode :: :parallel | :serial
@@ -61,22 +61,23 @@ defmodule FrontmanServer.Frameworks do
     }
   ]
 
-  typedstruct enforce: true do
-    @typedoc "Framework identity"
-    field(:id, id())
-  end
+  @ids Enum.map(@catalog, &Map.fetch!(&1, :id))
 
-  @doc "Build a framework struct from a DB-stored string identifier."
+  @doc "Returns all known framework ids."
+  @spec ids() :: [id()]
+  def ids, do: @ids
+
+  @doc "Build a framework id from a DB-stored string identifier."
   @spec from_string(stored_id()) :: t()
   def from_string(stored_id) when is_binary(stored_id) do
     stored_id
     |> record_by_stored_id!()
-    |> build()
+    |> Map.fetch!(:id)
   end
 
-  @doc "Serialize a framework struct to the string stored in the database."
-  @spec to_string(t()) :: String.t()
-  def to_string(%__MODULE__{id: id}), do: id |> record_by_id!() |> Map.fetch!(:stored_id)
+  @doc "Serialize a framework id to the string stored in the database."
+  @spec to_string(t()) :: stored_id()
+  def to_string(id), do: id |> record_by_id!() |> Map.fetch!(:stored_id)
 
   @doc "Returns the display label for a known framework."
   @spec display_name(stored_id()) :: String.t()
@@ -106,13 +107,13 @@ defmodule FrontmanServer.Frameworks do
 
   @doc "Returns whether MCP initialization should load project rules and structure."
   @spec load_project_context?(t()) :: boolean()
-  def load_project_context?(%__MODULE__{id: id}) do
+  def load_project_context?(id) do
     id |> record_by_id!() |> Map.fetch!(:load_project_context?)
   end
 
   @doc "Runtime tool execution mode for framework sessions."
   @spec tool_execution_mode(t()) :: tool_execution_mode()
-  def tool_execution_mode(%__MODULE__{id: id}) do
+  def tool_execution_mode(id) do
     id |> record_by_id!() |> Map.fetch!(:tool_execution_mode)
   end
 
@@ -120,7 +121,7 @@ defmodule FrontmanServer.Frameworks do
   @spec framework_guidance_sections(t() | nil) :: [framework_guidance_section()]
   def framework_guidance_sections(nil), do: []
 
-  def framework_guidance_sections(%__MODULE__{id: id}) do
+  def framework_guidance_sections(id) do
     id |> record_by_id!() |> Map.fetch!(:framework_guidance_sections)
   end
 
@@ -128,7 +129,7 @@ defmodule FrontmanServer.Frameworks do
   @spec code_attachment_guidance?(t() | nil) :: boolean()
   def code_attachment_guidance?(nil), do: true
 
-  def code_attachment_guidance?(%__MODULE__{id: id}) do
+  def code_attachment_guidance?(id) do
     id |> record_by_id!() |> Map.fetch!(:code_attachment_guidance?)
   end
 
@@ -147,20 +148,18 @@ defmodule FrontmanServer.Frameworks do
   keep old Next.js TypeScript/React behavior. If the key exists, client value wins.
   """
   @spec project_traits_from_meta(map() | nil, t()) :: [project_trait()]
-  def project_traits_from_meta(%{} = meta, %__MODULE__{} = framework) do
+  def project_traits_from_meta(%{} = meta, framework) do
     case Map.fetch(meta, "traits") do
       {:ok, traits} -> normalize_project_traits(traits)
       :error -> legacy_project_traits(framework)
     end
   end
 
-  def project_traits_from_meta(nil, %__MODULE__{} = framework),
+  def project_traits_from_meta(nil, framework),
     do: legacy_project_traits(framework)
 
-  defp build(%{id: id}), do: %__MODULE__{id: id}
-
-  defp legacy_project_traits(%__MODULE__{id: :nextjs}), do: [:typescript, :react]
-  defp legacy_project_traits(%__MODULE__{}), do: []
+  defp legacy_project_traits(:nextjs), do: [:typescript, :react]
+  defp legacy_project_traits(_framework), do: []
 
   defp project_trait!("typescript"), do: :typescript
   defp project_trait!("react"), do: :react

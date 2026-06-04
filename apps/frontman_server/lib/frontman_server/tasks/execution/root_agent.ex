@@ -12,12 +12,12 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   use TypedStruct
 
   alias FrontmanServer.Accounts
-  alias FrontmanServer.Tasks.Task
+  alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServer.Tools.MCP
   alias SwarmAi.Message
 
   typedstruct enforce: true do
-    field(:task, Task.t())
+    field(:task, TaskSchema.t())
     field(:scope, Accounts.scope())
     field(:turn_number, pos_integer())
     field(:messages, [Message.t()])
@@ -33,9 +33,9 @@ end
 defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.Execution.{LLMClient, RootAgent, ToolExecutor}
-  alias FrontmanServer.Tasks.Task
+  alias FrontmanServer.Tasks.TaskSchema
 
-  def id(%RootAgent{task: %Task{task_id: task_id}}), do: task_id
+  def id(%RootAgent{task: %TaskSchema{id: task_id}}), do: task_id
 
   def messages(%RootAgent{messages: messages}), do: messages
 
@@ -44,7 +44,7 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
   end
 
   def tool_executor(%RootAgent{scope: scope, task: task, turn_number: turn_number} = agent) do
-    ToolExecutor.make(scope, task.task_id, turn_number, %{
+    ToolExecutor.make(scope, task.id, turn_number, %{
       backend_tool_modules: agent.backend_tool_modules,
       mcp_tool_defs: agent.mcp_tool_defs,
       execution_mode: Frameworks.tool_execution_mode(task.framework)

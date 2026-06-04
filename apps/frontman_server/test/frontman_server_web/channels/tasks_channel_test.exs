@@ -126,8 +126,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       # Verify task was created with the client-provided ID
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
-      assert task.task_id == client_session_id
-      assert task.framework.id == :nextjs
+      assert task.id == client_session_id
+      assert task.framework == :nextjs
     end
 
     test "stores framework ID from clientInfo", %{socket: socket, scope: scope} do
@@ -173,9 +173,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       })
 
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
-      assert task.task_id == client_session_id
-      assert task.framework.id == :nextjs
-      assert Repo.get!(TaskSchema, client_session_id).framework == "nextjs"
+      assert task.id == client_session_id
+      assert task.framework == :nextjs
+      assert Repo.get!(TaskSchema, client_session_id).framework == :nextjs
     end
 
     test "stores vite framework ID from clientInfo", %{socket: socket, scope: scope} do
@@ -209,8 +209,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert_push("acp:message", %{"id" => 2, "result" => %{}})
 
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
-      assert task.framework.id == :vite
-      assert Repo.get!(TaskSchema, client_session_id).framework == "vite"
+      assert task.framework == :vite
+      assert Repo.get!(TaskSchema, client_session_id).framework == :vite
     end
 
     test "returns error when session/new called without sessionId", %{socket: socket} do

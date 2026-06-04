@@ -18,10 +18,10 @@ defmodule FrontmanServer.Tools.Backend do
     """
     use TypedStruct
 
-    alias FrontmanServer.Tasks.Task
+    alias FrontmanServer.Tasks.TaskSchema
 
     typedstruct do
-      field(:task, Task.t(), enforce: true)
+      field(:task, TaskSchema.t(), enforce: true)
     end
   end
 

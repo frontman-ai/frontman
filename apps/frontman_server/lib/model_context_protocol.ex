@@ -105,20 +105,17 @@ defmodule ModelContextProtocol do
   Generates a unique request ID, logs the tool call, and constructs
   the MCP tools/call JSON-RPC request.
 
-  Returns `{request_id, mcp_request}`.
+  Uses the durable tool call id as the JSON-RPC request id so responses remain
+  correlatable across reconnects.
   """
-  @spec build_tool_execution(ToolCallParams.t()) :: {integer(), map()}
+  @spec build_tool_execution(ToolCallParams.t()) :: map()
   def build_tool_execution(%ToolCallParams{} = params) do
-    request_id = System.unique_integer([:positive])
     Logger.info("MCP tool call: #{params.tool_name} arguments=#{inspect(params.arguments)}")
 
-    request =
-      JsonRpc.request(request_id, "tools/call", %{
-        "name" => params.tool_name,
-        "arguments" => params.arguments,
-        "callId" => params.call_id
-      })
-
-    {request_id, request}
+    JsonRpc.request(params.call_id, "tools/call", %{
+      "name" => params.tool_name,
+      "arguments" => params.arguments,
+      "callId" => params.call_id
+    })
   end
 end

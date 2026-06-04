@@ -24,7 +24,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "interactions" do
-    field(:type, :string)
+    field(:type, Ecto.Enum, values: Interaction.type_values())
     field(:data, :map)
     # Monotonic sequence avoids DB insert race conditions.
     field(:sequence, :integer)
@@ -44,10 +44,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @spec create_changeset(TaskSchema.t(), struct(), integer() | nil) :: Ecto.Changeset.t()
   def create_changeset(%TaskSchema{} = task, interaction, turn_number)
       when is_struct(interaction) and (is_integer(turn_number) or is_nil(turn_number)) do
-    type = interaction.__struct__ |> Module.split() |> List.last() |> Macro.underscore()
+    type = Interaction.type_for(interaction)
 
     task
-    |> Ecto.build_assoc(:interactions)
+    |> Ecto.build_assoc(:interaction_rows)
     |> change(
       type: type,
       data: Map.from_struct(interaction),
@@ -65,9 +65,11 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     )
   end
 
+  @task_scoped_types Interaction.task_scoped_types()
+
   defp validate_turn_number(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :turn_number)} do
-      {type, nil} when type in ["discovered_project_rule", "discovered_project_structure"] ->
+      {type, nil} when type in @task_scoped_types ->
         changeset
 
       {_type, turn_number} when is_integer(turn_number) and turn_number > 0 ->
@@ -94,13 +96,39 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.task_id == ^task_id)
   end
 
-  @doc """
-  Orders interactions by sequence number for deterministic ordering.
-  Falls back to inserted_at for legacy rows without sequence.
-  """
+  @spec for_turn(Ecto.Queryable.t(), pos_integer()) :: Ecto.Query.t()
+  def for_turn(query \\ __MODULE__, turn_number) do
+    from(i in query, where: i.turn_number == ^turn_number)
+  end
+
   @spec ordered(Ecto.Queryable.t()) :: Ecto.Query.t()
   def ordered(query \\ __MODULE__) do
     from(i in query, order_by: [asc: coalesce(i.sequence, 0), asc: i.inserted_at, asc: i.id])
+  end
+
+  @spec of_type(Ecto.Queryable.t(), Interaction.t() | module() | atom()) :: Ecto.Query.t()
+  def of_type(query \\ __MODULE__, type) do
+    type = Interaction.type_for(type)
+    from(i in query, where: i.type == ^type)
+  end
+
+  @spec data_equals(Ecto.Queryable.t(), String.t(), String.t()) :: Ecto.Query.t()
+  def data_equals(query \\ __MODULE__, field, value) do
+    from(i in query, where: fragment("?->>?", i.data, ^field) == ^value)
+  end
+
+  @spec unresolved_tool_calls(Ecto.Queryable.t()) :: Ecto.Query.t()
+  def unresolved_tool_calls(query \\ __MODULE__) do
+    tool_call = Interaction.type_for(Interaction.ToolCall)
+    tool_result = Interaction.type_for(Interaction.ToolResult)
+
+    from(i in query,
+      left_join: r in __MODULE__,
+      on:
+        r.task_id == i.task_id and r.turn_number == i.turn_number and r.type == ^tool_result and
+          fragment("?->>'tool_call_id'", r.data) == fragment("?->>'tool_call_id'", i.data),
+      where: i.type == ^tool_call and is_nil(r.id)
+    )
   end
 
   # --- JSONB to Domain Struct Conversion ---
@@ -109,106 +137,46 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   Converts a persisted InteractionSchema to its domain struct.
   """
   @spec to_struct(t()) :: Interaction.t()
-  def to_struct(%__MODULE__{type: "user_message", data: data}) do
-    %Interaction.UserMessage{
-      id: data["id"],
-      timestamp: parse_datetime(data["timestamp"]),
-      messages: data["messages"] || [],
-      annotations: parse_annotations(data["annotations"]),
-      selected_figma_node: Interaction.FigmaNode.from_map(data["selected_figma_node"]),
-      images: parse_images(data["images"]),
-      current_page: Interaction.CurrentPage.from_map(data[CurrentPageContext.data_key()])
-    }
+  def to_struct(%__MODULE__{type: type, data: data}) when is_atom(type) and is_map(data) do
+    module = Interaction.module_for(type)
+    struct!(module, struct_fields(module, data))
   end
 
-  def to_struct(%__MODULE__{type: "agent_response", data: data}) do
-    %Interaction.AgentResponse{
-      id: data["id"],
-      content: data["content"],
-      timestamp: parse_datetime(data["timestamp"]),
-      metadata: data["metadata"]
-    }
+  defp struct_fields(module, data) do
+    module.__struct__()
+    |> Map.from_struct()
+    |> Map.new(fn {field, default} ->
+      {field, field |> data_field(data, default) |> parse_field(field)}
+    end)
   end
 
-  def to_struct(%__MODULE__{type: "tool_call", data: data}) do
-    %Interaction.ToolCall{
-      id: data["id"],
-      tool_call_id: data["tool_call_id"],
-      tool_name: data["tool_name"],
-      arguments: data["arguments"] || %{},
-      timestamp: parse_datetime(data["timestamp"])
-    }
+  defp data_field(:current_page, data, default) do
+    fetch_data_field(
+      data,
+      [CurrentPageContext.data_key(), "current_page", :current_page],
+      default
+    )
   end
 
-  def to_struct(%__MODULE__{type: "tool_result", data: data}) do
-    %Interaction.ToolResult{
-      id: data["id"],
-      tool_call_id: data["tool_call_id"],
-      tool_name: data["tool_name"],
-      result: data["result"],
-      is_error: data["is_error"] || false,
-      timestamp: parse_datetime(data["timestamp"])
-    }
+  defp data_field(field, data, default) do
+    fetch_data_field(data, [Atom.to_string(field), field], default)
   end
 
-  def to_struct(%__MODULE__{type: "discovered_project_rule", data: data}) do
-    %Interaction.DiscoveredProjectRule{
-      path: data["path"],
-      content: data["content"],
-      timestamp: parse_datetime(data["timestamp"])
-    }
+  defp fetch_data_field(data, keys, default) do
+    Enum.reduce_while(keys, default, fn key, acc ->
+      case Map.fetch(data, key) do
+        {:ok, value} -> {:halt, value}
+        :error -> {:cont, acc}
+      end
+    end)
   end
 
-  def to_struct(%__MODULE__{
-        type: "discovered_project_structure",
-        data: data
-      }) do
-    %Interaction.DiscoveredProjectStructure{
-      summary: data["summary"],
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_completed", data: data}) do
-    %Interaction.AgentCompleted{
-      id: data["id"],
-      result: data["result"],
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_error", data: data}) do
-    %Interaction.AgentError{
-      id: data["id"],
-      error: data["error"],
-      kind: data["kind"] || "failed",
-      retryable: data["retryable"] || false,
-      category: data["category"] || "unknown",
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_retry", data: data}) do
-    %Interaction.AgentRetry{
-      id: data["id"],
-      retried_error_id: data["retried_error_id"],
-      timestamp: parse_datetime(data["timestamp"])
-    }
-  end
-
-  def to_struct(%__MODULE__{type: "agent_paused", data: data}) do
-    %Interaction.AgentPaused{
-      id: data["id"],
-      timestamp: parse_datetime(data["timestamp"]),
-      reason: data["reason"],
-      tool_name: data["tool_name"],
-      timeout_ms: data["timeout_ms"]
-    }
-  end
-
-  def to_struct(%__MODULE__{type: type}) do
-    raise "Unknown interaction type: #{type}"
-  end
+  defp parse_field(value, :timestamp), do: parse_datetime(value)
+  defp parse_field(value, :annotations), do: parse_annotations(value)
+  defp parse_field(value, :selected_figma_node), do: Interaction.FigmaNode.from_map(value)
+  defp parse_field(value, :images), do: parse_images(value)
+  defp parse_field(value, :current_page), do: Interaction.CurrentPage.from_map(value)
+  defp parse_field(value, _field), do: value
 
   @spec parse_datetime(DateTime.t() | String.t()) :: DateTime.t()
   defp parse_datetime(%DateTime{} = dt), do: dt

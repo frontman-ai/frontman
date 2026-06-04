@@ -3,7 +3,12 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
 
   alias FrontmanServer.Tasks.RetryCoordinator
 
-  @retryable_error %{message: "Rate limited", category: "rate_limit", retryable: true}
+  @retryable_error %{
+    message: "Rate limited",
+    category: "rate_limit",
+    retryable: true,
+    retried_error_id: "agent-error-1"
+  }
   @non_retryable_error %{message: "Auth failed", category: "auth", retryable: false}
 
   describe "handle_error/3 with nil state (first error)" do
@@ -18,6 +23,8 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
 
       assert %RetryCoordinator{attempt: 1, max_attempts: 5} = state
       assert is_reference(state.timer_ref)
+      assert is_reference(state.timer_token)
+      assert state.retried_error_id == "agent-error-1"
       assert notification.attempt == 1
       assert notification.max_attempts == 5
       assert notification.message == "Rate limited"
@@ -25,7 +32,8 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       assert %DateTime{} = notification.retry_at
 
       # Timer fires in the calling process
-      assert_receive :fire_retry, 500
+      assert_receive {:fire_retry, token}, 500
+      assert token == state.timer_token
 
       # Clean up
       RetryCoordinator.clear(state)
@@ -49,14 +57,15 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       {:retry_scheduled, state1, _} =
         RetryCoordinator.handle_error(nil, @retryable_error, base_delay_ms: 50)
 
-      assert_receive :fire_retry, 500
+      assert_receive {:fire_retry, _token}, 500
 
       {:retry_scheduled, state2, notification} =
         RetryCoordinator.handle_error(state1, @retryable_error)
 
       assert state2.attempt == 2
       assert notification.attempt == 2
-      assert_receive :fire_retry, 500
+      assert_receive {:fire_retry, token}, 500
+      assert token == state2.timer_token
       RetryCoordinator.clear(state2)
     end
 
@@ -67,7 +76,7 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
           max_attempts: 1
         )
 
-      assert_receive :fire_retry, 500
+      assert_receive {:fire_retry, _token}, 500
 
       assert {:exhausted, @retryable_error} =
                RetryCoordinator.handle_error(state1, @retryable_error)
@@ -103,7 +112,7 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       assert RetryCoordinator.clear(state) == nil
 
       # Timer should no longer fire
-      refute_receive :fire_retry, 100
+      refute_receive {:fire_retry, _token}, 100
     end
   end
 

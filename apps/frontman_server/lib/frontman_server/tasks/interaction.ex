@@ -25,25 +25,57 @@ defmodule FrontmanServer.Tasks.Interaction do
           | __MODULE__.DiscoveredProjectRule.t()
           | __MODULE__.DiscoveredProjectStructure.t()
 
-  @interaction_modules [
-    __MODULE__.UserMessage,
-    __MODULE__.AgentResponse,
-    __MODULE__.AgentCompleted,
-    __MODULE__.AgentError,
-    __MODULE__.AgentPaused,
-    __MODULE__.AgentRetry,
-    __MODULE__.ToolCall,
-    __MODULE__.ToolResult,
-    __MODULE__.DiscoveredProjectRule,
-    __MODULE__.DiscoveredProjectStructure
+  @types [
+    user_message: __MODULE__.UserMessage,
+    agent_response: __MODULE__.AgentResponse,
+    agent_completed: __MODULE__.AgentCompleted,
+    agent_error: __MODULE__.AgentError,
+    agent_paused: __MODULE__.AgentPaused,
+    agent_retry: __MODULE__.AgentRetry,
+    tool_call: __MODULE__.ToolCall,
+    tool_result: __MODULE__.ToolResult,
+    discovered_project_rule: __MODULE__.DiscoveredProjectRule,
+    discovered_project_structure: __MODULE__.DiscoveredProjectStructure
   ]
+
+  @type_values Keyword.keys(@types)
+  @interaction_modules Keyword.values(@types)
+  @type_to_module Map.new(@types)
+  @module_to_type Map.new(@types, fn {type, module} -> {module, type} end)
+
+  @task_scoped_types [:discovered_project_rule, :discovered_project_structure]
+  @turn_starter_types [:user_message, :agent_retry]
+  @terminal_types [:agent_completed, :agent_error, :agent_paused]
+  @in_turn_types [:agent_response, :tool_call, :tool_result]
 
   @doc """
   Returns the list of all interaction type modules.
   """
   def interaction_modules, do: @interaction_modules
+  def type_values, do: @type_values
+  def task_scoped_types, do: @task_scoped_types
+  def turn_starter_types, do: @turn_starter_types
+  def terminal_types, do: @terminal_types
+  def in_turn_types, do: @in_turn_types
+
+  def type_for(%{__struct__: module}), do: type_for(module)
+
+  def type_for(module) when is_atom(module) do
+    case Map.fetch(@module_to_type, module) do
+      {:ok, type} ->
+        type
+
+      :error ->
+        if Map.has_key?(@type_to_module, module),
+          do: module,
+          else: raise("Unknown interaction type: #{inspect(module)}")
+    end
+  end
+
+  def module_for(type) when is_atom(type), do: Map.fetch!(@type_to_module, type)
 
   alias FrontmanServer.CurrentPageContext
+  alias FrontmanServer.Tasks.Interaction
   alias SwarmAi.Message, as: SwarmMessage
   alias SwarmAi.Message.ContentPart, as: SwarmContentPart
   alias SwarmAi.ToolCall, as: SwarmToolCall
@@ -394,8 +426,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(content_blocks) do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
@@ -549,65 +579,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp user_image_block?(_), do: false
   end
 
-  defimpl Jason.Encoder, for: UserMessage do
-    def encode(value, opts) do
-      selected_figma_node =
-        case value.selected_figma_node do
-          nil ->
-            nil
-
-          %{id: id, node: node, image: image, is_dsl: is_dsl} ->
-            %{
-              id: id,
-              has_node: node != nil,
-              has_image: image != nil,
-              is_dsl: is_dsl
-            }
-        end
-
-      annotations =
-        Enum.map(value.annotations, fn ann ->
-          base = %{
-            annotation_id: ann.annotation_id,
-            annotation_index: ann.annotation_index,
-            tag_name: ann.tag_name,
-            comment: ann.comment,
-            file: ann.file,
-            line: ann.line,
-            column: ann.column,
-            component_name: ann.component_name,
-            component_props: ann.component_props,
-            parent: ann.parent,
-            css_classes: ann.css_classes,
-            nearby_text: ann.nearby_text,
-            bounding_box: ann.bounding_box,
-            screenshot: ann.screenshot
-          }
-
-          # Strip nil values to keep JSON compact
-          Map.merge(ann.metadata || %{}, base)
-          |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-          |> Map.new()
-        end)
-
-      Jason.Encode.map(
-        %{
-          type: "user_message",
-          id: value.id,
-          messages: value.messages,
-          timestamp: DateTime.to_iso8601(value.timestamp),
-          annotations: annotations,
-          selected_figma_node: selected_figma_node,
-          images:
-            Enum.map(value.images, fn img ->
-              %{mime_type: img.mime_type, filename: img.filename, has_blob: img.blob != ""}
-            end)
-        },
-        opts
-      )
-    end
-  end
-
   defmodule AgentResponse do
     @moduledoc """
     Represents a complete response from an agent.
@@ -624,29 +595,12 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(content, metadata \\ %{}) do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         id: Interaction.new_id(),
         content: content,
         timestamp: Interaction.now(),
         metadata: metadata
       }
-    end
-  end
-
-  defimpl Jason.Encoder, for: AgentResponse do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "agent_response",
-          id: value.id,
-          content: value.content,
-          timestamp: DateTime.to_iso8601(value.timestamp),
-          metadata: value.metadata
-        },
-        opts
-      )
     end
   end
 
@@ -663,27 +617,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(result \\ nil) do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
         result: result
       }
-    end
-  end
-
-  defimpl Jason.Encoder, for: AgentCompleted do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "agent_completed",
-          id: value.id,
-          timestamp: DateTime.to_iso8601(value.timestamp),
-          result: value.result
-        },
-        opts
-      )
     end
   end
 
@@ -713,8 +651,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     `category` is a machine-readable error category (e.g. "rate_limit", "context_limit").
     """
     def new(error, kind \\ "failed", retryable \\ false, category \\ "unknown") do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
@@ -723,23 +659,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         retryable: retryable,
         category: category
       }
-    end
-  end
-
-  defimpl Jason.Encoder, for: AgentError do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "agent_error",
-          id: value.id,
-          timestamp: DateTime.to_iso8601(value.timestamp),
-          error: value.error,
-          kind: value.kind,
-          retryable: value.retryable,
-          category: value.category
-        },
-        opts
-      )
     end
   end
 
@@ -757,27 +676,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(retried_error_id) do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
         retried_error_id: retried_error_id
       }
-    end
-  end
-
-  defimpl Jason.Encoder, for: AgentRetry do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "agent_retry",
-          id: value.id,
-          timestamp: DateTime.to_iso8601(value.timestamp),
-          retried_error_id: value.retried_error_id
-        },
-        opts
-      )
     end
   end
 
@@ -798,8 +701,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(tool_name, timeout_ms) do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
@@ -807,22 +708,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         tool_name: tool_name,
         timeout_ms: timeout_ms
       }
-    end
-  end
-
-  defimpl Jason.Encoder, for: AgentPaused do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "agent_paused",
-          id: value.id,
-          timestamp: DateTime.to_iso8601(value.timestamp),
-          reason: value.reason,
-          tool_name: value.tool_name,
-          timeout_ms: value.timeout_ms
-        },
-        opts
-      )
     end
   end
 
@@ -841,8 +726,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(%SwarmAi.ToolCall{} = tc) do
-      alias FrontmanServer.Tasks.Interaction
-
       case SwarmAi.ToolCall.parse_arguments(tc) do
         {:ok, arguments} ->
           {:ok,
@@ -857,22 +740,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         {:error, message} ->
           {:error, {:invalid_tool_arguments, message}}
       end
-    end
-  end
-
-  defimpl Jason.Encoder, for: ToolCall do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "tool_call",
-          id: value.id,
-          tool_call_id: value.tool_call_id,
-          tool_name: value.tool_name,
-          arguments: value.arguments,
-          timestamp: DateTime.to_iso8601(value.timestamp)
-        },
-        opts
-      )
     end
   end
 
@@ -892,8 +759,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(tool_call_data, result, is_error \\ false) do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         id: Interaction.new_id(),
         tool_call_id: tool_call_data.id,
@@ -902,23 +767,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         is_error: is_error,
         timestamp: Interaction.now()
       }
-    end
-  end
-
-  defimpl Jason.Encoder, for: ToolResult do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "tool_result",
-          id: value.id,
-          tool_call_id: value.tool_call_id,
-          tool_name: value.tool_name,
-          result: value.result,
-          is_error: value.is_error,
-          timestamp: DateTime.to_iso8601(value.timestamp)
-        },
-        opts
-      )
     end
   end
 
@@ -938,27 +786,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(path, content) do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         path: path,
         content: content,
         timestamp: Interaction.now()
       }
-    end
-  end
-
-  defimpl Jason.Encoder, for: DiscoveredProjectRule do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "discovered_project_rule",
-          path: value.path,
-          content: value.content,
-          timestamp: DateTime.to_iso8601(value.timestamp)
-        },
-        opts
-      )
     end
   end
 
@@ -977,8 +809,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def new(summary) do
-      alias FrontmanServer.Tasks.Interaction
-
       %__MODULE__{
         summary: summary,
         timestamp: Interaction.now()
@@ -986,18 +816,73 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  defimpl Jason.Encoder, for: DiscoveredProjectStructure do
-    def encode(value, opts) do
-      Jason.Encode.map(
-        %{
-          type: "discovered_project_structure",
-          summary: value.summary,
-          timestamp: DateTime.to_iso8601(value.timestamp)
-        },
-        opts
-      )
+  for module <- @interaction_modules do
+    defimpl Jason.Encoder, for: module do
+      def encode(value, opts) do
+        value
+        |> Interaction.to_json_map()
+        |> Jason.Encode.map(opts)
+      end
     end
   end
+
+  def to_json_map(%UserMessage{} = value) do
+    %{
+      type: type_for(value),
+      id: value.id,
+      messages: value.messages,
+      timestamp: DateTime.to_iso8601(value.timestamp),
+      annotations: Enum.map(value.annotations, &annotation_json_map/1),
+      selected_figma_node: selected_figma_node_json_map(value.selected_figma_node),
+      images: Enum.map(value.images, &user_image_json_map/1)
+    }
+  end
+
+  def to_json_map(value) when is_struct(value) do
+    value
+    |> Map.from_struct()
+    |> Map.put(:type, type_for(value))
+    |> stringify_timestamp()
+  end
+
+  defp annotation_json_map(ann) do
+    base = %{
+      annotation_id: ann.annotation_id,
+      annotation_index: ann.annotation_index,
+      tag_name: ann.tag_name,
+      comment: ann.comment,
+      file: ann.file,
+      line: ann.line,
+      column: ann.column,
+      component_name: ann.component_name,
+      component_props: ann.component_props,
+      parent: ann.parent,
+      css_classes: ann.css_classes,
+      nearby_text: ann.nearby_text,
+      bounding_box: ann.bounding_box,
+      screenshot: ann.screenshot
+    }
+
+    ann.metadata
+    |> Map.merge(base)
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp selected_figma_node_json_map(nil), do: nil
+
+  defp selected_figma_node_json_map(%{id: id, node: node, image: image, is_dsl: is_dsl}) do
+    %{id: id, has_node: node != nil, has_image: image != nil, is_dsl: is_dsl}
+  end
+
+  defp user_image_json_map(img) do
+    %{mime_type: img.mime_type, filename: img.filename, has_blob: img.blob != ""}
+  end
+
+  defp stringify_timestamp(%{timestamp: %DateTime{} = timestamp} = data) do
+    %{data | timestamp: DateTime.to_iso8601(timestamp)}
+  end
+
+  defp stringify_timestamp(data), do: data
 
   @doc """
   Generates a new interaction ID (UUID v4).

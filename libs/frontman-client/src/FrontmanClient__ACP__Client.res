@@ -15,6 +15,8 @@ type acpState =
   | Initialized(Types.initializeResult)
 
 type pendingRequest = {
+  method: string,
+  sessionId: option<string>,
   resolve: JSON.t => unit,
   reject: string => unit,
 }
@@ -88,6 +90,32 @@ let handleResponse = (state: state, payload: JSON.t): state => {
   | S.Error(e) =>
     Log.error(`Failed to parse JSON-RPC response: ${e.message}`)
     state
+  }
+}
+
+let resolvePendingSessionRequest = (
+  state: state,
+  ~method: string,
+  ~sessionId: string,
+  ~result: JSON.t,
+): state => {
+  let matchRef = ref(None)
+
+  state.pendingRequests->Dict.forEachWithKey((pending, id) => {
+    switch matchRef.contents {
+    | None if pending.method == method && pending.sessionId == Some(sessionId) =>
+      matchRef := Some((id, pending))
+    | _ => ()
+    }
+  })
+
+  switch matchRef.contents {
+  | Some((id, pending)) =>
+    pending.resolve(result)
+    let newPending = state.pendingRequests->Dict.copy
+    newPending->Dict.delete(id)
+    {...state, pendingRequests: newPending}
+  | None => state
   }
 }
 

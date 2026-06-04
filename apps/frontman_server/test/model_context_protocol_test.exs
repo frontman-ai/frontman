@@ -30,17 +30,16 @@ defmodule ModelContextProtocolTest do
   describe "build_tool_execution/1" do
     import ExUnit.CaptureLog
 
-    test "returns {request_id, request} tuple with valid JSON-RPC structure" do
+    test "builds valid JSON-RPC tools/call request" do
       params = %ModelContextProtocol.ToolCallParams{
         tool_name: "search_files",
         arguments: %{"query" => "test"},
         call_id: "call-789"
       }
 
-      {request_id, request} = ModelContextProtocol.build_tool_execution(params)
+      request = ModelContextProtocol.build_tool_execution(params)
 
-      assert is_integer(request_id)
-      assert request["id"] == request_id
+      assert request["id"] == "call-789"
       assert request["jsonrpc"] == "2.0"
       assert request["method"] == "tools/call"
       assert request["params"]["name"] == "search_files"
@@ -48,17 +47,18 @@ defmodule ModelContextProtocolTest do
       assert request["params"]["callId"] == "call-789"
     end
 
-    test "generates unique request IDs" do
+    test "uses tool call id as request id" do
       params = %ModelContextProtocol.ToolCallParams{
         tool_name: "read_file",
         arguments: %{"path" => "/tmp/test.txt"},
         call_id: "call-1"
       }
 
-      {id1, _} = ModelContextProtocol.build_tool_execution(params)
-      {id2, _} = ModelContextProtocol.build_tool_execution(params)
+      request1 = ModelContextProtocol.build_tool_execution(params)
+      request2 = ModelContextProtocol.build_tool_execution(params)
 
-      assert id1 != id2
+      assert request1["id"] == "call-1"
+      assert request2["id"] == "call-1"
     end
 
     @tag capture_log: true

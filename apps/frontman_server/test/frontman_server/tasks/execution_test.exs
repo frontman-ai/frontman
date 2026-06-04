@@ -177,7 +177,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive {:execution_start_error, "No API key available for this request.", 1}
 
       assert %InteractionSchema{turn_number: 1} =
-               Repo.get_by!(InteractionSchema, task_id: task_id, type: "agent_error")
+               Repo.get_by!(InteractionSchema,
+                 task_id: task_id,
+                 type: Interaction.type_for(Interaction.AgentError)
+               )
 
       assert {:ok, :no_open_turn} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
     end
@@ -732,7 +735,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_channel
     ]
 
-    test "terminated event persists error, fires telemetry, and pushes cancelled to client", %{
+    test "terminated event persists error and fires telemetry", %{
       task_id: task_id,
       scope: scope,
       socket: socket
@@ -756,18 +759,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       # Flush the channel's message queue before asserting pushes.
       :sys.get_state(socket.channel_pid)
-
-      assert_push(@acp_message, %{
-        "jsonrpc" => "2.0",
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "agent_turn_complete",
-            "stopReason" => "cancelled"
-          }
-        }
-      })
 
       # Verify DB persistence
       {:ok, task} = Tasks.get_task(scope, task_id)

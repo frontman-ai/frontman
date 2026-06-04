@@ -6,7 +6,6 @@ defmodule FrontmanServer.TasksTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Migration.Runner
-  alias FrontmanServer.Frameworks
   alias FrontmanServer.Repo.Migrations.BackfillInteractionTurnNumbers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
@@ -24,8 +23,8 @@ defmodule FrontmanServer.TasksTest do
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      assert task.task_id == task_id
-      assert task.framework == Frameworks.from_string(framework)
+      assert task.id == task_id
+      assert task.framework == :nextjs
     end
   end
 
@@ -58,15 +57,57 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:ok, :no_open_turn} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
 
-      insert_interaction_row(task_id, "user_message", 1)
-      insert_interaction_row(task_id, "tool_call", 1, %{"tool_call_id" => "call_1"})
+      insert_interaction_row(task_id, Interaction.UserMessage, 1)
+      insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
 
       assert {:ok, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
                Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
 
-      insert_interaction_row(task_id, "tool_result", 1, %{"tool_call_id" => "call_1"})
+      insert_interaction_row(task_id, Interaction.ToolResult, 1, %{"tool_call_id" => "call_1"})
 
       assert {:ok, []} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
+    end
+  end
+
+  describe "terminated execution recovery" do
+    test "interrupts non-question tools but keeps pending questions open", %{scope: scope} do
+      task_id = task_fixture(scope)
+      turn_number = start_turn_fixture(scope, task_id)
+
+      {:ok, _tool_call} =
+        Tasks.request_client_tool(
+          scope,
+          task_id,
+          turn_number,
+          named_swarm_tool_call("question_1", "question")
+        )
+
+      {:ok, _tool_call} =
+        Tasks.request_client_tool(
+          scope,
+          task_id,
+          turn_number,
+          named_swarm_tool_call("read_1", "read_file")
+        )
+
+      Tasks.handle_swarm_event(scope, task_id, %{
+        turn_number: turn_number,
+        event: {:terminated, :shutdown}
+      })
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      refute Enum.any?(task.interactions, &match?(%Interaction.AgentError{}, &1))
+
+      assert [
+               %Interaction.ToolResult{
+                 tool_call_id: "read_1",
+                 result: "Interrupted by restart",
+                 is_error: true
+               }
+             ] = Enum.filter(task.interactions, &match?(%Interaction.ToolResult{}, &1))
+
+      assert {:ok, [%Interaction.ToolCall{tool_call_id: "question_1"}]} =
+               Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
     end
   end
 
@@ -75,14 +116,14 @@ defmodule FrontmanServer.TasksTest do
       task_id = task_fixture(scope)
 
       for {type, data} <- [
-            {"discovered_project_rule", %{}},
-            {"user_message", %{}},
-            {"agent_response", %{}},
-            {"agent_completed", %{}},
-            {"discovered_project_structure", %{}},
-            {"user_message", %{}},
-            {"tool_call", %{"tool_call_id" => "call_2"}},
-            {"tool_result", %{"tool_call_id" => "call_2"}}
+            {Interaction.DiscoveredProjectRule, %{}},
+            {Interaction.UserMessage, %{}},
+            {Interaction.AgentResponse, %{}},
+            {Interaction.AgentCompleted, %{}},
+            {Interaction.DiscoveredProjectStructure, %{}},
+            {Interaction.UserMessage, %{}},
+            {Interaction.ToolCall, %{"tool_call_id" => "call_2"}},
+            {Interaction.ToolResult, %{"tool_call_id" => "call_2"}}
           ] do
         insert_interaction_row(task_id, type, nil, data)
       end
@@ -104,14 +145,14 @@ defmodule FrontmanServer.TasksTest do
                )
 
       assert [
-               {"discovered_project_rule", nil},
-               {"user_message", 1},
-               {"agent_response", 1},
-               {"agent_completed", 1},
-               {"discovered_project_structure", nil},
-               {"user_message", 2},
-               {"tool_call", 2},
-               {"tool_result", 2}
+               {Interaction.DiscoveredProjectRule, nil},
+               {Interaction.UserMessage, 1},
+               {Interaction.AgentResponse, 1},
+               {Interaction.AgentCompleted, 1},
+               {Interaction.DiscoveredProjectStructure, nil},
+               {Interaction.UserMessage, 2},
+               {Interaction.ToolCall, 2},
+               {Interaction.ToolResult, 2}
              ] = db_type_turns(task_id)
     end
   end
@@ -183,11 +224,11 @@ defmodule FrontmanServer.TasksTest do
       assert sequences == Enum.uniq(sequences), "sequences should be unique"
 
       assert [
-               {"user_message", ^turn_number},
-               {"agent_response", ^turn_number},
-               {"tool_call", ^turn_number},
-               {"tool_result", ^turn_number},
-               {"agent_response", ^turn_number}
+               {Interaction.UserMessage, ^turn_number},
+               {Interaction.AgentResponse, ^turn_number},
+               {Interaction.ToolCall, ^turn_number},
+               {Interaction.ToolResult, ^turn_number},
+               {Interaction.AgentResponse, ^turn_number}
              ] = db_type_turns(task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -416,7 +457,7 @@ defmodule FrontmanServer.TasksTest do
   defp db_type_turns(task_id) do
     task_id
     |> db_rows()
-    |> Enum.map(&{&1.type, &1.turn_number})
+    |> Enum.map(&{Interaction.module_for(&1.type), &1.turn_number})
   end
 
   defp db_rows(task_id) do
@@ -437,11 +478,15 @@ defmodule FrontmanServer.TasksTest do
 
     Repo.insert!(%InteractionSchema{
       task_id: task_id,
-      type: type,
+      type: Interaction.type_for(type),
       turn_number: turn_number,
       sequence: System.unique_integer([:monotonic, :positive]),
       data: Map.merge(defaults, data)
     })
+  end
+
+  defp named_swarm_tool_call(id, name, args \\ %{}) do
+    %SwarmAi.ToolCall{id: id, name: name, arguments: Jason.encode!(args)}
   end
 
   describe "add_discovered_project_rule/4" do
@@ -454,7 +499,10 @@ defmodule FrontmanServer.TasksTest do
       assert rule.path == "/project/AGENTS.md"
       assert rule.content == "# Rules"
 
-      assert Repo.get_by!(InteractionSchema, task_id: task_id, type: "discovered_project_rule").turn_number ==
+      assert Repo.get_by!(InteractionSchema,
+               task_id: task_id,
+               type: Interaction.type_for(Interaction.DiscoveredProjectRule)
+             ).turn_number ==
                nil
     end
 
@@ -538,7 +586,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert Repo.get_by!(InteractionSchema,
                task_id: task_id,
-               type: "discovered_project_structure"
+               type: Interaction.type_for(Interaction.DiscoveredProjectStructure)
              ).turn_number == nil
     end
 

@@ -19,7 +19,7 @@ defmodule FrontmanServer.Protocols.McpContractTest do
 
   describe "ModelContextProtocol.build_tool_execution/1" do
     test "params field validates against mcp/toolCallParams schema" do
-      {_request_id, request} =
+      request =
         ModelContextProtocol.build_tool_execution(%ModelContextProtocol.ToolCallParams{
           tool_name: "read_file",
           arguments: %{"path" => "/tmp/test.txt"},
@@ -30,7 +30,7 @@ defmodule FrontmanServer.Protocols.McpContractTest do
     end
 
     test "full request validates against jsonrpc/request schema" do
-      {_request_id, request} =
+      request =
         ModelContextProtocol.build_tool_execution(%ModelContextProtocol.ToolCallParams{
           tool_name: "search_files",
           arguments: %{"query" => "test"},

@@ -24,9 +24,11 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.{Prompts, RootAgent}
-  alias FrontmanServer.Tasks.{Interaction, InteractionSchema, Task}
+  alias FrontmanServer.Tasks.{Interaction, InteractionSchema, TaskSchema}
   alias FrontmanServer.Tools
   alias SwarmAi.Message.ContentPart
+
+  @task_scoped_interaction_types Interaction.task_scoped_types()
 
   @doc """
   Runs an agent execution for a task.
@@ -41,9 +43,9 @@ defmodule FrontmanServer.Tasks.Execution do
   - `{:ok, :already_running}` - An execution is already running for this task
   - `{:error, :no_api_key}` - No API key available
   """
-  @spec run(Accounts.scope(), Task.t(), [SwarmAi.Tool.t()], keyword()) ::
+  @spec run(Accounts.scope(), TaskSchema.t(), [SwarmAi.Tool.t()], keyword()) ::
           {:ok, pid() | :already_running} | {:error, :no_api_key | term()}
-  def run(%Scope{} = scope, %Task{} = task, tools, opts \\ []) when is_list(tools) do
+  def run(%Scope{} = scope, %TaskSchema{} = task, tools, opts \\ []) when is_list(tools) do
     model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
     turn_number = Keyword.fetch!(opts, :turn_number)
     interaction_rows = Keyword.fetch!(opts, :interaction_rows)
@@ -76,18 +78,18 @@ defmodule FrontmanServer.Tasks.Execution do
 
         # Emit task start telemetry BEFORE SwarmAi.run to avoid race with task_stop
         # in event handlers — the agent may complete before this line returns.
-        TelemetryEvents.task_start(task.task_id)
+        TelemetryEvents.task_start(task.id)
 
         case SwarmAi.run(FrontmanServer.AgentRuntime, agent) do
           {:ok, pid} ->
             {:ok, pid}
 
           {:error, :already_running} ->
-            TelemetryEvents.task_stop(task.task_id)
+            TelemetryEvents.task_stop(task.id)
             {:ok, :already_running}
 
           error ->
-            TelemetryEvents.task_stop(task.task_id)
+            TelemetryEvents.task_stop(task.id)
             error
         end
 
@@ -136,7 +138,7 @@ defmodule FrontmanServer.Tasks.Execution do
   # --- Private ---
 
   defp row_prompt_messages(%InteractionSchema{turn_number: nil, type: type}, _turn_number)
-       when type in ["discovered_project_rule", "discovered_project_structure"],
+       when type in @task_scoped_interaction_types,
        do: {[], false}
 
   defp row_prompt_messages(%InteractionSchema{turn_number: nil, type: type}, _turn_number),
@@ -171,7 +173,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
   defp decay_image_part(part), do: part
 
-  defp system_prompt(%Task{} = task, project_traits) do
+  defp system_prompt(%TaskSchema{} = task, project_traits) do
     interactions = task.interactions
 
     Prompts.build(

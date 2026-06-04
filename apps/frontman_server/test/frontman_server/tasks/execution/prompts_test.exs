@@ -7,7 +7,6 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
   """
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.Execution.Prompts
 
   describe "build/1 context-based guidance selection" do
@@ -22,8 +21,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
 
     test "nextjs framework adds framework-specific guidance" do
-      fw = Frameworks.from_string("nextjs")
-      prompt = Prompts.build(framework: fw)
+      prompt = Prompts.build(framework: :nextjs)
 
       assert prompt =~ "Next.js"
       assert prompt =~ "write_file"
@@ -31,8 +29,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
 
     test "wordpress framework excludes filesystem tool guidance" do
-      fw = Frameworks.from_string("wordpress")
-      prompt = Prompts.build(framework: fw)
+      prompt = Prompts.build(framework: :wordpress)
 
       assert prompt =~ "Do not use filesystem tools in WordPress sessions"
       assert prompt =~ "not available in the WordPress plugin runtime"
@@ -50,7 +47,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
 
     test "non-wordpress framework adds code attachment guidance" do
-      vite_prompt = Prompts.build(framework: Frameworks.from_string("vite"))
+      vite_prompt = Prompts.build(framework: :vite)
 
       assert vite_prompt =~ "write_file"
       assert vite_prompt =~ "image_ref"
@@ -123,7 +120,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptsTest do
     end
 
     test "Next.js framework alone does not control TypeScript / React section" do
-      prompt = Prompts.build(framework: Frameworks.from_string("nextjs"))
+      prompt = Prompts.build(framework: :nextjs)
 
       refute prompt =~ "## TypeScript / React"
     end

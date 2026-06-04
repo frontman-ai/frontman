@@ -16,18 +16,27 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   import Ecto.Query
 
   alias FrontmanServer.Accounts.User
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks.InteractionSchema
 
+  @framework_values Frameworks.ids()
   @primary_key {:id, :binary_id, autogenerate: false}
   @foreign_key_type :binary_id
   schema "tasks" do
     field(:short_desc, :string)
-    field(:framework, :string)
+    field(:framework, Ecto.Enum, values: @framework_values)
+    field(:interactions, :any, virtual: true, default: [])
 
     belongs_to(:user, User)
-    has_many(:interactions, InteractionSchema, foreign_key: :task_id)
+    has_many(:interaction_rows, InteractionSchema, foreign_key: :task_id)
 
     timestamps(type: :utc_datetime)
+  end
+
+  @doc "Returns the default short description for a new task."
+  @spec default_title() :: String.t()
+  def default_title do
+    "New Task"
   end
 
   @doc """

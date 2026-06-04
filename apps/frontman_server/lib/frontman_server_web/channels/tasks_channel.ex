@@ -18,7 +18,6 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.Registry
   alias FrontmanServer.Tasks
@@ -136,12 +135,11 @@ defmodule FrontmanServerWeb.TasksChannel do
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
-         fw = Frameworks.from_string(raw_framework),
          {:ok, ^session_id} <-
            Tasks.create_task(
              socket.assigns.scope,
              session_id,
-             Frameworks.to_string(fw)
+             raw_framework
            ) do
       push_response(
         socket,
@@ -263,7 +261,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   # Streams session history as ACP session/update notifications
   defp stream_session_history(socket, task) do
     task.interactions
-    |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.task_id))
+    |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.id))
     |> Enum.each(fn notification ->
       push(socket, @acp_message, notification)
     end)

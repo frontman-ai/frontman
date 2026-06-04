@@ -189,7 +189,7 @@ defmodule AgentClientProtocol do
   @doc """
   Builds a session summary for the list_sessions channel response.
 
-  Translates a domain Task into ACP wire format. The channel should not
+  Translates a task schema into ACP wire format. The channel should not
   build this map directly.
   """
   def build_session_summary(task) do
@@ -211,7 +211,7 @@ defmodule AgentClientProtocol do
   @doc """
   Generates ACP session ID.
 
-  Session IDs are UUIDs. In ACP, sessions map 1:1 with domain Tasks.
+  Session IDs are UUIDs. In ACP, sessions map 1:1 with tasks.
   """
   def generate_session_id do
     Ecto.UUID.generate()

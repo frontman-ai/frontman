@@ -10,6 +10,7 @@ defmodule FrontmanServer.FrameworksTest do
       for id <- @framework_ids do
         fw = Frameworks.from_string(id)
 
+        assert fw in Frameworks.ids()
         assert Frameworks.to_string(fw) == id
         assert Frameworks.valid_signup_id?(id)
       end

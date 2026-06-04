@@ -22,6 +22,6 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
     task_id = to_string(key)
     turn_number = Map.fetch!(context, :turn_number)
 
-    Tasks.handle_swarm_event(scope, task_id, turn_number, event)
+    Tasks.handle_swarm_event(scope, task_id, %{turn_number: turn_number, event: event})
   end
 end

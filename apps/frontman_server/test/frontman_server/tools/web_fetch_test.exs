@@ -69,6 +69,8 @@ defmodule FrontmanServer.Tools.WebFetchTest do
   end
 
   describe "execute/2 — SSRF protection" do
+    @public_test_url "http://93.184.216.34"
+
     @blocked_urls [
       {"localhost", "http://localhost/secret"},
       {"localhost with port", "http://localhost:8080/admin"},
@@ -102,7 +104,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(302, "")
       end)
 
-      assert {:error, msg} = execute("https://evil.com/redirect", ctx)
+      assert {:error, msg} = execute("#{@public_test_url}/redirect", ctx)
       assert msg =~ "private"
     end
 
@@ -113,7 +115,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(301, "")
       end)
 
-      assert {:error, msg} = execute("https://evil.com/aws", ctx)
+      assert {:error, msg} = execute("#{@public_test_url}/aws", ctx)
       assert msg =~ "private"
     end
 
@@ -124,7 +126,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(302, "")
       end)
 
-      assert {:error, msg} = execute("https://evil.com/mapped", ctx)
+      assert {:error, msg} = execute("#{@public_test_url}/mapped", ctx)
       assert msg =~ "private"
     end
 
@@ -135,7 +137,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(302, "")
       end)
 
-      assert {:error, msg} = execute("https://evil.com/gopher", ctx)
+      assert {:error, msg} = execute("#{@public_test_url}/gopher", ctx)
       assert msg =~ "http:// or https://"
     end
 

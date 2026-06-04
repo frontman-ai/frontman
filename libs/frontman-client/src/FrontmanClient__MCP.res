@@ -24,13 +24,13 @@ type mcpHandler<'server> = {
 // Incoming message variants
 @@live
 type mcpMessage =
-  | Request({id: int, method: string, params: option<JSON.t>})
+  | Request({id: JsonRpc.Id.t, method: string, params: option<JSON.t>})
   | Notification({method: string, params: option<JSON.t>})
 
 // Schema for requests (has id field)
 let requestSchema = S.object(s => {
   s.field("jsonrpc", S.literal("2.0"))->ignore
-  let id = s.field("id", S.int)
+  let id = s.field("id", JsonRpc.Id.schema)
   let method = s.field("method", S.string)
   let params = s.field("params", S.option(S.json))
   Request({id, method, params})
@@ -64,24 +64,31 @@ let parse = (json: JSON.t): result<mcpMessage, string> => {
 }
 
 // Send a JSON-RPC response
-let sendResponse = (handler: mcpHandler<'server>, id: int, result: JSON.t): unit => {
-  let response = JsonRpc.Response.makeSuccess(~id, ~result)
-  let payload = response->S.reverseConvertToJsonOrThrow(JsonRpc.Response.schema)
+let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
+  let payload = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
 // Send a JSON-RPC error response
-let sendError = (handler: mcpHandler<'server>, id: int, code: int, message: string): unit => {
+let sendError = (
+  handler: mcpHandler<'server>,
+  id: JsonRpc.Id.t,
+  code: int,
+  message: string,
+): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
-  let response = JsonRpc.Response.makeError(~id, ~error)
-  let payload = response->S.reverseConvertToJsonOrThrow(JsonRpc.Response.schema)
+  let payload = JsonRpc.Response.makeErrorPayloadWithId(~id, ~error)
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
 // Handle initialize request
-let handleInitialize = (handler: mcpHandler<'server>, id: int, _params: option<JSON.t>): unit => {
+let handleInitialize = (
+  handler: mcpHandler<'server>,
+  id: JsonRpc.Id.t,
+  _params: option<JSON.t>,
+): unit => {
   try {
     let {serverInterface} = handler
     let result = serverInterface.buildInitializeResult(serverInterface.server)
@@ -96,7 +103,7 @@ let handleInitialize = (handler: mcpHandler<'server>, id: int, _params: option<J
 }
 
 // Handle tools/list request
-let handleToolsList = (handler: mcpHandler<'server>, id: int): unit => {
+let handleToolsList = (handler: mcpHandler<'server>, id: JsonRpc.Id.t): unit => {
   try {
     let {serverInterface} = handler
     let result = serverInterface.buildToolsListResult(serverInterface.server)
@@ -113,7 +120,7 @@ let handleToolsList = (handler: mcpHandler<'server>, id: int): unit => {
 // Handle tools/call request
 let handleToolsCall = async (
   handler: mcpHandler<'server>,
-  id: int,
+  id: JsonRpc.Id.t,
   params: option<JSON.t>,
 ): unit => {
   switch params {

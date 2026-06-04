@@ -2,6 +2,47 @@ open Vitest
 
 module Reducer = Client__ConnectionReducer
 module FtueState = Client__FtueState
+module ACPClient = FrontmanAiFrontmanClient.FrontmanClient__ACP__Client
+module ACPProtocol = FrontmanAiFrontmanClient.FrontmanClient__ACP__Protocol
+module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+
+let mockChannel: FrontmanAiFrontmanClient.FrontmanClient__Phoenix__Channel.t = %raw(`{
+  push: function(_event, _payload) {
+    return { receive: function() { return this; } };
+  },
+  on: function() {},
+  off: function() {}
+}`)
+
+let textPromptJson = text =>
+  JSON.Encode.object(
+    Dict.fromArray([("type", JSON.Encode.string("text")), ("text", JSON.Encode.string(text))]),
+  )
+
+let agentTurnCompleteNotification = (~sessionId) =>
+  JSON.Encode.object(
+    Dict.fromArray([
+      ("jsonrpc", JSON.Encode.string("2.0")),
+      ("method", JSON.Encode.string("session/update")),
+      (
+        "params",
+        JSON.Encode.object(
+          Dict.fromArray([
+            ("sessionId", JSON.Encode.string(sessionId)),
+            (
+              "update",
+              JSON.Encode.object(
+                Dict.fromArray([
+                  ("sessionUpdate", JSON.Encode.string("agent_turn_complete")),
+                  ("stopReason", JSON.Encode.string("end_turn")),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    ]),
+  )
 
 // Helper to check if effect list contains a specific effect type
 let hasEffect = (effects, predicate) => effects->Array.some(predicate)
@@ -150,6 +191,76 @@ describe("Connection Reducer", () => {
         | _ => t->expect(false)->Expect.toBe(true)
         }
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
+      },
+    )
+  })
+
+  describe("Prompt Completion", () => {
+    testAsync(
+      "restart-resumed turn completion releases next prompt",
+      async t => {
+        let sessionId = "task-1"
+        let acpState = ref(ACPClient.initialState)
+
+        let promptResultPromise = ACPProtocol.sendPrompt(
+          ~channel=mockChannel,
+          ~state=acpState,
+          ~sessionId,
+          ~prompt=[textPromptJson("first")],
+          ~_meta=None,
+          ~onMessage=None,
+        )
+
+        t->expect(acpState.contents.pendingRequests->Dict.keysToArray->Array.length)->Expect.toBe(1)
+
+        ACPProtocol.handleIncomingMessage(
+          ~state=acpState,
+          ~onUpdate=Some((_sessionId, _update) => ()),
+          ~onMessage=None,
+          ~onParseError=None,
+          agentTurnCompleteNotification(~sessionId),
+        )
+
+        let promptResult = await promptResultPromise
+        switch promptResult {
+        | Ok({stopReason: EndTurn}) => ()
+        | _ => t->expect("prompt result")->Expect.toBe("end_turn")
+        }
+
+        let mockSession = Obj.magic({"sessionId": sessionId})
+        let inFlightState = {
+          ...Reducer.initialState,
+          session: SessionActive(mockSession),
+          isSendingPrompt: true,
+        }
+
+        let (completedState, _) = Reducer.reduce(inFlightState, PromptSent)
+        t->expect(completedState.isSendingPrompt)->Expect.toBe(false)
+
+        let emptyBlocks: array<ACPTypes.contentBlock> = []
+        let (nextPromptState, effects) = Reducer.reduce(
+          completedState,
+          SendPrompt({
+            text: "second",
+            additionalBlocks: emptyBlocks,
+            onComplete: _ => (),
+            _meta: None,
+          }),
+        )
+
+        t->expect(nextPromptState.isSendingPrompt)->Expect.toBe(true)
+        t
+        ->expect(
+          hasEffect(
+            effects,
+            e =>
+              switch e {
+              | Reducer.SendPromptEffect(_) => true
+              | _ => false
+              },
+          ),
+        )
+        ->Expect.toBe(true)
       },
     )
   })

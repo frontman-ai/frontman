@@ -74,11 +74,15 @@ let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): 
     }
   } catch {
   | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Relay fetch failed")
-    Log.error(~ctx={"url": url}, msg)
-    relay.state := Error(msg)
-    Error(msg)
+    switch signal {
+    | Some(s) if s.aborted => Error("Connection aborted")
+    | _ =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Relay fetch failed")
+      Log.error(~ctx={"url": url}, msg)
+      relay.state := Error(msg)
+      Error(msg)
+    }
   }
 }
 

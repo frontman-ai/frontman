@@ -21,13 +21,14 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
           | :terminated
           | :paused
 
-  @enforce_keys [:type, :turn_number]
-  defstruct [:type, :payload, :turn_number]
+  @enforce_keys [:type, :payload, :turn_number]
+  defstruct [:type, :payload, :turn_number, :interaction_id]
 
   @type t :: %__MODULE__{
           type: event_type(),
           payload: term(),
-          turn_number: pos_integer()
+          turn_number: pos_integer(),
+          interaction_id: String.t() | nil
         }
 
   @doc """
@@ -38,15 +39,27 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
   """
   @spec classify(t()) :: term()
   def classify(%__MODULE__{type: :response}), do: :ok
+  def classify(%__MODULE__{type: :terminated}), do: :ok
+  def classify(%__MODULE__{type: :tool_call}), do: :ok
   def classify(%__MODULE__{type: :completed}), do: :agent_completed
   def classify(%__MODULE__{type: :cancelled}), do: :agent_cancelled
-  def classify(%__MODULE__{type: :terminated}), do: :agent_cancelled
   def classify(%__MODULE__{type: :paused}), do: :agent_paused
-  def classify(%__MODULE__{type: :tool_call}), do: :ok
 
-  def classify(%__MODULE__{type: :failed, payload: %{reason: reason}}) do
+  def classify(%__MODULE__{type: :failed, payload: %{reason: reason}} = event) do
     {msg, category, retryable} = classify_error(reason)
-    {:agent_error, %{message: msg, category: category, retryable: retryable}}
+
+    error_info = %{message: msg, category: category, retryable: retryable}
+
+    if retryable do
+      {:agent_error,
+       Map.put(
+         error_info,
+         :retried_error_id,
+         event.interaction_id || raise("Retryable error missing interaction_id")
+       )}
+    else
+      {:agent_error, error_info}
+    end
   end
 
   def classify(%__MODULE__{type: :crashed, payload: %{reason: reason}}) do

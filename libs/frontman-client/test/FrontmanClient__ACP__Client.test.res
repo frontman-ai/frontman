@@ -1,6 +1,7 @@
 open Vitest
 
 module Client = FrontmanClient__ACP__Client
+module Protocol = FrontmanClient__ACP__Protocol
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 
@@ -16,6 +17,8 @@ describe("ACP Client State Reducer", _t => {
   test("RequestSent action updates currentId and pendingRequests", t => {
     let state = Client.initialState
     let pending: Client.pendingRequest = {
+      method: "test",
+      sessionId: None,
       resolve: _ => (),
       reject: _ => (),
     }
@@ -28,6 +31,8 @@ describe("ACP Client State Reducer", _t => {
 
   test("ResponseReceived action removes from pendingRequests", t => {
     let pending: Client.pendingRequest = {
+      method: "test",
+      sessionId: None,
       resolve: _ => (),
       reject: _ => (),
     }
@@ -55,8 +60,18 @@ describe("ACP Client State Reducer", _t => {
   })
 
   test("multiple RequestSent actions accumulate", t => {
-    let pending1: Client.pendingRequest = {resolve: _ => (), reject: _ => ()}
-    let pending2: Client.pendingRequest = {resolve: _ => (), reject: _ => ()}
+    let pending1: Client.pendingRequest = {
+      method: "one",
+      sessionId: None,
+      resolve: _ => (),
+      reject: _ => (),
+    }
+    let pending2: Client.pendingRequest = {
+      method: "two",
+      sessionId: None,
+      resolve: _ => (),
+      reject: _ => (),
+    }
 
     let state =
       Client.initialState
@@ -146,6 +161,8 @@ describe("ACP Client handleResponse", _t => {
   test("resolves pending request on success", t => {
     let resolved = ref(false)
     let pending: Client.pendingRequest = {
+      method: "test",
+      sessionId: None,
       resolve: _ => resolved := true,
       reject: _ => (),
     }
@@ -165,6 +182,8 @@ describe("ACP Client handleResponse", _t => {
   test("rejects pending request on error", t => {
     let rejected = ref(false)
     let pending: Client.pendingRequest = {
+      method: "test",
+      sessionId: None,
       resolve: _ => (),
       reject: _ => rejected := true,
     }
@@ -186,7 +205,12 @@ describe("ACP Client handleResponse", _t => {
   })
 
   test("removes request from pending after handling", t => {
-    let pending: Client.pendingRequest = {resolve: _ => (), reject: _ => ()}
+    let pending: Client.pendingRequest = {
+      method: "test",
+      sessionId: None,
+      resolve: _ => (),
+      reject: _ => (),
+    }
 
     let state = Client.initialState->Client.reduce(Client.RequestSent(3, pending))
 
@@ -198,5 +222,125 @@ describe("ACP Client handleResponse", _t => {
     let newState = Client.handleResponse(state, JSON.Encode.object(responseJson))
 
     t->expect(newState.pendingRequests->Dict.get("3"))->Expect.toEqual(None)
+  })
+
+  test("resolves pending request by method from notification", t => {
+    let resolved = ref(None)
+    let promptPending: Client.pendingRequest = {
+      method: "session/prompt",
+      sessionId: Some("task-1"),
+      resolve: json => resolved := json->JSON.Decode.object,
+      reject: _ => (),
+    }
+    let loadPending: Client.pendingRequest = {
+      method: "session/load",
+      sessionId: Some("task-1"),
+      resolve: _ => (),
+      reject: _ => (),
+    }
+
+    let state =
+      Client.initialState
+      ->Client.reduce(Client.RequestSent(1, promptPending))
+      ->Client.reduce(Client.RequestSent(2, loadPending))
+
+    let result = JSON.Encode.object(
+      Dict.fromArray([("stopReason", JSON.Encode.string("end_turn"))]),
+    )
+
+    let newState =
+      state->Client.resolvePendingSessionRequest(
+        ~method="session/prompt",
+        ~sessionId="task-1",
+        ~result,
+      )
+
+    t->expect(resolved.contents->Option.isSome)->Expect.toEqual(true)
+    t->expect(newState.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+    t->expect(newState.pendingRequests->Dict.get("2")->Option.isSome)->Expect.toEqual(true)
+  })
+
+  test("does not resolve pending prompt for another session", t => {
+    let resolved = ref(false)
+    let pending: Client.pendingRequest = {
+      method: "session/prompt",
+      sessionId: Some("task-1"),
+      resolve: _ => resolved := true,
+      reject: _ => (),
+    }
+    let state = Client.initialState->Client.reduce(Client.RequestSent(1, pending))
+    let result = JSON.Encode.object(
+      Dict.fromArray([("stopReason", JSON.Encode.string("end_turn"))]),
+    )
+
+    let newState =
+      state->Client.resolvePendingSessionRequest(
+        ~method="session/prompt",
+        ~sessionId="task-2",
+        ~result,
+      )
+
+    t->expect(resolved.contents)->Expect.toEqual(false)
+    t->expect(newState.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toEqual(true)
+  })
+
+  test("agent_turn_complete notification resolves pending prompt request", t => {
+    let resolved = ref(None)
+    let updateReceived = ref(false)
+    let pending: Client.pendingRequest = {
+      method: "session/prompt",
+      sessionId: Some("task-1"),
+      resolve: json => resolved := json->JSON.Decode.object,
+      reject: _ => (),
+    }
+    let state = ref(Client.initialState->Client.reduce(Client.RequestSent(1, pending)))
+
+    let payload = JSON.Encode.object(
+      Dict.fromArray([
+        ("jsonrpc", JSON.Encode.string("2.0")),
+        ("method", JSON.Encode.string("session/update")),
+        (
+          "params",
+          JSON.Encode.object(
+            Dict.fromArray([
+              ("sessionId", JSON.Encode.string("task-1")),
+              (
+                "update",
+                JSON.Encode.object(
+                  Dict.fromArray([
+                    ("sessionUpdate", JSON.Encode.string("agent_turn_complete")),
+                    ("stopReason", JSON.Encode.string("end_turn")),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    )
+
+    Protocol.handleIncomingMessage(
+      ~state,
+      ~onUpdate=Some(
+        (_sessionId, update) => {
+          switch update {
+          | Types.AgentTurnComplete(_) => updateReceived := true
+          | _ => ()
+          }
+        },
+      ),
+      ~onMessage=None,
+      ~onParseError=None,
+      payload,
+    )
+
+    let stopReason =
+      resolved.contents
+      ->Option.flatMap(obj => obj->Dict.get("stopReason"))
+      ->Option.flatMap(JSON.Decode.string)
+
+    t->expect(updateReceived.contents)->Expect.toEqual(true)
+    t->expect(stopReason)->Expect.toEqual(Some("end_turn"))
+    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
   })
 })

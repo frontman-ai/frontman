@@ -12,17 +12,18 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
   timers are owned by the calling process (the channel).
   """
 
-  @enforce_keys [:attempt, :max_attempts, :error_info, :timer_ref, :base_delay_ms, :max_delay_ms]
-  defstruct [:attempt, :max_attempts, :error_info, :timer_ref, :base_delay_ms, :max_delay_ms]
+  use TypedStruct
 
-  @type t :: %__MODULE__{
-          attempt: pos_integer(),
-          max_attempts: pos_integer(),
-          error_info: map(),
-          timer_ref: reference() | nil,
-          base_delay_ms: pos_integer(),
-          max_delay_ms: pos_integer()
-        }
+  typedstruct enforce: true do
+    field(:attempt, pos_integer())
+    field(:max_attempts, pos_integer())
+    field(:error_info, map())
+    field(:retried_error_id, String.t())
+    field(:timer_ref, reference() | nil)
+    field(:timer_token, reference() | nil)
+    field(:base_delay_ms, pos_integer())
+    field(:max_delay_ms, pos_integer())
+  end
 
   @default_max_attempts 5
   @default_base_delay_ms 2_000
@@ -32,7 +33,7 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
   Handles a transient error. Creates or advances retry state.
 
   Returns `{:retry_scheduled, state, notification_data}` or `{:exhausted, error_info}`.
-  Schedules a `:fire_retry` message in the calling process when retrying.
+  Schedules a `{:fire_retry, token}` message in the calling process when retrying.
   """
   @spec handle_error(t() | nil, map(), keyword()) ::
           {:retry_scheduled, t(), map()} | {:exhausted, map()}
@@ -46,12 +47,15 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
     max_attempts = Keyword.get(opts, :max_attempts, @default_max_attempts)
     base_delay_ms = Keyword.get(opts, :base_delay_ms, @default_base_delay_ms)
     max_delay_ms = Keyword.get(opts, :max_delay_ms, @default_max_delay_ms)
+    retried_error_id = Map.fetch!(error_info, :retried_error_id)
 
     state = %__MODULE__{
       attempt: 1,
       max_attempts: max_attempts,
       error_info: error_info,
+      retried_error_id: retried_error_id,
       timer_ref: nil,
+      timer_token: nil,
       base_delay_ms: base_delay_ms,
       max_delay_ms: max_delay_ms
     }
@@ -66,7 +70,13 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
       cancel_timer(state.timer_ref)
       {:exhausted, error_info}
     else
-      state = %{state | attempt: next_attempt, error_info: error_info}
+      state = %{
+        state
+        | attempt: next_attempt,
+          error_info: error_info,
+          retried_error_id: Map.fetch!(error_info, :retried_error_id)
+      }
+
       schedule_retry(state)
     end
   end
@@ -96,8 +106,9 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
     cancel_timer(state.timer_ref)
     delay = compute_delay(state.attempt, state.base_delay_ms, state.max_delay_ms)
     retry_at = DateTime.utc_now() |> DateTime.add(delay, :millisecond)
-    ref = Process.send_after(self(), :fire_retry, delay)
-    state = %{state | timer_ref: ref}
+    token = make_ref()
+    ref = Process.send_after(self(), {:fire_retry, token}, delay)
+    state = %{state | timer_ref: ref, timer_token: token}
 
     notification = %{
       attempt: state.attempt,

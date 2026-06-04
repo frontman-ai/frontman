@@ -194,6 +194,9 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     >
       <div className="flex h-full overflow-hidden">
         <Dialog.DialogTitle className="sr-only"> {React.string("Settings")} </Dialog.DialogTitle>
+        <Dialog.DialogDescription className="sr-only">
+          {React.string("Manage account, environment, provider connections, and API keys.")}
+        </Dialog.DialogDescription>
         <div className="w-56 border-r border-zinc-800 bg-zinc-950/60 px-4 py-5">
           <div className="text-lg font-semibold text-zinc-100"> {React.string("Settings")} </div>
           <div className="mt-1 text-xs text-zinc-500">
