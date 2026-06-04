@@ -210,6 +210,11 @@ let setApiKeySaveStatus = (state, provider, saveStatus) =>
 let markApiKeySaved = (state, provider) =>
   updateApiKeySettings(state, provider, _settings => {source: UserOverride, saveStatus: Saved})
 
+let setAllApiKeySources = (state, source) =>
+  apiKeyProviders->Array.reduce(state, (state, provider) =>
+    state->setApiKeySource(provider, source)
+  )
+
 let hasApiKeySource = (source: Client__State__Types.apiKeySource) =>
   switch source {
   | UserOverride | FromEnv => true
@@ -1245,7 +1250,9 @@ let next = (state: state, action) => {
         apiBaseUrl,
       }),
       sessionInitialized: true,
-    }->StateReducer.update(
+    }
+    ->setAllApiKeySources(Client__State__Types.Loading)
+    ->StateReducer.update(
       ~sideEffects=[
         FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
         FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
@@ -1286,7 +1293,9 @@ let next = (state: state, action) => {
   | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
+      state
+      ->setAllApiKeySources(Client__State__Types.Loading)
+      ->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
     | NoAcpSession => state->StateReducer.update
     }
 
