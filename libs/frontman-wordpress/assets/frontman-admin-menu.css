@@ -8,6 +8,7 @@
 	width: 20px;
 	height: 20px;
 	margin: 0 auto;
+	margin-top: 8px;
 	padding: 0;
 	background-color: #a7aaad;
 	-webkit-mask: url("frontman-menu-icon.svg") center / 16px 16px no-repeat;
