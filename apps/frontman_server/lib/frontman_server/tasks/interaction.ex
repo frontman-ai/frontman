@@ -264,6 +264,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     defstruct annotation_id: nil,
               annotation_index: nil,
               tag_name: nil,
+              selector: nil,
               comment: nil,
               file: nil,
               line: nil,
@@ -294,6 +295,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       nearby_text
       parent
       screenshot
+      selector
       tag_name
     )
 
@@ -308,6 +310,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         annotation_id: data["annotation_id"],
         annotation_index: data["annotation_index"],
         tag_name: data["tag_name"] || "unknown",
+        selector: data["selector"],
         comment: data["comment"],
         file: data["file"],
         line: data["line"],
@@ -788,6 +791,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_id: ann.annotation_id,
       annotation_index: ann.annotation_index,
       tag_name: ann.tag_name,
+      selector: ann.selector,
       comment: ann.comment,
       file: ann.file,
       line: ann.line,
@@ -974,8 +978,8 @@ defmodule FrontmanServer.Tasks.Interaction do
       [Annotated Elements]
       #{annotation_sections}
       IMPORTANT: The user has annotated specific element(s) in their application.
-      Start by reading the exact file(s) and making changes at or near the specified line(s).
-      Do NOT explore or search for files - go directly to the annotated file(s).
+      If file locations are present, start by reading the exact file(s) and inspecting whether they control the annotated rendered element. Make changes only after source ownership is verified.
+      If file locations are missing, first identify the persistent source of truth before mutating. A DOM selector or screenshot alone is not proof that a browser-visible node is the correct editable source.
       """
   end
 
@@ -1001,8 +1005,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       annotation_string_field(ann.component_name, "Component"),
       annotation_string_field(ann.comment, "Comment"),
+      annotation_string_field(ann.selector, "CSS Selector"),
       annotation_string_field(ann.css_classes, "CSS Classes"),
       annotation_string_field(ann.nearby_text, "Nearby Text"),
+      annotation_elementor_context_field(ann),
+      annotation_source_warning(ann),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
       annotation_parent_field(ann.parent)
@@ -1012,6 +1019,26 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp annotation_string_field(value, label) when is_binary(value), do: "\n  #{label}: #{value}"
   defp annotation_string_field(_, _), do: ""
+
+  defp annotation_elementor_context_field(%{metadata: %{"elementor" => elementor}})
+       when is_map(elementor) and map_size(elementor) > 0 do
+    "\n  Elementor Context: #{Jason.encode!(elementor, pretty: false)}" <>
+      "\n  Source Mapping: inspect the listed Elementor post/element before mutating; do not delete or move an ancestor/container unless it is the requested target."
+  end
+
+  defp annotation_elementor_context_field(_), do: ""
+
+  defp annotation_source_warning(%{file: file, metadata: metadata}) do
+    has_elementor_context? = is_map(metadata) and is_map(Map.get(metadata, "elementor"))
+
+    case {is_binary(file), has_elementor_context?} do
+      {false, false} ->
+        "\n  Source Mapping: missing file/Elementor context; inspect the app's persistent source of truth before making persistent changes."
+
+      _ ->
+        ""
+    end
+  end
 
   defp annotation_bbox_field(%{x: x, y: y, width: w, height: h}),
     do: "\n  Bounding Box: {x: #{x}, y: #{y}, width: #{w}, height: #{h}}"
