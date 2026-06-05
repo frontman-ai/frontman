@@ -223,7 +223,6 @@ defmodule SwarmAi.LLM.Response do
     end
   end
 
-  defp encode_tool_call_arguments(nil), do: "{}"
   defp encode_tool_call_arguments(args) when is_binary(args), do: args
   defp encode_tool_call_arguments(args) when is_map(args), do: Jason.encode!(args)
   defp encode_tool_call_arguments(args), do: Jason.encode!(args)
