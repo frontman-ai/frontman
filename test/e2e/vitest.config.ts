@@ -20,6 +20,7 @@ export default defineConfig({
     poolOptions: {
       forks: { singleFork: true },
     },
+    fileParallelism: false,
     sequence: { concurrent: false },
 
     // Only pick up files under tests/
