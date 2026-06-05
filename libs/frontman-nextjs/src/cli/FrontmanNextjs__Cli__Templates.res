@@ -57,7 +57,6 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  runtime: 'nodejs',
   matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/'],
 };
 `
@@ -142,10 +141,9 @@ module ManualInstructions = {
   ${bar}
   ${bar}     ${d("// Must run before auth, redirects, or other proxy logic")}
   ${bar}
-  ${bar}  ${s("4.")} Update your config to use Node.js runtime and include Frontman routes:
+  ${bar}  ${s("4.")} Update your config to include Frontman routes:
   ${bar}
   ${bar}     ${d("export const config = {")}
-  ${bar}     ${d("  runtime: 'nodejs',")}
   ${bar}     ${d(
         "  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],",
       )}
@@ -260,7 +258,6 @@ Add the following to your ${fileName}:
   4. Update your matcher config to include Frontman routes:
 
       export const config = {
-        runtime: 'nodejs',
         matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],
       };
 

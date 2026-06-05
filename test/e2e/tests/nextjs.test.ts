@@ -40,7 +40,7 @@ describe("Next.js E2E", () => {
     page = await context.newPage();
 
     // Navigate to the Frontman UI (handles login redirect)
-    await openFrontmanUI(page, PORT);
+    await openFrontmanUI(page, PORT, { assertHealthy: server.assertHealthy });
 
     // Send a prompt to change the heading text
     await sendPrompt(page, 'Change the h1 heading text in pages/index.tsx to say "Hello Frontman"');

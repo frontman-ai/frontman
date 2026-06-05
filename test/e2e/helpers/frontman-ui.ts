@@ -8,13 +8,53 @@
  *   - Stop button: button[title="Stop generation"]
  */
 
-import type { Page } from "playwright";
+import type { Page, Response } from "playwright";
 
 const PHOENIX_ORIGIN = "https://localhost:4002";
+
+interface OpenFrontmanUIOptions {
+  assertHealthy?: () => void;
+}
 
 /** Elapsed time since a reference timestamp, formatted as "Xs". */
 function elapsed(since: number): string {
   return `${((Date.now() - since) / 1000).toFixed(1)}s`;
+}
+
+async function assertFrontmanRoute(
+  page: Page,
+  response: Response | null,
+  frontmanUrl: string,
+): Promise<void> {
+  const status = response?.status();
+  const title = await page.title().catch(() => "");
+  if (
+    (status !== undefined && status >= 400) ||
+    title.startsWith("404") ||
+    title.includes("This page could not be found")
+  ) {
+    throw new Error(
+      `[e2e] Frontman UI route failed: GET ${frontmanUrl} returned ${status ?? "no response"}, title=${JSON.stringify(title)}, url=${page.url()}`,
+    );
+  }
+}
+
+async function waitForTextbox(
+  page: Page,
+  options: OpenFrontmanUIOptions,
+): Promise<void> {
+  const timeoutMs = 60_000;
+  const deadline = Date.now() + timeoutMs;
+  const textbox = page.locator('div[role="textbox"]');
+
+  while (Date.now() < deadline) {
+    options.assertHealthy?.();
+    if (await textbox.isVisible().catch(() => false)) return;
+    await page.waitForTimeout(500);
+  }
+
+  options.assertHealthy?.();
+  throw new Error(`[e2e] Frontman textbox did not become visible within ${timeoutMs}ms`);
 }
 
 /**
@@ -33,6 +73,7 @@ function elapsed(since: number): string {
 export async function openFrontmanUI(
   page: Page,
   devServerPort: number,
+  options: OpenFrontmanUIOptions = {},
 ): Promise<void> {
   const t0 = Date.now();
   const frontmanUrl = `http://localhost:${devServerPort}/frontman`;
@@ -52,12 +93,15 @@ export async function openFrontmanUI(
   // First, log in directly on the Phoenix server so we have a session cookie
   const { login } = await import("./auth.js");
   await login(page, { returnTo: frontmanUrl });
+  options.assertHealthy?.();
   console.log(`  [e2e] Login complete (${elapsed(t0)}), URL: ${page.url()}`);
 
   // Now navigate to the Frontman UI — should load without auth redirect
-  await page.goto(frontmanUrl, { waitUntil: "domcontentloaded" });
+  const response = await page.goto(frontmanUrl, { waitUntil: "domcontentloaded" });
+  options.assertHealthy?.();
   console.log(`  [e2e] Navigated to frontman (${elapsed(t0)}), URL: ${page.url()}`);
   console.log(`  [e2e] Page title: ${await page.title()}`);
+  await assertFrontmanRoute(page, response, frontmanUrl);
 
   // Wait for the page's "load" event (all resources fetched).
   // "networkidle" is deliberately avoided — framework HMR WebSockets and
@@ -88,7 +132,13 @@ export async function openFrontmanUI(
     // After redirect to login, re-login and come back
     if (page.url().includes("/users/log-in")) {
       await login(page, { returnTo: frontmanUrl });
-      await page.goto(frontmanUrl, { waitUntil: "load", timeout: 30_000 });
+      options.assertHealthy?.();
+      const welcomeResponse = await page.goto(frontmanUrl, {
+        waitUntil: "load",
+        timeout: 30_000,
+      });
+      options.assertHealthy?.();
+      await assertFrontmanRoute(page, welcomeResponse, frontmanUrl);
     }
   }
 
@@ -96,16 +146,20 @@ export async function openFrontmanUI(
   if (page.url().includes("/users/log-in")) {
     console.log(`  [e2e] Redirected to login (${elapsed(t0)}), re-authenticating`);
     await login(page, { returnTo: frontmanUrl });
-    await page.goto(frontmanUrl, { waitUntil: "load", timeout: 30_000 });
+    options.assertHealthy?.();
+    const reauthResponse = await page.goto(frontmanUrl, {
+      waitUntil: "load",
+      timeout: 30_000,
+    });
+    options.assertHealthy?.();
+    await assertFrontmanRoute(page, reauthResponse, frontmanUrl);
     console.log(`  [e2e] Re-navigated after re-auth (${elapsed(t0)}), URL: ${page.url()}`);
   }
 
   // Wait for the Frontman UI to mount — the textbox should appear
   // when the app is fully loaded and WebSocket connected.
   console.log(`  [e2e] Waiting for textbox to appear (${elapsed(t0)})…`);
-  await page
-    .locator('div[role="textbox"]')
-    .waitFor({ state: "visible", timeout: 60_000 });
+  await waitForTextbox(page, options);
   console.log(`  [e2e] Textbox visible — UI ready (${elapsed(t0)})`);
 }
 
