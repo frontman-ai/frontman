@@ -1,5 +1,13 @@
 # @frontman-ai/frontman-client
 
+## 0.4.1
+
+### Patch Changes
+
+- [#1075](https://github.com/frontman-ai/frontman/pull/1075) [`118c7f8`](https://github.com/frontman-ai/frontman/commit/118c7f865ef510e2356f2ff7d724943e856ea978) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep pending question tools answerable across server restarts and retry exact persisted agent errors.
+
+- [#1075](https://github.com/frontman-ai/frontman/pull/1075) [`118c7f8`](https://github.com/frontman-ai/frontman/commit/118c7f865ef510e2356f2ff7d724943e856ea978) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reduce local console noise from expected connection cleanup and settings modal accessibility warnings.
+
 ## 0.4.0
 
 ### Minor Changes

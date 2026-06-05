@@ -1,5 +1,15 @@
 # @frontman-ai/frontman-protocol
 
+## 0.7.0
+
+### Minor Changes
+
+- [#1075](https://github.com/frontman-ai/frontman/pull/1075) [`118c7f8`](https://github.com/frontman-ai/frontman/commit/118c7f865ef510e2356f2ff7d724943e856ea978) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restrict JSON-RPC request and response IDs to integers; durable MCP tool IDs now stay in params.callId.
+
+### Patch Changes
+
+- [#1075](https://github.com/frontman-ai/frontman/pull/1075) [`118c7f8`](https://github.com/frontman-ai/frontman/commit/118c7f865ef510e2356f2ff7d724943e856ea978) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep pending question tools answerable across server restarts and retry exact persisted agent errors.
+
 ## 0.6.0
 
 ### Minor Changes

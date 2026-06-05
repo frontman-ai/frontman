@@ -1,5 +1,11 @@
 # @frontman-ai/vite
 
+## 0.5.5
+
+### Patch Changes
+
+- [#1047](https://github.com/frontman-ai/frontman/pull/1047) [`9ac299c`](https://github.com/frontman-ai/frontman/commit/9ac299c380a64f4c03bd9e3874d3950e7382a41f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Drive task prompt guidance from explicit project traits emitted by each framework adapter.
+
 ## 0.5.4
 
 ### Patch Changes

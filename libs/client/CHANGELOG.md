@@ -1,5 +1,19 @@
 # @frontman-ai/client
 
+## 0.10.2
+
+### Patch Changes
+
+- [#1025](https://github.com/frontman-ai/frontman/pull/1025) [`0f92b89`](https://github.com/frontman-ai/frontman/commit/0f92b89da7bee9044a64bbd139c2ed43bfb36181) Thanks [@itayadler](https://github.com/itayadler)! - Add NVIDIA provider key forwarding and settings support.
+
+- [#1058](https://github.com/frontman-ai/frontman/pull/1058) [`e39a7e8`](https://github.com/frontman-ai/frontman/commit/e39a7e817d70c383099a7f229a3bf25eb3ed1d30) Thanks [@dependabot](https://github.com/apps/dependabot)! - Upgrade Tailwind CSS to 4.2.4.
+
+- [#1047](https://github.com/frontman-ai/frontman/pull/1047) [`9ac299c`](https://github.com/frontman-ai/frontman/commit/9ac299c380a64f4c03bd9e3874d3950e7382a41f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Drive task prompt guidance from explicit project traits emitted by each framework adapter.
+
+- [#1062](https://github.com/frontman-ai/frontman/pull/1062) [`40d489e`](https://github.com/frontman-ai/frontman/commit/40d489eb181867a6e83870ab77c0494fd7cc9a6f) Thanks [@dependabot](https://github.com/apps/dependabot)! - Fix Vitest 4 CI coverage runs by aligning test dependency versions and hook callbacks.
+
+- [#1075](https://github.com/frontman-ai/frontman/pull/1075) [`118c7f8`](https://github.com/frontman-ai/frontman/commit/118c7f865ef510e2356f2ff7d724943e856ea978) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reduce local console noise from expected connection cleanup and settings modal accessibility warnings.
+
 ## 0.10.1
 
 ### Patch Changes

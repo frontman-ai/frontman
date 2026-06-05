@@ -1,5 +1,13 @@
 # @frontman-ai/nextjs
 
+## 0.6.6
+
+### Patch Changes
+
+- [#1047](https://github.com/frontman-ai/frontman/pull/1047) [`9ac299c`](https://github.com/frontman-ai/frontman/commit/9ac299c380a64f4c03bd9e3874d3950e7382a41f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Drive task prompt guidance from explicit project traits emitted by each framework adapter.
+
+- [#1062](https://github.com/frontman-ai/frontman/pull/1062) [`40d489e`](https://github.com/frontman-ai/frontman/commit/40d489eb181867a6e83870ab77c0494fd7cc9a6f) Thanks [@dependabot](https://github.com/apps/dependabot)! - Fix Vitest 4 CI coverage runs by aligning test dependency versions and hook callbacks.
+
 ## 0.6.4
 
 ### Patch Changes
