@@ -384,7 +384,7 @@ GitHub Actions workflows:
 
 | Workflow | Trigger | Function |
 |----------|---------|----------|
-| ci.yml | PR/push | ReScript build, 8 test jobs, lint (Biome + Credo), Dialyzer, protocol check, dead code detection |
+| ci.yml | PR/push | ReScript build, 7 test jobs, lint (Biome + Credo), protocol check, dead code detection |
 | deploy.yml | push to main | Server: rsync to Hetzner → native build → blue-green deploy. Client: Vite bundle → Cloudflare Pages |
 | deploy-marketing.yml | changes to marketing/astro | Astro build → Cloudflare Pages |
 | e2e.yml | PR/push | Playwright tests across 4 framework fixtures |

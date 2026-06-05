@@ -1,7 +1,7 @@
 # =============================================================================
 # Build stage — prebuilt Erlang+Elixir, no compilation from source
 # =============================================================================
-FROM hexpm/elixir:1.20.0-rc.4-erlang-29.0-rc3-debian-bookworm-20260421-slim AS builder
+FROM hexpm/elixir:1.20.0-erlang-29.0.1-debian-bookworm-20260518-slim AS builder
 
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends build-essential git curl xz-utils ca-certificates \
@@ -67,7 +67,7 @@ RUN mix tailwind.install --if-missing && mix esbuild.install --if-missing
 # ---------- Compile application ----------
 COPY apps/frontman_server/priv priv
 COPY apps/frontman_server/lib lib
-RUN mix compile
+RUN mix compile --warnings-as-errors --all-warnings
 
 COPY apps/frontman_server/assets assets
 RUN mix tailwind frontman_server --minify && \

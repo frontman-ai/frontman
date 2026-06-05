@@ -32,17 +32,27 @@ echo ">>> Installing system packages..."
 apt-get update -y
 apt-get upgrade -y
 apt-get install -y \
+  autoconf \
+  build-essential \
   curl \
+  fop \
   git \
   unzip \
   fail2ban \
   ufw \
   logrotate \
   libstdc++6 \
+  libssl-dev \
   openssl \
+  libncurses-dev \
   libncurses6 \
+  libssh-dev \
+  libxml2-utils \
   locales \
-  ca-certificates
+  ca-certificates \
+  unixodbc-dev \
+  xsltproc \
+  xz-utils
 
 # Set locale (required by BEAM)
 sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
@@ -91,6 +101,9 @@ if [ -n "${SSH_KEY}" ]; then
 else
   echo "Skipped. Add the key later to /home/deploy/.ssh/authorized_keys"
 fi
+
+echo ">>> Installing mise for deploy user..."
+runuser -u deploy -- bash -lc 'test -x "$HOME/.local/bin/mise" || curl https://mise.run | sh'
 
 # =============================================================================
 # 5. Sudoers for deploy user (passwordless for specific commands)

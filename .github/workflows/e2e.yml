@@ -10,6 +10,8 @@ on:
       - "apps/frontman_server/lib/**"
       - "apps/frontman_server/config/**"
       - "apps/frontman_server/mix.*"
+      - "apps/swarm_ai/**"
+      - "mise.toml"
       - ".github/workflows/e2e.yml"
   workflow_dispatch:
     inputs:
@@ -128,8 +130,8 @@ jobs:
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
-      # E2E compiles under MIX_ENV=e2e while lint/dialyzer jobs compile under
-      # MIX_ENV=dev. Keep a dedicated "build-e2e-" cache prefix so the two
+      # E2E compiles under MIX_ENV=e2e while lint jobs compile under MIX_ENV=dev.
+      # Keep a dedicated "build-e2e-" cache prefix so the two
       # environments never share compile artifacts.
       - name: Cache Mix _build
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -147,6 +149,10 @@ jobs:
         run: |
           mix deps.clean --unlock --unused
           mix deps.get
+
+      - name: Compile e2e with warnings as errors
+        working-directory: apps/frontman_server
+        run: mix compile --warnings-as-errors --all-warnings
 
       # ── Build ───────────────────────────────────────────────────────────
       # Cache tsup dist/ output only.  On exact hit the build steps below

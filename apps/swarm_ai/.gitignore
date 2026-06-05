@@ -6,7 +6,6 @@
 *.beam
 *.tar
 erl_crash.dump
-/priv/plts/
 
 # Override root .gitignore which ignores lib/ for ReScript build output
 !lib/

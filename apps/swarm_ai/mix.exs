@@ -8,7 +8,7 @@ defmodule SwarmAi.MixProject do
     [
       app: :swarm_ai,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       consolidate_protocols: Mix.env() != :test,
@@ -18,11 +18,7 @@ defmodule SwarmAi.MixProject do
       name: "SwarmAi",
       description:
         "An execution loop for Elixir with bring-your-own LLMs, tools, streaming, and telemetry.",
-      source_url: @source_url,
-      dialyzer: [
-        plt_add_apps: [:mix],
-        plt_local_path: "priv/plts"
-      ]
+      source_url: @source_url
     ]
   end
 
@@ -43,7 +39,6 @@ defmodule SwarmAi.MixProject do
       {:telemetry, "~> 1.4"},
       {:req_llm, "~> 1.11"},
       # Dev/Test
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]

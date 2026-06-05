@@ -63,8 +63,8 @@ Safety > Performance > Developer Experience. All three matter.
 - **Hard limit: 70 lines per function clause.** If a function body exceeds 70 lines, extract helper
   functions. Push branching logic up into the caller; keep helpers pure and branch-free.
 
-- **All compiler warnings are errors.** Run `mix compile --warnings-as-errors`. Treat Dialyzer
-  warnings the same way. Credo on strict mode.
+- **All compiler warnings are errors.** Run `mix compile --warnings-as-errors --all-warnings`.
+  Credo on strict mode.
 
 - **Don't react directly to external events.** GenServers should process messages at their own pace.
   Use `handle_continue/2` to defer work after init. Batch where possible. Rate-limit incoming
@@ -241,4 +241,4 @@ Safety > Performance > Developer Experience. All three matter.
 - 98-column line limit (Elixir formatter default). Use it up. Never exceed.
 - Run `mix format` on every save. Non-negotiable.
 - Run `mix credo --strict`. Treat warnings as errors.
-- Run Dialyzer. `@spec` on all public functions.
+- Add `@spec` on all public functions.

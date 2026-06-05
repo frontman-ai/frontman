@@ -298,10 +298,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  # Suppress Dialyzer false positive: Ecto.Multi.new/0 returns a struct with
-  # opaque MapSet internals that Dialyzer flags as call_without_opaque.
-  @dialyzer {:nowarn_function, build_oauth_multi: 4}
-
   # Returning user with existing identity — touch timestamps, no welcome email.
   defp build_oauth_multi(%UserIdentity{} = identity, _existing_user, _profile, _signup_framework) do
     now = DateTime.utc_now(:second)

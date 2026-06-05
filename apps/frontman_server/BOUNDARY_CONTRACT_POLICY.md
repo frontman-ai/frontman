@@ -59,4 +59,4 @@ Before merging changes that touch boundaries:
   better than exporting a contract?
 - If a struct is used across boundaries, is it exported intentionally?
 - Are boundary deps one-way and cycle-free?
-- Did `mix compile --warnings-as-errors` and `MIX_ENV=test mix compile --warnings-as-errors` pass?
+- Did `mix compile --warnings-as-errors --all-warnings` and `MIX_ENV=test mix compile --warnings-as-errors --all-warnings` pass?

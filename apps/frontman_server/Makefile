@@ -4,7 +4,7 @@
 # Run 'make help' to see available commands
 
 .DEFAULT_GOAL := help
-.PHONY: help install test test-record test-coverage format lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit dialyzer credo debug-task
+.PHONY: help install test test-record test-coverage format lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit credo debug-task
 
 SHELL := /bin/bash
 
@@ -51,11 +51,10 @@ assets-deploy: ## Build and minify assets for production
 	mix esbuild browser_test --minify
 	mix phx.digest
 
-test: ## Run test suite and type checking
+test: ## Run test suite
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test
-	mix dialyzer
 
 test-record: ## Record new LLM fixtures (makes real API calls)
 	MIX_ENV=test mix ecto.create --quiet
@@ -82,25 +81,22 @@ dev-container: ## Start dev server inside container (secrets via env vars)
 
 build: ## Build the project for production
 	MIX_ENV=prod mix sentry.package_source_code
-	MIX_ENV=prod mix compile
+	MIX_ENV=prod mix compile --warnings-as-errors --all-warnings
 
 clean: ## Clean build artifacts and dependencies
 	rm -rf _build deps
 
 precommit: ## Run precommit checks (compile, format, credo, test)
-	mix compile --warning-as-errors
+	mix compile --warnings-as-errors --all-warnings
 	mix deps.unlock --unused
 	mix format
 	mix credo --strict
 	mix test
 
-dialyzer: ## Run Dialyzer type checking
-	mix dialyzer
-
 credo: ## Run Credo static analysis
 	mix credo --strict
 
-check: lint dialyzer test ## Run all checks (lint + test)
+check: lint test ## Run all checks (lint + test)
 
 debug-task: ## Debug task interactions (use ARGS="list" or ARGS="show ...")
 	op run --env-file=envs/.dev.secrets.env -- mix debug_task $(ARGS)

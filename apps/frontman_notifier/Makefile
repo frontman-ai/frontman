@@ -22,13 +22,13 @@ lint: ## Run formatter and static analysis
 	mix credo --strict
 
 build: ## Compile for production
-	MIX_ENV=prod mix compile
+	MIX_ENV=prod mix compile --warnings-as-errors --all-warnings
 
-release: ## Build production release tarball
+release: build ## Build production release tarball
 	MIX_ENV=prod mix release --overwrite
 
 precommit: ## Run precommit checks
-	mix compile --warnings-as-errors
+	mix compile --warnings-as-errors --all-warnings
 	mix deps.unlock --unused
 	mix format
 	mix credo --strict

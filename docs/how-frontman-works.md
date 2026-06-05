@@ -397,4 +397,4 @@ Each developer feature branch can get its own **worktree** — an isolated copy 
 
 - **Server**: Hetzner bare metal, blue-green deployment
 - **Client + Marketing**: Cloudflare Pages (static)
-- **CI/CD**: GitHub Actions — build, test (8 jobs), lint, Dialyzer, Playwright E2E, deploy
+- **CI/CD**: GitHub Actions — build, test (7 jobs), lint, Playwright E2E, deploy

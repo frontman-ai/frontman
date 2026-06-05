@@ -4,7 +4,7 @@
 # Run 'make help' to see available commands
 
 .DEFAULT_GOAL := help
-.PHONY: help install test test-coverage format lint build clean check precommit dialyzer credo hex-publish
+.PHONY: help install test test-coverage format lint build clean check precommit credo hex-publish
 
 SHELL := /bin/bash
 
@@ -34,14 +34,11 @@ clean: ## Clean build artifacts and dependencies
 	rm -rf _build deps
 
 precommit: ## Run precommit checks (compile, format, credo, test)
-	mix compile --warnings-as-errors
+	mix compile --warnings-as-errors --all-warnings
 	mix deps.unlock --unused
 	mix format
 	mix credo --strict
 	mix test
-
-dialyzer: ## Run Dialyzer type checking
-	mix dialyzer
 
 credo: ## Run Credo static analysis
 	mix credo --strict

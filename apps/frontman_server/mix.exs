@@ -5,7 +5,7 @@ defmodule FrontmanServer.MixProject do
     [
       app: :frontman_server,
       version: "0.0.1",
-      elixir: "~> 1.19",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: [warnings_as_errors: true],
       start_permanent: Mix.env() == :prod,
@@ -14,11 +14,6 @@ defmodule FrontmanServer.MixProject do
       compilers: [:boundary, :phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
       test_coverage: [tool: ExCoveralls],
-      dialyzer: [
-        plt_add_apps: [:mix],
-        plt_local_path: "priv/plts",
-        ignore_warnings: ".dialyzer_ignore.exs"
-      ],
       licenses: ["AGPL-3.0-only"],
       releases: [
         frontman_server: [
@@ -112,7 +107,6 @@ defmodule FrontmanServer.MixProject do
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_json_schema, "~> 0.10", only: :test},
