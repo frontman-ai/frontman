@@ -61,6 +61,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           |> assign(:mcp_init_state, init_state)
           |> assign(:mcp_tools, [])
           |> assign(:mcp_status, :pending)
+          |> assign(:pending_mcp_tool_requests, %{})
           |> assign(:last_execution, nil)
 
         send(self(), {:start_mcp_init, init_actions})
@@ -313,6 +314,27 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  defp handle_tool_call_response_by_id(id, result, socket) when is_integer(id) do
+    case pop_mcp_tool_request(socket, id) do
+      {:ok, tool_call_id, socket} ->
+        case open_tool_call(socket, tool_call_id) do
+          {:ok, tool_call} ->
+            Logger.debug("MCP response #{inspect(id)} matched tool call #{tool_call_id}")
+            handle_tool_call_response(tool_call, result, socket)
+
+          :error ->
+            Logger.warning(
+              "Received MCP response for unknown tool_call_id: #{inspect(tool_call_id)}"
+            )
+
+            {:noreply, socket}
+        end
+
+      :error ->
+        unknown_mcp_response(id, socket)
+    end
+  end
+
   defp handle_tool_call_response_by_id(id, result, socket) when is_binary(id) do
     case open_tool_call(socket, id) do
       {:ok, tool_call} ->
@@ -326,6 +348,16 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_tool_call_response_by_id(id, _result, socket), do: unknown_mcp_response(id, socket)
+
+  defp pop_mcp_tool_request(socket, request_id) do
+    case Map.pop(socket.assigns.pending_mcp_tool_requests, request_id) do
+      {nil, _pending} ->
+        :error
+
+      {tool_call_id, pending} ->
+        {:ok, tool_call_id, assign(socket, :pending_mcp_tool_requests, pending)}
+    end
+  end
 
   defp open_tool_call(socket, tool_call_id) do
     with {:ok, _turn_number, tool_calls} when is_list(tool_calls) <-
@@ -452,6 +484,26 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp mcp_initialization_request?(_init_state, _id), do: false
+
+  defp handle_tool_call_error_by_id(id, error, socket) when is_integer(id) do
+    case pop_mcp_tool_request(socket, id) do
+      {:ok, tool_call_id, socket} ->
+        case open_tool_call(socket, tool_call_id) do
+          {:ok, tool_call} ->
+            handle_tool_call_error(tool_call, error, socket)
+
+          :error ->
+            Logger.warning(
+              "Received MCP error for unknown tool_call_id: #{inspect(tool_call_id)}"
+            )
+
+            {:noreply, socket}
+        end
+
+      :error ->
+        unknown_mcp_error(id, socket)
+    end
+  end
 
   defp handle_tool_call_error_by_id(id, error, socket) when is_binary(id) do
     case open_tool_call(socket, id) do
@@ -961,9 +1013,11 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp route_to_mcp(tool_call, socket) do
     task_id = socket.assigns.task_id
+    request_id = System.unique_integer([:positive])
 
     request =
       MCP.build_tool_execution(%MCP.ToolCallParams{
+        request_id: request_id,
         tool_name: tool_call.tool_name,
         arguments: tool_call.arguments,
         call_id: tool_call.tool_call_id
@@ -974,8 +1028,15 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     push(socket, @acp_message, in_progress_notification)
 
+    socket = remember_mcp_tool_request(socket, request_id, tool_call.tool_call_id)
+
     push(socket, "mcp:message", request)
     {:noreply, socket}
+  end
+
+  defp remember_mcp_tool_request(socket, request_id, tool_call_id) do
+    pending = Map.put(socket.assigns.pending_mcp_tool_requests, request_id, tool_call_id)
+    assign(socket, :pending_mcp_tool_requests, pending)
   end
 
   defp to_plan_entry(%Todo{} = todo) do

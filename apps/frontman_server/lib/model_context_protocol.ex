@@ -36,6 +36,7 @@ defmodule ModelContextProtocol do
     use TypedStruct
 
     typedstruct do
+      field(:request_id, integer(), enforce: true)
       field(:tool_name, String.t(), enforce: true)
       field(:arguments, map(), enforce: true)
       field(:call_id, String.t(), enforce: true)
@@ -100,19 +101,16 @@ defmodule ModelContextProtocol do
   end
 
   @doc """
-  Builds an MCP tool execution request with an auto-generated request ID.
+  Builds an MCP tool execution request.
 
-  Generates a unique request ID, logs the tool call, and constructs
-  the MCP tools/call JSON-RPC request.
-
-  Uses the durable tool call id as the JSON-RPC request id so responses remain
-  correlatable across reconnects.
+  Uses an integer JSON-RPC request id for protocol correlation. The durable
+  tool call id remains in params.callId for agent/tool-result correlation.
   """
   @spec build_tool_execution(ToolCallParams.t()) :: map()
   def build_tool_execution(%ToolCallParams{} = params) do
     Logger.info("MCP tool call: #{params.tool_name} arguments=#{inspect(params.arguments)}")
 
-    JsonRpc.request(params.call_id, "tools/call", %{
+    JsonRpc.request(params.request_id, "tools/call", %{
       "name" => params.tool_name,
       "arguments" => params.arguments,
       "callId" => params.call_id

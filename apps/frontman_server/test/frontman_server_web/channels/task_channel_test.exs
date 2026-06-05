@@ -481,9 +481,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
-        "id" => "call_123" = mcp_request_id,
-        "params" => %{"name" => "consoleLog"}
+        "id" => mcp_request_id,
+        "params" => %{"name" => "consoleLog", "callId" => "call_123"}
       })
+
+      assert is_integer(mcp_request_id)
 
       mcp_tool_result = %{
         "content" => [%{"type" => "text", "text" => "Logged: hello"}]
@@ -634,13 +636,19 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "accepts valid MCP response", %{socket: socket, task_id: task_id, scope: scope} do
       tool_call = tool_call("call_valid_test", "testTool")
+      tool_call_id = tool_call.tool_call_id
       turn_number = start_turn_fixture(scope, task_id)
       register_tool_receiver(tool_call.tool_call_id)
 
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 
-      assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
-      assert mcp_request_id == tool_call.tool_call_id
+      assert_push("mcp:message", %{
+        "method" => "tools/call",
+        "id" => mcp_request_id,
+        "params" => %{"callId" => ^tool_call_id}
+      })
+
+      assert is_integer(mcp_request_id)
 
       mcp_result = %{"content" => [%{"type" => "text", "text" => "Success"}]}
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_result))
@@ -1069,8 +1077,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         end)
 
       assert tools_call, "tools/call for question not found in #{length(messages)} messages"
-      {"mcp:message", %{"id" => mcp_request_id}} = tools_call
-      assert mcp_request_id == tool_call_id
+
+      {"mcp:message", %{"id" => mcp_request_id, "params" => %{"callId" => ^tool_call_id}}} =
+        tools_call
+
+      assert is_integer(mcp_request_id)
 
       push(socket, "mcp:message", question_answer_response(mcp_request_id, "A"))
 

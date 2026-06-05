@@ -32,6 +32,7 @@ defmodule ModelContextProtocolTest do
 
     test "builds valid JSON-RPC tools/call request" do
       params = %ModelContextProtocol.ToolCallParams{
+        request_id: 789,
         tool_name: "search_files",
         arguments: %{"query" => "test"},
         call_id: "call-789"
@@ -39,7 +40,7 @@ defmodule ModelContextProtocolTest do
 
       request = ModelContextProtocol.build_tool_execution(params)
 
-      assert request["id"] == "call-789"
+      assert request["id"] == 789
       assert request["jsonrpc"] == "2.0"
       assert request["method"] == "tools/call"
       assert request["params"]["name"] == "search_files"
@@ -47,18 +48,18 @@ defmodule ModelContextProtocolTest do
       assert request["params"]["callId"] == "call-789"
     end
 
-    test "uses tool call id as request id" do
+    test "uses integer JSON-RPC id and preserves tool call id in params" do
       params = %ModelContextProtocol.ToolCallParams{
+        request_id: 1,
         tool_name: "read_file",
         arguments: %{"path" => "/tmp/test.txt"},
         call_id: "call-1"
       }
 
       request1 = ModelContextProtocol.build_tool_execution(params)
-      request2 = ModelContextProtocol.build_tool_execution(params)
 
-      assert request1["id"] == "call-1"
-      assert request2["id"] == "call-1"
+      assert request1["id"] == 1
+      assert request1["params"]["callId"] == "call-1"
     end
 
     @tag capture_log: true
@@ -67,6 +68,7 @@ defmodule ModelContextProtocolTest do
       Logger.configure(level: :info)
 
       params = %ModelContextProtocol.ToolCallParams{
+        request_id: 1,
         tool_name: "read_file",
         arguments: %{"path" => "/tmp/test.txt"},
         call_id: "call-log-1"

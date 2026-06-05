@@ -5,14 +5,7 @@
       "type": "string"
     },
     "id": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "string"
-        }
-      ]
+      "type": "integer"
     },
     "result": {},
     "error": {
