@@ -1,71 +1,10 @@
-defmodule FrontmanServer.Tasks.ExecutionEvent do
+defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   @moduledoc """
-  Domain event emitted during task execution.
-
-  Wraps raw SwarmAi execution events with turn context. The Tasks context
-  translates infrastructure events into these domain events before broadcasting
-  on PubSub.
+  Classifies execution error reasons for persistence and client retry behavior.
   """
 
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.StreamStallTimeout
-
-  @type event_type ::
-          :chunk
-          | :response
-          | :tool_call
-          | :completed
-          | :failed
-          | :crashed
-          | :cancelled
-          | :terminated
-          | :paused
-
-  @enforce_keys [:type, :payload, :turn_number]
-  defstruct [:type, :payload, :turn_number, :interaction_id]
-
-  @type t :: %__MODULE__{
-          type: event_type(),
-          payload: term(),
-          turn_number: pos_integer(),
-          interaction_id: String.t() | nil
-        }
-
-  @doc """
-  Classifies an execution event into a channel action.
-
-  Persistence is handled by the Tasks context — this function only determines
-  what the channel should do in response.
-  """
-  @spec classify(t()) :: term()
-  def classify(%__MODULE__{type: :response}), do: :ok
-  def classify(%__MODULE__{type: :terminated}), do: :ok
-  def classify(%__MODULE__{type: :tool_call}), do: :ok
-  def classify(%__MODULE__{type: :completed}), do: :agent_completed
-  def classify(%__MODULE__{type: :cancelled}), do: :agent_cancelled
-  def classify(%__MODULE__{type: :paused}), do: :agent_paused
-
-  def classify(%__MODULE__{type: :failed, payload: %{reason: reason}} = event) do
-    {msg, category, retryable} = classify_error(reason)
-
-    error_info = %{message: msg, category: category, retryable: retryable}
-
-    if retryable do
-      {:agent_error,
-       Map.put(
-         error_info,
-         :retried_error_id,
-         event.interaction_id || raise("Retryable error missing interaction_id")
-       )}
-    else
-      {:agent_error, error_info}
-    end
-  end
-
-  def classify(%__MODULE__{type: :crashed, payload: %{reason: reason}}) do
-    msg = humanize_crash(reason)
-    {:agent_error, %{message: msg, category: "unknown", retryable: false}}
-  end
 
   @doc """
   Classifies an error reason into `{message, category, retryable}`.
@@ -166,15 +105,4 @@ defmodule FrontmanServer.Tasks.ExecutionEvent do
   defp classify_reqllm_request(_status, _reason) do
     {"LLM stream error", "unknown", false}
   end
-
-  # Translates internal error reasons into user-friendly messages.
-  defp humanize_error(reason) do
-    {message, _category, _retryable} = classify_error(reason)
-    message
-  end
-
-  # Like humanize_error, but prefixes unknown/fallback reasons with crash context.
-  defp humanize_crash(reason) when is_exception(reason), do: humanize_error(reason)
-  defp humanize_crash(reason) when is_atom(reason), do: "Execution crashed: #{inspect(reason)}"
-  defp humanize_crash(reason), do: "Execution crashed: #{humanize_error(reason)}"
 end

@@ -44,9 +44,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   @module_to_type Map.new(@types, fn {type, module} -> {module, type} end)
 
   @task_scoped_types [:discovered_project_rule, :discovered_project_structure]
-  @turn_starter_types [:user_message, :agent_retry]
-  @terminal_types [:agent_completed, :agent_error, :agent_paused]
-  @in_turn_types [:agent_response, :tool_call, :tool_result]
 
   @doc """
   Returns the list of all interaction type modules.
@@ -54,9 +51,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   def interaction_modules, do: @interaction_modules
   def type_values, do: @type_values
   def task_scoped_types, do: @task_scoped_types
-  def turn_starter_types, do: @turn_starter_types
-  def terminal_types, do: @terminal_types
-  def in_turn_types, do: @in_turn_types
 
   def type_for(%{__struct__: module}), do: type_for(module)
 
@@ -629,7 +623,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents an agent execution ending with an error (failed, crashed, or cancelled).
 
-    Persisted so that reconnecting clients see the terminal interaction for every agent turn,
+    Persisted so that reconnecting clients see the terminal interaction for every agent run,
     even when the channel process was dead when the error occurred.
     """
     use TypedStruct

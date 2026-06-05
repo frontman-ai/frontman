@@ -6,6 +6,10 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   replacing the manual `Ecto.UUID.generate() + Tasks.create_task()` pattern.
   """
 
+  use Boundary,
+    top_level?: true,
+    check: [in: false, out: false]
+
   alias FrontmanServer.Accounts
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
@@ -33,10 +37,22 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     task_id
   end
 
-  def task_with_open_turn_fixture(scope, opts \\ []) do
+  def task_with_active_run_fixture(scope, opts \\ []) do
     task_id = task_fixture(scope, opts)
     start_turn_fixture(scope, task_id)
     task_id
+  end
+
+  @doc "Build a production-shaped execution request for task execution tests."
+  def execution_request_fixture(overrides \\ []) do
+    %{
+      tools: [],
+      model: nil,
+      project_traits: [],
+      backend_tool_modules: FrontmanServer.Tools.backend_tool_modules(),
+      mcp_tool_defs: []
+    }
+    |> Map.merge(Map.new(overrides))
   end
 
   @doc "Persist a user message and return its turn number."

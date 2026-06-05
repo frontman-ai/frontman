@@ -18,7 +18,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.ExecutionEvent
+  alias FrontmanServer.Tasks.Interaction
 
   describe "LLM stream error propagation" do
     setup do
@@ -32,7 +32,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
     end
 
     @tag :capture_log
-    test "LLM stream raise propagates as ExecutionEvent{type: :failed} via PubSub", %{
+    test "LLM stream raise persists AgentError interaction via PubSub", %{
       task_id: task_id,
       scope: scope
     } do
@@ -48,18 +48,21 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
 
       {:ok, _, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Take a screenshot"), [])
+        Tasks.submit_user_message(
+          scope,
+          task_id,
+          user_content("Take a screenshot"),
+          execution_request_fixture()
+        )
 
-      # Stream errors are now caught and surfaced as graceful failures
-      assert_receive {:execution_event,
-                      %ExecutionEvent{type: :failed, payload: %{reason: reason}}},
-                     5_000
+      # Stream errors are now caught and surfaced as graceful failures.
+      assert_receive {:interaction, %Interaction.AgentError{error: reason}, _turn_number}, 5_000
 
-      assert Exception.message(reason) =~ "image exceeds the maximum allowed size"
+      assert reason =~ "image exceeds the maximum allowed size"
     end
 
     @tag :capture_log
-    test "LLM returning {:error, reason} surfaces as ExecutionEvent{type: :failed}", %{
+    test "LLM returning {:error, reason} persists AgentError interaction", %{
       task_id: task_id,
       scope: scope
     } do
@@ -68,12 +71,15 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-test"})
 
       {:ok, _, _} =
-        Tasks.submit_user_message(scope, task_id, user_content("Hello"), [])
+        Tasks.submit_user_message(
+          scope,
+          task_id,
+          user_content("Hello"),
+          execution_request_fixture()
+        )
 
-      # Should receive a failed event broadcast
-      assert_receive {:execution_event,
-                      %ExecutionEvent{type: :failed, payload: %{reason: _reason}}},
-                     5_000
+      # Should receive a failed interaction broadcast.
+      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number}, 5_000
     end
   end
 end

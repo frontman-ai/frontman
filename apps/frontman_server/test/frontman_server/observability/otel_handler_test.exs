@@ -81,10 +81,10 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
           scope,
           task_id,
           [%{"type" => "text", "text" => "Show my todos"}],
-          []
+          execution_request_fixture()
         )
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 
       # Collect spans from this trace
       spans = collect_spans_for_task(task_id)
@@ -176,10 +176,10 @@ defmodule FrontmanServer.Observability.OtelHandlerTest do
           scope,
           task_id,
           [%{"type" => "text", "text" => "Hi"}],
-          []
+          execution_request_fixture()
         )
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}}, 5_000
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 
       spans = collect_spans_for_task(task_id)
 

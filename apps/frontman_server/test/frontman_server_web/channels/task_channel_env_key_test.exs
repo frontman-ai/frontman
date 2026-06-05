@@ -12,7 +12,7 @@ defmodule FrontmanServerWeb.TaskChannelEnvKeyTest do
     push(socket, "acp:message", prompt_request(_meta: meta))
     :sys.get_state(socket.channel_pid)
 
-    assert_receive {:interaction, %Tasks.Interaction.UserMessage{}}
+    assert_receive {:interaction, %Tasks.Interaction.UserMessage{}, _turn_number}
     refute_push("acp:message", %{"error" => %{"code" => -32_000}})
     assert Process.alive?(socket.channel_pid)
     wait_for_execution_idle(socket)

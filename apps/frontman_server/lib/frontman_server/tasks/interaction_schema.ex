@@ -23,6 +23,9 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
+  @task_scoped_types Interaction.task_scoped_types()
+  @tiebreaker_range 1_000_000
+
   schema "interactions" do
     field(:type, Ecto.Enum, values: Interaction.type_values())
     field(:data, :map)
@@ -65,59 +68,35 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     )
   end
 
-  @task_scoped_types Interaction.task_scoped_types()
-
-  defp validate_turn_number(changeset) do
-    case {get_field(changeset, :type), get_field(changeset, :turn_number)} do
-      {type, nil} when type in @task_scoped_types ->
-        changeset
-
-      {_type, turn_number} when is_integer(turn_number) and turn_number > 0 ->
-        changeset
-
-      {type, nil} ->
-        add_error(changeset, :turn_number, "missing for #{type}")
-
-      {_type, _turn_number} ->
-        add_error(changeset, :turn_number, "must be positive")
-    end
-  end
-
-  @tiebreaker_range 1_000_000
-
-  defp generate_sequence do
-    unix_s = DateTime.utc_now() |> DateTime.to_unix(:second)
-    tiebreaker = System.unique_integer([:monotonic, :positive])
-    unix_s * @tiebreaker_range + rem(tiebreaker, @tiebreaker_range)
-  end
-
-  @spec for_task(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
   def for_task(query \\ __MODULE__, task_id) when is_binary(task_id) do
     from(i in query, where: i.task_id == ^task_id)
   end
 
-  @spec for_turn(Ecto.Queryable.t(), pos_integer()) :: Ecto.Query.t()
   def for_turn(query \\ __MODULE__, turn_number) do
     from(i in query, where: i.turn_number == ^turn_number)
   end
 
-  @spec ordered(Ecto.Queryable.t()) :: Ecto.Query.t()
+  @doc """
+  Filters interactions to those at or before the given turn number.
+  """
+  def up_to_turn(query \\ __MODULE__, turn_number)
+      when is_integer(turn_number) and turn_number > 0 do
+    from(i in query, where: i.turn_number <= ^turn_number)
+  end
+
   def ordered(query \\ __MODULE__) do
     from(i in query, order_by: [asc: coalesce(i.sequence, 0), asc: i.inserted_at, asc: i.id])
   end
 
-  @spec of_type(Ecto.Queryable.t(), Interaction.t() | module() | atom()) :: Ecto.Query.t()
   def of_type(query \\ __MODULE__, type) do
     type = Interaction.type_for(type)
     from(i in query, where: i.type == ^type)
   end
 
-  @spec data_equals(Ecto.Queryable.t(), String.t(), String.t()) :: Ecto.Query.t()
   def data_equals(query \\ __MODULE__, field, value) do
     from(i in query, where: fragment("?->>?", i.data, ^field) == ^value)
   end
 
-  @spec unresolved_tool_calls(Ecto.Queryable.t()) :: Ecto.Query.t()
   def unresolved_tool_calls(query \\ __MODULE__) do
     tool_call = Interaction.type_for(Interaction.ToolCall)
     tool_result = Interaction.type_for(Interaction.ToolResult)
@@ -131,8 +110,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     )
   end
 
-  # --- JSONB to Domain Struct Conversion ---
-
   @doc """
   Converts a persisted InteractionSchema to its domain struct.
   """
@@ -140,6 +117,32 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   def to_struct(%__MODULE__{type: type, data: data}) when is_atom(type) and is_map(data) do
     module = Interaction.module_for(type)
     struct!(module, struct_fields(module, data))
+  end
+
+  defp generate_sequence do
+    unix_s = DateTime.utc_now() |> DateTime.to_unix(:second)
+    tiebreaker = System.unique_integer([:monotonic, :positive])
+    unix_s * @tiebreaker_range + rem(tiebreaker, @tiebreaker_range)
+  end
+
+  defp validate_turn_number(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :turn_number)} do
+      {type, nil} when type in @task_scoped_types ->
+        changeset
+
+      {type, turn_number}
+      when type not in @task_scoped_types and is_integer(turn_number) and turn_number > 0 ->
+        changeset
+
+      {type, _turn_number} when type in @task_scoped_types ->
+        add_error(changeset, :turn_number, "must be empty for #{type}")
+
+      {type, nil} ->
+        add_error(changeset, :turn_number, "missing for #{type}")
+
+      {_type, _turn_number} ->
+        add_error(changeset, :turn_number, "must be positive")
+    end
   end
 
   defp struct_fields(module, data) do

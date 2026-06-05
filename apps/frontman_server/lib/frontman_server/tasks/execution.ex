@@ -25,10 +25,17 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.{Prompts, RootAgent}
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema, TaskSchema}
-  alias FrontmanServer.Tools
   alias SwarmAi.Message.ContentPart
 
-  @task_scoped_interaction_types Interaction.task_scoped_types()
+  @type run_params :: %{
+          required(:tools) => [SwarmAi.Tool.t()],
+          required(:model) => FrontmanServer.Providers.Model.t() | map() | String.t() | nil,
+          required(:turn_number) => pos_integer(),
+          required(:interaction_rows) => [InteractionSchema.t()],
+          required(:project_traits) => [FrontmanServer.Frameworks.project_trait()],
+          required(:backend_tool_modules) => [module()],
+          required(:mcp_tool_defs) => [FrontmanServer.Tools.MCP.t()]
+        }
 
   @doc """
   Runs an agent execution for a task.
@@ -36,19 +43,32 @@ defmodule FrontmanServer.Tasks.Execution do
   Resolves the API key, builds the root agent from the task,
   and submits the agent to SwarmAi.
 
-  ## Options
-  - `:model` - LLM model spec (defaults to provider default)
+  ## Params
+  - `:tools` - LLM-visible tool schemas
+  - `:model` - LLM model spec (nil uses provider default)
+  - `:turn_number` - turn being executed
+  - `:interaction_rows` - persisted rows used to build prompt history
+  - `:project_traits` - client/framework traits used for system prompt guidance
+  - `:backend_tool_modules` - backend tool modules available for execution
+  - `:mcp_tool_defs` - client MCP tool definitions with timeout/policy metadata
+
   ## Returns
   - `{:ok, pid}` - Execution started successfully
   - `{:ok, :already_running}` - An execution is already running for this task
   - `{:error, :no_api_key}` - No API key available
   """
-  @spec run(Accounts.scope(), TaskSchema.t(), [SwarmAi.Tool.t()], keyword()) ::
+  @spec run(Accounts.scope(), TaskSchema.t(), run_params()) ::
           {:ok, pid() | :already_running} | {:error, :no_api_key | term()}
-  def run(%Scope{} = scope, %TaskSchema{} = task, tools, opts \\ []) when is_list(tools) do
-    model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
-    turn_number = Keyword.fetch!(opts, :turn_number)
-    interaction_rows = Keyword.fetch!(opts, :interaction_rows)
+  def run(%Scope{} = scope, %TaskSchema{} = task, %{
+        tools: tools,
+        model: requested_model,
+        turn_number: turn_number,
+        interaction_rows: interaction_rows,
+        project_traits: project_traits,
+        backend_tool_modules: backend_tool_modules,
+        mcp_tool_defs: mcp_tool_defs
+      }) do
+    model = requested_model |> Providers.resolve_model_string()
 
     # Resolve API key at the domain layer (earliest point)
     case Providers.prepare_api_key(scope, model) do
@@ -58,9 +78,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
         llm_opts =
           llm_opts
-          |> maybe_enable_prompt_cache(api_key_info.provider)
-
-        project_traits = Keyword.get(opts, :project_traits, [])
+          |> put_anthropic_prompt_cache(api_key_info.provider)
 
         agent = %RootAgent{
           task: task,
@@ -68,9 +86,8 @@ defmodule FrontmanServer.Tasks.Execution do
           turn_number: turn_number,
           messages: prompt_messages(interaction_rows, turn_number),
           tools: tools,
-          backend_tool_modules:
-            Keyword.get(opts, :backend_tool_modules, Tools.backend_tool_modules()),
-          mcp_tool_defs: Keyword.get(opts, :mcp_tool_defs, []),
+          backend_tool_modules: backend_tool_modules,
+          mcp_tool_defs: mcp_tool_defs,
           system_prompt: system_prompt(task, project_traits),
           model: model_spec,
           llm_opts: llm_opts
@@ -119,41 +136,19 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  @doc false
-  @spec prompt_messages([InteractionSchema.t()], pos_integer()) :: [SwarmAi.Message.t()]
-  def prompt_messages(rows, turn_number)
-      when is_list(rows) and is_integer(turn_number) and turn_number > 0 do
-    {reversed_messages, old_message_count} =
-      Enum.reduce(rows, {[], 0}, fn row, {acc, count} ->
-        {messages, old?} = row_prompt_messages(row, turn_number)
-        count = if old?, do: count + length(messages), else: count
-        {Enum.reverse(messages, acc), count}
-      end)
-
-    messages = Enum.reverse(reversed_messages)
-    {old_messages, current_messages} = Enum.split(messages, old_message_count)
-    Enum.map(old_messages, &decay_images/1) ++ current_messages
-  end
-
   # --- Private ---
+  defp prompt_messages(rows, turn_number)
+       when is_list(rows) and is_integer(turn_number) and turn_number > 0 do
+    Enum.flat_map(rows, fn
+      %InteractionSchema{turn_number: row_turn} = row when row_turn < turn_number ->
+        row
+        |> row_to_messages()
+        |> Enum.map(&decay_images/1)
 
-  defp row_prompt_messages(%InteractionSchema{turn_number: nil, type: type}, _turn_number)
-       when type in @task_scoped_interaction_types,
-       do: {[], false}
-
-  defp row_prompt_messages(%InteractionSchema{turn_number: nil, type: type}, _turn_number),
-    do: raise("Missing turn_number for prompt interaction type: #{type}")
-
-  defp row_prompt_messages(%InteractionSchema{turn_number: row_turn} = row, turn_number)
-       when is_integer(row_turn) and row_turn > 0 and row_turn < turn_number,
-       do: {row_to_messages(row), true}
-
-  defp row_prompt_messages(%InteractionSchema{turn_number: row_turn} = row, turn_number)
-       when is_integer(row_turn) and row_turn == turn_number,
-       do: {row_to_messages(row), false}
-
-  defp row_prompt_messages(%InteractionSchema{turn_number: row_turn}, turn_number),
-    do: raise("Prompt row turn_number #{inspect(row_turn)} is invalid for turn #{turn_number}")
+      %InteractionSchema{turn_number: row_turn} = row when row_turn == turn_number ->
+        row_to_messages(row)
+    end)
+  end
 
   defp row_to_messages(row) do
     row
@@ -193,10 +188,10 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  defp maybe_enable_prompt_cache(opts, "anthropic"),
+  defp put_anthropic_prompt_cache(opts, "anthropic"),
     do: Keyword.put(opts, :anthropic_prompt_cache, true)
 
-  defp maybe_enable_prompt_cache(opts, _provider), do: opts
+  defp put_anthropic_prompt_cache(opts, _provider), do: opts
 
   defp encode_result_for_swarm(value) when is_binary(value), do: value
   defp encode_result_for_swarm(value), do: Jason.encode!(value)

@@ -15,7 +15,7 @@ defmodule FrontmanServer.Tools.TodoWrite do
 
   @behaviour FrontmanServer.Tools.Backend
 
-  alias FrontmanServer.Tasks.Todos
+  alias FrontmanServer.Tasks.Todos.Todo
 
   @impl true
   def name, do: "todo_write"
@@ -123,7 +123,7 @@ defmodule FrontmanServer.Tools.TodoWrite do
       status = Map.get(raw, "status", "pending")
       priority = Map.get(raw, "priority", "medium")
 
-      case Todos.Todo.make(content, active_form, status, priority) do
+      case Todo.make(content, active_form, status, priority) do
         {:ok, todo} ->
           {:cont, {:ok, acc ++ [todo]}}
 

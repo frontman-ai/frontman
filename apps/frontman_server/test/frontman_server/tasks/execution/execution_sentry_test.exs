@@ -13,7 +13,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
-  alias FrontmanServer.Tasks.ExecutionEvent
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.SwarmDispatcher
 
   setup do
@@ -23,7 +23,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
-    task_id = task_with_open_turn_fixture(scope, framework: "nextjs")
+    task_id = task_with_active_run_fixture(scope, framework: "nextjs")
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
     {:ok, task_id: task_id, scope: scope}
@@ -46,7 +46,9 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         }
       )
 
-      assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
+      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
+                     5_000
+
       reports = Sentry.Test.pop_sentry_reports()
 
       error_reports =
@@ -76,7 +78,9 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         turn_number: latest_turn_number(task_id)
       })
 
-      assert_receive {:execution_event, %ExecutionEvent{type: :failed}}, 5_000
+      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
+                     5_000
+
       reports = Sentry.Test.pop_sentry_reports()
 
       error_reports =

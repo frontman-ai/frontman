@@ -51,21 +51,57 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "get_open_turn_unresolved_tool_calls/2" do
-    test "returns unresolved tool calls only for open turns", %{scope: scope} do
+  describe "get_active_run_unresolved_tool_calls/2" do
+    test "returns unresolved tool calls only for active agent runs", %{scope: scope} do
       task_id = task_fixture(scope)
 
-      assert {:ok, :no_open_turn} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
+      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
 
       insert_interaction_row(task_id, Interaction.UserMessage, 1)
       insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
 
-      assert {:ok, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
-               Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
+      assert {:ok, 1, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
+               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
 
       insert_interaction_row(task_id, Interaction.ToolResult, 1, %{"tool_call_id" => "call_1"})
 
-      assert {:ok, []} = Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
+      assert {:ok, 1, []} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+    end
+
+    test "returns an error for turn-scoped rows missing turn numbers", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      insert_interaction_row(task_id, Interaction.UserMessage, nil)
+
+      assert {:error, {:missing_turn_number, :user_message}} =
+               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+    end
+
+    test "returns an error for task-scoped rows with turn numbers", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      insert_interaction_row(task_id, Interaction.DiscoveredProjectRule, 1)
+
+      assert {:error, {:unknown_interaction_type, :discovered_project_rule}} =
+               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+    end
+  end
+
+  describe "submit_user_message/4" do
+    test "returns an error instead of raising when existing rows have invalid turn state", %{
+      scope: scope
+    } do
+      task_id = task_fixture(scope)
+
+      insert_interaction_row(task_id, Interaction.UserMessage, nil)
+
+      assert {:error, {:missing_turn_number, :user_message}} =
+               Tasks.submit_user_message(
+                 scope,
+                 task_id,
+                 user_content("hello"),
+                 execution_request_fixture()
+               )
     end
   end
 
@@ -106,8 +142,8 @@ defmodule FrontmanServer.TasksTest do
                }
              ] = Enum.filter(task.interactions, &match?(%Interaction.ToolResult{}, &1))
 
-      assert {:ok, [%Interaction.ToolCall{tool_call_id: "question_1"}]} =
-               Tasks.get_open_turn_unresolved_tool_calls(scope, task_id)
+      assert {:ok, ^turn_number, [%Interaction.ToolCall{tool_call_id: "question_1"}]} =
+               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
     end
   end
 
@@ -143,18 +179,23 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "retry_execution/2" do
+  describe "retry_execution/4" do
     test "only retries agent errors", %{scope: scope} do
       task_id = task_fixture(scope)
       {:ok, user_message} = user_message_fixture(scope, task_id, user_content("not an error"))
 
-      assert_raise RuntimeError, ~r/Cannot retry .*: no turn found for error/, fn ->
-        Tasks.retry_execution(scope, %{
-          task_id: task_id,
-          retried_error_id: user_message.id,
-          tools: []
-        })
+      assert_raise MatchError, fn ->
+        Tasks.retry_execution(scope, task_id, user_message.id, execution_request_fixture())
       end
+    end
+  end
+
+  describe "resume_execution/3" do
+    test "returns not_running when no active agent run exists", %{scope: scope} do
+      task_id = task_fixture(scope)
+
+      assert {:error, :not_running} =
+               Tasks.resume_execution(scope, task_id, execution_request_fixture())
     end
   end
 
@@ -740,14 +781,14 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "end_agent_turn/3 paused DB round-trip" do
+  describe "record_agent_run_result/4 paused DB round-trip" do
     test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
       turn_number = start_turn_fixture(scope, task_id)
 
       {:ok, _interaction} =
-        Tasks.end_agent_turn(
+        Tasks.record_agent_run_result(
           scope,
           task_id,
           turn_number,
@@ -772,7 +813,7 @@ defmodule FrontmanServer.TasksTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, _} =
-        Tasks.end_agent_turn(
+        Tasks.record_agent_run_result(
           scope,
           task_id,
           turn_number,

@@ -44,7 +44,7 @@ defmodule Mix.Tasks.DebugTask do
   discovered_project_structure
   """
 
-  use Boundary, classify_to: FrontmanServer.Mix
+  use Boundary, classify_to: FrontmanServer.Tasks
   use Mix.Task
 
   import Ecto.Query

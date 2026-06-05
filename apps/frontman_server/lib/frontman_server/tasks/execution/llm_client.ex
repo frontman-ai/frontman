@@ -160,7 +160,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   # Legacy compatibility path for ReqLLM builds that emit :error chunks.
   # Current ReqLLM versions raise ReqLLM.Error.API.Stream instead; those are
-  # classified in ExecutionEvent.classify_error/1.
+  # classified in ErrorClassifier.classify_error/1.
   defp normalize_reqllm_chunk(%{type: :error, text: text, metadata: %{error: original}})
        when is_binary(text) do
     classify_llm_error(original, text)

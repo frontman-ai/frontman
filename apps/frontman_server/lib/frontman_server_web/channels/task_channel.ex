@@ -21,7 +21,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Providers
   alias FrontmanServer.Providers.{Model, Registry}
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.{ExecutionEvent, RetryCoordinator, Todos}
+  alias FrontmanServer.Tasks.RetryCoordinator
+  alias FrontmanServer.Tasks.Todos.Todo
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.ACPHistory
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
@@ -60,7 +61,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           |> assign(:mcp_init_state, init_state)
           |> assign(:mcp_tools, [])
           |> assign(:mcp_status, :pending)
-          |> assign(:last_execution_opts, [])
+          |> assign(:last_execution, nil)
 
         send(self(), {:start_mcp_init, init_actions})
 
@@ -144,41 +145,55 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  # --- Execution events (domain events from Tasks via PubSub) ---
+  # --- Execution events (live transport from Tasks via PubSub) ---
 
-  def handle_info({:execution_event, %ExecutionEvent{type: :chunk, payload: chunk}}, socket) do
+  def handle_info({:execution_chunk, _turn_number, chunk}, socket) do
     {:noreply, handle_execution_chunk(socket, chunk)}
-  end
-
-  def handle_info({:execution_event, %ExecutionEvent{} = event}, socket) do
-    case ExecutionEvent.classify(event) do
-      :agent_completed ->
-        finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, event.turn_number)
-
-      :agent_cancelled ->
-        finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, event.turn_number)
-
-      :agent_paused ->
-        finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, event.turn_number)
-
-      {:agent_error, %{retryable: true} = error_info} ->
-        handle_transient_error(socket, error_info, event.turn_number)
-
-      {:agent_error, %{retryable: false} = error_info} ->
-        finalize_turn(
-          socket,
-          {:error, error_info.message, error_info.category},
-          event.turn_number
-        )
-
-      :ok ->
-        {:noreply, socket}
-    end
   end
 
   # --- Interaction events (from Tasks persistence layer via PubSub) ---
 
-  def handle_info({:interaction, %Tasks.Interaction.ToolCall{} = tool_call}, socket) do
+  def handle_info({:interaction, interaction}, socket) do
+    handle_interaction(interaction, nil, socket)
+  end
+
+  def handle_info({:interaction, interaction, turn_number}, socket) do
+    handle_interaction(interaction, turn_number, socket)
+  end
+
+  def handle_info({:execution_start_error, msg, turn_number}, socket) do
+    finalize_turn(socket, {:error, msg, "unknown"}, turn_number)
+  end
+
+  def handle_info({:fire_retry, token}, socket) do
+    case socket.assigns[:retry_state] do
+      %{timer_token: ^token, retried_error_id: retried_error_id} ->
+        task_id = socket.assigns.task_id
+
+        Tasks.retry_execution(
+          socket.assigns.scope,
+          task_id,
+          retried_error_id,
+          retry_execution_request(socket)
+        )
+
+      _stale_or_nil ->
+        :ok
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:task_title_changed, task_id, title}, socket) do
+    push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
+    {:noreply, socket}
+  end
+
+  def handle_info(msg, _socket) do
+    raise "Unhandled message in TaskChannel: #{inspect(msg)}"
+  end
+
+  defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
     task_id = socket.assigns.task_id
 
     announced = socket.assigns[:announced_tool_calls] || MapSet.new()
@@ -217,7 +232,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  def handle_info({:interaction, %Tasks.Interaction.ToolResult{} = tool_result}, socket) do
+  defp handle_interaction(%Tasks.Interaction.ToolResult{} = tool_result, _turn_number, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
@@ -245,40 +260,41 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  def handle_info({:interaction, _interaction}, socket) do
+  defp handle_interaction(%Tasks.Interaction.AgentCompleted{}, turn_number, socket) do
+    finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
+  end
+
+  defp handle_interaction(%Tasks.Interaction.AgentPaused{}, turn_number, socket) do
+    finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
+  end
+
+  defp handle_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, turn_number, socket) do
+    finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, turn_number)
+  end
+
+  defp handle_interaction(
+         %Tasks.Interaction.AgentError{retryable: true} = error,
+         turn_number,
+         socket
+       ) do
+    handle_transient_error(
+      socket,
+      %{
+        message: error.error,
+        category: error.category,
+        retryable: true,
+        retried_error_id: error.id
+      },
+      turn_number
+    )
+  end
+
+  defp handle_interaction(%Tasks.Interaction.AgentError{} = error, turn_number, socket) do
+    finalize_turn(socket, {:error, error.error, error.category}, turn_number)
+  end
+
+  defp handle_interaction(_interaction, _turn_number, socket) do
     {:noreply, socket}
-  end
-
-  def handle_info({:execution_start_error, msg, turn_number}, socket) do
-    finalize_turn(socket, {:error, msg, "unknown"}, turn_number)
-  end
-
-  def handle_info({:fire_retry, token}, socket) do
-    case socket.assigns[:retry_state] do
-      %{timer_token: ^token, retried_error_id: retried_error_id} ->
-        task_id = socket.assigns.task_id
-
-        Tasks.retry_execution(socket.assigns.scope, %{
-          task_id: task_id,
-          retried_error_id: retried_error_id,
-          tools: Tools.prepare_for_task(socket.assigns[:mcp_tools], task_id),
-          opts: socket.assigns[:last_execution_opts]
-        })
-
-      _stale_or_nil ->
-        :ok
-    end
-
-    {:noreply, socket}
-  end
-
-  def handle_info({:task_title_changed, task_id, title}, socket) do
-    push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
-    {:noreply, socket}
-  end
-
-  def handle_info(msg, _socket) do
-    raise "Unhandled message in TaskChannel: #{inspect(msg)}"
   end
 
   defp handle_mcp_response(id, result, socket) do
@@ -312,8 +328,11 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_tool_call_response_by_id(id, _result, socket), do: unknown_mcp_response(id, socket)
 
   defp open_tool_call(socket, tool_call_id) do
-    with {:ok, tool_calls} when is_list(tool_calls) <-
-           Tasks.get_open_turn_unresolved_tool_calls(socket.assigns.scope, socket.assigns.task_id),
+    with {:ok, _turn_number, tool_calls} when is_list(tool_calls) <-
+           Tasks.get_active_run_unresolved_tool_calls(
+             socket.assigns.scope,
+             socket.assigns.task_id
+           ),
          %Tasks.Interaction.ToolCall{} = tool_call <-
            Enum.find(tool_calls, &(&1.tool_call_id == tool_call_id)) do
       {:ok, tool_call}
@@ -356,18 +375,21 @@ defmodule FrontmanServerWeb.TaskChannel do
           socket
 
         {:ok, _interaction, :no_executor} ->
-          # No live executor (agent dead after server restart). If all open-turn
+          # No live executor (agent dead after server restart). If all active-run
           # tool calls have results, resume the agent using scope.env_api_keys +
           # model from the tool result's _meta (sent by the client per MCP spec).
-          case Tasks.get_open_turn_unresolved_tool_calls(scope, task_id) do
-            {:ok, []} ->
-              Logger.info("Open turn has no unresolved tool calls for #{task_id}, resuming agent")
+          case Tasks.get_active_run_unresolved_tool_calls(scope, task_id) do
+            {:ok, _turn_number, []} ->
+              Logger.info(
+                "Active agent run has no unresolved tool calls for #{task_id}, resuming agent"
+              )
+
               resume_or_queue_agent(socket, scope, task_id, meta)
 
-            {:ok, [_ | _]} ->
+            {:ok, _turn_number, [_ | _]} ->
               socket
 
-            {:ok, :no_open_turn} ->
+            {:ok, :no_active_run} ->
               socket
           end
 
@@ -401,12 +423,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         :error -> nil
       end
 
-    mcp_tools = socket.assigns[:mcp_tools]
-    all_tools = Tools.prepare_for_task(mcp_tools, task_id)
-
-    opts = execution_opts(socket, model, mcp_tools, meta)
-
-    Tasks.start_execution(scope, task_id, all_tools, opts)
+    Tasks.resume_execution(scope, task_id, execution_request(socket, task_id, model, meta))
     socket
   end
 
@@ -579,11 +596,11 @@ defmodule FrontmanServerWeb.TaskChannel do
           JsonRpc.success_response(id, ACP.build_session_load_result(config_options))
         )
 
-        case Tasks.get_open_turn_unresolved_tool_calls(scope, task_id) do
-          {:ok, tool_calls} when is_list(tool_calls) ->
-            Enum.each(tool_calls, &send(self(), {:interaction, &1}))
+        case Tasks.get_active_run_unresolved_tool_calls(scope, task_id) do
+          {:ok, turn_number, tool_calls} when is_list(tool_calls) ->
+            Enum.each(tool_calls, &send(self(), {:interaction, &1, turn_number}))
 
-          {:ok, :no_open_turn} ->
+          {:ok, :no_active_run} ->
             :ok
         end
 
@@ -611,8 +628,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp process_prompt(id, %{"prompt" => prompt_content} = params, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
-    mcp_tools = socket.assigns[:mcp_tools]
-
     scope = enrich_scope_from_params(scope, params)
     socket = assign(socket, :scope, scope)
 
@@ -620,11 +635,9 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     Logger.info("process_prompt", %{task_id: task_id, model: model})
 
-    all_tools = Tools.prepare_for_task(mcp_tools, task_id)
+    execution = execution_request(socket, task_id, model, prompt_meta(params))
 
-    opts = execution_opts(socket, model, mcp_tools, prompt_meta(params))
-
-    case Tasks.submit_user_message(scope, task_id, prompt_content, all_tools, opts) do
+    case Tasks.submit_user_message(scope, task_id, prompt_content, execution) do
       {:error, :already_running} ->
         Logger.info("Rejected prompt — agent already running for task #{task_id}")
         error_response = JsonRpc.error_response(id, -32_000, "Agent already running")
@@ -637,7 +650,7 @@ defmodule FrontmanServerWeb.TaskChannel do
             jsonrpc_id: id
           })
 
-        socket = assign(socket, :last_execution_opts, opts)
+        socket = assign(socket, :last_execution, execution)
 
         Logger.info("User message added, agent spawned for task #{task_id}")
 
@@ -657,12 +670,23 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp enrich_scope_from_params(scope, _), do: scope
 
-  defp execution_opts(socket, model, mcp_tools, meta) do
-    [
+  defp execution_request(socket, task_id, model, meta) do
+    mcp_tools = socket.assigns[:mcp_tools] || []
+
+    %{
+      tools: Tools.prepare_for_task(mcp_tools, task_id),
       model: model,
       mcp_tool_defs: mcp_tools,
+      backend_tool_modules: Tools.backend_tool_modules(),
       project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
-    ]
+    }
+  end
+
+  defp retry_execution_request(socket) do
+    case socket.assigns[:last_execution] do
+      %{tools: _tools} = execution -> execution
+      _none -> execution_request(socket, socket.assigns.task_id, nil, nil)
+    end
   end
 
   defp prompt_meta(%{"_meta" => meta}) when is_map(meta), do: meta
@@ -740,12 +764,12 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_retry_turn(retried_error_id, socket) do
     task_id = socket.assigns.task_id
 
-    Tasks.retry_execution(socket.assigns.scope, %{
-      task_id: task_id,
-      retried_error_id: retried_error_id,
-      tools: Tools.prepare_for_task(socket.assigns[:mcp_tools] || [], task_id),
-      opts: socket.assigns[:last_execution_opts] || []
-    })
+    Tasks.retry_execution(
+      socket.assigns.scope,
+      task_id,
+      retried_error_id,
+      retry_execution_request(socket)
+    )
 
     {:noreply, socket}
   end
@@ -954,7 +978,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp to_plan_entry(%Todos.Todo{} = todo) do
+  defp to_plan_entry(%Todo{} = todo) do
     %{
       "content" => todo.content,
       "priority" => Atom.to_string(todo.priority),

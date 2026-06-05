@@ -54,7 +54,9 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         2_000
       )
 
-      assert_receive {:interaction, %Interaction.ToolCall{tool_name: "take_screenshot"}}, 500
+      assert_receive {:interaction, %Interaction.ToolCall{tool_name: "take_screenshot"},
+                      _turn_number},
+                     500
     end
 
     test "full agent execution with MCP tool routing", %{
@@ -81,10 +83,13 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
           scope,
           task_id,
           user_content("Implement the component"),
-          MCP.to_swarm_tools([mcp_tool_def]),
-          backend_tool_modules: [],
-          mcp_tool_defs: [mcp_tool_def],
-          model: "openrouter:anthropic/claude-sonnet-4-20250514"
+          execution_request_fixture(
+            tools: MCP.to_swarm_tools([mcp_tool_def]),
+            backend_tool_modules: [],
+            mcp_tool_defs: [mcp_tool_def],
+            model: "openrouter:anthropic/claude-sonnet-4-20250514",
+            project_traits: []
+          )
         )
 
       # Verify MCP request is pushed to channel
@@ -107,11 +112,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_response))
 
-      assert_receive {:execution_event,
-                      %Tasks.ExecutionEvent{
-                        type: :completed,
-                        payload: nil
-                      }},
+      assert_receive {:interaction, %Tasks.Interaction.AgentCompleted{}, _turn_number},
                      10_000
     end
   end

@@ -25,7 +25,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   describe "backend tool result status normalization (Gap 1)" do
     test "sends 'failed' status for backend tool errors (not 'error')", %{
       socket: socket,
-      task_id: task_id
+      task_id: task_id,
+      turn_number: turn_number
     } do
       # Send directly to the channel process (not via PubSub, which also delivers
       # the raw message to the test process and blocks assert_push)
@@ -34,7 +35,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
           is_error: true
         )
 
-      send(socket.channel_pid, {:interaction, tool_result})
+      send(socket.channel_pid, {:interaction, tool_result, turn_number})
 
       # The client should receive "failed" not "error"
       assert_push("acp:message", %{
@@ -52,12 +53,13 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
     test "sends 'completed' status for successful backend tool results", %{
       socket: socket,
-      task_id: task_id
+      task_id: task_id,
+      turn_number: turn_number
     } do
       tool_result =
         tool_result("call_success_#{:rand.uniform(1_000_000)}", "search_codebase", "[]")
 
-      send(socket.channel_pid, {:interaction, tool_result})
+      send(socket.channel_pid, {:interaction, tool_result, turn_number})
 
       assert_push("acp:message", %{
         "method" => "session/update",

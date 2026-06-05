@@ -10,70 +10,41 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServer.Workers.GenerateTitle
   alias FrontmanServerWeb.UserSocket
 
-  alias FrontmanServer.Tasks.Execution.LLMError
-  alias FrontmanServer.Tasks.ExecutionEvent
   alias FrontmanServer.Tasks.Interaction
 
-  # --- Execution event builders (domain events from SwarmDispatcher) ---
+  # --- Live execution chunk builders ---
 
   defp execution_chunk(type, text),
-    do:
-      {:execution_event,
-       %ExecutionEvent{type: :chunk, payload: %{type: type, text: text}, turn_number: 1}}
+    do: {:execution_chunk, 1, %{type: type, text: text}}
 
   defp execution_tool_call(id, name),
     do:
-      {:execution_event,
-       %ExecutionEvent{
-         type: :chunk,
-         payload: %{type: :tool_call, name: name, arguments: %{}, metadata: %{id: id, index: 0}},
-         turn_number: 1
-       }}
+      {:execution_chunk, 1,
+       %{type: :tool_call, name: name, arguments: %{}, metadata: %{id: id, index: 0}}}
 
-  defp execution_completed,
-    do:
-      {:execution_event,
-       %ExecutionEvent{
-         type: :completed,
-         payload: nil,
-         turn_number: 1
-       }}
+  defp agent_completed,
+    do: {:interaction, Interaction.AgentCompleted.new(), 1}
 
-  defp execution_failed(reason, opts \\ []),
-    do:
-      {:execution_event,
-       %ExecutionEvent{
-         type: :failed,
-         payload: %{reason: reason, loop_id: System.unique_integer([:positive])},
-         turn_number: Keyword.get(opts, :turn_number, 1),
-         interaction_id: Keyword.get(opts, :interaction_id)
-       }}
+  defp agent_failed(message, category \\ "unknown"),
+    do: {:interaction, Interaction.AgentError.new(message, "failed", false, category), 1}
 
   defp broadcast_retryable_error(scope, task_id) do
     user_message_fixture(scope, task_id, [%{"type" => "text", "text" => "retry me"}])
     turn_number = latest_turn_number(task_id)
 
     {:ok, error_interaction} =
-      Tasks.end_agent_turn(
+      Tasks.record_agent_run_result(
         scope,
         task_id,
         turn_number,
         {:failed, "Rate limited", true, "rate_limit"}
       )
 
-    error = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
-
-    Phoenix.PubSub.broadcast(
-      FrontmanServer.PubSub,
-      task_topic(task_id),
-      execution_failed(error, interaction_id: error_interaction.id)
-    )
-
     error_interaction
   end
 
-  defp execution_cancelled,
-    do: {:execution_event, %ExecutionEvent{type: :cancelled, payload: nil, turn_number: 1}}
+  defp agent_cancelled,
+    do: {:interaction, Interaction.AgentError.new("Cancelled", "cancelled"), 1}
 
   # Collects all pending push messages from the test process mailbox.
   # Phoenix.ChannelTest sends pushes as {:socket_push, event, payload} messages.
@@ -216,7 +187,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       %{assigns: assigns} = :sys.get_state(socket.channel_pid)
 
-      assert Keyword.fetch!(assigns.last_execution_opts, :project_traits) == [:react, :typescript]
+      assert assigns.last_execution.project_traits == [:react, :typescript]
 
       assert_enqueued(
         worker: GenerateTitle,
@@ -255,7 +226,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        {:interaction, tool_call}
+        {:interaction, tool_call, 1}
       )
 
       # If the channel is subscribed to PubSub, it should route this to MCP
@@ -280,7 +251,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         different_topic,
-        {:interaction, tool_call}
+        {:interaction, tool_call, 1}
       )
 
       # Channel should NOT receive this since it's subscribed to task_id's topic
@@ -296,7 +267,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        {:interaction, tool_call2}
+        {:interaction, tool_call2, 1}
       )
 
       assert_push("mcp:message", %{
@@ -366,7 +337,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        execution_failed("Rate limit exceeded")
+        agent_failed("Rate limit exceeded")
       )
 
       # Assert session/update notification was pushed with error
@@ -397,7 +368,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        execution_failed("No API key available")
+        agent_failed("No API key available")
       )
 
       # Assert session/update notification is pushed
@@ -430,7 +401,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        execution_failed("Connection failed")
+        agent_failed("Connection failed")
       )
 
       # Should get session/update notification
@@ -462,7 +433,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       # Simulate: execution was resumed after tool result (no pending prompt),
       # then the agent completes. There's no JSON-RPC request to respond to.
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), execution_completed())
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), agent_completed())
 
       :sys.get_state(socket.channel_pid)
 
@@ -917,7 +888,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       # After MCP init completes, the queued prompt is processed (task_channel.ex:471-479)
       # This creates a UserMessage interaction broadcast via PubSub
-      assert_receive {:interaction, %Tasks.Interaction.UserMessage{}}
+      assert_receive {:interaction, %Tasks.Interaction.UserMessage{}, _turn_number}
       assert_agent_turn_complete(socket.assigns.task_id)
     end
   end
@@ -940,7 +911,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         })
       end)
 
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), execution_cancelled())
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), agent_cancelled())
 
       # The pending prompt should resolve with stopReason: "cancelled"
       assert_push("acp:message", %{
@@ -981,7 +952,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tc =
         tool_call(tool_call_id, "write_file", %{"target_file" => "test.txt", "content" => "hello"})
 
-      send(socket.channel_pid, {:interaction, tc})
+      send(socket.channel_pid, {:interaction, tc, 1})
       :sys.get_state(socket.channel_pid)
 
       # Should get a tool_call_update with args, but NOT a duplicate tool_call create
@@ -1016,7 +987,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tc = tool_call(tool_call_id, "take_screenshot")
 
-      send(socket.channel_pid, {:interaction, tc})
+      send(socket.channel_pid, {:interaction, tc, 1})
       :sys.get_state(socket.channel_pid)
 
       # Should get the standard tool_call create notification
@@ -1218,7 +1189,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       Tasks.agent_replied(scope, task_id, first_turn_number, "First done")
-      Tasks.end_agent_turn(scope, task_id, first_turn_number, :completed)
+      Tasks.record_agent_run_result(scope, task_id, first_turn_number, :completed)
 
       user_message_fixture(scope, task_id, user_content("second turn"))
       second_turn_number = latest_turn_number(task_id)
@@ -1466,12 +1437,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: _socket,
       task_id: task_id
     } do
-      error = %LLMError{message: "Auth failed", category: "auth", retryable: false}
-
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        execution_failed(error)
+        agent_failed("Auth failed", "auth")
       )
 
       assert_push("acp:message", %{
@@ -1490,7 +1459,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, error_interaction} =
-        Tasks.end_agent_turn(scope, task_id, turn_number, {:failed, "Rate limited"})
+        Tasks.record_agent_run_result(scope, task_id, turn_number, {:failed, "Rate limited"})
 
       retried_error_id = error_interaction.id
 

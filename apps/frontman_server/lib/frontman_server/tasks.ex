@@ -15,33 +15,29 @@ defmodule FrontmanServer.Tasks do
   delegating to the domain layer and infrastructure as appropriate.
   """
 
+  @exports [
+    TaskSchema,
+    Interaction,
+    Interaction.UserMessage,
+    Interaction.AgentResponse,
+    Interaction.AgentCompleted,
+    Interaction.AgentError,
+    Interaction.AgentPaused,
+    Interaction.ToolCall,
+    Interaction.ToolResult,
+    RetryCoordinator,
+    StreamCleanup,
+    SwarmDispatcher,
+    Todos.Todo
+  ]
+
   use Boundary,
     deps: [
       FrontmanServer,
       FrontmanServer.Accounts,
       FrontmanServer.Providers
     ],
-    exports: [
-      TaskSchema,
-      Interaction,
-      Interaction.UserMessage,
-      Interaction.AgentResponse,
-      Interaction.AgentCompleted,
-      Interaction.AgentError,
-      Interaction.ToolCall,
-      Interaction.ToolResult,
-      InteractionSchema,
-      Execution,
-      Execution.LLMProvider,
-      ExecutionEvent,
-      RetryCoordinator,
-      StreamCleanup,
-      StreamStallTimeout,
-      SwarmDispatcher,
-      Todos,
-      Todos.Todo,
-      {Execution.LLMRequestPreflight, []}
-    ]
+    exports: @exports
 
   require Logger
 
@@ -50,11 +46,10 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
-  import Ecto.Query, only: [from: 2]
 
   alias FrontmanServer.Tasks.{
     Execution,
-    ExecutionEvent,
+    Execution.ErrorClassifier,
     Interaction,
     InteractionSchema,
     TaskSchema,
@@ -64,32 +59,36 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Workers.GenerateTitle
 
   @task_scoped_interaction_types Interaction.task_scoped_types()
-  @turn_starter_interaction_types Interaction.turn_starter_types()
-  @terminal_interaction_types Interaction.terminal_types()
-  @in_turn_interaction_types Interaction.in_turn_types()
+  @agent_run_starter_interaction_types [:user_message, :agent_retry]
+  @agent_run_terminal_interaction_types [:agent_completed, :agent_error, :agent_paused]
+  @agent_run_interaction_types [:agent_response, :tool_call, :tool_result]
+
+  @typep active_agent_run_error ::
+           {:missing_turn_number, atom()} | {:unknown_interaction_type, atom()}
 
   # --- Authorization Helpers ---
 
   @spec get_task_by_id(Accounts.scope(), String.t()) ::
           {:ok, TaskSchema.t()} | {:error, :not_found}
-  @spec get_task_by_id(Accounts.scope(), String.t(), keyword()) ::
-          {:ok, TaskSchema.t()} | {:error, :not_found}
-  defp get_task_by_id(scope, task_id, opts \\ []) do
-    user_id = Accounts.scope_user_id(scope)
-
-    query =
-      TaskSchema
-      |> TaskSchema.by_id(task_id)
-      |> TaskSchema.for_user(user_id)
-
-    query =
-      if Keyword.get(opts, :lock, false), do: from(t in query, lock: "FOR UPDATE"), else: query
-
-    case Repo.one(query) do
-      nil -> {:error, :not_found}
-      schema -> {:ok, schema}
-    end
+  defp get_task_by_id(scope, task_id) do
+    task_id
+    |> TaskSchema.by_id_for_user(Accounts.scope_user_id(scope))
+    |> Repo.one()
+    |> task_lookup_result()
   end
+
+  @spec get_task_by_id_for_update(Accounts.scope(), String.t()) ::
+          {:ok, TaskSchema.t()} | {:error, :not_found}
+  defp get_task_by_id_for_update(scope, task_id) do
+    task_id
+    |> TaskSchema.by_id_for_user(Accounts.scope_user_id(scope))
+    |> TaskSchema.locked_for_update()
+    |> Repo.one()
+    |> task_lookup_result()
+  end
+
+  defp task_lookup_result(nil), do: {:error, :not_found}
+  defp task_lookup_result(%TaskSchema{} = schema), do: {:ok, schema}
 
   # --- Task Management ---
 
@@ -176,7 +175,6 @@ defmodule FrontmanServer.Tasks do
     |> Enum.map(&InteractionSchema.to_struct/1)
   end
 
-  @spec load_interaction_rows(String.t()) :: [InteractionSchema.t()]
   defp load_interaction_rows(task_id) do
     InteractionSchema.for_task(task_id)
     |> InteractionSchema.ordered()
@@ -238,13 +236,12 @@ defmodule FrontmanServer.Tasks do
   # --- Interaction Persistence Helpers ---
 
   @spec record_interaction(TaskSchema.t(), Interaction.t(), keyword()) ::
-          {:ok, Interaction.t()} | {:error, Ecto.Changeset.t()}
+          {:ok, Interaction.t()} | {:error, :not_found | Ecto.Changeset.t()}
   defp record_interaction(%TaskSchema{} = task, interaction, opts \\ []) do
-    with {:ok, _schema} <-
-           InteractionSchema.create_changeset(task, interaction, Keyword.get(opts, :turn_number))
-           |> Repo.insert() do
-      mark_task_updated(task.id)
-      broadcast_task(task.id, {:interaction, interaction})
+    turn_number = Keyword.get(opts, :turn_number)
+
+    with {:ok, interaction} <- append_interaction(task, interaction, turn_number) do
+      broadcast_task(task.id, {:interaction, interaction, turn_number})
       {:ok, interaction}
     end
   end
@@ -256,44 +253,58 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  # Bump the task's updated_at so it sorts to the top of the sessions list.
-  defp mark_task_updated(task_id) do
-    TaskSchema
-    |> TaskSchema.by_id(task_id)
-    |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)])
+  defp append_interaction(%TaskSchema{} = task, interaction, turn_number) do
+    Repo.transact(fn ->
+      with {:ok, _schema} <-
+             InteractionSchema.create_changeset(task, interaction, turn_number)
+             |> Repo.insert(),
+           {1, _} <-
+             TaskSchema
+             |> TaskSchema.by_id(task.id)
+             |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
+        {:ok, interaction}
+      else
+        {:error, reason} -> {:error, reason}
+        {0, _} -> {:error, :not_found}
+      end
+    end)
   end
 
-  defp open_turn(rows) do
+  defp active_agent_run_turn_number(rows) do
     rows
-    |> Enum.reduce(nil, fn
-      %InteractionSchema{type: type, turn_number: nil}, active_turn
+    |> Enum.reduce_while(nil, fn
+      %InteractionSchema{type: type, turn_number: nil}, active_run_turn_number
       when type in @task_scoped_interaction_types ->
-        active_turn
+        {:cont, active_run_turn_number}
 
-      %InteractionSchema{type: type, turn_number: nil}, _active_turn ->
-        raise "Missing turn_number for turn-scoped interaction type: #{type}"
+      %InteractionSchema{type: type, turn_number: nil}, _active_run_turn_number ->
+        {:halt, {:error, {:missing_turn_number, type}}}
 
-      %InteractionSchema{type: type, turn_number: turn_number}, _active_turn
-      when type in @turn_starter_interaction_types and
+      %InteractionSchema{type: type, turn_number: turn_number}, _active_run_turn_number
+      when type in @agent_run_starter_interaction_types and
              is_integer(turn_number) and turn_number > 0 ->
-        turn_number
+        {:cont, turn_number}
 
-      %InteractionSchema{type: type, turn_number: row_turn_number}, turn_number
-      when type in @terminal_interaction_types and
-             row_turn_number == turn_number ->
-        nil
+      %InteractionSchema{type: type, turn_number: turn_number}, active_run_turn_number
+      when type in @agent_run_terminal_interaction_types and
+             turn_number == active_run_turn_number ->
+        {:cont, nil}
 
-      %InteractionSchema{type: type}, active_turn
-      when type in @terminal_interaction_types ->
-        active_turn
+      %InteractionSchema{type: type}, active_run_turn_number
+      when type in @agent_run_terminal_interaction_types ->
+        {:cont, active_run_turn_number}
 
-      %InteractionSchema{type: type}, active_turn
-      when type in @in_turn_interaction_types ->
-        active_turn
+      %InteractionSchema{type: type}, active_run_turn_number
+      when type in @agent_run_interaction_types ->
+        {:cont, active_run_turn_number}
 
-      %InteractionSchema{type: type}, _active_turn ->
-        raise "Unknown interaction type while finding open turn: #{type}"
+      %InteractionSchema{type: type}, _active_run_turn_number ->
+        {:halt, {:error, {:unknown_interaction_type, type}}}
     end)
+    |> case do
+      {:error, reason} -> {:error, reason}
+      active_run_turn_number -> {:ok, active_run_turn_number}
+    end
   end
 
   defp next_turn_number(rows) do
@@ -304,12 +315,7 @@ defmodule FrontmanServer.Tasks do
     |> Kernel.+(1)
   end
 
-  defp open_turn_number!(task_id) do
-    case task_id |> load_interaction_rows() |> open_turn() do
-      turn_number when is_integer(turn_number) -> turn_number
-      nil -> raise "Cannot start execution for #{task_id}: task has no open turn"
-    end
-  end
+  defp latest_turn_number(rows), do: next_turn_number(rows) - 1
 
   @spec topic(String.t()) :: String.t()
   defp topic(task_id), do: "task:#{task_id}"
@@ -322,16 +328,12 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Handles a SwarmAi execution event for a task.
 
-  All durable events are persisted first from the SwarmAi task process, then a
-  task-domain execution event is broadcast for live subscribers.
+  Durable events are persisted first from the SwarmAi task process. Streaming
+  chunks are then broadcast for live subscribers.
   """
   def handle_swarm_event(scope, task_id, %{turn_number: turn_number, event: event} = context)
       when is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
-    context =
-      case persist_swarm_event(scope, task_id, turn_number, event) do
-        {:ok, interaction} -> Map.put(context, :persisted_interaction, interaction)
-        :ok -> context
-      end
+    persist_swarm_event(scope, task_id, turn_number, event)
 
     broadcast_swarm_event(task_id, context)
   end
@@ -351,7 +353,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:completed, _}) do
-    {:ok, interaction} = end_agent_turn(scope, task_id, turn_number, :completed)
+    {:ok, interaction} = record_agent_run_result(scope, task_id, turn_number, :completed)
     TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
   end
@@ -362,7 +364,7 @@ defmodule FrontmanServer.Tasks do
          turn_number,
          {:failed, %{reason: reason, loop_id: loop_id}}
        ) do
-    {reason_str, category, retryable} = ExecutionEvent.classify_error(reason)
+    {reason_str, category, retryable} = ErrorClassifier.classify_error(reason)
 
     Logger.error(
       "Execution failed for task #{task_id}, loop_id: #{loop_id}, reason: #{reason_str}"
@@ -375,7 +377,12 @@ defmodule FrontmanServer.Tasks do
     )
 
     {:ok, interaction} =
-      end_agent_turn(scope, task_id, turn_number, {:failed, reason_str, retryable, category})
+      record_agent_run_result(
+        scope,
+        task_id,
+        turn_number,
+        {:failed, reason_str, retryable, category}
+      )
 
     TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
@@ -403,16 +410,17 @@ defmodule FrontmanServer.Tasks do
       )
     end
 
-    {reason_str, _category, _retryable} = ExecutionEvent.classify_error(reason)
+    {reason_str, _category, _retryable} = ErrorClassifier.classify_error(reason)
 
-    {:ok, interaction} = end_agent_turn(scope, task_id, turn_number, {:crashed, reason_str})
+    {:ok, interaction} =
+      record_agent_run_result(scope, task_id, turn_number, {:crashed, reason_str})
 
     TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:cancelled, _}) do
-    {:ok, interaction} = end_agent_turn(scope, task_id, turn_number, :cancelled)
+    {:ok, interaction} = record_agent_run_result(scope, task_id, turn_number, :cancelled)
     TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
   end
@@ -438,7 +446,7 @@ defmodule FrontmanServer.Tasks do
 
     result =
       case interactive_tool_calls do
-        [] -> end_agent_turn(scope, task_id, turn_number, :terminated)
+        [] -> record_agent_run_result(scope, task_id, turn_number, :terminated)
         [_ | _] -> :ok
       end
 
@@ -459,7 +467,7 @@ defmodule FrontmanServer.Tasks do
     )
 
     {:ok, interaction} =
-      end_agent_turn(
+      record_agent_run_result(
         scope,
         task_id,
         turn_number,
@@ -473,37 +481,11 @@ defmodule FrontmanServer.Tasks do
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:chunk, _}), do: :ok
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:tool_call, _}), do: :ok
 
-  defp broadcast_swarm_event(
-         task_id,
-         %{
-           turn_number: turn_number,
-           event: {type, payload},
-           persisted_interaction: %{id: interaction_id}
-         }
-       ) do
-    broadcast_task(
-      task_id,
-      {:execution_event,
-       %ExecutionEvent{
-         type: type,
-         payload: payload,
-         turn_number: turn_number,
-         interaction_id: interaction_id
-       }}
-    )
+  defp broadcast_swarm_event(task_id, %{turn_number: turn_number, event: {:chunk, chunk}}) do
+    broadcast_task(task_id, {:execution_chunk, turn_number, chunk})
   end
 
-  defp broadcast_swarm_event(task_id, %{turn_number: turn_number, event: {type, payload}}) do
-    broadcast_task(
-      task_id,
-      {:execution_event,
-       %ExecutionEvent{
-         type: type,
-         payload: payload,
-         turn_number: turn_number
-       }}
-    )
-  end
+  defp broadcast_swarm_event(_task_id, _context), do: :ok
 
   defp unresolved_tool_calls_for_turn(task_id, turn_number) do
     InteractionSchema.for_task(task_id)
@@ -543,7 +525,7 @@ defmodule FrontmanServer.Tasks do
   defp non_empty(list) when is_list(list) and list != [], do: list
   defp non_empty(_list), do: nil
 
-  # --- Turn Lifecycle ---
+  # --- Conversation Lifecycle ---
 
   @doc """
   Submits a user prompt: persists the message and starts agent execution.
@@ -552,24 +534,22 @@ defmodule FrontmanServer.Tasks do
   and kicking off the agent loop. If an execution is already running, the
   prompt is rejected entirely (nothing persisted).
   """
-  @spec submit_user_message(Accounts.scope(), String.t(), list(), list(), keyword()) ::
+  @spec submit_user_message(Accounts.scope(), String.t(), list(), map()) ::
           {:ok, Interaction.UserMessage.t(), pos_integer()}
-          | {:error, :already_running | :not_found | Ecto.Changeset.t()}
-  def submit_user_message(scope, task_id, content_blocks, tools, opts \\ []) do
+          | {:error,
+             :already_running | :not_found | active_agent_run_error() | Ecto.Changeset.t()}
+  def submit_user_message(scope, task_id, content_blocks, execution) do
     interaction = Interaction.UserMessage.new(content_blocks)
 
-    case Repo.transaction(fn -> insert_user_turn(scope, task_id, interaction) end) do
+    case Repo.transact(fn -> insert_user_turn(scope, task_id, interaction) end) do
       {:ok, {schema, interaction, turn_number}} ->
-        mark_task_updated(schema.id)
-        broadcast_task(schema.id, {:interaction, interaction})
+        broadcast_task(schema.id, {:interaction, interaction, turn_number})
 
-        opts = Keyword.put(opts, :turn_number, turn_number)
-
-        start_execution(scope, task_id, tools, opts)
+        run_task_execution(scope, task_id, execution, turn_number)
 
         case {turn_number, interaction.messages} do
           {1, [_ | _] = messages} ->
-            model = opts |> Keyword.get(:model) |> Providers.resolve_model_string()
+            model = execution.model |> Providers.resolve_model_string()
 
             GenerateTitle.new_job(scope, task_id, Enum.join(messages, "\n"), model)
             |> Oban.insert()
@@ -586,40 +566,29 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp insert_user_turn(scope, task_id, interaction) do
-    case get_task_by_id(scope, task_id, lock: true) do
+    # Lock task row so concurrent submissions serialize before calculating next turn number.
+    case get_task_by_id_for_update(scope, task_id) do
       {:ok, schema} -> insert_user_turn(schema, interaction)
-      {:error, :not_found} -> Repo.rollback(:not_found)
+      {:error, :not_found} -> {:error, :not_found}
     end
   end
 
   defp insert_user_turn(%TaskSchema{} = schema, interaction) do
     rows = load_interaction_rows(schema.id)
 
-    case open_turn(rows) do
-      nil -> insert_user_message(schema, interaction, next_turn_number(rows))
-      _turn_number -> Repo.rollback(:already_running)
+    case active_agent_run_turn_number(rows) do
+      {:ok, nil} -> insert_user_message(schema, interaction, next_turn_number(rows))
+      {:ok, _turn_number} -> {:error, :already_running}
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp insert_user_message(schema, interaction, turn_number) do
-    case InteractionSchema.create_changeset(schema, interaction, turn_number) |> Repo.insert() do
-      {:ok, _schema} -> {schema, interaction, turn_number}
-      {:error, changeset} -> Repo.rollback(changeset)
+    with {:ok, interaction} <- append_interaction(schema, interaction, turn_number) do
+      {:ok, {schema, interaction, turn_number}}
     end
   end
 
-  @typep agent_turn_outcome ::
-           :completed
-           | :cancelled
-           | :terminated
-           | {:failed, String.t()}
-           | {:failed, String.t(), boolean(), String.t()}
-           | {:crashed, String.t()}
-           | {:paused_for_tool_timeout, String.t(), pos_integer()}
-
-  @doc "Records an agent reply in the given turn."
-  @spec agent_replied(Accounts.scope(), String.t(), pos_integer(), String.t(), map()) ::
-          {:ok, Interaction.AgentResponse.t()} | {:error, :not_found}
   def agent_replied(scope, task_id, turn_number, content, metadata \\ %{})
       when is_integer(turn_number) and turn_number > 0 do
     record_interaction(
@@ -630,33 +599,22 @@ defmodule FrontmanServer.Tasks do
     )
   end
 
-  @doc "Records how the given agent turn ended."
-  @spec end_agent_turn(Accounts.scope(), String.t(), pos_integer(), agent_turn_outcome()) ::
-          {:ok,
-           Interaction.AgentCompleted.t()
-           | Interaction.AgentPaused.t()
-           | Interaction.AgentError.t()}
-          | {:error, :not_found}
-  def end_agent_turn(scope, task_id, turn_number, outcome)
+  @doc "Records how the given agent run ended."
+  def record_agent_run_result(scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
-    record_interaction(scope, task_id, agent_turn_outcome_interaction(outcome), turn_number)
+    interaction =
+      case outcome do
+        :completed -> Interaction.AgentCompleted.new()
+        :cancelled -> turn_error("Cancelled", "cancelled")
+        :terminated -> turn_error("Terminated by supervisor", "terminated")
+        {:failed, error} -> turn_error(error)
+        {:failed, error, retry, category} -> turn_error(error, "failed", retry, category)
+        {:crashed, error} -> turn_error(error, "crashed")
+        {:paused_for_tool_timeout, tool, timeout} -> Interaction.AgentPaused.new(tool, timeout)
+      end
+
+    record_interaction(scope, task_id, interaction, turn_number)
   end
-
-  defp agent_turn_outcome_interaction(:completed), do: Interaction.AgentCompleted.new()
-  defp agent_turn_outcome_interaction(:cancelled), do: turn_error("Cancelled", "cancelled")
-
-  defp agent_turn_outcome_interaction(:terminated),
-    do: turn_error("Terminated by supervisor", "terminated")
-
-  defp agent_turn_outcome_interaction({:failed, error}), do: turn_error(error)
-
-  defp agent_turn_outcome_interaction({:failed, error, retryable, category}),
-    do: turn_error(error, "failed", retryable, category)
-
-  defp agent_turn_outcome_interaction({:crashed, error}), do: turn_error(error, "crashed")
-
-  defp agent_turn_outcome_interaction({:paused_for_tool_timeout, tool_name, timeout_ms}),
-    do: Interaction.AgentPaused.new(tool_name, timeout_ms)
 
   defp turn_error(error, kind \\ "failed", retryable \\ false, category \\ "unknown"),
     do: Interaction.AgentError.new(error, kind, retryable, category)
@@ -664,9 +622,6 @@ defmodule FrontmanServer.Tasks do
   # --- Tool Requests ---
 
   @doc "Records a client-handled tool request in the given turn."
-  @spec request_client_tool(Accounts.scope(), String.t(), pos_integer(), SwarmAi.ToolCall.t()) ::
-          {:ok, Interaction.ToolCall.t()}
-          | {:error, :not_found | {:invalid_tool_arguments, String.t()}}
   def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
@@ -698,7 +653,7 @@ defmodule FrontmanServer.Tasks do
       )
       when is_boolean(is_error) and is_list(opts) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
-         turn_number = tool_result_turn_number!(task_id, tool_call_id, opts),
+         turn_number = tool_result_turn_number(task_id, tool_call_id, opts),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- record_interaction(schema, interaction, turn_number: turn_number) do
       executor_status = Execution.notify_tool_result(tool_call_id, result, is_error)
@@ -707,20 +662,17 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp tool_result_turn_number!(task_id, tool_call_id, opts) do
+  defp tool_result_turn_number(task_id, tool_call_id, opts) do
     case Keyword.fetch(opts, :turn_number) do
       {:ok, turn_number} when is_integer(turn_number) and turn_number > 0 ->
         turn_number
 
-      {:ok, turn_number} ->
-        raise "Invalid turn_number for tool result #{tool_call_id}: #{inspect(turn_number)}"
-
       :error ->
-        persisted_tool_call_turn_number!(task_id, tool_call_id)
+        persisted_tool_call_turn_number(task_id, tool_call_id)
     end
   end
 
-  defp persisted_tool_call_turn_number!(task_id, tool_call_id) do
+  defp persisted_tool_call_turn_number(task_id, tool_call_id) do
     row =
       InteractionSchema.for_task(task_id)
       |> InteractionSchema.of_type(Interaction.ToolCall)
@@ -731,30 +683,25 @@ defmodule FrontmanServer.Tasks do
       %InteractionSchema{turn_number: turn_number}
       when is_integer(turn_number) and turn_number > 0 ->
         turn_number
-
-      nil ->
-        raise "Cannot resolve tool_result #{tool_call_id}: no persisted tool_call found"
-
-      %InteractionSchema{turn_number: turn_number} ->
-        raise "Cannot resolve tool_result #{tool_call_id}: tool_call has invalid turn_number #{inspect(turn_number)}"
     end
   end
 
   @doc """
-  Returns unresolved tool calls for the latest open turn.
+  Returns unresolved tool calls and turn number for the active agent run.
 
-  An open turn starts at `user_message` or `agent_retry` and closes at
-  `agent_completed`, `agent_error`, or `agent_paused` for the same turn number.
+  A user message starts a turn and its first agent run. Agent retry starts a new
+  agent run in the same turn. Agent completed, error, and paused interactions
+  close only the active run attempt for their turn number.
   """
-  def get_open_turn_unresolved_tool_calls(scope, task_id) do
+  def get_active_run_unresolved_tool_calls(scope, task_id) do
     with {:ok, _schema} <- get_task_by_id(scope, task_id) do
       rows = load_interaction_rows(task_id)
 
-      case open_turn(rows) do
-        nil ->
-          {:ok, :no_open_turn}
+      case active_agent_run_turn_number(rows) do
+        {:ok, nil} ->
+          {:ok, :no_active_run}
 
-        turn_number ->
+        {:ok, turn_number} ->
           tool_calls =
             InteractionSchema.for_task(task_id)
             |> InteractionSchema.for_turn(turn_number)
@@ -763,7 +710,10 @@ defmodule FrontmanServer.Tasks do
             |> Repo.all()
             |> Enum.map(&InteractionSchema.to_struct/1)
 
-          {:ok, tool_calls}
+          {:ok, turn_number, tool_calls}
+
+        {:error, reason} ->
+          {:error, reason}
       end
     end
   end
@@ -771,35 +721,62 @@ defmodule FrontmanServer.Tasks do
   # --- Execution Management ---
 
   @doc "Records a retry request and starts execution."
-  @spec retry_execution(Accounts.scope(), map()) ::
-          :ok | :already_running | {:error, :not_found | Ecto.Changeset.t()}
-  def retry_execution(
-        scope,
-        %{task_id: task_id, retried_error_id: retried_error_id, tools: tools} = attrs
-      ) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      row =
-        InteractionSchema.for_task(task_id)
-        |> InteractionSchema.of_type(Interaction.AgentError)
-        |> InteractionSchema.data_equals("id", retried_error_id)
-        |> Repo.one()
+  @spec retry_execution(Accounts.scope(), String.t(), String.t(), map()) ::
+          :ok | :already_running | {:error, :not_found | :stale_turn | Ecto.Changeset.t()}
+  def retry_execution(scope, task_id, retried_error_id, execution) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id),
+         rows = load_interaction_rows(task_id),
+         {:ok, turn_number} <- retry_turn_number(task_id, retried_error_id),
+         :ok <- ensure_latest_retry_turn(turn_number, rows),
+         {:ok, _retry} <-
+           record_interaction(schema, Interaction.AgentRetry.new(retried_error_id),
+             turn_number: turn_number
+           ) do
+      run_task_execution(scope, task_id, execution, turn_number)
+    end
+  end
 
-      turn_number =
-        case row do
-          %InteractionSchema{turn_number: turn_number} when is_integer(turn_number) ->
-            turn_number
+  defp retry_turn_number(task_id, retried_error_id) do
+    %InteractionSchema{turn_number: turn_number} =
+      InteractionSchema.for_task(task_id)
+      |> InteractionSchema.of_type(Interaction.AgentError)
+      |> InteractionSchema.data_equals("id", retried_error_id)
+      |> Repo.one()
 
-          _row ->
-            raise "Cannot retry #{retried_error_id}: no turn found for error"
+    {:ok, turn_number}
+  end
+
+  defp ensure_latest_retry_turn(turn_number, rows) do
+    if turn_number == latest_turn_number(rows), do: :ok, else: {:error, :stale_turn}
+  end
+
+  @doc "Resumes execution for the active agent run."
+  @spec resume_execution(Accounts.scope(), String.t(), map()) ::
+          :ok | :already_running | {:error, :not_found | :not_running | active_agent_run_error()}
+  def resume_execution(scope, task_id, execution) do
+    case get_task(scope, task_id) do
+      {:ok, task} ->
+        rows = load_interaction_rows(task_id)
+
+        case active_agent_run_turn_number(rows) do
+          {:ok, turn_number} when is_integer(turn_number) ->
+            rows =
+              InteractionSchema.for_task(task_id)
+              |> InteractionSchema.up_to_turn(turn_number)
+              |> InteractionSchema.ordered()
+              |> Repo.all()
+
+            run_execution(scope, task, execution_params(execution, rows, turn_number))
+
+          {:ok, nil} ->
+            {:error, :not_running}
+
+          {:error, reason} ->
+            {:error, reason}
         end
 
-      with {:ok, _retry} <-
-             record_interaction(schema, Interaction.AgentRetry.new(retried_error_id),
-               turn_number: turn_number
-             ) do
-        opts = attrs |> Map.get(:opts, []) |> Keyword.put(:turn_number, turn_number)
-        start_execution(scope, task_id, tools, opts)
-      end
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
   end
 
@@ -816,43 +793,48 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc """
-  Starts an execution if none is already running for this task.
-  Fetches the task and delegates to Execution.run.
-  """
-  @spec start_execution(Accounts.scope(), String.t(), list(), keyword()) ::
-          :ok | :already_running | {:error, :not_found}
-  def start_execution(scope, task_id, tools, opts) do
+  defp run_task_execution(scope, task_id, execution, turn_number)
+       when is_integer(turn_number) and turn_number > 0 do
     case get_task(scope, task_id) do
       {:ok, task} ->
-        turn_number = execution_turn_number!(task_id, opts)
-        rows = load_interaction_rows(task_id)
+        rows =
+          InteractionSchema.for_task(task_id)
+          |> InteractionSchema.up_to_turn(turn_number)
+          |> InteractionSchema.ordered()
+          |> Repo.all()
 
-        run_execution(
-          scope,
-          task,
-          tools,
-          opts
-          |> Keyword.put(:turn_number, turn_number)
-          |> Keyword.put(:interaction_rows, rows),
-          turn_number
-        )
+        run_execution(scope, task, execution_params(execution, rows, turn_number))
 
       {:error, :not_found} ->
         {:error, :not_found}
     end
   end
 
-  defp execution_turn_number!(task_id, opts) do
-    case Keyword.fetch(opts, :turn_number) do
-      {:ok, turn_number} when is_integer(turn_number) and turn_number > 0 -> turn_number
-      {:ok, turn_number} -> raise "Invalid execution turn_number: #{inspect(turn_number)}"
-      :error -> open_turn_number!(task_id)
-    end
+  defp execution_params(
+         %{
+           tools: tools,
+           model: model,
+           project_traits: project_traits,
+           backend_tool_modules: backend_tool_modules,
+           mcp_tool_defs: mcp_tool_defs
+         },
+         rows,
+         turn_number
+       )
+       when is_integer(turn_number) and turn_number > 0 do
+    %{
+      tools: tools,
+      model: model,
+      turn_number: turn_number,
+      interaction_rows: rows,
+      project_traits: project_traits,
+      backend_tool_modules: backend_tool_modules,
+      mcp_tool_defs: mcp_tool_defs
+    }
   end
 
-  defp run_execution(scope, task, tools, opts, turn_number) do
-    case Execution.run(scope, task, tools, opts) do
+  defp run_execution(scope, task, %{turn_number: turn_number} = execution) do
+    case Execution.run(scope, task, execution) do
       {:ok, :already_running} ->
         :already_running
 
@@ -861,7 +843,7 @@ defmodule FrontmanServer.Tasks do
 
       {:error, reason} ->
         message = Execution.error_message(scope, reason)
-        {:ok, _error} = end_agent_turn(scope, task.id, turn_number, {:failed, message})
+        {:ok, _error} = record_agent_run_result(scope, task.id, turn_number, {:failed, message})
         broadcast_task(task.id, {:execution_start_error, message, turn_number})
 
         :ok
