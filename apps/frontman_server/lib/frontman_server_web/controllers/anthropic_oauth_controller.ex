@@ -8,8 +8,6 @@ defmodule FrontmanServerWeb.AnthropicOAuthController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.AnthropicOAuth
-  alias FrontmanServer.Providers.OAuthToken
 
   @doc """
   Generates a PKCE challenge and returns the authorization URL.
@@ -17,13 +15,7 @@ defmodule FrontmanServerWeb.AnthropicOAuthController do
   The client should store the verifier and pass it back when exchanging the code.
   """
   def authorize_url(conn, _params) do
-    {verifier, challenge} = AnthropicOAuth.generate_pkce()
-    authorize_url = AnthropicOAuth.build_authorize_url(challenge, verifier)
-
-    json(conn, %{
-      authorize_url: authorize_url,
-      verifier: verifier
-    })
+    json(conn, Providers.start_anthropic_oauth())
   end
 
   @doc """
@@ -36,28 +28,17 @@ defmodule FrontmanServerWeb.AnthropicOAuthController do
   def exchange(conn, %{"code" => code, "verifier" => verifier}) do
     scope = conn.assigns.current_scope
 
-    case AnthropicOAuth.exchange_code(code, verifier) do
-      {:ok, tokens} ->
-        expires_at = AnthropicOAuth.calculate_expires_at(tokens.expires_in)
+    case Providers.connect_anthropic_oauth(scope, code, verifier) do
+      {:ok, expires_at} ->
+        json(conn, %{
+          status: "ok",
+          expires_at: DateTime.to_iso8601(expires_at)
+        })
 
-        case Providers.save_oauth_connection(
-               scope,
-               "anthropic",
-               tokens.access_token,
-               tokens.refresh_token,
-               expires_at
-             ) do
-          {:ok, _token} ->
-            json(conn, %{
-              status: "ok",
-              expires_at: DateTime.to_iso8601(expires_at)
-            })
-
-          {:error, changeset} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{status: "error", error: translate_errors(changeset)})
-        end
+      {:error, %Ecto.Changeset{} = changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{status: "error", error: translate_errors(changeset)})
 
       {:error, {:token_exchange_failed, status, body}} ->
         error_message =
@@ -100,21 +81,7 @@ defmodule FrontmanServerWeb.AnthropicOAuthController do
   Returns the current OAuth connection status.
   """
   def status(conn, _params) do
-    scope = conn.assigns.current_scope
-
-    case Providers.get_oauth_token(scope, "anthropic") do
-      nil ->
-        json(conn, %{
-          connected: false
-        })
-
-      token ->
-        json(conn, %{
-          connected: true,
-          expires_at: DateTime.to_iso8601(token.expires_at),
-          expired: OAuthToken.expired?(token)
-        })
-    end
+    json(conn, Providers.oauth_connection_status(conn.assigns.current_scope, "anthropic"))
   end
 
   # Private helpers

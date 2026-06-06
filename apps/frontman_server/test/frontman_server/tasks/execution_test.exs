@@ -173,9 +173,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       task_id = task_with_pubsub_fixture(scope)
 
       {:ok, _, 1} =
-        submit_user_message(scope, task_id, user_content("Hello"),
-          model: %{"provider" => "missing", "value" => "test"}
-        )
+        submit_user_message(scope, task_id, user_content("Hello"), model: "missing:test")
 
       assert_receive {:execution_start_error, "No API key available for this request.", 1}
 

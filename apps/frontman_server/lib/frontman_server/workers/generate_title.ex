@@ -8,7 +8,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   @moduledoc """
   Oban worker that generates a short task title from the first user prompt.
 
-  Resolves the API key through the standard priority chain (OAuth > user key > env key > server key).
+  Resolves the API key through the standard priority chain (OAuth > user key > env key).
   """
 
   use Oban.Worker,
@@ -25,7 +25,6 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.{Scope, User}
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.StreamCleanup
   alias FrontmanServer.Vault
@@ -98,7 +97,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     end
   end
 
-  defp call_llm(%ResolvedKey{} = resolved_key, user_prompt_text) do
+  defp call_llm(resolved_key, user_prompt_text) do
     messages = [
       ReqLLM.Context.system([ContentPart.text(@system_prompt)]),
       ReqLLM.Context.user(user_prompt_text)

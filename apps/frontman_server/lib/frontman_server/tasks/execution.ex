@@ -29,7 +29,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
   @type run_params :: %{
           required(:tools) => [SwarmAi.Tool.t()],
-          required(:model) => FrontmanServer.Providers.Model.t() | map() | String.t() | nil,
+          required(:model) => String.t() | nil,
           required(:turn_number) => pos_integer(),
           required(:interaction_rows) => [InteractionSchema.t()],
           required(:project_traits) => [FrontmanServer.Frameworks.project_trait()],
@@ -68,10 +68,7 @@ defmodule FrontmanServer.Tasks.Execution do
         backend_tool_modules: backend_tool_modules,
         mcp_tool_defs: mcp_tool_defs
       }) do
-    model = requested_model |> Providers.resolve_model_string()
-
-    # Resolve API key at the domain layer (earliest point)
-    case Providers.prepare_api_key(scope, model) do
+    case Providers.prepare_api_key(scope, requested_model) do
       {:ok, api_key_info} ->
         max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
         {model_spec, llm_opts} = Providers.to_llm_args(api_key_info, max_tokens: max_tokens)

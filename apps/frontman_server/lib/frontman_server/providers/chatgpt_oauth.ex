@@ -268,55 +268,32 @@ defmodule FrontmanServer.Providers.ChatGPTOAuth do
   defdelegate calculate_expires_at(expires_in), to: OAuthToken
 
   @doc """
-  Extracts the chatgpt_account_id from a JWT token (id_token or access_token).
+  Extracts the chatgpt_account_id from a JWT token.
 
   Parses the JWT payload and looks for the account ID in these locations:
   1. `https://api.openai.com/auth` -> `chatgpt_account_id`
   2. Top-level `chatgpt_account_id`
   3. First organization ID from `organizations` array
 
-  Returns `{:ok, account_id}` or `{:error, :not_found}`.
+  Returns the account ID. Crashes if the token does not contain one.
   """
-  @spec extract_account_id(String.t()) :: {:ok, String.t()} | {:error, :not_found}
   def extract_account_id(jwt) when is_binary(jwt) do
-    case decode_jwt_payload(jwt) do
-      {:ok, claims} ->
-        account_id =
-          get_in(claims, ["https://api.openai.com/auth", "chatgpt_account_id"]) ||
-            claims["chatgpt_account_id"] ||
-            get_first_org_id(claims)
+    {:ok, claims} = decode_jwt_payload(jwt)
 
-        case account_id do
-          id when is_binary(id) and id != "" -> {:ok, id}
-          _ -> {:error, :not_found}
-        end
+    account_id =
+      get_in(claims, ["https://api.openai.com/auth", "chatgpt_account_id"]) ||
+        claims["chatgpt_account_id"] ||
+        get_first_org_id(claims)
 
-      {:error, _} ->
-        {:error, :not_found}
-    end
+    <<_first, _rest::binary>> = account_id
+    account_id
   end
 
-  def extract_account_id(_), do: {:error, :not_found}
-
   @doc """
-  Extracts the account ID from token response, trying id_token first, then access_token.
+  Extracts the account ID from the token response id_token.
   """
-  @spec extract_account_id_from_tokens(%{
-          required(:id_token) => String.t(),
-          required(:access_token) => String.t(),
-          optional(atom()) => any()
-        }) :: String.t() | nil
-  def extract_account_id_from_tokens(%{id_token: id_token, access_token: access_token}) do
-    case extract_account_id(id_token) do
-      {:ok, id} ->
-        id
-
-      {:error, _} ->
-        case extract_account_id(access_token) do
-          {:ok, id} -> id
-          {:error, _} -> nil
-        end
-    end
+  def extract_account_id_from_tokens(%{id_token: id_token}) do
+    extract_account_id(id_token)
   end
 
   # Private helpers

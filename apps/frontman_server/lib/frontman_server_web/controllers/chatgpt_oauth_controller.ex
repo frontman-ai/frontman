@@ -31,7 +31,6 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   require Logger
 
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.{ChatGPTOAuth, OAuthToken}
 
   @doc """
   Initiates the device auth flow by requesting a device code from OpenAI.
@@ -43,13 +42,9 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   POST /api/oauth/chatgpt/initiate
   """
   def initiate(conn, _params) do
-    case ChatGPTOAuth.request_device_code() do
-      {:ok, %{device_auth_id: device_auth_id, user_code: user_code, interval: _interval}} ->
-        json(conn, %{
-          device_auth_id: device_auth_id,
-          user_code: user_code,
-          verification_url: ChatGPTOAuth.verification_url()
-        })
+    case Providers.start_chatgpt_oauth() do
+      {:ok, device_auth} ->
+        json(conn, device_auth)
 
       {:error, :device_auth_not_enabled} ->
         conn
@@ -77,9 +72,12 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   """
   def poll(conn, %{"device_auth_id" => device_auth_id, "user_code" => user_code})
       when is_binary(device_auth_id) and is_binary(user_code) do
-    case ChatGPTOAuth.poll_device_token(device_auth_id, user_code) do
-      {:ok, %{authorization_code: auth_code, code_verifier: code_verifier}} ->
-        handle_device_exchange(conn, auth_code, code_verifier)
+    case Providers.poll_chatgpt_oauth(conn.assigns.current_scope, device_auth_id, user_code) do
+      {:connected, expires_at} ->
+        json(conn, %{
+          status: "connected",
+          expires_at: DateTime.to_iso8601(expires_at)
+        })
 
       {:pending} ->
         json(conn, %{status: "pending"})
@@ -88,6 +86,20 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
         conn
         |> put_status(403)
         |> json(%{status: "declined", error: "Authorization was declined."})
+
+      {:exchange_error, %Ecto.Changeset{} = changeset} ->
+        Logger.error("Failed to store ChatGPT OAuth token: #{inspect(changeset)}")
+
+        conn
+        |> put_status(500)
+        |> json(%{status: "error", error: "Failed to save tokens. Please try again."})
+
+      {:exchange_error, reason} ->
+        Logger.error("ChatGPT device code exchange failed: #{inspect(reason)}")
+
+        conn
+        |> put_status(500)
+        |> json(%{status: "error", error: "Failed to exchange authorization code."})
 
       {:error, reason} ->
         Logger.error("ChatGPT device poll error: #{inspect(reason)}")
@@ -125,65 +137,6 @@ defmodule FrontmanServerWeb.ChatGPTOAuthController do
   GET /api/oauth/chatgpt/status
   """
   def status(conn, _params) do
-    scope = conn.assigns.current_scope
-
-    case Providers.get_oauth_token(scope, "chatgpt") do
-      nil ->
-        json(conn, %{connected: false})
-
-      token ->
-        json(conn, %{
-          connected: true,
-          expires_at: DateTime.to_iso8601(token.expires_at),
-          expired: OAuthToken.expired?(token)
-        })
-    end
-  end
-
-  # Private helpers
-
-  defp handle_device_exchange(conn, authorization_code, code_verifier) do
-    scope = conn.assigns.current_scope
-
-    case ChatGPTOAuth.exchange_device_code(authorization_code, code_verifier) do
-      {:ok, tokens} ->
-        # Extract account_id from JWT tokens
-        account_id = ChatGPTOAuth.extract_account_id_from_tokens(tokens)
-
-        # Calculate expiry (default to 1 hour if not provided)
-        expires_in = tokens.expires_in || 3600
-        expires_at = OAuthToken.calculate_expires_at(expires_in)
-
-        metadata = if account_id, do: %{"account_id" => account_id}, else: %{}
-
-        case Providers.save_oauth_connection(
-               scope,
-               "chatgpt",
-               tokens.access_token,
-               tokens.refresh_token,
-               expires_at,
-               metadata
-             ) do
-          {:ok, _token} ->
-            json(conn, %{
-              status: "connected",
-              expires_at: DateTime.to_iso8601(expires_at)
-            })
-
-          {:error, changeset} ->
-            Logger.error("Failed to store ChatGPT OAuth token: #{inspect(changeset)}")
-
-            conn
-            |> put_status(500)
-            |> json(%{status: "error", error: "Failed to save tokens. Please try again."})
-        end
-
-      {:error, reason} ->
-        Logger.error("ChatGPT device code exchange failed: #{inspect(reason)}")
-
-        conn
-        |> put_status(500)
-        |> json(%{status: "error", error: "Failed to exchange authorization code."})
-    end
+    json(conn, Providers.oauth_connection_status(conn.assigns.current_scope, "chatgpt"))
   end
 end

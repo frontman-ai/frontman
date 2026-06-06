@@ -52,19 +52,6 @@ end
 # Cloak encryption key for API keys at rest (required)
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
-# LLM API keys — derived from the centralised :providers config so adding a
-# new provider doesn't require touching this file.
-if config_env() in [:dev, :test, :e2e] do
-  api_key_config =
-    for {_id, %{config_key: key, env_var: var}} <-
-          Application.get_env(:frontman_server, :providers, %{}),
-        is_binary(var) do
-      {key, env!(var, :string, nil)}
-    end
-
-  config :frontman_server, api_key_config
-end
-
 # WorkOS configuration for OAuth (GitHub, Google)
 config :workos, WorkOS.Client,
   api_key: env!("WORKOS_API_KEY", :string, nil),

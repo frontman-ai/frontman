@@ -17,8 +17,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
 
   require Logger
 
-  alias FrontmanServer.Providers.OAuthToken
-
   @client_id "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
   @auth_url "https://claude.ai/oauth/authorize"
   @token_url "https://console.anthropic.com/v1/oauth/token"
@@ -160,12 +158,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
         {:error, {:request_failed, reason}}
     end
   end
-
-  @doc """
-  Calculates the expiration DateTime from expires_in seconds.
-  """
-  @spec calculate_expires_at(integer()) :: DateTime.t()
-  defdelegate calculate_expires_at(expires_in), to: OAuthToken
 
   # Private helpers
 

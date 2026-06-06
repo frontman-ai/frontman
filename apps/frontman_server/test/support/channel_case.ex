@@ -225,7 +225,11 @@ defmodule FrontmanServerWeb.ChannelCase do
         password: "testpassword123!"
       })
 
-    scope = Scope.for_user(user)
+    scope =
+      user
+      |> Scope.for_user()
+      |> Scope.with_env_api_keys(%{"openrouter" => "sk-or-test"})
+
     {:ok, scope: scope, user: user}
   end
 end

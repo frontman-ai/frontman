@@ -44,7 +44,6 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Observability.TelemetryEvents
-  alias FrontmanServer.Providers
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Tasks.{
@@ -549,9 +548,7 @@ defmodule FrontmanServer.Tasks do
 
         case {turn_number, interaction.messages} do
           {1, [_ | _] = messages} ->
-            model = execution.model |> Providers.resolve_model_string()
-
-            GenerateTitle.new_job(scope, task_id, Enum.join(messages, "\n"), model)
+            GenerateTitle.new_job(scope, task_id, Enum.join(messages, "\n"), execution.model)
             |> Oban.insert()
 
           _ ->
