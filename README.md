@@ -67,6 +67,102 @@ The framework integration turns your local dev server into an [MCP server](https
 
 Frontman only runs in development mode. Production builds strip it out. Your deployment bundle is identical whether Frontman is installed or not.
 
+
+
+## FAQ
+
+### What is Frontman?
+
+Frontman is an **open-source AI coding agent that lives in your browser**. It hooks into your dev server as middleware and sees the live DOM, component tree, CSS styles, routes, and server logs. Click any element in your running app, describe what you want changed in plain English, and Frontman edits the actual source files with instant hot reload.
+
+### Why Use Frontman Instead of Other AI Tools?
+
+| Feature | Frontman | Cursor | GitHub Copilot | v0 |
+|---------|----------|--------|----------------|-----|
+| **Context** | Live DOM, computed CSS, component tree, server logs | Source files in IDE | Source files in IDE | Sandboxed preview |
+| **Editing Interface** | Browser overlay | IDE (VS Code fork) | IDE extension | Web app |
+| **What it Edits** | Your existing codebase | Your existing codebase | Your existing codebase | Generates new code |
+| **Sees Rendered Output** | Yes (framework middleware) | No | No | Own sandbox only |
+| **Open Source** | Yes (Apache 2.0 / AGPL-3.0) | No | No | No |
+| **Pricing** | Free self-hosting (BYOK) | $20/mo Pro | $10/mo Pro | $20/mo Premium |
+| **Best For** | Visual frontend editing, designer/PM collaboration | Full-stack IDE replacement | Autocomplete, code review | Generating new UI |
+
+### Who Should Use Frontman?
+
+| User Type | Why Use Frontman |
+|-----------|------------------|
+| **Frontend Developers** | Richer context than terminal-based tools — sees rendered page, not just source files |
+| **Designers & Product Managers** | Change copy, adjust spacing, fix colors without opening IDE — changes go through normal review |
+| **Teams** | Reduce back-and-forth between design and engineering — iterate frontend directly |
+
+### How Does Frontman Work with OpenClaw?
+
+Frontman is available as an **OpenClaw skill** for specialized frontend editing capabilities:
+
+```bash
+openclaw skill install frontman-dev
+```
+
+This gives OpenClaw component tree awareness, computed CSS, source map resolution, and hot reload feedback that OpenClaw's general browser tool doesn't have. Use OpenClaw for general automation (shell, messaging, files) and Frontman for precise visual editing.
+
+### What Frameworks Does Frontman Support?
+
+| Framework | Installation | URL |
+|-----------|--------------|-----|
+| **Next.js** | `npx @frontman-ai/nextjs install` | `localhost:3000/frontman` |
+| **Astro** | `astro add @frontman-ai/astro` | `localhost:4321/frontman` |
+| **Vite (React, Vue, Svelte)** | `npx @frontman-ai/vite install` | `localhost:5173/frontman` |
+
+**Next.js:** Works with App Router and Pages Router, compatible with Turbopack.  
+**Astro:** Understands Islands architecture, content collections, SSR/hybrid modes.  
+**Vite:** Auto-detects framework from `vite.config`, works with React, Vue, Svelte (including SvelteKit).
+
+### What AI Models Does Frontman Support?
+
+Frontman uses **BYOK (Bring Your Own Key)** — you pay your LLM provider directly at standard rates:
+
+| Provider | Connection Method |
+|----------|-------------------|
+| **Anthropic (Claude)** | Direct API key or OAuth with Claude subscription |
+| **OpenAI (ChatGPT)** | Direct API key or OAuth with ChatGPT subscription |
+| **OpenRouter** | Access to Claude, GPT, Llama, Mistral, and hundreds of other models |
+
+Self-hosting remains free under open-source licenses.
+
+### How Does Frontman Work?
+
+1. **Developer adds Frontman to project** — one command for Next.js, Astro, or Vite
+2. **Anyone on team opens the app in browser** — navigate to `/frontman` endpoint
+3. **Click element and describe change** — Frontman sees component tree, computed styles, server context → edits source file → hot reloads
+
+Frontman only runs in **development mode**. Production builds strip it out, so deployment bundles remain identical.
+
+### Is Frontman Free?
+
+Frontman uses a **split license model**:
+
+| Component | License |
+|-----------|---------|
+| **Client libraries & framework integrations** (`libs/`) | Apache License 2.0 |
+| **Server** (`apps/frontman_server/`) | GNU Affero General Public License v3 |
+
+**Self-hosting is free** with BYOK. Hosted Frontman service plans are moving to paid subscriptions.
+
+### Does Frontman Work in Production?
+
+**No.** Frontman only runs in development mode. Production builds strip it out completely. Your deployment bundle is identical whether Frontman is installed or not — it adds no runtime overhead to production.
+
+### Where Can I Get Help?
+
+| Resource | Link |
+|----------|------|
+| **Website** | [frontman.sh](https://frontman.sh) |
+| **Documentation** | [frontman.sh/docs](https://frontman.sh/docs/) |
+| **Integrations** | [frontman.sh/integrations](https://frontman.sh/integrations/) |
+| **Comparisons** | Frontman vs [OpenClaw](https://frontman.sh/vs/openclaw/), [Cursor](https://frontman.sh/vs/cursor/), [Copilot](https://frontman.sh/vs/copilot/), [v0](https://frontman.sh/vs/v0/) |
+| **Discord** | [Join Discord](https://discord.gg/xk8uXJSvhC) |
+| **GitHub Issues** | [Report issues](https://github.com/frontman-ai/frontman/issues) |
+
 ## Quickstart
 
 ### Next.js
