@@ -57,7 +57,6 @@ defmodule FrontmanServer.Tasks.StreamCleanup do
       Typically `response.cancel` from `ReqLLM.stream_text/3`.
 
   """
-  @spec wrap_stream(Enumerable.t(), (-> any())) :: Enumerable.t()
   def wrap_stream(stream, cancel_fn) when is_function(cancel_fn, 0) do
     cleanup_pid = spawn_link_cleanup(cancel_fn)
 
@@ -85,7 +84,6 @@ defmodule FrontmanServer.Tasks.StreamCleanup do
   #
   # - `:stream_done` → after callback already cancelled, exit cleanly
   # - `{:EXIT, caller, _}` → caller died before after_fn, cancel as safety net
-  @spec spawn_link_cleanup((-> any())) :: pid()
   defp spawn_link_cleanup(cancel_fn) do
     caller = self()
 

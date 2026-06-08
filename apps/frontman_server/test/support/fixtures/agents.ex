@@ -31,7 +31,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
   Fixtures are built in order, and later fixtures can depend on earlier ones.
   """
-  @spec build_fixtures([atom()], map()) :: map()
   def build_fixtures(fixtures, tags \\ %{}) do
     base = %{
       test_pid: self(),
@@ -44,7 +43,6 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
   end
 
   @doc "Build a single fixture"
-  @spec build_fixture(atom(), map(), map()) :: map()
   def build_fixture(:event_collector, ctx, _tags) do
     test_pid = ctx.test_pid
     on_event = fn event -> send(test_pid, {:event, event}) end
@@ -56,11 +54,9 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
   Currently a no-op since existing fixtures don't create resources that need cleanup.
   """
-  @spec cleanup_agents(map()) :: :ok
   def cleanup_agents(_ctx), do: :ok
 
   @doc "Build LLM options from context and tags for VCR fixture support"
-  @spec build_llm_opts(map(), map()) :: keyword()
   def build_llm_opts(_ctx, tags) do
     case {tags[:fixture_path], tags[:llm_fixture]} do
       {path, _} when is_binary(path) ->

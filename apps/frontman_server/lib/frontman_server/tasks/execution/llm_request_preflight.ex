@@ -27,14 +27,11 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   @default_tool_result_max_bytes 51_200
   @unsupported_image_placeholder "[Image omitted: selected model does not support image input]"
 
-  @type opts :: keyword()
-
   @doc """
   Run the full request preflight pipeline over a list of messages.
 
   Returns the preflighted message list.
   """
-  @spec run([Message.t()], opts()) :: [Message.t()]
   def run(messages, opts \\ []) do
     messages
     |> expand_tool_result_images()

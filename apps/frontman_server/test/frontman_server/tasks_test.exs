@@ -10,9 +10,11 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Tasks.TaskSchema
 
   setup do
     scope = user_scope_fixture()
+
     %{scope: scope}
   end
 
@@ -20,7 +22,7 @@ defmodule FrontmanServer.TasksTest do
     test "creates task with framework", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       framework = "nextjs"
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
+      {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, framework)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.id == task_id
@@ -30,7 +32,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "apply_title_suggestion/3" do
     test "sets the default title once", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       :ok = Tasks.apply_title_suggestion(scope, task_id, "First Title")
       :ok = Tasks.apply_title_suggestion(scope, task_id, "Second Title")
@@ -41,7 +43,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "get_task/2 authorization" do
     test "returns not_found when accessing task owned by different user", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       # Create a different user/scope
       other_scope = user_scope_fixture()
@@ -53,7 +55,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "get_active_run_unresolved_tool_calls/2" do
     test "returns unresolved tool calls only for active agent runs", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
 
@@ -69,7 +71,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "returns an error for turn-scoped rows missing turn numbers", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       insert_interaction_row(task_id, Interaction.UserMessage, nil)
 
@@ -78,7 +80,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "returns an error for task-scoped rows with turn numbers", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       insert_interaction_row(task_id, Interaction.DiscoveredProjectRule, 1)
 
@@ -91,7 +93,7 @@ defmodule FrontmanServer.TasksTest do
     test "returns an error instead of raising when existing rows have invalid turn state", %{
       scope: scope
     } do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       insert_interaction_row(task_id, Interaction.UserMessage, nil)
 
@@ -107,7 +109,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "terminated execution recovery" do
     test "interrupts non-question tools but keeps pending questions open", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       {:ok, _tool_call} =
@@ -147,9 +149,26 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "swarm event persistence" do
+    test "rejects invalid response metadata", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+
+      response = %SwarmAi.LLM.Response{content: "hello", metadata: %{response_id: 123}}
+
+      assert {:error, changeset} =
+               Tasks.handle_swarm_event(scope, task_id, %{
+                 turn_number: turn_number,
+                 event: {:response, response}
+               })
+
+      assert %{data: ["metadata.response_id must be a string"]} = errors_on(changeset)
+    end
+  end
+
   describe "turn-number backfill migration" do
     test "backfills multi-turn history and leaves context rows nil", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       for {type, data} <- [
             {Interaction.DiscoveredProjectRule, %{}},
@@ -181,7 +200,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "retry_execution/4" do
     test "only retries agent errors", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       {:ok, user_message} = user_message_fixture(scope, task_id, user_content("not an error"))
 
       assert_raise MatchError, fn ->
@@ -192,7 +211,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "resume_execution/3" do
     test "returns not_running when no active agent run exists", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       assert {:error, :not_running} =
                Tasks.resume_execution(scope, task_id, execution_request_fixture())
@@ -201,7 +220,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "Swarm message conversion" do
     test "full tool_call + tool_result round-trip produces valid Swarm messages", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
 
@@ -281,7 +300,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "request_client_tool/3" do
     test "creates tool call interaction", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       tool_call = %SwarmAi.ToolCall{
@@ -298,7 +317,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "stores blank tool call arguments as an empty map", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       tool_call = %SwarmAi.ToolCall{
@@ -314,7 +333,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "returns an error for malformed tool call arguments", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       tool_call = %SwarmAi.ToolCall{
         id: "call_bad_json",
@@ -329,7 +348,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "returns an error for non-object tool call arguments", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       tool_call = %SwarmAi.ToolCall{
         id: "call_array",
@@ -354,7 +373,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "resolve_tool_request/5" do
     test "creates tool result interaction", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       tool_call_data = %{id: "call_123", name: "calculator"}
@@ -370,7 +389,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "creates error tool result", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       tool_call_data = %{id: "call_456", name: "failing_tool"}
@@ -385,7 +404,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "rejects duplicate tool result for the same tool_call_id", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       tool_call_data = %{id: "call_dedup", name: "some_tool"}
@@ -410,7 +429,7 @@ defmodule FrontmanServer.TasksTest do
     test "mixed interaction writes persist strictly ordered unique positive sequences", %{
       scope: scope
     } do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       {:ok, _} =
         user_message_fixture(scope, task_id, user_content("msg1"))
@@ -435,7 +454,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "concurrent inserts produce unique, sortable sequences", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       1..20
@@ -456,7 +475,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "preserves chronological history when legacy rows have nil sequence", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       {:ok, legacy_message} = user_message_fixture(scope, task_id, user_content("legacy hello"))
       turn_number = latest_turn_number(task_id)
@@ -534,7 +553,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "add_discovered_project_rule/4" do
     test "adds rule to task", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       {:ok, rule} =
         Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules")
@@ -550,7 +569,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "deduplicates by path", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       {:ok, _rule} =
         Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v1")
@@ -575,7 +594,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "handles content with null bytes without crashing", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       content_with_null = "# Rules\0with null\0bytes"
 
@@ -598,7 +617,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "handles null bytes in rule file path without crashing", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       path_with_null = "/project/AGENTS\0.md"
 
@@ -618,7 +637,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "add_discovered_project_structure/3" do
     test "adds structure to task", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       summary = "Project type: single project\n\nDirectory layout:\n."
 
@@ -645,7 +664,7 @@ defmodule FrontmanServer.TasksTest do
     test "annotation survives DB round-trip and appears in Swarm messages", %{
       scope: scope
     } do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       content_blocks = [
         text_block("Fix the button"),
@@ -691,7 +710,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "list_todos/2" do
     test "returns empty list for task with no todos", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       assert {:ok, []} = Tasks.list_todos(scope, task_id)
     end
@@ -702,7 +721,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "returns todos from task", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       write_result = %{
@@ -746,8 +765,8 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "todos are isolated per task", %{scope: scope} do
-      task_a = task_fixture(scope)
-      task_b = task_fixture(scope)
+      task_a = task_fixture(scope).id
+      task_b = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_a)
 
       write_result = %{
@@ -784,7 +803,7 @@ defmodule FrontmanServer.TasksTest do
   describe "record_agent_run_result/4 paused DB round-trip" do
     test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, "nextjs")
       turn_number = start_turn_fixture(scope, task_id)
 
       {:ok, _interaction} =
@@ -805,7 +824,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "to_swarm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+      {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, "nextjs")
 
       {:ok, _message} =
         user_message_fixture(scope, task_id, [%{"type" => "text", "text" => "Hi"}])

@@ -9,25 +9,30 @@ defmodule FrontmanServer.Tasks.Execution.RootAgent do
   Runnable root agent for a task turn.
   """
 
-  use TypedStruct
-
-  alias FrontmanServer.Accounts
   alias FrontmanServer.Tasks.TaskSchema
-  alias FrontmanServer.Tools.MCP
-  alias SwarmAi.Message
 
-  typedstruct enforce: true do
-    field(:task, TaskSchema.t())
-    field(:scope, Accounts.scope())
-    field(:turn_number, pos_integer())
-    field(:messages, [Message.t()])
-    field(:tools, [SwarmAi.Tool.t()])
-    field(:backend_tool_modules, [module()])
-    field(:mcp_tool_defs, [MCP.t()])
-    field(:system_prompt, String.t())
-    field(:model, String.t() | map())
-    field(:llm_opts, keyword())
-  end
+  @enforce_keys [
+    :task,
+    :scope,
+    :turn_number,
+    :messages,
+    :tools,
+    :backend_tool_modules,
+    :mcp_tool_defs,
+    :system_prompt,
+    :model,
+    :llm_opts
+  ]
+  defstruct task: nil,
+            scope: nil,
+            turn_number: nil,
+            messages: nil,
+            tools: nil,
+            backend_tool_modules: nil,
+            mcp_tool_defs: nil,
+            system_prompt: nil,
+            model: nil,
+            llm_opts: nil
 end
 
 defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do

@@ -15,16 +15,13 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
   this client is created. The resolved ReqLLM options are passed via `llm_opts`.
   """
 
-  use TypedStruct
-
   alias SwarmAi.SchemaTransformer
 
-  typedstruct do
-    field(:model, String.t() | map(), enforce: true)
-    field(:tools, [SwarmAi.Tool.t()], default: [])
-    # Provider auth options are resolved at the domain layer.
-    field(:llm_opts, keyword(), default: [])
-  end
+  # Provider auth options are resolved at the domain layer.
+  @enforce_keys [:model]
+  defstruct model: nil,
+            tools: [],
+            llm_opts: []
 
   @doc """
   Creates a new LLMClient.
@@ -43,7 +40,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
   Converts SwarmAi.Tool to ReqLLM.Tool format.
   Normalizes schemas for OpenAI-compatible providers that require strict mode.
   """
-  @spec to_reqllm_tool(SwarmAi.Tool.t(), String.t(), keyword()) :: ReqLLM.Tool.t()
   def to_reqllm_tool(%SwarmAi.Tool{} = tool, model, _opts \\ []) do
     provider = SchemaTransformer.provider_for_model(model)
     schema = SchemaTransformer.transform(tool.parameter_schema, provider)

@@ -30,11 +30,6 @@ defmodule ReqLLM.Test.VCR do
 
   alias ReqLLM.Test.Transcript
 
-  @type provider :: atom()
-  @type model_spec :: binary()
-  @type request :: map()
-  @type response :: map()
-
   @doc """
   Load a transcript from a fixture file.
 
@@ -43,7 +38,6 @@ defmodule ReqLLM.Test.VCR do
       {:ok, transcript} = VCR.load("test/fixtures/openai/basic.json")
       {:error, :enoent} = VCR.load("nonexistent.json")
   """
-  @spec load(Path.t()) :: {:ok, Transcript.t()} | {:error, term()}
   def load(path) do
     {:ok, Transcript.read!(path)}
   rescue
@@ -57,7 +51,6 @@ defmodule ReqLLM.Test.VCR do
 
       transcript = VCR.load!("test/fixtures/openai/basic.json")
   """
-  @spec load!(Path.t()) :: Transcript.t()
   def load!(path), do: Transcript.read!(path)
 
   @doc """
@@ -73,7 +66,6 @@ defmodule ReqLLM.Test.VCR do
         body: ~s({"content": "Hello"})
       )
   """
-  @spec record(Path.t(), keyword()) :: :ok | {:error, term()}
   def record(path, opts) do
     provider = Keyword.fetch!(opts, :provider)
     model = Keyword.fetch!(opts, :model)
@@ -116,7 +108,6 @@ defmodule ReqLLM.Test.VCR do
       transcript = VCR.load!("fixtures/response.json")
       body = VCR.replay_body(transcript)
   """
-  @spec replay_body(Transcript.t()) :: binary()
   def replay_body(%Transcript{} = transcript) do
     Transcript.joined_data(transcript)
   end
@@ -135,7 +126,6 @@ defmodule ReqLLM.Test.VCR do
         IO.puts("Received: \#{chunk}")
       end)
   """
-  @spec replay_stream(Transcript.t()) :: Enumerable.t()
   def replay_stream(%Transcript{} = transcript) do
     Stream.map(Transcript.data_chunks(transcript), & &1)
   end
@@ -147,7 +137,6 @@ defmodule ReqLLM.Test.VCR do
 
       status = VCR.status(transcript)  # => 200
   """
-  @spec status(Transcript.t()) :: pos_integer()
   def status(%Transcript{events: events}) do
     case Enum.find(events, &match?({:status, _}, &1)) do
       {:status, code} -> code
@@ -162,7 +151,6 @@ defmodule ReqLLM.Test.VCR do
 
       headers = VCR.headers(transcript)
   """
-  @spec headers(Transcript.t()) :: [{binary(), binary()}]
   def headers(%Transcript{events: events}) do
     case Enum.find(events, &match?({:headers, _}, &1)) do
       {:headers, h} -> h
@@ -194,7 +182,6 @@ defmodule ReqLLM.Test.VCR do
           stream_server_pid
         )
   """
-  @spec replay_into_stream_server(Path.t(), pid()) :: {:ok, pid()}
   def replay_into_stream_server(path, stream_server_pid) do
     transcript = load!(path)
 
@@ -252,7 +239,6 @@ defmodule ReqLLM.Test.VCR do
       {:ok, transcript} = VCR.load("fixtures/stream.json")
       VCR.streaming?(transcript)  # => true
   """
-  @spec streaming?(Transcript.t()) :: boolean()
   def streaming?(%Transcript{} = transcript) do
     Transcript.streaming?(transcript)
   end
@@ -269,7 +255,6 @@ defmodule ReqLLM.Test.VCR do
       body = VCR.replay_response_body(transcript)
       # => %{"content" => [...], "model" => "..."}
   """
-  @spec replay_response_body(Transcript.t()) :: map()
   def replay_response_body(%Transcript{} = transcript) do
     if Transcript.streaming?(transcript) do
       raise ArgumentError, """
@@ -294,7 +279,6 @@ defmodule ReqLLM.Test.VCR do
       {:ok, transcript} = VCR.load("fixtures/stream.json")
       stream = VCR.replay_as_stream(transcript, provider_mod, model)
   """
-  @spec replay_as_stream(Transcript.t(), module(), LLMDB.Model.t()) :: Enumerable.t()
   def replay_as_stream(%Transcript{} = transcript, provider_mod, model) do
     alias ReqLLM.StreamServer
 

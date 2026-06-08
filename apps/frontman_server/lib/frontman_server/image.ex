@@ -32,8 +32,6 @@ defmodule FrontmanServer.Image do
 
   The optional second argument overrides the default `max_dimension/0`.
   """
-  @spec check_dimensions(binary(), pos_integer()) ::
-          :ok | {:too_large, pos_integer(), pos_integer()}
   def check_dimensions(data, max \\ @max_dimension) when is_binary(data) and is_integer(max) do
     case parse_dimensions(data) do
       {:ok, width, height} when width > max or height > max ->
@@ -50,7 +48,6 @@ defmodule FrontmanServer.Image do
   Returns `{:ok, binary, mime_type}` on success, `:error` on malformed
   input or base64 decode failure.
   """
-  @spec decode_data_url(String.t()) :: {:ok, binary(), String.t()} | :error
   def decode_data_url(data_url) when is_binary(data_url) do
     with [_, mime_type, base64] <- Regex.run(~r/^data:([^;]+);base64,(.+)$/s, data_url),
          {:ok, binary} <- Base.decode64(base64) do
@@ -66,7 +63,6 @@ defmodule FrontmanServer.Image do
   Supports JPEG, PNG, GIF (87a/89a), and WebP (VP8, VP8L, VP8X).
   Returns `{:ok, width, height}` or `:unknown` for unrecognised formats.
   """
-  @spec parse_dimensions(binary()) :: {:ok, pos_integer(), pos_integer()} | :unknown
 
   # JPEG: scan for SOFn marker which contains dimensions
   def parse_dimensions(<<0xFF, 0xD8, rest::binary>>), do: jpeg_scan_for_sof(rest)

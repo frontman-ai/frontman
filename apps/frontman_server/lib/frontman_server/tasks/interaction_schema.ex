@@ -38,13 +38,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     timestamps(type: :utc_datetime, updated_at: false)
   end
 
-  @type t :: %__MODULE__{}
-
   @doc """
   Changeset for creating an interaction from a domain struct.
   Persists row metadata in DB columns; domain interactions do not carry it.
   """
-  @spec create_changeset(TaskSchema.t(), struct(), integer() | nil) :: Ecto.Changeset.t()
   def create_changeset(%TaskSchema{} = task, interaction, turn_number)
       when is_struct(interaction) and (is_integer(turn_number) or is_nil(turn_number)) do
     type = Interaction.type_for(interaction)
@@ -60,6 +57,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> validate_required([:task_id, :type, :data, :sequence])
     |> strip_null_bytes(:data)
     |> validate_json_encodable(:data)
+    |> validate_agent_response_metadata()
     |> validate_turn_number()
     |> foreign_key_constraint(:task_id)
     |> unique_constraint([:task_id, :data],
@@ -113,7 +111,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @doc """
   Converts a persisted InteractionSchema to its domain struct.
   """
-  @spec to_struct(t()) :: Interaction.t()
   def to_struct(%__MODULE__{type: type, data: data}) when is_atom(type) and is_map(data) do
     module = Interaction.module_for(type)
     struct!(module, struct_fields(module, data))
@@ -142,6 +139,37 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
       {_type, _turn_number} ->
         add_error(changeset, :turn_number, "must be positive")
+    end
+  end
+
+  defp validate_agent_response_metadata(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :data)} do
+      {:agent_response, %{metadata: metadata}} when is_map(metadata) ->
+        changeset
+        |> validate_metadata_string(metadata, "response_id")
+        |> validate_metadata_string(metadata, "phase")
+
+      {:agent_response, %{metadata: _metadata}} ->
+        add_error(changeset, :data, "metadata must be a map")
+
+      {:agent_response, _data} ->
+        add_error(changeset, :data, "metadata must be a map")
+
+      _other ->
+        changeset
+    end
+  end
+
+  defp validate_metadata_string(changeset, metadata, field) do
+    case Map.fetch(metadata, field) do
+      {:ok, value} when is_binary(value) ->
+        changeset
+
+      {:ok, _value} ->
+        add_error(changeset, :data, "metadata.#{field} must be a string")
+
+      :error ->
+        changeset
     end
   end
 
@@ -181,7 +209,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   defp parse_field(value, :current_page), do: Interaction.CurrentPage.from_map(value)
   defp parse_field(value, _field), do: value
 
-  @spec parse_datetime(DateTime.t() | String.t()) :: DateTime.t()
   defp parse_datetime(%DateTime{} = dt), do: dt
 
   defp parse_datetime(str) when is_binary(str) do

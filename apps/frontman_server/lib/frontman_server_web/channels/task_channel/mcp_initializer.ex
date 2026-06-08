@@ -24,45 +24,15 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   """
   require Logger
 
-  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.MCP, as: MCPTools
   alias JsonRpc
   alias ModelContextProtocol, as: MCP
 
-  @type status ::
-          :initializing_mcp
-          | :loading_tools
-          | :loading_project_rules
-          | :loading_project_structure
-          | :ready
-          | :failed
-
-  @type t :: %{
-          status: status(),
-          task_id: String.t(),
-          scope: Scope.t(),
-          mcp_init_request_id: integer() | nil,
-          tools_request_id: integer() | nil,
-          project_rules_request_id: integer() | nil,
-          project_structure_request_id: integer() | nil,
-          mcp_capabilities: map() | nil,
-          mcp_server_info: map() | nil,
-          load_project_context: boolean(),
-          tools: list() | nil
-        }
-
-  @type action ::
-          {:push_mcp, map()}
-          | {:push_acp, map()}
-          | {:initialization_complete, map()}
-          | {:initialization_failed, any()}
-
   @doc """
   Creates the initial state and returns the MCP initialize request to send.
   """
-  @spec start(String.t(), Scope.t(), Frameworks.t()) :: {t(), [action()]}
   def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
     request = JsonRpc.request(request_id, "initialize", MCP.initialize_params())
@@ -89,7 +59,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   @doc """
   Handle a successful MCP response. Returns updated state and actions.
   """
-  @spec handle_response(t(), integer(), map()) :: {t(), [action()]}
   def handle_response(state, request_id, result) do
     cond do
       request_id == state.mcp_init_request_id ->
@@ -113,7 +82,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   @doc """
   Handle an MCP error response. Returns updated state and actions.
   """
-  @spec handle_error(t(), integer(), map()) :: {t(), [action()]}
   def handle_error(state, request_id, error) do
     cond do
       request_id == state.mcp_init_request_id ->

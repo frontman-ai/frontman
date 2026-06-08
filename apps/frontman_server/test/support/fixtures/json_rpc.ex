@@ -49,7 +49,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
       request_message(id: "abc", method: "tools/list")
       request_message(params: %{"name" => "value"})
   """
-  @spec request_message(keyword()) :: map()
   def request_message(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -62,7 +61,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   @doc """
   Builds a valid JSON-RPC 2.0 request message without params.
   """
-  @spec request_message_without_params(keyword()) :: map()
   def request_message_without_params(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -88,7 +86,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
       notification_message()
       notification_message(method: "session/update", params: %{"sessionId" => "sess_123"})
   """
-  @spec notification_message(keyword()) :: map()
   def notification_message(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -100,7 +97,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   @doc """
   Builds a valid JSON-RPC 2.0 notification message without params.
   """
-  @spec notification_message_without_params(keyword()) :: map()
   def notification_message_without_params(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -125,7 +121,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
       success_response_message()
       success_response_message(id: "req-123", result: %{"data" => "value"})
   """
-  @spec success_response_message(keyword()) :: map()
   def success_response_message(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -149,7 +144,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
       error_response_message()
       error_response_message(code: -32600, message: "Invalid request")
   """
-  @spec error_response_message(keyword()) :: map()
   def error_response_message(overrides \\ []) do
     error =
       %{
@@ -173,7 +167,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   # ---------------------------------------------------------------------------
 
   @doc "Message with wrong JSON-RPC version"
-  @spec invalid_version_message(keyword()) :: map()
   def invalid_version_message(overrides \\ []) do
     %{
       "jsonrpc" => Keyword.get(overrides, :version, "1.0"),
@@ -183,7 +176,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   end
 
   @doc "Message missing the jsonrpc field"
-  @spec missing_jsonrpc_message(keyword()) :: map()
   def missing_jsonrpc_message(overrides \\ []) do
     %{
       "id" => Keyword.get(overrides, :id, 1),
@@ -192,7 +184,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   end
 
   @doc "Message missing the method field"
-  @spec missing_method_message(keyword()) :: map()
   def missing_method_message(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -201,7 +192,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   end
 
   @doc "Response missing the id field"
-  @spec missing_id_response_message(keyword()) :: map()
   def missing_id_response_message(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -210,7 +200,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   end
 
   @doc "Response with both result and error (invalid per spec)"
-  @spec ambiguous_response_message(keyword()) :: map()
   def ambiguous_response_message(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -221,7 +210,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   end
 
   @doc "Response with neither result nor error (invalid per spec)"
-  @spec empty_response_message(keyword()) :: map()
   def empty_response_message(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -230,7 +218,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   end
 
   @doc "Error response with malformed error object (missing code)"
-  @spec malformed_error_missing_code(keyword()) :: map()
   def malformed_error_missing_code(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,
@@ -240,7 +227,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
   end
 
   @doc "Error response with malformed error object (missing message)"
-  @spec malformed_error_missing_message(keyword()) :: map()
   def malformed_error_missing_message(overrides \\ []) do
     %{
       "jsonrpc" => @jsonrpc_version,

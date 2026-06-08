@@ -132,7 +132,9 @@ defmodule FrontmanServerWeb.ChannelCase do
       scope = unquote(scope)
       framework = unquote(opts) |> Keyword.get(:framework, "nextjs")
       task_id = Ecto.UUID.generate()
-      {:ok, ^task_id} = FrontmanServer.Tasks.create_task(scope, task_id, framework)
+
+      {:ok, %FrontmanServer.Tasks.TaskSchema{id: ^task_id}} =
+        FrontmanServer.Tasks.create_task(scope, task_id, framework)
 
       {:ok, _reply, socket} =
         FrontmanServerWeb.UserSocket

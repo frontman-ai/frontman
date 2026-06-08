@@ -16,7 +16,6 @@ defmodule FrontmanServer.Tasks.SwarmDispatcher do
 
   alias FrontmanServer.Tasks
 
-  @spec dispatch(term(), {atom(), term()}, map()) :: :ok | {:error, term()}
   def dispatch(key, event, context) do
     scope = Map.get(context, :scope)
     task_id = to_string(key)

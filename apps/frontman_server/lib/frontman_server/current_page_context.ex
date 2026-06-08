@@ -21,24 +21,19 @@ defmodule FrontmanServer.CurrentPageContext do
   @prompt_section_pattern Regex.compile!(@prompt_section_pattern_source, "s")
 
   @doc "Returns the prompt section header."
-  @spec header() :: String.t()
   def header, do: @header
 
   @doc "Returns the interaction/ACP data key for current-page context."
-  @spec data_key() :: String.t()
   def data_key, do: @marker_key
 
   @doc "Returns the placeholder used when page context repeats."
-  @spec unchanged_placeholder() :: String.t()
   def unchanged_placeholder, do: @unchanged_placeholder
 
   @doc "Returns true when ACP metadata contains current-page context."
-  @spec current_page_in_meta?(term()) :: boolean()
   def current_page_in_meta?(%{@marker_key => true}), do: true
   def current_page_in_meta?(_), do: false
 
   @doc "Extracts normalized fields from ACP/DB metadata."
-  @spec fields_from_meta(map() | nil) :: map() | nil
   def fields_from_meta(nil), do: nil
 
   def fields_from_meta(meta) when is_map(meta) do
@@ -62,7 +57,6 @@ defmodule FrontmanServer.CurrentPageContext do
   def fields_from_meta(_), do: nil
 
   @doc "Appends current-page prompt context to user text when present."
-  @spec append_prompt_section(String.t(), map() | nil) :: String.t()
   def append_prompt_section(text, nil), do: text
 
   def append_prompt_section(text, page) when is_binary(text) do
@@ -73,7 +67,6 @@ defmodule FrontmanServer.CurrentPageContext do
   end
 
   @doc "Formats page context as the LLM-visible prompt section."
-  @spec to_prompt_section(map() | nil) :: String.t()
   def to_prompt_section(nil), do: ""
 
   def to_prompt_section(page) when is_map(page) do
@@ -90,7 +83,6 @@ defmodule FrontmanServer.CurrentPageContext do
   def to_prompt_section(_), do: ""
 
   @doc "Extracts and removes only the current-page prompt section from text."
-  @spec extract_prompt_section(String.t()) :: {String.t(), String.t()} | nil
   def extract_prompt_section(text) when is_binary(text) do
     case Regex.run(@prompt_section_pattern, text, return: :index) do
       [{start, length}] ->
@@ -110,7 +102,6 @@ defmodule FrontmanServer.CurrentPageContext do
   def extract_prompt_section(_), do: nil
 
   @doc "Returns system-prompt guidance for current-page context."
-  @spec guidance() :: String.t()
   def guidance do
     """
     ## Current Page Context
@@ -124,7 +115,6 @@ defmodule FrontmanServer.CurrentPageContext do
   end
 
   @doc "Builds ACP history content blocks for current-page context."
-  @spec to_content_blocks(map() | nil) :: list(map())
   def to_content_blocks(nil), do: []
 
   def to_content_blocks(page) when is_map(page) do

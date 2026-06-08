@@ -81,11 +81,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp setup_task(%{scope: scope}) do
-    {:ok, task_id: task_with_pubsub_fixture(scope)}
+    {:ok, task_id: task_with_pubsub_fixture(scope).id}
   end
 
   defp setup_task_only(%{scope: scope}) do
-    {:ok, task_id: task_fixture(scope)}
+    {:ok, task_id: task_fixture(scope).id}
   end
 
   defp setup_channel(%{scope: scope, task_id: task_id}) do
@@ -170,7 +170,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "startup failure persists terminal error on the same turn" do
       scope = user_scope_fixture()
-      task_id = task_with_pubsub_fixture(scope)
+      task_id = task_with_pubsub_fixture(scope).id
 
       {:ok, _, 1} =
         submit_user_message(scope, task_id, user_content("Hello"), model: "missing:test")

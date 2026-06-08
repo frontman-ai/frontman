@@ -34,7 +34,6 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   end
 
   @doc "Returns the default short description for a new task."
-  @spec default_title() :: String.t()
   def default_title do
     "New Task"
   end
@@ -42,7 +41,6 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   @doc """
   Changeset for creating a new task.
   """
-  @spec create_changeset(map()) :: Ecto.Changeset.t()
   def create_changeset(attrs) do
     %__MODULE__{}
     |> cast(attrs, [:id, :short_desc, :framework, :user_id])
@@ -54,7 +52,6 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   @doc """
   Changeset for updating a task's short description.
   """
-  @spec update_changeset(t(), map()) :: Ecto.Changeset.t()
   def update_changeset(task, attrs) do
     task
     |> cast(attrs, [:short_desc])
@@ -63,36 +60,28 @@ defmodule FrontmanServer.Tasks.TaskSchema do
 
   # Query helpers
 
-  @type t :: %__MODULE__{}
-
-  @spec by_id(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
   def by_id(query \\ __MODULE__, id) do
     from(t in query, where: t.id == ^id)
   end
 
-  @spec for_user(Ecto.Queryable.t(), String.t()) :: Ecto.Query.t()
   def for_user(query \\ __MODULE__, user_id) do
     from(t in query, where: t.user_id == ^user_id)
   end
 
-  @spec by_id_for_user(String.t(), String.t()) :: Ecto.Query.t()
   def by_id_for_user(id, user_id) do
     __MODULE__
     |> by_id(id)
     |> for_user(user_id)
   end
 
-  @spec locked_for_update(Ecto.Queryable.t()) :: Ecto.Query.t()
   def locked_for_update(query \\ __MODULE__) do
     from(t in query, lock: "FOR UPDATE")
   end
 
-  @spec ordered_by_updated(Ecto.Queryable.t()) :: Ecto.Query.t()
   def ordered_by_updated(query \\ __MODULE__) do
     from(t in query, order_by: [desc: t.updated_at])
   end
 
-  @spec limited(Ecto.Queryable.t(), non_neg_integer()) :: Ecto.Query.t()
   def limited(query \\ __MODULE__, count) do
     from(t in query, limit: ^count)
   end

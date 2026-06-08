@@ -421,7 +421,6 @@ defmodule FrontmanServer.Providers do
   Subscribe to this topic to receive `:config_options_changed` messages
   when API keys or OAuth tokens are added/removed.
   """
-  @spec config_pubsub_topic(String.t()) :: String.t()
   def config_pubsub_topic(user_id) when is_binary(user_id) do
     "config_update:user:#{user_id}"
   end
@@ -432,7 +431,6 @@ defmodule FrontmanServer.Providers do
   Called after API key saves or OAuth token changes so that subscribers
   (e.g. the tasks channel) can push updated config options to the client.
   """
-  @spec broadcast_config_changed(String.t()) :: :ok | {:error, term()}
   def broadcast_config_changed(user_id) when is_binary(user_id) do
     Phoenix.PubSub.broadcast(
       FrontmanServer.PubSub,
@@ -459,14 +457,10 @@ defmodule FrontmanServer.Providers do
 
   A map with:
     * `:groups` – list of model group maps, each with `:id`, `:name`, and
-      `:options` (list of `%{name: String.t(), value: String.t()}` where
+      `:options` (list of `%{name: name, value: value}` maps where
       `value` is a serialized `"provider:model"` string)
     * `:default_model` – serialized `"provider:model"` string for the best default
   """
-  @spec model_config_data(Accounts.scope()) :: %{
-          groups: [map()],
-          default_model: String.t()
-        }
   def model_config_data(scope) do
     api_key_providers = list_api_key_providers(scope)
     env_api_keys = Accounts.scope_env_api_keys(scope)

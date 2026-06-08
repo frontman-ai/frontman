@@ -11,7 +11,6 @@ defmodule AgentClientProtocol.Content do
     @moduledoc false
     @enforce_keys [:text]
     defstruct [:text]
-    @type t :: %__MODULE__{text: String.t()}
 
     defimpl Jason.Encoder do
       def encode(%{text: text}, opts) do
@@ -24,7 +23,6 @@ defmodule AgentClientProtocol.Content do
     @moduledoc false
     @enforce_keys [:content]
     defstruct [:content]
-    @type t :: %__MODULE__{content: TextBlock.t()}
 
     defimpl Jason.Encoder do
       def encode(%{content: block}, opts) do
@@ -33,13 +31,10 @@ defmodule AgentClientProtocol.Content do
     end
   end
 
-  @spec text(String.t()) :: TextBlock.t()
   def text(text) when is_binary(text), do: %TextBlock{text: text}
 
-  @spec wrap(TextBlock.t()) :: ContentItem.t()
   def wrap(%TextBlock{} = block), do: %ContentItem{content: block}
 
-  @spec from_tool_result(term()) :: [ContentItem.t()]
   def from_tool_result(result) when is_map(result),
     do: [result |> Jason.encode!() |> text() |> wrap()]
 

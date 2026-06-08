@@ -13,18 +13,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   transport mechanisms for real-time UX.
   """
 
-  @type t ::
-          __MODULE__.UserMessage.t()
-          | __MODULE__.AgentResponse.t()
-          | __MODULE__.AgentCompleted.t()
-          | __MODULE__.AgentError.t()
-          | __MODULE__.AgentPaused.t()
-          | __MODULE__.AgentRetry.t()
-          | __MODULE__.ToolCall.t()
-          | __MODULE__.ToolResult.t()
-          | __MODULE__.DiscoveredProjectRule.t()
-          | __MODULE__.DiscoveredProjectStructure.t()
-
   @types [
     user_message: __MODULE__.UserMessage,
     agent_response: __MODULE__.AgentResponse,
@@ -92,20 +80,17 @@ defmodule FrontmanServer.Tasks.Interaction do
     - The `node` field contains full JSON node data from get_figma_node
     - Used by `implement_component`, `visual_compare_component_to_figma`, etc. for detailed implementation
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      # The Figma node ID extracted from the resource URI (e.g., "123:456")
-      field(:id, String.t())
-      # DSL text representation OR full JSON node data (depending on is_dsl)
-      field(:node, String.t() | nil, enforce: false)
-      # Base64 encoded PNG image of the node
-      field(:image, String.t() | nil, enforce: false)
-      # True if node contains DSL text, false if it contains full JSON data
-      field(:is_dsl, boolean(), default: true)
-    end
+    # The Figma node ID extracted from the resource URI (e.g., "123:456")
+    # DSL text representation OR full JSON node data (depending on is_dsl)
+    # Base64 encoded PNG image of the node
+    # True if node contains DSL text, false if it contains full JSON data
+    @enforce_keys [:id]
+    defstruct id: nil,
+              node: nil,
+              image: nil,
+              is_dsl: true
 
-    @spec from_map(map() | nil) :: t() | nil
     def from_map(nil), do: nil
 
     def from_map(data) when is_map(data) do
@@ -122,15 +107,12 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Base64-encoded screenshot with MIME type.
     """
-    use TypedStruct
 
     @derive Jason.Encoder
-    typedstruct enforce: true do
-      field(:blob, String.t())
-      field(:mime_type, String.t())
-    end
+    @enforce_keys [:blob, :mime_type]
+    defstruct blob: nil,
+              mime_type: nil
 
-    @spec from_map(map() | nil) :: t() | nil
     def from_map(nil), do: nil
 
     def from_map(%{"blob" => blob, "mime_type" => mime_type})
@@ -144,17 +126,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Bounding box of an element in viewport coordinates.
     """
-    use TypedStruct
 
     @derive Jason.Encoder
-    typedstruct enforce: true do
-      field(:x, float())
-      field(:y, float())
-      field(:width, float())
-      field(:height, float())
-    end
+    @enforce_keys [:x, :y, :width, :height]
+    defstruct x: nil,
+              y: nil,
+              width: nil,
+              height: nil
 
-    @spec from_map(map() | nil) :: t() | nil
     def from_map(nil), do: nil
 
     def from_map(%{"x" => x, "y" => y, "width" => w, "height" => h})
@@ -170,19 +149,16 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     Forms a recursive chain via the `parent` field.
     """
-    use TypedStruct
 
     @derive Jason.Encoder
-    typedstruct enforce: true do
-      field(:file, String.t())
-      field(:line, integer())
-      field(:column, integer())
-      field(:component_name, String.t() | nil, enforce: false)
-      field(:component_props, map() | nil, enforce: false)
-      field(:parent, t() | nil, enforce: false)
-    end
+    @enforce_keys [:file, :line, :column]
+    defstruct file: nil,
+              line: nil,
+              column: nil,
+              component_name: nil,
+              component_props: nil,
+              parent: nil
 
-    @spec from_map(map() | nil) :: t() | nil
     def from_map(nil), do: nil
 
     def from_map(data) when is_map(data) do
@@ -211,17 +187,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     A user-uploaded image or PDF attachment.
     """
-    use TypedStruct
 
     @derive Jason.Encoder
-    typedstruct enforce: true do
-      field(:blob, String.t())
-      field(:mime_type, String.t())
-      field(:filename, String.t())
-      field(:uri, String.t() | nil, enforce: false)
-    end
+    @enforce_keys [:blob, :mime_type, :filename]
+    defstruct blob: nil,
+              mime_type: nil,
+              filename: nil,
+              uri: nil
 
-    @spec from_map(map()) :: t()
     def from_map(data) when is_map(data) do
       %__MODULE__{
         blob: data["blob"],
@@ -236,22 +209,19 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Page context from the client: URL, viewport, DPR, title, color scheme, scroll position.
     """
-    use TypedStruct
 
     alias FrontmanServer.CurrentPageContext
 
     @derive Jason.Encoder
-    typedstruct enforce: true do
-      field(:url, String.t())
-      field(:viewport_width, integer() | nil, enforce: false)
-      field(:viewport_height, integer() | nil, enforce: false)
-      field(:device_pixel_ratio, float() | nil, enforce: false)
-      field(:title, String.t() | nil, enforce: false)
-      field(:color_scheme, String.t() | nil, enforce: false)
-      field(:scroll_y, integer() | nil, enforce: false)
-    end
+    @enforce_keys [:url]
+    defstruct url: nil,
+              viewport_width: nil,
+              viewport_height: nil,
+              device_pixel_ratio: nil,
+              title: nil,
+              color_scheme: nil,
+              scroll_y: nil
 
-    @spec from_map(map() | nil) :: t() | nil
     def from_map(nil), do: nil
 
     def from_map(data) when is_map(data) do
@@ -274,7 +244,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     def from_map(_), do: nil
 
-    @spec from_acp_meta(map() | nil) :: t() | nil
     def from_acp_meta(nil), do: nil
 
     def from_acp_meta(meta) when is_map(meta) do
@@ -290,26 +259,23 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     Contains source location, screenshot, and enrichment data.
     """
-    use TypedStruct
 
     @derive Jason.Encoder
-    typedstruct do
-      field(:annotation_id, String.t())
-      field(:annotation_index, integer())
-      field(:tag_name, String.t())
-      field(:comment, String.t() | nil)
-      field(:file, String.t() | nil)
-      field(:line, integer() | nil)
-      field(:column, integer() | nil)
-      field(:component_name, String.t() | nil)
-      field(:component_props, map() | nil)
-      field(:parent, ParentLocation.t() | nil)
-      field(:css_classes, String.t() | nil)
-      field(:nearby_text, String.t() | nil)
-      field(:metadata, map(), default: %{})
-      field(:bounding_box, BoundingBox.t() | nil)
-      field(:screenshot, Screenshot.t() | nil)
-    end
+    defstruct annotation_id: nil,
+              annotation_index: nil,
+              tag_name: nil,
+              comment: nil,
+              file: nil,
+              line: nil,
+              column: nil,
+              component_name: nil,
+              component_props: nil,
+              parent: nil,
+              css_classes: nil,
+              nearby_text: nil,
+              metadata: %{},
+              bounding_box: nil,
+              screenshot: nil
 
     @known_meta_keys ~w(
       annotation
@@ -337,7 +303,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     Used by both DB deserialization (InteractionSchema.to_struct) and
     ACP content block parsing (via from_meta/2).
     """
-    @spec from_map(map()) :: t()
     def from_map(data) when is_map(data) do
       %__MODULE__{
         annotation_id: data["annotation_id"],
@@ -381,7 +346,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     sent as separate content blocks and collected into `screenshot_map` by
     the caller.
     """
-    @spec from_meta(map(), %{optional(String.t()) => Screenshot.t()}) :: t()
     def from_meta(meta, screenshot_map \\ %{}) when is_map(meta) do
       ann = from_map(meta)
       %{ann | screenshot: Map.get(screenshot_map, ann.annotation_id)}
@@ -397,27 +361,25 @@ defmodule FrontmanServer.Tasks.Interaction do
     - `annotations` - list of annotated elements (replaces selected_component)
     - `current_page` - page context (URL, viewport, DPR, title, color scheme, scroll)
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:timestamp, DateTime.t())
-      # Text messages from the user (extracted from text content blocks)
-      field(:messages, list(String.t()), default: [])
+    # Text messages from the user (extracted from text content blocks)
 
-      # Annotated elements extracted from resource blocks with _meta.annotation: true
-      # Each annotation contains source location, screenshot, and enrichment data
-      field(:annotations, list(Annotation.t()), default: [])
+    # Annotated elements extracted from resource blocks with _meta.annotation: true
+    # Each annotation contains source location, screenshot, and enrichment data
 
-      # Extracted Figma node with id, node data (DSL or full JSON), and image
-      field(:selected_figma_node, FigmaNode.t() | nil, enforce: false)
+    # Extracted Figma node with id, node data (DSL or full JSON), and image
 
-      # User-uploaded image/PDF attachments
-      field(:images, list(UserImage.t()), default: [])
+    # User-uploaded image/PDF attachments
 
-      # Extracted current page context from resource with _meta.current_page
-      field(:current_page, CurrentPage.t() | nil, enforce: false)
-    end
+    # Extracted current page context from resource with _meta.current_page
+    @enforce_keys [:id, :timestamp]
+    defstruct id: nil,
+              timestamp: nil,
+              messages: [],
+              annotations: [],
+              selected_figma_node: nil,
+              images: [],
+              current_page: nil
 
     def new(content_blocks) do
       %__MODULE__{
@@ -579,14 +541,12 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     This is the final, stored interaction after streaming is complete.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:content, String.t())
-      field(:timestamp, DateTime.t())
-      field(:metadata, map(), enforce: false)
-    end
+    @enforce_keys [:id, :content, :timestamp]
+    defstruct id: nil,
+              content: nil,
+              timestamp: nil,
+              metadata: nil
 
     def new(content, metadata \\ %{}) do
       %__MODULE__{
@@ -602,13 +562,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents an agent finishing its work.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:timestamp, DateTime.t())
-      field(:result, term(), enforce: false)
-    end
+    @enforce_keys [:id, :timestamp]
+    defstruct id: nil,
+              timestamp: nil,
+              result: nil
 
     def new(result \\ nil) do
       %__MODULE__{
@@ -626,16 +584,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     Persisted so that reconnecting clients see the terminal interaction for every agent run,
     even when the channel process was dead when the error occurred.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:timestamp, DateTime.t())
-      field(:error, String.t())
-      field(:kind, String.t(), default: "failed")
-      field(:retryable, boolean(), default: false)
-      field(:category, String.t(), default: "unknown")
-    end
+    @enforce_keys [:id, :timestamp, :error]
+    defstruct id: nil,
+              timestamp: nil,
+              error: nil,
+              kind: "failed",
+              retryable: false,
+              category: "unknown"
 
     @doc """
     Creates a new AgentError interaction.
@@ -661,13 +617,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     Records a user-initiated retry after an AgentError.
     Persisted for observability — lets you measure retry success rates.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:timestamp, DateTime.t())
-      field(:retried_error_id, String.t())
-    end
+    @enforce_keys [:id, :timestamp, :retried_error_id]
+    defstruct id: nil,
+              timestamp: nil,
+              retried_error_id: nil
 
     def new(retried_error_id) do
       %__MODULE__{
@@ -684,15 +638,13 @@ defmodule FrontmanServer.Tasks.Interaction do
     `on_timeout: :pause_agent`. Stored as an interaction so reconnecting
     clients and the debug-task tool can see why the agent stopped.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:timestamp, DateTime.t())
-      field(:reason, String.t())
-      field(:tool_name, String.t())
-      field(:timeout_ms, pos_integer())
-    end
+    @enforce_keys [:id, :timestamp, :reason, :tool_name, :timeout_ms]
+    defstruct id: nil,
+              timestamp: nil,
+              reason: nil,
+              tool_name: nil,
+              timeout_ms: nil
 
     def new(tool_name, timeout_ms) do
       %__MODULE__{
@@ -709,15 +661,13 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents an LLM requesting a tool execution.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:tool_call_id, String.t())
-      field(:tool_name, String.t())
-      field(:arguments, map())
-      field(:timestamp, DateTime.t())
-    end
+    @enforce_keys [:id, :tool_call_id, :tool_name, :arguments, :timestamp]
+    defstruct id: nil,
+              tool_call_id: nil,
+              tool_name: nil,
+              arguments: nil,
+              timestamp: nil
 
     def new(%SwarmAi.ToolCall{} = tc) do
       case SwarmAi.ToolCall.parse_arguments(tc) do
@@ -741,16 +691,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents the result of a tool execution.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:id, String.t())
-      field(:tool_call_id, String.t())
-      field(:tool_name, String.t())
-      field(:result, term())
-      field(:is_error, boolean(), default: false)
-      field(:timestamp, DateTime.t())
-    end
+    @enforce_keys [:id, :tool_call_id, :tool_name, :result, :timestamp]
+    defstruct id: nil,
+              tool_call_id: nil,
+              tool_name: nil,
+              result: nil,
+              is_error: false,
+              timestamp: nil
 
     def new(tool_call_data, result, is_error \\ false) do
       %__MODULE__{
@@ -771,13 +719,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     These are task-scoped (not agent-scoped) and accumulate as the agent
     explores the codebase. They are injected into LLM messages as context.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:path, String.t())
-      field(:content, String.t())
-      field(:timestamp, DateTime.t())
-    end
+    @enforce_keys [:path, :content, :timestamp]
+    defstruct path: nil,
+              content: nil,
+              timestamp: nil
 
     def new(path, content) do
       %__MODULE__{
@@ -795,12 +741,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     Stored once per task during initialization. Injected into the system prompt
     so the agent always has structural awareness of the project.
     """
-    use TypedStruct
 
-    typedstruct enforce: true do
-      field(:summary, String.t())
-      field(:timestamp, DateTime.t())
-    end
+    @enforce_keys [:summary, :timestamp]
+    defstruct summary: nil,
+              timestamp: nil
 
     def new(summary) do
       %__MODULE__{
@@ -904,7 +848,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   which guarantees correct conversation structure (assistant messages before their
   tool results) regardless of database insertion timing.
   """
-  @spec to_swarm_messages(list(t())) :: list(SwarmMessage.t())
   def to_swarm_messages(interactions) when is_list(interactions) do
     Enum.flat_map(interactions, &to_swarm_message/1)
   end
@@ -952,7 +895,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp to_swarm_message(%DiscoveredProjectRule{}), do: []
   defp to_swarm_message(%DiscoveredProjectStructure{}), do: []
 
-  @spec build_user_prompt_text(UserMessage.t()) :: String.t()
   defp build_user_prompt_text(%UserMessage{} = msg) do
     msg.messages
     |> Enum.join("\n\n")
@@ -961,7 +903,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     |> append_attachment_context(msg.images)
   end
 
-  @spec build_user_content_parts(String.t(), UserMessage.t()) :: list(SwarmContentPart.t())
   defp build_user_content_parts(prompt_text, %UserMessage{} = msg) do
     prompt_text
     |> text_parts()

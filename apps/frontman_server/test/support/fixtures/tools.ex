@@ -21,7 +21,6 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   @doc """
   Build a tool execution context.
   """
-  @spec tool_context(map()) :: Context.t()
   def tool_context(task) do
     %Context{task: task}
   end
@@ -29,7 +28,6 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   @doc """
   Structured question tool input for interactive tool tests.
   """
-  @spec question_args() :: map()
   def question_args do
     %{
       "questions" => [
@@ -45,7 +43,6 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   @doc """
   Structured todo_write tool input for backend tool tests.
   """
-  @spec todo_args() :: map()
   def todo_args do
     %{
       "todos" => [
@@ -65,7 +62,6 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   Derived from wire-format data via MCP.from_map/1 so that changes to
   the parsing layer are caught by tests that use this fixture.
   """
-  @spec question_mcp_tool_defs() :: [MCP.t()]
   def question_mcp_tool_defs do
     MCP.from_maps([
       %{

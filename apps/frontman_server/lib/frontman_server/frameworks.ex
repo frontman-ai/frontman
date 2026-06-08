@@ -11,13 +11,6 @@ defmodule FrontmanServer.Frameworks do
 
   use Boundary
 
-  @type id :: :nextjs | :vite | :astro | :wordpress
-  @type t :: id()
-  @type stored_id :: String.t()
-  @type project_trait :: :typescript | :react
-  @type tool_execution_mode :: :parallel | :serial
-  @type framework_guidance_section :: :nextjs | :astro | :wordpress
-
   @catalog [
     %{
       id: :nextjs,
@@ -64,11 +57,9 @@ defmodule FrontmanServer.Frameworks do
   @ids Enum.map(@catalog, &Map.fetch!(&1, :id))
 
   @doc "Returns all known framework ids."
-  @spec ids() :: [id()]
   def ids, do: @ids
 
   @doc "Build a framework id from a DB-stored string identifier."
-  @spec from_string(stored_id()) :: t()
   def from_string(stored_id) when is_binary(stored_id) do
     stored_id
     |> record_by_stored_id!()
@@ -76,11 +67,9 @@ defmodule FrontmanServer.Frameworks do
   end
 
   @doc "Serialize a framework id to the string stored in the database."
-  @spec to_string(t()) :: stored_id()
   def to_string(id), do: id |> record_by_id!() |> Map.fetch!(:stored_id)
 
   @doc "Returns the display label for a known framework."
-  @spec display_name(stored_id()) :: String.t()
   def display_name(stored_id) when is_binary(stored_id) do
     stored_id
     |> record_by_stored_id!()
@@ -88,7 +77,6 @@ defmodule FrontmanServer.Frameworks do
   end
 
   @doc "Returns whether a signup framework id is canonical and allowed."
-  @spec valid_signup_id?(stored_id()) :: boolean()
   def valid_signup_id?(stored_id) when is_binary(stored_id) do
     case find_by_stored_id(stored_id) do
       {:ok, _record} -> true
@@ -97,7 +85,6 @@ defmodule FrontmanServer.Frameworks do
   end
 
   @doc "NPM adapter packages with registry version endpoints."
-  @spec npm_packages() :: [String.t()]
   def npm_packages do
     Enum.flat_map(@catalog, fn
       %{npm_package: nil} -> []
@@ -106,19 +93,16 @@ defmodule FrontmanServer.Frameworks do
   end
 
   @doc "Returns whether MCP initialization should load project rules and structure."
-  @spec load_project_context?(t()) :: boolean()
   def load_project_context?(id) do
     id |> record_by_id!() |> Map.fetch!(:load_project_context?)
   end
 
   @doc "Runtime tool execution mode for framework sessions."
-  @spec tool_execution_mode(t()) :: tool_execution_mode()
   def tool_execution_mode(id) do
     id |> record_by_id!() |> Map.fetch!(:tool_execution_mode)
   end
 
   @doc "Returns framework-specific prompt guidance sections."
-  @spec framework_guidance_sections(t() | nil) :: [framework_guidance_section()]
   def framework_guidance_sections(nil), do: []
 
   def framework_guidance_sections(id) do
@@ -126,7 +110,6 @@ defmodule FrontmanServer.Frameworks do
   end
 
   @doc "Returns whether code-project attachment guidance should be included."
-  @spec code_attachment_guidance?(t() | nil) :: boolean()
   def code_attachment_guidance?(nil), do: true
 
   def code_attachment_guidance?(id) do
@@ -134,7 +117,6 @@ defmodule FrontmanServer.Frameworks do
   end
 
   @doc "Normalizes project trait values from runtime metadata."
-  @spec normalize_project_traits([String.t() | project_trait()]) :: [project_trait()]
   def normalize_project_traits(traits) when is_list(traits) do
     traits
     |> Enum.map(&project_trait!/1)
@@ -147,7 +129,6 @@ defmodule FrontmanServer.Frameworks do
   Existing installed clients do not send `traits` yet. For that absent-key case,
   keep old Next.js TypeScript/React behavior. If the key exists, client value wins.
   """
-  @spec project_traits_from_meta(map() | nil, t()) :: [project_trait()]
   def project_traits_from_meta(%{} = meta, framework) do
     case Map.fetch(meta, "traits") do
       {:ok, traits} -> normalize_project_traits(traits)

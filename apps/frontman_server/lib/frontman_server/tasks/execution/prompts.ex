@@ -102,7 +102,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
       # With project rules
       iex> Prompts.build(project_rules: [%{path: "AGENTS.md", content: "...", timestamp: ~U[...]}])
   """
-  @spec build(keyword()) :: String.t()
   def build(opts \\ []) do
     project_rules = Keyword.get(opts, :project_rules, [])
     project_structure = Keyword.get(opts, :project_structure)

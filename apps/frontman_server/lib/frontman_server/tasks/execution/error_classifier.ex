@@ -12,7 +12,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   `category` is one of: "auth", "billing", "rate_limit", "overload",
   "payload_too_large", "output_truncated", "unknown".
   """
-  @spec classify_error(term()) :: {String.t(), String.t(), boolean()}
   def classify_error(%LLMError{message: msg, category: cat, retryable: r}), do: {msg, cat, r}
 
   def classify_error(%ReqLLM.Error.API.Stream{cause: %ReqLLM.Error.API.Request{} = cause}) do

@@ -14,32 +14,20 @@ defmodule ReqLLM.Test.Transcript do
   - `{:done, :ok}` - Response complete
   """
 
-  use TypedStruct
-
-  @typedoc "HTTP event in the transcript"
-  @type event ::
-          {:status, pos_integer()}
-          | {:headers, [{binary(), binary()}]}
-          | {:data, binary()}
-          | {:done, :ok}
-
-  typedstruct do
-    field(:provider, atom(), enforce: true)
-    field(:model_spec, binary(), enforce: true)
-    field(:captured_at, DateTime.t(), enforce: true)
-    field(:request, map(), enforce: true)
-    field(:response_meta, map(), enforce: true)
-    field(:events, [event()], enforce: true)
-  end
+  @enforce_keys [:provider, :model_spec, :captured_at, :request, :response_meta, :events]
+  defstruct provider: nil,
+            model_spec: nil,
+            captured_at: nil,
+            request: nil,
+            response_meta: nil,
+            events: nil
 
   @sensitive_headers ~w(authorization x-api-key api-key)
   # Use exact matches to avoid false positives (e.g., max_tokens matching "token")
   @sensitive_json_keys ~w(api_key apiKey authorization access_token auth_token bearer_token)
 
-  @spec new(keyword()) :: t()
   def new(attrs), do: struct!(__MODULE__, attrs)
 
-  @spec validate(t()) :: :ok | {:error, binary()}
   def validate(%__MODULE__{} = t) do
     with :ok <- validate_provider(t.provider),
          :ok <- validate_model_spec(t.model_spec),
@@ -48,42 +36,35 @@ defmodule ReqLLM.Test.Transcript do
          do: validate_events(t.events)
   end
 
-  @spec streaming?(t()) :: boolean()
   def streaming?(%__MODULE__{events: events}) do
     Enum.count(events, &match?({:data, _}, &1)) > 1
   end
 
-  @spec data_chunks(t()) :: [binary()]
   def data_chunks(%__MODULE__{events: events}) do
     for {:data, chunk} <- events, do: chunk
   end
 
-  @spec joined_data(t()) :: binary()
   def joined_data(%__MODULE__{} = t) do
     t |> data_chunks() |> IO.iodata_to_binary()
   end
 
   @doc "Encode transcript to pretty JSON"
-  @spec to_json(t()) :: binary()
   def to_json(%__MODULE__{} = t) do
     t |> to_map() |> Jason.encode!(pretty: true)
   end
 
   @doc "Decode transcript from JSON"
-  @spec from_json!(binary()) :: t()
   def from_json!(json) do
     json |> Jason.decode!() |> from_map()
   end
 
   @doc "Write transcript to file as JSON"
-  @spec write!(t(), Path.t()) :: :ok
   def write!(%__MODULE__{} = t, path) do
     json = to_json(t)
     File.write!(path, json)
   end
 
   @doc "Read transcript from JSON file"
-  @spec read!(Path.t()) :: t()
   def read!(path) do
     if !File.exists?(path) do
       raise ArgumentError, """
@@ -112,7 +93,6 @@ defmodule ReqLLM.Test.Transcript do
     path |> Path.split() |> Enum.find(&(&1 in ~w[openai anthropic google groq xai openrouter]))
   end
 
-  @spec to_map(t()) :: map()
   def to_map(%__MODULE__{} = t) do
     if streaming?(t) do
       to_streaming_format(t)
@@ -208,7 +188,6 @@ defmodule ReqLLM.Test.Transcript do
     end)
   end
 
-  @spec from_map(map()) :: t()
   def from_map(m) do
     cond do
       has_chunks?(m) ->

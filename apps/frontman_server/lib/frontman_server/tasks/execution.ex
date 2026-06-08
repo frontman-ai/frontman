@@ -89,8 +89,6 @@ defmodule FrontmanServer.Tasks.Execution do
   Returns `:notified` when the result was delivered to a live executor,
   `:no_executor` when no executor was waiting (e.g., server restarted).
   """
-  @spec notify_tool_result(String.t(), term(), boolean()) ::
-          :notified | :no_executor
   def notify_tool_result(tool_call_id, result, is_error) do
     case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->

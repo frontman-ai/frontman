@@ -48,7 +48,6 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
 
     - `:stall_timeout_ms` — required, max time to wait for a chunk (ms)
   """
-  @spec wrap_stream(Enumerable.t(), keyword()) :: Enumerable.t()
   def wrap_stream(stream, opts) when is_list(opts) do
     stall_timeout_ms = Keyword.fetch!(opts, :stall_timeout_ms)
 
@@ -67,7 +66,6 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
   #
   # Uses a ready handshake (like StreamCleanup) to guarantee the feeder
   # is set up before we return.
-  @spec start_feeder(Enumerable.t()) :: pid()
   defp start_feeder(stream) do
     caller = self()
 

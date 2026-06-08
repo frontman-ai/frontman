@@ -268,23 +268,16 @@ defmodule SwarmAi.LLM.Response do
       acc
       | metadata:
           acc.metadata
-          |> maybe_put_response_id(metadata)
-          |> maybe_put_phase(metadata)
+          |> maybe_put_metadata(metadata, :response_id)
+          |> maybe_put_metadata(metadata, :phase)
           |> maybe_put_phase_items(metadata)
     }
   end
 
-  defp maybe_put_response_id(metadata, source) do
-    case meta_field(source, :response_id) do
-      id when is_binary(id) -> Map.put(metadata, :response_id, id)
-      _other -> metadata
-    end
-  end
-
-  defp maybe_put_phase(metadata, source) do
-    case meta_field(source, :phase) do
-      phase when is_binary(phase) -> Map.put(metadata, :phase, phase)
-      _other -> metadata
+  defp maybe_put_metadata(metadata, source, field) do
+    case meta_field(source, field) do
+      nil -> metadata
+      value -> Map.put(metadata, field, value)
     end
   end
 
@@ -299,7 +292,10 @@ defmodule SwarmAi.LLM.Response do
   end
 
   defp meta_field(map, key) when is_map(map) and is_atom(key) do
-    Map.get(map, key) || Map.get(map, Atom.to_string(key))
+    case Map.fetch(map, key) do
+      {:ok, value} -> value
+      :error -> Map.get(map, Atom.to_string(key))
+    end
   end
 
   defp normalize_index(index) when is_integer(index), do: index

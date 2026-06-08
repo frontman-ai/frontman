@@ -140,7 +140,6 @@ llm_db_custom =
 
 config :req_llm,
   receive_timeout: 150_000,
-  custom_providers: [FrontmanServer.Providers.Fireworks, FrontmanServer.Providers.Nvidia],
   # Override default Finch pool (8 connections) to handle concurrent LLM streams.
   # See https://github.com/frontman-ai/frontman/issues/428
   finch: [

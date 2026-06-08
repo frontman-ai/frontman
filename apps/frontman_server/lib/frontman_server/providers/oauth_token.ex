@@ -64,7 +64,6 @@ defmodule FrontmanServer.Providers.OAuthToken do
   @doc """
   Calculates the expiration DateTime from an `expires_in` value in seconds.
   """
-  @spec calculate_expires_at(integer()) :: DateTime.t()
   def calculate_expires_at(expires_in) when is_integer(expires_in) do
     DateTime.utc_now()
     |> DateTime.add(expires_in, :second)

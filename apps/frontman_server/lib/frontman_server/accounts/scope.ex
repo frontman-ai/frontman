@@ -22,16 +22,12 @@ defmodule FrontmanServer.Accounts.Scope do
   growing application requirements.
   """
 
-  use TypedStruct
-
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Organizations.Organization
 
-  typedstruct do
-    field :user, %User{}
-    field :organization, %Organization{}
-    field :env_api_keys, %{String.t() => String.t()}, default: %{}
-  end
+  defstruct user: nil,
+            organization: nil,
+            env_api_keys: %{}
 
   @doc """
   Returns a scope enriched with environment-provided API keys.

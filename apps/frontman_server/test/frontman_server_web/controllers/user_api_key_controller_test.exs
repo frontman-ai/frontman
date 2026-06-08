@@ -26,18 +26,18 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
     end
 
     test "stores Fireworks keys for logged-in user", %{conn: conn, user: user} do
-      params = %{"provider" => "fireworks", "key" => "sk-fireworks-test-123"}
+      params = %{"provider" => "fireworks_ai", "key" => "sk-fireworks-test-123"}
 
       conn = post(conn, ~p"/api/user/api-keys", params)
       response = json_response(conn, 200)
 
       assert response["status"] == "ok"
-      assert response["provider"] == "fireworks"
+      assert response["provider"] == "fireworks_ai"
 
       scope = Scope.for_user(user)
 
-      {:ok, {"fireworks:test-model", llm_opts}} =
-        Providers.prepare_llm_args(scope, "fireworks:test-model")
+      {:ok, {"fireworks_ai:test-model", llm_opts}} =
+        Providers.prepare_llm_args(scope, "fireworks_ai:test-model")
 
       assert llm_opts[:api_key] == "sk-fireworks-test-123"
     end
@@ -45,11 +45,11 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
     test "stores Fireworks keys without affecting other users", %{conn: conn, user: user} do
       other_user = AccountsFixtures.user_fixture()
       other_scope = Scope.for_user(other_user)
-      {:ok, _} = Providers.upsert_api_key(other_scope, "fireworks", "sk-fireworks-other-user")
+      {:ok, _} = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
 
       conn =
         post(conn, ~p"/api/user/api-keys", %{
-          "provider" => "fireworks",
+          "provider" => "fireworks_ai",
           "key" => "sk-fireworks-current-user"
         })
 
@@ -57,13 +57,13 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
 
       assert response["status"] == "ok"
 
-      {:ok, {"fireworks:test-model", llm_opts}} =
-        Providers.prepare_llm_args(Scope.for_user(user), "fireworks:test-model")
+      {:ok, {"fireworks_ai:test-model", llm_opts}} =
+        Providers.prepare_llm_args(Scope.for_user(user), "fireworks_ai:test-model")
 
       assert llm_opts[:api_key] == "sk-fireworks-current-user"
 
-      {:ok, {"fireworks:test-model", other_llm_opts}} =
-        Providers.prepare_llm_args(other_scope, "fireworks:test-model")
+      {:ok, {"fireworks_ai:test-model", other_llm_opts}} =
+        Providers.prepare_llm_args(other_scope, "fireworks_ai:test-model")
 
       assert other_llm_opts[:api_key] == "sk-fireworks-other-user"
     end
@@ -89,18 +89,18 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
 
     test "returns saved key providers", %{conn: conn, user: user} do
       {:ok, _} =
-        Providers.upsert_api_key(Scope.for_user(user), "fireworks", "sk-fireworks-user-key")
+        Providers.upsert_api_key(Scope.for_user(user), "fireworks_ai", "sk-fireworks-user-key")
 
       conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 200)
 
-      assert response["providers"] == ["fireworks"]
+      assert response["providers"] == ["fireworks_ai"]
     end
 
     test "returns saved key providers for the logged-in user only", %{conn: conn} do
       other_user = AccountsFixtures.user_fixture()
       other_scope = Scope.for_user(other_user)
-      {:ok, _} = Providers.upsert_api_key(other_scope, "fireworks", "sk-fireworks-other-user")
+      {:ok, _} = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
 
       conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 200)

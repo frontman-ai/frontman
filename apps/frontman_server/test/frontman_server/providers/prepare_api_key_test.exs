@@ -129,11 +129,11 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
                "anthropicKeyValue" => "sk-ant-test",
                "openrouterKeyValue" => "sk-or-test",
                "fireworksKeyValue" => "sk-fw-test",
-               "model" => %{"provider" => "fireworks", "value" => "model"}
+               "model" => %{"provider" => "fireworks_ai", "value" => "model"}
              }) == %{
                "anthropic" => "sk-ant-test",
                "openrouter" => "sk-or-test",
-               "fireworks" => "sk-fw-test"
+               "fireworks_ai" => "sk-fw-test"
              }
     end
   end

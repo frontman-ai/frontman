@@ -313,7 +313,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert_push("acp:message", %{"id" => 1, "result" => %{}})
 
       # Pre-create a task with a known ID
-      existing_id = task_fixture(scope)
+      existing_id = task_fixture(scope).id
 
       # Try to create session with the same ID - should fail gracefully
       push(socket, "acp:message", %{
@@ -380,7 +380,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "returns sessions with correct fields", %{socket: socket, scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       ref = push(socket, "list_sessions", %{})
       assert_reply(ref, :ok, %{"sessions" => [session]})
@@ -392,8 +392,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "returns multiple sessions", %{socket: socket, scope: scope} do
-      task1_id = task_fixture(scope)
-      task2_id = task_fixture(scope)
+      task1_id = task_fixture(scope).id
+      task2_id = task_fixture(scope).id
 
       ref = push(socket, "list_sessions", %{})
       assert_reply(ref, :ok, %{"sessions" => sessions})
@@ -405,10 +405,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "only returns tasks for authenticated user", %{socket: socket, scope: scope} do
-      my_task_id = task_fixture(scope)
+      my_task_id = task_fixture(scope).id
 
       other_scope = user_scope_fixture()
-      _other_task_id = task_fixture(other_scope, framework: "vite")
+      _other_task_id = task_fixture(other_scope, framework: "vite").id
 
       ref = push(socket, "list_sessions", %{})
       assert_reply(ref, :ok, %{"sessions" => [session]})
@@ -418,7 +418,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
   describe "delete_session" do
     test "deletes session and returns empty result", %{socket: socket, scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       # Verify task exists
       assert {:ok, _task} = FrontmanServer.Tasks.get_task(scope, task_id)
@@ -433,11 +433,11 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
     test "only deletes own sessions", %{socket: socket, scope: scope} do
       # Create task for current user
-      _my_task_id = task_fixture(scope)
+      _my_task_id = task_fixture(scope).id
 
       # Create another user and their task
       other_scope = user_scope_fixture()
-      other_task_id = task_fixture(other_scope, framework: "vite")
+      other_task_id = task_fixture(other_scope, framework: "vite").id
 
       # Trying to delete other user's task should fail (crashes the handler)
       # The channel will crash and the test process will receive an error
@@ -453,7 +453,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     @describetag shared_sandbox: true
 
     setup %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       {:ok, task_id: task_id}
     end
 
@@ -627,7 +627,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       # Security: Implementation returns "not found" for unauthorized access
       # to avoid revealing whether a resource exists
       other_scope = user_scope_fixture()
-      other_task_id = task_fixture(other_scope, framework: "vite")
+      other_task_id = task_fixture(other_scope, framework: "vite").id
 
       push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => other_task_id}))
 

@@ -856,12 +856,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # Unified turn finalization — every code path that ends a turn goes through here.
   # This guarantees the domain invariant: retry_state is always nil when a turn ends.
-  @typep turn_outcome ::
-           {:completed, stop_reason :: String.t()}
-           | {:error, message :: String.t(), category :: String.t()}
 
-  @spec finalize_turn(Phoenix.Socket.t(), turn_outcome(), pos_integer() | nil) ::
-          {:noreply, Phoenix.Socket.t()}
   defp finalize_turn(socket, outcome, turn_number) do
     task_id = socket.assigns.task_id
     socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))

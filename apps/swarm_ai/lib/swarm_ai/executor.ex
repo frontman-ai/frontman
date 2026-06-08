@@ -175,7 +175,7 @@ defmodule SwarmAi.Executor do
                 Stream.each(stream, fn chunk -> dispatch_event.({:chunk, chunk}) end)
 
               response = Response.from_stream(stream_with_events)
-              dispatch_event.({:response, response})
+              :ok = dispatch_event.({:response, response})
 
               {loop, new_effects} = Loop.handle_response(loop, response)
               usage = response.usage || %{}
