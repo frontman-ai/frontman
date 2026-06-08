@@ -16,7 +16,7 @@ defmodule FrontmanServer.Tools.BackendTest do
     def parameter_schema, do: %{}
     def timeout_ms, do: 45_000
     def on_timeout, do: :error
-    def execute(_args, _ctx), do: {:ok, "done"}
+    def execute(_args, _ctx), do: ModelContextProtocol.tool_result_text("done")
   end
 
   describe "to_swarm_tool/1" do

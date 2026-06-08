@@ -3,7 +3,6 @@
 
 S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
-type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.executeJs
 let visibleToAgent = true
@@ -145,16 +144,22 @@ let executeInWindow: (
 // Tool result convention: Ok means the tool executed and produced a response for the
 // AI agent. Error means the tool framework itself failed. The `success` field inside
 // the output distinguishes execution success from JS-level errors.
-let execute = async (input: input, ~taskId as _: string, ~toolCallId as _: string): toolResult<
-  output,
-> => {
+let execute = async (
+  input: input,
+  ~taskId as _: string,
+  ~toolCallId as _: string,
+): Tool.MCP.CallToolResult.t => {
   await Client__Tool__ElementResolver.withPreviewDoc(
-    ~onUnavailable=async () => Ok({
-      success: false,
-      result: None,
-      error: Some("Preview frame not available"),
-      logs: [],
-    }),
+    ~onUnavailable=async () =>
+      Tool.jsonResult(
+        {
+          success: false,
+          result: None,
+          error: Some("Preview frame not available"),
+          logs: [],
+        },
+        outputSchema,
+      ),
     async ({win, doc: _}) => {
       let timeout = input.timeout->Option.getOr(5000)
       let output = await executeInWindow(
@@ -164,7 +169,7 @@ let execute = async (input: input, ~taskId as _: string, ~toolCallId as _: strin
         timeout,
         maxOutputBytes,
       )
-      Ok(output)
+      Tool.jsonResult(output, outputSchema)
     },
   )
 }

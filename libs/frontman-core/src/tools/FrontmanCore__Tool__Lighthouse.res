@@ -260,7 +260,9 @@ let processLhr = (lhr: Lighthouse.lhr): output => {
     ->Array.map(category => {
       // Our requested categories (performance, accessibility, best-practices, seo) should
       // always produce a score. A null here means something unexpected happened upstream.
-      let score = Float.toInt(Math.round(category.score->Nullable.toOption->Option.getOrThrow *. 100.0))
+      let score = Float.toInt(
+        Math.round(category.score->Nullable.toOption->Option.getOrThrow *. 100.0),
+      )
       let topIssues = getTopIssues(~category, ~audits=lhr.audits, ~maxIssues=3)
       {
         id: category.id,
@@ -324,22 +326,27 @@ let runLighthouse = async (
   result
 }
 
-let execute = async (_ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (
+  _ctx: Tool.serverExecutionContext,
+  input: input,
+): Tool.MCP.CallToolResult.t => {
   let preset = input.preset->Option.getOr(Desktop)
 
   try {
     let chrome = await ChromeLauncher.launch({
-      chromeFlags: [
-        "--headless",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
-      ],
+      chromeFlags: ["--headless", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"],
     })
 
-    await runLighthouse(~chrome, ~url=input.url, ~preset)
+    switch await runLighthouse(~chrome, ~url=input.url, ~preset) {
+    | Ok(output) => Tool.jsonResult(output, outputSchema)
+    | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
+    }
   } catch {
   | exn =>
-    Error(`Failed to launch Chrome: ${ExnUtils.message(exn)}. Make sure Chrome is installed on the system.`)
+    Tool.MCP.CallToolResult.makeError(
+      `Failed to launch Chrome: ${ExnUtils.message(
+          exn,
+        )}. Make sure Chrome is installed on the system.`,
+    )
   }
 }

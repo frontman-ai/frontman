@@ -38,7 +38,10 @@ type output = {
   hasMore: bool,
 }
 
-let execute = async (_ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (
+  _ctx: Tool.serverExecutionContext,
+  input: input,
+): Tool.MCP.CallToolResult.t => {
   try {
     let sinceTimestamp =
       input.since->Option.map(isoString => isoString->Date.fromString->Date.getTime)
@@ -63,10 +66,10 @@ let execute = async (_ctx: Tool.serverExecutionContext, input: input): Tool.tool
 
     let bufferSize = LogCapture.getInstance().buffer.contents->CircularBuffer.length
 
-    Ok({logs, totalMatched, bufferSize, hasMore})
+    Tool.jsonResult({logs, totalMatched, bufferSize, hasMore}, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Error(`Failed to retrieve logs: ${msg}`)
+    Tool.MCP.CallToolResult.makeError(`Failed to retrieve logs: ${msg}`)
   }
 }

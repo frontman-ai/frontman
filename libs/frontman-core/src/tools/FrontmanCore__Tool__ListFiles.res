@@ -61,11 +61,11 @@ let getIgnoredEntries = async (~cwd: string, entries: array<string>): result<
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   let path = input.path->Option.getOr(".")
 
   switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=path) {
-  | Error(err) => Error(PathContext.formatError(err))
+  | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
   | Ok(result) =>
     try {
       // If the agent passed a file path, use its parent directory instead.
@@ -86,7 +86,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
         )
 
       switch filteredEntriesResult {
-      | Error(msg) => Error(msg)
+      | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
       | Ok(filteredEntries) =>
         let entriesWithStats = await filteredEntries
         ->Array.map(async name => {
@@ -104,13 +104,13 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
 
         ToolPathHints.recordListAnchor(~sourceRoot=ctx.sourceRoot, ~path=relativePath)
 
-        Ok(entriesWithStats)
+        Tool.jsonResult(entriesWithStats, outputSchema)
       }
     } catch {
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Error(`Failed to list files in ${path}: ${msg}`)
+      Tool.MCP.CallToolResult.makeError(`Failed to list files in ${path}: ${msg}`)
     }
   }
 }

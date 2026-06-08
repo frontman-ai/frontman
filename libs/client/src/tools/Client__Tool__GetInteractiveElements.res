@@ -4,7 +4,6 @@
 
 S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
-type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.getInteractiveElements
 let visibleToAgent = true
@@ -73,15 +72,19 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
-): toolResult<output> => {
+): Tool.MCP.CallToolResult.t => {
   Client__Tool__ElementResolver.withPreviewDoc(
-    ~onUnavailable=() => Ok({
-      success: false,
-      elements: None,
-      totalCount: None,
-      truncated: None,
-      error: Some("Preview frame not available"),
-    }),
+    ~onUnavailable=() =>
+      Tool.jsonResult(
+        {
+          success: false,
+          elements: None,
+          totalCount: None,
+          truncated: None,
+          error: Some("Preview frame not available"),
+        },
+        outputSchema,
+      ),
     ({doc, win}) => {
       try {
         let resolved = Client__Tool__ElementResolver.collectInteractiveElements(
@@ -112,22 +115,28 @@ let execute = async (
         })
 
         let count = elements->Array.length
-        Ok({
-          success: true,
-          elements: Some(elements),
-          totalCount: Some(count),
-          truncated: Some(count >= maxElements),
-          error: None,
-        })
+        Tool.jsonResult(
+          {
+            success: true,
+            elements: Some(elements),
+            totalCount: Some(count),
+            truncated: Some(count >= maxElements),
+            error: None,
+          },
+          outputSchema,
+        )
       } catch {
       | exn =>
-        Ok({
-          success: false,
-          elements: None,
-          totalCount: None,
-          truncated: None,
-          error: Some(Client__Tool__ElementResolver.exnMessage(exn)),
-        })
+        Tool.jsonResult(
+          {
+            success: false,
+            elements: None,
+            totalCount: None,
+            truncated: None,
+            error: Some(Client__Tool__ElementResolver.exnMessage(exn)),
+          },
+          outputSchema,
+        )
       }
     },
   )

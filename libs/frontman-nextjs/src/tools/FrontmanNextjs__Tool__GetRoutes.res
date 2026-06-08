@@ -103,7 +103,10 @@ let rec findRoutes = async (baseDir: string, currentPath: string, ~projectRoot: 
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, _input: input): Tool.toolResult<output> => {
+let execute = async (
+  ctx: Tool.serverExecutionContext,
+  _input: input,
+): Tool.MCP.CallToolResult.t => {
   try {
     // Try app directory first (Next.js 13+)
     let appRoutes = await findRoutes("src/app", "", ~projectRoot=ctx.projectRoot)
@@ -117,10 +120,10 @@ let execute = async (ctx: Tool.serverExecutionContext, _input: input): Tool.tool
     let allRoutes = Array.concat(allRoutes, pagesRoutes)
     let allRoutes = Array.concat(allRoutes, pagesRoutesAlt)
 
-    Ok(allRoutes)
+    Tool.jsonResult(allRoutes, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Error(`Failed to find routes: ${msg}`)
+    Tool.MCP.CallToolResult.makeError(`Failed to find routes: ${msg}`)
   }
 }

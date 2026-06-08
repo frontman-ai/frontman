@@ -22,6 +22,9 @@ let makeCtx = (sourceRoot: string): Protocol.serverExecutionContext => {
   sourceRoot,
 }
 
+let execute = (ctx, input) =>
+  FrontmanCore__ToolTestHelpers.execute(Tool.execute, ctx, input, Tool.outputSchema)
+
 /** Filter results to only files within a specific directory (tool walks up to /) */
 let filterWithinDir = (files: array<Tool.instructionFile>, dir: string) =>
   files->Array.filter(f => String.startsWith(f.fullPath, dir))
@@ -29,7 +32,7 @@ let filterWithinDir = (files: array<Tool.instructionFile>, dir: string) =>
 /** Execute tool and filter results to fixture directory */
 let executeAndFilter = async (dir, ~startPath=?) => {
   let ctx = makeCtx(dir)
-  let result = await Tool.execute(ctx, {startPath: ?startPath})
+  let result = await execute(ctx, {startPath: ?startPath})
   result->Result.map(files => filterWithinDir(files, dir))
 }
 
@@ -186,7 +189,7 @@ describe("LoadAgentInstructions", () => {
         let parentDir = fixture("parent-only")
         let childDir = Bindings.Path.join([parentDir, "child"])
         let ctx = makeCtx(childDir)
-        let result = await Tool.execute(ctx, {})
+        let result = await execute(ctx, {})
 
         t->assertOk(
           result->Result.map(files => filterWithinDir(files, parentDir)),
@@ -203,7 +206,7 @@ describe("LoadAgentInstructions", () => {
         let multiLevelDir = fixture("multi-level")
         let deepDir = Bindings.Path.join([multiLevelDir, "child", "deep"])
         let ctx = makeCtx(deepDir)
-        let result = await Tool.execute(ctx, {})
+        let result = await execute(ctx, {})
 
         t->assertOk(
           result->Result.map(files => filterWithinDir(files, multiLevelDir)),
@@ -220,7 +223,7 @@ describe("LoadAgentInstructions", () => {
         let multiLevelDir = fixture("multi-level")
         let deepDir = Bindings.Path.join([multiLevelDir, "child", "deep"])
         let ctx = makeCtx(deepDir)
-        let result = await Tool.execute(ctx, {})
+        let result = await execute(ctx, {})
 
         t->assertOk(
           result->Result.map(files => filterWithinDir(files, multiLevelDir)),
@@ -244,7 +247,7 @@ describe("LoadAgentInstructions", () => {
       async t => {
         let deepDir = Bindings.Path.join([fixture("multi-level"), "child", "deep"])
         let ctx = makeCtx(deepDir)
-        let result = await Tool.execute(ctx, {})
+        let result = await execute(ctx, {})
 
         t->assertOk(
           result,
@@ -304,7 +307,7 @@ describe("LoadAgentInstructions", () => {
         let emptyDir = fixture("empty")
         let subdir = Bindings.Path.join([emptyDir, "subdir"])
         let ctx = makeCtx(subdir)
-        let result = await Tool.execute(ctx, {})
+        let result = await execute(ctx, {})
 
         t->assertOk(
           result->Result.map(files => filterWithinDir(files, emptyDir)),
@@ -508,7 +511,7 @@ describe("LoadAgentInstructions", () => {
           "j",
         ])
         let ctx = makeCtx(deepPath)
-        let result = await Tool.execute(ctx, {})
+        let result = await execute(ctx, {})
         // Verify it terminates and returns Ok
         switch result {
         | Ok(_) => t->expect(true)->Expect.toBe(true)
@@ -573,7 +576,7 @@ describe("LoadAgentInstructions", () => {
           "j",
         ])
         let ctx = makeCtx(deepPath)
-        let result = await Tool.execute(ctx, {})
+        let result = await execute(ctx, {})
 
         t->assertOk(
           result,

@@ -14,6 +14,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
 
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServerWeb.ACPHistory
+  alias ModelContextProtocol, as: MCP
 
   @session_id "test-session-123"
 
@@ -28,7 +29,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
       id: "t",
       tool_call_id: "tc",
       tool_name: "t",
-      result: "r",
+      result: MCP.tool_result_text("r"),
       is_error: false
     },
     Interaction.AgentError => %{id: "t", error: "e"},
@@ -128,7 +129,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
         id: "tr-1",
         tool_call_id: "call-1",
         tool_name: "read_file",
-        result: "file contents",
+        result: MCP.tool_result_text("file contents"),
         is_error: false,
         timestamp: DateTime.utc_now()
       }

@@ -18,13 +18,6 @@ defmodule AgentClientProtocol.ContentTest do
   end
 
   describe "from_tool_result/1" do
-    test "formats map as JSON-encoded text" do
-      [%ContentItem{content: %TextBlock{text: text}}] =
-        Content.from_tool_result(%{"key" => "value"})
-
-      assert Jason.decode!(text) == %{"key" => "value"}
-    end
-
     test "formats binary as text" do
       assert [%ContentItem{content: %TextBlock{text: "Hello"}}] =
                Content.from_tool_result("Hello")

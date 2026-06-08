@@ -13,7 +13,7 @@ type executionContext = {
 }
 
 type executeResult =
-  | Ok(MCP.callToolResult)
+  | Ok(MCP.CallToolResult.t)
   | ToolNotFound(string)
   | InvalidInput(string)
   | ExecutionError(string)
@@ -40,22 +40,7 @@ let executeTool = async (
     try {
       let input = inputJson->S.parseOrThrow(T.inputSchema)
       let result = await T.execute(toolCtx, input)
-
-      switch result {
-      | Result.Ok(output) =>
-        let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
-        Ok({
-          content: [{type_: MCP.Text, text: JSON.stringify(outputJson)}],
-          isError: None,
-          _meta: MCP.emptyMeta,
-        })
-      | Result.Error(msg) =>
-        Ok({
-          content: [{type_: MCP.Text, text: msg}],
-          isError: Some(true),
-          _meta: MCP.emptyMeta,
-        })
-      }
+      Ok(result)
     } catch {
     | S.Error(e) => InvalidInput(e.message)
     | exn =>
@@ -66,25 +51,13 @@ let executeTool = async (
   }
 }
 
-// Convert executeResult to MCP.callToolResult for SSE streaming
-let resultToMCP = (result: executeResult): MCP.callToolResult => {
+// Convert executeResult to MCP CallToolResult for SSE streaming
+let resultToMCP = (result: executeResult): MCP.CallToolResult.t => {
   switch result {
   | Ok(r) => r
-  | ToolNotFound(name) => {
-      content: [{type_: MCP.Text, text: `Tool not found: ${name}`}],
-      isError: Some(true),
-      _meta: MCP.emptyMeta,
-    }
-  | InvalidInput(msg) => {
-      content: [{type_: MCP.Text, text: `Invalid input: ${msg}`}],
-      isError: Some(true),
-      _meta: MCP.emptyMeta,
-    }
-  | ExecutionError(msg) => {
-      content: [{type_: MCP.Text, text: `Execution error: ${msg}`}],
-      isError: Some(true),
-      _meta: MCP.emptyMeta,
-    }
+  | ToolNotFound(name) => MCP.CallToolResult.makeError(`Tool not found: ${name}`)
+  | InvalidInput(msg) => MCP.CallToolResult.makeError(`Invalid input: ${msg}`)
+  | ExecutionError(msg) => MCP.CallToolResult.makeError(`Execution error: ${msg}`)
   }
 }
 

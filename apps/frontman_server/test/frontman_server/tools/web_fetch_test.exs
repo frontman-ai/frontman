@@ -2,6 +2,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
   use FrontmanServer.DataCase, async: false
 
   alias FrontmanServer.Tools.WebFetch
+  alias ModelContextProtocol, as: MCP
 
   setup do
     context = %FrontmanServer.Tools.Backend.Context{
@@ -27,6 +28,18 @@ defmodule FrontmanServer.Tools.WebFetchTest do
 
   defp execute(url, context, opts \\ %{}) do
     WebFetch.execute(Map.merge(%{"url" => url}, opts), context)
+  end
+
+  defp execute_text(url, context, opts \\ %{}) do
+    result = execute(url, context, opts)
+    refute MCP.error?(result)
+    result |> MCP.extract_content_text() |> MCP.parse_tool_result()
+  end
+
+  defp execute_error(url, context, opts \\ %{}) do
+    result = execute(url, context, opts)
+    assert MCP.error?(result)
+    MCP.extract_content_text(result)
   end
 
   describe "name/0" do
@@ -55,15 +68,17 @@ defmodule FrontmanServer.Tools.WebFetchTest do
 
   describe "execute/2 — URL validation" do
     test "rejects URLs without http/https scheme", %{context: ctx} do
-      assert {:error, msg} = execute("ftp://example.com", ctx)
+      msg = execute_error("ftp://example.com", ctx)
       assert msg =~ "http:// or https://"
 
-      assert {:error, _} = execute("not-a-url", ctx)
-      assert {:error, _} = execute("", ctx)
+      execute_error("not-a-url", ctx)
+      execute_error("", ctx)
     end
 
     test "rejects missing url", %{context: ctx} do
-      assert {:error, msg} = WebFetch.execute(%{}, ctx)
+      result = WebFetch.execute(%{}, ctx)
+      assert MCP.error?(result)
+      msg = MCP.extract_content_text(result)
       assert msg =~ "url"
     end
   end
@@ -92,7 +107,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
 
     for {label, url} <- @blocked_urls do
       test "rejects #{label}: #{url}", %{context: ctx} do
-        assert {:error, msg} = execute(unquote(url), ctx)
+        msg = execute_error(unquote(url), ctx)
         assert msg =~ "private"
       end
     end
@@ -104,7 +119,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(302, "")
       end)
 
-      assert {:error, msg} = execute("#{@public_test_url}/redirect", ctx)
+      msg = execute_error("#{@public_test_url}/redirect", ctx)
       assert msg =~ "private"
     end
 
@@ -115,7 +130,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(301, "")
       end)
 
-      assert {:error, msg} = execute("#{@public_test_url}/aws", ctx)
+      msg = execute_error("#{@public_test_url}/aws", ctx)
       assert msg =~ "private"
     end
 
@@ -126,7 +141,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(302, "")
       end)
 
-      assert {:error, msg} = execute("#{@public_test_url}/mapped", ctx)
+      msg = execute_error("#{@public_test_url}/mapped", ctx)
       assert msg =~ "private"
     end
 
@@ -137,13 +152,12 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(302, "")
       end)
 
-      assert {:error, msg} = execute("#{@public_test_url}/gopher", ctx)
+      msg = execute_error("#{@public_test_url}/gopher", ctx)
       assert msg =~ "http:// or https://"
     end
 
     test "rejects unresolvable hostnames", %{context: ctx} do
-      assert {:error, msg} =
-               execute("https://this-domain-does-not-exist-xyz.invalid/", ctx)
+      msg = execute_error("https://this-domain-does-not-exist-xyz.invalid/", ctx)
 
       assert msg =~ "resolve"
     end
@@ -166,7 +180,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         end
       end)
 
-      assert {:ok, result} = execute("https://example.com/old-path", ctx)
+      result = execute_text("https://example.com/old-path", ctx)
       assert result["content"] =~ "Relative redirect worked"
     end
 
@@ -188,7 +202,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         end
       end)
 
-      assert {:ok, result} = execute("https://example.com/start", ctx)
+      result = execute_text("https://example.com/start", ctx)
       assert result["content"] =~ "Redirected content"
     end
   end
@@ -197,7 +211,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     test "fetches HTML and converts to markdown", %{context: ctx} do
       stub_resp(200, "text/html", "<h1>Hello</h1><p>World</p>")
 
-      assert {:ok, result} = execute("https://example.com", ctx)
+      result = execute_text("https://example.com", ctx)
       assert result["url"] == "https://example.com"
       assert result["content_type"] =~ "text/html"
       assert result["content"] =~ "Hello"
@@ -209,14 +223,14 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     test "returns plain text as-is", %{context: ctx} do
       stub_resp(200, "text/plain", "Hello plain world")
 
-      assert {:ok, result} = execute("https://example.com/text", ctx)
+      result = execute_text("https://example.com/text", ctx)
       assert result["content"] =~ "Hello plain world"
     end
 
     test "returns markdown as-is", %{context: ctx} do
       stub_resp(200, "text/markdown", "# Hello\n\nMarkdown content")
 
-      assert {:ok, result} = execute("https://example.com/md", ctx)
+      result = execute_text("https://example.com/md", ctx)
       assert result["content"] =~ "# Hello"
       assert result["content"] =~ "Markdown content"
     end
@@ -227,7 +241,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       test "returns error on #{status}", %{context: ctx} do
         stub_resp(unquote(status), "error")
 
-        assert {:error, msg} = execute("https://example.com/err", ctx)
+        msg = execute_error("https://example.com/err", ctx)
         assert msg =~ "#{unquote(status)}"
       end
     end
@@ -252,7 +266,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         end
       end)
 
-      assert {:ok, result} = execute("https://example.com/closed-repeatedly", ctx)
+      result = execute_text("https://example.com/closed-repeatedly", ctx)
       assert result["content"] =~ "Recovered after closed socket"
       assert :counters.get(call_count, 1) == 5
     end
@@ -266,14 +280,14 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
 
     test "returns first page by default", %{context: ctx} do
-      assert {:ok, result} = execute("https://example.com", ctx)
+      result = execute_text("https://example.com", ctx)
       assert result["start_line"] == 0
       assert result["total_lines"] == 10
       assert result["lines_returned"] == 10
     end
 
     test "respects offset", %{context: ctx} do
-      assert {:ok, result} = execute("https://example.com", ctx, %{"offset" => 5})
+      result = execute_text("https://example.com", ctx, %{"offset" => 5})
       assert result["start_line"] == 5
       assert result["lines_returned"] == 5
       assert result["content"] =~ "Line 6"
@@ -281,7 +295,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
 
     test "respects limit", %{context: ctx} do
-      assert {:ok, result} = execute("https://example.com", ctx, %{"limit" => 3})
+      result = execute_text("https://example.com", ctx, %{"limit" => 3})
       assert result["start_line"] == 0
       assert result["lines_returned"] == 3
       assert result["total_lines"] == 10
@@ -290,7 +304,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
 
     test "offset + limit combination", %{context: ctx} do
-      assert {:ok, result} = execute("https://example.com", ctx, %{"offset" => 2, "limit" => 3})
+      result = execute_text("https://example.com", ctx, %{"offset" => 2, "limit" => 3})
       assert result["start_line"] == 2
       assert result["lines_returned"] == 3
       assert result["content"] =~ "Line 3"
@@ -299,7 +313,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
 
     test "offset beyond content returns empty", %{context: ctx} do
-      assert {:ok, result} = execute("https://example.com", ctx, %{"offset" => 100})
+      result = execute_text("https://example.com", ctx, %{"offset" => 100})
       assert result["lines_returned"] == 0
       assert result["content"] == ""
     end
@@ -312,17 +326,17 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
 
     test "clamps negative offset to 0", %{context: ctx} do
-      assert {:ok, result} = execute("https://example.com", ctx, %{"offset" => -5})
+      result = execute_text("https://example.com", ctx, %{"offset" => -5})
       assert result["start_line"] == 0
     end
 
     test "clamps limit above 2000 to 2000", %{context: ctx} do
-      assert {:ok, result} = execute("https://example.com", ctx, %{"limit" => 5000})
+      result = execute_text("https://example.com", ctx, %{"limit" => 5000})
       assert result["lines_returned"] <= 2000
     end
 
     test "clamps limit below 1 to 1", %{context: ctx} do
-      assert {:ok, result} = execute("https://example.com", ctx, %{"limit" => 0})
+      result = execute_text("https://example.com", ctx, %{"limit" => 0})
       assert result["lines_returned"] >= 0
     end
   end
@@ -331,7 +345,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     test "rejects responses larger than 5MB", %{context: ctx} do
       stub_resp(200, "text/plain", String.duplicate("x", 5_242_881))
 
-      assert {:error, msg} = execute("https://example.com/big", ctx)
+      msg = execute_error("https://example.com/big", ctx)
       assert msg =~ "5MB"
     end
   end
@@ -353,11 +367,13 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(200, image_bytes)
       end)
 
-      assert {:ok, result} = execute(url, ctx)
-      assert result["type"] == "image"
-      assert result["url"] == url
-      assert result["content_type"] =~ "image/png"
-      assert result["image"] == "data:image/png;base64,#{Base.encode64(image_bytes)}"
+      result = execute(url, ctx)
+      refute MCP.error?(result)
+
+      assert %{"content" => [%{"type" => "image", "data" => data, "mimeType" => "image/png"}]} =
+               result
+
+      assert data == Base.encode64(image_bytes)
     end
 
     test "returns image/jpeg responses with normalized data URL media type", %{context: ctx} do
@@ -370,31 +386,33 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(200, image_bytes)
       end)
 
-      assert {:ok, result} = execute(url, ctx)
-      assert result["type"] == "image"
-      assert result["url"] == url
-      assert result["content_type"] == "image/jpeg; charset=binary"
-      assert result["image"] == "data:image/jpeg;base64,#{Base.encode64(image_bytes)}"
+      result = execute(url, ctx)
+      refute MCP.error?(result)
+
+      assert %{"content" => [%{"type" => "image", "data" => data, "mimeType" => "image/jpeg"}]} =
+               result
+
+      assert data == Base.encode64(image_bytes)
     end
 
     test "rejects application/octet-stream responses", %{context: ctx} do
       stub_resp(200, "application/octet-stream", <<0, 1, 2, 3>>)
 
-      assert {:error, msg} = execute("https://example.com/file.bin", ctx)
+      msg = execute_error("https://example.com/file.bin", ctx)
       assert msg =~ "non-text"
     end
 
     test "rejects application/pdf responses", %{context: ctx} do
       stub_resp(200, "application/pdf", "%PDF-1.4 binary content")
 
-      assert {:error, msg} = execute("https://example.com/doc.pdf", ctx)
+      msg = execute_error("https://example.com/doc.pdf", ctx)
       assert msg =~ "non-text"
     end
 
     test "rejects image/svg+xml responses", %{context: ctx} do
       stub_resp(200, "image/svg+xml", "<svg></svg>")
 
-      assert {:error, msg} = execute("https://example.com/vector.svg", ctx)
+      msg = execute_error("https://example.com/vector.svg", ctx)
       assert msg =~ "non-text"
       assert msg =~ "image/svg+xml"
     end
@@ -402,13 +420,13 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     test "allows text/html responses", %{context: ctx} do
       stub_resp(200, "text/html", "<h1>Hello</h1>")
 
-      assert {:ok, _} = execute("https://example.com/page", ctx)
+      execute_text("https://example.com/page", ctx)
     end
 
     test "allows text/plain responses", %{context: ctx} do
       stub_resp(200, "text/plain", "Hello")
 
-      assert {:ok, _} = execute("https://example.com/text", ctx)
+      execute_text("https://example.com/text", ctx)
     end
 
     test "allows application/json responses", %{context: ctx} do
@@ -421,19 +439,19 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         |> Plug.Conn.send_resp(200, ~s({"key": "value"}))
       end)
 
-      assert {:ok, _} = execute("https://example.com/api", ctx)
+      execute_text("https://example.com/api", ctx)
     end
 
     test "allows application/xml responses", %{context: ctx} do
       stub_resp(200, "application/xml", "<root>data</root>")
 
-      assert {:ok, _} = execute("https://example.com/feed.xml", ctx)
+      execute_text("https://example.com/feed.xml", ctx)
     end
 
     test "allows application/javascript responses", %{context: ctx} do
       stub_resp(200, "application/javascript", "console.log('hi')")
 
-      assert {:ok, _} = execute("https://example.com/script.js", ctx)
+      execute_text("https://example.com/script.js", ctx)
     end
   end
 
@@ -459,7 +477,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
         end
       end)
 
-      assert {:ok, result} = execute("https://example.com/cf", ctx)
+      result = execute_text("https://example.com/cf", ctx)
       assert result["content"] =~ "Real content"
       assert :counters.get(call_count, 1) == 2
     end
@@ -467,7 +485,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     test "does not retry on regular 403", %{context: ctx} do
       stub_resp(403, "Forbidden")
 
-      assert {:error, msg} = execute("https://example.com/forbidden", ctx)
+      msg = execute_error("https://example.com/forbidden", ctx)
       assert msg =~ "403"
     end
   end

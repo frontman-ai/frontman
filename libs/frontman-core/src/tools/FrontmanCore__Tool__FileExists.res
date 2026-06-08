@@ -19,11 +19,11 @@ type input = {path: string}
 @schema
 type output = bool
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
-  | Error(msg) => Error(msg)
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   | Ok(safePath) =>
     let exists = await FsUtils.pathExists(SafePath.toString(safePath))
-    Ok(exists)
+    Tool.jsonResult(exists, outputSchema)
   }
 }

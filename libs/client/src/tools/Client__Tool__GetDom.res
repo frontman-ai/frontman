@@ -5,7 +5,6 @@
 
 S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
-type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.getDom
 let visibleToAgent = true
@@ -337,31 +336,39 @@ let rec walkSimplified = (
 // Result helpers
 // ============================================================================
 
-let errorResult = (~error: string, ~hint: option<string>=?, ~nodeCount: option<int>=?): result<
-  output,
-  _,
-> => Ok({
-  success: false,
-  html: None,
-  nodeCount,
-  byteSize: None,
-  hint,
-  error: Some(error),
-})
+let errorResult = (
+  ~error: string,
+  ~hint: option<string>=?,
+  ~nodeCount: option<int>=?,
+): Tool.MCP.CallToolResult.t =>
+  Tool.jsonResult(
+    {
+      success: false,
+      html: None,
+      nodeCount,
+      byteSize: None,
+      hint,
+      error: Some(error),
+    },
+    outputSchema,
+  )
 
-let successResult = (~html: string, ~nodeCount: option<int>, ~hint: option<string>=?): result<
-  output,
-  _,
-> => {
-  Ok({
-    success: true,
-    html: Some(html),
-    nodeCount,
-    byteSize: Some(html->String.length),
-    hint,
-    error: None,
-  })
-}
+let successResult = (
+  ~html: string,
+  ~nodeCount: option<int>,
+  ~hint: option<string>=?,
+): Tool.MCP.CallToolResult.t =>
+  Tool.jsonResult(
+    {
+      success: true,
+      html: Some(html),
+      nodeCount,
+      byteSize: Some(html->String.length),
+      hint,
+      error: None,
+    },
+    outputSchema,
+  )
 
 // ============================================================================
 // Tool execution
@@ -371,7 +378,7 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
-): toolResult<output> => {
+): Tool.MCP.CallToolResult.t => {
   Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=() => errorResult(~error="Preview frame not available"),
     ({doc, win}) => {

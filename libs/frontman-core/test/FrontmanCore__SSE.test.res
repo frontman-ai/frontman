@@ -13,11 +13,7 @@ describe("SSE", _t => {
   })
 
   test("formats result event correctly", t => {
-    let result: MCP.callToolResult = {
-      content: [{type_: MCP.Text, text: "hello"}],
-      isError: None,
-      _meta: MCP.emptyMeta,
-    }
+    let result = MCP.CallToolResult.makeText("hello")
     let event = SSE.resultEvent(result)
 
     t->expect(event->String.includes("event: result"))->Expect.toBe(true)

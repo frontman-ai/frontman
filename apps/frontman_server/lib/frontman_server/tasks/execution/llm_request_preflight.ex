@@ -34,66 +34,11 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   """
   def run(messages, opts \\ []) do
     messages
-    |> expand_tool_result_images()
     |> strip_unsupported_images(opts)
     |> constrain_image_dimensions(opts)
     |> truncate_tool_results(opts)
     |> dedup_page_context()
   end
-
-  defp expand_tool_result_images(messages) do
-    Enum.map(messages, &expand_tool_image/1)
-  end
-
-  defp expand_tool_image(%Message.Tool{name: name, content: content} = msg) do
-    with json when is_binary(json) <- text_part(content),
-         {:ok, decoded} when is_map(decoded) <- Jason.decode(json),
-         {:ok, %{data: data, media_type: media_type}} <-
-           decode_tool_image(canonical_tool_name(name), decoded) do
-      %{msg | content: [ContentPart.image(data, media_type)]}
-    else
-      _ -> msg
-    end
-  end
-
-  defp expand_tool_image(msg), do: msg
-
-  defp text_part(content) when is_list(content) do
-    Enum.find_value(content, fn
-      %ContentPart{type: :text, text: text} when is_binary(text) -> text
-      _ -> nil
-    end)
-  end
-
-  defp text_part(_content), do: nil
-
-  defp decode_tool_image("take_screenshot", %{"screenshot" => data_url})
-       when is_binary(data_url),
-       do: decode_tool_data_url(data_url)
-
-  defp decode_tool_image("web_fetch", %{"image" => data_url})
-       when is_binary(data_url),
-       do: decode_tool_data_url(data_url)
-
-  defp decode_tool_image("get_tool_result", %{"screenshot" => data_url})
-       when is_binary(data_url),
-       do: decode_tool_data_url(data_url)
-
-  defp decode_tool_image("get_tool_result", %{"type" => "image", "image" => data_url})
-       when is_binary(data_url),
-       do: decode_tool_data_url(data_url)
-
-  defp decode_tool_image(_name, _decoded), do: :no_image
-
-  defp decode_tool_data_url(data_url) do
-    case Image.decode_data_url(data_url) do
-      {:ok, data, media_type} -> {:ok, %{data: data, media_type: media_type}}
-      :error -> :no_image
-    end
-  end
-
-  defp canonical_tool_name(name) when is_binary(name), do: String.replace_prefix(name, "mcp_", "")
-  defp canonical_tool_name(name), do: name
 
   defp strip_unsupported_images(messages, opts) do
     case Keyword.get(opts, :images_supported, true) do
@@ -115,11 +60,30 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   defp strip_image_part(part), do: part
 
   defp constrain_image_dimensions(messages, opts) do
-    case Keyword.get(opts, :max_image_dimension) do
+    max =
+      case {Keyword.get(opts, :llm_vendor), image_count(messages)} do
+        {"anthropic", count} when count > 20 -> 2000
+        _ -> Keyword.get(opts, :max_image_dimension)
+      end
+
+    case max do
       max when is_integer(max) -> Enum.map(messages, &constrain_message_images(&1, max))
       _ -> messages
     end
   end
+
+  defp image_count(messages) do
+    Enum.reduce(messages, 0, fn
+      %{content: content}, count when is_list(content) ->
+        count + Enum.count(content, &image_part?/1)
+
+      _message, count ->
+        count
+    end)
+  end
+
+  defp image_part?(%ContentPart{type: type}) when type in [:image, :image_url], do: true
+  defp image_part?(_part), do: false
 
   defp constrain_message_images(%{content: content} = message, max) when is_list(content) do
     %{message | content: Enum.map(content, &constrain_image_part(&1, max))}

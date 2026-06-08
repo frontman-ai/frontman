@@ -12,10 +12,7 @@ let unpackName = (toolModule: module(Tool.BrowserTool)): string => {
 
 let unpackExecute = (toolModule: module(Tool.BrowserTool)) => {
   module T = unpack(toolModule)
-  (input, ~taskId, ~toolCallId) =>
-    T.execute(Obj.magic(input), ~taskId, ~toolCallId)->Promise.thenResolve((r): Tool.toolResult<
-      FrontmanAiAstroBrowser.FrontmanAstroBrowser__Tool__GetAstroAudit.output,
-    > => Obj.magic(r))
+  (input, ~taskId, ~toolCallId) => T.execute(Obj.magic(input), ~taskId, ~toolCallId)
 }
 
 describe("FrontmanAstroBrowser__Tool__GetAstroAudit", _t => {
@@ -32,12 +29,7 @@ describe("FrontmanAstroBrowser__Tool__GetAstroAudit", _t => {
       ~taskId="t1",
       ~toolCallId="tc1",
     )
-    switch result {
-    | Ok({audits, message}) => {
-        t->expect(audits->Array.length)->Expect.toBe(0)
-        t->expect(message)->Expect.toEqual(Some("Preview iframe is not available"))
-      }
-    | Error(e) => t->expect(e)->Expect.toBe("should not error")
-    }
+    let json = result->S.reverseConvertToJsonOrThrow(Tool.MCP.callToolResultSchema)->JSON.stringify
+    t->expect(json->String.includes("Preview iframe is not available"))->Expect.toBe(true)
   })
 })

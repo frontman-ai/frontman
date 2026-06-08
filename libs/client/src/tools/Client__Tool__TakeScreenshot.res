@@ -3,7 +3,6 @@
 
 S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
-type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.takeScreenshot
 let visibleToAgent = true
@@ -88,18 +87,33 @@ let _cropCanvasToViewport = (
   }
 }
 
+let imageResultFromDataUrl = (dataUrl: string): Tool.MCP.CallToolResult.t => {
+  switch dataUrl->String.split(",") {
+  | [header, data] =>
+    switch header->String.startsWith("data:image/jpeg;base64") {
+    | true => Tool.imageResult(~data, ~mimeType="image/jpeg")
+    | false =>
+      Tool.MCP.CallToolResult.makeError(
+        `Screenshot capture returned unsupported image data: ${dataUrl}`,
+      )
+    }
+  | _ =>
+    Tool.MCP.CallToolResult.makeError(
+      `Screenshot capture returned malformed image data: ${dataUrl}`,
+    )
+  }
+}
+
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
-): toolResult<output> => {
+): Tool.MCP.CallToolResult.t => {
   let fullPage = input.fullPage->Option.getOr(false)
 
   await Client__Tool__ElementResolver.withPreviewDoc(
-    ~onUnavailable=async () => Ok({
-      screenshot: None,
-      error: Some("Preview frame document not available"),
-    }),
+    ~onUnavailable=async () =>
+      Tool.MCP.CallToolResult.makeError("Preview frame document not available"),
     async ({doc, win}) => {
       // Get the element to screenshot
       let elementResult = switch input.selector {
@@ -122,14 +136,13 @@ let execute = async (
       }
 
       switch elementResult {
-      | Error(err) => Ok({screenshot: None, error: Some(err)})
+      | Error(err) => Tool.MCP.CallToolResult.makeError(err)
       | Ok(element) =>
         let rect = element->WebAPI.Element.getBoundingClientRect
         if rect.width <= 0.0 || rect.height <= 0.0 {
-          Ok({
-            screenshot: None,
-            error: Some("Target element has zero dimensions (may be hidden or not rendered)"),
-          })
+          Tool.MCP.CallToolResult.makeError(
+            "Target element has zero dimensions (may be hidden or not rendered)",
+          )
         } else {
           try {
             let state = StateStore.getState(Client__State__Store.store)
@@ -157,15 +170,14 @@ let execute = async (
                 ~scale,
                 ~quality=limits.quality,
               )
-              Ok({screenshot: Some(dataUrl), error: None})
+              imageResultFromDataUrl(dataUrl)
             | None =>
               // Full page / selector mode: export directly as JPEG
               let jpgImage = await captureResult.toJpg({scale, quality: limits.quality})
-              Ok({screenshot: Some(jpgImage.src), error: None})
+              imageResultFromDataUrl(jpgImage.src)
             }
           } catch {
-          | exn =>
-            Ok({screenshot: None, error: Some(Client__Tool__ElementResolver.exnMessage(exn))})
+          | exn => Tool.MCP.CallToolResult.makeError(Client__Tool__ElementResolver.exnMessage(exn))
           }
         }
       }

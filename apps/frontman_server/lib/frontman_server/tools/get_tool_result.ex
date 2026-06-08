@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tools.GetToolResult do
 
   alias FrontmanServer.Tasks.Interaction.ToolResult, as: InteractionToolResult
   alias FrontmanServer.Tools.Backend.Context
+  alias ModelContextProtocol, as: MCP
 
   @impl true
   def name, do: "get_tool_result"
@@ -54,14 +55,17 @@ defmodule FrontmanServer.Tools.GetToolResult do
         find_tool_result(interactions, tool_call_id)
 
       _ ->
-        {:error, "tool_call_id must be a string"}
+        MCP.tool_result_error("tool_call_id must be a string")
     end
   end
 
   defp find_tool_result(interactions, tool_call_id) do
-    Enum.find_value(interactions, {:error, "Tool result not found: #{tool_call_id}"}, fn
-      %InteractionToolResult{tool_call_id: ^tool_call_id, result: result} -> {:ok, result}
-      _interaction -> false
-    end)
+    case Enum.find(interactions, &match?(%InteractionToolResult{tool_call_id: ^tool_call_id}, &1)) do
+      nil ->
+        MCP.tool_result_error("Tool result not found: #{tool_call_id}")
+
+      %InteractionToolResult{result: %{"content" => content} = result} when is_list(content) ->
+        result
+    end
   end
 end

@@ -16,29 +16,32 @@ let execute = async (
   ctx: Tool.serverExecutionContext,
   input: CoreEditFile.input,
   ~getErrorLogsSince: float => array<logEntry>,
-): Tool.toolResult<CoreEditFile.output> => {
+): Tool.MCP.CallToolResult.t => {
   let beforeTimestamp = Date.now()
-  let result = await CoreEditFile.execute(ctx, input)
+  let result = await CoreEditFile.executeOutput(ctx, input)
 
   switch result {
-  | Error(_) => result
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   | Ok(output) =>
     await sleep(800)
 
     let allErrors = getErrorLogsSince(beforeTimestamp)
     switch allErrors->Array.length > 0 {
-    | false => Ok(output)
+    | false => Tool.jsonResult(output, CoreEditFile.outputSchema)
     | true =>
       let errorMessages =
         allErrors
         ->Array.slice(~start=0, ~end=5)
         ->Array.map(entry => entry.message)
         ->Array.join("\n")
-      Ok({
-        ...output,
-        message: output.message ++
-        `\n\nWarning: Dev server errors detected after edit:\n${errorMessages}`,
-      })
+      Tool.jsonResult(
+        {
+          ...output,
+          message: output.message ++
+          `\n\nWarning: Dev server errors detected after edit:\n${errorMessages}`,
+        },
+        CoreEditFile.outputSchema,
+      )
     }
   }
 }

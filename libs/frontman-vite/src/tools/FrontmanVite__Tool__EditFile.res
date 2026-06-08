@@ -13,7 +13,7 @@ type output = CoreEditFile.output
 let inputSchema = CoreEditFile.inputSchema
 let outputSchema = CoreEditFile.outputSchema
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   await EditFileWithLogCheck.execute(
     ctx,
     input,

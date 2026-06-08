@@ -70,7 +70,7 @@ let createFile = async (
   ~resolved: PathContext.resolveResult,
   ~content: string,
   ~displayPath: string,
-): Tool.toolResult<output> => {
+): result<output, string> => {
   try {
     let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
     await Fs.Promises.writeFile(resolved.resolvedPath, content)
@@ -90,7 +90,7 @@ let findAndReplace = async (
   ~newText: string,
   ~replaceAll: bool,
   ~displayPath: string,
-): Tool.toolResult<output> => {
+): result<output, string> => {
   try {
     let content = await Fs.Promises.readFile(resolved.resolvedPath)
     let coverageWarning = FileTracker.checkCoverage(resolved.resolvedPath, ~content, ~oldText)
@@ -125,7 +125,10 @@ let findAndReplace = async (
 
 // ── Execute ────────────────────────────────────────────────────────────
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
+  output,
+  string,
+> => {
   switch input.oldText == input.newText {
   | true => Error("oldText and newText must be different")
   | false =>
@@ -150,5 +153,12 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
         }
       }
     }
+  }
+}
+
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
+  switch await executeOutput(ctx, input) {
+  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

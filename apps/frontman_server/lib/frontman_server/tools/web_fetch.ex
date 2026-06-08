@@ -14,6 +14,8 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias ModelContextProtocol, as: MCP
+
   @chrome_ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " <>
                "AppleWebKit/537.36 (KHTML, like Gecko) " <>
                "Chrome/131.0.0.0 Safari/537.36"
@@ -94,6 +96,8 @@ defmodule FrontmanServer.Tools.WebFetch do
     with {:ok, url} <- validate_url(args),
          {:ok, content_type, body} <- fetch(url) do
       content_result(url, content_type, body, offset, limit)
+    else
+      {:error, reason} -> MCP.tool_result_error(reason)
     end
   end
 
@@ -255,8 +259,9 @@ defmodule FrontmanServer.Tools.WebFetch do
   end
 
   defp unsupported_content_error(content_type) do
-    {:error,
-     "Cannot fetch non-text content (#{content_type}). This tool only supports text-based URLs and supported image URLs."}
+    MCP.tool_result_error(
+      "Cannot fetch non-text content (#{content_type}). This tool only supports text-based URLs and supported image URLs."
+    )
   end
 
   # -- Content conversion -----------------------------------------------------
@@ -279,16 +284,9 @@ defmodule FrontmanServer.Tools.WebFetch do
     paginate(markdown, url, content_type, offset, limit)
   end
 
-  defp image_result(url, content_type, body) do
+  defp image_result(_url, content_type, body) do
     mime = media_type(content_type)
-
-    {:ok,
-     %{
-       "type" => "image",
-       "url" => url,
-       "content_type" => content_type,
-       "image" => "data:#{mime};base64,#{Base.encode64(body)}"
-     }}
+    MCP.tool_result_image(Base.encode64(body), mime)
   end
 
   defp convert_to_markdown(body, content_type) do
@@ -303,15 +301,16 @@ defmodule FrontmanServer.Tools.WebFetch do
     total = length(lines)
     sliced = lines |> Enum.drop(offset) |> Enum.take(limit)
 
-    {:ok,
-     %{
-       "content" => Enum.join(sliced, "\n"),
-       "url" => url,
-       "content_type" => content_type,
-       "start_line" => offset,
-       "lines_returned" => length(sliced),
-       "total_lines" => total
-     }}
+    result = %{
+      "content" => Enum.join(sliced, "\n"),
+      "url" => url,
+      "content_type" => content_type,
+      "start_line" => offset,
+      "lines_returned" => length(sliced),
+      "total_lines" => total
+    }
+
+    MCP.tool_result_json(result)
   end
 
   # -- URL validation ---------------------------------------------------------

@@ -12,6 +12,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias ModelContextProtocol, as: MCP
+
   setup %{scope: scope} do
     Sentry.Test.setup_sentry(dedup_events: false)
 
@@ -31,7 +33,10 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       # Send directly to the channel process (not via PubSub, which also delivers
       # the raw message to the test process and blocks assert_push)
       tool_result =
-        tool_result("call_status_#{:rand.uniform(1_000_000)}", "search_codebase", "Search failed",
+        tool_result(
+          "call_status_#{:rand.uniform(1_000_000)}",
+          "search_codebase",
+          MCP.tool_result_error("Search failed"),
           is_error: true
         )
 
@@ -57,7 +62,11 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       turn_number: turn_number
     } do
       tool_result =
-        tool_result("call_success_#{:rand.uniform(1_000_000)}", "search_codebase", "[]")
+        tool_result(
+          "call_success_#{:rand.uniform(1_000_000)}",
+          "search_codebase",
+          MCP.tool_result_text("[]")
+        )
 
       send(socket.channel_pid, {:interaction, tool_result, turn_number})
 

@@ -11,6 +11,7 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
+  alias ModelContextProtocol, as: MCP
 
   setup do
     scope = user_scope_fixture()
@@ -139,10 +140,12 @@ defmodule FrontmanServer.TasksTest do
       assert [
                %Interaction.ToolResult{
                  tool_call_id: "read_1",
-                 result: "Interrupted by restart",
+                 result: result,
                  is_error: true
                }
              ] = Enum.filter(task.interactions, &match?(%Interaction.ToolResult{}, &1))
+
+      assert result == MCP.tool_result_error("Interrupted by restart")
 
       assert {:ok, ^turn_number, [%Interaction.ToolCall{tool_call_id: "question_1"}]} =
                Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
@@ -252,13 +255,13 @@ defmodule FrontmanServer.TasksTest do
       {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, tc)
 
       {:ok, _, _} =
-        Tasks.resolve_tool_request(
+        resolve_tool(
           scope,
           task_id,
           %{id: tool_call_id, name: "calculator"},
-          "4",
+          MCP.tool_result_text("4"),
           false,
-          turn_number: turn_number
+          turn_number
         )
 
       {:ok, _} = Tasks.agent_replied(scope, task_id, turn_number, "The answer is 4.")
@@ -372,37 +375,6 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "resolve_tool_request/5" do
-    test "creates tool result interaction", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-
-      tool_call_data = %{id: "call_123", name: "calculator"}
-
-      {:ok, interaction, _status} =
-        Tasks.resolve_tool_request(scope, task_id, tool_call_data, 2, false,
-          turn_number: turn_number
-        )
-
-      assert interaction.result == 2
-      assert interaction.is_error == false
-      assert interaction.tool_call_id == "call_123"
-    end
-
-    test "creates error tool result", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-
-      tool_call_data = %{id: "call_456", name: "failing_tool"}
-
-      {:ok, interaction, _status} =
-        Tasks.resolve_tool_request(scope, task_id, tool_call_data, "error message", true,
-          turn_number: turn_number
-        )
-
-      assert interaction.is_error == true
-      assert interaction.result == "error message"
-    end
-
     test "rejects duplicate tool result for the same tool_call_id", %{scope: scope} do
       task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
@@ -410,18 +382,29 @@ defmodule FrontmanServer.TasksTest do
       tool_call_data = %{id: "call_dedup", name: "some_tool"}
 
       {:ok, _first, _status} =
-        Tasks.resolve_tool_request(scope, task_id, tool_call_data, "result1", false,
-          turn_number: turn_number
+        resolve_tool(
+          scope,
+          task_id,
+          tool_call_data,
+          MCP.tool_result_text("result1"),
+          false,
+          turn_number
         )
 
       assert {:error, %Ecto.Changeset{}} =
-               Tasks.resolve_tool_request(scope, task_id, tool_call_data, "result2", false,
-                 turn_number: turn_number
+               resolve_tool(
+                 scope,
+                 task_id,
+                 tool_call_data,
+                 MCP.tool_result_text("result2"),
+                 false,
+                 turn_number
                )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
-      assert [%Tasks.Interaction.ToolResult{result: "result1"}] = tool_results
+      assert [%Tasks.Interaction.ToolResult{result: result}] = tool_results
+      assert result == MCP.tool_result_text("result1")
     end
   end
 
@@ -441,8 +424,13 @@ defmodule FrontmanServer.TasksTest do
       tool_call_data = %{id: "tc_1", name: "test_tool"}
 
       {:ok, _, _} =
-        Tasks.resolve_tool_request(scope, task_id, tool_call_data, "result", false,
-          turn_number: turn_number
+        resolve_tool(
+          scope,
+          task_id,
+          tool_call_data,
+          MCP.tool_result_text("result"),
+          false,
+          turn_number
         )
 
       sequences = db_sequences(task_id)
@@ -747,13 +735,13 @@ defmodule FrontmanServer.TasksTest do
         ]
       }
 
-      Tasks.resolve_tool_request(
+      resolve_tool(
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        write_result,
+        MCP.tool_result_structured(write_result),
         false,
-        turn_number: turn_number
+        turn_number
       )
 
       {:ok, todos} = Tasks.list_todos(scope, task_id)
@@ -783,13 +771,13 @@ defmodule FrontmanServer.TasksTest do
         ]
       }
 
-      Tasks.resolve_tool_request(
+      resolve_tool(
         scope,
         task_a,
         %{id: "c1", name: "todo_write"},
-        write_result,
+        MCP.tool_result_structured(write_result),
         false,
-        turn_number: turn_number
+        turn_number
       )
 
       {:ok, todos_a} = Tasks.list_todos(scope, task_a)
@@ -846,5 +834,11 @@ defmodule FrontmanServer.TasksTest do
       assert length(messages) == 1
       assert SwarmAi.Message.role(hd(messages)) == :user
     end
+  end
+
+  defp resolve_tool(scope, task_id, tool_call_data, result, is_error, turn_number) do
+    Tasks.resolve_tool_request(scope, task_id, tool_call_data, result, is_error,
+      turn_number: turn_number
+    )
   end
 end

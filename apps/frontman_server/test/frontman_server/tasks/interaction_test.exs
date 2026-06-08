@@ -10,6 +10,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     UserMessage
   }
 
+  alias ModelContextProtocol, as: MCP
+
   # ---------------------------------------------------------------------------
   # UserMessage.new/1
   # ---------------------------------------------------------------------------
@@ -214,22 +216,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                metadata: %{response_id: "resp_123", phase: "tool_call"}
              } = swarm_msg
     end
-
-    test "converts tool result to Swarm tool message with JSON text" do
-      [swarm_msg] =
-        Interaction.to_swarm_messages([
-          tool_result("call_123", "calculator", %{"answer" => 42})
-        ])
-
-      assert %SwarmAi.Message.Tool{
-               tool_call_id: "call_123",
-               name: "calculator",
-               content: [%SwarmAi.Message.ContentPart{type: :text, text: text}],
-               metadata: %{}
-             } = swarm_msg
-
-      assert Jason.decode!(text) == %{"answer" => 42}
-    end
   end
 
   # ---------------------------------------------------------------------------
@@ -254,7 +240,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "converts tool results to tool messages" do
-      interaction = tool_result("call_123", "calculator", 42)
+      interaction = tool_result("call_123", "calculator", MCP.tool_result_text("42"))
+
       messages = Interaction.to_swarm_messages([interaction])
 
       assert [msg] = messages
@@ -275,7 +262,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           "tool_calls" => [%{"id" => "c1", "name" => "calc", "arguments" => %{}}]
         }),
         tool_call("c1", "calc"),
-        tool_result("c1", "calc", 4),
+        tool_result("c1", "calc", MCP.tool_result_text("4")),
         agent_resp("The answer is 4")
       ]
 
@@ -494,7 +481,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           "tool_calls" => [db_tool_call("toolu_read_123", "read_file", ~s({"path": "README.md"}))]
         }),
         tool_call("toolu_read_123", "read_file", %{"path" => "README.md"}),
-        tool_result("toolu_read_123", "read_file", "# README\nThis is a readme file."),
+        tool_result(
+          "toolu_read_123",
+          "read_file",
+          MCP.tool_result_text("# README\nThis is a readme file.")
+        ),
         agent_resp("The file contains a README header.")
       ]
 
@@ -593,12 +584,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "encodes ToolResult to JSON" do
-      tr = tool_result("call_123", "calculator", 42)
+      tr = tool_result("call_123", "calculator", MCP.tool_result_text("42"))
 
       decoded = tr |> Jason.encode!() |> Jason.decode!()
 
       assert decoded["type"] == "tool_result"
-      assert decoded["result"] == 42
+      assert decoded["result"] == MCP.tool_result_text("42")
       assert decoded["is_error"] == false
     end
   end

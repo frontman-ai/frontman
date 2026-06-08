@@ -113,7 +113,7 @@ defmodule FrontmanServer.Tasks.Todos do
 
   defp todo_write_result?(_), do: false
 
-  defp parse_write_result(%{"todos" => todos}) when is_list(todos) do
+  defp parse_write_result(%{"structuredContent" => %{"todos" => todos}}) when is_list(todos) do
     todos
     |> Enum.reduce(%{}, fn raw, acc ->
       case to_todo(raw) do
@@ -122,8 +122,6 @@ defmodule FrontmanServer.Tasks.Todos do
       end
     end)
   end
-
-  defp parse_write_result(_), do: %{}
 
   defp to_todo(%Todo{} = todo), do: {:ok, todo}
 

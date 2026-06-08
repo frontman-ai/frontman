@@ -119,12 +119,12 @@ let rec walkUpDirectories = async (current: string, acc: array<instructionFile>)
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   // Validate startPath is under sourceRoot (prevents starting from arbitrary locations)
   let inputPath = input.startPath->Option.getOr(".")
 
   switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath) {
-  | Error(msg) => Error(msg)
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   | Ok(safePath) =>
     try {
       // Start from the validated path and walk up to find instruction files
@@ -132,11 +132,12 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
       // for finding CLAUDE.md files in parent directories
       let startPath = SafePath.toString(safePath)
       let results = await walkUpDirectories(startPath, [])
-      Ok(results)
+      Tool.jsonResult(results, outputSchema)
     } catch {
     | exn =>
-      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Error(`Failed to load agent instructions: ${msg}`)
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      Tool.MCP.CallToolResult.makeError(`Failed to load agent instructions: ${msg}`)
     }
   }
 }

@@ -15,13 +15,13 @@ let progressEvent = (~progress: string): string => {
 }
 
 // Send result event
-let resultEvent = (result: MCP.callToolResult): string => {
+let resultEvent = (result: MCP.CallToolResult.t): string => {
   let data = result->S.reverseConvertToJsonOrThrow(MCP.callToolResultSchema)->JSON.stringify
   formatEvent(~eventType="result", ~data)
 }
 
 // Send error event
-let errorEvent = (result: MCP.callToolResult): string => {
+let errorEvent = (result: MCP.CallToolResult.t): string => {
   let data = result->S.reverseConvertToJsonOrThrow(MCP.callToolResultSchema)->JSON.stringify
   formatEvent(~eventType="error", ~data)
 }

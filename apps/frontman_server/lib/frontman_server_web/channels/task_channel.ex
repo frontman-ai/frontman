@@ -380,17 +380,15 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_tool_call_response(tool_call, result, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
-    text_result = MCP.extract_content_text(result)
-    parsed_result = MCP.parse_tool_result(text_result)
     is_error = MCP.error?(result)
     meta = result["_meta"] || %{}
 
     status =
       if is_error, do: ACP.tool_call_status_failed(), else: ACP.tool_call_status_completed()
 
-    Logger.info("Tool #{tool_call.tool_name} #{status}: #{text_result}")
+    Logger.info("Tool #{tool_call.tool_name} #{status}")
 
-    content = ACP.Content.from_tool_result(text_result)
+    content = ACP.Content.from_tool_result(result)
     notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, status, content)
     push(socket, @acp_message, notification)
 
@@ -399,7 +397,7 @@ defmodule FrontmanServerWeb.TaskChannel do
              scope,
              task_id,
              %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-             parsed_result,
+             result,
              is_error
            ) do
         {:ok, _interaction, :notified} ->
@@ -557,7 +555,7 @@ defmodule FrontmanServerWeb.TaskChannel do
            scope,
            task_id,
            %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-           error_message,
+           ModelContextProtocol.tool_result_error(error_message),
            true
          ) do
       {:ok, _interaction, _executor_status} ->

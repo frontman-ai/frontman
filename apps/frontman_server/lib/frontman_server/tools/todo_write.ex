@@ -16,6 +16,7 @@ defmodule FrontmanServer.Tools.TodoWrite do
   @behaviour FrontmanServer.Tools.Backend
 
   alias FrontmanServer.Tasks.Todos.Todo
+  alias ModelContextProtocol, as: MCP
 
   @impl true
   def name, do: "todo_write"
@@ -107,10 +108,10 @@ defmodule FrontmanServer.Tools.TodoWrite do
 
     case validate_and_build_todos(raw_todos) do
       {:ok, todos} ->
-        {:ok, %{"todos" => Enum.map(todos, &serialize_todo/1)}}
+        MCP.tool_result_structured(%{"todos" => Enum.map(todos, &serialize_todo/1)})
 
       {:error, reason} ->
-        {:error, reason}
+        MCP.tool_result_error(reason)
     end
   end
 

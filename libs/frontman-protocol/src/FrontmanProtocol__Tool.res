@@ -1,6 +1,15 @@
 // Tool module types for browser and server tools
 
-type toolResult<'a> = result<'a, string>
+module MCP = FrontmanProtocol__MCP
+
+let textResult = MCP.CallToolResult.makeText
+
+let jsonResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
+  let json = value->S.reverseConvertToJsonOrThrow(schema)
+  MCP.CallToolResult.makeText(JSON.stringify(json))
+}
+
+let imageResult = MCP.CallToolResult.makeImage
 
 // Execution context for server-side tools
 type serverExecutionContext = {
@@ -57,7 +66,7 @@ module type BrowserTool = {
   type output
   let inputSchema: S.t<input>
   let outputSchema: S.t<output>
-  let execute: (input, ~taskId: string, ~toolCallId: string) => promise<toolResult<output>>
+  let execute: (input, ~taskId: string, ~toolCallId: string) => promise<MCP.CallToolResult.t>
   //some tools we want to execute manually, and never have the llm see them
   let visibleToAgent: bool
   let executionMode: executionMode
@@ -71,7 +80,7 @@ module type ServerTool = {
   type output
   let inputSchema: S.t<input>
   let outputSchema: S.t<output>
-  let execute: (serverExecutionContext, input) => promise<toolResult<output>>
+  let execute: (serverExecutionContext, input) => promise<MCP.CallToolResult.t>
   //some tools we want to execute manually, and never have the llm see them
   let visibleToAgent: bool
 }

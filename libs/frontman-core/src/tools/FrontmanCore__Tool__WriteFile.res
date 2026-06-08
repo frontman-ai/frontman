@@ -56,14 +56,17 @@ let writeContent = (resolvedPath: string, content: string, encoding: option<[#ba
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch (input.content, input.image_ref) {
-  | (None, None) => Error("Either content or image_ref must be provided")
-  | (Some(_), Some(_)) => Error("Provide either content or image_ref, not both")
-  | (None, Some(_)) => Error("image_ref must be resolved to content before execution")
+  | (None, None) =>
+    Tool.MCP.CallToolResult.makeError("Either content or image_ref must be provided")
+  | (Some(_), Some(_)) =>
+    Tool.MCP.CallToolResult.makeError("Provide either content or image_ref, not both")
+  | (None, Some(_)) =>
+    Tool.MCP.CallToolResult.makeError("image_ref must be resolved to content before execution")
   | (Some(content), None) =>
     switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
-    | Error(err) => Error(PathContext.formatError(err))
+    | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
     | Ok(resolved) =>
       // Guard: existing files must have been read first and not be stale
       let fileExists = try {
@@ -77,7 +80,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
       | true => await FileTracker.assertEditSafe(resolved.resolvedPath)
       }
       switch guardResult {
-      | Error(msg) => Error(msg)
+      | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
       | Ok() =>
         try {
           let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
@@ -88,15 +91,21 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
             ~mtimeMs=Fs.mtimeMs(stats),
             ~size=Fs.size(stats),
           )
-          Ok({
-            _context: {
-              sourceRoot: resolved.sourceRoot,
-              resolvedPath: resolved.resolvedPath,
-              relativePath: resolved.relativePath,
+          Tool.jsonResult(
+            {
+              _context: {
+                sourceRoot: resolved.sourceRoot,
+                resolvedPath: resolved.resolvedPath,
+                relativePath: resolved.relativePath,
+              },
             },
-          })
+            outputSchema,
+          )
         } catch {
-        | exn => Error(`Failed to write file ${input.path}: ${ExnUtils.message(exn)}`)
+        | exn =>
+          Tool.MCP.CallToolResult.makeError(
+            `Failed to write file ${input.path}: ${ExnUtils.message(exn)}`,
+          )
         }
       }
     }

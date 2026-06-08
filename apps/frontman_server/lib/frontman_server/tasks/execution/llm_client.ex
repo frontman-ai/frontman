@@ -84,6 +84,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
     preflight_opts = [
       images_supported: images_supported?(client.model),
+      llm_vendor: Providers.model_llm_vendor_name(client.model),
       max_image_dimension: Providers.max_image_dimension(provider)
     ]
 

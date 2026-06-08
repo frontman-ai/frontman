@@ -27,52 +27,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert LLMRequestPreflight.run([]) == []
     end
 
-    test "expands image-producing tool result JSON into image content" do
-      png_data_url = "data:image/png;base64,#{Base.encode64("png-bytes")}"
-      jpeg_data_url = "data:image/jpeg;base64,#{Base.encode64("jpeg-bytes")}"
-
-      messages = [
-        %Message.Assistant{
-          content: [],
-          tool_calls: [
-            %SwarmAi.ToolCall{id: "tc-screenshot", name: "mcp_take_screenshot", arguments: "{}"},
-            %SwarmAi.ToolCall{id: "tc-web-fetch", name: "web_fetch", arguments: "{}"},
-            %SwarmAi.ToolCall{id: "tc-get-image", name: "get_tool_result", arguments: "{}"},
-            %SwarmAi.ToolCall{id: "tc-get-screenshot", name: "get_tool_result", arguments: "{}"}
-          ]
-        },
-        %Message.Tool{
-          name: "mcp_take_screenshot",
-          tool_call_id: "tc-screenshot",
-          content: [ContentPart.text(Jason.encode!(%{"screenshot" => png_data_url}))]
-        },
-        %Message.Tool{
-          name: "web_fetch",
-          tool_call_id: "tc-web-fetch",
-          content: [ContentPart.text(Jason.encode!(%{"image" => jpeg_data_url}))]
-        },
-        %Message.Tool{
-          name: "get_tool_result",
-          tool_call_id: "tc-get-image",
-          content: [
-            ContentPart.text(Jason.encode!(%{"type" => "image", "image" => jpeg_data_url}))
-          ]
-        },
-        %Message.Tool{
-          name: "get_tool_result",
-          tool_call_id: "tc-get-screenshot",
-          content: [ContentPart.text(Jason.encode!(%{"screenshot" => png_data_url}))]
-        }
-      ]
-
-      preflighted = LLMRequestPreflight.run(messages)
-
-      assert Enum.at(preflighted, 1).content == [ContentPart.image("png-bytes", "image/png")]
-      assert Enum.at(preflighted, 2).content == [ContentPart.image("jpeg-bytes", "image/jpeg")]
-      assert Enum.at(preflighted, 3).content == [ContentPart.image("jpeg-bytes", "image/jpeg")]
-      assert Enum.at(preflighted, 4).content == [ContentPart.image("png-bytes", "image/png")]
-    end
-
     test "leaves live non-image tool results unchanged" do
       messages = [
         %Message.Tool{
@@ -308,29 +262,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
         assert text =~ "[Output truncated:"
         assert text =~ "get_tool_result"
       end)
-    end
-
-    test "strips recovered get_tool_result images when images are unsupported" do
-      data_url = "data:image/png;base64,#{Base.encode64("image-bytes")}"
-
-      messages = [
-        %Message.User{content: [ContentPart.text("recover screenshot")]},
-        %Message.Assistant{
-          content: [ContentPart.text("")],
-          tool_calls: [%SwarmAi.ToolCall{id: "tc-get", name: "get_tool_result", arguments: "{}"}]
-        },
-        %Message.Tool{
-          name: "get_tool_result",
-          tool_call_id: "tc-get",
-          content: [ContentPart.text(Jason.encode!(%{"screenshot" => data_url}))]
-        }
-      ]
-
-      preflighted = LLMRequestPreflight.run(messages, images_supported: false)
-
-      [part] = Enum.at(preflighted, 2).content
-      assert part.type == :text
-      assert part.text =~ "Image omitted"
     end
 
     test "strips unsupported images before provider dimension checks" do

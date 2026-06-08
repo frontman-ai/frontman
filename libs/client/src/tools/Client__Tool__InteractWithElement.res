@@ -4,7 +4,6 @@
 
 S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
-type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.interactWithElement
 let visibleToAgent = true
@@ -154,19 +153,23 @@ let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): 
     }
   }
 
-let errorResult = (error: string, ~matchCount: option<int>=?): result<output, _> => Ok({
-  success: false,
-  interactedElement: None,
-  action: None,
-  matchCount,
-  error: Some(error),
-})
+let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallToolResult.t =>
+  Tool.jsonResult(
+    {
+      success: false,
+      interactedElement: None,
+      action: None,
+      matchCount,
+      error: Some(error),
+    },
+    outputSchema,
+  )
 
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
-): toolResult<output> => {
+): Tool.MCP.CallToolResult.t => {
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))
 
@@ -187,13 +190,16 @@ let execute = async (
           )
         | Resolved({element: Some(el), matchCount}) =>
           performAction(el, action)
-          Ok({
-            success: true,
-            interactedElement: Some(Client__Tool__ElementResolver.describeElement(el)),
-            action: Some(actionToString(action)),
-            matchCount: Some(matchCount),
-            error: None,
-          })
+          Tool.jsonResult(
+            {
+              success: true,
+              interactedElement: Some(Client__Tool__ElementResolver.describeElement(el)),
+              action: Some(actionToString(action)),
+              matchCount: Some(matchCount),
+              error: None,
+            },
+            outputSchema,
+          )
         }
       } catch {
       | exn => errorResult(Client__Tool__ElementResolver.exnMessage(exn))

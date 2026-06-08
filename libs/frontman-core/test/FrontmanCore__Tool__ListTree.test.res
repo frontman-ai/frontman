@@ -47,7 +47,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     await writeFile(dir, "tsconfig.json", "{}")
     await initGitRepo(dir)
 
-    let result = await ListTree.execute(makeCtx(dir), {})
+    let result = await ListTree.executeOutput(makeCtx(dir), {})
 
     switch result {
     | Ok(output) => {
@@ -84,7 +84,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     await writeFile(dir, "packages/shared/src/index.ts", "")
     await initGitRepo(dir)
 
-    let result = await ListTree.execute(makeCtx(dir), {})
+    let result = await ListTree.executeOutput(makeCtx(dir), {})
 
     switch result {
     | Ok(output) => {
@@ -110,22 +110,16 @@ describe("ListTree Tool - execute (integration)", _t => {
 
   testAsync("should detect turborepo", async t => {
     let dir = await makeTmpDir()
-    await writeFile(
-      dir,
-      "package.json",
-      `{"name": "turbo-monorepo", "workspaces": ["apps/*"]}`,
-    )
+    await writeFile(dir, "package.json", `{"name": "turbo-monorepo", "workspaces": ["apps/*"]}`)
     await writeFile(dir, "turbo.json", `{"pipeline": {}}`)
     await writeFile(dir, "apps/web/package.json", `{"name": "web"}`)
     await writeFile(dir, "apps/web/src/index.ts", "")
     await initGitRepo(dir)
 
-    let result = await ListTree.execute(makeCtx(dir), {})
+    let result = await ListTree.executeOutput(makeCtx(dir), {})
 
     switch result {
-    | Ok(output) => {
-        t->expect(output.monorepoType)->Expect.toBe(Some("turborepo"))
-      }
+    | Ok(output) => t->expect(output.monorepoType)->Expect.toBe(Some("turborepo"))
     | Error(msg) => failwith(`ListTree failed: ${msg}`)
     }
 
@@ -139,7 +133,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     await initGitRepo(dir)
 
     // Depth 1 — should only show top-level
-    let result1 = await ListTree.execute(makeCtx(dir), {depth: ?Some(1)})
+    let result1 = await ListTree.executeOutput(makeCtx(dir), {depth: ?Some(1)})
     switch result1 {
     | Ok(output) => {
         t->expect(output.tree->String.includes("a/"))->Expect.toBe(true)
@@ -150,7 +144,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     }
 
     // Depth 3 — should show a/b/c/ but not d/
-    let result3 = await ListTree.execute(makeCtx(dir), {depth: ?Some(3)})
+    let result3 = await ListTree.executeOutput(makeCtx(dir), {depth: ?Some(3)})
     switch result3 {
     | Ok(output) => {
         t->expect(output.tree->String.includes("c/"))->Expect.toBe(true)
@@ -174,7 +168,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     let _ = await ChildProcess.execWithOptions("git init", {cwd: dir})
     let _ = await ChildProcess.execWithOptions("git add src/index.ts", {cwd: dir})
 
-    let result = await ListTree.execute(makeCtx(dir), {})
+    let result = await ListTree.executeOutput(makeCtx(dir), {})
 
     switch result {
     | Ok(output) => {
@@ -196,7 +190,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     await writeFile(dir, "packages/shared/src/index.ts", "")
     await initGitRepo(dir)
 
-    let result = await ListTree.execute(makeCtx(dir), {path: ?Some("apps/web")})
+    let result = await ListTree.executeOutput(makeCtx(dir), {path: ?Some("apps/web")})
 
     switch result {
     | Ok(output) => {
@@ -221,7 +215,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     await initGitRepo(dir)
 
     // Pass a file path — ListTree should use its parent directory
-    let result = await ListTree.execute(makeCtx(dir), {path: ?Some("src/index.ts")})
+    let result = await ListTree.executeOutput(makeCtx(dir), {path: ?Some("src/index.ts")})
 
     switch result {
     | Ok(output) => {
@@ -243,7 +237,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     await writeFile(dir, "beta.ts", "")
     await initGitRepo(dir)
 
-    let result = await ListTree.execute(makeCtx(dir), {})
+    let result = await ListTree.executeOutput(makeCtx(dir), {})
 
     switch result {
     | Ok(output) => {
@@ -263,17 +257,13 @@ describe("ListTree Tool - execute (integration)", _t => {
 
   testAsync("should detect pnpm workspaces", async t => {
     let dir = await makeTmpDir()
-    await writeFile(
-      dir,
-      "package.json",
-      `{"name": "pnpm-mono", "workspaces": ["packages/*"]}`,
-    )
+    await writeFile(dir, "package.json", `{"name": "pnpm-mono", "workspaces": ["packages/*"]}`)
     await writeFile(dir, "pnpm-workspace.yaml", "packages:\n  - 'packages/*'\n")
     await writeFile(dir, "packages/ui/package.json", `{"name": "@mono/ui"}`)
     await writeFile(dir, "packages/ui/src/index.ts", "")
     await initGitRepo(dir)
 
-    let result = await ListTree.execute(makeCtx(dir), {})
+    let result = await ListTree.executeOutput(makeCtx(dir), {})
 
     switch result {
     | Ok(output) => {

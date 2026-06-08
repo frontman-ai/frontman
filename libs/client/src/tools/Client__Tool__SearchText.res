@@ -4,7 +4,6 @@
 
 S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
-type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.searchText
 let visibleToAgent = true
@@ -68,21 +67,29 @@ type output = {
 let defaultMaxResults = 25
 let defaultContextChars = 80
 
-let errorResult = (~error: string): result<output, _> => Ok({
-  success: false,
-  matches: None,
-  totalCount: None,
-  truncated: None,
-  error: Some(error),
-})
+let errorResult = (~error: string): Tool.MCP.CallToolResult.t =>
+  Tool.jsonResult(
+    {
+      success: false,
+      matches: None,
+      totalCount: None,
+      truncated: None,
+      error: Some(error),
+    },
+    outputSchema,
+  )
 
-let successResult = (~matches, ~totalCount, ~truncated): result<output, _> => Ok({
-  success: true,
-  matches: Some(matches),
-  totalCount: Some(totalCount),
-  truncated: Some(truncated),
-  error: None,
-})
+let successResult = (~matches, ~totalCount, ~truncated): Tool.MCP.CallToolResult.t =>
+  Tool.jsonResult(
+    {
+      success: true,
+      matches: Some(matches),
+      totalCount: Some(totalCount),
+      truncated: Some(truncated),
+      error: None,
+    },
+    outputSchema,
+  )
 
 // Build a context snippet around the first occurrence of `query` in `text`.
 // Wraps the matched portion in >> << markers.
@@ -120,7 +127,7 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
-): toolResult<output> => {
+): Tool.MCP.CallToolResult.t => {
   switch input.query->String.trim {
   | "" => errorResult(~error="Query string cannot be empty")
   | _ =>

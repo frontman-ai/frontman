@@ -6,6 +6,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Todos
+  alias ModelContextProtocol, as: MCP
 
   setup do
     scope = user_scope_fixture()
@@ -52,7 +53,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        write_result,
+        MCP.tool_result_structured(write_result),
         false,
         turn_number: turn_number
       )
@@ -99,7 +100,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        first_result,
+        MCP.tool_result_structured(first_result),
         false,
         turn_number: turn_number
       )
@@ -108,7 +109,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
-        second_result,
+        MCP.tool_result_structured(second_result),
         false,
         turn_number: turn_number
       )
@@ -145,7 +146,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        good_result,
+        MCP.tool_result_structured(good_result),
         false,
         turn_number: turn_number
       )
@@ -175,7 +176,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        %{"todos" => []},
+        MCP.tool_result_structured(%{"todos" => []}),
         false,
         turn_number: turn_number
       )

@@ -34,6 +34,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.Backend
+  alias ModelContextProtocol, as: MCP
+  alias SwarmAi.Message.ContentPart
   alias SwarmAi.ToolExecution
 
   @doc """
@@ -90,13 +92,20 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @doc false
   def run_backend_tool(%Scope{} = scope, module, task_id, turn_number, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
-    case execute_backend_tool(scope, module, tool_call, task_id, turn_number) do
-      {:ok, content} ->
-        SwarmAi.ToolResult.make(tool_call.id, content, false)
+    %{"content" => content, "isError" => is_error} =
+      execute_backend_tool(scope, module, tool_call, task_id, turn_number)
 
-      {:error, reason} ->
-        SwarmAi.ToolResult.make(tool_call.id, to_string(reason), true)
-    end
+    SwarmAi.ToolResult.make(
+      tool_call.id,
+      Enum.map(content, fn
+        %{"type" => "text", "text" => text} ->
+          ContentPart.text(text)
+
+        %{"type" => "image", "data" => data, "mimeType" => mime_type} ->
+          ContentPart.image(Base.decode64!(data), mime_type)
+      end),
+      is_error
+    )
   end
 
   @doc false
@@ -126,6 +135,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     Logger.error("Backend tool timeout", metadata)
 
     persist_error_tool_result(scope, task_id, turn_number, tool_call, timeout_msg)
+    :ok
   end
 
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :cancelled)
@@ -136,6 +146,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     Logger.info("ToolExecutor: #{cancel_msg}")
 
     persist_error_tool_result(scope, task_id, turn_number, tool_call, cancel_msg)
+    :ok
   end
 
   def handle_timeout(_scope, _task_id, turn_number, :pause_agent, _tool_call, :triggered)
@@ -152,6 +163,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
 
     persist_error_tool_result(scope, task_id, turn_number, tool_call, cancel_msg)
+    :ok
   end
 
   # --- Internal ---
@@ -224,7 +236,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         Logger.error("Tool argument parse failure", metadata)
 
         persist_error_tool_result(scope, task_id, turn_number, tool_call, reason)
-        {:error, reason}
 
       {:ok, args} ->
         do_run_backend_tool(
@@ -250,59 +261,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     handle_backend_outcome(outcome, scope, tool_call, task_id, turn_number)
   end
 
-  defp handle_backend_outcome({:returned, {:ok, value}}, scope, tool_call, task_id, turn_number) do
-    case Tasks.resolve_tool_request(scope, task_id, tool_call, value, false,
-           turn_number: turn_number
-         ) do
-      {:ok, _interaction, _executor_status} ->
-        {:ok, encode_result(value)}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        reason =
-          "Tool result not JSON-serializable: #{inspect(changeset.errors)}. Tool: #{tool_call.name}"
-
-        metadata = [
-          error_type: "tool_persist_error",
-          tool_name: tool_call.name,
-          tool_call_id: tool_call.id,
-          task_id: task_id,
-          reason: reason
-        ]
-
-        Logger.error("Tool execution failed", metadata)
-
-        persist_error_tool_result(scope, task_id, turn_number, tool_call, reason)
-        {:error, reason}
-
-      {:error, reason} ->
-        Logger.error(
-          "ToolExecutor: Failed to persist tool result for #{tool_call.name}: #{inspect(reason)}"
-        )
-
-        {:error, inspect(reason)}
-    end
-  end
-
   defp handle_backend_outcome(
-         {:returned, {:error, reason}},
+         {:returned, %{"content" => content} = result},
          scope,
          tool_call,
          task_id,
          turn_number
-       ) do
-    metadata = [
-      error_type: "tool_soft_error",
-      tool_name: tool_call.name,
-      tool_call_id: tool_call.id,
-      task_id: task_id,
-      reason: inspect(reason)
-    ]
-
-    Logger.error("Tool execution failed", metadata)
-
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, reason)
-    {:error, reason}
-  end
+       )
+       when is_list(content),
+       do: persist_tool_result(scope, task_id, turn_number, tool_call, result)
 
   defp handle_backend_outcome({:crashed, reason}, scope, tool_call, task_id, turn_number) do
     reason_str = inspect(reason)
@@ -318,25 +285,18 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     Logger.error("Tool execution failed", metadata)
 
     persist_error_tool_result(scope, task_id, turn_number, tool_call, reason_str)
-    {:error, reason_str}
   end
 
   defp persist_error_tool_result(scope, task_id, turn_number, tool_call, reason) do
-    case Tasks.resolve_tool_request(scope, task_id, tool_call, reason, true,
-           turn_number: turn_number
-         ) do
-      {:ok, _interaction, _executor_status} ->
-        :ok
-
-      {:error, reason} ->
-        Logger.error(
-          "ToolExecutor: Failed to persist error tool result for #{tool_call.name}: #{inspect(reason)}"
-        )
-
-        :ok
-    end
+    persist_tool_result(scope, task_id, turn_number, tool_call, MCP.tool_result_error(reason))
   end
 
-  defp encode_result(value) when is_binary(value), do: value
-  defp encode_result(value), do: Jason.encode!(value)
+  defp persist_tool_result(scope, task_id, turn_number, tool_call, result) do
+    {:ok, _interaction, _executor_status} =
+      Tasks.resolve_tool_request(scope, task_id, tool_call, result, MCP.error?(result),
+        turn_number: turn_number
+      )
+
+    result
+  end
 end

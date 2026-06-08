@@ -229,7 +229,10 @@ let executeGitLsFiles = async (~pattern: string, ~searchPath: string, ~maxResult
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
+  output,
+  string,
+> => {
   // resolveSearchDir ensures we always get a directory, even if the agent
   // passes a file path (e.g. "src/Button.tsx" → "src/").
   let requestedSearchPath = await PathContext.resolveSearchDir(
@@ -286,5 +289,12 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
     )
     Ok(output)
   | Error(_) as err => err
+  }
+}
+
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
+  switch await executeOutput(ctx, input) {
+  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

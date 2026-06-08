@@ -77,11 +77,7 @@ let handleToolCall = async (
 
   switch request {
   | Error(msg) =>
-    let errorResult: MCP.callToolResult = {
-      content: [{type_: MCP.Text, text: `Invalid request: ${msg}`}],
-      isError: Some(true),
-      _meta: MCP.emptyMeta,
-    }
+    let errorResult = MCP.CallToolResult.makeError(`Invalid request: ${msg}`)
     let json = errorResult->S.reverseConvertToJsonOrThrow(MCP.callToolResultSchema)
     WebAPI.Response.jsonR(~data=json, ~init={status: 400})
 
@@ -105,10 +101,12 @@ let handleToolCall = async (
         let _ =
           resultPromise
           ->Promise.then(result => {
-            let mcpResult = CoreServer.resultToMCP(result)
-            let eventData = switch mcpResult.isError {
-            | Some(true) => CoreSSE.errorEvent(mcpResult)
-            | _ => CoreSSE.resultEvent(mcpResult)
+            let eventData = switch result {
+            | CoreServer.Ok(mcpResult) => CoreSSE.resultEvent(mcpResult)
+            | CoreServer.ToolNotFound(_)
+            | CoreServer.InvalidInput(_)
+            | CoreServer.ExecutionError(_) =>
+              CoreSSE.errorEvent(CoreServer.resultToMCP(result))
             }
             controller->WebStreams.enqueue(encoder->WebStreams.encode(eventData))
             controller->WebStreams.close
@@ -120,11 +118,7 @@ let handleToolCall = async (
               ->JsExn.fromException
               ->Option.flatMap(JsExn.message)
               ->Option.getOr("Unknown error")
-            let errorResult: MCP.callToolResult = {
-              content: [{type_: MCP.Text, text: `Tool execution failed: ${msg}`}],
-              isError: Some(true),
-              _meta: MCP.emptyMeta,
-            }
+            let errorResult = MCP.CallToolResult.makeError(`Tool execution failed: ${msg}`)
             controller->WebStreams.enqueue(
               encoder->WebStreams.encode(CoreSSE.errorEvent(errorResult)),
             )
@@ -170,16 +164,11 @@ let handleResolveSourceLocation = async (
         parent: None,
       }
 
-      let resolved = await DOMElementToComponentSource.resolveSourceLocationInServer(
-        sourceLocation,
-      )
+      let resolved = await DOMElementToComponentSource.resolveSourceLocationInServer(sourceLocation)
 
       // Convert absolute path to relative path (relative to sourceRoot)
       // This ensures the agent can use the path directly with MCP tools
-      let relativeFile = PathContext.toRelativePath(
-        ~sourceRoot,
-        ~absolutePath=resolved.file,
-      )
+      let relativeFile = PathContext.toRelativePath(~sourceRoot, ~absolutePath=resolved.file)
 
       let responseJson: resolveSourceLocationResponse = {
         componentName: resolved.componentName,
@@ -197,10 +186,10 @@ let handleResolveSourceLocation = async (
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let json =
-        {error: "Failed to resolve source location", details: Some(msg)}->S.reverseConvertToJsonOrThrow(
-          errorResponseSchema,
-        )
+      let json = {
+        error: "Failed to resolve source location",
+        details: Some(msg),
+      }->S.reverseConvertToJsonOrThrow(errorResponseSchema)
       WebAPI.Response.jsonR(~data=json, ~init={status: 500})
     }
   }

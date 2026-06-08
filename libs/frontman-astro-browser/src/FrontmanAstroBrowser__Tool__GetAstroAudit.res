@@ -55,7 +55,8 @@ type output = {
   message: option<string>,
 }
 
-let emptyResult = (~message): Tool.toolResult<output> => Ok({audits: [], message: Some(message)})
+let emptyResult = (~message): Tool.MCP.CallToolResult.t =>
+  Tool.jsonResult({audits: [], message: Some(message)}, outputSchema)
 
 // Typed externals for Astro dev toolbar custom element APIs.
 // The audit data lives behind two shadow DOM layers, all mode: "open".
@@ -131,7 +132,7 @@ let convertAudit = (raw: rawAudit): auditEntry => {
   }
 }
 
-let extractAudits = (doc: WebAPI.DOMAPI.document): Tool.toolResult<output> => {
+let extractAudits = (doc: WebAPI.DOMAPI.document): Tool.MCP.CallToolResult.t => {
   // Layer 1: find astro-dev-toolbar
   let toolbar = doc->WebAPI.Document.querySelector("astro-dev-toolbar")->Null.toOption
   switch toolbar {
@@ -164,7 +165,11 @@ let extractAudits = (doc: WebAPI.DOMAPI.document): Tool.toolResult<output> => {
             let rawAudits = getAudits(auditEl)->Nullable.toOption->Option.getOr([])
             switch rawAudits->Array.length {
             | 0 => emptyResult(~message="No audit results found. The audit may not have run yet.")
-            | _ => Ok({audits: rawAudits->Array.map(convertAudit), message: None})
+            | _ =>
+              Tool.jsonResult(
+                {audits: rawAudits->Array.map(convertAudit), message: None},
+                outputSchema,
+              )
             }
           }
         }

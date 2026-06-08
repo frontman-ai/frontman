@@ -11,6 +11,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServerWeb.UserSocket
 
   alias FrontmanServer.Tasks.Interaction
+  alias ModelContextProtocol, as: MCP
 
   # --- Live execution chunk builders ---
 
@@ -683,136 +684,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "MCP tool result flows to waiting executor" do
-    @moduletag timeout: 30_000
-
-    setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
-      complete_mcp_handshake(socket, tools: [@mcp_get_logs_tool])
-      turn_number = start_turn_fixture(scope, task_id)
-      {:ok, socket: socket, task_id: task_id, scope: scope, turn_number: turn_number}
-    end
-
-    test "delivers tool response to executor regardless of initialization state", %{scope: scope} do
-      # Tool responses should always be delivered to waiting executors.
-      # This ensures agents can function even if tool calls happen early in the session.
-
-      {socket, fresh_task_id} = join_task_channel(scope)
-      turn_number = start_turn_fixture(scope, fresh_task_id)
-
-      # Drain the initialize request without responding - initialization is incomplete
-      assert_push("mcp:message", %{"id" => _init_request_id, "method" => "initialize"})
-
-      tool_call_id = "call_delivery_#{:rand.uniform(1_000_000)}"
-      test_pid = self()
-
-      # Executor registers and waits for tool result
-      Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}, %{
-        caller_pid: test_pid
-      })
-
-      tool_call = tool_call(tool_call_id, "list_dir", %{"path" => "/"})
-
-      {:ok, _interaction} =
-        persist_tool_call_fixture(scope, fresh_task_id, turn_number, tool_call)
-
-      assert_push("mcp:message", %{
-        "method" => "tools/call",
-        "id" => mcp_request_id,
-        "params" => %{"name" => "list_dir"}
-      })
-
-      tool_result = %{
-        "content" => [%{"type" => "text", "text" => "file1.txt\nfile2.txt"}]
-      }
-
-      push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, tool_result))
-
-      # Executor should receive the result
-      assert_receive {:tool_result, ^tool_call_id, content, false}, 5_000
-
-      assert is_binary(content)
-      assert content =~ "file1.txt"
-
-      Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-    end
-
-    test "encodes JSON tool result to string for waiting executor", %{
-      socket: socket,
-      task_id: task_id,
-      scope: scope,
-      turn_number: turn_number
-    } do
-      # This test exercises the full flow where:
-      # 1. An executor is waiting for a tool result (registered in AgentRegistry)
-      # 2. MCP tool returns JSON that gets parsed to a map
-      # 3. The result should be encoded to string before sending to executor
-      #
-      # Without the fix, the executor receives a map which later causes
-      # FunctionClauseError in SwarmAi.Message.ContentPart.text/1
-
-      tool_call_id = "call_json_result_#{:rand.uniform(1_000_000)}"
-      test_pid = self()
-
-      # Simulate what ToolExecutor.execute_mcp_tool does - register and wait
-      Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}, %{
-        caller_pid: test_pid
-      })
-
-      # Simulate a tool call interaction being broadcast
-      tool_call = tool_call(tool_call_id, "get_logs", %{"tail" => 10})
-
-      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
-
-      # Wait for the tool call to be routed to MCP
-      assert_push("mcp:message", %{
-        "method" => "tools/call",
-        "id" => mcp_request_id,
-        "params" => %{"name" => "get_logs"}
-      })
-
-      # Respond with a JSON result that parse_tool_result will convert to a map
-      json_result = %{
-        "content" => [
-          %{
-            "type" => "text",
-            "text" =>
-              Jason.encode!(%{
-                "logs" => [
-                  %{
-                    "timestamp" => "2026-01-05T10:42:21.102Z",
-                    "level" => "console",
-                    "message" => "GET / 200 261.81ms"
-                  }
-                ],
-                "totalMatched" => 1,
-                "bufferSize" => 1,
-                "hasMore" => false
-              })
-          }
-        ]
-      }
-
-      push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, json_result))
-
-      # The waiting executor should receive a message with the result
-      # The result should be a STRING (encoded JSON), not a map
-      assert_receive {:tool_result, ^tool_call_id, content, false}, 5_000
-
-      # This is the key assertion - content must be a string for SwarmAi.Message.ContentPart.text/1
-      assert is_binary(content),
-             "Tool result should be encoded to string, got: #{inspect(content)}"
-
-      # Verify it's valid JSON that can be decoded back
-      assert {:ok, decoded} = Jason.decode(content)
-      assert is_map(decoded)
-      assert Map.has_key?(decoded, "logs")
-
-      # Cleanup
-      Registry.unregister(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id})
-    end
-  end
-
   describe "MCP tools race condition" do
     test "queued prompt is processed with MCP tools after initialization completes", %{
       scope: scope
@@ -1195,7 +1066,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         scope,
         task_id,
         %{id: first_tool_call_id, name: "question"},
-        %{"answers" => [%{"answer" => "A"}]},
+        MCP.tool_result_json(%{"answers" => [%{"answer" => "A"}]}),
         false
       )
 
@@ -1351,7 +1222,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         scope,
         task_id,
         %{id: tool_call_id, name: "question"},
-        %{"answers" => [%{"answer" => "A"}]},
+        MCP.tool_result_json(%{"answers" => [%{"answer" => "A"}]}),
         false
       )
 

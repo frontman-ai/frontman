@@ -30,5 +30,5 @@ type toolCallRequest = {
 }
 
 // Result/Error events reuse MCP types
-type resultEvent = MCP.callToolResult
-type errorEvent = MCP.callToolResult
+type resultEvent = MCP.CallToolResult.t
+type errorEvent = MCP.CallToolResult.t

@@ -165,7 +165,10 @@ let rec findPages = async (
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, _input: input): Tool.toolResult<output> => {
+let execute = async (
+  ctx: Tool.serverExecutionContext,
+  _input: input,
+): Tool.MCP.CallToolResult.t => {
   try {
     // Try src/pages directory first
     let srcPages = await findPages(
@@ -185,10 +188,10 @@ let execute = async (ctx: Tool.serverExecutionContext, _input: input): Tool.tool
 
     let allPages = Array.concat(srcPages, rootPages)
 
-    Ok(allPages)
+    Tool.jsonResult(allPages, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Error(`Failed to find pages: ${msg}`)
+    Tool.MCP.CallToolResult.makeError(`Failed to find pages: ${msg}`)
   }
 }

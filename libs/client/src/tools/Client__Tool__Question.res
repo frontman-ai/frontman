@@ -5,8 +5,6 @@
 S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
-type toolResult<'a> = Tool.toolResult<'a>
-
 let name = Tool.ToolNames.question
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Interactive
@@ -50,7 +48,11 @@ type output = {
   cancelled: bool,
 }
 
-let execute = async (input: input, ~taskId: string, ~toolCallId: string): toolResult<output> => {
+let execute = async (
+  input: input,
+  ~taskId: string,
+  ~toolCallId: string,
+): Tool.MCP.CallToolResult.t => {
   // Create a promise that blocks until the user responds via the drawer.
   // The resolveOk/resolveError callbacks are stored in pendingQuestion state
   // so the task reducer can call them when the user submits/skips/cancels.
@@ -78,10 +80,10 @@ let execute = async (input: input, ~taskId: string, ~toolCallId: string): toolRe
   switch result {
   | Ok(json) =>
     try {
-      Ok(json->S.parseOrThrow(outputSchema))
+      Tool.jsonResult(json->S.parseOrThrow(outputSchema), outputSchema)
     } catch {
-    | _ => Error("Failed to parse question tool output")
+    | _ => Tool.MCP.CallToolResult.makeError("Failed to parse question tool output")
     }
-  | Error(msg) => Error(msg)
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

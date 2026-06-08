@@ -3,7 +3,7 @@
 S.enableJson()
 
 // Protocol version constant
-let protocolVersion = "DRAFT-2025-v3"
+let protocolVersion = "2025-11-25"
 
 // Capabilities
 @schema
@@ -44,19 +44,24 @@ type toolCallParams = {
   arguments: option<Dict.t<JSON.t>>,
 }
 
-// Tool result content type — per MCP spec
-@schema
-type toolResultContentType =
-  | @as("text") Text
-  | @as("image") Image
-  | @as("resource") Resource
-
 // Tool result content
-@schema
-type toolResultContent = {
-  @as("type") type_: toolResultContentType,
-  text: string,
-}
+type textContent = {text: string}
+type imageContent = {data: string, mimeType: string}
+
+type toolResultContent =
+  | TextContent(textContent)
+  | ImageContent(imageContent)
+
+let toolResultContentSchema = S.union([
+  S.object(s => {
+    s.tag("type", "text")
+    TextContent({text: s.field("text", S.string)})
+  }),
+  S.object(s => {
+    s.tag("type", "image")
+    ImageContent({data: s.field("data", S.string), mimeType: s.field("mimeType", S.string)})
+  }),
+])
 
 // Tool error
 @schema
@@ -78,13 +83,48 @@ type callToolResultMeta = {
 let emptyMeta: callToolResultMeta = {model: None, envApiKey: Dict.make()}
 
 // Tool call result (MCP CallToolResult spec)
-@schema
-type callToolResult = {
-  content: array<toolResultContent>,
-  isError: option<bool>,
-  @as("_meta")
-  _meta: callToolResultMeta,
+module CallToolResult: {
+  type t
+  let schema: S.t<t>
+  let makeText: string => t
+  let makeImage: (~data: string, ~mimeType: string) => t
+  let makeError: string => t
+  let withMeta: (t, callToolResultMeta) => t
+} = {
+  type t = {
+    content: array<toolResultContent>,
+    structuredContent?: JSON.t,
+    isError?: bool,
+    _meta: callToolResultMeta,
+  }
+
+  let schema = S.object(s => {
+    content: s.field("content", S.array(toolResultContentSchema)),
+    structuredContent: ?s.field("structuredContent", S.option(S.json)),
+    isError: ?s.field("isError", S.option(S.bool)),
+    _meta: s.field("_meta", callToolResultMetaSchema),
+  })
+
+  let makeText = text => {
+    content: [TextContent({text: text})],
+    _meta: emptyMeta,
+  }
+
+  let makeImage = (~data, ~mimeType) => {
+    content: [ImageContent({data, mimeType})],
+    _meta: emptyMeta,
+  }
+
+  let makeError = text => {
+    content: [TextContent({text: text})],
+    isError: true,
+    _meta: emptyMeta,
+  }
+
+  let withMeta = (result, meta) => {...result, _meta: meta}
 }
+
+let callToolResultSchema = CallToolResult.schema
 
 // Tools list result
 @schema
@@ -93,7 +133,7 @@ type toolsListResult = {tools: array<JSON.t>}
 // Result of executing a tool — either completed immediately or suspended
 // waiting for external input (e.g. interactive tool awaiting user response).
 type executeToolResult =
-  | Completed(callToolResult)
+  | Completed(CallToolResult.t)
   | Suspended
 
 // MCP Error codes

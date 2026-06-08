@@ -63,7 +63,7 @@ describe("Tool path guardrails", _t => {
     ToolPathHints.clear()
     let dir = await makeFixture()
 
-    let result = await ListTree.execute(
+    let result = await ListTree.executeOutput(
       makeCtx(dir),
       {path: ?Some("apps/marketing/src/pages/docs")},
     )
@@ -103,7 +103,7 @@ describe("Tool path guardrails", _t => {
     ToolPathHints.clear()
     let dir = await makeFixture()
 
-    let result = await ReadFile.execute(
+    let result = await ReadFile.executeOutput(
       makeCtx(dir),
       {path: "apps/marketing/src/content/docs/docs/reference/installation.md"},
     )
@@ -126,7 +126,7 @@ describe("Tool path guardrails", _t => {
     let dir = await makeFixture()
     let ctx = makeCtx(dir)
 
-    let searchResult = await SearchFiles.execute(
+    let searchResult = await SearchFiles.executeOutput(
       ctx,
       {
         pattern: "index.d.ts",
@@ -139,7 +139,7 @@ describe("Tool path guardrails", _t => {
     | Error(msg) => failwith(`Expected zero-result search, got error: ${msg}`)
     }
 
-    let readResult = await ReadFile.execute(ctx, {path: "libs/frontman-nextjs/index.d.ts"})
+    let readResult = await ReadFile.executeOutput(ctx, {path: "libs/frontman-nextjs/index.d.ts"})
 
     switch readResult {
     | Ok(_) => failwith("Expected read_file to be blocked by guardrail")
@@ -197,14 +197,17 @@ describe("Tool path guardrails", _t => {
     let dir = await makeFixture()
     let ctx = makeCtx(dir)
 
-    let treeResult = await ListTree.execute(ctx, {path: ?Some("apps/marketing/src/pages/docs")})
+    let treeResult = await ListTree.executeOutput(
+      ctx,
+      {path: ?Some("apps/marketing/src/pages/docs")},
+    )
 
     switch treeResult {
     | Ok(output) => t->expect(output.tree->String.includes("[recovered]"))->Expect.toBe(true)
     | Error(msg) => failwith(`list_tree recovery failed: ${msg}`)
     }
 
-    let mislocatedRead = await ReadFile.execute(
+    let mislocatedRead = await ReadFile.executeOutput(
       ctx,
       {path: "apps/marketing/src/content/docs/docs/reference/installation.md"},
     )
@@ -214,7 +217,7 @@ describe("Tool path guardrails", _t => {
     | Error(msg) => t->expect(msg->String.includes("ENOENT"))->Expect.toBe(false)
     }
 
-    let zeroA = await SearchFiles.execute(
+    let zeroA = await SearchFiles.executeOutput(
       ctx,
       {pattern: "index.d.ts", path: ?Some("libs/frontman-nextjs")},
     )
@@ -224,7 +227,7 @@ describe("Tool path guardrails", _t => {
     | Error(msg) => failwith(`search_files nextjs failed: ${msg}`)
     }
 
-    let readA = await ReadFile.execute(ctx, {path: "libs/frontman-nextjs/index.d.ts"})
+    let readA = await ReadFile.executeOutput(ctx, {path: "libs/frontman-nextjs/index.d.ts"})
 
     switch readA {
     | Ok(_) => failwith("Expected guarded read error for nextjs")
@@ -234,7 +237,7 @@ describe("Tool path guardrails", _t => {
       }
     }
 
-    let zeroB = await SearchFiles.execute(
+    let zeroB = await SearchFiles.executeOutput(
       ctx,
       {pattern: "index.d.ts", path: ?Some("libs/frontman-vite")},
     )
@@ -244,7 +247,7 @@ describe("Tool path guardrails", _t => {
     | Error(msg) => failwith(`search_files vite failed: ${msg}`)
     }
 
-    let readB = await ReadFile.execute(ctx, {path: "libs/frontman-vite/index.d.ts"})
+    let readB = await ReadFile.executeOutput(ctx, {path: "libs/frontman-vite/index.d.ts"})
 
     switch readB {
     | Ok(_) => failwith("Expected guarded read error for vite")

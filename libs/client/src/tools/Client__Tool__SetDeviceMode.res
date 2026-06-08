@@ -3,7 +3,6 @@
 
 S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
-type toolResult<'a> = Tool.toolResult<'a>
 
 let name = Tool.ToolNames.setDeviceMode
 let visibleToAgent = true
@@ -91,16 +90,17 @@ let makeOutput = (
   }
 }
 
-let okOutput = (~success, ~error) => Ok(makeOutput(~success, ~error, ~presets=None))
-let okOutputWithPresets = (~success, ~presets) => Ok(
-  makeOutput(~success, ~error=None, ~presets=Some(presets)),
-)
+let okOutput = (~success, ~error) =>
+  Tool.jsonResult(makeOutput(~success, ~error, ~presets=None), outputSchema)
+
+let okOutputWithPresets = (~success, ~presets) =>
+  Tool.jsonResult(makeOutput(~success, ~error=None, ~presets=Some(presets)), outputSchema)
 
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
-): toolResult<output> => {
+): Tool.MCP.CallToolResult.t => {
   switch input.action {
   | #set_preset =>
     switch input.device {

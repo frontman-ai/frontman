@@ -35,7 +35,8 @@ defmodule FrontmanServer.Tasks do
     deps: [
       FrontmanServer,
       FrontmanServer.Accounts,
-      FrontmanServer.Providers
+      FrontmanServer.Providers,
+      ModelContextProtocol
     ],
     exports: @exports
 
@@ -408,7 +409,7 @@ defmodule FrontmanServer.Tasks do
         scope,
         task_id,
         %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-        "Interrupted by restart",
+        ModelContextProtocol.tool_result_error("Interrupted by restart"),
         true,
         turn_number: turn_number
       )
@@ -432,7 +433,12 @@ defmodule FrontmanServer.Tasks do
        ) do
     reason = "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)"
 
-    resolve_tool_request(scope, task_id, %{id: tool_call_id, name: tool_name}, reason, true,
+    resolve_tool_request(
+      scope,
+      task_id,
+      %{id: tool_call_id, name: tool_name},
+      ModelContextProtocol.tool_result_error(reason),
+      true,
       turn_number: turn_number
     )
 
@@ -614,7 +620,7 @@ defmodule FrontmanServer.Tasks do
          turn_number = tool_result_turn_number(task_id, tool_call_id, opts),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
          {:ok, interaction} <- record_interaction(schema, interaction, turn_number: turn_number) do
-      executor_status = Execution.notify_tool_result(tool_call_id, result, is_error)
+      executor_status = Execution.notify_tool_result(interaction)
 
       {:ok, interaction, executor_status}
     end

@@ -32,6 +32,6 @@ let getErrorLogsSince = (beforeTimestamp: float): array<EditFileWithLogCheck.log
   )
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   await EditFileWithLogCheck.execute(ctx, input, ~getErrorLogsSince)
 }

@@ -89,11 +89,19 @@ defmodule FrontmanServer.Tasks.Execution do
   Returns `:notified` when the result was delivered to a live executor,
   `:no_executor` when no executor was waiting (e.g., server restarted).
   """
-  def notify_tool_result(tool_call_id, result, is_error) do
+  def notify_tool_result(%Interaction.ToolResult{
+        tool_call_id: tool_call_id,
+        result: %{"content" => [_ | _] = content},
+        is_error: is_error
+      }) do
     case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
-        encoded = encode_result_for_swarm(result)
-        send(caller, {:tool_result, tool_call_id, encoded, is_error})
+        content_parts =
+          content
+          |> Enum.map(&to_swarm_content_part/1)
+
+        send(caller, {:tool_result, tool_call_id, content_parts, is_error})
+
         :notified
 
       [] ->
@@ -153,8 +161,15 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  defp encode_result_for_swarm(value) when is_binary(value), do: value
-  defp encode_result_for_swarm(value), do: Jason.encode!(value)
+  defp put_anthropic_prompt_cache(opts, "anthropic"),
+    do: Keyword.put(opts, :anthropic_prompt_cache, true)
+
+  defp put_anthropic_prompt_cache(opts, _provider), do: opts
+
+  defp to_swarm_content_part(%{"type" => "text", "text" => text}), do: ContentPart.text(text)
+
+  defp to_swarm_content_part(%{"type" => "image", "data" => data, "mimeType" => mime_type}),
+    do: ContentPart.image(Base.decode64!(data), mime_type)
 
   @doc false
   def error_message(%Scope{}, :no_api_key),

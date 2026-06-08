@@ -131,29 +131,15 @@ let executeLocalTool = async (
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
     let result = await T.execute(input, ~taskId, ~toolCallId)
     Log.debug(~ctx={"tool": T.name}, "Execute returned")
-    let callToolResult: Types.callToolResult = switch result {
-    | Ok(output) =>
-      let outputJson = output->S.reverseConvertToJsonOrThrow(T.outputSchema)
-      {
-        content: [{type_: Text, text: JSON.stringify(outputJson)}],
-        isError: None,
-        _meta: meta,
-      }
-    | Error(msg) => {
-        content: [{type_: Text, text: msg}],
-        isError: Some(true),
-        _meta: meta,
-      }
-    }
-    Completed(callToolResult)
+    Completed(result->Types.CallToolResult.withMeta(meta))
   } catch {
   | S.Error(e) =>
     Log.error(~ctx={"tool": T.name}, "Schema error")
-    Completed({
-      content: [{type_: Text, text: `Invalid input: ${e.message}`}],
-      isError: Some(true),
-      _meta: meta,
-    })
+    Completed(
+      Types.CallToolResult.makeError(`Invalid input: ${e.message}`)->Types.CallToolResult.withMeta(
+        meta,
+      ),
+    )
   }
 }
 
@@ -202,11 +188,8 @@ let resolveToolImageRef = (
   }
 }
 
-let toolError = (server: t, msg: string): Types.callToolResult => {
-  content: [{type_: Text, text: msg}],
-  isError: Some(true),
-  _meta: server->currentMeta,
-}
+let toolError = (server: t, msg: string): Types.CallToolResult.t =>
+  Types.CallToolResult.makeError(msg)->Types.CallToolResult.withMeta(server->currentMeta)
 
 // Execute tool - tries local first, then relay
 let executeTool = async (
@@ -255,7 +238,8 @@ let executeTool = async (
           ~onProgress?,
         )
         switch result {
-        | Ok(toolResult) => Completed({...toolResult, _meta: server->currentMeta})
+        | Ok(toolResult) =>
+          Completed(toolResult->Types.CallToolResult.withMeta(server->currentMeta))
         | Error(msg) => Completed(toolError(server, msg))
         }
       }

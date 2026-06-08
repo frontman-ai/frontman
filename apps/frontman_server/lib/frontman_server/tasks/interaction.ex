@@ -856,8 +856,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     Enum.flat_map(interactions, &to_swarm_message/1)
   end
 
-  # Explicit clause for every Interaction type. Adding a new type without a
-  # clause crashes immediately instead of silently omitting it from LLM history.
   defp to_swarm_message(%UserMessage{} = msg) do
     prompt_text = build_user_prompt_text(msg)
     content_parts = build_user_content_parts(prompt_text, msg)
@@ -878,15 +876,12 @@ defmodule FrontmanServer.Tasks.Interaction do
     ]
   end
 
-  defp to_swarm_message(%ToolResult{tool_name: name, tool_call_id: id, result: result}) do
-    json_result = if is_binary(result), do: result, else: Jason.encode!(result)
-
+  defp to_swarm_message(%ToolResult{result: %{"content" => [_ | _] = content}} = result) do
     [
       %SwarmMessage.Tool{
-        content: [SwarmContentPart.text(json_result)],
-        tool_call_id: id,
-        name: name,
-        metadata: %{}
+        content: Enum.map(content, &tool_result_content_part/1),
+        tool_call_id: result.tool_call_id,
+        name: result.tool_name
       }
     ]
   end
@@ -916,6 +911,12 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp text_parts(""), do: []
   defp text_parts(text), do: [SwarmContentPart.text(text)]
+
+  defp tool_result_content_part(%{"type" => "text", "text" => text}),
+    do: SwarmContentPart.text(text)
+
+  defp tool_result_content_part(%{"type" => "image", "data" => data, "mimeType" => mime_type}),
+    do: SwarmContentPart.image(Base.decode64!(data), mime_type)
 
   defp append_annotation_screenshot_parts(parts, []), do: parts
 

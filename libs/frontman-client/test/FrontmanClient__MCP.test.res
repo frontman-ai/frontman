@@ -43,7 +43,7 @@ let buildToolsCallPayload = (~id: int, ~name: string, ~callId: string) =>
   buildToolsCallPayloadWithJsonId(~id=JSON.Encode.int(id), ~name, ~callId)
 
 // Build a mock serverInterface that returns a Completed result
-let makeCompletedServerInterface = (result: Types.callToolResult) => {
+let makeCompletedServerInterface = (result: Types.CallToolResult.t) => {
   let server = ()
   let si: Types.serverInterface<unit> = {
     server,
@@ -167,11 +167,7 @@ describe("handleToolsCall", () => {
     let (channel, calls) = MockChannel.make()
 
     let handler: MCP.mcpHandler<unit> = {
-      serverInterface: makeCompletedServerInterface({
-        content: [{type_: Types.Text, text: "tool output"}],
-        isError: None,
-        _meta: Types.emptyMeta,
-      }),
+      serverInterface: makeCompletedServerInterface(Types.CallToolResult.makeText("tool output")),
       channel,
       sessionId: "test-task",
       onMessage: None,
@@ -218,11 +214,7 @@ describe("handleToolsCall", () => {
     let (channel, calls) = MockChannel.make()
 
     let handler: MCP.mcpHandler<unit> = {
-      serverInterface: makeCompletedServerInterface({
-        content: [{type_: Types.Text, text: "tool output"}],
-        isError: None,
-        _meta: Types.emptyMeta,
-      }),
+      serverInterface: makeCompletedServerInterface(Types.CallToolResult.makeText("tool output")),
       channel,
       sessionId: "test-task",
       onMessage: None,
@@ -253,11 +245,7 @@ describe("handleToolsCall", () => {
 
     // executeTool will receive invalid params that cause S.Error during schema parse
     let handler: MCP.mcpHandler<unit> = {
-      serverInterface: makeCompletedServerInterface({
-        content: [{type_: Types.Text, text: "ok"}],
-        isError: None,
-        _meta: Types.emptyMeta,
-      }),
+      serverInterface: makeCompletedServerInterface(Types.CallToolResult.makeText("ok")),
       channel,
       sessionId: "test-task",
       onMessage: None,
@@ -404,11 +392,7 @@ describe("handleMessage error safety", () => {
     let (channel, _calls) = MockChannel.make()
 
     let handler: MCP.mcpHandler<unit> = {
-      serverInterface: makeCompletedServerInterface({
-        content: [{type_: Types.Text, text: "ok"}],
-        isError: None,
-        _meta: Types.emptyMeta,
-      }),
+      serverInterface: makeCompletedServerInterface(Types.CallToolResult.makeText("ok")),
       channel,
       sessionId: "test-task",
       onMessage: Some((_, _) => JsError.throwWithMessage("onMessage exploded")),
@@ -429,11 +413,7 @@ describe("sendError uses correct error codes", () => {
     let (channel, calls) = MockChannel.make()
 
     let handler: MCP.mcpHandler<unit> = {
-      serverInterface: makeCompletedServerInterface({
-        content: [{type_: Types.Text, text: "ok"}],
-        isError: None,
-        _meta: Types.emptyMeta,
-      }),
+      serverInterface: makeCompletedServerInterface(Types.CallToolResult.makeText("ok")),
       channel,
       sessionId: "test-task",
       onMessage: None,
@@ -457,11 +437,7 @@ describe("sendError uses correct error codes", () => {
     let (channel, calls) = MockChannel.make()
 
     let handler: MCP.mcpHandler<unit> = {
-      serverInterface: makeCompletedServerInterface({
-        content: [{type_: Types.Text, text: "ok"}],
-        isError: None,
-        _meta: Types.emptyMeta,
-      }),
+      serverInterface: makeCompletedServerInterface(Types.CallToolResult.makeText("ok")),
       channel,
       sessionId: "test-task",
       onMessage: None,
@@ -492,11 +468,7 @@ describe("sendError uses correct error codes", () => {
     let (channel, calls) = MockChannel.make()
 
     let handler: MCP.mcpHandler<unit> = {
-      serverInterface: makeCompletedServerInterface({
-        content: [{type_: Types.Text, text: "ok"}],
-        isError: None,
-        _meta: Types.emptyMeta,
-      }),
+      serverInterface: makeCompletedServerInterface(Types.CallToolResult.makeText("ok")),
       channel,
       sessionId: "test-task",
       onMessage: None,

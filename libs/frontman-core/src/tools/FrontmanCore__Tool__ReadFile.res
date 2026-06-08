@@ -76,7 +76,7 @@ let readResolvedFile = async (
   ~resolved: PathContext.resolveResult,
   ~offset: int,
   ~limit: int,
-): Tool.toolResult<output> => {
+): result<output, string> => {
   try {
     let stats = await Fs.Promises.stat(resolved.resolvedPath)
     let content = await Fs.Promises.readFile(resolved.resolvedPath)
@@ -162,7 +162,7 @@ Next steps:
 
     let basename = resolved.relativePath->Path.basename
 
-    let candidateFiles = switch await SearchFiles.execute(
+    let candidateFiles = switch await SearchFiles.executeOutput(
       ctx,
       {
         pattern: basename,
@@ -179,7 +179,7 @@ Next steps:
     | files => "Candidate files: " ++ files->Array.join(", ")
     }
 
-    let treePreview = switch await ListTree.execute(
+    let treePreview = switch await ListTree.executeOutput(
       ctx,
       {
         path: ?Some(recovery.nearestDirRelative),
@@ -214,7 +214,10 @@ Next steps:
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
+  output,
+  string,
+> => {
   let offset = input.offset->Option.getOr(0)
   let limit = input.limit->Option.getOr(500)
 
@@ -225,5 +228,12 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
     | true => await readResolvedFile(~ctx, ~resolved=result, ~offset, ~limit)
     | false => Error(await buildMissingPathError(~ctx, ~requestedPath=input.path, ~resolved=result))
     }
+  }
+}
+
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
+  switch await executeOutput(ctx, input) {
+  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

@@ -10,6 +10,9 @@ module Process = FrontmanBindings.Process
 
 let fixtureDir = Path.join([Process.cwd(), "test", "fixtures", "listfiles"])
 
+let execute = (ctx, input) =>
+  FrontmanCore__ToolTestHelpers.execute(ListFiles.execute, ctx, input, ListFiles.outputSchema)
+
 describe("ListFiles Tool - execute (integration)", _t => {
   // Initialize git repo before tests
   beforeAllAsync(async () => {
@@ -27,7 +30,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    let result = await ListFiles.execute(ctx, {})
+    let result = await execute(ctx, {})
 
     switch result {
     | Ok(entries) => {
@@ -52,7 +55,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    let result = await ListFiles.execute(ctx, {})
+    let result = await execute(ctx, {})
 
     switch result {
     | Ok(entries) => {
@@ -77,7 +80,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    let result = await ListFiles.execute(ctx, {})
+    let result = await execute(ctx, {})
 
     switch result {
     | Ok(entries) => {
@@ -94,7 +97,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    let result = await ListFiles.execute(ctx, {path: "src"})
+    let result = await execute(ctx, {path: "src"})
 
     switch result {
     | Ok(entries) => {
@@ -120,7 +123,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    let result = await ListFiles.execute(ctx, {})
+    let result = await execute(ctx, {})
 
     switch result {
     | Ok(entries) => {
@@ -155,7 +158,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     }
 
     // Pass a file path instead of a directory — should list the parent directory
-    let result = await ListFiles.execute(ctx, {path: "index.ts"})
+    let result = await execute(ctx, {path: "index.ts"})
 
     switch result {
     | Ok(entries) => {
@@ -176,13 +179,11 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    let result = await ListFiles.execute(ctx, {path: "nonexistent"})
+    let result = await execute(ctx, {path: "nonexistent"})
 
     switch result {
     | Ok(_) => failwith("Should have failed for non-existent directory")
-    | Error(msg) => {
-        t->expect(msg->String.includes("nonexistent"))->Expect.toBe(true)
-      }
+    | Error(msg) => t->expect(msg->String.includes("nonexistent"))->Expect.toBe(true)
     }
   })
 
@@ -192,13 +193,11 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    let result = await ListFiles.execute(ctx, {path: "../../../etc"})
+    let result = await execute(ctx, {path: "../../../etc"})
 
     switch result {
     | Ok(_) => failwith("Should have failed for path traversal attempt")
-    | Error(msg) => {
-        t->expect(msg->String.length > 0)->Expect.toBe(true)
-      }
+    | Error(msg) => t->expect(msg->String.length > 0)->Expect.toBe(true)
     }
   })
 })
@@ -234,9 +233,7 @@ describe("ListFiles Tool - getIgnoredEntries", _t => {
     let result = await ListFiles.getIgnoredEntries(~cwd=fixtureDir, entries)
 
     switch result {
-    | Ok(ignored) => {
-        t->expect(Array.length(ignored))->Expect.toBe(0)
-      }
+    | Ok(ignored) => t->expect(Array.length(ignored))->Expect.toBe(0)
     | Error(msg) => failwith(`getIgnoredEntries failed: ${msg}`)
     }
   })
@@ -246,9 +243,7 @@ describe("ListFiles Tool - getIgnoredEntries", _t => {
     let result = await ListFiles.getIgnoredEntries(~cwd=fixtureDir, entries)
 
     switch result {
-    | Ok(ignored) => {
-        t->expect(Array.length(ignored))->Expect.toBe(0)
-      }
+    | Ok(ignored) => t->expect(Array.length(ignored))->Expect.toBe(0)
     | Error(msg) => failwith(`getIgnoredEntries failed: ${msg}`)
     }
   })

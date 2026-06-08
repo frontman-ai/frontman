@@ -79,9 +79,8 @@ let make = (
       type output = output
       let inputSchema = inputSchema
       let outputSchema = outputSchema
-      let execute = async (_ctx, _input) => {
-        Ok(getRoutes()->Array.map(toRouteEntry))
-      }
+      let execute = async (_ctx, _input) =>
+        Tool.jsonResult(getRoutes()->Array.map(toRouteEntry), outputSchema)
     }
   )
 }

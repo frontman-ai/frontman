@@ -123,7 +123,7 @@ let executeTool = async (
   ~name: string,
   ~arguments: option<Dict.t<JSON.t>>=?,
   ~onProgress: option<string => unit>=?,
-): result<MCPTypes.callToolResult, string> => {
+): result<MCPTypes.CallToolResult.t, string> => {
   switch relay->isConnected {
   | false =>
     Log.warning("Cannot execute tool: relay not connected")

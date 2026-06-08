@@ -23,7 +23,7 @@ let rmRecursive = async (dir: string) => {
 let createTestFixture = async () => {
   let tempDir = Path.join([Os.tmpdir(), `grep-test-${Date.now()->Float.toString}`])
   await mkdirRecursive(tempDir)
-  
+
   // Create test files
   await Fs.Promises.writeFile(
     Path.join([tempDir, "test1.js"]),
@@ -36,7 +36,7 @@ const pricing = {
   premium: 50
 };`,
   )
-  
+
   await Fs.Promises.writeFile(
     Path.join([tempDir, "test2.ts"]),
     `interface PricingPlan {
@@ -49,7 +49,7 @@ const plans: PricingPlan[] = [
   { name: "Pro", price: 29 }
 ];`,
   )
-  
+
   await Fs.Promises.writeFile(
     Path.join([tempDir, "readme.md"]),
     `# Test Project
@@ -57,17 +57,17 @@ const plans: PricingPlan[] = [
 This is a test file.
 PRICING information available.`,
   )
-  
+
   // Create a subdirectory with files
   let subDir = Path.join([tempDir, "src"])
   await mkdirRecursive(subDir)
-  
+
   await Fs.Promises.writeFile(
     Path.join([subDir, "utils.js"]),
     `export const calculatePrice = (qty) => qty * 10;
 export const formatPricing = (price) => \`$\${price}\`;`,
   )
-  
+
   tempDir
 }
 
@@ -81,59 +81,59 @@ describe("Grep Tool - parseGrepOutput", _t => {
     let output = `test1.js:1:function hello() {
 test1.js:5:const pricing = {
 test2.ts:1:interface PricingPlan {`
-    
+
     let result = Grep.parseGrepOutput(output, ~maxResults=100)
-    
+
     t->expect(result.totalMatches)->Expect.toBe(3)
     t->expect(Array.length(result.files))->Expect.toBe(2)
     t->expect(result.truncated)->Expect.toBe(false)
   })
-  
+
   test("should handle empty output", t => {
     let result = Grep.parseGrepOutput("", ~maxResults=100)
-    
+
     t->expect(result.totalMatches)->Expect.toBe(0)
     t->expect(Array.length(result.files))->Expect.toBe(0)
     t->expect(result.truncated)->Expect.toBe(false)
   })
-  
+
   test("should group matches by file", t => {
     let output = `test.js:1:line one
 test.js:2:line two
 other.js:5:line five`
-    
+
     let result = Grep.parseGrepOutput(output, ~maxResults=100)
-    
+
     t->expect(Array.length(result.files))->Expect.toBe(2)
-    
+
     let testJsFile = result.files->Array.find(f => f.path === "test.js")
     switch testJsFile {
     | Some(file) => t->expect(Array.length(file.matches))->Expect.toBe(2)
     | None => failwith("test.js file not found")
     }
   })
-  
+
   test("should respect maxResults", t => {
     // maxResults caps number of files, not individual matches
     let output = `a.js:1:one
 b.js:2:two
 c.js:3:three
 d.js:4:four`
-    
+
     let result = Grep.parseGrepOutput(output, ~maxResults=2)
-    
+
     // All 4 matches counted, but only 2 files returned
     t->expect(result.totalMatches)->Expect.toBe(4)
     t->expect(Array.length(result.files))->Expect.toBe(2)
     t->expect(result.truncated)->Expect.toBe(true)
   })
-  
+
   test("should handle paths with colons correctly", t => {
     let output = `/Users/test/file.js:10:const x = 5;
 /Users/test/other.js:20:const y = 10;`
-    
+
     let result = Grep.parseGrepOutput(output, ~maxResults=100)
-    
+
     t->expect(Array.length(result.files))->Expect.toBe(2)
     t->expect(result.files[0]->Option.map(f => f.path))->Expect.toEqual(Some("/Users/test/file.js"))
   })
@@ -150,13 +150,13 @@ describe("Grep Tool - buildRipgrepArgs", _t => {
       ~literal=false,
       ~maxResults=100,
     )
-    
+
     t->expect(args->Array.includes("-n"))->Expect.toBe(true)
     t->expect(args->Array.includes("-H"))->Expect.toBe(true)
     t->expect(args->Array.includes("test"))->Expect.toBe(true)
     t->expect(args->Array.includes("/tmp"))->Expect.toBe(true)
   })
-  
+
   test("should add case insensitive flag", t => {
     let args = Grep.buildRipgrepArgs(
       ~pattern="test",
@@ -167,10 +167,10 @@ describe("Grep Tool - buildRipgrepArgs", _t => {
       ~literal=false,
       ~maxResults=100,
     )
-    
+
     t->expect(args->Array.includes("-i"))->Expect.toBe(true)
   })
-  
+
   test("should add literal flag", t => {
     let args = Grep.buildRipgrepArgs(
       ~pattern="test",
@@ -181,10 +181,10 @@ describe("Grep Tool - buildRipgrepArgs", _t => {
       ~literal=true,
       ~maxResults=100,
     )
-    
+
     t->expect(args->Array.includes("-F"))->Expect.toBe(true)
   })
-  
+
   test("should add type filter", t => {
     let args = Grep.buildRipgrepArgs(
       ~pattern="test",
@@ -195,11 +195,11 @@ describe("Grep Tool - buildRipgrepArgs", _t => {
       ~literal=false,
       ~maxResults=100,
     )
-    
+
     t->expect(args->Array.includes("-t"))->Expect.toBe(true)
     t->expect(args->Array.includes("js"))->Expect.toBe(true)
   })
-  
+
   test("should add glob filter", t => {
     let args = Grep.buildRipgrepArgs(
       ~pattern="test",
@@ -210,7 +210,7 @@ describe("Grep Tool - buildRipgrepArgs", _t => {
       ~literal=false,
       ~maxResults=100,
     )
-    
+
     t->expect(args->Array.includes("--glob"))->Expect.toBe(true)
     t->expect(args->Array.includes("*.tsx"))->Expect.toBe(true)
   })
@@ -226,7 +226,7 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
       ~glob=None,
       ~type_=None,
     )
-    
+
     t->expect(args->Array.includes("grep"))->Expect.toBe(true)
     t->expect(args->Array.includes("-n"))->Expect.toBe(true)
     t->expect(args->Array.includes("-H"))->Expect.toBe(true)
@@ -234,7 +234,7 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
     // No pathspec separator when no glob/type
     t->expect(args->Array.includes("--"))->Expect.toBe(false)
   })
-  
+
   test("should add case insensitive flag", t => {
     let args = Grep.buildGitGrepArgs(
       ~pattern="test",
@@ -244,7 +244,7 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
       ~glob=None,
       ~type_=None,
     )
-    
+
     t->expect(args->Array.includes("-i"))->Expect.toBe(true)
   })
 
@@ -334,129 +334,134 @@ describe("Grep Tool - buildPlainGrepArgs", _t => {
 })
 
 describe("Grep Tool - execute (integration)", _t => {
+  let execute = (ctx, input) =>
+    FrontmanCore__ToolTestHelpers.execute(Grep.execute, ctx, input, Grep.outputSchema)
+
   testAsync("should search files with ripgrep", async t => {
     let tempDir = await createTestFixture()
-    
+
     try {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
       }
-      
+
       let input: Grep.input = {
         pattern: "pricing",
         caseInsensitive: true,
       }
-      
-      let result = await Grep.execute(ctx, input)
-      
+
+      let result = await execute(ctx, input)
+
       switch result {
       | Ok(output) => {
           Console.log2("Search results:", output)
           t->expect(output.totalMatches > 0)->Expect.toBe(true)
           t->expect(Array.length(output.files) > 0)->Expect.toBe(true)
-          
+
           // Verify we found pricing in the test files
-          let hasPricing = output.files->Array.some(file => 
-            file.matches->Array.some(m => 
-              m.lineText->String.toLowerCase->String.includes("pricing")
+          let hasPricing =
+            output.files->Array.some(
+              file =>
+                file.matches->Array.some(
+                  m => m.lineText->String.toLowerCase->String.includes("pricing"),
+                ),
             )
-          )
           t->expect(hasPricing)->Expect.toBe(true)
         }
       | Error(msg) => failwith(`Grep failed: ${msg}`)
       }
     } catch {
     | exn => {
-        let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
         failwith(`Test failed with exception: ${msg}`)
       }
     }
-    
+
     await cleanupTestFixture(tempDir)
   })
-  
+
   testAsync("should handle case sensitive search", async t => {
     let tempDir = await createTestFixture()
-    
+
     try {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
       }
-      
+
       // Search for "PRICING" (uppercase) with case sensitive
       let input: Grep.input = {
         pattern: "PRICING",
         caseInsensitive: false,
       }
-      
-      let result = await Grep.execute(ctx, input)
-      
+
+      let result = await execute(ctx, input)
+
       switch result {
       | Ok(output) => {
           Console.log2("Case sensitive results:", output)
           // Should only find "PRICING" in readme.md
           t->expect(output.totalMatches > 0)->Expect.toBe(true)
-          
+
           // All matches should be uppercase PRICING
-          let allUppercase = output.files->Array.every(file =>
-            file.matches->Array.every(m =>
-              m.lineText->String.includes("PRICING")
+          let allUppercase =
+            output.files->Array.every(
+              file => file.matches->Array.every(m => m.lineText->String.includes("PRICING")),
             )
-          )
           t->expect(allUppercase)->Expect.toBe(true)
         }
       | Error(msg) => failwith(`Grep failed: ${msg}`)
       }
     } catch {
     | exn => {
-        let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
         failwith(`Test failed: ${msg}`)
       }
     }
-    
+
     await cleanupTestFixture(tempDir)
   })
-  
+
   testAsync("should search in subdirectories", async t => {
     let tempDir = await createTestFixture()
-    
+
     try {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
       }
-      
+
       let input: Grep.input = {
         pattern: "formatPricing",
       }
-      
-      let result = await Grep.execute(ctx, input)
-      
+
+      let result = await execute(ctx, input)
+
       switch result {
       | Ok(output) => {
           Console.log2("Subdirectory search results:", output)
           t->expect(output.totalMatches > 0)->Expect.toBe(true)
-          
+
           // Should find the file in src/utils.js
-          let foundInSrc = output.files->Array.some(file =>
-            file.path->String.includes("src")
-          )
+          let foundInSrc = output.files->Array.some(file => file.path->String.includes("src"))
           t->expect(foundInSrc)->Expect.toBe(true)
         }
       | Error(msg) => failwith(`Grep failed: ${msg}`)
       }
     } catch {
     | exn => {
-        let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
         failwith(`Test failed: ${msg}`)
       }
     }
-    
+
     await cleanupTestFixture(tempDir)
   })
-  
+
   testAsync("should handle file path as search path (not just directories)", async t => {
     let tempDir = await createTestFixture()
 
@@ -474,7 +479,7 @@ describe("Grep Tool - execute (integration)", _t => {
         caseInsensitive: true,
       }
 
-      let result = await Grep.execute(ctx, input)
+      let result = await execute(ctx, input)
 
       switch result {
       | Ok(output) => {
@@ -486,7 +491,8 @@ describe("Grep Tool - execute (integration)", _t => {
       }
     } catch {
     | exn => {
-        let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
         failwith(`Test failed with exception: ${msg}`)
       }
     }
@@ -496,19 +502,19 @@ describe("Grep Tool - execute (integration)", _t => {
 
   testAsync("should handle no matches gracefully", async t => {
     let tempDir = await createTestFixture()
-    
+
     try {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
       }
-      
+
       let input: Grep.input = {
         pattern: "nonexistentpattern12345xyz",
       }
-      
-      let result = await Grep.execute(ctx, input)
-      
+
+      let result = await execute(ctx, input)
+
       switch result {
       | Ok(output) => {
           t->expect(output.totalMatches)->Expect.toBe(0)
@@ -518,12 +524,12 @@ describe("Grep Tool - execute (integration)", _t => {
       }
     } catch {
     | exn => {
-        let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
         failwith(`Test failed: ${msg}`)
       }
     }
-    
+
     await cleanupTestFixture(tempDir)
   })
 })
-

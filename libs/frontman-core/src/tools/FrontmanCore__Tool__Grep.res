@@ -252,7 +252,15 @@ let executeRipgrep = async (
   ~literal: bool,
   ~maxResults: int,
 ): result<output, string> => {
-  let args = buildRipgrepArgs(~pattern, ~searchPath, ~type_, ~glob, ~caseInsensitive, ~literal, ~maxResults)
+  let args = buildRipgrepArgs(
+    ~pattern,
+    ~searchPath,
+    ~type_,
+    ~glob,
+    ~caseInsensitive,
+    ~literal,
+    ~maxResults,
+  )
 
   let result = await ChildProcess.spawnResult(rgPath, args)
 
@@ -261,11 +269,11 @@ let executeRipgrep = async (
   | Error({code: Some(1), _}) =>
     // Exit code 1 means no matches found
     Ok({files: [], totalMatches: 0, truncated: false})
-   | Error({stderr, message}) => {
-       let detail = switch stderr {
-        | "" => message
-        | s => s
-        }
+  | Error({stderr, message}) => {
+      let detail = switch stderr {
+      | "" => message
+      | s => s
+      }
       Error(`Ripgrep failed: ${detail}`)
     }
   }
@@ -427,7 +435,7 @@ let executePlainGrep = async (
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolResult<output> => {
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   let searchPath = PathContext.resolveSearchPath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path)
   let caseInsensitive = input.caseInsensitive->Option.getOr(false)
   let literal = input.literal->Option.getOr(false)
@@ -461,7 +469,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
   }
 
   // Try ripgrep first, then git grep, then plain grep
-  switch getRipgrepPath() {
+  let result = switch getRipgrepPath() {
   | Some(rgPath) =>
     let result = await executeRipgrep(
       ~rgPath,
@@ -480,5 +488,9 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.toolR
     }
   | None => await gitGrepWithFallback()
   }
-}
 
+  switch result {
+  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
+  }
+}

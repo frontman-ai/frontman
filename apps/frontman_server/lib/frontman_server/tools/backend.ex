@@ -21,12 +21,14 @@ defmodule FrontmanServer.Tools.Backend do
     defstruct task: nil
   end
 
+  @type result :: map()
+
   @callback name() :: String.t()
   @callback description() :: String.t()
   @callback parameter_schema() :: map()
   @callback timeout_ms() :: pos_integer()
   @callback on_timeout() :: :error | :pause_agent
-  @callback execute(args :: map(), context :: %Context{}) :: {:ok, term()} | {:error, String.t()}
+  @callback execute(args :: map(), context :: %Context{}) :: result()
 
   def to_swarm_tool(module) do
     SwarmAi.Tool.new(

@@ -50,6 +50,36 @@ defmodule ModelContextProtocol do
     }
   end
 
+  @spec tool_result_text(String.t()) :: map()
+  def tool_result_text(text) when is_binary(text) do
+    %{"content" => [%{"type" => "text", "text" => text}], "isError" => false}
+  end
+
+  @spec tool_result_json(map()) :: map()
+  def tool_result_json(value) when is_map(value) do
+    tool_result_text(Jason.encode!(value))
+  end
+
+  @spec tool_result_structured(map()) :: map()
+  def tool_result_structured(value) when is_map(value) do
+    value
+    |> tool_result_json()
+    |> Map.put("structuredContent", value)
+  end
+
+  @spec tool_result_image(String.t(), String.t()) :: map()
+  def tool_result_image(data, mime_type) when is_binary(data) and is_binary(mime_type) do
+    %{
+      "content" => [%{"type" => "image", "data" => data, "mimeType" => mime_type}],
+      "isError" => false
+    }
+  end
+
+  @spec tool_result_error(String.t()) :: map()
+  def tool_result_error(text) when is_binary(text) do
+    %{"content" => [%{"type" => "text", "text" => text}], "isError" => true}
+  end
+
   @doc """
   Returns params for an MCP initialize request.
 
