@@ -48,8 +48,8 @@ Our default is:
 - `FrontmanServer.Providers.ApiKey`
 
 Consume these via top-level context APIs (for example `Accounts.scope_user_id/1`,
-`Accounts.get_user/1`, `Providers.to_llm_args/2`) until they are intentionally
-published.
+`Accounts.get_user/1`, `Providers.prepare_llm_args/3`) until they are
+intentionally published.
 
 ## PR checklist
 
