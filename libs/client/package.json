@@ -61,7 +61,7 @@
 		"babel-plugin-react-compiler": "^1.0.0",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
-		"dom-accessibility-api": "^0.5.16",
+		"dom-accessibility-api": "^0.7.1",
 		"dom-element-to-component-source": "^0.5.0",
 		"lucide-react": "^1.7.0",
 		"react": "^19.2.5",
