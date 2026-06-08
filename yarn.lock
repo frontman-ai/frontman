@@ -12373,7 +12373,7 @@ __metadata:
     prettier-plugin-astro: "npm:^0.14.0"
     prettier-plugin-tailwindcss: "npm:^0.8.0"
     satori: "npm:^0.26.0"
-    sharp: "npm:^0.34.0"
+    sharp: "npm:^0.34.5"
     tailwindcss: "npm:^4.2.4"
     typescript: "npm:^6.0.3"
   languageName: unknown
