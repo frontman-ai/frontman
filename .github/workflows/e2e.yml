@@ -56,11 +56,12 @@ jobs:
       # --immutable already prevents lockfile changes, so hardened mode is redundant.
       YARN_ENABLE_HARDENED_MODE: "0"
       # OpenAI OAuth tokens for the E2E test user.
-      # This workflow reads the current repo secrets as-is.
+      # Backing repo secrets still use the legacy ChatGPT names; expose the new
+      # OpenAI env names to the app without requiring a GitHub secrets migration.
       # Rotation happens in refresh-e2e-openai-token.yml.
-      E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_OPENAI_ACCESS_TOKEN }}
-      E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_OPENAI_REFRESH_TOKEN }}
-      E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_OPENAI_ACCOUNT_ID }}
+      E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
+      E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
+      E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
 
     steps:
       - name: Resolve Docker host gateway IP for PostgreSQL
