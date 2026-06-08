@@ -1,5 +1,17 @@
 # @frontman-ai/nextjs
 
+## 1.0.0
+
+### Major Changes
+
+- [#1117](https://github.com/frontman-ai/frontman/pull/1117) [`bd25abe`](https://github.com/frontman-ai/frontman/commit/bd25abeae89df34517dfd2c87cbe9818f58f4c9d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Rename the ChatGPT OAuth surface to OpenAI and simplify provider auth resolution.
+
+  Breaking change: client state, actions, selectors, and OAuth endpoints now use OpenAI names instead of ChatGPT names. Existing selected-model localStorage values with the `openai:` prefix are migrated to `openai_codex:` automatically.
+
+### Patch Changes
+
+- [#1114](https://github.com/frontman-ai/frontman/pull/1114) [`efac643`](https://github.com/frontman-ai/frontman/commit/efac6433f951cf8e3ee860dd6f93d2bde58dab6f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix Next.js 16 proxy generation by omitting invalid runtime config, and make E2E failures report broken Frontman routes directly.
+
 ## 0.6.6
 
 ### Patch Changes
