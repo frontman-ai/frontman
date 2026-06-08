@@ -55,7 +55,7 @@
 	},
 	"dependencies": {
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^12.5.1"
+		"lighthouse": "^13.3.0"
 	},
 	"peerDependencies": {
 		"vite": ">=5.0.0"

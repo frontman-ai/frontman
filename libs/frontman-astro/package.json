@@ -53,7 +53,7 @@
 	},
 	"dependencies": {
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^12.5.1"
+		"lighthouse": "^13.3.0"
 	},
 	"peerDependencies": {
 		"astro": "^5.0.0 || ^6.0.0"
