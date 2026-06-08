@@ -5,18 +5,7 @@
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
 defmodule FrontmanServer.Providers do
-  @moduledoc """
-  The Providers context.
-
-  Manages API keys and model provider access.
-
-  ## API Key Resolution Flow
-
-  The primary entry point for agent execution is `prepare_api_key/2`, which:
-  1. Resolves the model to determine the provider
-  2. Finds the best available API key (OAuth > user key > env key)
-  3. Returns the key info for use in LLM calls
-  """
+  @moduledoc "Manages API keys, OAuth tokens, and model provider access."
 
   use Boundary,
     deps: [FrontmanServer, FrontmanServer.Accounts]
@@ -30,9 +19,8 @@ defmodule FrontmanServer.Providers do
   alias FrontmanServer.Providers.{
     AnthropicOAuth,
     ApiKey,
-    ChatGPTOAuth,
     OAuthToken,
-    ResolvedKey
+    OpenAIOAuth
   }
 
   @providers Application.compile_env!(:frontman_server, :providers)
@@ -44,9 +32,9 @@ defmodule FrontmanServer.Providers do
   ## High-Level API (Domain Entry Points)
 
   @doc """
-  Prepares API key for a request. Resolves model and key availability.
+  Prepares ReqLLM arguments for a request. Resolves model and provider auth.
 
-  This is the primary entry point for API key resolution at the domain layer.
+  This is the primary entry point for provider auth resolution at the domain layer.
   Call this before making LLM calls, not inside LLM implementations.
 
   ## Parameters
@@ -55,39 +43,23 @@ defmodule FrontmanServer.Providers do
     - model: The model string (e.g., "openrouter:openai/gpt-4"), or nil for default
 
   ## Returns
-    - `{:ok, ResolvedKey.t()}` - Ready to use for LLM calls
+    - `{:ok, {model_spec, llm_opts}}` - Ready to use for LLM calls
     - `{:error, :no_api_key}` - No API key available
   """
-  @spec prepare_api_key(Accounts.scope() | nil, String.t() | nil) ::
-          {:ok, ResolvedKey.t()} | {:error, :no_api_key}
-  def prepare_api_key(scope, model) do
+  def prepare_llm_args(scope, model, opts \\ []) do
     model = model || default_model()
     provider = model_provider_name(model)
+    provider_config(provider)
 
-    case resolve_oauth_key(scope, provider, model) do
-      {:ok, resolved_key} ->
-        {:ok, resolved_key}
+    oauth_llm_args(scope, provider, model, opts) ||
+      case resolve_api_key(scope, provider) do
+        key when is_binary(key) and key != "" ->
+          {:ok, {model, Keyword.merge([api_key: key], opts)}}
 
-      :no_oauth_token ->
-        case resolve_api_key(scope, provider) do
-          {:user_key, key} ->
-            {:ok, %ResolvedKey{provider: provider, model: model, llm_opts: [api_key: key]}}
-
-          {:env_key, key} ->
-            {:ok, %ResolvedKey{provider: provider, model: model, llm_opts: [api_key: key]}}
-
-          :no_api_key ->
-            {:error, :no_api_key}
-        end
-    end
+        _auth ->
+          {:error, :no_api_key}
+      end
   end
-
-  @doc """
-  Converts a resolved key into ReqLLM model + option arguments.
-  """
-  @spec to_llm_args(ResolvedKey.t(), keyword()) :: {String.t() | map(), keyword()}
-  defdelegate to_llm_args(resolved_key), to: ResolvedKey
-  defdelegate to_llm_args(resolved_key, opts), to: ResolvedKey
 
   def model_from_client_params(nil), do: :error
 
@@ -110,37 +82,28 @@ defmodule FrontmanServer.Providers do
     }
   end
 
-  def connect_anthropic_oauth(scope, code, verifier) do
+  def connect_anthropic_oauth(%Scope{user: %User{} = user} = scope, code, verifier) do
     with {:ok, tokens} <- AnthropicOAuth.exchange_code(code, verifier),
          expires_at = OAuthToken.calculate_expires_at(tokens.expires_in),
          {:ok, _token} <-
-           save_oauth_connection(
+           upsert_oauth_token(
              scope,
              "anthropic",
              tokens.access_token,
              tokens.refresh_token,
              expires_at
            ) do
+      broadcast_config_changed(user.id)
       {:ok, expires_at}
     end
   end
 
-  def start_chatgpt_oauth do
-    with {:ok, %{device_auth_id: device_auth_id, user_code: user_code}} <-
-           ChatGPTOAuth.request_device_code() do
-      {:ok,
-       %{
-         device_auth_id: device_auth_id,
-         user_code: user_code,
-         verification_url: ChatGPTOAuth.verification_url()
-       }}
-    end
-  end
+  def start_openai_oauth, do: OpenAIOAuth.request_device_code()
 
-  def poll_chatgpt_oauth(scope, device_auth_id, user_code) do
-    case ChatGPTOAuth.poll_device_token(device_auth_id, user_code) do
+  def poll_openai_oauth(scope, device_auth_id, user_code) do
+    case OpenAIOAuth.poll_device_token(device_auth_id, user_code) do
       {:ok, %{authorization_code: authorization_code, code_verifier: code_verifier}} ->
-        connect_chatgpt_device_oauth(scope, authorization_code, code_verifier)
+        connect_openai_device_oauth(scope, authorization_code, code_verifier)
 
       result ->
         result
@@ -161,19 +124,24 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  defp connect_chatgpt_device_oauth(scope, authorization_code, code_verifier) do
-    with {:ok, tokens} <- ChatGPTOAuth.exchange_device_code(authorization_code, code_verifier),
-         account_id = ChatGPTOAuth.extract_account_id_from_tokens(tokens),
+  defp connect_openai_device_oauth(
+         %Scope{user: %User{} = user} = scope,
+         authorization_code,
+         code_verifier
+       ) do
+    with {:ok, tokens} <- OpenAIOAuth.exchange_device_code(authorization_code, code_verifier),
+         account_id = OpenAIOAuth.extract_account_id_from_tokens(tokens),
          expires_at = OAuthToken.calculate_expires_at(tokens.expires_in),
          {:ok, _token} <-
-           save_oauth_connection(
+           upsert_oauth_token(
              scope,
-             "chatgpt",
+             "openai",
              tokens.access_token,
              tokens.refresh_token,
              expires_at,
              %{"account_id" => account_id}
            ) do
+      broadcast_config_changed(user.id)
       {:connected, expires_at}
     else
       {:error, reason} -> {:exchange_error, reason}
@@ -183,7 +151,6 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the provider-specific maximum image dimension when constrained.
   """
-  @spec max_image_dimension(String.t()) :: pos_integer() | nil
   def max_image_dimension(provider) when is_binary(provider) do
     provider_config(provider).max_image_dimension
   end
@@ -191,7 +158,6 @@ defmodule FrontmanServer.Providers do
   @doc """
   Extracts provider API keys from a metadata map sent by the client.
   """
-  @spec extract_env_keys(map()) :: %{String.t() => String.t()}
   def extract_env_keys(metadata) when is_map(metadata) do
     nested_keys =
       case metadata["envApiKey"] do
@@ -213,18 +179,20 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns a human-friendly model name for logs and telemetry.
   """
-  @spec display_model_name(map() | String.t()) :: String.t()
   def display_model_name(model_ref) when is_binary(model_ref), do: model_ref
   def display_model_name(%{id: id}) when is_binary(id), do: id
 
   @doc """
   Returns the provider name from a model reference.
   """
-  @spec model_provider_name(map() | String.t()) :: String.t()
+  def model_provider_name("openai_codex:" <> _model_id), do: "openai"
+
   def model_provider_name(model_ref) when is_binary(model_ref) do
     {provider, _name} = model_parts(model_ref)
     provider
   end
+
+  def model_provider_name(%{provider: :openai_codex}), do: "openai"
 
   def model_provider_name(%{provider: provider}) when is_atom(provider),
     do: Atom.to_string(provider)
@@ -232,7 +200,6 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the underlying LLM vendor from a model reference.
   """
-  @spec model_llm_vendor_name(map() | String.t()) :: String.t()
   def model_llm_vendor_name(model_ref) when is_binary(model_ref) do
     {provider, name} = model_parts(model_ref)
     llm_vendor_name(provider, name)
@@ -241,6 +208,8 @@ defmodule FrontmanServer.Providers do
   def model_llm_vendor_name(%{provider: :openrouter, id: id}) when is_binary(id) do
     openrouter_vendor_name(id)
   end
+
+  def model_llm_vendor_name(%{provider: :openai_codex}), do: "openai"
 
   def model_llm_vendor_name(%{provider: provider}) when is_atom(provider),
     do: Atom.to_string(provider)
@@ -294,122 +263,76 @@ defmodule FrontmanServer.Providers do
     |> Repo.one()
   end
 
-  ## API Key Resolution
+  defp resolve_oauth_token(%Scope{} = scope, provider) do
+    case get_oauth_token(scope, provider) do
+      %OAuthToken{} = token ->
+        if OAuthToken.expired?(token), do: refresh_oauth_token(scope, token), else: token
 
-  defp resolve_api_key(%Scope{} = scope, provider) when is_binary(provider) do
+      nil ->
+        nil
+    end
+  end
+
+  defp resolve_oauth_token(_scope, _provider), do: nil
+
+  defp resolve_api_key(%Scope{} = scope, provider) do
     case get_api_key(scope, provider) do
       %ApiKey{key: key} when is_binary(key) and key != "" ->
-        {:user_key, key}
+        key
 
       _ ->
-        resolve_env_key(provider, Accounts.scope_env_api_keys(scope))
+        Accounts.scope_env_api_keys(scope)[provider]
     end
   end
 
-  defp resolve_api_key(nil, provider) when is_binary(provider), do: :no_api_key
+  defp resolve_api_key(_scope, _provider), do: nil
 
-  defp resolve_oauth_key(nil, _provider, _model), do: :no_oauth_token
+  defp oauth_llm_args(scope, "anthropic", model, opts) do
+    case resolve_oauth_token(scope, "anthropic") do
+      %OAuthToken{access_token: access_token} ->
+        llm_opts =
+          Keyword.merge(
+            [
+              auth_mode: :oauth,
+              access_token: access_token,
+              with_claude_subscription: true,
+              anthropic_prompt_cache: true
+            ],
+            opts
+          )
 
-  defp resolve_oauth_key(scope, "anthropic", model) do
-    case get_valid_oauth_token(scope, "anthropic") do
-      {:ok, access_token} ->
-        {:ok,
-         %ResolvedKey{
-           provider: "anthropic",
-           model: model,
-           llm_opts: [
-             auth_mode: :oauth,
-             access_token: access_token,
-             with_claude_subscription: true
-           ]
-         }}
+        {:ok, {model, llm_opts}}
 
-      {:error, _} ->
-        :no_oauth_token
+      nil ->
+        nil
     end
   end
 
-  defp resolve_oauth_key(scope, "openai", model) do
-    case get_valid_oauth_token(scope, "chatgpt") do
-      {:ok, access_token} ->
-        account_id = get_chatgpt_account_id(scope)
+  defp oauth_llm_args(scope, "openai", model, opts) do
+    case resolve_oauth_token(scope, "openai") do
+      %OAuthToken{access_token: access_token, metadata: %{"account_id" => account_id}} ->
+        llm_opts =
+          [
+            auth_mode: :oauth,
+            access_token: access_token,
+            base_url: @codex_base_url,
+            chatgpt_account_id: account_id
+          ]
+          |> Keyword.merge(opts)
+          |> Keyword.delete(:max_tokens)
 
-        {:ok,
-         %ResolvedKey{
-           provider: "openai",
-           model: codex_model(model),
-           llm_opts: [
-             auth_mode: :oauth,
-             access_token: access_token,
-             base_url: @codex_base_url,
-             chatgpt_account_id: account_id
-           ]
-         }}
+        {:ok, {codex_model(model), llm_opts}}
 
-      {:error, _} ->
-        :no_oauth_token
+      nil ->
+        nil
     end
   end
 
-  defp resolve_oauth_key(_scope, _provider, _model), do: :no_oauth_token
-
-  defp oauth_key?(nil, _provider), do: false
-
-  defp oauth_key?(scope, "anthropic"),
-    do: match?({:ok, _}, get_valid_oauth_token(scope, "anthropic"))
-
-  defp oauth_key?(scope, "openai"), do: match?({:ok, _}, get_valid_oauth_token(scope, "chatgpt"))
-  defp oauth_key?(_scope, _provider), do: false
-
-  # Retrieve the chatgpt_account_id from stored token metadata
-  defp get_chatgpt_account_id(scope) do
-    %OAuthToken{metadata: %{"account_id" => account_id}} = get_oauth_token(scope, "chatgpt")
-    account_id
-  end
-
-  defp resolve_env_key(provider, env_api_key) when is_map(env_api_key) do
-    case Map.get(env_api_key, provider) do
-      key when is_binary(key) and key != "" -> {:env_key, key}
-      _ -> :no_api_key
-    end
-  end
+  defp oauth_llm_args(_scope, _provider, _model, _opts), do: nil
 
   ## OAuth Token Management
 
-  @doc """
-  Stores or updates an OAuth token and broadcasts a config change.
-
-  Use this for user-initiated OAuth connections (e.g. completing an OAuth flow).
-  For internal token refreshes, use `upsert_oauth_token/6` directly.
-  """
-  def save_oauth_connection(
-        %Scope{user: %User{} = user} = scope,
-        provider,
-        access_token,
-        refresh_token,
-        expires_at,
-        metadata \\ %{}
-      ) do
-    user_id = user.id
-
-    case upsert_oauth_token(scope, provider, access_token, refresh_token, expires_at, metadata) do
-      {:ok, token} ->
-        broadcast_config_changed(user_id)
-        {:ok, token}
-
-      error ->
-        error
-    end
-  end
-
-  @doc """
-  Stores or updates an OAuth token for a provider.
-
-  Does NOT broadcast config changes — use `save_oauth_connection/6` for
-  user-initiated flows that should notify subscribers.
-
-  Accepts an optional `metadata` map for provider-specific data (e.g., `account_id`).
-  """
+  @doc "Stores or updates an OAuth token for a provider without broadcasting."
   def upsert_oauth_token(
         %Scope{user: %User{} = user},
         provider,
@@ -448,71 +371,31 @@ defmodule FrontmanServer.Providers do
     |> Repo.one()
   end
 
-  @doc """
-  Returns true if the user has an OAuth token stored for the provider.
-  """
-  @spec has_oauth_token?(Scope.t(), String.t()) :: boolean()
-  def has_oauth_token?(%Scope{} = scope, provider) do
-    case get_oauth_token(scope, provider) do
-      %OAuthToken{} -> true
-      nil -> false
-    end
-  end
-
-  @doc """
-  Returns a valid (non-expired) OAuth access token, refreshing if needed.
-
-  Returns `{:ok, access_token}` or `{:error, reason}`.
-  """
-  def get_valid_oauth_token(%Scope{} = scope, provider) do
-    case get_oauth_token(scope, provider) do
-      nil ->
-        {:error, :no_oauth_token}
-
-      %OAuthToken{} = token ->
-        if OAuthToken.expired?(token) do
-          refresh_oauth_token(scope, token)
-        else
-          {:ok, token.access_token}
-        end
-    end
-  end
-
-  @doc """
-  Refreshes an OAuth token and updates the stored values.
-
-  Dispatches to the correct provider's refresh_token implementation.
-  Returns `{:ok, new_access_token}` or `{:error, reason}`.
-  """
-  def refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "chatgpt"} = token) do
-    case ChatGPTOAuth.refresh_token(token.refresh_token) do
+  defp refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "openai"} = token) do
+    case OpenAIOAuth.refresh_token(token.refresh_token) do
       {:ok, new_tokens} ->
         expires_in = new_tokens.expires_in || 3600
         expires_at = OAuthToken.calculate_expires_at(expires_in)
-
-        # Preserve existing metadata (account_id) when refreshing.
-        # Metadata should always be a map (schema default is %{}), but guard against
-        # nil from pre-migration rows that were never backfilled.
         metadata = if is_map(token.metadata), do: token.metadata, else: %{}
 
         case upsert_oauth_token(
                scope,
-               "chatgpt",
+               "openai",
                new_tokens.access_token,
                new_tokens.refresh_token || token.refresh_token,
                expires_at,
                metadata
              ) do
-          {:ok, _} -> {:ok, new_tokens.access_token}
-          {:error, reason} -> {:error, {:failed_to_store_refreshed_token, reason}}
+          {:ok, token} -> token
+          {:error, _reason} -> nil
         end
 
-      {:error, reason} ->
-        {:error, {:refresh_failed, reason}}
+      {:error, _reason} ->
+        nil
     end
   end
 
-  def refresh_oauth_token(%Scope{} = scope, %OAuthToken{} = token) do
+  defp refresh_oauth_token(%Scope{} = scope, %OAuthToken{} = token) do
     case AnthropicOAuth.refresh_token(token.refresh_token) do
       {:ok, new_tokens} ->
         expires_at = OAuthToken.calculate_expires_at(new_tokens.expires_in)
@@ -524,12 +407,12 @@ defmodule FrontmanServer.Providers do
                new_tokens.refresh_token,
                expires_at
              ) do
-          {:ok, _} -> {:ok, new_tokens.access_token}
-          {:error, reason} -> {:error, {:failed_to_store_refreshed_token, reason}}
+          {:ok, token} -> token
+          {:error, _reason} -> nil
         end
 
-      {:error, reason} ->
-        {:error, {:refresh_failed, reason}}
+      {:error, _reason} ->
+        nil
     end
   end
 
@@ -608,7 +491,27 @@ defmodule FrontmanServer.Providers do
           default_model: String.t()
         }
   def model_config_data(scope) do
-    provider_configs = available_provider_configs(scope)
+    api_key_providers = list_api_key_providers(scope)
+    env_api_keys = Accounts.scope_env_api_keys(scope)
+
+    oauth_providers =
+      OAuthToken
+      |> OAuthToken.for_user(Accounts.scope_user_id(scope))
+      |> select([token], token.provider)
+      |> Repo.all()
+
+    provider_configs =
+      Enum.filter(@providers, fn
+        {provider, %{models: [_ | _]}} ->
+          provider in oauth_providers or provider in api_key_providers or
+            case env_api_keys[provider] do
+              key when is_binary(key) and key != "" -> true
+              _ -> false
+            end
+
+        {_provider, _config} ->
+          false
+      end)
 
     groups =
       Enum.map(provider_configs, fn {provider, config} ->
@@ -627,16 +530,6 @@ defmodule FrontmanServer.Providers do
     default_model = pick_default_model(provider_configs)
 
     %{groups: groups, default_model: default_model}
-  end
-
-  ## Provider Access Resolution
-
-  defp available_provider_configs(scope) do
-    @providers
-    |> Enum.filter(fn
-      {provider, %{models: [_ | _]}} -> own_key?(scope, provider)
-      {_provider, _config} -> false
-    end)
   end
 
   defp provider_config(provider) do
@@ -660,22 +553,8 @@ defmodule FrontmanServer.Providers do
     default_model_for(provider, config)
   end
 
-  defp own_key?(scope, provider) do
-    case {oauth_key?(scope, provider), resolve_api_key(scope, provider)} do
-      {true, _} -> true
-      {false, {:user_key, _}} -> true
-      {false, {:env_key, _}} -> true
-      {false, :no_api_key} -> false
-    end
-  end
-
-  defp codex_model("openai:codex-5.3"), do: resolve_codex_model("openai_codex:gpt-5.3-codex")
-  defp codex_model("openai:" <> model_id), do: resolve_codex_model("openai_codex:" <> model_id)
-
-  defp resolve_codex_model(model_string) do
-    {:ok, model} = ReqLLM.model(model_string)
-    model
-  end
+  defp codex_model("openai:codex-5.3"), do: "openai_codex:gpt-5.3-codex"
+  defp codex_model("openai:" <> model_id), do: "openai_codex:" <> model_id
 
   defp model_parts(model) when is_binary(model) do
     case String.split(model, ":", parts: 2) do
@@ -686,6 +565,7 @@ defmodule FrontmanServer.Providers do
   defp model_string(provider, name), do: "#{provider}:#{name}"
 
   defp llm_vendor_name("openrouter", name), do: openrouter_vendor_name(name)
+  defp llm_vendor_name("openai_codex", _name), do: "openai"
   defp llm_vendor_name(provider, _name), do: provider
 
   defp openrouter_vendor_name(name) do
