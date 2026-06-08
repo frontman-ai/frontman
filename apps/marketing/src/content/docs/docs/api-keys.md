@@ -7,7 +7,7 @@ Frontman needs access to a large language model (LLM) to power the coding agent.
 
 ## Free tier (default)
 
-Frontman uses a bring-your-own-key model. Connect your own AI provider account to use the agent with Claude, ChatGPT, OpenRouter, or another supported provider.
+Frontman uses a bring-your-own-key model. Connect your own AI provider account to use the agent with Claude, OpenAI, OpenRouter, or another supported provider.
 
 :::note
 The free tier is subject to rate limits and may use a smaller model. For production use or heavier workloads, bring your own key.

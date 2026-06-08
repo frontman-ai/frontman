@@ -26,7 +26,7 @@ If you're managing a design system across multiple teams, this model matters. GP
 
 ### How to Use It
 
-GPT-5.4 is now the default for ChatGPT OAuth users in Frontman. If you've connected your ChatGPT Pro or Plus account, it's already available in the model picker.
+GPT-5.4 is now the default for OpenAI OAuth users in Frontman. If you've connected your OpenAI account, it's already available in the model picker.
 
 OpenRouter users can select GPT-5.4 or GPT-5.4 Pro from the model dropdown. Pro offers stronger performance on research-heavy and abstract reasoning tasks — useful when you're working through complex interaction patterns or auditing system-wide consistency.
 
