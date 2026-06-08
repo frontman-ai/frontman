@@ -1,7 +1,7 @@
-defmodule FrontmanServer.Providers.ChatGPTOAuthTest do
+defmodule FrontmanServer.Providers.OpenAIOAuthTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Providers.ChatGPTOAuth
+  alias FrontmanServer.Providers.OpenAIOAuth
 
   defp build_jwt(claims) do
     header = Base.url_encode64(Jason.encode!(%{"alg" => "RS256"}), padding: false)
@@ -10,38 +10,24 @@ defmodule FrontmanServer.Providers.ChatGPTOAuthTest do
     "#{header}.#{payload}.#{signature}"
   end
 
-  describe "extract_account_id/1" do
+  describe "extract_account_id_from_tokens/1" do
     test "extracts account_id from OpenAI auth claim" do
       jwt =
         build_jwt(%{"https://api.openai.com/auth" => %{"chatgpt_account_id" => "acct_123"}})
 
-      assert "acct_123" = ChatGPTOAuth.extract_account_id(jwt)
+      assert "acct_123" = OpenAIOAuth.extract_account_id_from_tokens(%{id_token: jwt})
     end
 
     test "extracts account_id from top-level claim" do
       jwt = build_jwt(%{"chatgpt_account_id" => "acct_456"})
-      assert "acct_456" = ChatGPTOAuth.extract_account_id(jwt)
+
+      assert "acct_456" = OpenAIOAuth.extract_account_id_from_tokens(%{id_token: jwt})
     end
 
     test "extracts account_id from organizations array" do
       jwt = build_jwt(%{"organizations" => [%{"id" => "org_789"}]})
-      assert "org_789" = ChatGPTOAuth.extract_account_id(jwt)
-    end
-  end
 
-  describe "extract_account_id_from_tokens/1" do
-    test "extracts account_id from id_token" do
-      id_jwt = build_jwt(%{"chatgpt_account_id" => "from_id_token"})
-
-      result =
-        ChatGPTOAuth.extract_account_id_from_tokens(%{
-          id_token: id_jwt,
-          access_token: "unused",
-          refresh_token: "rt_xxx",
-          expires_in: 3600
-        })
-
-      assert result == "from_id_token"
+      assert "org_789" = OpenAIOAuth.extract_account_id_from_tokens(%{id_token: jwt})
     end
   end
 end

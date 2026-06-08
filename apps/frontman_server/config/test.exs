@@ -64,11 +64,6 @@ config :frontman_server, :web_fetch_req_options,
   retry_delay: fn _ -> 0 end,
   retry_log_level: false
 
-# OpenTelemetry - disable in tests
-config :opentelemetry,
-  span_processor: :simple,
-  traces_exporter: :none
-
 # Sentry - enable test mode, disable dedup to avoid test interference
 config :sentry,
   test_mode: true,

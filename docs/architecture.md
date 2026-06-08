@@ -203,7 +203,7 @@ Tier logic: full tier = user has own key; free tier = server key with limited mo
 
 ### Observability
 
-- OpenTelemetry: SwarmAi events → OTEL spans
+- SwarmAi telemetry: dev console timing for agent, LLM, and tool events
 - Sentry: crashed process exceptions, PlugCapture
 - Structured logging with metadata: request_id, task_id, pid, reason
 

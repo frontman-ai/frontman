@@ -27,7 +27,6 @@ defmodule FrontmanServer.Providers do
              |> Enum.map(fn {provider, config} -> {Atom.to_string(provider), config} end)
 
   @provider_configs Map.new(@providers)
-  @codex_base_url "https://chatgpt.com/backend-api/codex"
 
   ## High-Level API (Domain Entry Points)
 
@@ -49,16 +48,42 @@ defmodule FrontmanServer.Providers do
   def prepare_llm_args(scope, model, opts \\ []) do
     model = model || default_model()
     provider = model_provider_name(model)
-    provider_config(provider)
 
-    oauth_llm_args(scope, provider, model, opts) ||
-      case resolve_api_key(scope, provider) do
-        key when is_binary(key) and key != "" ->
-          {:ok, {model, Keyword.merge([api_key: key], opts)}}
+    case {provider, resolve_oauth_token(scope, provider)} do
+      {"anthropic", %OAuthToken{access_token: access_token}} ->
+        {:ok,
+         {model,
+          Keyword.merge(
+            [
+              auth_mode: :oauth,
+              access_token: access_token,
+              with_claude_subscription: true,
+              anthropic_prompt_cache: true
+            ],
+            opts
+          )}}
 
-        _auth ->
-          {:error, :no_api_key}
-      end
+      {"openai_codex",
+       %OAuthToken{access_token: access_token, metadata: %{"account_id" => account_id}}} ->
+        llm_opts =
+          [
+            auth_mode: :oauth,
+            access_token: access_token,
+            chatgpt_account_id: account_id
+          ]
+          |> Keyword.merge(opts)
+
+        {:ok, {model, llm_opts}}
+
+      {_provider, _token} ->
+        case resolve_api_key(scope, provider) do
+          key when is_binary(key) and key != "" ->
+            {:ok, {model, Keyword.merge([api_key: key], opts)}}
+
+          _auth ->
+            {:error, :no_api_key}
+        end
+    end
   end
 
   def model_from_client_params(nil), do: :error
@@ -135,7 +160,7 @@ defmodule FrontmanServer.Providers do
          {:ok, _token} <-
            upsert_oauth_token(
              scope,
-             "openai",
+             "openai_codex",
              tokens.access_token,
              tokens.refresh_token,
              expires_at,
@@ -185,14 +210,10 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns the provider name from a model reference.
   """
-  def model_provider_name("openai_codex:" <> _model_id), do: "openai"
-
   def model_provider_name(model_ref) when is_binary(model_ref) do
     {provider, _name} = model_parts(model_ref)
     provider
   end
-
-  def model_provider_name(%{provider: :openai_codex}), do: "openai"
 
   def model_provider_name(%{provider: provider}) when is_atom(provider),
     do: Atom.to_string(provider)
@@ -208,8 +229,6 @@ defmodule FrontmanServer.Providers do
   def model_llm_vendor_name(%{provider: :openrouter, id: id}) when is_binary(id) do
     openrouter_vendor_name(id)
   end
-
-  def model_llm_vendor_name(%{provider: :openai_codex}), do: "openai"
 
   def model_llm_vendor_name(%{provider: provider}) when is_atom(provider),
     do: Atom.to_string(provider)
@@ -287,49 +306,6 @@ defmodule FrontmanServer.Providers do
 
   defp resolve_api_key(_scope, _provider), do: nil
 
-  defp oauth_llm_args(scope, "anthropic", model, opts) do
-    case resolve_oauth_token(scope, "anthropic") do
-      %OAuthToken{access_token: access_token} ->
-        llm_opts =
-          Keyword.merge(
-            [
-              auth_mode: :oauth,
-              access_token: access_token,
-              with_claude_subscription: true,
-              anthropic_prompt_cache: true
-            ],
-            opts
-          )
-
-        {:ok, {model, llm_opts}}
-
-      nil ->
-        nil
-    end
-  end
-
-  defp oauth_llm_args(scope, "openai", model, opts) do
-    case resolve_oauth_token(scope, "openai") do
-      %OAuthToken{access_token: access_token, metadata: %{"account_id" => account_id}} ->
-        llm_opts =
-          [
-            auth_mode: :oauth,
-            access_token: access_token,
-            base_url: @codex_base_url,
-            chatgpt_account_id: account_id
-          ]
-          |> Keyword.merge(opts)
-          |> Keyword.delete(:max_tokens)
-
-        {:ok, {codex_model(model), llm_opts}}
-
-      nil ->
-        nil
-    end
-  end
-
-  defp oauth_llm_args(_scope, _provider, _model, _opts), do: nil
-
   ## OAuth Token Management
 
   @doc "Stores or updates an OAuth token for a provider without broadcasting."
@@ -371,7 +347,7 @@ defmodule FrontmanServer.Providers do
     |> Repo.one()
   end
 
-  defp refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "openai"} = token) do
+  defp refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "openai_codex"} = token) do
     case OpenAIOAuth.refresh_token(token.refresh_token) do
       {:ok, new_tokens} ->
         expires_in = new_tokens.expires_in || 3600
@@ -380,7 +356,7 @@ defmodule FrontmanServer.Providers do
 
         case upsert_oauth_token(
                scope,
-               "openai",
+               token.provider,
                new_tokens.access_token,
                new_tokens.refresh_token || token.refresh_token,
                expires_at,
@@ -553,9 +529,6 @@ defmodule FrontmanServer.Providers do
     default_model_for(provider, config)
   end
 
-  defp codex_model("openai:codex-5.3"), do: "openai_codex:gpt-5.3-codex"
-  defp codex_model("openai:" <> model_id), do: "openai_codex:" <> model_id
-
   defp model_parts(model) when is_binary(model) do
     case String.split(model, ":", parts: 2) do
       [provider, name] when provider != "" and name != "" -> {provider, name}
@@ -565,7 +538,6 @@ defmodule FrontmanServer.Providers do
   defp model_string(provider, name), do: "#{provider}:#{name}"
 
   defp llm_vendor_name("openrouter", name), do: openrouter_vendor_name(name)
-  defp llm_vendor_name("openai_codex", _name), do: "openai"
   defp llm_vendor_name(provider, _name), do: provider
 
   defp openrouter_vendor_name(name) do

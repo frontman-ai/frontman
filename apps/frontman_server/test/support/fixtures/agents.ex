@@ -83,7 +83,7 @@ defmodule FrontmanServer.Test.Fixtures.Agents do
 
   defp infer_llm_model_from_fixture(path) do
     # The fixture format stores:
-    # - provider: "anthropic" | "openai" | ...
+    # - provider: "anthropic" | "openai_codex" | ...
     # - model_spec: "claude-sonnet-4-20250514" (sometimes already prefixed)
     #
     # We want a model string like "anthropic:claude-sonnet-4-20250514" so the

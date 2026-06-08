@@ -11,8 +11,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
   Stream-first design: returns a lazy stream of chunks that can be
   consumed with callbacks or collected into a Response.
 
-  API key resolution happens at the domain layer (Tasks context) before
-  this client is created. The resolved key is passed via `llm_opts[:api_key]`.
+  Provider auth resolution happens at the domain layer (Tasks context) before
+  this client is created. The resolved ReqLLM options are passed via `llm_opts`.
   """
 
   use TypedStruct
@@ -22,7 +22,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
   typedstruct do
     field(:model, String.t() | map(), enforce: true)
     field(:tools, [SwarmAi.Tool.t()], default: [])
-    # llm_opts must include :api_key (resolved at domain layer)
+    # Provider auth options are resolved at the domain layer.
     field(:llm_opts, keyword(), default: [])
   end
 
@@ -31,9 +31,9 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 
   ## Options
 
-  - `:model` - Required ReqLLM model spec from `Providers.to_llm_args/2`
+  - `:model` - Required ReqLLM model spec from `Providers.prepare_llm_args/3`
   - `:tools` - List of SwarmAi.Tool structs
-  - `:llm_opts` - Options for ReqLLM, must include `:api_key`
+  - `:llm_opts` - Options for ReqLLM, including resolved provider auth
   """
   def new(opts \\ []) do
     struct!(__MODULE__, opts)
@@ -75,7 +75,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     reqllm_tools =
       Enum.map(client.tools, &LLMClient.to_reqllm_tool(&1, client.model, client.llm_opts))
 
-    # API key must be provided via llm_opts (resolved at domain layer)
+    # Provider auth must be provided via llm_opts (resolved at domain layer)
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)

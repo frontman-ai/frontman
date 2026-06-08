@@ -43,7 +43,6 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Tasks.{
@@ -353,7 +352,6 @@ defmodule FrontmanServer.Tasks do
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:completed, _}) do
     {:ok, interaction} = record_agent_run_result(scope, task_id, turn_number, :completed)
-    TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
   end
 
@@ -383,7 +381,6 @@ defmodule FrontmanServer.Tasks do
         {:failed, reason_str, retryable, category}
       )
 
-    TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
   end
 
@@ -414,13 +411,11 @@ defmodule FrontmanServer.Tasks do
     {:ok, interaction} =
       record_agent_run_result(scope, task_id, turn_number, {:crashed, reason_str})
 
-    TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:cancelled, _}) do
     {:ok, interaction} = record_agent_run_result(scope, task_id, turn_number, :cancelled)
-    TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
   end
 
@@ -449,7 +444,6 @@ defmodule FrontmanServer.Tasks do
         [_ | _] -> :ok
       end
 
-    TelemetryEvents.task_stop(task_id)
     result
   end
 
@@ -473,7 +467,6 @@ defmodule FrontmanServer.Tasks do
         {:paused_for_tool_timeout, tool_name, timeout_ms}
       )
 
-    TelemetryEvents.task_stop(task_id)
     {:ok, interaction}
   end
 

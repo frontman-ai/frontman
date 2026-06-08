@@ -41,7 +41,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     fireworksKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     nvidiaKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     anthropicOAuthStatus: Types.NotConnected,
-    chatgptOAuthStatus: Types.ChatGPTNotConnected,
+    openaiOAuthStatus: Types.OpenAINotConnected,
     configOptions: None,
     selectedModelValue,
     pendingProviderAutoSelect,
@@ -89,16 +89,16 @@ module SampleConfig = {
   }
 
   let _openaiGroup: ACP.sessionConfigSelectGroup = {
-    group: "openai",
-    name: "ChatGPT Pro/Plus",
+    group: "openai_codex",
+    name: "OpenAI",
     options: [
       {
-        value: "openai:gpt-5.1-codex-max",
+        value: "openai_codex:gpt-5.1-codex-max",
         name: "GPT-5.1 Codex Max",
         description: None,
         _meta: None,
       },
-      {value: "openai:gpt-5.2", name: "GPT-5.2", description: None, _meta: None},
+      {value: "openai_codex:gpt-5.2", name: "GPT-5.2", description: None, _meta: None},
     ],
     _meta: None,
   }
@@ -147,7 +147,7 @@ module SampleConfig = {
   let configWithOpenAI = [
     _makeModelConfigOption(
       ~groups=[_openaiGroup, _anthropicGroup, _openrouterGroup],
-      ~currentValue="openai:gpt-5.1-codex-max",
+      ~currentValue="openai_codex:gpt-5.1-codex-max",
     ),
   ]
 
@@ -178,12 +178,12 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("anthropic"))
   })
 
-  test("InitiateChatGPTOAuth sets pendingProviderAutoSelect to openai", t => {
+  test("InitiateOpenAIOAuth sets pendingProviderAutoSelect to openai_codex", t => {
     let state = _makeState()
 
-    let (nextState, _effects) = Reducer.next(state, InitiateChatGPTOAuth)
+    let (nextState, _effects) = Reducer.next(state, InitiateOpenAIOAuth)
 
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("openai"))
+    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("openai_codex"))
   })
 
   test("SaveApiKey sets pendingProviderAutoSelect for each provider", t => {
@@ -224,9 +224,9 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
-  test("auto-selects first OpenAI model when pendingProviderAutoSelect is openai", t => {
+  test("auto-selects first OpenAI model when pendingProviderAutoSelect is openai_codex", t => {
     let state = _makeState(
-      ~pendingProviderAutoSelect=Some("openai"),
+      ~pendingProviderAutoSelect=Some("openai_codex"),
       ~selectedModelValue=Some("openrouter:google/gemini-3-flash-preview"),
     )
 
@@ -237,7 +237,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openai:gpt-5.1-codex-max"))
+    ->Expect.toEqual(Some("openai_codex:gpt-5.1-codex-max"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -302,9 +302,9 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
   })
 
   test("clears pendingProviderAutoSelect even when provider and current model are missing", t => {
-    let existingModel = "openai:gpt-5.1-codex-max"
+    let existingModel = "openai_codex:gpt-5.1-codex-max"
     let state = _makeState(
-      ~pendingProviderAutoSelect=Some("openai"),
+      ~pendingProviderAutoSelect=Some("openai_codex"),
       ~selectedModelValue=Some(existingModel),
     )
 

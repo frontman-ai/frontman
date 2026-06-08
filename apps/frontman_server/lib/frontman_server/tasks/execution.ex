@@ -13,29 +13,13 @@ defmodule FrontmanServer.Tasks.Execution do
   - Submitting agents to SwarmAi
   - Translating agent events to persistence calls and PubSub broadcasts
   - Routing tool result notifications to waiting executors
-
-  ## Telemetry
-
-  All agent telemetry is emitted by Swarm and correlated by agent id.
   """
 
-  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Observability.TelemetryEvents
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.{Prompts, RootAgent}
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema, TaskSchema}
   alias SwarmAi.Message.ContentPart
-
-  @type run_params :: %{
-          required(:tools) => [SwarmAi.Tool.t()],
-          required(:model) => String.t() | nil,
-          required(:turn_number) => pos_integer(),
-          required(:interaction_rows) => [InteractionSchema.t()],
-          required(:project_traits) => [FrontmanServer.Frameworks.project_trait()],
-          required(:backend_tool_modules) => [module()],
-          required(:mcp_tool_defs) => [FrontmanServer.Tools.MCP.t()]
-        }
 
   @doc """
   Runs an agent execution for a task.
@@ -57,8 +41,6 @@ defmodule FrontmanServer.Tasks.Execution do
   - `{:ok, :already_running}` - An execution is already running for this task
   - `{:error, :no_api_key}` - No API key available
   """
-  @spec run(Accounts.scope(), TaskSchema.t(), run_params()) ::
-          {:ok, pid() | :already_running} | {:error, :no_api_key | term()}
   def run(%Scope{} = scope, %TaskSchema{} = task, %{
         tools: tools,
         model: requested_model,
@@ -68,15 +50,8 @@ defmodule FrontmanServer.Tasks.Execution do
         backend_tool_modules: backend_tool_modules,
         mcp_tool_defs: mcp_tool_defs
       }) do
-    case Providers.prepare_api_key(scope, requested_model) do
-      {:ok, api_key_info} ->
-        max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
-        {model_spec, llm_opts} = Providers.to_llm_args(api_key_info, max_tokens: max_tokens)
-
-        llm_opts =
-          llm_opts
-          |> put_anthropic_prompt_cache(api_key_info.provider)
-
+    case Providers.prepare_llm_args(scope, requested_model) do
+      {:ok, {model_spec, llm_opts}} ->
         agent = %RootAgent{
           task: task,
           scope: scope,
@@ -90,20 +65,14 @@ defmodule FrontmanServer.Tasks.Execution do
           llm_opts: llm_opts
         }
 
-        # Emit task start telemetry BEFORE SwarmAi.run to avoid race with task_stop
-        # in event handlers — the agent may complete before this line returns.
-        TelemetryEvents.task_start(task.id)
-
         case SwarmAi.run(FrontmanServer.AgentRuntime, agent) do
           {:ok, pid} ->
             {:ok, pid}
 
           {:error, :already_running} ->
-            TelemetryEvents.task_stop(task.id)
             {:ok, :already_running}
 
           error ->
-            TelemetryEvents.task_stop(task.id)
             error
         end
 
@@ -184,11 +153,6 @@ defmodule FrontmanServer.Tasks.Execution do
       struct -> struct.summary
     end
   end
-
-  defp put_anthropic_prompt_cache(opts, "anthropic"),
-    do: Keyword.put(opts, :anthropic_prompt_cache, true)
-
-  defp put_anthropic_prompt_cache(opts, _provider), do: opts
 
   defp encode_result_for_swarm(value) when is_binary(value), do: value
   defp encode_result_for_swarm(value), do: Jason.encode!(value)

@@ -57,5 +57,3 @@ config :swoosh, :api_client, false
 
 # Placeholder Resend API key for E2E.
 config :frontman_server, FrontmanServer.Mailer, api_key: "re_dev_placeholder"
-
-# OpenTelemetry - configured in runtime.exs based on env vars

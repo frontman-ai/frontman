@@ -161,19 +161,19 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let fireworksKeySettings = State.useSelector(State.Selectors.fireworksKeySettings)
   let nvidiaKeySettings = State.useSelector(State.Selectors.nvidiaKeySettings)
   let anthropicOAuthStatus = State.useSelector(State.Selectors.anthropicOAuthStatus)
-  let chatgptOAuthStatus = State.useSelector(State.Selectors.chatgptOAuthStatus)
+  let openaiOAuthStatus = State.useSelector(State.Selectors.openaiOAuthStatus)
 
   React.useEffect2(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
       State.Actions.fetchAnthropicOAuthStatus()
-      State.Actions.fetchChatGPTOAuthStatus()
+      State.Actions.fetchOpenAIOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()
       State.Actions.resetAnthropicKeySaveStatus()
       State.Actions.resetFireworksKeySaveStatus()
       State.Actions.resetNvidiaKeySaveStatus()
       State.Actions.resetAnthropicOAuthError()
-      State.Actions.resetChatGPTOAuthError()
+      State.Actions.resetOpenAIOAuthError()
       setOpenrouterKey(_ => "")
       setAnthropicKey(_ => "")
       setFireworksKey(_ => "")
@@ -484,17 +484,16 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-zinc-100">
-                          {React.string("ChatGPT Pro/Plus")}
+                          {React.string("OpenAI")}
                         </span>
-                        {switch chatgptOAuthStatus {
-                        | Types.ChatGPTConnected(_) =>
-                          renderBadge(~label="Connected", ~tone=Emerald)
-                        | Types.ChatGPTFetchingStatus
-                        | Types.ChatGPTWaitingForCode
-                        | Types.ChatGPTShowingCode(_) =>
+                        {switch openaiOAuthStatus {
+                        | Types.OpenAIConnected(_) => renderBadge(~label="Connected", ~tone=Emerald)
+                        | Types.OpenAIFetchingStatus
+                        | Types.OpenAIWaitingForCode
+                        | Types.OpenAIShowingCode(_) =>
                           renderBadge(~label="Connecting...", ~tone=Amber)
-                        | Types.ChatGPTError(_) => renderBadge(~label="Error", ~tone=Red)
-                        | Types.ChatGPTNotConnected =>
+                        | Types.OpenAIError(_) => renderBadge(~label="Error", ~tone=Red)
+                        | Types.OpenAINotConnected =>
                           renderBadge(~label="Not connected", ~tone=Zinc)
                         }}
                       </div>
@@ -502,23 +501,23 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
 
                     <div className="mt-2 text-xs text-zinc-500">
                       {React.string(
-                        "Use your ChatGPT Pro or Plus subscription to power Frontman with OpenAI Codex models.",
+                        "Use your OpenAI account to power Frontman with OpenAI Codex models.",
                       )}
                     </div>
 
                     <div className="mt-3">
-                      {switch chatgptOAuthStatus {
-                      | Types.ChatGPTNotConnected =>
+                      {switch openaiOAuthStatus {
+                      | Types.OpenAINotConnected =>
                         <Button.Button
-                          variant=#secondary onClick={_ => State.Actions.initiateChatGPTOAuth()}
+                          variant=#secondary onClick={_ => State.Actions.initiateOpenAIOAuth()}
                         >
-                          {React.string("Connect with ChatGPT")}
+                          {React.string("Connect with OpenAI")}
                         </Button.Button>
-                      | Types.ChatGPTFetchingStatus | Types.ChatGPTWaitingForCode =>
+                      | Types.OpenAIFetchingStatus | Types.OpenAIWaitingForCode =>
                         <Button.Button variant=#secondary disabled={true}>
                           {React.string("Checking...")}
                         </Button.Button>
-                      | Types.ChatGPTShowingCode({userCode, verificationUrl}) =>
+                      | Types.OpenAIShowingCode({userCode, verificationUrl}) =>
                         <div className="space-y-3">
                           <div className="text-xs text-zinc-400">
                             {React.string("Enter this code at OpenAI to connect your account:")}
@@ -535,7 +534,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                               rel="noopener noreferrer"
                               className="rounded-md bg-zinc-700 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:bg-zinc-600"
                             >
-                              {React.string("Open OpenAI")}
+                              {React.string("Authorize at OpenAI")}
                             </a>
                           </div>
                           <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -545,18 +544,18 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             {React.string("Waiting for authorization...")}
                           </div>
                         </div>
-                      | Types.ChatGPTConnected({expiresAt}) =>
+                      | Types.OpenAIConnected({expiresAt}) =>
                         renderConnectedToken(~expiresAt, ~onDisconnect=() =>
-                          State.Actions.disconnectChatGPTOAuth()
+                          State.Actions.disconnectOpenAIOAuth()
                         )
-                      | Types.ChatGPTError(msg) =>
+                      | Types.OpenAIError(msg) =>
                         <div className="space-y-2">
                           <div className="text-xs text-red-400"> {React.string(msg)} </div>
                           <Button.Button
                             variant=#secondary
                             onClick={_ => {
-                              State.Actions.resetChatGPTOAuthError()
-                              State.Actions.initiateChatGPTOAuth()
+                              State.Actions.resetOpenAIOAuthError()
+                              State.Actions.initiateOpenAIOAuth()
                             }}
                           >
                             {React.string("Try again")}

@@ -750,17 +750,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_channel
     ]
 
-    test "terminated event persists error and fires telemetry", %{
+    test "terminated event persists error", %{
       task_id: task_id,
       scope: scope,
       socket: socket
     } do
-      # Attach telemetry handler before triggering the event
-      ref =
-        :telemetry_test.attach_event_handlers(self(), [
-          [:frontman, :task, :stop]
-        ])
-
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       # Provider exits with :shutdown — simulates supervisor kill
@@ -784,10 +778,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert agent_error != nil
       assert agent_error.kind == "terminated"
       assert agent_error.error == "Terminated by supervisor"
-
-      # Verify telemetry
-      assert_receive {[:frontman, :task, :stop], ^ref, _measurements, telemetry_meta}
-      assert telemetry_meta.task_id == task_id
     end
   end
 
@@ -801,17 +791,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_channel
     ]
 
-    test "crashed event persists error, fires telemetry, and pushes agent_turn_complete to client",
+    test "crashed event persists error and pushes agent_turn_complete to client",
          %{
            task_id: task_id,
            scope: scope,
            socket: socket
          } do
-      ref =
-        :telemetry_test.attach_event_handlers(self(), [
-          [:frontman, :task, :stop]
-        ])
-
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       # Provider raises during stream setup, before execute_llm_call consumes the stream.
@@ -847,10 +832,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert agent_error != nil
       assert agent_error.kind == "crashed"
       assert agent_error.error =~ "agent boom"
-
-      # Verify telemetry
-      assert_receive {[:frontman, :task, :stop], ^ref, _measurements, telemetry_meta}
-      assert telemetry_meta.task_id == task_id
     end
   end
 
@@ -864,17 +845,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_channel
     ]
 
-    test "failed event persists classified error, fires telemetry, and pushes agent_turn_complete to client",
+    test "failed event persists classified error and pushes agent_turn_complete to client",
          %{
            task_id: task_id,
            scope: scope,
            socket: socket
          } do
-      ref =
-        :telemetry_test.attach_event_handlers(self(), [
-          [:frontman, :task, :stop]
-        ])
-
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       expect_llm_responses([{:error, :llm_error}])
@@ -908,10 +884,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert agent_error.kind == "failed"
       assert agent_error.retryable == false
       assert agent_error.category == "unknown"
-
-      # Verify telemetry
-      assert_receive {[:frontman, :task, :stop], ^ref, _measurements, telemetry_meta}
-      assert telemetry_meta.task_id == task_id
     end
   end
 

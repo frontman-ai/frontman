@@ -103,14 +103,14 @@ type anthropicOAuthStatus =
   | Connected({expiresAt: float})
   | Error(string)
 
-// ChatGPT OAuth connection status (device auth flow)
-type chatgptOAuthStatus =
-  | ChatGPTNotConnected
-  | ChatGPTFetchingStatus
-  | ChatGPTWaitingForCode // Requesting device code from OpenAI
-  | ChatGPTShowingCode({deviceAuthId: string, userCode: string, verificationUrl: string}) // User needs to enter code
-  | ChatGPTConnected({expiresAt: float})
-  | ChatGPTError(string)
+// OpenAI OAuth connection status (device auth flow)
+type openaiOAuthStatus =
+  | OpenAINotConnected
+  | OpenAIFetchingStatus
+  | OpenAIWaitingForCode // Requesting device code from OpenAI
+  | OpenAIShowingCode({deviceAuthId: string, userCode: string, verificationUrl: string}) // User needs to enter code
+  | OpenAIConnected({expiresAt: float})
+  | OpenAIError(string)
 
 // Sessions load state for persisted sessions
 type sessionsLoadState =
@@ -154,7 +154,7 @@ type state = {
   fireworksKeySettings: apiKeySettings,
   nvidiaKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
-  chatgptOAuthStatus: chatgptOAuthStatus,
+  openaiOAuthStatus: openaiOAuthStatus,
   // ACP session config options (replaces bespoke modelsConfig/selectedModel).
   // Populated from session/new and session/load responses.
   // Model selection is a SessionConfigOption with category=Model.

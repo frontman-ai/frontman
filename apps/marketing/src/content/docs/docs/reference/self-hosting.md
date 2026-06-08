@@ -57,7 +57,7 @@ Consider self-hosting if you:
 │                                                   │
 │  PostgreSQL (user accounts, task history)        │
 │  Oban (background jobs: email, webhooks)         │
-│  OpenTelemetry (optional observability)          │
+│  Phoenix/Ecto telemetry metrics                  │
 └───────────────────────────────────────────────────┘
 ```
 
@@ -136,7 +136,6 @@ The deploy script (`/opt/frontman/deploy.sh`) extracts the release to the inacti
 # Install Prometheus, Alertmanager, Blackbox Exporter
 ssh root@<server> 'bash -s' < infra/production/monitoring/setup-monitoring.sh
 ```
-Exports to Arize via OpenTelemetry if `ARIZE_API_KEY` and `ARIZE_SPACE_ID` are set in env.
 
 ---
 
@@ -168,7 +167,6 @@ docker run -d \
 - `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` — OAuth (GitHub, Google login)
 
 Optional:
-- `ARIZE_API_KEY`, `ARIZE_SPACE_ID` — OpenTelemetry export
 - `DISCORD_NEW_USERS_WEBHOOK_URL` — New user signup notifications
 - `RESEND_API_KEY` — Email delivery (welcome emails, password resets)
 
@@ -262,14 +260,6 @@ Frontman uses WorkOS for OAuth (GitHub, Google login). Required for production:
 Get these from [WorkOS Dashboard](https://dashboard.workos.com/).
 
 ### Optional Environment Variables
-
-#### Observability (OpenTelemetry → Arize)
-- `ARIZE_API_KEY` — Arize Phoenix API key
-- `ARIZE_SPACE_ID` — Arize space ID
-- `ARIZE_COLLECTOR_ENDPOINT` — Default: `https://otlp.eu-west-1a.arize.com`
-- `ARIZE_PROJECT_NAME` — Default: `frontman`
-
-If both API key and space ID are set, spans are exported to Arize. Otherwise, telemetry collection is disabled.
 
 #### Notifications
 - `DISCORD_NEW_USERS_WEBHOOK_URL` — Discord webhook for new user signups (omit to disable)
@@ -381,9 +371,6 @@ Alerts fire to Alertmanager → Discord webhook on:
 - Instance down (health check fails for 1 minute)
 - High error rate (>5% 5xx responses over 5 minutes)
 - Database connection pool exhausted
-
-### Distributed Tracing
-If `ARIZE_API_KEY` and `ARIZE_SPACE_ID` are set, OpenTelemetry spans are exported to Arize Phoenix for LLM observability (prompt tracing, token usage, latency).
 
 ---
 

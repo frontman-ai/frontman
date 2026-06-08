@@ -7,15 +7,13 @@ import Config
 #   :env_key_name        – metadata key the client sends for project-level keys (nil = n/a)
 #   :display_name        – human-readable label for the UI
 #   :max_image_dimension – hard pixel-per-side limit (nil = provider auto-resizes)
-#   :codex_base_url      - OpenAI OAuth Codex API endpoint (OpenAI only)
 # Model tuple shape: {display_name, model_id, llm_db_metadata | :packaged}
 providers = [
-  {:openai,
+  {:openai_codex,
    %{
      env_key_name: nil,
      display_name: "OpenAI",
      max_image_dimension: nil,
-     codex_base_url: "https://chatgpt.com/backend-api/codex",
      llm_db_provider: [],
      default_model: "gpt-5.5",
      models: [

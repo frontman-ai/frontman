@@ -76,16 +76,16 @@ type action =
   | AnthropicOAuthDisconnected
   | ResetAnthropicOAuthError
   | CancelAnthropicOAuth
-  // ChatGPT OAuth actions (device auth flow)
-  | FetchChatGPTOAuthStatus
-  | ChatGPTOAuthStatusReceived({connected: bool, expiresAt: option<string>})
-  | InitiateChatGPTOAuth
-  | ChatGPTDeviceCodeReceived({deviceAuthId: string, userCode: string, verificationUrl: string})
-  | ChatGPTOAuthConnected({deviceAuthId: string, expiresAt: string})
-  | ChatGPTOAuthError({deviceAuthId: option<string>, error: string})
-  | DisconnectChatGPTOAuth
-  | ChatGPTOAuthDisconnected
-  | ResetChatGPTOAuthError
+  // OpenAI OAuth actions (device auth flow)
+  | FetchOpenAIOAuthStatus
+  | OpenAIOAuthStatusReceived({connected: bool, expiresAt: option<string>})
+  | InitiateOpenAIOAuth
+  | OpenAIDeviceCodeReceived({deviceAuthId: string, userCode: string, verificationUrl: string})
+  | OpenAIOAuthConnected({deviceAuthId: string, expiresAt: string})
+  | OpenAIOAuthError({deviceAuthId: option<string>, error: string})
+  | DisconnectOpenAIOAuth
+  | OpenAIOAuthDisconnected
+  | ResetOpenAIOAuthError
   // User profile actions
   | UserProfileReceived({userProfile: Client__State__Types.userProfile})
   // Session loading actions
@@ -108,11 +108,11 @@ type effect =
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
   | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl: string, code: string, verifier: string})
   | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
-  // ChatGPT OAuth effects (device auth flow)
-  | FetchChatGPTOAuthStatusEffect({apiBaseUrl: string})
-  | InitiateChatGPTDeviceAuthEffect({apiBaseUrl: string})
-  | DisconnectChatGPTOAuthEffect({apiBaseUrl: string})
-  | PollChatGPTDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
+  // OpenAI OAuth effects (device auth flow)
+  | FetchOpenAIOAuthStatusEffect({apiBaseUrl: string})
+  | InitiateOpenAIDeviceAuthEffect({apiBaseUrl: string})
+  | DisconnectOpenAIOAuthEffect({apiBaseUrl: string})
+  | PollOpenAIDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
   // User profile effect
   | FetchUserProfileEffect({apiBaseUrl: string})
   // Task loading effect
@@ -160,10 +160,18 @@ module Lens = {
 let getInitialUrl = Client__BrowserUrl.getInitialUrl
 let selectedModelStorageKey = "frontman:selectedModelValue"
 
+let migrateOpenAIModelValue = value =>
+  switch value->String.startsWith("openai:") {
+  | true => "openai_codex:" ++ value->String.slice(~start=7, ~end=String.length(value))
+  | false => value
+  }
+
 // Load selected model value from localStorage (a sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
 let loadSelectedModelValueFromStorage = (): option<string> => {
   try {
-    FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)->Nullable.toOption
+    FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
+    ->Nullable.toOption
+    ->Option.map(migrateOpenAIModelValue)
   } catch {
   | _ => None
   }
@@ -244,7 +252,7 @@ let defaultState: state = {
     saveStatus: Client__State__Types.Idle,
   },
   anthropicOAuthStatus: Client__State__Types.NotConnected,
-  chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
+  openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
   configOptions: None,
   selectedModelValue: loadSelectedModelValueFromStorage(),
   pendingProviderAutoSelect: None,
@@ -428,9 +436,9 @@ module Selectors = {
     state.anthropicOAuthStatus
   }
 
-  // Get ChatGPT OAuth status
-  let chatgptOAuthStatus = (state: state): Client__State__Types.chatgptOAuthStatus => {
-    state.chatgptOAuthStatus
+  // Get OpenAI OAuth status
+  let openaiOAuthStatus = (state: state): Client__State__Types.openaiOAuthStatus => {
+    state.openaiOAuthStatus
   }
 
   // Get update info for the banner
@@ -459,8 +467,8 @@ module Selectors = {
     switch state.anthropicOAuthStatus {
     | Connected(_) => true
     | _ =>
-      switch state.chatgptOAuthStatus {
-      | ChatGPTConnected(_) => true
+      switch state.openaiOAuthStatus {
+      | OpenAIConnected(_) => true
       | _ =>
         hasApiKeySource(state.openrouterKeySettings.source) ||
         hasApiKeySource(state.nvidiaKeySettings.source) ||
@@ -842,9 +850,9 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     disconnect()->ignore
 
-  | FetchChatGPTOAuthStatusEffect({apiBaseUrl}) =>
+  | FetchOpenAIOAuthStatusEffect({apiBaseUrl}) =>
     let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/chatgpt/status`
+      let url = `${apiBaseUrl}/api/oauth/openai/status`
 
       try {
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
@@ -859,20 +867,20 @@ let handleEffect = (effect, state: state, dispatch) => {
             json
             ->JSON.Decode.object
             ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
-          dispatch(ChatGPTOAuthStatusReceived({connected, expiresAt}))
+          dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
       | _ =>
         dispatch(
-          ChatGPTOAuthError({deviceAuthId: None, error: "Failed to fetch ChatGPT OAuth status"}),
+          OpenAIOAuthError({deviceAuthId: None, error: "Failed to fetch OpenAI OAuth status"}),
         )
       }
     }
     fetch()->ignore
 
-  | InitiateChatGPTDeviceAuthEffect({apiBaseUrl}) =>
+  | InitiateOpenAIDeviceAuthEffect({apiBaseUrl}) =>
     let fetch = async () => {
-      let url = `${apiBaseUrl}/api/oauth/chatgpt/initiate`
+      let url = `${apiBaseUrl}/api/oauth/openai/initiate`
 
       try {
         let response = await WebAPI.Global.fetch(
@@ -898,25 +906,23 @@ let handleEffect = (effect, state: state, dispatch) => {
             )
           switch (deviceAuthId, userCode, verificationUrl) {
           | (Some(deviceAuthId), Some(userCode), Some(verificationUrl)) =>
-            dispatch(ChatGPTDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
+            dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
           | _ =>
-            dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Invalid response from server"}))
+            dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Invalid response from server"}))
           }
         } else {
           dispatch(
-            ChatGPTOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
+            OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
           )
         }
       } catch {
       | _ =>
-        dispatch(
-          ChatGPTOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
-        )
+        dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}))
       }
     }
     fetch()->ignore
 
-  | PollChatGPTDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode}) =>
+  | PollOpenAIDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode}) =>
     // Poll our server every 5 seconds for up to 15 minutes (180 attempts)
     // Server is stateless — we send device_auth_id + user_code on each poll
     // Each dispatch carries deviceAuthId so the reducer can reject stale results
@@ -932,14 +938,14 @@ let handleEffect = (effect, state: state, dispatch) => {
       let rec pollLoop = async attempt => {
         if attempt >= maxAttempts {
           dispatch(
-            ChatGPTOAuthError({
+            OpenAIOAuthError({
               deviceAuthId: Some(deviceAuthId),
               error: "Authorization timed out. Please try again.",
             }),
           )
         } else {
           try {
-            let url = `${apiBaseUrl}/api/oauth/chatgpt/poll`
+            let url = `${apiBaseUrl}/api/oauth/openai/poll`
             let response = await WebAPI.Global.fetch(
               url,
               ~init={
@@ -965,7 +971,7 @@ let handleEffect = (effect, state: state, dispatch) => {
                     obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string)
                   )
                   ->Option.getOr("")
-                dispatch(ChatGPTOAuthConnected({deviceAuthId, expiresAt}))
+                dispatch(OpenAIOAuthConnected({deviceAuthId, expiresAt}))
               | _ =>
                 // "pending" — wait and try again
                 await Promise.make((resolve, _) => {
@@ -975,7 +981,7 @@ let handleEffect = (effect, state: state, dispatch) => {
               }
             } else if response.status == 403 {
               dispatch(
-                ChatGPTOAuthError({
+                OpenAIOAuthError({
                   deviceAuthId: Some(deviceAuthId),
                   error: "Authorization was declined.",
                 }),
@@ -999,9 +1005,9 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     poll()->ignore
 
-  | DisconnectChatGPTOAuthEffect({apiBaseUrl}) =>
+  | DisconnectOpenAIOAuthEffect({apiBaseUrl}) =>
     let disconnect = async () => {
-      let url = `${apiBaseUrl}/api/oauth/chatgpt/disconnect`
+      let url = `${apiBaseUrl}/api/oauth/openai/disconnect`
 
       try {
         let response = await WebAPI.Global.fetch(
@@ -1012,12 +1018,12 @@ let handleEffect = (effect, state: state, dispatch) => {
           },
         )
         if response.ok {
-          dispatch(ChatGPTOAuthDisconnected)
+          dispatch(OpenAIOAuthDisconnected)
         } else {
-          dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
+          dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
         }
       } catch {
-      | _ => dispatch(ChatGPTOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
+      | _ => dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
       }
     }
     disconnect()->ignore
@@ -1257,7 +1263,7 @@ let next = (state: state, action) => {
         FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
         FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
         FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-        FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
+        FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
       ],
     )
 
@@ -1485,63 +1491,63 @@ let next = (state: state, action) => {
       anthropicOAuthStatus: Client__State__Types.NotConnected,
     }->StateReducer.update
 
-  // ChatGPT OAuth actions
-  | FetchChatGPTOAuthStatus =>
+  // OpenAI OAuth actions
+  | FetchOpenAIOAuthStatus =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTFetchingStatus,
-      }->StateReducer.update(~sideEffects=[FetchChatGPTOAuthStatusEffect({apiBaseUrl: apiBaseUrl})])
+        openaiOAuthStatus: Client__State__Types.OpenAIFetchingStatus,
+      }->StateReducer.update(~sideEffects=[FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl})])
     | NoAcpSession => state->StateReducer.update
     }
 
-  | ChatGPTOAuthStatusReceived({connected, expiresAt}) =>
+  | OpenAIOAuthStatusReceived({connected, expiresAt}) =>
     let status = if connected {
       switch expiresAt {
       | Some(expiresAtStr) =>
         let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
-        Client__State__Types.ChatGPTConnected({expiresAt: expiresAtMs})
-      | None => Client__State__Types.ChatGPTConnected({expiresAt: 0.0})
+        Client__State__Types.OpenAIConnected({expiresAt: expiresAtMs})
+      | None => Client__State__Types.OpenAIConnected({expiresAt: 0.0})
       }
     } else {
-      Client__State__Types.ChatGPTNotConnected
+      Client__State__Types.OpenAINotConnected
     }
     // Config options will be pushed by the server via config_option_update notification.
-    {...state, chatgptOAuthStatus: status}->StateReducer.update
+    {...state, openaiOAuthStatus: status}->StateReducer.update
 
-  | InitiateChatGPTOAuth =>
+  | InitiateOpenAIOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       // Set pendingProviderAutoSelect eagerly (race fix — see SaveApiKey).
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTWaitingForCode,
-        pendingProviderAutoSelect: Some("openai"),
+        openaiOAuthStatus: Client__State__Types.OpenAIWaitingForCode,
+        pendingProviderAutoSelect: Some("openai_codex"),
       }->StateReducer.update(
-        ~sideEffects=[InitiateChatGPTDeviceAuthEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[InitiateOpenAIDeviceAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
     | NoAcpSession => state->StateReducer.update
     }
 
-  | ChatGPTDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}) =>
+  | OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}) =>
     // Show the code to the user and start polling our server
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTShowingCode({
+        openaiOAuthStatus: Client__State__Types.OpenAIShowingCode({
           deviceAuthId,
           userCode,
           verificationUrl,
         }),
       }->StateReducer.update(
-        ~sideEffects=[PollChatGPTDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode})],
+        ~sideEffects=[PollOpenAIDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode})],
       )
     | NoAcpSession =>
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTShowingCode({
+        openaiOAuthStatus: Client__State__Types.OpenAIShowingCode({
           deviceAuthId,
           userCode,
           verificationUrl,
@@ -1549,30 +1555,30 @@ let next = (state: state, action) => {
       }->StateReducer.update
     }
 
-  | ChatGPTOAuthConnected({deviceAuthId, expiresAt}) =>
+  | OpenAIOAuthConnected({deviceAuthId, expiresAt}) =>
     // Only accept if the current state is showing the same deviceAuthId
     // (ignores stale results from old polling loops after retry)
-    switch state.chatgptOAuthStatus {
-    | Client__State__Types.ChatGPTShowingCode({deviceAuthId: currentId})
+    switch state.openaiOAuthStatus {
+    | Client__State__Types.OpenAIShowingCode({deviceAuthId: currentId})
       if currentId == deviceAuthId =>
       let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
       // Config options will be pushed by the server via config_option_update notification.
-      // pendingProviderAutoSelect was already set in InitiateChatGPTOAuth.
+      // pendingProviderAutoSelect was already set in InitiateOpenAIOAuth.
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTConnected({expiresAt: expiresAtMs}),
+        openaiOAuthStatus: Client__State__Types.OpenAIConnected({expiresAt: expiresAtMs}),
       }->StateReducer.update
     | _ => state->StateReducer.update
     }
 
-  | ChatGPTOAuthError({deviceAuthId, error}) =>
+  | OpenAIOAuthError({deviceAuthId, error}) =>
     // If deviceAuthId is provided (from poll loop), only accept if current
     // state is showing the same deviceAuthId — rejects stale poll results.
     // If no deviceAuthId (from status/initiate/disconnect), apply unconditionally.
     let isStale = switch deviceAuthId {
     | Some(id) =>
-      switch state.chatgptOAuthStatus {
-      | Client__State__Types.ChatGPTShowingCode({deviceAuthId: currentId}) => currentId != id
+      switch state.openaiOAuthStatus {
+      | Client__State__Types.OpenAIShowingCode({deviceAuthId: currentId}) => currentId != id
       | _ => true // state already moved past ShowingCode
       }
     | None => false
@@ -1582,33 +1588,33 @@ let next = (state: state, action) => {
     } else {
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTError(error),
+        openaiOAuthStatus: Client__State__Types.OpenAIError(error),
         pendingProviderAutoSelect: None,
       }->StateReducer.update
     }
 
-  | DisconnectChatGPTOAuth =>
+  | DisconnectOpenAIOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       state->StateReducer.update(
-        ~sideEffects=[DisconnectChatGPTOAuthEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[DisconnectOpenAIOAuthEffect({apiBaseUrl: apiBaseUrl})],
       )
     | NoAcpSession => state->StateReducer.update
     }
 
-  | ChatGPTOAuthDisconnected =>
+  | OpenAIOAuthDisconnected =>
     // Config options will be pushed by the server via config_option_update notification.
     {
       ...state,
-      chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
+      openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
     }->StateReducer.update
 
-  | ResetChatGPTOAuthError =>
-    switch state.chatgptOAuthStatus {
-    | Client__State__Types.ChatGPTError(_) =>
+  | ResetOpenAIOAuthError =>
+    switch state.openaiOAuthStatus {
+    | Client__State__Types.OpenAIError(_) =>
       {
         ...state,
-        chatgptOAuthStatus: Client__State__Types.ChatGPTNotConnected,
+        openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
       }->StateReducer.update
     | _ => state->StateReducer.update
     }
