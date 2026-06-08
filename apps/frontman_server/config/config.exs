@@ -31,6 +31,17 @@ config :frontman_server,
   # Sonnet 4.5 supports up to 64K output tokens.
   llm_max_tokens: 64_000
 
+config :frontman_server, FrontmanServer.Providers.OpenAIOAuth,
+  client_id: "app_EMoamEEZ73f0CkXaXp7hrann",
+  issuer: "https://auth.openai.com"
+
+config :frontman_server, FrontmanServer.Providers.AnthropicOAuth,
+  client_id: "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+  auth_url: "https://claude.ai/oauth/authorize",
+  token_url: "https://console.anthropic.com/v1/oauth/token",
+  redirect_uri: "https://console.anthropic.com/oauth/code/callback",
+  scopes: "org:create_api_key user:profile user:inference"
+
 # Configures the endpoint
 config :frontman_server, FrontmanServerWeb.Endpoint,
   url: [host: "localhost"],
