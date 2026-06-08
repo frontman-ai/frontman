@@ -44,7 +44,7 @@
 		"sury": "11.0.0-alpha.4"
 	},
 	"optionalDependencies": {
-		"@vscode/ripgrep": "^1.17.1"
+		"@vscode/ripgrep": "^1.18.0"
 	},
 	"devDependencies": {
 		"@rescript/webapi": "*",
