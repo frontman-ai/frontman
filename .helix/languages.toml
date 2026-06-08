@@ -1,0 +1,19 @@
+# Treat each ReScript package as its own LSP root. The monorepo root has a
+# rescript.json, but source files live under these package roots and the
+# ReScript language server resolves package artifacts relative to that root.
+[[language]]
+name = "rescript"
+workspace-lsp-roots = [
+  "libs/bindings",
+  "libs/client",
+  "libs/experimental-rescript-webapi",
+  "libs/frontman-astro",
+  "libs/frontman-astro-browser",
+  "libs/frontman-client",
+  "libs/frontman-core",
+  "libs/frontman-nextjs",
+  "libs/frontman-protocol",
+  "libs/frontman-vite",
+  "libs/logs",
+  "libs/react-statestore",
+]
