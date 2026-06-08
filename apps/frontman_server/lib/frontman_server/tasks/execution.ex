@@ -11,7 +11,6 @@ defmodule FrontmanServer.Tasks.Execution do
   This module handles the mechanics of running an LLM agent loop:
   - Building root agents from task data
   - Submitting agents to SwarmAi
-  - Translating agent events to persistence calls and PubSub broadcasts
   - Routing tool result notifications to waiting executors
   """
 
@@ -24,7 +23,7 @@ defmodule FrontmanServer.Tasks.Execution do
   @doc """
   Runs an agent execution for a task.
 
-  Resolves the API key, builds the root agent from the task,
+  Resolves provider auth, builds the root agent from the task,
   and submits the agent to SwarmAi.
 
   ## Params
@@ -50,7 +49,9 @@ defmodule FrontmanServer.Tasks.Execution do
         backend_tool_modules: backend_tool_modules,
         mcp_tool_defs: mcp_tool_defs
       }) do
-    case Providers.prepare_llm_args(scope, requested_model) do
+    max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
+
+    case Providers.prepare_llm_args(scope, requested_model, max_tokens: max_tokens) do
       {:ok, {model_spec, llm_opts}} ->
         agent = %RootAgent{
           task: task,

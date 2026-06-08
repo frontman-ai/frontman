@@ -569,9 +569,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 
-      # The telemetry stop event fires with is_error: false when the backend tool
-      # actually executed, or is_error: true / output "Unknown tool: todo_write"
-      # when ParallelExecutor rejects it due to the missing tool_defs bug.
+      # The telemetry stop event fires only after the backend tool actually runs.
+      # The missing tool_defs regression skipped execution before producing this event.
       assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
       assert meta.tool_name == "todo_write"
 
@@ -752,8 +751,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "terminated event persists error", %{
       task_id: task_id,
-      scope: scope,
-      socket: socket
+      scope: scope
     } do
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
@@ -765,9 +763,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       # Wait for Tasks to persist and broadcast the terminated interaction before checking channel.
       assert_receive {:interaction, %Interaction.AgentError{kind: "terminated"}, _turn_number},
                      5_000
-
-      # Flush the channel's message queue before asserting pushes.
-      :sys.get_state(socket.channel_pid)
 
       # Verify DB persistence
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -791,7 +786,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_channel
     ]
 
-    test "crashed event persists error and pushes agent_turn_complete to client",
+    test "crashed event persists error and pushes error update to client",
          %{
            task_id: task_id,
            scope: scope,
@@ -845,7 +840,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_channel
     ]
 
-    test "failed event persists classified error and pushes agent_turn_complete to client",
+    test "failed event persists classified error and pushes error update to client",
          %{
            task_id: task_id,
            scope: scope,

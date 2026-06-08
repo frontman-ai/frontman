@@ -18,8 +18,11 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert response["provider"] == "openrouter"
 
       scope = Scope.for_user(user)
-      api_key = Providers.get_api_key(scope, "openrouter")
-      assert api_key.key == "sk-test-123"
+
+      {:ok, {"openrouter:test-model", llm_opts}} =
+        Providers.prepare_llm_args(scope, "openrouter:test-model")
+
+      assert llm_opts[:api_key] == "sk-test-123"
     end
 
     test "stores Fireworks keys for logged-in user", %{conn: conn, user: user} do
@@ -32,8 +35,11 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert response["provider"] == "fireworks"
 
       scope = Scope.for_user(user)
-      api_key = Providers.get_api_key(scope, "fireworks")
-      assert api_key.key == "sk-fireworks-test-123"
+
+      {:ok, {"fireworks:test-model", llm_opts}} =
+        Providers.prepare_llm_args(scope, "fireworks:test-model")
+
+      assert llm_opts[:api_key] == "sk-fireworks-test-123"
     end
 
     test "stores Fireworks keys without affecting other users", %{conn: conn, user: user} do
@@ -51,10 +57,15 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
 
       assert response["status"] == "ok"
 
-      assert Providers.get_api_key(Scope.for_user(user), "fireworks").key ==
-               "sk-fireworks-current-user"
+      {:ok, {"fireworks:test-model", llm_opts}} =
+        Providers.prepare_llm_args(Scope.for_user(user), "fireworks:test-model")
 
-      assert Providers.get_api_key(other_scope, "fireworks").key == "sk-fireworks-other-user"
+      assert llm_opts[:api_key] == "sk-fireworks-current-user"
+
+      {:ok, {"fireworks:test-model", other_llm_opts}} =
+        Providers.prepare_llm_args(other_scope, "fireworks:test-model")
+
+      assert other_llm_opts[:api_key] == "sk-fireworks-other-user"
     end
 
     test "returns unauthorized without user" do

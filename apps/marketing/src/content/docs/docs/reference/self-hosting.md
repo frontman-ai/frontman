@@ -352,7 +352,8 @@ op run --env-file=envs/.dev.secrets.env mix phx.server
 ## Monitoring & Observability
 
 ### Health Checks
-- **HTTP:** `GET /api/health` → `{"status": "ok"}`
+- **HTTP:** `GET /health` → `{"status": "ok"}`
+- **Readiness:** `GET /health/ready` checks database connectivity
 - **Database:** Phoenix Dashboard at `/dashboard` (dev only)
 
 ### Logs
@@ -362,15 +363,16 @@ op run --env-file=envs/.dev.secrets.env mix phx.server
 
 ### Metrics (Prometheus)
 Optional setup script installs Prometheus + Alertmanager + Blackbox Exporter. Scrapes:
-- BEAM VM metrics (via `TelemetryMetrics`)
-- HTTP request rates, latencies (Phoenix instrumentation)
-- Database query timing (Ecto telemetry)
-- Health endpoint uptime (Blackbox Exporter)
+- System metrics via Node Exporter (CPU, memory, disk, network)
+- PostgreSQL metrics via Postgres Exporter
+- Health endpoint uptime via Blackbox Exporter
+- Prometheus self-monitoring metrics
 
 Alerts fire to Alertmanager → Discord webhook on:
-- Instance down (health check fails for 1 minute)
-- High error rate (>5% 5xx responses over 5 minutes)
-- Database connection pool exhausted
+- Active Frontman service down for 2 minutes
+- Health endpoint unreachable for 2 minutes
+- Database backup stale for more than 25 hours
+- PostgreSQL connection count above threshold
 
 ---
 

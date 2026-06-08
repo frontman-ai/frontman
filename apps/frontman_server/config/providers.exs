@@ -17,40 +17,10 @@ providers = [
      llm_db_provider: [],
      default_model: "gpt-5.5",
      models: [
-       {"GPT-5.5", "gpt-5.5",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
-       {"GPT-5.4", "gpt-5.4",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
+       {"GPT-5.5", "gpt-5.5", :packaged},
+       {"GPT-5.4", "gpt-5.4", :packaged},
        {"GPT-5.4 Mini", "gpt-5.4-mini", :packaged},
-       {"GPT-5.3 Codex", "gpt-5.3-codex",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 400_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }}
+       {"GPT-5.3 Codex Spark", "gpt-5.3-codex-spark", :packaged}
      ]
    }},
   {:anthropic,
@@ -60,24 +30,16 @@ providers = [
      # Anthropic hard-rejects images > 8000px per side; 7680 leaves margin.
      max_image_dimension: 7680,
      llm_db_provider: [],
-     default_model: "claude-sonnet-4-5",
+     default_model: "claude-sonnet-4-6",
      models: [
-       {"Claude Opus 4.6", "claude-opus-4-6",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 200_000, output: 64_000},
-          modalities: %{input: [:text, :image, :pdf], output: [:text]}
-        }},
-       {"Claude Sonnet 4.5", "claude-sonnet-4-5", :packaged},
+       {"Claude Opus 4.8", "claude-opus-4-8", :packaged},
+       {"Claude Opus 4.7", "claude-opus-4-7", :packaged},
+       {"Claude Opus 4.6", "claude-opus-4-6", :packaged},
        {"Claude Opus 4.5", "claude-opus-4-5", :packaged},
-       {"Claude Haiku 4.5", "claude-haiku-4-5", :packaged},
+       {"Claude Opus 4", "claude-opus-4-20250514", :packaged},
+       {"Claude Sonnet 4.6", "claude-sonnet-4-6", :packaged},
        {"Claude Sonnet 4", "claude-sonnet-4-20250514", :packaged},
-       {"Claude Opus 4", "claude-opus-4-20250514", :packaged}
+       {"Claude Haiku 4.5", "claude-haiku-4-5-20251001", :packaged}
      ]
    }},
   {:openrouter,
@@ -88,140 +50,35 @@ providers = [
      llm_db_provider: [],
      default_model: "google/gemini-3-flash-preview",
      models: [
-       {"GPT-5.5", "openai/gpt-5.5",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
-       {"GPT-5.4 Pro", "openai/gpt-5.4-pro",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
-       {"GPT-5.4", "openai/gpt-5.4",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
-       {"GPT-5.3 Codex", "openai/gpt-5.3-codex",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 400_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
-       {"GPT-4.1", "openai/gpt-4.1",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 32_768},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
-       {"o3", "openai/o3", :packaged},
-       {"o4-mini", "openai/o4-mini", :packaged},
-       {"Claude Opus 4.6", "anthropic/claude-opus-4.6",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 200_000, output: 32_000},
-          modalities: %{input: [:text, :image, :pdf], output: [:text]}
-        }},
-       {"Claude Sonnet 4.5", "anthropic/claude-sonnet-4.5", :packaged},
-       {"Claude Opus 4.5", "anthropic/claude-opus-4.5", :packaged},
-       {"Claude Haiku 4.5", "anthropic/claude-haiku-4.5", :packaged},
-       {"Gemini 3 Pro Preview", "google/gemini-3-pro-preview",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_048_576, output: 65_536},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
-       {"Gemini 3 Flash Preview", "google/gemini-3-flash-preview", :packaged},
-       {"Gemini 2.5 Pro", "google/gemini-2.5-pro", :packaged},
-       {"Kimi K2.6", "moonshotai/kimi-k2.6", :packaged},
-       {"MiniMax M2.7", "minimax/minimax-m2.7", :packaged},
-       {"Kimi K2.5", "moonshotai/kimi-k2.5",
-        %{
-          capabilities: %{
-            chat: true,
-            streaming: %{text: true, tool_calls: false},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 131_072, output: 32_768},
-          modalities: %{input: [:text], output: [:text]}
-        }},
-       {"Minimax M2.5", "minimax/minimax-m2.5",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_192, output: 1_000_192},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }}
+       {"GPT-5.5", "openai/gpt-5.5", :packaged},
+       {"GPT-5.5 Pro", "openai/gpt-5.5-pro", :packaged},
+       {"GPT-5.4", "openai/gpt-5.4", :packaged},
+       {"GPT-5.4 Pro", "openai/gpt-5.4-pro", :packaged},
+       {"GPT-5.3 Codex", "openai/gpt-5.3-codex", :packaged},
+       # --------------
+       {"Claude Opus 4.8", "anthropic/claude-opus-4.8", :packaged},
+       {"Claude Opus 4.8 Fast", "anthropic/claude-opus-4.8-fast", :packaged},
+       {"Claude Opus 4.7", "anthropic/claude-opus-4.7", :packaged},
+       {"Claude Opus 4.7 Fast", "anthropic/claude-opus-4.7-fast", :packaged},
+       {"Claude Sonnet Latest", "anthropic/claude-sonnet-latest", :packaged},
+       {"Claude Haiku Latest", "anthropic/claude-haiku-latest", :packaged},
+       # --------------
+       {"Gemini 3.1 Pro Preview", "google/gemini-3.1-pro-preview", :packaged},
+       {"Gemini Flash Latest", "~google/gemini-flash-latest", :packaged},
+       # --------------
+       {"Kimi Latest", "~moonshotai/kimi-latest", :packaged},
+       {"MiniMax M2.7", "minimax/minimax-m2.7", :packaged}
      ]
    }},
-  {:fireworks,
+  {:fireworks_ai,
    %{
      env_key_name: "fireworksKeyValue",
      display_name: "Fireworks AI",
      max_image_dimension: nil,
-     llm_db_provider: [
-       name: "Fireworks AI",
-       base_url: "https://api.fireworks.ai/inference/v1",
-       env: ["FIREWORKS_API_KEY"],
-       doc: "https://docs.fireworks.ai/firepass"
-     ],
-     default_model: "accounts/fireworks/routers/kimi-k2p5-turbo",
+     llm_db_provider: [],
+     default_model: "accounts/fireworks/routers/kimi-k2p6-turbo",
      models: [
-       {"Kimi K2.5 Turbo", "accounts/fireworks/routers/kimi-k2p5-turbo",
-        %{
-          family: "kimi-thinking",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 256_000, output: 256_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }}
+       {"Kimi K2.6 Turbo", "accounts/fireworks/routers/kimi-k2p6-turbo", :packaged}
      ]
    }},
   {:nvidia,

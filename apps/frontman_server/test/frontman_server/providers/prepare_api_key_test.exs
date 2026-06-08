@@ -92,10 +92,9 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert llm_opts[:auth_mode] == :oauth
       assert llm_opts[:chatgpt_account_id] == "acc-789"
       assert llm_opts[:max_tokens] == 16_384
-      refute Keyword.has_key?(llm_opts, :base_url)
     end
 
-    test "openai codex oauth keeps selected GPT model", %{scope: scope} do
+    test "openai codex oauth without account id is invalid", %{scope: scope} do
       expires_at = DateTime.add(DateTime.utc_now(), 3600, :second)
 
       {:ok, _} =
@@ -104,15 +103,11 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
           "openai_codex",
           "openai_access",
           "refresh",
-          expires_at,
-          %{"account_id" => "acc-789"}
+          expires_at
         )
 
-      {:ok, {model, llm_opts}} = Providers.prepare_llm_args(scope, "openai_codex:gpt-5.5")
-
-      assert model == "openai_codex:gpt-5.5"
-      assert llm_opts[:access_token] == "openai_access"
-      refute Keyword.has_key?(llm_opts, :base_url)
+      assert {:error, :invalid_oauth_token} =
+               Providers.prepare_llm_args(scope, "openai_codex:gpt-5.5")
     end
   end
 

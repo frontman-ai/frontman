@@ -49,42 +49,46 @@ defmodule FrontmanServer.Providers do
     model = model || default_model()
     provider = model_provider_name(model)
 
-    case {provider, resolve_oauth_token(scope, provider)} do
-      {"anthropic", %OAuthToken{access_token: access_token}} ->
-        {:ok,
-         {model,
-          Keyword.merge(
-            [
-              auth_mode: :oauth,
-              access_token: access_token,
-              with_claude_subscription: true,
-              anthropic_prompt_cache: true
-            ],
-            opts
-          )}}
-
-      {"openai_codex",
-       %OAuthToken{access_token: access_token, metadata: %{"account_id" => account_id}}} ->
-        llm_opts =
-          [
-            auth_mode: :oauth,
-            access_token: access_token,
-            chatgpt_account_id: account_id
-          ]
-          |> Keyword.merge(opts)
-
-        {:ok, {model, llm_opts}}
-
-      {_provider, _token} ->
-        case resolve_api_key(scope, provider) do
-          key when is_binary(key) and key != "" ->
-            {:ok, {model, Keyword.merge([api_key: key], opts)}}
-
-          _auth ->
-            {:error, :no_api_key}
-        end
+    case oauth_llm_opts(provider, resolve_oauth_token(scope, provider)) do
+      {:ok, llm_opts} -> {:ok, {model, Keyword.merge(llm_opts, opts)}}
+      {:error, reason} -> {:error, reason}
+      :use_api_key -> api_key_llm_args(scope, provider, model, opts)
     end
   end
+
+  defp oauth_llm_opts("anthropic", %OAuthToken{access_token: access_token}) do
+    {:ok,
+     [
+       auth_mode: :oauth,
+       access_token: access_token,
+       with_claude_subscription: true,
+       anthropic_prompt_cache: true
+     ]}
+  end
+
+  defp oauth_llm_opts(
+         "openai_codex",
+         %OAuthToken{access_token: access_token, metadata: %{"account_id" => account_id}}
+       )
+       when is_binary(account_id) and account_id != "" do
+    {:ok, [auth_mode: :oauth, access_token: access_token, chatgpt_account_id: account_id]}
+  end
+
+  defp oauth_llm_opts("openai_codex", %OAuthToken{}), do: {:error, :invalid_oauth_token}
+  defp oauth_llm_opts(_provider, _token), do: :use_api_key
+
+  defp api_key_llm_args(scope, provider, model, opts) do
+    case resolve_api_key(scope, provider) do
+      key when is_binary(key) and key != "" ->
+        {:ok, {model, Keyword.merge(api_key_llm_opts(provider, key), opts)}}
+
+      _auth ->
+        {:error, :no_api_key}
+    end
+  end
+
+  defp api_key_llm_opts("anthropic", key), do: [api_key: key, anthropic_prompt_cache: true]
+  defp api_key_llm_opts(_provider, key), do: [api_key: key]
 
   def model_from_client_params(nil), do: :error
 
@@ -273,10 +277,7 @@ defmodule FrontmanServer.Providers do
     |> Repo.all()
   end
 
-  @doc """
-  Fetches a user API key for a provider.
-  """
-  def get_api_key(%Scope{user: %User{} = user}, provider) do
+  defp get_api_key(%Scope{user: %User{} = user}, provider) do
     ApiKey
     |> ApiKey.for_user_and_provider(user.id, provider)
     |> Repo.one()
