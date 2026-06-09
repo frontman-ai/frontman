@@ -107,8 +107,6 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 = 1.0.0 =
 * Major release for the OpenAI provider rename and cross-package breaking changes
 * See the GitHub release notes for the full cross-product changelog
-
-= 0.18.3 =
 * Add WordPress Additional CSS and theme mod source-inspection tools with safer CSS update validation
 * Strengthen WordPress source-of-truth guidance and annotation context for Elementor/theme edits
 * Fix WordPress admin menu icon alignment
