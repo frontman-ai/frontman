@@ -161,11 +161,6 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  defp put_anthropic_prompt_cache(opts, "anthropic"),
-    do: Keyword.put(opts, :anthropic_prompt_cache, true)
-
-  defp put_anthropic_prompt_cache(opts, _provider), do: opts
-
   defp to_swarm_content_part(%{"type" => "text", "text" => text}), do: ContentPart.text(text)
 
   defp to_swarm_content_part(%{"type" => "image", "data" => data, "mimeType" => mime_type}),

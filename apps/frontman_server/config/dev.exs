@@ -1,7 +1,9 @@
 import Config
 
 # Mark environment for runtime checks
-config :frontman_server, env: :dev
+config :frontman_server,
+  env: :dev,
+  llm_wire_tap_enabled: true
 
 # Configure your database
 # For DevPod: post-create.sh updates hostname to the Docker gateway IP

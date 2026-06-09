@@ -28,7 +28,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   end
 
   defp attach_handlers do
-    handlers = [
+    [
       # Swarm events
       {SwarmEvents.run_start(), &__MODULE__.handle_swarm_run_start/4},
       {SwarmEvents.run_stop(), &__MODULE__.handle_swarm_run_stop/4},
@@ -40,8 +40,7 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
       {SwarmEvents.tool_execute_stop(), &__MODULE__.handle_swarm_tool_stop/4},
       {SwarmEvents.tool_execute_exception(), &__MODULE__.handle_swarm_tool_exception/4}
     ]
-
-    Enum.each(handlers, fn {event, handler} ->
+    |> Enum.each(fn {event, handler} ->
       handler_id = "frontman_console_#{Enum.join(event, "_")}"
       :telemetry.attach(handler_id, event, handler, nil)
     end)

@@ -12,7 +12,7 @@ defmodule FrontmanServer.Application do
   use Boundary, top_level?: true, deps: [FrontmanServer, FrontmanServerWeb]
   use Application
 
-  alias FrontmanServer.Observability.ConsoleHandler
+  alias FrontmanServer.Observability.{ConsoleHandler, LlmWireTap}
 
   @sentry_metadata [
     :file,
@@ -33,6 +33,10 @@ defmodule FrontmanServer.Application do
     # Setup console telemetry logging in dev
     if Application.get_env(:frontman_server, :env) == :dev do
       ConsoleHandler.setup()
+    end
+
+    if Application.fetch_env!(:frontman_server, :llm_wire_tap_enabled) do
+      LlmWireTap.setup()
     end
 
     # Capture crashes plus all Logger.error/2 messages as Sentry events.
