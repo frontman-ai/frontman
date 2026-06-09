@@ -179,22 +179,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Keep generated task titles stable after the first user prompt instead of regenerating them on every prompt.
 - Skip filesystem MCP initialization for WordPress tasks so sessions no longer call unavailable `load_agent_instructions` or `list_tree` tools.
 
-## [0.18.3] - 2026-06-04
-
-### Added
-
-- Add WordPress tools for inspecting Additional CSS and theme mods/customizer settings, plus a confirmed Additional CSS update path that preserves CSS syntax.
-
-### Changed
-
-- Strengthen WordPress source-of-truth guidance so edit tasks require persistent WordPress mutations and refresh verification instead of browser-only DOM changes.
-- Include CSS selectors and Elementor context in annotation prompts so agents can verify the real editable source before mutating Elementor or theme-rendered output.
-
-### Fixed
-
-- Reject unsafe WordPress Additional CSS updates with missing/non-string CSS or non-active stylesheet targets.
-- Fix the Frontman WordPress admin menu icon alignment.
-
 ## [0.17.0] - 2026-05-12
 
 

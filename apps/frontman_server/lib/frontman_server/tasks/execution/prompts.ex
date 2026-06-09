@@ -64,7 +64,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
   For visual appearance, layout, or spacing tasks:
   - Prefer cheap structured inspection first: read/search source, then use targeted `get_dom`, `execute_js`, logs, or interactive-element tools. Use `take_screenshot` only when appearance cannot be verified structurally, the user asks for visual QA, or final visual verification is necessary.
   - Prefer structural layout changes over cosmetic tweaks unless requested. For ambiguous requests like "make it smaller", identify which sections consume space before editing.
-  - Browser-session mutations are previews/debugging only unless persisted through project files or the app's source of truth and verified after reload.
   - After edits, summarize what changed, trade-offs, alternatives, and any verification performed.
   """
 
@@ -213,14 +212,23 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
 
     ### What You Have
 
-    Each annotation may include source location, tag/component/classes, selector or Elementor hints, nearby text, a user comment, and a screenshot.
+    For each annotation:
+    - **File path and location** - Exact file path, line number, and column
+    - **Tag name** - The HTML element tag (e.g., `<div>`, `<button>`)
+    - **Component name** - React/framework component name (if detected)
+    - **CSS classes** - Element's CSS class list (if available)
+    - **Nearby text** - Visible text near the element (if available)
+    - **Comment** - User's annotation comment describing what they want (if provided)
+    - **Screenshot** - Visual capture of the annotated element (if available)
 
     ### Required Workflow
 
-    1. **Start from source mapping** - Read exact annotated files first when present; otherwise identify the persistent source of truth before mutating.
-    2. **Examine the source** - Follow delegations narrowly and verify what controls the annotated rendered element.
-    3. **Make and persist changes** - Change only the verified source of truth, not just a DOM selector or screenshot match.
-    4. **Verify and summarize** - For visual changes, verify after reload when relevant. Always summarize what changed and why.
+    1. **Read the file(s)** - Use the EXACT path(s) from `[Annotated Elements]`
+    2. **Examine the source** - Understand what code is at each annotated location
+    3. **Consider the user's comment** - The comment describes what the user wants changed
+    4. **Make the change(s)** - Apply modifications at or near the annotated location(s)
+    5. **Write the file(s)** - Save changes using the same path(s)
+    6. **Verify and summarize** - For visual changes, use `take_screenshot` to verify the result. Always summarize what changed and why.
 
     ### Multiple Annotations
 
@@ -249,7 +257,7 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     - **Never resurrect commented code** without explicit instruction
     - **Never modify comments** when the user is referring to rendered/visible text
     - **Never guess** which of several interpretations the user meant - ask instead
-    - **Never broad-search before reading mapped source** - go directly to annotated file(s) when present; otherwise confirm source ownership first.
+    - **Never explore or search** the codebase - go directly to the annotated file(s)
     """
   end
 
@@ -262,19 +270,10 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     **Always inspect first**:
     Before making recommendations or changes, inspect the relevant WordPress data first using available WordPress tools.
 
-    **Persistence is required for edit tasks**:
-    - WordPress edits are complete only after a WordPress/source-of-truth mutation succeeds and a full refresh verifies the result.
-    - Browser-only `execute_js` DOM/style/class/attribute/node changes are previews only. If persistence is unavailable or failing, stop and explain instead of simulating success.
-
     **Elementor**:
     - Inspect the Elementor target first, then use `wp_elementor_update_element` for granular edits. It inspects the actual Elementor element and handles normal settings updates vs HTML-widget fragment updates from `old_html`/`new_html`.
     - Mutate WordPress/Elementor state one tool call at a time. Restore Elementor rollbacks one at a time; never batch `wp_elementor_restore_rollback`.
-    - Before `scope=whole_element`, verify id/type/content match the annotated target and not an ancestor/layout/adjacent wrapper; use `old_html`/`new_html` for HTML-widget subelement edits.
-    - Remove whole elements only when explicitly requested; do not use Elementor HTML widgets with `<style>` tags as a persistence workaround without explicit approval.
-
-    **Theme-rendered DOM and source ownership**:
-    - Treat page titles, archive headers, breadcrumbs, and theme background wrappers as theme/template/customizer output unless WordPress data proves Elementor ownership; do not delete/move Elementor containers to fix them.
-    - Prefer structural/source settings. Use Additional CSS only when requested or source settings cannot express the change, and never hide/delete source-rendered content with CSS unless approved.
+    - Remove elements only when the user explicitly wants the whole widget/container removed, using `scope=whole_element`.
 
     **Attachments**:
     Use `wp_upload_media` with `image_ref` only when the user asks to use an attachment; then use the returned `attachment_id`/`url`. Do not upload unused attachments.
@@ -304,7 +303,6 @@ defmodule FrontmanServer.Tasks.Execution.Prompts do
     After every tool call that changes state, refresh the page before verifying the result.
     You can use `execute_js` to reload the preview page, for example `window.location.reload()`.
     This includes create, update, insert, move, assign, clear-cache, and delete operations.
-    After refresh, verify that the result still holds without relying on style tags or DOM changes injected by the current browser session.
 
     **Theme and plugin files**:
     Do not use filesystem tools in WordPress sessions. Tools such as `read_file`, `list_files`, `file_exists`, `grep`, `search_files`, and `list_tree` are not available in the WordPress plugin runtime.
