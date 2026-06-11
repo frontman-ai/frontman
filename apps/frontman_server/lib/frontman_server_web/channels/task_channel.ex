@@ -668,6 +668,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp process_prompt(id, %{"prompt" => prompt_content} = params, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
+    # FIXME(Itay): Potential cleanup, we probably don't need this enrichment and env api keys.
     scope = enrich_scope_from_params(scope, params)
     socket = assign(socket, :scope, scope)
 
@@ -675,6 +676,8 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     Logger.info("process_prompt", %{task_id: task_id, model: model})
 
+    # FIXME(Itay): Lets use ACP accessors to retrieve the prompt data
+    # FIXME(Itay): function name is a constructor and not an actual request.
     execution = execution_request(socket, task_id, model, prompt_meta(params))
 
     case Tasks.submit_user_message(scope, task_id, prompt_content, execution) do
@@ -721,6 +724,9 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp execution_request(socket, task_id, model, meta) do
     mcp_tools = socket.assigns[:mcp_tools] || []
 
+    # QUESTION(Itay): Why do we have tools and mcp_tool_defs?
+    # FIXME(Itay): Cleanup: task_id not used, we can perhaps just have a single tools or since its
+    # static, we can just use it in the callsite and pass any parameter thats needed.
     %{
       tools: Tools.prepare_for_task(mcp_tools, task_id),
       model: model,

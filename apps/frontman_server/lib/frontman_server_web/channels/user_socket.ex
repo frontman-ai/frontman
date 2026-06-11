@@ -11,8 +11,8 @@ defmodule FrontmanServerWeb.UserSocket do
   alias FrontmanServer.Accounts.Scope
 
   ## Channels
-  channel("tasks", FrontmanServerWeb.TasksChannel)
-  channel("task:*", FrontmanServerWeb.TaskChannel)
+  channel "tasks", FrontmanServerWeb.TasksChannel
+  channel "task:*", FrontmanServerWeb.TaskChannel
 
   # Token is valid for 2 weeks (same as session)
   @max_age 14 * 24 * 60 * 60
