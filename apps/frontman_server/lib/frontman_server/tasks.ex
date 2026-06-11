@@ -616,6 +616,8 @@ defmodule FrontmanServer.Tasks do
         opts \\ []
       )
       when is_boolean(is_error) and is_list(opts) do
+    Logger.debug(fn -> "resolve_tool_result(#{inspect(result)})" end)
+
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          turn_number = tool_result_turn_number(task_id, tool_call_id, opts),
          interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),

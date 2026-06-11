@@ -54,6 +54,8 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   @impl true
   def handle_in(@acp_message, payload, socket) do
+    Logger.info(fn -> "Got ACP message: #{inspect(payload)}" end)
+
     case JsonRpc.parse(payload) do
       {:ok, message} -> handle_message(message, socket)
       {:error, reason} -> handle_parse_error(reason, payload, socket)

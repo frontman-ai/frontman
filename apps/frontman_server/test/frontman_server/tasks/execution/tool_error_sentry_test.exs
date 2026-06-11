@@ -223,7 +223,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       assert tool_result != nil
       assert tool_result.is_error == true
-      assert tool_result.result =~ "timed out"
+      assert ModelContextProtocol.extract_content_text(tool_result.result) =~ "timed out"
 
       reports = Sentry.Test.pop_sentry_reports()
       timeout_reports = Enum.filter(reports, &(&1.tags[:error_type] == "tool_timeout"))

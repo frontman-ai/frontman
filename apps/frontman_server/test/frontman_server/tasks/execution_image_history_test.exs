@@ -29,7 +29,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       user_scope_fixture()
       |> Scope.with_env_api_keys(%{"anthropic" => "sk-ant-test", "openrouter" => "sk-or-test"})
 
-    task_id = task_with_pubsub_fixture(scope)
+    task_id = task_with_pubsub_fixture(scope).id
 
     {:ok, scope: scope, task_id: task_id}
   end

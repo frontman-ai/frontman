@@ -35,6 +35,16 @@ defmodule AgentClientProtocol.Content do
 
   def wrap(%TextBlock{} = block), do: %ContentItem{content: block}
 
+  def from_tool_result(%{"content" => content}) when is_list(content) do
+    Enum.map(content, fn
+      %{"type" => "text", "text" => text} when is_binary(text) ->
+        text |> text() |> wrap()
+
+      part ->
+        part |> Jason.encode!() |> text() |> wrap()
+    end)
+  end
+
   def from_tool_result(result) when is_map(result),
     do: [result |> Jason.encode!() |> text() |> wrap()]
 

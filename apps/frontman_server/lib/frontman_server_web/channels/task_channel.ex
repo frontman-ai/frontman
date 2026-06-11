@@ -77,7 +77,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_in(@acp_message, payload, socket) do
     parsed = JsonRpc.parse(payload)
 
-    Logger.info("got ACP message #{inspect(parsed)}")
+    Logger.info(fn -> "Got ACP message #{inspect(parsed)}" end)
 
     case parsed do
       {:ok, {:request, id, @acp_method_session_prompt, params}} ->
@@ -112,8 +112,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_in("mcp:message", payload, socket) do
-    Logger.debug("Received mcp:message payload: #{inspect(payload)}")
-
     case JsonRpc.parse_response(payload) do
       {:ok, {:success, id, result}} ->
         handle_mcp_response(id, result, socket)
@@ -300,10 +298,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_mcp_response(id, result, socket) do
     init_state = socket.assigns[:mcp_init_state]
 
-    Logger.debug("MCP response received: id=#{inspect(id)}")
-
     if mcp_initialization_request?(init_state, id) do
-      Logger.debug("MCP response #{inspect(id)} matched MCPInitializer")
       {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
       socket = assign(socket, :mcp_init_state, new_state)
       socket = execute_init_actions(actions, socket)
@@ -318,7 +313,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, tool_call_id, socket} ->
         case open_tool_call(socket, tool_call_id) do
           {:ok, tool_call} ->
-            Logger.debug("MCP response #{inspect(id)} matched tool call #{tool_call_id}")
             handle_tool_call_response(tool_call, result, socket)
 
           :error ->
@@ -337,7 +331,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_tool_call_response_by_id(id, result, socket) when is_binary(id) do
     case open_tool_call(socket, id) do
       {:ok, tool_call} ->
-        Logger.debug("MCP response #{inspect(id)} matched tool call")
         handle_tool_call_response(tool_call, result, socket)
 
       :error ->
@@ -458,8 +451,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_mcp_error(id, error, socket) do
     init_state = socket.assigns[:mcp_init_state]
-
-    Logger.debug("MCP error received: id=#{inspect(id)}")
 
     if mcp_initialization_request?(init_state, id) do
       {new_state, actions} = MCPInitializer.handle_error(init_state, id, error)

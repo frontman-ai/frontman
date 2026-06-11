@@ -239,78 +239,39 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   @text_prefixes ["text/", "application/json", "application/xml", "application/javascript"]
 
-  defp text_content?(content_type) do
-    ct = String.downcase(content_type)
-    Enum.any?(@text_prefixes, &String.contains?(ct, &1))
-  end
-
-  defp image_content?(content_type) do
-    content_type
-    |> media_type()
-    |> then(&(&1 in @image_media_types))
-  end
-
-  defp media_type(content_type) do
-    content_type
-    |> String.split(";", parts: 2)
-    |> hd()
-    |> String.trim()
-    |> String.downcase()
-  end
-
-  defp unsupported_content_error(content_type) do
-    MCP.tool_result_error(
-      "Cannot fetch non-text content (#{content_type}). This tool only supports text-based URLs and supported image URLs."
-    )
-  end
-
   # -- Content conversion -----------------------------------------------------
 
   defp content_result(url, content_type, body, offset, limit) do
-    cond do
-      image_content?(content_type) ->
-        image_result(url, content_type, body)
+    ct = String.downcase(content_type)
+    media = ct |> String.split(";", parts: 2) |> hd() |> String.trim()
 
-      text_content?(content_type) ->
-        text_result(url, content_type, body, offset, limit)
+    cond do
+      media in @image_media_types ->
+        MCP.tool_result_image(Base.encode64(body), media)
+
+      Enum.any?(@text_prefixes, &String.contains?(ct, &1)) ->
+        markdown =
+          if String.contains?(ct, "text/html"),
+            do: Html2Markdown.convert(body),
+            else: body
+
+        lines = String.split(markdown, "\n")
+        sliced = Enum.slice(lines, offset, limit)
+
+        MCP.tool_result_json(%{
+          "content" => Enum.join(sliced, "\n"),
+          "url" => url,
+          "content_type" => content_type,
+          "start_line" => offset,
+          "lines_returned" => length(sliced),
+          "total_lines" => length(lines)
+        })
 
       true ->
-        unsupported_content_error(content_type)
+        MCP.tool_result_error(
+          "Cannot fetch non-text content (#{content_type}). This tool only supports text-based URLs and supported image URLs."
+        )
     end
-  end
-
-  defp text_result(url, content_type, body, offset, limit) do
-    markdown = convert_to_markdown(body, content_type)
-    paginate(markdown, url, content_type, offset, limit)
-  end
-
-  defp image_result(_url, content_type, body) do
-    mime = media_type(content_type)
-    MCP.tool_result_image(Base.encode64(body), mime)
-  end
-
-  defp convert_to_markdown(body, content_type) do
-    case String.contains?(content_type, "text/html") do
-      true -> Html2Markdown.convert(body)
-      false -> body
-    end
-  end
-
-  defp paginate(content, url, content_type, offset, limit) do
-    lines = String.split(content, "\n")
-    total = length(lines)
-    sliced = lines |> Enum.drop(offset) |> Enum.take(limit)
-
-    result = %{
-      "content" => Enum.join(sliced, "\n"),
-      "url" => url,
-      "content_type" => content_type,
-      "start_line" => offset,
-      "lines_returned" => length(sliced),
-      "total_lines" => total
-    }
-
-    MCP.tool_result_json(result)
   end
 
   # -- URL validation ---------------------------------------------------------

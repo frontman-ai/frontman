@@ -23,9 +23,6 @@ config :frontman_server, :scopes,
 config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
-  llm_wire_tap_enabled: false,
-  llm_wire_tap_path: "/tmp/llm_wire.jsonl",
-  llm_wire_tap_hosts: ["api.anthropic.com", "api.openai.com"],
   # Max time to wait for the next LLM stream chunk before declaring a stall.
   # Anthropic ping keepalives now flow through as meta chunks, resetting this
   # timer during long-thinking requests (see issue #731).
@@ -110,10 +107,9 @@ config :tailwind,
     cd: Path.expand("..", __DIR__)
   ]
 
-# Configures Elixir's Logger
 config :logger, :default_formatter,
-  format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :task_id, :pid, :reason]
+  format: "\n$time [$level] $metadata$message\n",
+  metadata: [:request_id, :module, :function, :reason]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

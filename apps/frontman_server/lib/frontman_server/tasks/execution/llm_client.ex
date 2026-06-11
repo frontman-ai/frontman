@@ -58,7 +58,6 @@ end
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.LLMClient
-  alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.Execution.LLMProvider
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
   alias FrontmanServer.Tasks.{StreamCleanup, StreamStallTimeout}
@@ -97,7 +96,11 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       |> LLMRequestPreflight.run(preflight_opts)
       |> Enum.map(&to_reqllm_message/1)
 
-    case LLMProvider.stream_text(client.model, reqllm_messages, llm_opts) do
+    case LLMProvider.stream_text(
+           client.model,
+           reqllm_messages,
+           llm_opts
+         ) do
       {:ok, response} ->
         stall_timeout_ms =
           Application.fetch_env!(:frontman_server, :stream_stall_timeout_ms)
@@ -155,33 +158,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     chunk
   end
 
-  # Legacy compatibility path for ReqLLM builds that emit :error chunks.
-  # Current ReqLLM versions raise ReqLLM.Error.API.Stream instead; those are
-  # classified in ErrorClassifier.classify_error/1.
-  defp normalize_reqllm_chunk(%{type: :error, text: text, metadata: %{error: original}})
-       when is_binary(text) do
-    classify_llm_error(original, text)
-  end
-
-  defp normalize_reqllm_chunk(%{type: :error, text: text})
-       when is_binary(text) do
-    classify_llm_error(nil, text)
-  end
-
-  defp normalize_reqllm_chunk(%{type: :error} = chunk) do
-    raise "LLM stream error: #{inspect(chunk, limit: :infinity)}"
-  end
-
-  defp normalize_reqllm_chunk(%{type: unknown_type} = chunk)
-       when unknown_type not in [:content, :thinking, :tool_call, :meta, :error] do
-    raise "Unknown chunk TYPE from ReqLLM: #{inspect(unknown_type)}. " <>
-            "Full chunk: #{inspect(chunk, limit: :infinity)}"
-  end
-
-  defp normalize_reqllm_chunk(malformed_chunk) do
-    raise "Malformed chunk from ReqLLM (missing or invalid type): #{inspect(malformed_chunk, limit: :infinity)}"
-  end
-
   defp images_supported?(model) do
     case ReqLLM.model(model) do
       {:ok, %{modalities: %{input: input}}} when is_list(input) -> :image in input
@@ -199,75 +175,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   end
 
   defp normalize_index(_index), do: 0
-
-  # Classify LLM API errors by HTTP status and raise a typed LLMError.
-  # The original error is a ReqLLM.Error.API.Request with :status and :reason.
-  defp classify_llm_error(%{status: status}, _text) when status in [401, 403] do
-    raise LLMError,
-      message: "Authentication failed — your API key may be invalid or expired (HTTP #{status})",
-      category: "auth",
-      retryable: false
-  end
-
-  defp classify_llm_error(%{status: 400, reason: reason}, _text) when is_binary(reason) do
-    raise LLMError,
-      message: "Bad request — the provider rejected the request: #{reason}",
-      category: "unknown",
-      retryable: false
-  end
-
-  defp classify_llm_error(%{status: 400}, text) do
-    raise LLMError,
-      message: "Bad request — the provider rejected the request: #{text}",
-      category: "unknown",
-      retryable: false
-  end
-
-  defp classify_llm_error(%{status: 402}, _text) do
-    raise LLMError,
-      message:
-        "Payment required — your account balance is insufficient or billing is not configured (HTTP 402)",
-      category: "billing",
-      retryable: false
-  end
-
-  defp classify_llm_error(%{status: 413}, _text) do
-    raise LLMError,
-      message:
-        "Payload too large — the request exceeded the provider's size limit. Try reducing image size or message length (HTTP 413)",
-      category: "payload_too_large",
-      retryable: false
-  end
-
-  defp classify_llm_error(%{status: 429}, _text) do
-    raise LLMError,
-      message: "Rate limited — the provider is throttling requests. Please try again shortly.",
-      category: "rate_limit",
-      retryable: true
-  end
-
-  defp classify_llm_error(%{status: status}, _text) when status >= 500 do
-    raise LLMError,
-      message:
-        "Provider error — the LLM service returned an internal error (HTTP #{status}). Please try again.",
-      category: "overload",
-      retryable: true
-  end
-
-  defp classify_llm_error(%{status: status, reason: reason}, _text)
-       when is_integer(status) and is_binary(reason) do
-    raise LLMError,
-      message: "LLM error (HTTP #{status}): #{reason}",
-      category: "unknown",
-      retryable: false
-  end
-
-  defp classify_llm_error(_, text) do
-    raise LLMError,
-      message: "LLM stream error: #{text}",
-      category: "unknown",
-      retryable: false
-  end
 
   # --- SwarmAi.Message -> ReqLLM.Message conversion ---
 

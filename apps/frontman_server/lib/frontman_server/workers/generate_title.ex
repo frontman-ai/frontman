@@ -26,7 +26,6 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   alias FrontmanServer.Accounts.{Scope, User}
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.StreamCleanup
   alias FrontmanServer.Vault
   alias ReqLLM.Message.ContentPart
 
@@ -92,20 +91,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
       ReqLLM.Context.user(user_prompt_text)
     ]
 
-    case ReqLLM.stream_text(model_spec, messages, llm_opts) do
-      {:ok, response} ->
-        title =
-          response.stream
-          |> Stream.filter(fn chunk -> chunk.type == :content end)
-          |> Stream.map(fn chunk -> chunk.text || "" end)
-          |> StreamCleanup.wrap_stream(response.cancel)
-          |> Enum.join("")
-
-        {:ok, title}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    {:ok, ReqLLM.generate_text!(model_spec, messages, llm_opts)}
   end
 
   defp encrypt_env_api_key(env_api_key) when env_api_key == %{}, do: nil

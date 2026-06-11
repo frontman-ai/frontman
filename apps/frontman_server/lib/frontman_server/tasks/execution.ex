@@ -16,9 +16,13 @@ defmodule FrontmanServer.Tasks.Execution do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
-  alias FrontmanServer.Tasks.Execution.{Prompts, RootAgent}
-  alias FrontmanServer.Tasks.{Interaction, InteractionSchema, TaskSchema}
+  alias FrontmanServer.Tasks.Execution.Prompts
+  alias FrontmanServer.Tasks.Execution.RootAgent
+  alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Tasks.TaskSchema
   alias SwarmAi.Message.ContentPart
+  alias SwarmAi.Message.Tool
 
   @doc """
   Runs an agent execution for a task.
@@ -94,6 +98,16 @@ defmodule FrontmanServer.Tasks.Execution do
         result: %{"content" => [_ | _] = content},
         is_error: is_error
       }) do
+    if Enum.all?(content, &is_map/1) do
+      notify_tool_result(tool_call_id, content, is_error)
+    else
+      :no_executor
+    end
+  end
+
+  def notify_tool_result(%Interaction.ToolResult{}), do: :no_executor
+
+  defp notify_tool_result(tool_call_id, content, is_error) do
     case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
         content_parts =
@@ -130,16 +144,19 @@ defmodule FrontmanServer.Tasks.Execution do
     |> Interaction.to_swarm_messages()
   end
 
-  defp decay_images(%{content: content} = msg) when is_list(content) do
-    %{msg | content: Enum.map(content, &decay_image_part/1)}
+  defp decay_images(%Tool{content: content, tool_call_id: tool_call_id} = msg)
+       when is_list(content) do
+    %{msg | content: Enum.map(content, &decay_image_part(&1, tool_call_id))}
   end
 
   defp decay_images(msg), do: msg
 
-  defp decay_image_part(%ContentPart{type: type}) when type in [:image, :image_url],
-    do: ContentPart.text("[image: previously analyzed]")
+  defp decay_image_part(%ContentPart{type: type}, tool_call_id)
+       when type in [:image, :image_url] do
+    ContentPart.text("[image: omitted, tool_call_id: #{tool_call_id}]")
+  end
 
-  defp decay_image_part(part), do: part
+  defp decay_image_part(part, _tool_call_id), do: part
 
   defp system_prompt(%TaskSchema{} = task, project_traits) do
     interactions = task.interactions

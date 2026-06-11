@@ -5,29 +5,7 @@
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
 defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
-  @moduledoc """
-  Builds `ToolExecution` descriptions for both backend and MCP tools.
-
-  `make/4` returns `%{build: fun, execution_mode: mode}`.
-  `SwarmAi.ParallelExecutor` is the sole execution authority — this module only
-  describes how tools should run.
-
-  ## Backend tools
-
-  Each backend tool becomes a `ToolExecution.Sync` struct whose `run` MFA calls
-  `run_backend_tool/4` in the supervised task.
-
-  ## MCP tools
-
-  Each MCP tool becomes a `ToolExecution.Await` struct whose `start` MFA calls
-  `start_mcp_tool/3` in PE's own process (so PE's pid is registered in
-  `ToolCallRegistry`, enabling `{:tool_result, ...}` routing back to PE).
-
-  ## Callbacks
-
-  `run_backend_tool/5`, `start_mcp_tool/4`, and `handle_timeout/6` are public
-  so PE can call them via MFA. They are not part of the public API.
-  """
+  @moduledoc false
 
   require Logger
 
@@ -74,7 +52,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         }
 
       :error ->
-        tool_def = find_mcp_tool_def!(tool_call.name, exec_opts)
+        {:ok, tool_def} = find_mcp_tool_def(tool_call.name, exec_opts)
 
         %ToolExecution.Await{
           tool_call: tool_call,
@@ -168,12 +146,14 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   # --- Internal ---
 
-  # Looks up an MCP tool by name for timeout/policy config.
-  defp find_mcp_tool_def!(tool_name, exec_opts) do
+  defp find_mcp_tool_def(tool_name, exec_opts) do
     found = Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tool_name))
 
-    found ||
-      raise "Unknown tool: #{tool_name}. Not a backend tool and not in mcp_tool_defs."
+    if found do
+      {:ok, found}
+    else
+      {:error, :not_found}
+    end
   end
 
   defp build_exec_opts(opts) do
@@ -208,9 +188,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   # --- Backend Tool Execution ---
 
   defp execute_backend_tool(scope, module, tool_call, task_id, turn_number) do
-    Logger.info("ToolExecutor: Executing backend tool #{tool_call.name}")
-
-    # Re-fetch task from DB so backend tools see latest persisted interactions.
+    Logger.debug("ToolExecutor: Executing backend tool #{tool_call.name}")
     {:ok, task} = Tasks.get_task(scope, task_id)
 
     context = %Backend.Context{
@@ -219,23 +197,24 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     case SwarmAi.ToolCall.parse_arguments(tool_call) do
       {:error, message} ->
-        raw_arguments = String.slice(tool_call.arguments, 0, 500)
-
-        reason =
-          "Failed to parse arguments for tool #{tool_call.name}: #{message}, raw: #{raw_arguments}"
-
         metadata = [
           error_type: "tool_parse_error",
           tool_name: tool_call.name,
           tool_call_id: tool_call.id,
           task_id: task_id,
-          raw_arguments: raw_arguments,
+          raw_arguments: String.slice(tool_call.arguments, 0, 500),
           decode_error: message
         ]
 
         Logger.error("Tool argument parse failure", metadata)
 
-        persist_error_tool_result(scope, task_id, turn_number, tool_call, reason)
+        persist_error_tool_result(
+          scope,
+          task_id,
+          turn_number,
+          tool_call,
+          "Failed to parse arguments for tool"
+        )
 
       {:ok, args} ->
         do_run_backend_tool(
@@ -262,14 +241,38 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp handle_backend_outcome(
-         {:returned, %{"content" => content} = result},
+         {:returned, %{"content" => content, "isError" => is_error} = result},
          scope,
          tool_call,
          task_id,
          turn_number
        )
-       when is_list(content),
-       do: persist_tool_result(scope, task_id, turn_number, tool_call, result)
+       when is_list(content) and is_boolean(is_error) do
+    if is_error do
+      metadata = [
+        error_type: "tool_soft_error",
+        tool_name: tool_call.name,
+        tool_call_id: tool_call.id,
+        task_id: task_id,
+        reason: MCP.extract_content_text(result)
+      ]
+
+      Logger.error("Tool execution failed", metadata)
+    end
+
+    persist_tool_result(scope, task_id, turn_number, tool_call, result)
+  end
+
+  defp handle_backend_outcome(
+         {:returned, result},
+         scope,
+         tool_call,
+         task_id,
+         turn_number
+       ) do
+    Logger.error("Incorrect tool result")
+    persist_tool_result(scope, task_id, turn_number, tool_call, result)
+  end
 
   defp handle_backend_outcome({:crashed, reason}, scope, tool_call, task_id, turn_number) do
     reason_str = inspect(reason)

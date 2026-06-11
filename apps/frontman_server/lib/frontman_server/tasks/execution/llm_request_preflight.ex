@@ -25,7 +25,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   alias SwarmAi.Message.ContentPart
 
   @default_tool_result_max_bytes 51_200
-  @unsupported_image_placeholder "[Image omitted: selected model does not support image input]"
 
   @doc """
   Run the full request preflight pipeline over a list of messages.
@@ -54,7 +53,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   defp strip_message_images(message), do: message
 
   defp strip_image_part(%ContentPart{type: type}) when type in [:image, :image_url] do
-    ContentPart.text(@unsupported_image_placeholder)
+    ContentPart.text("[Image omitted: selected model does not support image input]")
   end
 
   defp strip_image_part(part), do: part

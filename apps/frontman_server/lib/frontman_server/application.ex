@@ -12,7 +12,7 @@ defmodule FrontmanServer.Application do
   use Boundary, top_level?: true, deps: [FrontmanServer, FrontmanServerWeb]
   use Application
 
-  alias FrontmanServer.Observability.{ConsoleHandler, LlmWireTap}
+  alias FrontmanServer.Observability.ConsoleHandler
 
   @sentry_metadata [
     :file,
@@ -35,10 +35,6 @@ defmodule FrontmanServer.Application do
       ConsoleHandler.setup()
     end
 
-    if Application.fetch_env!(:frontman_server, :llm_wire_tap_enabled) do
-      LlmWireTap.setup()
-    end
-
     # Capture crashes plus all Logger.error/2 messages as Sentry events.
     :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
       config: %{
@@ -48,13 +44,6 @@ defmodule FrontmanServer.Application do
         tags_from_metadata: [:error_type, :tool_name]
       }
     })
-
-    :telemetry.attach(
-      "finch-logger",
-      [:finch, :request, :start],
-      &FrontmanServer.FinchLogger.handle_event/4,
-      nil
-    )
 
     children = [
       FrontmanServerWeb.Telemetry,

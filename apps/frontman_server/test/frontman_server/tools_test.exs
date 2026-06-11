@@ -5,6 +5,7 @@ defmodule FrontmanServer.ToolsTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Interaction.ToolResult
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.GetToolResult
@@ -216,6 +217,48 @@ defmodule FrontmanServer.ToolsTest do
       result = GetToolResult.execute(%{"tool_call_id" => "missing"}, context)
       assert MCP.error?(result)
       assert MCP.extract_content_text(result) == "Tool result not found: missing"
+    end
+
+    test "returns an error when the stored result is malformed", %{task: task} do
+      malformed_result =
+        %ToolResult{
+          id: Ecto.UUID.generate(),
+          tool_call_id: "tc-malformed",
+          tool_name: "read_file",
+          result: %{"content" => "tool result text"},
+          is_error: false,
+          timestamp: DateTime.utc_now()
+        }
+
+      context = build_context(%{task | interactions: [malformed_result | task.interactions]})
+
+      result = GetToolResult.execute(%{"tool_call_id" => "tc-malformed"}, context)
+
+      assert MCP.error?(result)
+
+      assert MCP.extract_content_text(result) ==
+               "Stored tool result for tc-malformed is not a valid MCP tool result"
+    end
+
+    test "returns an error when content is invalid type", %{task: task} do
+      malformed_result =
+        %ToolResult{
+          id: Ecto.UUID.generate(),
+          tool_call_id: "tc-invalid-content",
+          tool_name: "read_file",
+          result: %{"content" => [%{"type" => "text", "text" => "ok"}, "bad"], "isError" => false},
+          is_error: false,
+          timestamp: DateTime.utc_now()
+        }
+
+      context = build_context(%{task | interactions: [malformed_result | task.interactions]})
+
+      result = GetToolResult.execute(%{"tool_call_id" => "tc-invalid-content"}, context)
+
+      assert MCP.error?(result)
+
+      assert MCP.extract_content_text(result) ==
+               "Stored tool result is invalid: content must be list of objects"
     end
   end
 end
