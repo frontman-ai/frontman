@@ -83,6 +83,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   end
 
   def ordered(query \\ __MODULE__) do
+    # FIXME(Danni) - create a data migration to make everything have sequence so we can order just by sequence
     from(i in query, order_by: [asc: coalesce(i.sequence, 0), asc: i.inserted_at, asc: i.id])
   end
 

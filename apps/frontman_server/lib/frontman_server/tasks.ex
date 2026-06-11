@@ -150,9 +150,9 @@ defmodule FrontmanServer.Tasks do
     |> Repo.insert()
   end
 
-  defp hydrate_task(%TaskSchema{} = schema) do
+  defp hydrate_task(%TaskSchema{} = task_schema) do
     # FIXME(Itay): We need to use EmbeddedSchema so Ecto will handle the mapping for us.
-    %{schema | interactions: load_interactions(schema.id)}
+    %{task_schema | interactions: load_interactions(task_schema.id)}
   end
 
   defp load_interactions(task_id) do
@@ -766,6 +766,8 @@ defmodule FrontmanServer.Tasks do
        when is_integer(turn_number) and turn_number > 0 do
     case get_task(scope, task_id) do
       {:ok, task} ->
+        # FIXME(Danni) - task already has interactions, we can just use them
+        # QUESTION(Danni) - why up_to_turn? how can it not be up to turn? what else is there?
         interaction_schemas =
           InteractionSchema.for_task(task_id)
           |> InteractionSchema.up_to_turn(turn_number)
@@ -803,6 +805,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp run_execution(scope, task, %{turn_number: turn_number} = execution) do
+    # QUESTION(Danni) - If we keep exection, it should own creating/managing itself
     case Execution.run(scope, task, execution) do
       {:ok, :already_running} ->
         :already_running

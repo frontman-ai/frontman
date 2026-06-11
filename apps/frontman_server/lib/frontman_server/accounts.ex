@@ -35,6 +35,7 @@ defmodule FrontmanServer.Accounts do
   @doc """
   Returns environment API keys carried in scope.
   """
+  # FIXME(Danni) - Why env_api_keys in scope? and what is it in general?
   def scope_env_api_keys(%Scope{env_api_keys: env_api_keys}) when is_map(env_api_keys),
     do: env_api_keys
 
