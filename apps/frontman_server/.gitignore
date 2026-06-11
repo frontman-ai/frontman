@@ -1,6 +1,6 @@
 # The directory Mix will write compiled artifacts to.
 /_build/
-
+/.elixir_ls/
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
@@ -43,3 +43,4 @@ npm-debug.log
 
 # DevPod networking overrides (machine-specific, created by post-create.sh)
 /envs/.dev.overrides.env
+
