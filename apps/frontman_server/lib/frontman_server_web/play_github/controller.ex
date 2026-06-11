@@ -13,13 +13,8 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
 
   alias FrontmanServer.PlayGithub
   alias FrontmanServer.PlayGithub.GithubReference
-  alias FrontmanServerWeb.PlayGithub.SandboxProxy.Target
 
   @command_usage "?command=create|start|clone|install|dev"
-  @frontman_install_log_path "/tmp/frontman-install.log"
-  @dev_server_log_path "/tmp/frontman-dev-server.log"
-  @dev_server_port 4321
-  @dev_server_preview_expires_seconds 3_600
 
   def show(conn, %{"github_path" => []}) do
     html(conn, "PlayGithub local subdomain is routed")
@@ -31,45 +26,26 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
          {:parse_command, {:ok, command}} <- {:parse_command, parse_command(raw_command)} do
       show_parsed_path(conn, parsed_path, command, params)
     else
-      {:parse_command, {:error, :missing_command}} ->
-        handle_command_error(conn, :missing_command)
-
-      {:parse_command, {:error, {:unsupported_command, command}}} ->
-        handle_command_error(conn, {:unsupported_command, command})
+      {:parse_command, {:error, reason}} ->
+        render_text(conn, command_error(reason))
 
       {:parse_path, {:error, reason}} ->
-        conn
-        |> put_status(:bad_request)
-        |> text(format_error(reason))
+        render_text(conn, {:bad_request, format_path_error(reason)})
     end
   end
 
   def show(conn, %{"github_path" => github_path}) do
     case GithubReference.parse_path(github_path) do
-      {:ok, _parsed_path} ->
-        html(conn, launch_page_html())
-
-      {:error, reason} ->
-        conn
-        |> put_status(:bad_request)
-        |> text(format_error(reason))
+      {:ok, _parsed_path} -> html(conn, launch_page_html())
+      {:error, reason} -> render_text(conn, {:bad_request, format_path_error(reason)})
     end
   end
 
   defp show_parsed_path(conn, parsed_path, command, params) do
-    case PlayGithub.run_repository_command(parsed_path, command, retry: retry?(params["retry"])) do
-      {:ok, response} ->
-        text(conn, format_repository_response(conn, response))
-
-      {:error, reason, status, body} ->
-        handle_playgithub_error(conn, parsed_path, {reason, status, body})
-
-      {:error, reason, body} ->
-        handle_playgithub_error(conn, parsed_path, {reason, body})
-
-      {:error, reason} ->
-        handle_playgithub_error(conn, parsed_path, reason)
-    end
+    conn.assigns.current_scope
+    |> PlayGithub.run_repository_command(parsed_path, command, retry: retry?(params["retry"]))
+    |> command_result(parsed_path)
+    |> render_command_result(conn)
   end
 
   defp parse_command("create"), do: {:ok, :create}
@@ -85,138 +61,75 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
   defp retry?(retry) when retry in ["true", "1"], do: true
   defp retry?(_retry), do: false
 
-  defp handle_command_error(conn, :missing_command) do
-    conn
-    |> put_status(:bad_request)
-    |> text("error: missing_command\nusage: #{@command_usage}")
+  defp command_error(:missing_command) do
+    {:bad_request, "error: missing_command\nusage: #{@command_usage}"}
   end
 
-  defp handle_command_error(conn, {:unsupported_command, command}) do
-    conn
-    |> put_status(:bad_request)
-    |> text("error: unsupported_command\ncommand: #{command}\nusage: #{@command_usage}")
+  defp command_error({:unsupported_command, command}) do
+    {:bad_request, "error: unsupported_command\ncommand: #{command}\nusage: #{@command_usage}"}
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, :not_repository_path) do
-    conn
-    |> put_status(:bad_request)
-    |> text("error: not_repository_path")
+  defp command_result({:ok, response}, github_reference) do
+    {:ok, format_repository_response(response, github_reference)}
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, :daytona_sandbox_not_found) do
-    conn
-    |> put_status(:not_found)
-    |> text("error: daytona_sandbox_not_found\nnext: ?command=create")
+  defp command_result({:error, reason, status, body}, _github_reference) do
+    playgithub_error({reason, status, body})
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, :repository_not_cloned) do
-    conn
-    |> put_status(:conflict)
-    |> text("error: repository_not_cloned\nnext: ?command=clone")
+  defp command_result({:error, reason, body}, _github_reference) do
+    playgithub_error({reason, body})
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, :frontman_not_installed) do
-    conn
-    |> put_status(:conflict)
-    |> text("error: frontman_not_installed\nnext: ?command=install")
+  defp command_result({:error, reason}, _github_reference) do
+    playgithub_error(reason)
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, {:malformed_daytona_response, body}) do
+  defp render_command_result({:ok, body}, conn), do: text(conn, body)
+  defp render_command_result({status, body}, conn), do: render_text(conn, {status, body})
+
+  defp render_text(conn, {status, body}) do
     conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_create_malformed_response\nbody: #{inspect(body)}")
+    |> put_status(status)
+    |> text(body)
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_create_failed, status, body}) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_create_failed\nstatus: #{status}\nbody: #{inspect(body)}")
+  defp playgithub_error(:not_repository_path), do: {:bad_request, "error: not_repository_path"}
+
+  defp playgithub_error(:daytona_sandbox_not_found) do
+    {:not_found, "error: daytona_sandbox_not_found\nnext: ?command=create"}
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_start_failed, status, body}) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_start_failed\nstatus: #{status}\nbody: #{inspect(body)}")
+  defp playgithub_error(:repository_not_cloned) do
+    {:conflict, "error: repository_not_cloned\nnext: ?command=clone"}
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_clone_failed, status, body}) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_clone_failed\nstatus: #{status}\nbody: #{inspect(body)}")
+  defp playgithub_error(:frontman_not_installed) do
+    {:conflict, "error: frontman_not_installed\nnext: ?command=install"}
   end
 
-  defp handle_playgithub_error(
-         conn,
-         _parsed_path,
-         {:daytona_frontman_install_failed, status, body}
-       ) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_frontman_install_failed\nstatus: #{status}\nbody: #{inspect(body)}")
+  defp playgithub_error({reason, status, body}) when is_atom(reason) do
+    {:bad_gateway, "error: #{reason}\nstatus: #{status}\nbody: #{inspect(body)}"}
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_frontman_install_failed, body}) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_frontman_install_failed\nbody: #{inspect(body)}")
+  defp playgithub_error({reason, body}) when is_atom(reason) do
+    {:bad_gateway, "error: #{reason}\nbody: #{inspect(body)}"}
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_dev_server_failed, status, body}) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_dev_server_failed\nstatus: #{status}\nbody: #{inspect(body)}")
+  defp playgithub_error(reason) do
+    {:bad_gateway, "error: daytona_request_failed\nreason: #{inspect(reason)}"}
   end
 
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_preview_url_failed, status, body}) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_preview_url_failed\nstatus: #{status}\nbody: #{inspect(body)}")
-  end
-
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_get_failed, status, body}) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_get_failed\nstatus: #{status}\nbody: #{inspect(body)}")
-  end
-
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_label_failed, status, body}) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_label_failed\nstatus: #{status}\nbody: #{inspect(body)}")
-  end
-
-  defp handle_playgithub_error(conn, _parsed_path, {:daytona_repo_label_mismatch, labels}) do
-    conn
-    |> put_status(:conflict)
-    |> text("error: daytona_repo_label_mismatch\nlabels: #{inspect(labels)}")
-  end
-
-  defp handle_playgithub_error(conn, _parsed_path, reason) do
-    conn
-    |> put_status(:bad_gateway)
-    |> text("error: daytona_request_failed\nreason: #{inspect(reason)}")
-  end
-
-  defp format_repository_response(conn, %{command: command, sandbox: sandbox}) do
-    github_reference = sandbox.github_reference
-
+  defp format_repository_response(%{command: command, sandbox: sandbox}, github_reference) do
     [
       "command: #{command}",
       "repository_url: #{GithubReference.repository_url(github_reference)}",
       format_optional_field("branch", GithubReference.branch(github_reference)),
       format_optional_field("repository_path", GithubReference.repository_path(github_reference)),
       "workspace_path: #{PlayGithub.workspace_path(github_reference)}",
-      "sandbox_name: #{sandbox.name}",
-      "sandbox_id: #{sandbox.id}",
-      "provider_state: #{Atom.to_string(sandbox.provider_state)}",
-      "lifecycle: #{Atom.to_string(sandbox.lifecycle)}",
-      format_lifecycle_error(sandbox),
-      format_frontman_install_log_path(command),
-      format_dev_server_port(command),
-      format_dev_server_log_path(command),
-      format_optional_field("dev_server_url", sandbox.dev_server_url),
-      format_dev_server_url_expires_in_seconds(sandbox),
-      format_frontman_preview_url(conn, sandbox),
+      "sandbox_id: #{sandbox.daytona_sandbox_id}",
+      "status: #{Atom.to_string(sandbox.status)}",
+      format_status_error(sandbox),
       "next: #{next_step(sandbox)}"
     ]
     |> Enum.reject(&is_nil/1)
@@ -226,66 +139,36 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
   defp format_optional_field(_field, nil), do: nil
   defp format_optional_field(field, value), do: "#{field}: #{value}"
 
-  defp format_lifecycle_error(sandbox) do
-    case sandbox.lifecycle_error do
+  defp format_status_error(sandbox) do
+    case sandbox.status_error do
       nil -> nil
       "" -> nil
-      error -> "lifecycle_error: #{error}"
+      error -> "status_error: #{error}"
     end
   end
 
-  defp format_frontman_install_log_path("install"),
-    do: "frontman_install_log: #{@frontman_install_log_path}"
-
-  defp format_frontman_install_log_path(_command), do: nil
-
-  defp format_dev_server_port("dev"), do: "dev_server_port: #{@dev_server_port}"
-  defp format_dev_server_port(_command), do: nil
-
-  defp format_dev_server_log_path("dev"), do: "dev_server_log: #{@dev_server_log_path}"
-  defp format_dev_server_log_path(_command), do: nil
-
-  defp format_dev_server_url_expires_in_seconds(sandbox) do
-    case sandbox.dev_server_url do
-      nil -> nil
-      _url -> "dev_server_url_expires_in_seconds: #{@dev_server_preview_expires_seconds}"
+  defp next_step(%{status: status}) do
+    case status do
+      # :sandbox_creating -> "wait_for_sandbox_create"
+      # :sandbox_create_failed -> "?command=create&retry=true"
+      # :sandbox_created -> "?command=clone"
+      # :clone_starting -> "wait_for_clone"
+      # :clone_failed -> "?command=clone"
+      # :clone_finished -> "?command=install"
+      # :install_starting -> "wait_for_install"
+      # :install_failed -> "?command=install&retry=true"
+      # :install_finished -> "?command=dev"
+      # :dev_server_starting -> "wait_for_dev_server"
+      # :dev_server_started -> "open_frontman_preview"
+      :dev_server_failed -> "?command=dev"
     end
   end
 
-  defp format_frontman_preview_url(conn, sandbox) do
-    case sandbox.dev_server_url do
-      nil -> nil
-      dev_server_url -> format_frontman_preview_url_for_url(conn, dev_server_url)
-    end
-  end
+  defp format_path_error(:missing_owner_or_repo), do: "error: missing_owner_or_repo"
+  defp format_path_error(:missing_tree_ref), do: "error: missing_tree_ref"
+  defp format_path_error(:invalid_issue_number), do: "error: invalid_issue_number"
 
-  defp next_step(%{provider_state: :starting}), do: "wait_for_daytona_start"
-  defp next_step(%{lifecycle: :sandbox_created}), do: "?command=clone"
-  defp next_step(%{lifecycle: :sandbox_starting}), do: "wait_for_daytona_start"
-  defp next_step(%{lifecycle: :clone_starting}), do: "wait_for_clone"
-  defp next_step(%{lifecycle: :clone_failed}), do: "?command=clone"
-  defp next_step(%{lifecycle: :clone_finished}), do: "?command=install"
-  defp next_step(%{lifecycle: :install_starting}), do: "wait_for_install"
-  defp next_step(%{lifecycle: :install_failed}), do: "?command=install&retry=true"
-  defp next_step(%{lifecycle: :install_finished}), do: "?command=dev"
-  defp next_step(%{lifecycle: :dev_server_starting}), do: "wait_for_dev_server"
-  defp next_step(%{lifecycle: :dev_server_started}), do: "open_frontman_preview"
-  defp next_step(%{lifecycle: :dev_server_failed}), do: "?command=dev"
-
-  defp format_frontman_preview_url_for_url(conn, dev_server_url) do
-    query = URI.encode_query(%{"url" => dev_server_url}, :rfc3986)
-    "frontman_preview_url: #{request_origin(conn)}/sandbox?#{query}"
-  end
-
-  defp request_origin(conn) do
-    Target.request_origin(conn)
-  end
-
-  defp format_error(:missing_owner_or_repo), do: "error: missing_owner_or_repo"
-  defp format_error(:missing_tree_ref), do: "error: missing_tree_ref"
-  defp format_error(:invalid_issue_number), do: "error: invalid_issue_number"
-
-  defp format_error({:unsupported_github_path, segments}) do
+  defp format_path_error({:unsupported_github_path, segments}) do
     "error: unsupported_github_path\nsegments: #{Enum.join(segments, "/")}"
   end
 
@@ -365,7 +248,7 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
             };
 
             const waitCommand = (next, command) => {
-              if (next === "wait_for_daytona_start") return command === "create" ? "start" : command;
+              if (next === "wait_for_sandbox_create") return "create";
               if (next === "wait_for_clone") return "clone";
               if (next === "wait_for_install") return "install";
               if (next === "wait_for_dev_server") return "dev";
@@ -392,7 +275,7 @@ defmodule FrontmanServerWeb.PlayGithub.Controller do
                     return {command: "install", retry: true, wait: 0};
                   }
 
-                  throw new Error(data.lifecycle_error || "Frontman install failed");
+                  throw new Error(data.status_error || "Frontman install failed");
                 }
 
                 if (next) return {...next, wait: 0};

@@ -64,17 +64,6 @@ defmodule Daytona.Sandbox do
     |> Req.post(url: "/sandbox/:sandbox_id/start", path_params: [sandbox_id: sandbox_id])
   end
 
-  def get_signed_preview_url(%Daytona{} = daytona, sandbox_id, port, expires_seconds)
-      when is_binary(sandbox_id) and is_integer(port) and is_integer(expires_seconds) do
-    daytona
-    |> Daytona.app_request()
-    |> Req.get(
-      url: "/sandbox/:sandbox_id/ports/:port/signed-preview-url",
-      path_params: [sandbox_id: sandbox_id, port: port],
-      params: [expiresInSeconds: expires_seconds]
-    )
-  end
-
   def get_preview_link(%Daytona{} = daytona, sandbox_id, port)
       when is_binary(sandbox_id) and is_integer(port) do
     daytona
@@ -82,17 +71,6 @@ defmodule Daytona.Sandbox do
     |> Req.get(
       url: "/sandbox/:sandbox_id/ports/:port/preview-url",
       path_params: [sandbox_id: sandbox_id, port: port]
-    )
-  end
-
-  def replace_labels(%Daytona{} = daytona, sandbox_id, labels)
-      when is_binary(sandbox_id) and is_map(labels) do
-    daytona
-    |> Daytona.app_request()
-    |> Req.put(
-      url: "/sandbox/:sandbox_id/labels",
-      path_params: [sandbox_id: sandbox_id],
-      json: %{labels: labels}
     )
   end
 end

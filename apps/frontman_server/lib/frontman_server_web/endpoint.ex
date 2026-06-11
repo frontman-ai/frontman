@@ -65,6 +65,7 @@ defmodule FrontmanServerWeb.Endpoint do
 
   plug(Plug.RequestId)
   plug(Plug.Telemetry, event_prefix: [:phoenix, :endpoint])
+  plug(Plug.Session, @session_options)
   plug(FrontmanServerWeb.PlayGithub.SandboxProxyPlug)
 
   plug(Plug.Parsers,
@@ -75,7 +76,6 @@ defmodule FrontmanServerWeb.Endpoint do
 
   plug(Plug.MethodOverride)
   plug(Plug.Head)
-  plug(Plug.Session, @session_options)
   plug(Sentry.PlugContext)
   plug(FrontmanServerWeb.Plugs.CORS, path_prefix: "/api")
   plug(FrontmanServerWeb.Router)

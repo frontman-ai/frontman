@@ -67,5 +67,5 @@ Before merging changes that touch boundaries:
 - `FrontmanServer.PlayGithub.GithubReference` — parsed PlayGithub route reference
   consumed by the web controller before sandbox orchestration. Resource variant
   modules remain internal to the PlayGithub boundary.
-- `FrontmanServer.PlayGithub.RepositorySandbox` — PlayGithub command result
-  aggregate consumed by the web controller for response formatting.
+- `FrontmanServer.PlayGithub.Sandbox` — persisted PlayGithub sandbox ownership
+  record and command result aggregate consumed by the web controller.

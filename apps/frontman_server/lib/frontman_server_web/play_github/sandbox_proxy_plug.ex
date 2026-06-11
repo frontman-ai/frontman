@@ -23,8 +23,15 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyPlug do
   @impl true
   def call(conn, _opts) do
     case playgithub_host?(conn.host) do
-      true -> conn |> Plug.Conn.fetch_query_params() |> SandboxProxy.dispatch()
-      false -> conn
+      true ->
+        conn
+        |> Plug.Conn.fetch_session()
+        |> FrontmanServerWeb.UserAuth.fetch_current_scope_for_user([])
+        |> Plug.Conn.fetch_query_params()
+        |> SandboxProxy.dispatch()
+
+      false ->
+        conn
     end
   end
 

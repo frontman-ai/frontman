@@ -9,12 +9,14 @@ defmodule FrontmanServer.PlayGithub do
   Coordinates PlayGithub repository sandboxes.
   """
 
-  alias Daytona.Sandbox
+  alias Daytona.Sandbox, as: DaytonaSandbox
   alias Daytona.Toolbox
   alias Daytona.Toolbox.Git
   alias Daytona.Toolbox.Process, as: ToolboxProcess
+  alias FrontmanServer.Accounts
   alias FrontmanServer.PlayGithub.GithubReference
-  alias FrontmanServer.PlayGithub.RepositorySandbox
+  alias FrontmanServer.PlayGithub.Sandbox
+  alias FrontmanServer.Repo
 
   @frontman_install_command "npx astro add @frontman-ai/astro --yes"
   @frontman_install_log_path "/tmp/frontman-install.log"
@@ -22,12 +24,12 @@ defmodule FrontmanServer.PlayGithub do
   @dev_server_pid_path "/tmp/frontman-dev-server.pid"
   @dev_server_port 4321
   @dev_server_start_timeout_seconds 10
-  @dev_server_preview_expires_seconds 3_600
   @dependency_install_timeout_seconds 600
   @frontman_install_timeout_seconds 300
   @frontman_repository_owner "frontman-ai"
   @frontman_repository_name "frontman"
   @frontman_repository_app_path "apps/marketing"
+  @create_stale_after_seconds 600
   @clone_stale_after_seconds 600
   @install_stale_after_seconds 600
   @dev_server_stale_after_seconds 60
@@ -39,13 +41,8 @@ defmodule FrontmanServer.PlayGithub do
 
   @type repository_command :: :create | :start | :clone | :install | :dev
 
-  @spec sandbox_name(GithubReference.t()) :: String.t()
-  def sandbox_name(%GithubReference{} = github_reference) do
-    RepositorySandbox.sandbox_name(github_reference)
-  end
-
-  def get_or_create_repository_sandbox(%GithubReference{} = github_reference) do
-    run_repository_command(github_reference, :create)
+  def get_or_create_repository_sandbox(scope, %GithubReference{} = github_reference) do
+    run_repository_command(scope, github_reference, :create)
   end
 
   @spec workspace_path(GithubReference.t()) :: String.t()
@@ -56,14 +53,33 @@ defmodule FrontmanServer.PlayGithub do
   @spec dev_server_port() :: pos_integer()
   def dev_server_port, do: @dev_server_port
 
-  def get_sandbox_preview_link(sandbox_id, port)
+  def get_owned_sandbox_preview_link(scope, sandbox_id, port)
       when is_binary(sandbox_id) and is_integer(port) do
+    with {:ok, _sandbox} <- get_owned_sandbox_by_daytona_id(scope, sandbox_id) do
+      get_sandbox_preview_link(sandbox_id, port)
+    end
+  end
+
+  defp get_sandbox_preview_link(sandbox_id, port) do
     daytona = Daytona.new()
 
-    case Sandbox.get_preview_link(daytona, sandbox_id, port) do
+    case DaytonaSandbox.get_preview_link(daytona, sandbox_id, port) do
       {:ok, %Req.Response{} = response} -> preview_link_from_response(response)
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  def get_owned_sandbox_by_daytona_id(%Accounts.Scope{} = scope, daytona_sandbox_id)
+      when is_binary(daytona_sandbox_id) do
+    case Repo.one(Sandbox.by_daytona_sandbox_id(scope, daytona_sandbox_id)) do
+      nil -> {:error, :playgithub_sandbox_not_found}
+      %Sandbox{} = sandbox -> {:ok, sandbox}
+    end
+  end
+
+  def get_owned_sandbox_by_daytona_id(_scope, daytona_sandbox_id)
+      when is_binary(daytona_sandbox_id) do
+    {:error, :playgithub_sandbox_not_found}
   end
 
   defp preview_link_from_response(%Req.Response{
@@ -92,20 +108,25 @@ defmodule FrontmanServer.PlayGithub do
     {:error, {:daytona_preview_lookup_failed, status, body}}
   end
 
-  @spec run_repository_command(GithubReference.t(), repository_command(), keyword()) ::
-          {:ok, %{command: String.t(), sandbox: RepositorySandbox.t()}}
+  @spec run_repository_command(
+          Accounts.scope(),
+          GithubReference.t(),
+          repository_command(),
+          keyword()
+        ) ::
+          {:ok, %{command: String.t(), sandbox: Sandbox.t()}}
           | {:error, term()}
           | {:error, term(), term()}
           | {:error, term(), non_neg_integer(), term()}
-  def run_repository_command(github_reference, command, opts \\ [])
+  def run_repository_command(scope, github_reference, command, opts \\ [])
 
-  def run_repository_command(%GithubReference{} = github_reference, command, opts)
+  def run_repository_command(scope, %GithubReference{} = github_reference, command, opts)
       when command in [:create, :start, :clone, :install, :dev] do
     case GithubReference.repository_backed?(github_reference) do
       true ->
         daytona = Daytona.new()
 
-        with {:ok, sandbox} <- run_command(daytona, github_reference, command, opts) do
+        with {:ok, sandbox} <- run_command(daytona, scope, github_reference, command, opts) do
           {:ok, %{command: Atom.to_string(command), sandbox: sandbox}}
         end
 
@@ -114,249 +135,240 @@ defmodule FrontmanServer.PlayGithub do
     end
   end
 
-  defp run_command(daytona, github_reference, :create, _opts) do
-    create_repository_sandbox(daytona, github_reference)
+  defp run_command(daytona, scope, github_reference, :create, opts) do
+    create_repository_sandbox(daytona, scope, github_reference, retry?(opts))
   end
 
-  defp run_command(daytona, github_reference, :start, _opts) do
-    start_repository_sandbox(daytona, github_reference)
+  defp run_command(daytona, scope, github_reference, :start, _opts) do
+    start_repository_sandbox(daytona, scope, github_reference)
   end
 
-  defp run_command(daytona, github_reference, :clone, _opts) do
-    clone_repository_sandbox(daytona, github_reference)
+  defp run_command(daytona, scope, github_reference, :clone, _opts) do
+    clone_repository_sandbox(daytona, scope, github_reference)
   end
 
-  defp run_command(daytona, github_reference, :install, opts) do
-    install_repository_sandbox(daytona, github_reference, retry?(opts))
+  defp run_command(daytona, scope, github_reference, :install, opts) do
+    install_repository_sandbox(daytona, scope, github_reference, retry?(opts))
   end
 
-  defp run_command(daytona, github_reference, :dev, _opts) do
-    start_dev_server_sandbox(daytona, github_reference)
+  defp run_command(daytona, scope, github_reference, :dev, _opts) do
+    start_dev_server_sandbox(daytona, scope, github_reference)
   end
 
-  defp create_repository_sandbox(daytona, github_reference) do
-    case load_repository_sandbox(daytona, github_reference) do
-      {:ok, sandbox} ->
-        {:ok, sandbox}
-
-      {:error, :daytona_sandbox_not_found} ->
-        create_named_repository_sandbox(daytona, github_reference)
-
-      error ->
-        error
+  defp create_repository_sandbox(daytona, scope, github_reference, retry?) do
+    with {:ok, sandbox, source} <- get_or_insert_sandbox(scope, github_reference) do
+      case create_action(sandbox, source, retry?) do
+        :wait -> {:ok, sandbox}
+        :start -> create_daytona_sandbox(daytona, sandbox)
+      end
     end
   end
 
-  defp start_repository_sandbox(daytona, github_reference) do
-    with {:ok, sandbox} <- load_repository_sandbox(daytona, github_reference) do
-      start_daytona_sandbox_if_needed(daytona, sandbox)
+  defp start_repository_sandbox(daytona, scope, github_reference) do
+    with {:ok, sandbox} <- load_created_sandbox(scope, github_reference),
+         :ok <- start_daytona_sandbox(daytona, sandbox) do
+      {:ok, sandbox}
     end
   end
 
-  defp clone_repository_sandbox(daytona, github_reference) do
-    with {:ok, sandbox} <- load_repository_sandbox(daytona, github_reference) do
+  defp clone_repository_sandbox(daytona, scope, github_reference) do
+    with {:ok, sandbox} <- load_created_sandbox(scope, github_reference) do
       case clone_action(sandbox) do
-        :start -> start_clone(daytona, sandbox)
+        :start -> begin_clone(daytona, sandbox, github_reference)
         :wait -> {:ok, sandbox}
       end
     end
   end
 
-  defp install_repository_sandbox(daytona, github_reference, retry?) do
-    with {:ok, sandbox} <- load_repository_sandbox(daytona, github_reference) do
+  defp install_repository_sandbox(daytona, scope, github_reference, retry?) do
+    with {:ok, sandbox} <- load_created_sandbox(scope, github_reference) do
       case install_action(sandbox, retry?) do
-        :start -> start_install(daytona, sandbox)
+        :start -> begin_install(daytona, sandbox, github_reference)
         :wait -> {:ok, sandbox}
         :not_cloned -> {:error, :repository_not_cloned}
       end
     end
   end
 
-  defp start_dev_server_sandbox(daytona, github_reference) do
-    with {:ok, sandbox} <- load_repository_sandbox(daytona, github_reference) do
+  defp start_dev_server_sandbox(daytona, scope, github_reference) do
+    with {:ok, sandbox} <- load_created_sandbox(scope, github_reference) do
       case dev_server_action(sandbox) do
-        :start -> start_dev_server(daytona, sandbox)
+        :start -> begin_dev_server(daytona, sandbox, github_reference)
         :wait -> {:ok, sandbox}
         :not_installed -> {:error, :frontman_not_installed}
       end
     end
   end
 
-  defp load_repository_sandbox(daytona, github_reference) do
-    name = RepositorySandbox.sandbox_name(github_reference)
+  defp get_or_insert_sandbox(scope, github_reference) do
+    github_url = GithubReference.github_url(github_reference)
+    user_id = Accounts.scope_user_id(scope)
 
-    case Sandbox.get(daytona, name) do
-      {:ok, %Req.Response{status: status, body: %{"id" => id, "state" => state} = body}}
-      when status in 200..299 ->
-        labels = Map.get(body, "labels", %{})
+    %Sandbox{user_id: user_id}
+    |> Sandbox.create_changeset(%{github_url: github_url})
+    |> Repo.insert()
+    |> case do
+      {:ok, %Sandbox{} = sandbox} ->
+        {:ok, sandbox, :inserted}
 
-        with :ok <- verify_repository_label(github_reference, labels),
-             {:ok, provider_state} <- RepositorySandbox.provider_state(state),
-             {:ok, lifecycle, started_at, error, dev_server_url} <-
-               RepositorySandbox.lifecycle_from_labels(labels) do
-          {:ok,
-           %RepositorySandbox{
-             github_reference: github_reference,
-             id: id,
-             name: name,
-             provider_state: provider_state,
-             lifecycle: lifecycle,
-             lifecycle_started_at: started_at,
-             lifecycle_error: error,
-             dev_server_url: dev_server_url
-           }}
+      {:error, _changeset} ->
+        case Repo.one(Sandbox.by_github_url(scope, github_url)) do
+          nil ->
+            {:error, :playgithub_sandbox_insert_failed}
+
+          %Sandbox{} = sandbox ->
+            {:ok, sandbox, :existing}
         end
+    end
+  end
 
-      {:ok, %Req.Response{status: 404}} ->
+  defp load_sandbox_record(scope, github_reference) do
+    github_url = GithubReference.github_url(github_reference)
+
+    case Repo.one(Sandbox.by_github_url(scope, github_url)) do
+      nil -> {:error, :daytona_sandbox_not_found}
+      %Sandbox{} = sandbox -> {:ok, sandbox}
+    end
+  end
+
+  defp load_created_sandbox(scope, github_reference) do
+    case load_sandbox_record(scope, github_reference) do
+      {:ok, %Sandbox{daytona_sandbox_id: sandbox_id} = sandbox} when is_binary(sandbox_id) ->
+        {:ok, sandbox}
+
+      {:ok, %Sandbox{}} ->
         {:error, :daytona_sandbox_not_found}
 
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, :daytona_get_failed, status, body}
-
-      {:error, reason} ->
-        {:error, reason}
+      error ->
+        error
     end
   end
 
-  defp verify_repository_label(github_reference, labels) do
-    case Map.fetch(labels, RepositorySandbox.repo_url_label()) do
-      {:ok, repo_url} ->
-        verify_repository_url(repo_url, GithubReference.repository_url(github_reference), labels)
+  defp create_action(%Sandbox{daytona_sandbox_id: daytona_sandbox_id}, _source, _retry?)
+       when is_binary(daytona_sandbox_id) do
+    :wait
+  end
 
-      _repo_url ->
-        {:error, :daytona_repo_label_mismatch, labels}
+  defp create_action(%Sandbox{}, :inserted, _retry?), do: :start
+
+  defp create_action(%Sandbox{status: :sandbox_creating} = sandbox, :existing, _retry?) do
+    case stale?(sandbox, @create_stale_after_seconds) do
+      true -> :start
+      false -> :wait
     end
   end
 
-  defp verify_repository_url(repo_url, repo_url, _labels), do: :ok
+  defp create_action(%Sandbox{status: :sandbox_create_failed}, :existing, true), do: :start
+  defp create_action(%Sandbox{status: :sandbox_create_failed}, :existing, false), do: :wait
+  defp create_action(%Sandbox{}, :existing, _retry?), do: :start
 
-  defp verify_repository_url(_repo_url, _expected_repo_url, labels),
-    do: {:error, :daytona_repo_label_mismatch, labels}
-
-  defp create_named_repository_sandbox(daytona, github_reference) do
-    name = RepositorySandbox.sandbox_name(github_reference)
-
-    case Sandbox.create(daytona, %{
-           name: name,
-           labels: RepositorySandbox.initial_labels(github_reference)
-         }) do
-      {:ok, %Req.Response{status: status, body: %{"id" => id, "state" => state}}}
-      when status in 200..299 ->
-        with {:ok, provider_state} <- RepositorySandbox.provider_state(state) do
-          {:ok,
-           %RepositorySandbox{
-             github_reference: github_reference,
-             id: id,
-             name: name,
-             provider_state: provider_state,
-             lifecycle: :sandbox_created
-           }}
-        end
-
-      {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-        {:error, :malformed_daytona_response, body}
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, :daytona_create_failed, status, body}
-
-      {:error, reason} ->
-        {:error, reason}
+  defp create_daytona_sandbox(daytona, sandbox) do
+    with {:ok, sandbox} <- persist_status(sandbox, :sandbox_creating) do
+      case DaytonaSandbox.create(daytona, %{labels: sandbox_labels(sandbox)}) do
+        {:ok, %Req.Response{} = response} -> persist_create_response(response, sandbox)
+        {:error, reason} -> persist_create_failure(sandbox, reason)
+      end
     end
   end
 
-  defp start_daytona_sandbox_if_needed(
-         _client,
-         %RepositorySandbox{provider_state: :started} = sandbox
-       ) do
-    {:ok, sandbox}
+  defp sandbox_labels(%Sandbox{} = sandbox) do
+    %{
+      "frontman.playgithub.sandbox_id" => sandbox.id,
+      "frontman.playgithub.github_url" => sandbox.github_url
+    }
   end
 
-  defp start_daytona_sandbox_if_needed(
-         _client,
-         %RepositorySandbox{provider_state: :starting} = sandbox
-       ) do
-    {:ok, sandbox}
+  defp persist_create_response(
+         %Req.Response{status: status, body: %{"id" => sandbox_id}},
+         sandbox
+       )
+       when status in 200..299 and is_binary(sandbox_id) do
+    attach_daytona_sandbox_id(sandbox, sandbox_id)
   end
 
-  defp start_daytona_sandbox_if_needed(client, %RepositorySandbox{} = sandbox) do
-    case start_daytona_sandbox(client, sandbox) do
-      {:ok, provider_state} -> {:ok, %{sandbox | provider_state: provider_state}}
-      error -> error
+  defp persist_create_response(%Req.Response{status: status, body: body}, sandbox)
+       when status in 200..299 do
+    persist_create_failure(sandbox, {:malformed_daytona_response, body})
+  end
+
+  defp persist_create_response(%Req.Response{status: status, body: body}, sandbox) do
+    persist_create_failure(sandbox, {:daytona_create_failed, status, body})
+  end
+
+  defp persist_create_failure(sandbox, reason) do
+    persist_status(sandbox, :sandbox_create_failed, failure_reason(reason))
+    {:error, reason}
+  end
+
+  defp attach_daytona_sandbox_id(sandbox, sandbox_id) do
+    sandbox
+    |> Sandbox.attach_daytona_sandbox_changeset(sandbox_id)
+    |> Repo.update()
+    |> case do
+      {:ok, updated} -> {:ok, updated}
+      {:error, changeset} -> {:error, changeset}
     end
   end
 
-  defp clone_action(%RepositorySandbox{lifecycle: :sandbox_created}), do: :start
-  defp clone_action(%RepositorySandbox{lifecycle: :clone_failed}), do: :start
+  defp clone_action(%Sandbox{status: :sandbox_created}), do: :start
+  defp clone_action(%Sandbox{status: :clone_failed}), do: :start
 
-  defp clone_action(%RepositorySandbox{lifecycle: :clone_starting} = sandbox) do
+  defp clone_action(%Sandbox{status: :clone_starting} = sandbox) do
     case stale?(sandbox, @clone_stale_after_seconds) do
       true -> :start
       false -> :wait
     end
   end
 
-  defp clone_action(%RepositorySandbox{} = sandbox) do
+  defp clone_action(%Sandbox{} = sandbox) do
     case clone_finished?(sandbox) do
       true -> :wait
       false -> :wait
     end
   end
 
-  defp start_clone(client, %RepositorySandbox{provider_state: :started} = sandbox) do
-    begin_clone(client, sandbox)
-  end
-
-  defp start_clone(_client, %RepositorySandbox{provider_state: :starting} = sandbox) do
-    {:ok, sandbox}
-  end
-
-  defp start_clone(client, %RepositorySandbox{} = sandbox) do
-    start_sandbox_then_work(client, sandbox, :clone)
-  end
-
-  defp begin_clone(client, sandbox) do
-    with {:ok, sandbox} <- persist_lifecycle(client, sandbox, :clone_starting),
+  defp begin_clone(client, sandbox, github_reference) do
+    with {:ok, sandbox} <- persist_status(sandbox, :clone_starting),
          {:ok, _pid} <-
-           start_background_job(fn -> clone_repository_in_background(client, sandbox) end) do
+           start_background_job(fn ->
+             run_after_sandbox_started(client, sandbox, github_reference, :clone, :clone_failed)
+           end) do
       {:ok, sandbox}
     else
-      {:error, :daytona_label_failed, status, body} ->
-        {:error, :daytona_label_failed, status, body}
-
       {:error, reason} ->
-        persist_lifecycle(client, sandbox, :clone_failed, failure_reason(reason))
+        persist_status(sandbox, :clone_failed, failure_reason(reason))
         {:error, reason}
     end
   end
 
-  defp clone_repository_in_background(daytona, sandbox) do
+  defp clone_repository_in_background(daytona, sandbox, github_reference) do
     case Toolbox.fetch(daytona) do
       {:ok, toolbox} ->
         toolbox
-        |> Git.clone(sandbox.id, clone_request(sandbox.github_reference),
+        |> Git.clone(sandbox.daytona_sandbox_id, clone_request(github_reference),
           timeout_seconds: @repository_clone_timeout_seconds
         )
-        |> persist_clone_result(daytona, sandbox)
+        |> persist_clone_result(sandbox)
 
       {:error, reason} ->
-        persist_lifecycle(daytona, sandbox, :clone_failed, failure_reason(reason))
+        persist_status(sandbox, :clone_failed, failure_reason(reason))
     end
   end
 
-  defp persist_clone_result({:ok, %Req.Response{status: status}}, daytona, sandbox)
+  defp persist_clone_result({:ok, %Req.Response{status: status}}, sandbox)
        when status in 200..299 do
-    persist_lifecycle(daytona, sandbox, :clone_finished)
+    persist_status(sandbox, :clone_finished)
   end
 
-  defp persist_clone_result({:ok, %Req.Response{body: body}}, daytona, sandbox) do
+  defp persist_clone_result({:ok, %Req.Response{body: body}}, sandbox) do
     case repository_already_cloned_response?(body) do
-      true -> persist_lifecycle(daytona, sandbox, :clone_finished)
-      false -> persist_lifecycle(daytona, sandbox, :clone_failed, failure_reason(body))
+      true -> persist_status(sandbox, :clone_finished)
+      false -> persist_status(sandbox, :clone_failed, failure_reason(body))
     end
   end
 
-  defp persist_clone_result({:error, reason}, daytona, sandbox) do
-    persist_lifecycle(daytona, sandbox, :clone_failed, failure_reason(reason))
+  defp persist_clone_result({:error, reason}, sandbox) do
+    persist_status(sandbox, :clone_failed, failure_reason(reason))
   end
 
   defp clone_request(github_reference) do
@@ -375,80 +387,71 @@ defmodule FrontmanServer.PlayGithub do
 
   defp repository_already_cloned_response?(_body), do: false
 
-  defp install_action(%RepositorySandbox{lifecycle: :clone_finished}, _retry?), do: :start
-  defp install_action(%RepositorySandbox{lifecycle: :clone_starting}, _retry?), do: :wait
-  defp install_action(%RepositorySandbox{lifecycle: :sandbox_starting}, _retry?), do: :wait
+  defp install_action(%Sandbox{status: :clone_finished}, _retry?), do: :start
+  defp install_action(%Sandbox{status: :clone_starting}, _retry?), do: :wait
+  defp install_action(%Sandbox{status: :clone_failed}, _retry?), do: :not_cloned
 
-  defp install_action(%RepositorySandbox{lifecycle: :clone_failed}, _retry?), do: :not_cloned
-
-  defp install_action(%RepositorySandbox{lifecycle: :install_starting} = sandbox, _retry?) do
+  defp install_action(%Sandbox{status: :install_starting} = sandbox, _retry?) do
     case stale?(sandbox, @install_stale_after_seconds) do
       true -> :start
       false -> :wait
     end
   end
 
-  defp install_action(%RepositorySandbox{lifecycle: :install_failed}, true), do: :start
-  defp install_action(%RepositorySandbox{lifecycle: :install_failed}, false), do: :wait
+  defp install_action(%Sandbox{status: :install_failed}, true), do: :start
+  defp install_action(%Sandbox{status: :install_failed}, false), do: :wait
 
-  defp install_action(%RepositorySandbox{} = sandbox, _retry?) do
+  defp install_action(%Sandbox{} = sandbox, _retry?) do
     case install_finished?(sandbox) do
       true -> :wait
       false -> :not_cloned
     end
   end
 
-  defp start_install(client, %RepositorySandbox{provider_state: :started} = sandbox) do
-    begin_install(client, sandbox)
-  end
-
-  defp start_install(_client, %RepositorySandbox{provider_state: :starting} = sandbox) do
-    {:ok, sandbox}
-  end
-
-  defp start_install(client, %RepositorySandbox{} = sandbox) do
-    start_sandbox_then_work(client, sandbox, :install)
-  end
-
-  defp begin_install(client, sandbox) do
-    with {:ok, sandbox} <- persist_lifecycle(client, sandbox, :install_starting),
+  defp begin_install(client, sandbox, github_reference) do
+    with {:ok, sandbox} <- persist_status(sandbox, :install_starting),
          {:ok, _pid} <-
-           start_background_job(fn -> install_frontman_in_background(client, sandbox) end) do
+           start_background_job(fn ->
+             run_after_sandbox_started(
+               client,
+               sandbox,
+               github_reference,
+               :install,
+               :install_failed
+             )
+           end) do
       {:ok, sandbox}
     else
-      {:error, :daytona_label_failed, status, body} ->
-        {:error, :daytona_label_failed, status, body}
-
       {:error, reason} ->
-        persist_lifecycle(client, sandbox, :install_failed, failure_reason(reason))
+        persist_status(sandbox, :install_failed, failure_reason(reason))
         {:error, :daytona_frontman_install_failed, reason}
     end
   end
 
-  defp install_frontman_in_background(daytona, sandbox) do
+  defp install_frontman_in_background(daytona, sandbox, github_reference) do
     case Toolbox.fetch(daytona) do
       {:ok, toolbox} ->
-        case ensure_workspace_path_exists(toolbox, sandbox) do
-          :ok -> install_dependencies_then_frontman(daytona, toolbox, sandbox)
-          {:error, reason} -> persist_lifecycle(daytona, sandbox, :install_failed, reason)
+        case ensure_launch_workspace_path_exists(toolbox, sandbox, github_reference) do
+          :ok -> install_dependencies_then_frontman(toolbox, sandbox, github_reference)
+          {:error, reason} -> persist_status(sandbox, :install_failed, reason)
         end
 
       {:error, reason} ->
-        persist_lifecycle(daytona, sandbox, :install_failed, failure_reason(reason))
+        persist_status(sandbox, :install_failed, failure_reason(reason))
     end
   end
 
-  defp install_dependencies_then_frontman(daytona, toolbox, sandbox) do
-    case run_dependency_install_command(toolbox, sandbox) do
-      :ok -> run_frontman_install_command(daytona, toolbox, sandbox)
-      {:error, reason} -> persist_lifecycle(daytona, sandbox, :install_failed, reason)
+  defp install_dependencies_then_frontman(toolbox, sandbox, github_reference) do
+    case run_dependency_install_command(toolbox, sandbox, github_reference) do
+      :ok -> run_frontman_install_command(toolbox, sandbox, github_reference)
+      {:error, reason} -> persist_status(sandbox, :install_failed, reason)
     end
   end
 
   defp ensure_workspace_path_exists(toolbox, sandbox, workspace_path) do
     case ToolboxProcess.execute(
            toolbox,
-           sandbox.id,
+           sandbox.daytona_sandbox_id,
            %{
              command: "test -d #{shell_quote(workspace_path)}",
              cwd: ".",
@@ -466,14 +469,14 @@ defmodule FrontmanServer.PlayGithub do
     end
   end
 
-  defp run_dependency_install_command(toolbox, sandbox) do
+  defp run_dependency_install_command(toolbox, sandbox, github_reference) do
     case ToolboxProcess.execute(
            toolbox,
-           sandbox.id,
+           sandbox.daytona_sandbox_id,
            %{
              command:
                logged_install_command(
-                 dependency_install_command(sandbox.github_reference),
+                 dependency_install_command(github_reference),
                  "dependency install",
                  true
                ),
@@ -492,94 +495,86 @@ defmodule FrontmanServer.PlayGithub do
     end
   end
 
-  defp run_frontman_install_command(daytona, toolbox, sandbox) do
+  defp run_frontman_install_command(toolbox, sandbox, github_reference) do
     case ToolboxProcess.execute(
            toolbox,
-           sandbox.id,
+           sandbox.daytona_sandbox_id,
            %{
              command:
                logged_install_command(
-                 frontman_install_command(sandbox.github_reference),
+                 @frontman_install_command,
                  "frontman install",
                  false
                ),
-             cwd: launch_workspace_path(sandbox.github_reference),
+             cwd: launch_workspace_path(github_reference),
              timeout: @frontman_install_timeout_seconds
            }
          ) do
       {:ok, %Req.Response{status: status, body: %{"exitCode" => 0}}} when status in 200..299 ->
-        persist_lifecycle(daytona, sandbox, :install_finished)
+        persist_status(sandbox, :install_finished)
 
       {:ok, %Req.Response{body: body}} ->
-        persist_lifecycle(daytona, sandbox, :install_failed, failure_reason(body))
+        persist_status(sandbox, :install_failed, failure_reason(body))
 
       {:error, reason} ->
-        persist_lifecycle(daytona, sandbox, :install_failed, failure_reason(reason))
+        persist_status(sandbox, :install_failed, failure_reason(reason))
     end
   end
 
-  defp dev_server_action(%RepositorySandbox{lifecycle: :install_finished}), do: :start
-  defp dev_server_action(%RepositorySandbox{lifecycle: :dev_server_failed}), do: :start
-  defp dev_server_action(%RepositorySandbox{lifecycle: :dev_server_started}), do: :wait
+  defp dev_server_action(%Sandbox{status: :install_finished}), do: :start
+  defp dev_server_action(%Sandbox{status: :dev_server_failed}), do: :start
+  defp dev_server_action(%Sandbox{status: :dev_server_started}), do: :wait
 
-  defp dev_server_action(%RepositorySandbox{lifecycle: :dev_server_starting} = sandbox) do
+  defp dev_server_action(%Sandbox{status: :dev_server_starting} = sandbox) do
     case stale?(sandbox, @dev_server_stale_after_seconds) do
       true -> :start
       false -> :wait
     end
   end
 
-  defp dev_server_action(%RepositorySandbox{}), do: :not_installed
+  defp dev_server_action(%Sandbox{}), do: :not_installed
 
-  defp start_dev_server(client, %RepositorySandbox{provider_state: :started} = sandbox) do
-    run_dev_server(client, sandbox)
-  end
-
-  defp start_dev_server(_client, %RepositorySandbox{provider_state: :starting} = sandbox) do
-    {:ok, sandbox}
-  end
-
-  defp start_dev_server(client, %RepositorySandbox{} = sandbox) do
-    start_sandbox_then_work(client, sandbox, :dev)
-  end
-
-  defp run_dev_server(daytona, sandbox) do
-    with {:ok, sandbox} <- persist_lifecycle(daytona, sandbox, :dev_server_starting),
-         {:ok, toolbox} <- Toolbox.fetch(daytona),
-         :ok <- run_dev_server_command(toolbox, sandbox),
-         {:ok, dev_server_url} <- create_dev_server_preview_url(daytona, sandbox.id),
-         {:ok, sandbox} <-
-           persist_lifecycle(daytona, sandbox, :dev_server_started, nil, dev_server_url) do
+  defp begin_dev_server(client, sandbox, github_reference) do
+    with {:ok, sandbox} <- persist_status(sandbox, :dev_server_starting),
+         {:ok, _pid} <-
+           start_background_job(fn ->
+             run_after_sandbox_started(
+               client,
+               sandbox,
+               github_reference,
+               :dev,
+               :dev_server_failed
+             )
+           end) do
       {:ok, sandbox}
     else
-      {:error, :daytona_label_failed, status, body} ->
-        {:error, :daytona_label_failed, status, body}
-
-      {:error, :daytona_dev_server_failed, status, body} ->
-        persist_lifecycle(daytona, sandbox, :dev_server_failed, failure_reason(body))
-        {:error, :daytona_dev_server_failed, status, body}
-
-      {:error, :daytona_preview_url_failed, status, body} ->
-        persist_lifecycle(daytona, sandbox, :dev_server_failed, failure_reason(body))
-        {:error, :daytona_preview_url_failed, status, body}
-
-      {:error, reason, body} ->
-        persist_lifecycle(daytona, sandbox, :dev_server_failed, failure_reason(body))
-        {:error, reason, body}
-
       {:error, reason} ->
-        persist_lifecycle(daytona, sandbox, :dev_server_failed, failure_reason(reason))
+        persist_status(sandbox, :dev_server_failed, failure_reason(reason))
         {:error, reason}
     end
   end
 
-  defp run_dev_server_command(toolbox, sandbox) do
+  defp run_dev_server(daytona, sandbox, github_reference) do
+    with {:ok, toolbox} <- Toolbox.fetch(daytona),
+         :ok <- run_dev_server_command(toolbox, sandbox, github_reference),
+         {:ok, _sandbox} <- persist_status(sandbox, :dev_server_started) do
+      :ok
+    else
+      {:error, :daytona_dev_server_failed, _status, body} ->
+        persist_status(sandbox, :dev_server_failed, failure_reason(body))
+
+      {:error, reason} ->
+        persist_status(sandbox, :dev_server_failed, failure_reason(reason))
+    end
+  end
+
+  defp run_dev_server_command(toolbox, sandbox, github_reference) do
     case ToolboxProcess.execute(
            toolbox,
-           sandbox.id,
+           sandbox.daytona_sandbox_id,
            %{
              command: dev_server_command(),
-             cwd: launch_workspace_path(sandbox.github_reference),
+             cwd: launch_workspace_path(github_reference),
              timeout: @dev_server_start_timeout_seconds
            }
          ) do
@@ -594,90 +589,33 @@ defmodule FrontmanServer.PlayGithub do
     end
   end
 
-  defp create_dev_server_preview_url(client, sandbox_id) do
-    case Sandbox.get_signed_preview_url(
-           client,
-           sandbox_id,
-           @dev_server_port,
-           @dev_server_preview_expires_seconds
-         ) do
-      {:ok, %Req.Response{status: status, body: %{"url" => url}}} when status in 200..299 ->
-        {:ok, url}
-
-      {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-        {:error, :malformed_daytona_response, body}
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, :daytona_preview_url_failed, status, body}
-
-      {:error, reason} ->
-        {:error, reason}
+  defp run_after_sandbox_started(client, sandbox, github_reference, work, failed_status) do
+    case start_sandbox_until_started(client, sandbox.daytona_sandbox_id) do
+      :ok -> run_started_work(client, sandbox, github_reference, work)
+      {:error, reason} -> persist_status(sandbox, failed_status, failure_reason(reason))
     end
   end
 
-  defp start_sandbox_then_work(client, sandbox, work) do
-    with {:ok, sandbox} <- persist_lifecycle(client, sandbox, :sandbox_starting),
-         {:ok, _pid} <-
-           start_background_job(fn ->
-             start_sandbox_then_work_in_background(client, sandbox, work)
-           end) do
-      {:ok, %{sandbox | provider_state: :starting}}
-    else
-      {:error, :daytona_label_failed, status, body} ->
-        {:error, :daytona_label_failed, status, body}
-
-      {:error, reason} ->
-        persist_failed_lifecycle(client, sandbox, work, reason)
-        {:error, reason}
-    end
+  defp run_started_work(client, sandbox, github_reference, :clone) do
+    clone_repository_in_background(client, sandbox, github_reference)
   end
 
-  defp start_sandbox_then_work_in_background(client, sandbox, work) do
-    case start_sandbox_until_started(client, sandbox.id) do
-      :ok -> run_work_in_background(client, %{sandbox | provider_state: :started}, work)
-      {:error, reason} -> persist_failed_lifecycle(client, sandbox, work, reason)
-    end
+  defp run_started_work(client, sandbox, github_reference, :install) do
+    install_frontman_in_background(client, sandbox, github_reference)
   end
 
-  defp run_work_in_background(client, sandbox, :clone) do
-    with {:ok, sandbox} <- persist_lifecycle(client, sandbox, :clone_starting) do
-      clone_repository_in_background(client, sandbox)
-    end
-  end
-
-  defp run_work_in_background(client, sandbox, :install) do
-    with {:ok, sandbox} <- persist_lifecycle(client, sandbox, :install_starting) do
-      install_frontman_in_background(client, sandbox)
-    end
-  end
-
-  defp run_work_in_background(client, sandbox, :dev) do
-    run_dev_server(client, sandbox)
-  end
-
-  defp persist_failed_lifecycle(client, sandbox, :clone, reason) do
-    persist_lifecycle(client, sandbox, :clone_failed, failure_reason(reason))
-  end
-
-  defp persist_failed_lifecycle(client, sandbox, :install, reason) do
-    persist_lifecycle(client, sandbox, :install_failed, failure_reason(reason))
-  end
-
-  defp persist_failed_lifecycle(client, sandbox, :dev, reason) do
-    persist_lifecycle(client, sandbox, :dev_server_failed, failure_reason(reason))
+  defp run_started_work(client, sandbox, github_reference, :dev) do
+    run_dev_server(client, sandbox, github_reference)
   end
 
   defp start_daytona_sandbox(client, sandbox) do
-    case Sandbox.start(client, sandbox.id) do
+    case DaytonaSandbox.start(client, sandbox.daytona_sandbox_id) do
       {:ok, %Req.Response{status: status, body: %{"state" => "started"}}}
       when status in 200..299 ->
-        {:ok, :started}
-
-      {:ok, %Req.Response{status: status, body: %{"state" => state}}} when status in 200..299 ->
-        RepositorySandbox.provider_state(state)
+        :ok
 
       {:ok, %Req.Response{status: status}} when status in 200..299 ->
-        {:ok, :starting}
+        :ok
 
       {:ok, %Req.Response{status: status, body: body}} ->
         {:error, :daytona_start_failed, status, body}
@@ -688,7 +626,7 @@ defmodule FrontmanServer.PlayGithub do
   end
 
   defp start_sandbox_until_started(client, sandbox_id) do
-    case Sandbox.start(client, sandbox_id) do
+    case DaytonaSandbox.start(client, sandbox_id) do
       {:ok, %Req.Response{status: status, body: %{"state" => "started"}}}
       when status in 200..299 ->
         :ok
@@ -709,7 +647,7 @@ defmodule FrontmanServer.PlayGithub do
   defp wait_for_started_sandbox(client, sandbox_id, attempts_remaining) do
     Process.sleep(@sandbox_start_poll_interval_ms)
 
-    case Sandbox.get(client, sandbox_id) do
+    case DaytonaSandbox.get(client, sandbox_id) do
       {:ok, %Req.Response{status: status, body: %{"state" => "started"}}}
       when status in 200..299 ->
         :ok
@@ -725,50 +663,36 @@ defmodule FrontmanServer.PlayGithub do
     end
   end
 
-  defp persist_lifecycle(client, sandbox, lifecycle, error \\ nil, dev_server_url \\ nil) do
-    started_at = lifecycle_started_at(lifecycle)
+  defp persist_status(sandbox, status, error \\ nil)
 
-    labels =
-      RepositorySandbox.labels(sandbox.github_reference, lifecycle,
-        started_at: started_at,
-        error: error,
-        dev_server_url: dev_server_url
-      )
-
-    case Sandbox.replace_labels(client, sandbox.id, labels) do
-      {:ok, %Req.Response{status: status}} when status in 200..299 ->
-        {:ok,
-         %{
-           sandbox
-           | lifecycle: lifecycle,
-             lifecycle_started_at: started_at,
-             lifecycle_error: error,
-             dev_server_url: dev_server_url
-         }}
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, :daytona_label_failed, status, body}
-
-      {:error, reason} ->
-        {:error, reason}
+  defp persist_status(%Sandbox{} = sandbox, status, nil) do
+    sandbox
+    |> Sandbox.status_changeset(status)
+    |> Repo.update()
+    |> case do
+      {:ok, updated} -> {:ok, updated}
+      {:error, changeset} -> {:error, changeset}
     end
   end
 
-  defp lifecycle_started_at(:sandbox_starting), do: System.system_time(:second)
-  defp lifecycle_started_at(:clone_starting), do: System.system_time(:second)
-  defp lifecycle_started_at(:install_starting), do: System.system_time(:second)
-  defp lifecycle_started_at(:dev_server_starting), do: System.system_time(:second)
-  defp lifecycle_started_at(:dev_server_started), do: System.system_time(:second)
-  defp lifecycle_started_at(_lifecycle), do: nil
-
-  defp stale?(%RepositorySandbox{lifecycle_started_at: nil}, _seconds), do: true
-
-  defp stale?(%RepositorySandbox{lifecycle_started_at: started_at}, seconds) do
-    System.system_time(:second) - started_at > seconds
+  defp persist_status(%Sandbox{} = sandbox, status, error) do
+    sandbox
+    |> Sandbox.failure_status_changeset(status, compact_reason(error))
+    |> Repo.update()
+    |> case do
+      {:ok, updated} -> {:ok, updated}
+      {:error, changeset} -> {:error, changeset}
+    end
   end
 
-  defp clone_finished?(%RepositorySandbox{lifecycle: lifecycle}) do
-    lifecycle in [
+  defp stale?(%Sandbox{status_started_at: nil}, _seconds), do: true
+
+  defp stale?(%Sandbox{status_started_at: started_at}, seconds) do
+    DateTime.diff(DateTime.utc_now(:second), started_at, :second) > seconds
+  end
+
+  defp clone_finished?(%Sandbox{status: status}) do
+    status in [
       :clone_finished,
       :install_starting,
       :install_finished,
@@ -779,8 +703,8 @@ defmodule FrontmanServer.PlayGithub do
     ]
   end
 
-  defp install_finished?(%RepositorySandbox{lifecycle: lifecycle}) do
-    lifecycle in [
+  defp install_finished?(%Sandbox{status: status}) do
+    status in [
       :install_finished,
       :dev_server_starting,
       :dev_server_started,
@@ -814,8 +738,8 @@ defmodule FrontmanServer.PlayGithub do
     Application.get_env(:frontman_server, :playgithub, [])
   end
 
-  defp ensure_workspace_path_exists(toolbox, sandbox) do
-    case launch_workspace_path(sandbox.github_reference) do
+  defp ensure_launch_workspace_path_exists(toolbox, sandbox, github_reference) do
+    case launch_workspace_path(github_reference) do
       "workspace" ->
         :ok
 
@@ -912,21 +836,11 @@ defmodule FrontmanServer.PlayGithub do
       "if [ -f node_modules/@frontman-ai/astro/package.json ]",
       "&& [ ! -f node_modules/@frontman-ai/astro/dist/index.js ]; then",
       "package_dir=$(node -e \"process.stdout.write(require('fs').realpathSync('node_modules/@frontman-ai/astro'))\");",
-      "printf '\\n[frontman package build]\\n';",
+      "printf '\n[frontman package build]\n';",
       "(cd \"$package_dir\" && YARN_ENABLE_IMMUTABLE_INSTALLS=false YARN_NETWORK_CONCURRENCY=2 NODE_OPTIONS=--max-old-space-size=512 corepack yarn build);",
       "fi"
     ]
     |> Enum.join(" ")
-  end
-
-  defp frontman_install_command(github_reference) do
-    case frontman_repository_root?(github_reference) do
-      true ->
-        "printf '%s\n' #{shell_quote("Frontman integration already configured in #{@frontman_repository_app_path}; skipping astro add")}"
-
-      false ->
-        @frontman_install_command
-    end
   end
 
   defp dev_server_command do
@@ -959,10 +873,10 @@ defmodule FrontmanServer.PlayGithub do
     [
       "log=#{shell_quote(@frontman_install_log_path)}",
       reset_command,
-      "printf '\\n[%s] #{stage}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> \"$log\"",
+      "printf '\n[%s] #{stage}\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> \"$log\"",
       "#{command} >> \"$log\" 2>&1",
       "status=$?",
-      "printf '\\n[%s] #{stage} exit %s\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$status\" >> \"$log\"",
+      "printf '\n[%s] #{stage} exit %s\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$status\" >> \"$log\"",
       "cat \"$log\"",
       "exit \"$status\""
     ]

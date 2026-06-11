@@ -1,9 +1,6 @@
 defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
   use FrontmanServerWeb.ConnCase, async: false
 
-  alias FrontmanServer.PlayGithub
-  alias FrontmanServer.PlayGithub.GithubReference
-
   describe "GET / on playgithub.frontman.local" do
     test "redirects unauthenticated users to log in", %{conn: conn} do
       conn = get_playgithub(conn, ~p"/")
@@ -57,10 +54,7 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
     end
 
     test "creates Daytona sandbox for new repository path", %{conn: conn} do
-      sandbox_name = sandbox_name()
-
-      expect_daytona_get_missing_sandbox(sandbox_name)
-      expect_daytona_create_sandbox(sandbox_name)
+      expect_daytona_create_sandbox()
 
       conn = get_playgithub(conn, "/octocat/Hello-World?command=create")
 
@@ -68,10 +62,8 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
         "command: create",
         "repository_url: https://github.com/octocat/Hello-World",
         "workspace_path: workspace",
-        "sandbox_name: #{sandbox_name}",
         "sandbox_id: sandbox_123",
-        "provider_state: started",
-        "lifecycle: sandbox_created",
+        "status: sandbox_created",
         "next: ?command=clone"
       ])
     end
@@ -104,35 +96,21 @@ defmodule FrontmanServerWeb.PlayGithub.ControllerTest do
     |> Map.fetch!("return_to")
   end
 
-  defp sandbox_name do
-    {:ok, github_path} = GithubReference.parse_path(["octocat", "Hello-World"])
-
-    PlayGithub.sandbox_name(github_path)
-  end
-
-  defp expect_daytona_get_missing_sandbox(sandbox_name) do
-    Req.Test.expect(:playgithub_daytona, fn conn ->
-      assert conn.method == "GET"
-      assert conn.request_path == "/api/sandbox/#{sandbox_name}"
-
-      Plug.Conn.send_resp(conn, 404, "")
-    end)
-  end
-
-  defp expect_daytona_create_sandbox(sandbox_name) do
+  defp expect_daytona_create_sandbox do
     Req.Test.expect(:playgithub_daytona, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
 
       assert conn.method == "POST"
       assert conn.request_path == "/api/sandbox"
 
-      assert Jason.decode!(body) == %{
-               "name" => sandbox_name,
+      assert %{
                "labels" => %{
-                 "frontman.playgithub.lifecycle" => "sandbox_created",
-                 "frontman.playgithub.repo_url" => "https://github.com/octocat/Hello-World"
+                 "frontman.playgithub.github_url" => "https://github.com/octocat/Hello-World",
+                 "frontman.playgithub.sandbox_id" => sandbox_record_id
                }
-             }
+             } = Jason.decode!(body)
+
+      assert is_binary(sandbox_record_id)
 
       Req.Test.json(conn, %{"id" => "sandbox_123", "state" => "started"})
     end)

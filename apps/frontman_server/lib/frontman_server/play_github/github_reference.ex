@@ -91,9 +91,20 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
   end
 
   @spec github_url(t()) :: String.t()
-  def github_url(%__MODULE__{owner: owner, repo: repo}) do
-    "https://github.com/#{owner}/#{repo}"
+  def github_url(%__MODULE__{resource: %TreePath{} = tree_path} = github_reference) do
+    repo_url = repository_url(github_reference)
+
+    case TreePath.repo_path(tree_path) do
+      nil -> "#{repo_url}/tree/#{tree_path.ref}"
+      repo_path -> "#{repo_url}/tree/#{tree_path.ref}/#{repo_path}"
+    end
   end
+
+  def github_url(%__MODULE__{resource: %IssuePath{number: number}} = github_reference) do
+    "#{repository_url(github_reference)}/issues/#{number}"
+  end
+
+  def github_url(%__MODULE__{} = github_reference), do: repository_url(github_reference)
 
   @spec repository_backed?(t()) :: boolean()
   def repository_backed?(%__MODULE__{resource: %RepositoryPath{}}), do: true
@@ -101,7 +112,9 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
   def repository_backed?(%__MODULE__{}), do: false
 
   @spec repository_url(t()) :: String.t()
-  def repository_url(%__MODULE__{} = github_reference), do: github_url(github_reference)
+  def repository_url(%__MODULE__{owner: owner, repo: repo}) do
+    "https://github.com/#{owner}/#{repo}"
+  end
 
   @spec branch(t()) :: String.t() | nil
   def branch(%__MODULE__{resource: %TreePath{ref: ref}}), do: ref
@@ -123,15 +136,6 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
   end
 
   @spec repository_identity(t()) :: String.t()
-  def repository_identity(%__MODULE__{resource: %TreePath{} = tree_path} = github_reference) do
-    repo_url = github_url(github_reference)
-
-    case TreePath.repo_path(tree_path) do
-      nil -> "#{repo_url}/tree/#{tree_path.ref}"
-      repo_path -> "#{repo_url}/tree/#{tree_path.ref}/#{repo_path}"
-    end
-  end
-
   def repository_identity(%__MODULE__{} = github_reference) do
     github_url(github_reference)
   end

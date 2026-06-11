@@ -127,25 +127,6 @@ defmodule Daytona.SandboxTest do
     end
   end
 
-  describe "get_signed_preview_url/4" do
-    test "fetches a signed Daytona preview URL" do
-      Req.Test.expect(:playgithub_daytona, fn conn ->
-        assert conn.method == "GET"
-        assert conn.request_path == "/api/sandbox/sandbox_123/ports/4321/signed-preview-url"
-        assert conn.query_string == "expiresInSeconds=3600"
-        assert {"authorization", "Bearer test-daytona-key"} in conn.req_headers
-        assert {"x-daytona-organization-id", "test-daytona-org"} in conn.req_headers
-
-        Req.Test.json(conn, %{"url" => "https://4321-preview.proxy.daytona.work"})
-      end)
-
-      assert {:ok, %Req.Response{status: 200, body: %{"url" => preview_url}}} =
-               Sandbox.get_signed_preview_url(daytona(), "sandbox_123", 4321, 3600)
-
-      assert preview_url == "https://4321-preview.proxy.daytona.work"
-    end
-  end
-
   describe "get_preview_link/3" do
     test "fetches a Daytona sandbox preview link for a port" do
       Req.Test.expect(:playgithub_daytona, fn conn ->
@@ -164,34 +145,6 @@ defmodule Daytona.SandboxTest do
                Sandbox.get_preview_link(daytona(), "sandbox_123", 4321)
 
       assert preview_url == "https://4321-sandbox-123.proxy.daytona.work"
-    end
-  end
-
-  describe "replace_labels/3" do
-    test "replaces sandbox labels" do
-      Req.Test.expect(:playgithub_daytona, fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn)
-
-        assert conn.method == "PUT"
-        assert conn.request_path == "/api/sandbox/sandbox_123/labels"
-        assert {"authorization", "Bearer test-daytona-key"} in conn.req_headers
-        assert {"x-daytona-organization-id", "test-daytona-org"} in conn.req_headers
-
-        assert Jason.decode!(body) == %{
-                 "labels" => %{
-                   "frontman.playgithub.cloned" => "true",
-                   "frontman.playgithub.repo_url" => "https://github.com/octocat/Hello-World"
-                 }
-               }
-
-        Req.Test.json(conn, %{})
-      end)
-
-      assert {:ok, %Req.Response{status: 200}} =
-               Sandbox.replace_labels(daytona(), "sandbox_123", %{
-                 "frontman.playgithub.cloned" => "true",
-                 "frontman.playgithub.repo_url" => "https://github.com/octocat/Hello-World"
-               })
     end
   end
 

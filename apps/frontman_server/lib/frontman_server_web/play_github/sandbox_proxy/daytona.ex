@@ -54,16 +54,16 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
 
   def validate_target_url(_target_url), do: {:error, :invalid_url}
 
-  def target_from_request_host(host, request_hosts) when is_binary(host) do
+  def target_from_request_host(host, request_hosts, scope) when is_binary(host) do
     host
     |> sandbox_preview_from_request_host(request_hosts)
     |> case do
-      {:ok, %{sandbox_id: sandbox_id, port: port}} -> preview_link(sandbox_id, port)
+      {:ok, %{sandbox_id: sandbox_id, port: port}} -> preview_link(scope, sandbox_id, port)
       {:error, :missing_url} -> {:error, :missing_url}
     end
   end
 
-  def target_from_request_host(_host, _request_hosts), do: {:error, :missing_url}
+  def target_from_request_host(_host, _request_hosts, _scope), do: {:error, :missing_url}
 
   def host_scoped_request?(host, request_hosts) when is_binary(host) do
     case sandbox_preview_from_request_host(host, request_hosts) do
@@ -189,23 +189,27 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona do
 
   defp validate_preview_port(_port), do: {:error, :missing_url}
 
-  defp preview_link(sandbox_id, port) do
+  defp preview_link(scope, sandbox_id, port) do
     key = {sandbox_id, port}
     now = System.monotonic_time(:millisecond)
 
-    case cached_preview_link(key, now) do
-      {:ok, preview_link} ->
-        {:ok, preview_link}
+    with {:ok, _sandbox} <- PlayGithub.get_owned_sandbox_by_daytona_id(scope, sandbox_id),
+         :miss <- cached_preview_link(key, now) do
+      fetch_and_cache_preview_link(scope, sandbox_id, port, key, now)
+    else
+      {:ok, preview_link} -> {:ok, preview_link}
+      error -> error
+    end
+  end
 
-      :miss ->
-        case PlayGithub.get_sandbox_preview_link(sandbox_id, port) do
-          {:ok, preview_link} = result ->
-            cache_preview_link(key, preview_link, now)
-            result
+  defp fetch_and_cache_preview_link(scope, sandbox_id, port, key, now) do
+    case PlayGithub.get_owned_sandbox_preview_link(scope, sandbox_id, port) do
+      {:ok, preview_link} = result ->
+        cache_preview_link(key, preview_link, now)
+        result
 
-          error ->
-            error
-        end
+      error ->
+        error
     end
   end
 

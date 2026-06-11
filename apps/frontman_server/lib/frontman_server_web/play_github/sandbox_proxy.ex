@@ -93,14 +93,19 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxy do
   end
 
   defp proxy_request(conn) do
-    case TargetPolicy.target_from_request_host(conn.host, playgithub_hosts()) do
+    case TargetPolicy.target_from_request_host(
+           conn.host,
+           playgithub_hosts(),
+           conn.assigns[:current_scope]
+         ) do
       {:ok, %{url: raw_url, preview_token: preview_token}} ->
         proxy_host_target(conn, raw_url, preview_token)
 
       {:error, :missing_url} ->
         proxy_path_request(conn)
 
-      {:error, :daytona_sandbox_not_found} ->
+      {:error, reason}
+      when reason in [:daytona_sandbox_not_found, :playgithub_sandbox_not_found] ->
         send_error(conn, :not_found, "Sandbox not found")
 
       {:error, reason} ->

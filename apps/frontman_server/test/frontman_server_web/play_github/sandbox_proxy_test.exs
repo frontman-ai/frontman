@@ -1,6 +1,10 @@
 defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
   use FrontmanServerWeb.ConnCase, async: false
 
+  alias Ecto.Changeset
+  alias FrontmanServer.PlayGithub.Sandbox
+  alias FrontmanServer.Repo
+  alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
   alias FrontmanServerWeb.PlayGithub.SandboxProxy.Daytona, as: TargetPolicy
   alias FrontmanServerWeb.PlayGithub.SandboxProxyPlug
 
@@ -116,6 +120,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
 
     conn =
       conn
+      |> log_in_with_owned_sandbox("sandbox-123")
       |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
       |> get("/frontman/?debug=1")
 
@@ -140,6 +145,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
 
     conn =
       conn
+      |> log_in_with_owned_sandbox("sandbox-123")
       |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
       |> get("/frontman/")
 
@@ -170,6 +176,7 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
 
     conn =
       conn
+      |> log_in_with_owned_sandbox("sandbox-123")
       |> put_req_header("x-forwarded-proto", "https")
       |> put_req_header("x-forwarded-port", "443")
       |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
@@ -177,6 +184,32 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
 
     assert response(conn, 200) =~
              ~s(<span id="frontman-entrypoint-url" hidden>https://sandbox-123-4321.playgithub.frontman.local</span>)
+  end
+
+  test "rejects unauthenticated host-scoped sandbox requests", %{conn: conn} do
+    put_playgithub_hosts(["playgithub.frontman.local"])
+
+    conn =
+      conn
+      |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
+      |> get("/frontman/")
+
+    assert json_response(conn, 404) == %{"error" => "Sandbox not found"}
+  end
+
+  test "rejects host-scoped sandbox requests for another user", %{conn: conn} do
+    put_playgithub_hosts(["playgithub.frontman.local"])
+    other_user = AccountsFixtures.user_fixture()
+    insert_owned_sandbox(other_user, "sandbox-123")
+    signed_in_user = AccountsFixtures.user_fixture()
+
+    conn =
+      conn
+      |> log_in_user(signed_in_user)
+      |> put_request_host("sandbox-123-4321.playgithub.frontman.local")
+      |> get("/frontman/")
+
+    assert json_response(conn, 404) == %{"error" => "Sandbox not found"}
   end
 
   test "rewrites Frontman iframe entrypoint through the sandbox proxy", %{conn: conn} do
@@ -522,6 +555,20 @@ defmodule FrontmanServerWeb.PlayGithub.SandboxProxyTest do
 
       Req.Test.json(conn, %{"token" => "preview-token", "url" => "http://localhost"})
     end)
+  end
+
+  defp log_in_with_owned_sandbox(conn, daytona_sandbox_id) do
+    user = AccountsFixtures.user_fixture()
+    insert_owned_sandbox(user, daytona_sandbox_id)
+    log_in_user(conn, user)
+  end
+
+  defp insert_owned_sandbox(user, daytona_sandbox_id) do
+    %Sandbox{user_id: user.id}
+    |> Sandbox.create_changeset(%{github_url: "https://github.com/octocat/Hello-World"})
+    |> Repo.insert!()
+    |> Changeset.change(daytona_sandbox_id: daytona_sandbox_id, status: :dev_server_started)
+    |> Repo.update!()
   end
 
   defp source_url_cookie_header(raw_url) do

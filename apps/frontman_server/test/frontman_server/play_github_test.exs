@@ -1,8 +1,10 @@
 defmodule FrontmanServer.PlayGithubTest do
-  use ExUnit.Case, async: false
+  use FrontmanServer.DataCase, async: false
 
   alias FrontmanServer.PlayGithub
   alias FrontmanServer.PlayGithub.GithubReference
+  alias FrontmanServer.PlayGithub.Sandbox
+  alias FrontmanServer.Repo
 
   setup do
     previous_playgithub = Application.get_env(:frontman_server, :playgithub)
@@ -21,25 +23,22 @@ defmodule FrontmanServer.PlayGithubTest do
 
     on_exit(fn -> restore_env(:playgithub, previous_playgithub) end)
 
-    :ok
+    scope = FrontmanServer.Test.Fixtures.Accounts.user_scope_fixture()
+
+    {:ok, scope: scope}
   end
 
-  describe "sandbox_name/1" do
-    test "returns stable Daytona sandbox name for repository URL" do
-      {:ok, github_path} = GithubReference.parse_path(["octocat", "Hello-World"])
+  describe "github_url/1" do
+    test "includes tree refs and paths" do
+      {:ok, repo} = GithubReference.parse_path(["octocat", "Hello-World"])
 
-      {:ok, tree_path} =
+      {:ok, tree} =
         GithubReference.parse_path(["octocat", "Hello-World", "tree", "main", "app"])
 
-      {:ok, other_path} = GithubReference.parse_path(["octocat", "Spoon-Knife"])
+      assert GithubReference.github_url(repo) == "https://github.com/octocat/Hello-World"
 
-      sandbox_name = PlayGithub.sandbox_name(github_path)
-
-      assert sandbox_name == PlayGithub.sandbox_name(github_path)
-      assert sandbox_name != PlayGithub.sandbox_name(tree_path)
-      assert sandbox_name != PlayGithub.sandbox_name(other_path)
-      assert String.starts_with?(sandbox_name, "playgithub-")
-      assert String.length(sandbox_name) == String.length("playgithub-") + 16
+      assert GithubReference.github_url(tree) ==
+               "https://github.com/octocat/Hello-World/tree/main/app"
     end
   end
 
@@ -58,24 +57,51 @@ defmodule FrontmanServer.PlayGithubTest do
     end
   end
 
-  describe "run_repository_command/3" do
-    test "creates sandbox with single lifecycle label" do
+  describe "run_repository_command/4" do
+    test "creates db row before Daytona sandbox", %{scope: scope} do
       {:ok, github_reference} = GithubReference.parse_path(["octocat", "Hello-World"])
-      sandbox_name = PlayGithub.sandbox_name(github_reference)
 
-      expect_daytona_get_missing_sandbox(sandbox_name)
-      expect_daytona_create_sandbox(sandbox_name)
+      expect_daytona_create_sandbox("https://github.com/octocat/Hello-World")
 
       assert {:ok, %{command: "create", sandbox: sandbox}} =
-               PlayGithub.run_repository_command(github_reference, :create)
+               PlayGithub.run_repository_command(scope, github_reference, :create)
 
-      assert sandbox.id == "sandbox_123"
-      assert sandbox.name == sandbox_name
-      assert sandbox.provider_state == :started
-      assert sandbox.lifecycle == :sandbox_created
+      assert sandbox.daytona_sandbox_id == "sandbox_123"
+      assert sandbox.status == :sandbox_created
+
+      assert %Sandbox{daytona_sandbox_id: "sandbox_123", status: :sandbox_created} =
+               Repo.get_by(Sandbox, github_url: "https://github.com/octocat/Hello-World")
     end
 
-    test "clones tree path through Daytona git API" do
+    test "same user gets separate sandbox rows for different tree paths", %{scope: scope} do
+      {:ok, root} = GithubReference.parse_path(["octocat", "Hello-World"])
+      {:ok, tree} = GithubReference.parse_path(["octocat", "Hello-World", "tree", "main", "app"])
+
+      expect_daytona_create_sandbox("https://github.com/octocat/Hello-World", "sandbox_root")
+
+      assert {:ok, %{sandbox: %{daytona_sandbox_id: "sandbox_root"}}} =
+               PlayGithub.run_repository_command(scope, root, :create)
+
+      expect_daytona_create_sandbox(
+        "https://github.com/octocat/Hello-World/tree/main/app",
+        "sandbox_tree"
+      )
+
+      assert {:ok, %{sandbox: %{daytona_sandbox_id: "sandbox_tree"}}} =
+               PlayGithub.run_repository_command(scope, tree, :create)
+    end
+
+    test "loads existing sandbox from db", %{scope: scope} do
+      {:ok, github_reference} = GithubReference.parse_path(["octocat", "Hello-World"])
+      insert_sandbox(scope, github_reference, :sandbox_created)
+
+      assert {:ok, %{command: "create", sandbox: sandbox}} =
+               PlayGithub.run_repository_command(scope, github_reference, :create)
+
+      assert sandbox.daytona_sandbox_id == "sandbox_123"
+    end
+
+    test "clones tree path through Daytona git API", %{scope: scope} do
       {:ok, github_reference} =
         GithubReference.parse_path([
           "octocat",
@@ -86,16 +112,14 @@ defmodule FrontmanServer.PlayGithubTest do
           "marketing"
         ])
 
-      sandbox_name = PlayGithub.sandbox_name(github_reference)
-
-      expect_daytona_get_existing_sandbox(sandbox_name, "sandbox_created")
-      expect_daytona_replace_lifecycle("clone_starting")
+      insert_sandbox(scope, github_reference, :sandbox_created)
 
       assert {:ok, %{command: "clone", sandbox: sandbox}} =
-               PlayGithub.run_repository_command(github_reference, :clone)
+               PlayGithub.run_repository_command(scope, github_reference, :clone)
 
-      assert sandbox.lifecycle == :clone_starting
+      assert sandbox.status == :clone_starting
 
+      expect_daytona_start_sandbox()
       expect_daytona_toolbox_config()
 
       expect_daytona_git_clone(%{
@@ -107,56 +131,25 @@ defmodule FrontmanServer.PlayGithubTest do
         "username" => ""
       })
 
-      expect_daytona_replace_lifecycle("clone_finished")
       run_background_job()
+      assert Repo.get!(Sandbox, sandbox.id).status == :clone_finished
     end
 
-    test "treats Daytona repository-exists clone conflict as cloned" do
-      {:ok, github_reference} = GithubReference.parse_path(["octocat", "Hello-World"])
-      sandbox_name = PlayGithub.sandbox_name(github_reference)
-
-      expect_daytona_get_existing_sandbox(sandbox_name, "sandbox_created")
-      expect_daytona_replace_lifecycle("clone_starting")
-
-      assert {:ok, %{command: "clone", sandbox: sandbox}} =
-               PlayGithub.run_repository_command(github_reference, :clone)
-
-      assert sandbox.lifecycle == :clone_starting
-
-      expect_daytona_toolbox_config()
-
-      expect_daytona_git_clone_repository_exists(%{
-        "branch" => "",
-        "commit_id" => "",
-        "password" => "",
-        "path" => "workspace",
-        "url" => "https://github.com/octocat/Hello-World",
-        "username" => ""
-      })
-
-      expect_daytona_replace_lifecycle("clone_finished")
-      run_background_job()
-    end
-
-    test "installs frontman repository root as the marketing app" do
+    test "installs frontman repository root as the marketing app", %{scope: scope} do
       {:ok, github_reference} = GithubReference.parse_path(["frontman-ai", "frontman"])
-      sandbox_name = PlayGithub.sandbox_name(github_reference)
-      repo_url = "https://github.com/frontman-ai/frontman"
-
-      expect_daytona_get_existing_sandbox(sandbox_name, "clone_finished", repo_url)
-      expect_daytona_replace_lifecycle("install_starting", repo_url)
+      insert_sandbox(scope, github_reference, :clone_finished)
 
       assert {:ok, %{command: "install", sandbox: sandbox}} =
-               PlayGithub.run_repository_command(github_reference, :install)
+               PlayGithub.run_repository_command(scope, github_reference, :install)
 
-      assert sandbox.lifecycle == :install_starting
+      assert sandbox.status == :install_starting
 
+      expect_daytona_start_sandbox()
       expect_daytona_toolbox_config()
 
-      expect_daytona_execute_command(fn body ->
-        assert body["command"] == "test -d 'workspace/apps/marketing'"
-        assert body["cwd"] == "."
-      end)
+      expect_daytona_execute_command(
+        &assert &1["command"] == "test -d 'workspace/apps/marketing'"
+      )
 
       expect_daytona_execute_command(fn body ->
         command = body["command"]
@@ -173,12 +166,11 @@ defmodule FrontmanServer.PlayGithubTest do
         command = body["command"]
 
         assert body["cwd"] == "workspace/apps/marketing"
-        assert command =~ "skipping astro add"
-        refute command =~ "npx astro add"
+        assert command =~ "npx astro add @frontman-ai/astro --yes"
       end)
 
-      expect_daytona_replace_lifecycle("install_finished", repo_url)
       run_background_job()
+      assert Repo.get!(Sandbox, sandbox.id).status == :install_finished
     end
   end
 
@@ -190,6 +182,16 @@ defmodule FrontmanServer.PlayGithubTest do
     job.()
   end
 
+  defp insert_sandbox(scope, github_reference, status) do
+    user_id = FrontmanServer.Accounts.scope_user_id(scope)
+
+    %Sandbox{user_id: user_id}
+    |> Sandbox.create_changeset(%{github_url: GithubReference.github_url(github_reference)})
+    |> Repo.insert!()
+    |> Ecto.Changeset.change(daytona_sandbox_id: "sandbox_123", status: status)
+    |> Repo.update!()
+  end
+
   defp expect_daytona_toolbox_config do
     Req.Test.expect(:playgithub_daytona, fn conn ->
       assert conn.method == "GET"
@@ -199,68 +201,32 @@ defmodule FrontmanServer.PlayGithubTest do
     end)
   end
 
-  defp expect_daytona_get_missing_sandbox(sandbox_name) do
+  defp expect_daytona_start_sandbox do
     Req.Test.expect(:playgithub_daytona, fn conn ->
-      assert conn.method == "GET"
-      assert conn.request_path == "/api/sandbox/#{sandbox_name}"
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/sandbox/sandbox_123/start"
 
-      Plug.Conn.send_resp(conn, 404, "")
+      Req.Test.json(conn, %{"id" => "sandbox_123", "state" => "started"})
     end)
   end
 
-  defp expect_daytona_get_existing_sandbox(
-         sandbox_name,
-         lifecycle,
-         repo_url \\ "https://github.com/octocat/Hello-World"
-       ) do
-    Req.Test.expect(:playgithub_daytona, fn conn ->
-      assert conn.method == "GET"
-      assert conn.request_path == "/api/sandbox/#{sandbox_name}"
-
-      Req.Test.json(conn, %{
-        "id" => "sandbox_123",
-        "labels" => repository_labels(lifecycle, repo_url),
-        "state" => "started"
-      })
-    end)
-  end
-
-  defp expect_daytona_create_sandbox(sandbox_name) do
+  defp expect_daytona_create_sandbox(github_url, sandbox_id \\ "sandbox_123") do
     Req.Test.expect(:playgithub_daytona, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
 
       assert conn.method == "POST"
       assert conn.request_path == "/api/sandbox"
 
-      assert Jason.decode!(body) == %{
-               "name" => sandbox_name,
-               "labels" => repository_labels("sandbox_created")
-             }
+      assert %{
+               "labels" => %{
+                 "frontman.playgithub.github_url" => ^github_url,
+                 "frontman.playgithub.sandbox_id" => sandbox_record_id
+               }
+             } = Jason.decode!(body)
 
-      Req.Test.json(conn, %{"id" => "sandbox_123", "state" => "started"})
-    end)
-  end
+      assert is_binary(sandbox_record_id)
 
-  defp expect_daytona_replace_lifecycle(
-         lifecycle,
-         repo_url \\ "https://github.com/octocat/Hello-World"
-       ) do
-    Req.Test.expect(:playgithub_daytona, fn conn ->
-      {:ok, body, conn} = Plug.Conn.read_body(conn)
-
-      assert conn.method == "PUT"
-      assert conn.request_path == "/api/sandbox/sandbox_123/labels"
-
-      labels = Jason.decode!(body)["labels"]
-
-      assert labels["frontman.playgithub.repo_url"] == repo_url
-      assert labels["frontman.playgithub.lifecycle"] == lifecycle
-
-      if lifecycle in ["clone_starting", "install_starting"] do
-        assert {_, ""} = Integer.parse(labels["frontman.playgithub.lifecycle_started_at"])
-      end
-
-      Req.Test.json(conn, %{})
+      Req.Test.json(conn, %{"id" => sandbox_id, "state" => "started"})
     end)
   end
 
@@ -276,29 +242,6 @@ defmodule FrontmanServer.PlayGithubTest do
     end)
   end
 
-  defp expect_daytona_git_clone_repository_exists(expected_body) do
-    Req.Test.expect(:playgithub_daytona, fn conn ->
-      {:ok, body, conn} = Plug.Conn.read_body(conn)
-
-      assert conn.method == "POST"
-      assert conn.request_path == "/toolbox/sandbox_123/git/clone"
-      assert Jason.decode!(body) == expected_body
-
-      body =
-        Jason.encode!(%{
-          "code" => "CONFLICT",
-          "message" => "conflict: repository already exists",
-          "method" => "POST",
-          "path" => "/git/clone",
-          "statusCode" => 409
-        })
-
-      conn
-      |> Plug.Conn.put_resp_content_type("application/json")
-      |> Plug.Conn.send_resp(409, body)
-    end)
-  end
-
   defp expect_daytona_execute_command(assert_body) do
     Req.Test.expect(:playgithub_daytona, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -311,12 +254,5 @@ defmodule FrontmanServer.PlayGithubTest do
 
       Req.Test.json(conn, %{"exitCode" => 0, "result" => ""})
     end)
-  end
-
-  defp repository_labels(lifecycle, repo_url \\ "https://github.com/octocat/Hello-World") do
-    %{
-      "frontman.playgithub.lifecycle" => lifecycle,
-      "frontman.playgithub.repo_url" => repo_url
-    }
   end
 end
