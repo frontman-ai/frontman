@@ -46,7 +46,6 @@ defmodule FrontmanServer.Providers do
     - `{:error, :no_api_key}` - No API key available
   """
   def prepare_llm_args(scope, model, opts \\ []) do
-    # FIXME(Danni) - delete default model, it should be a pure client-side concern
     model = model || default_model()
     provider = model_provider_name(model)
 
@@ -78,7 +77,6 @@ defmodule FrontmanServer.Providers do
   defp oauth_llm_opts("openai_codex", %OAuthToken{}), do: {:error, :invalid_oauth_token}
   defp oauth_llm_opts(_provider, _token), do: :use_api_key
 
-  # FIXME(Danni): this should just return the key, why are we merging/opts/args wtf
   defp api_key_llm_args(scope, provider, model, opts) do
     case resolve_api_key(scope, provider) do
       key when is_binary(key) and key != "" ->
@@ -89,8 +87,6 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  # QUESTION(Danni): do we still need the anthropic_prompt_cache?
-  # FIXME(Danni): should be something like provider specific opts, unrelated to api key
   defp api_key_llm_opts("anthropic", key), do: [api_key: key, anthropic_prompt_cache: true]
   defp api_key_llm_opts(_provider, key), do: [api_key: key]
 
