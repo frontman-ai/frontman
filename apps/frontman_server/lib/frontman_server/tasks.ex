@@ -79,6 +79,7 @@ defmodule FrontmanServer.Tasks do
     |> task_lookup_result()
   end
 
+  # FIXME(Itay): We can remove this pattern, and simply pattern match on the TaskSchema{} in the callsites.
   defp task_lookup_result(nil), do: {:error, :not_found}
   defp task_lookup_result(%TaskSchema{} = schema), do: {:ok, schema}
 
@@ -150,6 +151,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp hydrate_task(%TaskSchema{} = schema) do
+    # FIXME(Itay): We need to use EmbeddedSchema so Ecto will handle the mapping for us.
     %{schema | interactions: load_interactions(schema.id)}
   end
 
@@ -508,8 +510,10 @@ defmodule FrontmanServer.Tasks do
   prompt is rejected entirely (nothing persisted).
   """
   def submit_user_message(scope, task_id, content_blocks, execution) do
+    # FIXME(Itay): prompt_content is content_blocks here, lets be consistent throughout
     interaction = Interaction.UserMessage.new(content_blocks)
 
+    # FIXME(Itay): We can rewrite this to be an assignment
     case Repo.transact(fn -> insert_user_turn(scope, task_id, interaction) end) do
       {:ok, {schema, interaction, turn_number}} ->
         broadcast_task(schema.id, {:interaction, interaction, turn_number})
@@ -543,6 +547,7 @@ defmodule FrontmanServer.Tasks do
   defp insert_user_turn(%TaskSchema{} = schema, interaction) do
     rows = load_interaction_rows(schema.id)
 
+    # NOTE(Itay): OMG this is so complex.
     case active_agent_run_turn_number(rows) do
       {:ok, nil} -> insert_user_message(schema, interaction, next_turn_number(rows))
       {:ok, _turn_number} -> {:error, :already_running}
@@ -722,13 +727,17 @@ defmodule FrontmanServer.Tasks do
 
         case active_agent_run_turn_number(rows) do
           {:ok, turn_number} when is_integer(turn_number) ->
-            rows =
+            interaction_schemas =
               InteractionSchema.for_task(task_id)
               |> InteractionSchema.up_to_turn(turn_number)
               |> InteractionSchema.ordered()
               |> Repo.all()
 
-            run_execution(scope, task, execution_params(execution, rows, turn_number))
+            run_execution(
+              scope,
+              task,
+              execution_params(execution, interaction_schemas, turn_number)
+            )
 
           {:ok, nil} ->
             {:error, :not_running}
@@ -757,13 +766,13 @@ defmodule FrontmanServer.Tasks do
        when is_integer(turn_number) and turn_number > 0 do
     case get_task(scope, task_id) do
       {:ok, task} ->
-        rows =
+        interaction_schemas =
           InteractionSchema.for_task(task_id)
           |> InteractionSchema.up_to_turn(turn_number)
           |> InteractionSchema.ordered()
           |> Repo.all()
 
-        run_execution(scope, task, execution_params(execution, rows, turn_number))
+        run_execution(scope, task, execution_params(execution, interaction_schemas, turn_number))
 
       {:error, :not_found} ->
         {:error, :not_found}
@@ -778,7 +787,7 @@ defmodule FrontmanServer.Tasks do
            backend_tool_modules: backend_tool_modules,
            mcp_tool_defs: mcp_tool_defs
          },
-         rows,
+         interaction_schemas,
          turn_number
        )
        when is_integer(turn_number) and turn_number > 0 do
@@ -786,7 +795,7 @@ defmodule FrontmanServer.Tasks do
       tools: tools,
       model: model,
       turn_number: turn_number,
-      interaction_rows: rows,
+      interaction_rows: interaction_schemas,
       project_traits: project_traits,
       backend_tool_modules: backend_tool_modules,
       mcp_tool_defs: mcp_tool_defs
