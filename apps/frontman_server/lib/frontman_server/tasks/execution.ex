@@ -48,6 +48,7 @@ defmodule FrontmanServer.Tasks.Execution do
         tools: tools,
         model: requested_model,
         turn_number: turn_number,
+        # FIXME(Danni): why do we pass interaction_rows vs just getting it from TaskSchema
         interaction_rows: interaction_rows,
         project_traits: project_traits,
         backend_tool_modules: backend_tool_modules,
@@ -57,6 +58,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
     case Providers.prepare_llm_args(scope, requested_model, max_tokens: max_tokens) do
       {:ok, {model_spec, llm_opts}} ->
+        # FIXME(Danni) - this is just Agent, RootAgent is a relic from the past
         agent = %RootAgent{
           task: task,
           scope: scope,
@@ -70,16 +72,7 @@ defmodule FrontmanServer.Tasks.Execution do
           llm_opts: llm_opts
         }
 
-        case SwarmAi.run(FrontmanServer.AgentRuntime, agent) do
-          {:ok, pid} ->
-            {:ok, pid}
-
-          {:error, :already_running} ->
-            {:ok, :already_running}
-
-          error ->
-            error
-        end
+        SwarmAi.run(FrontmanServer.AgentRuntime, agent)
 
       {:error, reason} ->
         {:error, reason}
@@ -159,9 +152,12 @@ defmodule FrontmanServer.Tasks.Execution do
   defp decay_image_part(part, _tool_call_id), do: part
 
   defp system_prompt(%TaskSchema{} = task, project_traits) do
+    # QUESTION(Danni) - this is weird, in the caller-apps/frontman_server/lib/frontman_server/tasks/execution.ex:L47
+    # we pass interaction_rows, but here we get task.interactions, weird
     interactions = task.interactions
 
     Prompts.build(
+      # FIXME(Danni) - has_annotations will be true even if the last message doesnt have annotations
       has_annotations:
         Enum.any?(interactions, &match?(%Interaction.UserMessage{annotations: [_ | _]}, &1)),
       project_traits: project_traits,
