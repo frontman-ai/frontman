@@ -110,7 +110,7 @@ The search results for this topic are messy. Some pages are broad [AI coding-age
 
 That answers part of the question, but not the whole buyer problem. A semi-technical team does not only need to know which model writes React code well. It needs to know which tool can touch an existing UI without wrecking the design system, whether a PM or designer can participate safely, whether developers can review the diff, and whether the result survives mobile QA.
 
-A **frontend coding agent** is an AI tool that can generate or edit frontend code while respecting at least some of the frontend workflow around it: components, design tokens, browser behavior, responsive layout, accessibility, and review. That is narrower than "AI coding agent" and more production-oriented than "frontend AI tool."
+A **frontend coding agent** is an AI tool that can generate or edit frontend code while respecting at least some of the frontend workflow around it: components, design tokens, browser behavior, responsive layout, accessibility, and review. For the broader category definition, read the [frontend agent explainer](/blog/frontend-agent/). That is narrower than "AI coding agent" and more production-oriented than "frontend AI tool."
 
 Three adjacent categories get mixed together:
 

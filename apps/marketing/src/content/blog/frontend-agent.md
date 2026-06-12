@@ -34,9 +34,9 @@ faq:
     answer: 'They are best for small, high-context UI changes such as copy updates, spacing fixes, responsive layout adjustments, color tweaks, form debugging, and component changes that benefit from visual inspection.'
 ---
 
-Frontend development has always been a feedback-loop problem. A developer changes code, checks the browser, inspects layout, tweaks CSS, asks for feedback, adjusts a component, and repeats. A frontend agent shortens that loop by working from the running application instead of source files alone. It can inspect the live DOM, read computed styles, understand components, use browser tools, and connect what it sees back to source code.
+Frontend development has always been a feedback-loop problem. A developer changes code, checks the browser, inspects layout, tweaks CSS, asks for feedback, adjusts a component, and repeats. A frontend agent shortens that loop by working from the running application instead of source files alone, closing what we call [the runtime context gap](/blog/runtime-context-gap/). It can inspect the live DOM, read computed styles, understand components, use browser tools, and connect what it sees back to source code.
 
-[Frontman](https://frontman.sh) is one example of this category: a browser-based AI coding agent that hooks into a local dev server, sees the rendered UI, and edits existing frontend code with hot reload feedback. We wrote this from building Frontman's framework integrations and benchmarking browser-driven UI tasks, especially flows where the agent must connect selected DOM elements, computed styles, screenshots, and source files. It is not meant to replace frontend developers. It gives teams a faster way to work through visual frontend development tasks.
+[Frontman](https://frontman.sh) is one example of this category: a browser-based AI coding agent that hooks into a local dev server, sees the rendered UI, and edits existing frontend code with hot reload feedback. We wrote this from building Frontman's framework integrations and benchmarking browser-driven UI tasks, especially flows where the agent must connect selected DOM elements, computed styles, screenshots, and source files. It is not meant to replace frontend developers. It gives teams a faster way to work through visual frontend development tasks. For a broader category map, see our guide to [browser-aware AI coding tools](/blog/what-are-browser-aware-ai-coding-tools/).
 
 ## What Is a Frontend Agent?
 
@@ -44,7 +44,7 @@ A frontend agent is an AI agent built specifically for user interfaces. It uses 
 
 That matters because frontend work is visual and contextual. A component may look correct in JSX but break because of CSS inheritance, responsive layout, an unexpected wrapper, a Tailwind utility conflict, or framework-specific rendering behavior. A frontend agent can inspect the result in the browser, then reason backward to the code that produced it.
 
-Good frontend agents combine browser inspection, code search, file editing, framework awareness, and human-in-the-loop approval. They may support [React](https://react.dev/), [Vue](https://vuejs.org/), [Next.js](https://nextjs.org/), [Astro](https://astro.build/), and [Vite](https://vite.dev/). Framework coverage matters, but context matters more: the agent needs to understand how visible UI maps to actual source code.
+Good frontend agents combine browser inspection, code search, file editing, framework awareness, and human-in-the-loop approval. They may support [React](https://react.dev/), [Vue](https://vuejs.org/), [Next.js](https://nextjs.org/), [Astro](https://astro.build/), and [Vite](https://vite.dev/). Framework coverage matters, but context matters more: the agent needs to understand how visible UI maps to actual source code. If you are comparing tools, use a frontend-specific rubric like the one in our [best frontend coding agent guide](/blog/best-frontend-coding-agent/).
 
 ## How It Works
 
@@ -85,9 +85,9 @@ The context window also matters. A strong frontend agent chooses relevant contex
 
 ## Getting Started
 
-Getting started with a frontend agent usually begins in local development. The developer adds a framework integration, starts the dev server, and opens a special route or overlay in the browser.
+Getting started with a frontend agent usually begins in local development. The developer adds a framework integration, starts the dev server, and opens a special route or overlay in the browser. For the concrete install flow, see the [Frontman quickstart](/blog/getting-started/).
 
-With Frontman, setup is designed around framework middleware. A Next.js, Astro, or Vite project can expose Frontman during development, while production builds strip it out. That separation matters: teams do not want an AI editing interface shipped to users by accident. It also keeps the workflow anchored in local development, where developers can see every file change as a normal reviewable diff.
+With Frontman, setup is designed around framework middleware. A Next.js, Astro, or Vite project can expose Frontman during development, while production builds strip it out. That separation matters: teams do not want an AI editing interface shipped to users by accident. It also keeps the workflow anchored in local development, where developers can see every file change as a normal reviewable diff. If your stack is Next.js, the [runtime context tutorial](/blog/tutorial-nextjs-runtime-context/) walks through a complete click-to-fix example.
 
 The first tasks should be small and visible. Instead of asking the agent to rebuild an entire application, a team might start with:
 
@@ -105,7 +105,7 @@ Behind the scenes, most frontend agents need a server, even when the visible int
 
 This separation is useful. A hosted agent server should not need direct access to a developer's filesystem. File operations can relay through the active browser session to the local dev server, where the project owner sees changes and reviews the diff.
 
-Teams should still understand where API keys live, which tools are exposed, what data is sent to the LLM provider, and how screenshots or logs are handled. For any frontend agent, the trust checklist should include development-only exposure, reviewable diffs, explicit approval before risky edits, and clear boundaries around generated commands.
+Teams should still understand where API keys live, which tools are exposed, what data is sent to the LLM provider, and how screenshots or logs are handled. For any frontend agent, the trust checklist should include development-only exposure, reviewable diffs, explicit approval before risky edits, and clear boundaries around generated commands. Frontman's specific constraints are documented in our [security model](/blog/security/).
 
 ## Expected Output with Frontend Tools
 
@@ -135,7 +135,7 @@ There will also be more specialization. Generic AI agents are useful, but fronte
 
 ## Next Steps
 
-For teams evaluating frontend agents, the best next step is simple: test one on real UI work. Pick a small issue from an existing codebase, preferably one that involves visual context. Ask the agent to inspect the page, find the source, make the change, and explain the diff.
+For teams evaluating frontend agents, the best next step is simple: test one on real UI work. Pick a small issue from an existing codebase, preferably one that involves visual context. Ask the agent to inspect the page, find the source, make the change, and explain the diff. If you want a narrow first task, start with the [first UI edit walkthrough](/blog/getting-started/).
 
 The team should judge it by practical criteria. Did it understand the selected element? Did it edit the right file? Did it follow framework conventions? Did hot reload prove the change? Did it preserve accessibility and responsive behavior? Did the final code look maintainable? Did the human reviewer stay in control?
 
