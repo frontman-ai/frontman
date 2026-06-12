@@ -142,6 +142,7 @@ defmodule SwarmAiTest do
   defmodule TestDispatcher do
     def dispatch(test_pid, key, event, context) do
       send(test_pid, {:test_event, key, event, context})
+      :ok
     end
   end
 

@@ -15,7 +15,7 @@ By the end of this tutorial, you will have installed Frontman, connected an AI p
 - Node.js 18 or later
 - A project using Next.js, Vite (React, Vue, or Svelte), or Astro
 - A running dev server (`npm run dev` or equivalent)
-- An account with an AI provider (Claude, ChatGPT, or OpenRouter)
+- An account with an AI provider (Claude, OpenAI, or OpenRouter)
 
 ### Step 1: Install Frontman
 
@@ -55,7 +55,7 @@ Open your app in the browser. You will see the Frontman overlay in the bottom-ri
 Choose your AI provider:
 
 - **Claude** — click Connect, follow the auth flow
-- **ChatGPT** — click Connect, follow the auth flow
+- **OpenAI** — click Connect, follow the auth flow
 - **OpenRouter** — paste your API key (gives you access to multiple models)
 
 If you already have an account with any of these providers, this step takes about thirty seconds.

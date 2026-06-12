@@ -18,6 +18,5 @@ defprotocol FrontmanServerWeb.ACPHistory do
   Returns a list because some interactions (like AgentResponse) expand
   to multiple history items (start, chunk, end).
   """
-  @spec to_history_items(t, String.t()) :: [map()]
   def to_history_items(interaction, session_id)
 end

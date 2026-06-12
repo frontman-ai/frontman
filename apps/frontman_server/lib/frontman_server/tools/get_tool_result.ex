@@ -12,15 +12,12 @@ defmodule FrontmanServer.Tools.GetToolResult do
   @behaviour FrontmanServer.Tools.Backend
 
   alias FrontmanServer.Tasks.Interaction.ToolResult, as: InteractionToolResult
-  alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tools.Backend.Context
 
   @impl true
-  @spec name() :: String.t()
   def name, do: "get_tool_result"
 
   @impl true
-  @spec description() :: String.t()
   def description do
     """
     Retrieve a previous tool result by tool_call_id.
@@ -31,7 +28,6 @@ defmodule FrontmanServer.Tools.GetToolResult do
   end
 
   @impl true
-  @spec parameter_schema() :: map()
   def parameter_schema do
     %{
       "type" => "object",
@@ -52,7 +48,6 @@ defmodule FrontmanServer.Tools.GetToolResult do
   def on_timeout, do: :error
 
   @impl true
-  @spec execute(map(), Context.t()) :: Backend.result()
   def execute(args, %Context{task: %{interactions: interactions}}) do
     case Map.get(args, "tool_call_id") do
       tool_call_id when is_binary(tool_call_id) ->

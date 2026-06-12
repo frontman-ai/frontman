@@ -15,7 +15,7 @@
 
 ---
 
-[Frontman](https://frontman.sh) is an open-source AI coding agent that lives in your browser. It hooks into your dev server as middleware and sees the live DOM, component tree, CSS styles, routes, and server logs. Click any element in your running app, describe what you want changed in plain English, and Frontman edits the actual source files with instant hot reload. It supports Next.js, Astro, and Vite (React, Vue, Svelte). Free and open-source — Apache 2.0 (client libraries) / AGPL-3.0 (server). Bring your own API keys (Claude, ChatGPT, or OpenRouter).
+[Frontman](https://frontman.sh) is an open-source AI coding agent that lives in your browser. It hooks into your dev server as middleware and sees the live DOM, component tree, CSS styles, routes, and server logs. Click any element in your running app, describe what you want changed in plain English, and Frontman edits the actual source files with instant hot reload. It supports Next.js, Astro, and Vite (React, Vue, Svelte). Free and open-source — Apache 2.0 (client libraries) / AGPL-3.0 (server). Bring your own provider account (Claude, OpenAI, or OpenRouter).
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=-4GD1GYwH8Y">
@@ -110,7 +110,7 @@ See the [Vite integration guide](https://frontman.sh/integrations/vite/) for det
 Frontman uses BYOK (bring your own key). Connect any LLM provider:
 
 - **Anthropic** (Claude) — direct API key or OAuth with your Claude subscription
-- **OpenAI** (ChatGPT) — direct API key or OAuth with your ChatGPT subscription
+- **OpenAI** — OAuth with your OpenAI account
 - **OpenRouter** — access to Claude, GPT, Llama, Mistral, and hundreds of other models
 
 You pay your LLM provider directly at their standard rates. Self-hosting remains free under the project's open-source licenses; hosted Frontman service plans are moving to paid subscriptions.

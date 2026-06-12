@@ -54,7 +54,9 @@ defmodule FrontmanServer.Test.Fixtures.Accounts do
   end
 
   def user_scope_fixture(user) do
-    Scope.for_user(user)
+    user
+    |> Scope.for_user()
+    |> Scope.with_env_api_keys(%{"openrouter" => "sk-or-test"})
   end
 
   def user_scope_fixture(user, organization) do

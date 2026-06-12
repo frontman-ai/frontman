@@ -33,14 +33,12 @@ defmodule ModelContextProtocol do
     @moduledoc """
     Parameters for building an MCP tools/call request.
     """
-    use TypedStruct
 
-    typedstruct do
-      field(:request_id, integer(), enforce: true)
-      field(:tool_name, String.t(), enforce: true)
-      field(:arguments, map(), enforce: true)
-      field(:call_id, String.t(), enforce: true)
-    end
+    @enforce_keys [:request_id, :tool_name, :arguments, :call_id]
+    defstruct request_id: nil,
+              tool_name: nil,
+              arguments: nil,
+              call_id: nil
   end
 
   def protocol_version, do: @protocol_version
@@ -71,7 +69,6 @@ defmodule ModelContextProtocol do
   MCP responses contain a content array with text blocks:
   %{"content" => [%{"type" => "text", "text" => "..."}]}
   """
-  @spec extract_content_text(map()) :: String.t()
   def extract_content_text(%{"content" => content}) do
     Enum.map_join(content, "\n", fn
       %{"text" => text} -> text
@@ -84,7 +81,6 @@ defmodule ModelContextProtocol do
   @doc """
   Checks if MCP result indicates an error.
   """
-  @spec error?(map()) :: boolean()
   def error?(%{"isError" => is_error}), do: is_error
   def error?(_), do: false
 
@@ -92,7 +88,6 @@ defmodule ModelContextProtocol do
   Parses tool result text as JSON if possible, falls back to string.
   Preserves structured data like screenshots.
   """
-  @spec parse_tool_result(String.t()) :: map() | String.t()
   def parse_tool_result(text_result) when is_binary(text_result) do
     case Jason.decode(text_result) do
       {:ok, parsed} when is_map(parsed) -> parsed
@@ -106,7 +101,6 @@ defmodule ModelContextProtocol do
   Uses an integer JSON-RPC request id for protocol correlation. The durable
   tool call id remains in params.callId for agent/tool-result correlation.
   """
-  @spec build_tool_execution(ToolCallParams.t()) :: map()
   def build_tool_execution(%ToolCallParams{} = params) do
     Logger.info("MCP tool call: #{params.tool_name} arguments=#{inspect(params.arguments)}")
 

@@ -8,7 +8,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   @moduledoc """
   Oban worker that generates a short task title from the first user prompt.
 
-  Resolves the API key through the standard priority chain (OAuth > user key > env key > server key).
+  Resolves the API key through the standard priority chain (OAuth > user key > env key).
   """
 
   use Oban.Worker,
@@ -25,7 +25,6 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.{Scope, User}
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.ResolvedKey
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.StreamCleanup
   alias FrontmanServer.Vault
@@ -36,20 +35,9 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   Return only the title text, nothing else. No quotes, no punctuation at the end.
   """
 
-  @typedoc "Arguments for enqueuing a title generation job."
-  @type job_args :: %{
-          user_id: String.t(),
-          task_id: String.t(),
-          user_prompt_text: String.t(),
-          model: String.t() | nil,
-          encrypted_env_api_key: String.t() | nil
-        }
-
   @doc """
   Builds an Oban job changeset for title generation.
   """
-  @spec new_job(Accounts.scope(), String.t(), String.t(), String.t() | nil) ::
-          Oban.Job.changeset()
   def new_job(%Scope{user: %User{} = user} = scope, task_id, user_prompt_text, model) do
     new(%{
       user_id: user.id,
@@ -74,8 +62,8 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     scope = Accounts.scope_for_user_with_env_keys(user, env_api_keys)
     model = Map.get(args, "model")
 
-    with {:ok, resolved_key} <- Providers.prepare_api_key(scope, model),
-         {:ok, raw_title} <- call_llm(resolved_key, user_prompt_text),
+    with {:ok, {model_spec, llm_opts}} <- Providers.prepare_llm_args(scope, model, max_tokens: 30),
+         {:ok, raw_title} <- call_llm(model_spec, llm_opts, user_prompt_text),
          title = String.trim(raw_title),
          false <- title == "",
          :ok <- Tasks.apply_title_suggestion(scope, task_id, title) do
@@ -98,13 +86,11 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     end
   end
 
-  defp call_llm(%ResolvedKey{} = resolved_key, user_prompt_text) do
+  defp call_llm(model_spec, llm_opts, user_prompt_text) do
     messages = [
       ReqLLM.Context.system([ContentPart.text(@system_prompt)]),
       ReqLLM.Context.user(user_prompt_text)
     ]
-
-    {model_spec, llm_opts} = Providers.to_llm_args(resolved_key, max_tokens: 30)
 
     case ReqLLM.stream_text(model_spec, messages, llm_opts) do
       {:ok, response} ->

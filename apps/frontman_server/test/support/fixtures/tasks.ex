@@ -22,25 +22,24 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   }
 
   @doc """
-  Create a task and return its ID.
+  Create a task and return its schema.
 
   ## Options
 
     * `:framework` - framework string, defaults to `"nextjs"`
     * `:task_id` - explicit task ID, defaults to `Ecto.UUID.generate()`
   """
-  @spec task_fixture(FrontmanServer.Accounts.Scope.t(), keyword()) :: String.t()
   def task_fixture(scope, opts \\ []) do
     framework = Keyword.get(opts, :framework, "nextjs")
     task_id = Keyword.get(opts, :task_id, Ecto.UUID.generate())
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, framework)
-    task_id
+    {:ok, %TaskSchema{id: ^task_id} = task} = Tasks.create_task(scope, task_id, framework)
+    task
   end
 
   def task_with_active_run_fixture(scope, opts \\ []) do
-    task_id = task_fixture(scope, opts)
-    start_turn_fixture(scope, task_id)
-    task_id
+    task = task_fixture(scope, opts)
+    start_turn_fixture(scope, task.id)
+    task
   end
 
   @doc "Build a production-shaped execution request for task execution tests."
@@ -56,21 +55,12 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   end
 
   @doc "Persist a user message and return its turn number."
-  @spec start_turn_fixture(FrontmanServer.Accounts.Scope.t(), String.t(), list()) :: pos_integer()
   def start_turn_fixture(scope, task_id, content_blocks \\ user_content("test turn")) do
     {:ok, _message} = user_message_fixture(scope, task_id, content_blocks)
     latest_turn_number(task_id)
   end
 
   @doc "Persist a domain tool call in a specific turn."
-  @spec persist_tool_call_fixture(
-          FrontmanServer.Accounts.Scope.t(),
-          String.t(),
-          pos_integer(),
-          Interaction.ToolCall.t()
-        ) ::
-          {:ok, Interaction.ToolCall.t()}
-          | {:error, :not_found | {:invalid_tool_arguments, String.t()}}
   def persist_tool_call_fixture(scope, task_id, turn_number, %Interaction.ToolCall{} = tool_call) do
     swarm_tool_call = %SwarmAi.ToolCall{
       id: tool_call.tool_call_id,
@@ -84,8 +74,6 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   @doc """
   Persist a user message for tests without invoking the production execution API.
   """
-  @spec user_message_fixture(FrontmanServer.Accounts.Scope.t(), String.t(), list()) ::
-          {:ok, Interaction.UserMessage.t()} | {:error, Ecto.Changeset.t()}
   def user_message_fixture(scope, task_id, content_blocks) do
     task = task_schema!(scope, task_id)
     interaction = Interaction.UserMessage.new(content_blocks)
@@ -116,19 +104,17 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   end
 
   @doc """
-  Create a task and subscribe the calling process to its PubSub topic.
+  Create a task, subscribe the calling process to its PubSub topic, and return its schema.
 
   Accepts the same options as `task_fixture/2`.
   """
-  @spec task_with_pubsub_fixture(FrontmanServer.Accounts.Scope.t(), keyword()) :: String.t()
   def task_with_pubsub_fixture(scope, opts \\ []) do
-    task_id = task_fixture(scope, opts)
-    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-    task_id
+    task = task_fixture(scope, opts)
+    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task.id))
+    task
   end
 
   @doc "Returns the task PubSub topic used by task channels."
-  @spec task_topic(String.t()) :: String.t()
   def task_topic(task_id), do: "task:#{task_id}"
 
   @doc """
@@ -137,11 +123,9 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
       iex> user_content("Hello")
       [%{"type" => "text", "text" => "Hello"}]
   """
-  @spec user_content(String.t()) :: [map()]
   def user_content(text), do: [%{"type" => "text", "text" => text}]
 
   @doc "Returns the latest non-null turn number for a task."
-  @spec latest_turn_number(String.t()) :: pos_integer()
   def latest_turn_number(task_id) do
     max_turn_number(task_id) || raise "No turn_number found for task #{task_id}"
   end

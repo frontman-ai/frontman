@@ -28,9 +28,9 @@ Boolean env vars use one canonical parser in both Elixir and TS setup code.
 
 Copy `test/e2e/.env.example` to `test/e2e/.env` and populate:
 
-- `E2E_CHATGPT_ACCESS_TOKEN`
-- `E2E_CHATGPT_REFRESH_TOKEN`
-- `E2E_CHATGPT_ACCOUNT_ID`
+- `E2E_OPENAI_ACCESS_TOKEN`
+- `E2E_OPENAI_REFRESH_TOKEN`
+- `E2E_OPENAI_ACCOUNT_ID`
 
 Local run:
 

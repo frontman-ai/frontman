@@ -71,10 +71,8 @@ defmodule FrontmanServer.AgentCase do
   Intended for tests that call ReqLLM directly and want to reuse the
   automatically computed `:fixture_path` from this case template.
   """
-  @spec fixture_opts(map()) :: keyword()
   def fixture_opts(context) when is_map(context), do: fixture_opts(context, [])
 
-  @spec fixture_opts(map(), keyword()) :: keyword()
   def fixture_opts(context, opts) when is_map(context) and is_list(opts) do
     case Map.get(context, :fixture_path) do
       path when is_binary(path) -> Keyword.merge([fixture_path: path], opts)

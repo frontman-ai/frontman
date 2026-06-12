@@ -67,7 +67,7 @@ Client                          Server                          LLM Provider
 
 **Sequence:**
 1. `TaskChannel.handle_in("acp:message")` receives prompt
-2. `Providers.prepare_api_key` resolves key (user → env → server)
+2. `Providers.prepare_llm_args/3` resolves provider auth and ReqLLM arguments
 3. `Execution.run` builds a root agent run from prompt, model config, and tools
 4. `SwarmAi.run(runtime, agent)` starts supervised execution
 5. SwarmAi calls LLM via `ReqLLM` (custom Req wrapper), receives response
@@ -195,7 +195,7 @@ Tier logic: full tier = user has own key; free tier = server key with limited mo
 
 - `/health` — Liveness + readiness
 - `/api/user/*` — User settings, API key management
-- `/api/oauth/*` — OAuth flows (Anthropic, ChatGPT device auth)
+- `/api/oauth/*` — OAuth flows (Anthropic, OpenAI device auth)
 - `/api/socket-token` — Signed JWT for WebSocket auth
 - `/auth/*` — WorkOS OAuth callbacks (GitHub, Google)
 - `/users/*` — Session management, settings
@@ -203,7 +203,7 @@ Tier logic: full tier = user has own key; free tier = server key with limited mo
 
 ### Observability
 
-- OpenTelemetry: SwarmAi events → OTEL spans
+- SwarmAi telemetry: dev console timing for agent, LLM, and tool events
 - Sentry: crashed process exceptions, PlugCapture
 - Structured logging with metadata: request_id, task_id, pid, reason
 
@@ -226,7 +226,7 @@ state = {
   sessionInitialized: bool
   userProfile: option<userProfile>
   openrouterKeySettings / anthropicKeySettings: apiKeySettings
-  anthropicOAuthStatus / chatgptOAuthStatus: OAuth state machines
+  anthropicOAuthStatus / openaiOAuthStatus: OAuth state machines
   configOptions: option<array<sessionConfigOption>>
   selectedModelValue: option<sessionConfigValueId>
   sessionsLoadState: sessionsLoadState

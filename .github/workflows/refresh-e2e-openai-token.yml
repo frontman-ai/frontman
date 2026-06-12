@@ -1,4 +1,4 @@
-name: Refresh E2E ChatGPT token
+name: Refresh E2E OpenAI token
 
 on:
   workflow_dispatch:
@@ -9,24 +9,26 @@ permissions:
   contents: read
 
 concurrency:
-  group: refresh-e2e-chatgpt-token
+  group: refresh-e2e-openai-token
   cancel-in-progress: false
 
 jobs:
-  refresh-e2e-chatgpt-token:
-    name: Refresh E2E ChatGPT token
+  refresh-e2e-openai-token:
+    name: Refresh E2E OpenAI token
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     env:
       MIX_ENV: e2e
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
-      E2E_CHATGPT_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
-      E2E_CHATGPT_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
-      E2E_CHATGPT_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
-      E2E_CHATGPT_TOKEN_MODE: refresh_if_needed
+      # Backing repo secrets still use the legacy ChatGPT names; expose the new
+      # OpenAI env names to the token refresh script until secrets are migrated.
+      E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
+      E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
+      E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
+      E2E_OPENAI_TOKEN_MODE: refresh_if_needed
       # Refresh when the access token is within 3 days of expiry.
-      E2E_CHATGPT_REFRESH_THRESHOLD_SECONDS: "259200"
+      E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: "259200"
 
     steps:
       - name: Checkout code
@@ -45,7 +47,7 @@ jobs:
       - name: Refresh token if needed
         id: token
         working-directory: apps/frontman_server
-        run: mix run --no-start priv/scripts/e2e_chatgpt_token.exs
+        run: mix run --no-start priv/scripts/e2e_openai_token.exs
 
       - name: Update repo secrets
         if: steps.token.outputs.rotated == 'true'

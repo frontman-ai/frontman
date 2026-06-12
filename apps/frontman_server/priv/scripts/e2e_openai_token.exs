@@ -1,18 +1,18 @@
-defmodule FrontmanServer.E2EChatGPTTokenScript do
+defmodule FrontmanServer.E2EOpenAITokenScript do
   @moduledoc false
 
-  alias FrontmanServer.Providers.ChatGPTOAuth
+  alias FrontmanServer.Providers.OpenAIOAuth
 
   @default_threshold_seconds 259_200
 
   def run do
-    mode = System.get_env("E2E_CHATGPT_TOKEN_MODE", "read")
-    access_token = required_env!("E2E_CHATGPT_ACCESS_TOKEN")
-    refresh_token = required_env!("E2E_CHATGPT_REFRESH_TOKEN")
-    account_id = System.get_env("E2E_CHATGPT_ACCOUNT_ID")
+    mode = System.get_env("E2E_OPENAI_TOKEN_MODE", "read")
+    access_token = required_env!("E2E_OPENAI_ACCESS_TOKEN")
+    refresh_token = required_env!("E2E_OPENAI_REFRESH_TOKEN")
+    account_id = System.get_env("E2E_OPENAI_ACCOUNT_ID")
 
     threshold_seconds =
-      env_integer("E2E_CHATGPT_REFRESH_THRESHOLD_SECONDS", @default_threshold_seconds)
+      env_integer("E2E_OPENAI_REFRESH_THRESHOLD_SECONDS", @default_threshold_seconds)
 
     now = DateTime.utc_now()
 
@@ -59,7 +59,7 @@ defmodule FrontmanServer.E2EChatGPTTokenScript do
         print_summary(mode, token_result)
 
       {:error, reason} ->
-        IO.puts(:stderr, "[e2e-chatgpt-token] failed: #{format_error(reason)}")
+        IO.puts(:stderr, "[e2e-openai-token] failed: #{format_error(reason)}")
         System.halt(1)
     end
   end
@@ -72,42 +72,7 @@ defmodule FrontmanServer.E2EChatGPTTokenScript do
          refresh_needed,
          now
        ) do
-    if refresh_needed do
-      ensure_req_started!()
-
-      case ChatGPTOAuth.refresh_token(refresh_token) do
-        {:ok, refreshed_tokens} ->
-          refreshed_access_token = refreshed_tokens.access_token
-          refreshed_refresh_token = refreshed_tokens.refresh_token || refresh_token
-
-          refreshed_expires_at =
-            case token_expires_at(refreshed_access_token) do
-              {:ok, expires_at} ->
-                {:ok, expires_at}
-
-              {:error, _reason} ->
-                expires_at_from_expires_in(refreshed_tokens.expires_in, now)
-            end
-
-          refreshed_account_id =
-            extract_account_id_from_tokens(refreshed_access_token, refreshed_tokens.id_token) ||
-              account_id
-
-          {:ok,
-           build_result(
-             refreshed_access_token,
-             refreshed_refresh_token,
-             refreshed_account_id,
-             refreshed_expires_at,
-             true,
-             true,
-             now
-           )}
-
-        {:error, reason} ->
-          {:error, {:refresh_failed, reason}}
-      end
-    else
+    if refresh_needed in [false, nil] do
       {:ok,
        build_result(
          access_token,
@@ -118,6 +83,64 @@ defmodule FrontmanServer.E2EChatGPTTokenScript do
          false,
          now
        )}
+    else
+      ensure_req_started!()
+
+      OpenAIOAuth.refresh_token(refresh_token)
+      |> resolve_refresh_token_result(refresh_token, account_id, now)
+    end
+  end
+
+  defp resolve_refresh_token_result(
+         {:ok, refreshed_tokens},
+         refresh_token,
+         account_id,
+         now
+       ) do
+    refreshed_access_token = refreshed_tokens.access_token
+    refreshed_refresh_token = refreshed_tokens.refresh_token || refresh_token
+
+    refreshed_expires_at =
+      resolve_refreshed_expires_at(
+        refreshed_access_token,
+        refreshed_tokens.expires_in,
+        now
+      )
+
+    refreshed_account_id =
+      extract_account_id_from_tokens(refreshed_access_token, refreshed_tokens.id_token) ||
+        account_id
+
+    {
+      :ok,
+      build_result(
+        refreshed_access_token,
+        refreshed_refresh_token,
+        refreshed_account_id,
+        refreshed_expires_at,
+        true,
+        true,
+        now
+      )
+    }
+  end
+
+  defp resolve_refresh_token_result(
+         {:error, reason},
+         _refresh_token,
+         _account_id,
+         _now
+       ) do
+    {:error, {:refresh_failed, reason}}
+  end
+
+  defp resolve_refreshed_expires_at(access_token, expires_in, now) do
+    case token_expires_at(access_token) do
+      {:ok, expires_at} ->
+        {:ok, expires_at}
+
+      {:error, _reason} ->
+        expires_at_from_expires_in(expires_in, now)
     end
   end
 
@@ -178,17 +201,21 @@ defmodule FrontmanServer.E2EChatGPTTokenScript do
   end
 
   defp extract_account_id(access_token) do
-    case ChatGPTOAuth.extract_account_id(access_token) do
-      {:ok, account_id} -> account_id
-      {:error, _reason} -> nil
+    with {:ok, claims} <- decode_jwt_payload(access_token),
+         account_id <- account_id_from_claims(claims),
+         <<_first, _rest::binary>> <- account_id do
+      account_id
+    else
+      _ -> nil
     end
   end
 
   defp extract_account_id_from_tokens(access_token, id_token) do
-    ChatGPTOAuth.extract_account_id_from_tokens(%{
-      access_token: access_token,
-      id_token: id_token || ""
-    })
+    [id_token, access_token]
+    |> Enum.find_value(fn
+      token when is_binary(token) and token != "" -> extract_account_id(token)
+      _ -> nil
+    end)
   end
 
   defp expires_at_from_expires_in(expires_in, now) when is_integer(expires_in) do
@@ -221,6 +248,15 @@ defmodule FrontmanServer.E2EChatGPTTokenScript do
         {:error, :invalid_jwt}
     end
   end
+
+  defp account_id_from_claims(claims) do
+    get_in(claims, ["https://api.openai.com/auth", "chatgpt_account_id"]) ||
+      claims["chatgpt_account_id"] ||
+      get_first_org_id(claims)
+  end
+
+  defp get_first_org_id(%{"organizations" => [%{"id" => id} | _]}) when is_binary(id), do: id
+  defp get_first_org_id(_claims), do: nil
 
   defp pad_base64url(str) do
     case rem(byte_size(str), 4) do
@@ -271,28 +307,28 @@ defmodule FrontmanServer.E2EChatGPTTokenScript do
   defp format_integer(value), do: Integer.to_string(value)
 
   defp print_summary(mode, token_result) do
-    IO.puts("[e2e-chatgpt-token] mode=#{mode}")
-    IO.puts("[e2e-chatgpt-token] rotated=#{token_result.rotated}")
-    IO.puts("[e2e-chatgpt-token] refresh_needed=#{token_result.refresh_needed}")
+    IO.puts("[e2e-openai-token] mode=#{mode}")
+    IO.puts("[e2e-openai-token] rotated=#{token_result.rotated}")
+    IO.puts("[e2e-openai-token] refresh_needed=#{token_result.refresh_needed}")
 
     case token_result.expires_at do
       %DateTime{} = expires_at ->
-        IO.puts("[e2e-chatgpt-token] expires_at=#{DateTime.to_iso8601(expires_at)}")
+        IO.puts("[e2e-openai-token] expires_at=#{DateTime.to_iso8601(expires_at)}")
 
       nil ->
-        IO.puts("[e2e-chatgpt-token] expires_at=unknown")
+        IO.puts("[e2e-openai-token] expires_at=unknown")
     end
 
     case token_result.expires_in_seconds do
       value when is_integer(value) ->
-        IO.puts("[e2e-chatgpt-token] expires_in_seconds=#{value}")
+        IO.puts("[e2e-openai-token] expires_in_seconds=#{value}")
 
       nil ->
-        IO.puts("[e2e-chatgpt-token] expires_in_seconds=unknown")
+        IO.puts("[e2e-openai-token] expires_in_seconds=unknown")
     end
 
     IO.puts(
-      "[e2e-chatgpt-token] account_id_present=#{is_binary(token_result.account_id) and token_result.account_id != ""}"
+      "[e2e-openai-token] account_id_present=#{is_binary(token_result.account_id) and token_result.account_id != ""}"
     )
   end
 
@@ -303,8 +339,6 @@ defmodule FrontmanServer.E2EChatGPTTokenScript do
   defp format_error({:refresh_failed, reason}) do
     "token refresh failed: #{inspect(reason)}"
   end
-
-  defp format_error(reason), do: inspect(reason)
 end
 
-FrontmanServer.E2EChatGPTTokenScript.run()
+FrontmanServer.E2EOpenAITokenScript.run()

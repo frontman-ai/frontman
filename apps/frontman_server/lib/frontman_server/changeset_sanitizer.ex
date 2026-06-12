@@ -21,7 +21,6 @@ defmodule FrontmanServer.ChangesetSanitizer do
   Handles strings, maps (recursively), and lists so it works for both
   plain `:string` columns and `:map` (JSONB) columns.
   """
-  @spec strip_null_bytes(Ecto.Changeset.t(), atom()) :: Ecto.Changeset.t()
   def strip_null_bytes(changeset, field) do
     case get_change(changeset, field) do
       nil -> changeset
@@ -50,7 +49,6 @@ defmodule FrontmanServer.ChangesetSanitizer do
   raw binary data (e.g. PNG bytes from an HTTP response). This catches the
   problem at the changeset level with a clear error instead of a DB crash.
   """
-  @spec validate_json_encodable(Ecto.Changeset.t(), atom()) :: Ecto.Changeset.t()
   def validate_json_encodable(changeset, field) do
     case get_change(changeset, field) do
       nil ->

@@ -19,7 +19,6 @@ defmodule FrontmanServerWeb.TasksChannel do
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.Registry
   alias FrontmanServer.Tasks
   alias FrontmanServerWeb.ACPHistory
 
@@ -90,8 +89,14 @@ defmodule FrontmanServerWeb.TasksChannel do
     Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
 
     # Enrich scope with env API keys from clientInfo _meta (if provided by the project)
-    env_api_keys = extract_env_api_keys(params["clientInfo"])
-    enriched_scope = Scope.with_env_api_keys(socket.assigns.scope, env_api_keys)
+    enriched_scope =
+      case extract_env_api_keys(params["clientInfo"]) do
+        env_api_keys when map_size(env_api_keys) > 0 ->
+          Scope.with_env_api_keys(socket.assigns.scope, env_api_keys)
+
+        _env_api_keys ->
+          socket.assigns.scope
+      end
 
     socket =
       socket
@@ -135,7 +140,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
-         {:ok, ^session_id} <-
+         {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
            Tasks.create_task(
              socket.assigns.scope,
              session_id,
@@ -230,9 +235,8 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp extract_framework(_), do: nil
 
-  # Extract env API keys from clientInfo _meta (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
-  defp extract_env_api_keys(client_info) when is_map(client_info) do
-    client_info |> get_in(["_meta"]) |> Registry.extract_env_keys()
+  defp extract_env_api_keys(%{"_meta" => meta}) when is_map(meta) do
+    Providers.extract_env_keys(meta)
   end
 
   defp extract_env_api_keys(_), do: %{}

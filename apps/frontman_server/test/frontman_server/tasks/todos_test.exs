@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
   setup do
     scope = user_scope_fixture()
-    task_id = task_with_active_run_fixture(scope, framework: "nextjs")
+    task_id = task_with_active_run_fixture(scope, framework: "nextjs").id
 
     {:ok, task_id: task_id, scope: scope, turn_number: latest_turn_number(task_id)}
   end

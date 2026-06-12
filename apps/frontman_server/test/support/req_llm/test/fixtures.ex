@@ -29,7 +29,6 @@ defmodule ReqLLM.Test.Fixtures do
 
   Called by ReqLLM.Streaming to determine if it should save fixtures.
   """
-  @spec capture_path(any(), keyword()) :: Path.t() | nil
   def capture_path(_model, opts) do
     fixture_path = Keyword.get(opts, :fixture_path)
 
@@ -48,7 +47,6 @@ defmodule ReqLLM.Test.Fixtures do
 
   Called by ReqLLM.Streaming.FinchClient to check for fixtures.
   """
-  @spec replay_path(any(), keyword()) :: {:fixture, Path.t()} | :no_fixture
   def replay_path(_model, opts) do
     fixture_path = Keyword.get(opts, :fixture_path)
 
@@ -80,7 +78,6 @@ defmodule ReqLLM.Test.Fixtures do
   @doc """
   Returns the current fixture mode.
   """
-  @spec mode() :: :record | :replay
   def mode do
     case System.get_env("REQ_LLM_FIXTURES_MODE") do
       "record" -> :record
@@ -91,12 +88,10 @@ defmodule ReqLLM.Test.Fixtures do
   @doc """
   Check if currently in record mode.
   """
-  @spec recording?() :: boolean()
   def recording?, do: mode() == :record
 
   @doc """
   Check if currently in replay mode.
   """
-  @spec replaying?() :: boolean()
   def replaying?, do: mode() == :replay
 end

@@ -14,7 +14,7 @@ faq:
   - question: 'What''s the difference between AI design tools and AI coding tools for designers?'
     answer: 'AI design tools (Figma AI, Google Stitch, Midjourney) help you create mockups, wireframes, and images. AI coding tools for designers (Frontman, v0) let you generate or modify actual source code. Design tools produce artifacts that need a developer handoff. Coding tools for designers skip or reduce that handoff.'
   - question: 'Is there a free AI tool for UI/UX designers that edits real code?'
-    answer: 'Frontman is open source and self-hostable, with hosted plans moving to paid subscriptions. You bring your own API key for Claude, ChatGPT, or OpenRouter and pay the LLM provider directly. It works with Next.js, Astro, and Vite projects (React, Vue, Svelte).'
+    answer: 'Frontman is open source and self-hostable, with hosted plans moving to paid subscriptions. You bring your own provider account for Claude, OpenAI, or OpenRouter and pay the LLM provider directly. It works with Next.js, Astro, and Vite projects (React, Vue, Svelte).'
   - question: 'How do AI tools help UI/UX designers ship faster?'
     answer: 'AI tools speed up different parts of the design-to-code pipeline. Image generators speed up asset creation. Prototyping tools speed up concept validation. Code generators like v0 skip the build-from-scratch phase. And browser-based code editors like Frontman eliminate the ticket queue entirely — designers can make visual changes themselves and have them reviewed by engineering, cutting multi-day cycles to minutes.'
 ---

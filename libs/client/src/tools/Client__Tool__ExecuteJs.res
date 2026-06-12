@@ -15,7 +15,8 @@ Use this to:
 - Measure layout: \`document.querySelectorAll('*').forEach(el => { ... })\`
 - Navigate: \`location.href = '/about'\` or \`history.back()\`
 - Read computed styles: \`getComputedStyle(document.body).overflow\`
-- Run any JS that the page context supports
+
+Do not use this to implement visual/content changes by mutating DOM nodes, styles, classes, attributes, or storage. Those changes are temporary browser-session state and are not source-of-truth edits. Use source files or framework/WordPress mutation tools for actual changes; use this tool only to inspect, measure, navigate, or reload.
 
 The expression is evaluated via \`new Function\` on the iframe's window. If the result is a Promise it is awaited (with a timeout). DOM nodes, NodeLists, Maps, Sets, and circular references are automatically serialized to a readable JSON representation. Console output (log/warn/error) during execution is captured in the \`logs\` array.
 
@@ -26,7 +27,7 @@ let maxOutputBytes = 30000
 @schema
 type input = {
   @s.describe(
-    "JavaScript code to evaluate. Can be an expression (e.g. `1+2`) or statements (e.g. `let x = 1; x`)."
+    "JavaScript code to evaluate for inspection/navigation only. Do not mutate DOM nodes, styles, classes, attributes, or storage to implement changes."
   )
   expression: string,
   @s.describe("Maximum execution time in milliseconds. Defaults to 5000.")

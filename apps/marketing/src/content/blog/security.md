@@ -63,7 +63,7 @@ Your code context — the components, styles, and DOM information that bridge [t
 You bring your own API key. You pick your provider:
 
 - **Claude** via Anthropic
-- **ChatGPT** via OpenAI
+- **OpenAI**
 - **OpenRouter** for access to multiple models
 
 Your key is stored securely in Frontman's server database, encrypted at rest. It is never exposed to the browser. The request goes from Frontman's server to the AI provider using your key, and the result is streamed back to your browser. This is the same trust model you already accepted when you pasted your API key into Cursor's settings or configured Claude Code with your Anthropic key.

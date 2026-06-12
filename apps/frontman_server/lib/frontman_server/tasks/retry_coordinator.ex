@@ -12,18 +12,24 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
   timers are owned by the calling process (the channel).
   """
 
-  use TypedStruct
-
-  typedstruct enforce: true do
-    field(:attempt, pos_integer())
-    field(:max_attempts, pos_integer())
-    field(:error_info, map())
-    field(:retried_error_id, String.t())
-    field(:timer_ref, reference() | nil)
-    field(:timer_token, reference() | nil)
-    field(:base_delay_ms, pos_integer())
-    field(:max_delay_ms, pos_integer())
-  end
+  @enforce_keys [
+    :attempt,
+    :max_attempts,
+    :error_info,
+    :retried_error_id,
+    :timer_ref,
+    :timer_token,
+    :base_delay_ms,
+    :max_delay_ms
+  ]
+  defstruct attempt: nil,
+            max_attempts: nil,
+            error_info: nil,
+            retried_error_id: nil,
+            timer_ref: nil,
+            timer_token: nil,
+            base_delay_ms: nil,
+            max_delay_ms: nil
 
   @default_max_attempts 5
   @default_base_delay_ms 2_000
@@ -35,8 +41,6 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
   Returns `{:retry_scheduled, state, notification_data}` or `{:exhausted, error_info}`.
   Schedules a `{:fire_retry, token}` message in the calling process when retrying.
   """
-  @spec handle_error(t() | nil, map(), keyword()) ::
-          {:retry_scheduled, t(), map()} | {:exhausted, map()}
   def handle_error(state, error_info, opts \\ [])
 
   def handle_error(nil, %{retryable: false} = error_info, _opts) do
@@ -84,7 +88,6 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
   @doc """
   Clears retry state. Cancels any pending timer. Returns nil.
   """
-  @spec clear(t() | nil) :: nil
   def clear(nil), do: nil
 
   def clear(%__MODULE__{timer_ref: ref}) do
@@ -95,7 +98,6 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
   @doc """
   Computes the delay for attempt N with exponential backoff and jitter.
   """
-  @spec compute_delay(pos_integer(), pos_integer(), pos_integer()) :: pos_integer()
   def compute_delay(attempt, base_delay_ms, max_delay_ms) do
     base = trunc(base_delay_ms * :math.pow(2, attempt - 1))
     jitter = :rand.uniform(max(1, div(base, 4)))

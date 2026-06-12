@@ -17,13 +17,11 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
 
   require Logger
 
-  alias FrontmanServer.Providers.OAuthToken
-
-  @client_id "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
-  @auth_url "https://claude.ai/oauth/authorize"
-  @token_url "https://console.anthropic.com/v1/oauth/token"
-  @redirect_uri "https://console.anthropic.com/oauth/code/callback"
-  @scopes "org:create_api_key user:profile user:inference"
+  @client_id Application.compile_env!(:frontman_server, [__MODULE__, :client_id])
+  @auth_url Application.compile_env!(:frontman_server, [__MODULE__, :auth_url])
+  @token_url Application.compile_env!(:frontman_server, [__MODULE__, :token_url])
+  @redirect_uri Application.compile_env!(:frontman_server, [__MODULE__, :redirect_uri])
+  @scopes Application.compile_env!(:frontman_server, [__MODULE__, :scopes])
 
   @doc """
   Generates a PKCE verifier and challenge.
@@ -32,7 +30,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
   - verifier: Random 32-byte string, base64url encoded (no padding)
   - challenge: SHA-256 hash of verifier, base64url encoded (no padding)
   """
-  @spec generate_pkce() :: {String.t(), String.t()}
   def generate_pkce do
     verifier = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
     challenge = :crypto.hash(:sha256, verifier) |> Base.url_encode64(padding: false)
@@ -45,7 +42,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
   The verifier should be stored and passed to `exchange_code/2` later.
   The verifier is also used as the `state` parameter in the OAuth flow.
   """
-  @spec build_authorize_url(String.t(), String.t()) :: String.t()
   def build_authorize_url(challenge, verifier) do
     # Use the verifier as the state parameter (as per Anthropic's OAuth flow)
     params =
@@ -71,9 +67,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
 
   Returns `{:ok, %{access_token: ..., refresh_token: ..., expires_in: ...}}` or `{:error, reason}`.
   """
-  @spec exchange_code(String.t(), String.t()) ::
-          {:ok, %{access_token: String.t(), refresh_token: String.t(), expires_in: integer()}}
-          | {:error, term()}
   def exchange_code(code_with_state, verifier) do
     # Split code on # to separate code and state parts
     {code, state} =
@@ -90,7 +83,7 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
         "redirect_uri" => @redirect_uri,
         "code_verifier" => verifier
       }
-      |> maybe_add_state(state)
+      |> add_state(state)
 
     headers = [
       {"content-type", "application/json"},
@@ -124,9 +117,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
 
   Returns `{:ok, %{access_token: ..., refresh_token: ..., expires_in: ...}}` or `{:error, reason}`.
   """
-  @spec refresh_token(String.t()) ::
-          {:ok, %{access_token: String.t(), refresh_token: String.t(), expires_in: integer()}}
-          | {:error, term()}
   def refresh_token(refresh_token) do
     body = %{
       "grant_type" => "refresh_token",
@@ -161,14 +151,8 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
     end
   end
 
-  @doc """
-  Calculates the expiration DateTime from expires_in seconds.
-  """
-  @spec calculate_expires_at(integer()) :: DateTime.t()
-  defdelegate calculate_expires_at(expires_in), to: OAuthToken
-
   # Private helpers
 
-  defp maybe_add_state(body, nil), do: body
-  defp maybe_add_state(body, state), do: Map.put(body, "state", state)
+  defp add_state(body, nil), do: body
+  defp add_state(body, state), do: Map.put(body, "state", state)
 end

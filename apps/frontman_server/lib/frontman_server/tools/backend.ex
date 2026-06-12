@@ -16,25 +16,18 @@ defmodule FrontmanServer.Tools.Backend do
     Tools receive all needed data through this context rather than calling back into
     contexts.
     """
-    use TypedStruct
 
-    alias FrontmanServer.Tasks.TaskSchema
-
-    typedstruct do
-      field(:task, TaskSchema.t(), enforce: true)
-    end
+    @enforce_keys [:task]
+    defstruct task: nil
   end
-
-  @type result :: {:ok, term()} | {:error, String.t()}
 
   @callback name() :: String.t()
   @callback description() :: String.t()
   @callback parameter_schema() :: map()
   @callback timeout_ms() :: pos_integer()
   @callback on_timeout() :: :error | :pause_agent
-  @callback execute(args :: map(), context :: Context.t()) :: result()
+  @callback execute(args :: map(), context :: %Context{}) :: {:ok, term()} | {:error, String.t()}
 
-  @spec to_swarm_tool(module()) :: SwarmAi.Tool.t()
   def to_swarm_tool(module) do
     SwarmAi.Tool.new(
       name: module.name(),

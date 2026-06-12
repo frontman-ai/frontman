@@ -26,7 +26,6 @@ defmodule ReqLLM.Test.FixturePath do
   @doc """
   Generate fixture path from test module and test name.
   """
-  @spec for_test(module(), atom() | String.t()) :: Path.t()
   def for_test(module, test_name) do
     module_part = module_to_path(module)
     test_part = test_to_path(test_name)
@@ -36,7 +35,6 @@ defmodule ReqLLM.Test.FixturePath do
   @doc """
   Generate fixture path from explicit relative path.
   """
-  @spec for_explicit(String.t()) :: Path.t()
   def for_explicit(path) do
     if String.ends_with?(path, ".json") do
       Path.join(@fixture_root, path)
@@ -48,7 +46,6 @@ defmodule ReqLLM.Test.FixturePath do
   @doc """
   Returns the fixture root directory.
   """
-  @spec root() :: Path.t()
   def root, do: @fixture_root
 
   defp module_to_path(module) do

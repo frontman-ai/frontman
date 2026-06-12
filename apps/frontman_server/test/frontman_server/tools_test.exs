@@ -12,7 +12,7 @@ defmodule FrontmanServer.ToolsTest do
 
   setup do
     scope = user_scope_fixture()
-    task_id = task_with_active_run_fixture(scope, framework: "nextjs")
+    task_id = task_with_active_run_fixture(scope, framework: "nextjs").id
     {:ok, task} = Tasks.get_task(scope, task_id)
     {:ok, task_id: task_id, task: task, scope: scope, turn_number: latest_turn_number(task_id)}
   end

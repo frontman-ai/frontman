@@ -21,7 +21,6 @@ defmodule FrontmanServer.Tasks.Todos do
 
   defmodule Todo do
     @moduledoc false
-    use TypedStruct
     @derive Jason.Encoder
     @valid_statuses [:pending, :in_progress, :completed]
     @valid_priorities [:high, :medium, :low]
@@ -45,15 +44,14 @@ defmodule FrontmanServer.Tasks.Todos do
                   )
     @schema Zoi.extend(@new_schema, @extra_schema)
 
-    typedstruct do
-      field(:id, String.t(), enforce: true)
-      field(:content, String.t(), enforce: true)
-      field(:active_form, String.t(), enforce: true)
-      field(:status, atom(), enforce: true)
-      field(:priority, atom(), enforce: true)
-      field(:created_at, DateTime.t(), enforce: true)
-      field(:updated_at, DateTime.t(), enforce: true)
-    end
+    @enforce_keys [:id, :content, :active_form, :status, :priority, :created_at, :updated_at]
+    defstruct id: nil,
+              content: nil,
+              active_form: nil,
+              status: nil,
+              priority: nil,
+              created_at: nil,
+              updated_at: nil
 
     def schema do
       @schema
@@ -100,7 +98,6 @@ defmodule FrontmanServer.Tasks.Todos do
 
   Finds the most recent successful `todo_write` ToolResult and parses its todos array.
   """
-  @spec list_todos(list(Interaction.t())) :: %{String.t() => Todo.t()}
   def list_todos(interactions) do
     interactions
     |> Enum.filter(&todo_write_result?/1)

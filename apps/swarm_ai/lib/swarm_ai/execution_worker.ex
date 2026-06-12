@@ -142,7 +142,6 @@ defmodule SwarmAi.ExecutionWorker do
 
   defp dispatch_event({mod, fun, args}, agent_id, event, context) do
     apply(mod, fun, args ++ [agent_id, event, context])
-    :ok
   rescue
     error ->
       # Dispatch failures must not crash the watcher or block cleanup.

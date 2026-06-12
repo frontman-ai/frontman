@@ -33,11 +33,9 @@ defmodule FrontmanServer.Tools.WebFetch do
                  )
 
   @impl true
-  @spec name() :: String.t()
   def name, do: "web_fetch"
 
   @impl true
-  @spec description() :: String.t()
   def description do
     """
     Fetch a public external text page or image URL.
@@ -58,7 +56,6 @@ defmodule FrontmanServer.Tools.WebFetch do
   end
 
   @impl true
-  @spec parameter_schema() :: map()
   def parameter_schema do
     %{
       "type" => "object",
@@ -90,8 +87,6 @@ defmodule FrontmanServer.Tools.WebFetch do
   def on_timeout, do: :error
 
   @impl true
-  @spec execute(map(), FrontmanServer.Tools.Backend.Context.t()) ::
-          FrontmanServer.Tools.Backend.result()
   def execute(args, _context) do
     offset = clamp(Map.get(args, "offset", 0), 0, :infinity)
     limit = clamp(Map.get(args, "limit", 500), 1, 2000)

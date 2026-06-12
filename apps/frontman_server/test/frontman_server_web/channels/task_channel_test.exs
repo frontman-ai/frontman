@@ -128,7 +128,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "join task:<id>" do
     test "succeeds when task exists", %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       {:ok, reply, socket} =
         UserSocket
@@ -1023,7 +1023,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "reconnect re-executes unresolved tool calls" do
     setup %{scope: scope} do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
 
       tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
       tool_call = question_tool_call(tool_call_id, "Test", "A")
@@ -1175,7 +1175,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
          %{
            scope: scope
          } do
-      task_id = task_fixture(scope)
+      task_id = task_fixture(scope).id
       first_tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
       second_tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
 

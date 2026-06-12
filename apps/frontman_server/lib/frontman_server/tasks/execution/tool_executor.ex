@@ -31,7 +31,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   require Logger
 
-  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.Backend
@@ -40,15 +39,14 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @doc """
   Returns a tool executor config for use with `SwarmAi.ParallelExecutor`.
 
-  The `:build` function maps `[ToolCall.t()]` to `[ToolExecution.t()]`.
+  The `:build` function maps tool-call structs to tool-execution structs.
 
   ## Options
 
   - `:backend_tool_modules` - List of backend tool modules (required)
-  - `:mcp_tool_defs` - List of `FrontmanServer.Tools.MCP.t()` with timeout/policy (required)
+  - `:mcp_tool_defs` - List of MCP tool structs with timeout/policy (required)
   - `:execution_mode` - `:parallel` or `:serial` (required)
   """
-  @spec make(Accounts.scope(), String.t(), pos_integer(), map()) :: SwarmAi.Agent.tool_executor()
   def make(%Scope{} = scope, task_id, turn_number, opts)
       when is_integer(turn_number) and turn_number > 0 and is_map(opts) do
     exec_opts = build_exec_opts(opts)
@@ -90,14 +88,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   # --- PE Callbacks (public for MFA dispatch) ---
 
   @doc false
-  @spec run_backend_tool(
-          Accounts.scope(),
-          module(),
-          String.t(),
-          pos_integer(),
-          SwarmAi.ToolCall.t()
-        ) ::
-          SwarmAi.ToolResult.t()
   def run_backend_tool(%Scope{} = scope, module, task_id, turn_number, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
     case execute_backend_tool(scope, module, tool_call, task_id, turn_number) do
@@ -110,7 +100,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   @doc false
-  @spec start_mcp_tool(Accounts.scope(), String.t(), pos_integer(), SwarmAi.ToolCall.t()) :: :ok
   def start_mcp_tool(%Scope{} = scope, task_id, turn_number, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
@@ -123,15 +112,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   @doc false
-  @spec handle_timeout(
-          Accounts.scope(),
-          String.t(),
-          pos_integer(),
-          :error | :pause_agent,
-          SwarmAi.ToolCall.t(),
-          :triggered | :cancelled
-        ) ::
-          :ok
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :triggered)
       when is_integer(turn_number) and turn_number > 0 do
     timeout_msg = "Tool #{tool_call.name} timed out"

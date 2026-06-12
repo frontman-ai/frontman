@@ -4,7 +4,7 @@ Tags: ai, editing, content, gutenberg, blocks
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.18.0
+Stable tag: 1.0.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -104,9 +104,12 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 
 == Changelog ==
 
-= 0.18.0 =
-* Sync the Frontman plugin release with Frontman v0.18.0
+= 1.0.0 =
+* Major release for the OpenAI provider rename and cross-package breaking changes
 * See the GitHub release notes for the full cross-product changelog
+* Add WordPress Additional CSS and theme mod source-inspection tools with safer CSS update validation
+* Strengthen WordPress source-of-truth guidance and annotation context for Elementor/theme edits
+* Fix WordPress admin menu icon alignment
 
 = 0.18.2 =
 * Improve Elementor mutation schemas so empty add-element, update-settings, full-page-data, and generated-child payloads are rejected before they reach Elementor

@@ -226,14 +226,14 @@ module Actions = {
 
   let cancelAnthropicOAuth = () => Client__State__Store.dispatch(CancelAnthropicOAuth)
 
-  // ChatGPT OAuth action creators
-  let fetchChatGPTOAuthStatus = () => Client__State__Store.dispatch(FetchChatGPTOAuthStatus)
+  // OpenAI OAuth action creators
+  let fetchOpenAIOAuthStatus = () => Client__State__Store.dispatch(FetchOpenAIOAuthStatus)
 
-  let initiateChatGPTOAuth = () => Client__State__Store.dispatch(InitiateChatGPTOAuth)
+  let initiateOpenAIOAuth = () => Client__State__Store.dispatch(InitiateOpenAIOAuth)
 
-  let disconnectChatGPTOAuth = () => Client__State__Store.dispatch(DisconnectChatGPTOAuth)
+  let disconnectOpenAIOAuth = () => Client__State__Store.dispatch(DisconnectOpenAIOAuth)
 
-  let resetChatGPTOAuthError = () => Client__State__Store.dispatch(ResetChatGPTOAuthError)
+  let resetOpenAIOAuthError = () => Client__State__Store.dispatch(ResetOpenAIOAuthError)
 
   // Hydration action creators (ForTask)
   let userMessageReceived = (

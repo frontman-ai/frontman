@@ -43,8 +43,6 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Observability.TelemetryEvents
-  alias FrontmanServer.Providers
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Tasks.{
@@ -63,13 +61,8 @@ defmodule FrontmanServer.Tasks do
   @agent_run_terminal_interaction_types [:agent_completed, :agent_error, :agent_paused]
   @agent_run_interaction_types [:agent_response, :tool_call, :tool_result]
 
-  @typep active_agent_run_error ::
-           {:missing_turn_number, atom()} | {:unknown_interaction_type, atom()}
-
   # --- Authorization Helpers ---
 
-  @spec get_task_by_id(Accounts.scope(), String.t()) ::
-          {:ok, TaskSchema.t()} | {:error, :not_found}
   defp get_task_by_id(scope, task_id) do
     task_id
     |> TaskSchema.by_id_for_user(Accounts.scope_user_id(scope))
@@ -77,8 +70,6 @@ defmodule FrontmanServer.Tasks do
     |> task_lookup_result()
   end
 
-  @spec get_task_by_id_for_update(Accounts.scope(), String.t()) ::
-          {:ok, TaskSchema.t()} | {:error, :not_found}
   defp get_task_by_id_for_update(scope, task_id) do
     task_id
     |> TaskSchema.by_id_for_user(Accounts.scope_user_id(scope))
@@ -99,7 +90,6 @@ defmodule FrontmanServer.Tasks do
   """
   @max_tasks 20
 
-  @spec list_tasks(Accounts.scope()) :: {:ok, [TaskSchema.t()]}
   def list_tasks(scope) do
     user_id = Accounts.scope_user_id(scope)
 
@@ -118,7 +108,6 @@ defmodule FrontmanServer.Tasks do
 
   Requires authorization - scope.user.id must match task.user_id.
   """
-  @spec get_task(Accounts.scope(), String.t()) :: {:ok, TaskSchema.t()} | {:error, :not_found}
   def get_task(scope, task_id) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       {:ok, hydrate_task(schema)}
@@ -131,7 +120,6 @@ defmodule FrontmanServer.Tasks do
   Requires authorization - scope.user.id must match task.user_id.
   Cascade deletes configured in migration handle interaction cleanup.
   """
-  @spec delete_task(Accounts.scope(), String.t()) :: :ok | {:error, :not_found}
   def delete_task(scope, task_id) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          {:ok, _} <- Repo.delete(schema) do
@@ -144,10 +132,8 @@ defmodule FrontmanServer.Tasks do
 
   The task_id must be provided by the client.
   Requires a scope with a user.
-  Returns `{:ok, task_id}` on success.
+  Returns `{:ok, task}` on success.
   """
-  @spec create_task(Accounts.scope(), String.t(), String.t()) ::
-          {:ok, String.t()} | {:error, term()}
   def create_task(scope, task_id, framework) do
     user_id = Accounts.scope_user_id(scope)
 
@@ -158,17 +144,14 @@ defmodule FrontmanServer.Tasks do
       user_id: user_id
     }
 
-    with {:ok, _schema} <- TaskSchema.create_changeset(attrs) |> Repo.insert() do
-      {:ok, task_id}
-    end
+    TaskSchema.create_changeset(attrs)
+    |> Repo.insert()
   end
 
-  @spec hydrate_task(TaskSchema.t()) :: TaskSchema.t()
   defp hydrate_task(%TaskSchema{} = schema) do
     %{schema | interactions: load_interactions(schema.id)}
   end
 
-  @spec load_interactions(String.t()) :: [Interaction.t()]
   defp load_interactions(task_id) do
     task_id
     |> load_interaction_rows()
@@ -188,9 +171,6 @@ defmodule FrontmanServer.Tasks do
 
   Deduplicates by path - returns `{:ok, :already_loaded}` if already present.
   """
-  @spec add_discovered_project_rule(Accounts.scope(), String.t(), String.t(), String.t()) ::
-          {:ok, Interaction.DiscoveredProjectRule.t() | :already_loaded}
-          | {:error, :not_found}
   def add_discovered_project_rule(scope, task_id, path, content) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interactions = load_interactions(task_id)
@@ -208,10 +188,6 @@ defmodule FrontmanServer.Tasks do
   Stores the discovered project structure summary for a task.
   Called during MCP initialization after `list_tree` returns.
   """
-  @spec add_discovered_project_structure(Accounts.scope(), String.t(), String.t()) ::
-          {:ok, Interaction.DiscoveredProjectStructure.t()}
-          | {:ok, :already_loaded}
-          | {:error, :not_found}
   def add_discovered_project_structure(scope, task_id, summary) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interactions = load_interactions(task_id)
@@ -225,7 +201,6 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @spec rule_loaded?([Interaction.t()], String.t()) :: boolean()
   defp rule_loaded?(interactions, path) do
     Enum.any?(interactions, fn
       %Interaction.DiscoveredProjectRule{path: p} -> p == path
@@ -235,8 +210,6 @@ defmodule FrontmanServer.Tasks do
 
   # --- Interaction Persistence Helpers ---
 
-  @spec record_interaction(TaskSchema.t(), Interaction.t(), keyword()) ::
-          {:ok, Interaction.t()} | {:error, :not_found | Ecto.Changeset.t()}
   defp record_interaction(%TaskSchema{} = task, interaction, opts \\ []) do
     turn_number = Keyword.get(opts, :turn_number)
 
@@ -317,10 +290,8 @@ defmodule FrontmanServer.Tasks do
 
   defp latest_turn_number(rows), do: next_turn_number(rows) - 1
 
-  @spec topic(String.t()) :: String.t()
   defp topic(task_id), do: "task:#{task_id}"
 
-  @spec broadcast_task(String.t(), term()) :: :ok
   defp broadcast_task(task_id, message) do
     Phoenix.PubSub.broadcast(FrontmanServer.PubSub, topic(task_id), message)
   end
@@ -333,9 +304,9 @@ defmodule FrontmanServer.Tasks do
   """
   def handle_swarm_event(scope, task_id, %{turn_number: turn_number, event: event} = context)
       when is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
-    persist_swarm_event(scope, task_id, turn_number, event)
-
-    broadcast_swarm_event(task_id, context)
+    with :ok <- persist_swarm_event(scope, task_id, turn_number, event) do
+      broadcast_swarm_event(task_id, context)
+    end
   end
 
   # Scope may be nil for recovered processes after a monitor restart.
@@ -343,19 +314,21 @@ defmodule FrontmanServer.Tasks do
   defp persist_swarm_event(nil, _task_id, _turn_number, _event), do: :ok
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:response, response}) do
-    agent_replied(
-      scope,
-      task_id,
-      turn_number,
-      response.content || "",
-      response_metadata(response)
-    )
+    with {:ok, _interaction} <-
+           agent_replied(
+             scope,
+             task_id,
+             turn_number,
+             response.content || "",
+             response_metadata(response)
+           ) do
+      :ok
+    end
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:completed, _}) do
-    {:ok, interaction} = record_agent_run_result(scope, task_id, turn_number, :completed)
-    TelemetryEvents.task_stop(task_id)
-    {:ok, interaction}
+    {:ok, _interaction} = record_agent_run_result(scope, task_id, turn_number, :completed)
+    :ok
   end
 
   defp persist_swarm_event(
@@ -376,7 +349,7 @@ defmodule FrontmanServer.Tasks do
       extra: %{task_id: task_id, loop_id: loop_id, reason: reason_str}
     )
 
-    {:ok, interaction} =
+    {:ok, _interaction} =
       record_agent_run_result(
         scope,
         task_id,
@@ -384,8 +357,7 @@ defmodule FrontmanServer.Tasks do
         {:failed, reason_str, retryable, category}
       )
 
-    TelemetryEvents.task_stop(task_id)
-    {:ok, interaction}
+    :ok
   end
 
   defp persist_swarm_event(
@@ -412,17 +384,15 @@ defmodule FrontmanServer.Tasks do
 
     {reason_str, _category, _retryable} = ErrorClassifier.classify_error(reason)
 
-    {:ok, interaction} =
+    {:ok, _interaction} =
       record_agent_run_result(scope, task_id, turn_number, {:crashed, reason_str})
 
-    TelemetryEvents.task_stop(task_id)
-    {:ok, interaction}
+    :ok
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:cancelled, _}) do
-    {:ok, interaction} = record_agent_run_result(scope, task_id, turn_number, :cancelled)
-    TelemetryEvents.task_stop(task_id)
-    {:ok, interaction}
+    {:ok, _interaction} = record_agent_run_result(scope, task_id, turn_number, :cancelled)
+    :ok
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:terminated, _}) do
@@ -444,14 +414,14 @@ defmodule FrontmanServer.Tasks do
       )
     end)
 
-    result =
-      case interactive_tool_calls do
-        [] -> record_agent_run_result(scope, task_id, turn_number, :terminated)
-        [_ | _] -> :ok
-      end
+    case interactive_tool_calls do
+      [] ->
+        {:ok, _interaction} = record_agent_run_result(scope, task_id, turn_number, :terminated)
+        :ok
 
-    TelemetryEvents.task_stop(task_id)
-    result
+      [_ | _] ->
+        :ok
+    end
   end
 
   defp persist_swarm_event(
@@ -466,7 +436,7 @@ defmodule FrontmanServer.Tasks do
       turn_number: turn_number
     )
 
-    {:ok, interaction} =
+    {:ok, _interaction} =
       record_agent_run_result(
         scope,
         task_id,
@@ -474,8 +444,7 @@ defmodule FrontmanServer.Tasks do
         {:paused_for_tool_timeout, tool_name, timeout_ms}
       )
 
-    TelemetryEvents.task_stop(task_id)
-    {:ok, interaction}
+    :ok
   end
 
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:chunk, _}), do: :ok
@@ -501,14 +470,12 @@ defmodule FrontmanServer.Tasks do
 
   defp response_metadata(response) do
     meta = Map.get(response, :metadata) || %{}
-    response_id = meta[:response_id]
-    phase = meta[:phase]
 
     %{
       "tool_calls" => stored_tool_calls(Map.get(response, :tool_calls)),
       "reasoning_details" => non_empty(Map.get(response, :reasoning_details)),
-      "response_id" => if(is_binary(response_id), do: response_id),
-      "phase" => if(is_binary(phase), do: phase),
+      "response_id" => meta[:response_id],
+      "phase" => meta[:phase],
       "phase_items" => non_empty(meta[:phase_items])
     }
     |> Map.reject(fn {_key, value} -> is_nil(value) end)
@@ -534,10 +501,6 @@ defmodule FrontmanServer.Tasks do
   and kicking off the agent loop. If an execution is already running, the
   prompt is rejected entirely (nothing persisted).
   """
-  @spec submit_user_message(Accounts.scope(), String.t(), list(), map()) ::
-          {:ok, Interaction.UserMessage.t(), pos_integer()}
-          | {:error,
-             :already_running | :not_found | active_agent_run_error() | Ecto.Changeset.t()}
   def submit_user_message(scope, task_id, content_blocks, execution) do
     interaction = Interaction.UserMessage.new(content_blocks)
 
@@ -549,9 +512,7 @@ defmodule FrontmanServer.Tasks do
 
         case {turn_number, interaction.messages} do
           {1, [_ | _] = messages} ->
-            model = execution.model |> Providers.resolve_model_string()
-
-            GenerateTitle.new_job(scope, task_id, Enum.join(messages, "\n"), model)
+            GenerateTitle.new_job(scope, task_id, Enum.join(messages, "\n"), execution.model)
             |> Oban.insert()
 
           _ ->
@@ -640,9 +601,6 @@ defmodule FrontmanServer.Tasks do
   Returns `{:ok, interaction, :notified}` when a live executor received the result,
   `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
   """
-  @spec resolve_tool_request(Accounts.scope(), String.t(), map(), term(), boolean(), keyword()) ::
-          {:ok, Interaction.ToolResult.t(), :notified | :no_executor}
-          | {:error, :not_found | Ecto.Changeset.t()}
   def resolve_tool_request(
         scope,
         task_id,
@@ -721,8 +679,6 @@ defmodule FrontmanServer.Tasks do
   # --- Execution Management ---
 
   @doc "Records a retry request and starts execution."
-  @spec retry_execution(Accounts.scope(), String.t(), String.t(), map()) ::
-          :ok | :already_running | {:error, :not_found | :stale_turn | Ecto.Changeset.t()}
   def retry_execution(scope, task_id, retried_error_id, execution) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          rows = load_interaction_rows(task_id),
@@ -751,8 +707,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Resumes execution for the active agent run."
-  @spec resume_execution(Accounts.scope(), String.t(), map()) ::
-          :ok | :already_running | {:error, :not_found | :not_running | active_agent_run_error()}
   def resume_execution(scope, task_id, execution) do
     case get_task(scope, task_id) do
       {:ok, task} ->
@@ -785,8 +739,6 @@ defmodule FrontmanServer.Tasks do
 
   Verifies the task exists and belongs to the user before cancelling.
   """
-  @spec cancel_execution(Accounts.scope(), String.t()) ::
-          :ok | {:error, :not_found | :not_running}
   def cancel_execution(scope, task_id) do
     with {:ok, _schema} <- get_task_by_id(scope, task_id) do
       SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
@@ -855,8 +807,6 @@ defmodule FrontmanServer.Tasks do
 
   Called by the `GenerateTitle` Oban worker after the LLM suggests a title.
   """
-  @spec apply_title_suggestion(Accounts.scope(), String.t(), String.t()) ::
-          :ok | {:error, :not_found | Ecto.Changeset.t()}
   def apply_title_suggestion(scope, task_id, title) do
     default_title = TaskSchema.default_title()
 
@@ -880,8 +830,6 @@ defmodule FrontmanServer.Tasks do
   Todos are managed through tool calls, not direct API calls.
   This function is for reading the current todos only.
   """
-  @spec list_todos(Accounts.scope(), String.t()) ::
-          {:ok, [Todos.Todo.t()]} | {:error, :not_found}
   def list_todos(scope, task_id) do
     with {:ok, task} <- get_task(scope, task_id) do
       todos =

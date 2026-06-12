@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServer.Tools.Backend
 
   # --- Fake backend tools ---
@@ -43,7 +44,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
     scope = Scope.for_user(user)
     task_id = Ecto.UUID.generate()
-    {:ok, ^task_id} = Tasks.create_task(scope, task_id, "nextjs")
+    {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, "nextjs")
 
     {:ok, _message} =
       user_message_fixture(scope, task_id, [%{"type" => "text", "text" => "test turn"}])

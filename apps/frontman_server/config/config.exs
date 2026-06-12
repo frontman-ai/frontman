@@ -20,22 +20,6 @@ config :frontman_server, :scopes,
     test_setup_helper: :register_and_log_in_user
   ]
 
-config :req_llm,
-  receive_timeout: 150_000,
-  custom_providers: [FrontmanServer.Providers.Fireworks, FrontmanServer.Providers.Nvidia],
-  # Override default Finch pool (8 connections) to handle concurrent LLM streams.
-  # See https://github.com/frontman-ai/frontman/issues/428
-  finch: [
-    name: ReqLLM.Finch,
-    pools: %{
-      :default => [
-        protocols: [:http1],
-        size: 1,
-        count: 32
-      ]
-    }
-  ]
-
 config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
@@ -46,6 +30,17 @@ config :frontman_server,
   # Max output tokens for LLM responses. Increase to support long file writes.
   # Sonnet 4.5 supports up to 64K output tokens.
   llm_max_tokens: 64_000
+
+config :frontman_server, FrontmanServer.Providers.OpenAIOAuth,
+  client_id: "app_EMoamEEZ73f0CkXaXp7hrann",
+  issuer: "https://auth.openai.com"
+
+config :frontman_server, FrontmanServer.Providers.AnthropicOAuth,
+  client_id: "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+  auth_url: "https://claude.ai/oauth/authorize",
+  token_url: "https://console.anthropic.com/v1/oauth/token",
+  redirect_uri: "https://console.anthropic.com/oauth/code/callback",
+  scopes: "org:create_api_key user:profile user:inference"
 
 # Configures the endpoint
 config :frontman_server, FrontmanServerWeb.Endpoint,
@@ -120,265 +115,45 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-# Custom model definitions for models not yet in the packaged LLMDB catalog.
-# These get merged into the snapshot at startup — existing models are untouched.
-config :llm_db,
-  custom: %{
-    openrouter: [
-      models: %{
-        "anthropic/claude-opus-4.6" => %{
-          name: "Claude Opus 4.6",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 200_000, output: 32_000},
-          modalities: %{input: [:text, :image, :pdf], output: [:text]}
-        },
-        "openai/gpt-5.5" => %{
-          name: "GPT-5.5",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        },
-        "openai/gpt-5.4-pro" => %{
-          name: "GPT-5.4 Pro",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        },
-        "openai/gpt-5.4" => %{
-          name: "GPT-5.4",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        },
-        "openai/gpt-5.3-codex" => %{
-          name: "GPT-5.3 Codex",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 400_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        },
-        "moonshotai/kimi-k2.5" => %{
-          name: "Kimi K2.5",
-          capabilities: %{
-            chat: true,
-            streaming: %{text: true, tool_calls: false},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 131_072, output: 32_768},
-          modalities: %{input: [:text], output: [:text]}
-        },
-        "minimax/minimax-m2.5" => %{
-          name: "Minimax M2.5",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_192, output: 1_000_192},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }
-      }
-    ],
-    fireworks: [
-      name: "Fireworks AI",
-      base_url: "https://api.fireworks.ai/inference/v1",
-      env: ["FIREWORKS_API_KEY"],
-      doc: "https://docs.fireworks.ai/firepass",
-      models: %{
-        "accounts/fireworks/routers/kimi-k2p5-turbo" => %{
-          name: "Kimi K2.5 Turbo",
-          family: "kimi-thinking",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 256_000, output: 256_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }
-      }
-    ],
-    nvidia: [
-      models: %{
-        "moonshotai/kimi-k2.6" => %{
-          name: "Kimi K2.6",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 262_144, output: 65_536},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }
-      }
-    ],
-    anthropic: [
-      models: %{
-        "claude-opus-4-6" => %{
-          name: "Claude Opus 4.6",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 200_000, output: 64_000},
-          modalities: %{input: [:text, :image, :pdf], output: [:text]}
-        }
-      }
-    ],
-    openai: [
-      models: %{
-        "gpt-5.5" => %{
-          name: "GPT-5.5",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        },
-        "gpt-5.4" => %{
-          name: "GPT-5.4",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 1_000_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        },
-        "gpt-5.3-codex" => %{
-          name: "GPT-5.3 Codex",
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{text: true, tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 400_000, output: 128_000},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }
-      }
-    ]
-  }
+import_config "providers.exs"
 
-# Centralised provider registry — single source of truth for every supported
-# LLM provider.  The runtime modules (Registry, runtime.exs) derive their
-# behaviour from this map instead of maintaining separate hard-coded lists.
-#
-# Fields:
-#   :config_key          – Application.get_env atom for the server API key
-#   :env_var             – OS environment variable name (used by runtime.exs)
-#   :env_key_name        – metadata key the client sends for project-level keys (nil = n/a)
-#   :display_name        – human-readable label for the UI
-#   :priority            – display ordering (lower = shown first)
-#   :oauth_provider      – provider string for OAuth token lookup (nil = no OAuth)
-#   :env_key_param       – query param the client sends to signal it has an env key (nil = n/a)
-#   :max_image_dimension – hard pixel-per-side limit (nil = provider auto-resizes)
-config :frontman_server, :providers, %{
-  "openai" => %{
-    config_key: :openai_api_key,
-    env_var: "OPENAI_API_KEY",
-    env_key_name: nil,
-    display_name: "ChatGPT Pro/Plus",
-    priority: 10,
-    oauth_provider: "chatgpt",
-    env_key_param: nil,
-    max_image_dimension: nil
-  },
-  "anthropic" => %{
-    config_key: :anthropic_api_key,
-    env_var: "ANTHROPIC_API_KEY",
-    env_key_name: "anthropicKeyValue",
-    display_name: "Anthropic (Claude Pro/Max)",
-    priority: 20,
-    oauth_provider: "anthropic",
-    env_key_param: "hasAnthropicEnvKey",
-    # Anthropic hard-rejects images > 8000px per side; 7680 leaves margin.
-    max_image_dimension: 7680
-  },
-  "openrouter" => %{
-    config_key: :openrouter_api_key,
-    env_var: "OPENROUTER_API_KEY",
-    env_key_name: "openrouterKeyValue",
-    display_name: "OpenRouter",
-    priority: 30,
-    oauth_provider: nil,
-    env_key_param: "hasEnvKey",
-    max_image_dimension: nil
-  },
-  "fireworks" => %{
-    config_key: :fireworks_api_key,
-    env_var: "FIREWORKS_API_KEY",
-    env_key_name: "fireworksKeyValue",
-    display_name: "Fireworks AI",
-    priority: 35,
-    oauth_provider: nil,
-    env_key_param: nil,
-    max_image_dimension: nil
-  },
-  "nvidia" => %{
-    config_key: :nvidia_api_key,
-    env_var: "NVIDIA_API_KEY",
-    env_key_name: "nvidiaKeyValue",
-    display_name: "NVIDIA",
-    priority: 36,
-    oauth_provider: nil,
-    env_key_param: nil,
-    max_image_dimension: nil
-  },
-  "google" => %{
-    config_key: :google_api_key,
-    env_var: "GOOGLE_API_KEY",
-    env_key_name: nil,
-    display_name: "Google",
-    priority: 40,
-    oauth_provider: nil,
-    env_key_param: nil,
-    max_image_dimension: nil
-  },
-  "xai" => %{
-    config_key: :xai_api_key,
-    env_var: "XAI_API_KEY",
-    env_key_name: nil,
-    display_name: "xAI",
-    priority: 50,
-    oauth_provider: nil,
-    env_key_param: nil,
-    max_image_dimension: nil
-  }
-}
+providers = Keyword.fetch!(read_config(:frontman_server), :providers)
+
+llm_db_custom =
+  providers
+  |> Enum.filter(fn {_provider, provider_config} -> provider_config.models != [] end)
+  |> Enum.map(fn {provider, provider_config} ->
+    models =
+      provider_config
+      |> Map.fetch!(:models)
+      |> Enum.reject(fn {_name, _value, metadata} -> metadata == :packaged end)
+      |> Map.new(fn {name, value, metadata} -> {value, Map.put(metadata, :name, name)} end)
+
+    llm_db_provider =
+      provider_config
+      |> Map.fetch!(:llm_db_provider)
+      |> Keyword.put(:models, models)
+
+    {provider, llm_db_provider}
+  end)
+  |> Map.new()
+
+config :req_llm,
+  receive_timeout: 150_000,
+  # Override default Finch pool (8 connections) to handle concurrent LLM streams.
+  # See https://github.com/frontman-ai/frontman/issues/428
+  finch: [
+    name: ReqLLM.Finch,
+    pools: %{
+      :default => [
+        protocols: [:http1],
+        size: 1,
+        count: 32
+      ]
+    }
+  ]
+
+config :llm_db, custom: llm_db_custom
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

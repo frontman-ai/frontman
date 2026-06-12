@@ -69,6 +69,7 @@ defmodule SwarmAi.SupervisorTest do
   defmodule TestDispatcher do
     def dispatch(test_pid, key, event, _context) do
       send(test_pid, {:test_event, key, event})
+      :ok
     end
   end
 

@@ -3,7 +3,7 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"version": "0.5.5",
+	"version": "1.0.0",
 	"description": "Vite integration for Frontman - AI-powered development tools",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -55,7 +55,7 @@
 	},
 	"dependencies": {
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^12.5.1"
+		"lighthouse": "^13.3.0"
 	},
 	"peerDependencies": {
 		"vite": ">=5.0.0"

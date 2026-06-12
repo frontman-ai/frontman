@@ -33,8 +33,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @workos_auth_connect_timeout_ms 5_000
   @workos_auth_receive_timeout_ms 30_000
 
-  @type signup_framework :: String.t() | nil
-
   @doc """
   Generates a WorkOS authorization URL for the given provider.
 
@@ -44,8 +42,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
       {:ok, "https://api.workos.com/..."}
 
   """
-  @spec get_authorization_url(String.t(), String.t(), String.t() | nil) ::
-          {:ok, String.t()} | {:error, term()}
   def get_authorization_url(provider, redirect_uri, state \\ nil)
 
   def get_authorization_url(provider, redirect_uri, state)
@@ -81,8 +77,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   Note: We use a raw HTTP call instead of the SDK to capture the full error
   response, including `pending_authentication_token` for email verification.
   """
-  @spec authenticate_with_code(String.t(), signup_framework()) ::
-          {:ok, User.t()} | {:error, term()}
   def authenticate_with_code(code, signup_framework \\ nil)
 
   def authenticate_with_code(code, nil) when is_binary(code) and code != "" do
@@ -116,8 +110,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   receives a verification code via email, which is then submitted along with
   the pending authentication token to complete the flow.
   """
-  @spec authenticate_with_email_verification(String.t(), String.t(), signup_framework()) ::
-          {:ok, User.t()} | {:error, term()}
   def authenticate_with_email_verification(
         code,
         pending_authentication_token,
@@ -186,7 +178,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   Returns `{:ok, identity}` on success or `{:error, changeset}` on failure.
   """
-  @spec link_provider(User.t(), String.t()) :: {:ok, UserIdentity.t()} | {:error, term()}
   def link_provider(%User{} = user, code) when is_binary(code) and code != "" do
     with {:ok, auth_response} <- authenticate_with_code_raw(code),
          {:ok, profile} <- extract_profile(auth_response) do
@@ -202,8 +193,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   Returns `{:ok, identity}` on success or `{:error, :not_found}` if the identity doesn't exist.
   """
-  @spec unlink_provider(User.t(), String.t()) ::
-          {:ok, UserIdentity.t()} | {:error, :not_found | String.t() | term()}
   def unlink_provider(%User{} = user, provider) when provider in @supported_providers do
     case get_identity_by_provider(user, provider) do
       nil -> {:error, :not_found}
@@ -218,7 +207,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @doc """
   Lists all OAuth identities for a user.
   """
-  @spec list_identities(User.t()) :: [UserIdentity.t()]
   def list_identities(%User{} = user) do
     UserIdentity
     |> where([i], i.user_id == ^user.id)
@@ -228,7 +216,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @doc """
   Gets a specific identity by provider for a user.
   """
-  @spec get_identity_by_provider(User.t(), String.t()) :: UserIdentity.t() | nil
   def get_identity_by_provider(%User{} = user, provider) when is_binary(provider) do
     UserIdentity
     |> where([i], i.user_id == ^user.id and i.provider == ^provider)

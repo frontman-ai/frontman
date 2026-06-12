@@ -18,18 +18,14 @@ defmodule FrontmanServer.Accounts do
 
   alias FrontmanServer.Accounts.{Scope, User, UserNotifier, UserToken, WorkOS}
 
-  @type scope :: Scope.t()
-
   @doc """
   Returns the user map from scope.
   """
-  @spec scope_user(scope()) :: User.t()
   def scope_user(%Scope{user: %User{} = user}), do: user
 
   @doc """
   Returns the user id from scope.
   """
-  @spec scope_user_id(scope()) :: String.t()
   def scope_user_id(scope) do
     scope
     |> scope_user()
@@ -39,7 +35,6 @@ defmodule FrontmanServer.Accounts do
   @doc """
   Returns environment API keys carried in scope.
   """
-  @spec scope_env_api_keys(scope()) :: %{String.t() => String.t()}
   def scope_env_api_keys(%Scope{env_api_keys: env_api_keys}) when is_map(env_api_keys),
     do: env_api_keys
 
@@ -100,7 +95,6 @@ defmodule FrontmanServer.Accounts do
   @doc """
   Builds a scope for a user and attaches environment API keys.
   """
-  @spec scope_for_user_with_env_keys(User.t(), %{String.t() => String.t()}) :: scope()
   def scope_for_user_with_env_keys(%User{} = user, env_api_keys) do
     user
     |> Scope.for_user()

@@ -5,6 +5,8 @@ define( 'ABSPATH', sys_get_temp_dir() . '/frontman-wordpress-mutation-tests/' );
 $GLOBALS['frontman_test_posts'] = [];
 $GLOBALS['frontman_test_meta'] = [];
 $GLOBALS['frontman_test_options'] = [];
+$GLOBALS['frontman_test_custom_css'] = [];
+$GLOBALS['frontman_test_theme_mods'] = [];
 $GLOBALS['frontman_test_menu_terms'] = [];
 $GLOBALS['frontman_test_menu_item_to_term'] = [];
 $GLOBALS['frontman_test_menu_locations'] = [];
@@ -23,6 +25,12 @@ if ( ! function_exists( 'sanitize_text_field' ) ) {
 if ( ! function_exists( 'sanitize_textarea_field' ) ) {
 	function sanitize_textarea_field( $value ): string {
 		return trim( (string) $value );
+	}
+}
+
+if ( ! function_exists( 'wp_check_invalid_utf8' ) ) {
+	function wp_check_invalid_utf8( $value ): string {
+		return (string) $value;
 	}
 }
 
@@ -255,6 +263,43 @@ if ( ! function_exists( 'update_option' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_stylesheet' ) ) {
+	function get_stylesheet(): string {
+		return $GLOBALS['frontman_test_options']['stylesheet'] ?? 'frontman-theme';
+	}
+}
+
+if ( ! function_exists( 'wp_get_custom_css' ) ) {
+	function wp_get_custom_css( string $stylesheet = '' ): string {
+		$stylesheet = '' === $stylesheet ? get_stylesheet() : $stylesheet;
+		return $GLOBALS['frontman_test_custom_css'][ $stylesheet ] ?? '';
+	}
+}
+
+if ( ! function_exists( 'wp_update_custom_css_post' ) ) {
+	function wp_update_custom_css_post( string $css, array $args = [] ) {
+		$stylesheet = $args['stylesheet'] ?? get_stylesheet();
+		$GLOBALS['frontman_test_custom_css'][ $stylesheet ] = $css;
+		$post = new WP_Post();
+		$post->ID = 9001;
+		$post->post_type = 'custom_css';
+		$post->post_content = $css;
+		return $post;
+	}
+}
+
+if ( ! function_exists( 'get_theme_mods' ) ) {
+	function get_theme_mods() {
+		return $GLOBALS['frontman_test_theme_mods'];
+	}
+}
+
+if ( ! function_exists( 'get_theme_mod' ) ) {
+	function get_theme_mod( string $name, $default = false ) {
+		return $GLOBALS['frontman_test_theme_mods'][ $name ] ?? $default;
+	}
+}
+
 if ( ! function_exists( 'wp_get_object_terms' ) ) {
 	function wp_get_object_terms( int $object_id ): array {
 		$term_id = $GLOBALS['frontman_test_menu_item_to_term'][ $object_id ] ?? null;
@@ -287,10 +332,13 @@ if ( ! function_exists( 'get_registered_nav_menus' ) ) {
 }
 
 if ( ! function_exists( 'set_theme_mod' ) ) {
-	function set_theme_mod( string $name, array $value ): void {
+	function set_theme_mod( string $name, $value ): void {
 		if ( 'nav_menu_locations' === $name ) {
 			$GLOBALS['frontman_test_menu_locations'] = $value;
+			return;
 		}
+
+		$GLOBALS['frontman_test_theme_mods'][ $name ] = $value;
 	}
 }
 
@@ -477,6 +525,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->test_menu_management_snapshots();
 		$this->test_menu_item_creation_includes_before_snapshot();
 		$this->test_menu_option_and_widget_updates_include_before_snapshots();
+		$this->test_theme_source_tools();
 		$this->test_post_backed_menu_items_preserve_metadata();
 		$this->test_widget_management_snapshots();
 		$this->test_template_update_snapshot();
@@ -546,6 +595,12 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$GLOBALS['frontman_test_menu_item_to_term'][25] = 7;
 
 		$GLOBALS['frontman_test_options']['blogname'] = 'Old Blog Name';
+		$GLOBALS['frontman_test_options']['stylesheet'] = 'frontman-theme';
+		$GLOBALS['frontman_test_custom_css']['frontman-theme'] = '.old { color: red; }';
+		$GLOBALS['frontman_test_theme_mods'] = [
+			'header_image' => 'https://example.com/header.jpg',
+			'page_title_enabled' => true,
+		];
 		$GLOBALS['frontman_test_options']['active_plugins'] = [ 'wp-rocket/wp-rocket.php' ];
 		$GLOBALS['frontman_test_options']['widget_text'] = [
 			2 => [ 'title' => 'Old Widget', 'text' => 'Old text' ],
@@ -755,6 +810,61 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( 1, count( $deleted_item['after']['items'] ), 'wp_delete_menu_item returns updated menu snapshot' );
 	}
 
+	private function test_theme_source_tools(): void {
+		$tool = new Frontman_Tool_Options();
+
+		$current_css = $tool->get_custom_css( [] );
+		$this->assert_same( 'frontman-theme', $current_css['stylesheet'], 'wp_get_custom_css returns active stylesheet' );
+		$this->assert_same( '.old { color: red; }', $current_css['css'], 'wp_get_custom_css reads Additional CSS' );
+
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->update_custom_css( [ 'css' => '.x { color: blue; }', 'confirm' => false ] );
+			},
+			'confirm=true',
+			'wp_update_custom_css requires explicit confirmation'
+		);
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->update_custom_css( [ 'confirm' => true ] );
+			},
+			'css is required',
+			'wp_update_custom_css rejects missing CSS instead of replacing with an empty string'
+		);
+		$this->assert_same( '.old { color: red; }', $tool->get_custom_css( [] )['css'], 'wp_update_custom_css missing CSS rejection leaves Additional CSS unchanged' );
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->update_custom_css( [ 'css' => '.x { color: blue; }', 'stylesheet' => 'inactive-theme', 'confirm' => true ] );
+			},
+			'active stylesheet',
+			'wp_update_custom_css rejects non-active stylesheet writes'
+		);
+
+		$slash_sensitive_css = ".page-title-bg {\n  background-image: none !important;\n}\n.path::after { content: \"C:\\Tools\"; }";
+		$updated = $tool->update_custom_css( [ 'css' => $slash_sensitive_css, 'confirm' => true ] );
+		$this->assert_same( '.old { color: red; }', $updated['before'], 'wp_update_custom_css captures previous Additional CSS' );
+		$this->assert_same( $slash_sensitive_css, $updated['after'], 'wp_update_custom_css preserves CSS syntax and backslashes' );
+
+		$registry = new Frontman_Tools();
+		( new Frontman_Tool_Options() )->register( $registry );
+		$this->assert_tool_error_result_contains( $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => '.inactive { color: red; }', 'stylesheet' => 'inactive-theme', 'confirm' => true ] ) ), 'active stylesheet', 'wp_update_custom_css registry path rejects non-active stylesheet writes' );
+		$this->assert_tool_error_result_contains( $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => [ '.bad { color: red; }' ], 'confirm' => true ] ) ), 'css is required', 'wp_update_custom_css registry path rejects non-string CSS' );
+		$registry_css = '.selector::before { content: "{C:\\Tools}"; }';
+		$registry_input = $registry->sanitize_input( 'wp_update_custom_css', [ 'css' => $registry_css, 'confirm' => true ] );
+		$registry_result = $registry->call( 'wp_update_custom_css', $registry_input );
+		$registry_payload = json_decode( $registry_result['content'][0]['text'], true );
+		$this->assert_same( $registry_css, $registry_payload['after'], 'wp_update_custom_css preserves CSS through registry sanitization' );
+
+		$mods = $tool->list_theme_mods( [] );
+		$this->assert_same( 'https://example.com/header.jpg', $mods['mods']['header_image'], 'wp_list_theme_mods exposes theme header source state' );
+
+		$mod = $tool->get_theme_mod( [ 'name' => 'header_image' ] );
+		$this->assert_same( 'https://example.com/header.jpg', $mod['value'], 'wp_get_theme_mod reads one theme mod' );
+		$GLOBALS['frontman_test_theme_mods']['Header_Image'] = 'https://example.com/case-sensitive-header.jpg';
+		$case_sensitive_mod = $tool->get_theme_mod( [ 'name' => 'Header_Image' ] );
+		$this->assert_same( 'https://example.com/case-sensitive-header.jpg', $case_sensitive_mod['value'], 'wp_get_theme_mod preserves exact mod names' );
+	}
+
 	private function test_menu_item_creation_includes_before_snapshot(): void {
 		$menu_tool = new Frontman_Tool_Menus();
 		$created = $menu_tool->create_menu_item( [
@@ -925,6 +1035,14 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			if ( false === strpos( $e->getMessage(), $needle ) ) {
 				throw new RuntimeException( $message . ' (wrong error: ' . $e->getMessage() . ')' );
 			}
+		}
+	}
+
+	private function assert_tool_error_result_contains( array $result, string $needle, string $message ): void {
+		$this->assertions++;
+		$error_message = $result['content'][0]['text'] ?? '';
+		if ( true !== ( $result['isError'] ?? false ) || false === strpos( $error_message, $needle ) ) {
+			throw new RuntimeException( $message . ' (wrong result: ' . wp_json_encode( $result ) . ')' );
 		}
 	}
 }

@@ -11,29 +11,26 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
   Stream-first design: returns a lazy stream of chunks that can be
   consumed with callbacks or collected into a Response.
 
-  API key resolution happens at the domain layer (Tasks context) before
-  this client is created. The resolved key is passed via `llm_opts[:api_key]`.
+  Provider auth resolution happens at the domain layer (Tasks context) before
+  this client is created. The resolved ReqLLM options are passed via `llm_opts`.
   """
-
-  use TypedStruct
 
   alias SwarmAi.SchemaTransformer
 
-  typedstruct do
-    field(:model, String.t() | map(), enforce: true)
-    field(:tools, [SwarmAi.Tool.t()], default: [])
-    # llm_opts must include :api_key (resolved at domain layer)
-    field(:llm_opts, keyword(), default: [])
-  end
+  # Provider auth options are resolved at the domain layer.
+  @enforce_keys [:model]
+  defstruct model: nil,
+            tools: [],
+            llm_opts: []
 
   @doc """
   Creates a new LLMClient.
 
   ## Options
 
-  - `:model` - Required ReqLLM model spec from `Providers.to_llm_args/2`
+  - `:model` - Required ReqLLM model spec from `Providers.prepare_llm_args/3`
   - `:tools` - List of SwarmAi.Tool structs
-  - `:llm_opts` - Options for ReqLLM, must include `:api_key`
+  - `:llm_opts` - Options for ReqLLM, including resolved provider auth
   """
   def new(opts \\ []) do
     struct!(__MODULE__, opts)
@@ -43,7 +40,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
   Converts SwarmAi.Tool to ReqLLM.Tool format.
   Normalizes schemas for OpenAI-compatible providers that require strict mode.
   """
-  @spec to_reqllm_tool(SwarmAi.Tool.t(), String.t(), keyword()) :: ReqLLM.Tool.t()
   def to_reqllm_tool(%SwarmAi.Tool{} = tool, model, _opts \\ []) do
     provider = SchemaTransformer.provider_for_model(model)
     schema = SchemaTransformer.transform(tool.parameter_schema, provider)
@@ -75,7 +71,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     reqllm_tools =
       Enum.map(client.tools, &LLMClient.to_reqllm_tool(&1, client.model, client.llm_opts))
 
-    # API key must be provided via llm_opts (resolved at domain layer)
+    # Provider auth must be provided via llm_opts (resolved at domain layer)
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)

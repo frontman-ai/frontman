@@ -1,6 +1,6 @@
 # E2E test seed script.
 #
-# Creates a confirmed test user and inserts a ChatGPT OAuth token for it.
+# Creates a confirmed test user and inserts an OpenAI OAuth token for it.
 # Reads token values from environment variables (set them in CI or locally).
 #
 # Usage:
@@ -36,22 +36,22 @@ user =
 
 IO.puts("E2E user: #{user.email} (id: #{user.id})")
 
-# ── 2. Insert ChatGPT OAuth token (from env vars) ──────────────────────────────
+# ── 2. Insert OpenAI OAuth token (from env vars) ───────────────────────────────
 
-access_token = System.get_env("E2E_CHATGPT_ACCESS_TOKEN")
-refresh_token = System.get_env("E2E_CHATGPT_REFRESH_TOKEN")
-account_id = System.get_env("E2E_CHATGPT_ACCOUNT_ID")
+access_token = System.get_env("E2E_OPENAI_ACCESS_TOKEN")
+refresh_token = System.get_env("E2E_OPENAI_REFRESH_TOKEN")
+account_id = System.get_env("E2E_OPENAI_ACCOUNT_ID")
 token_present? = fn value -> is_binary(value) and value != "" end
 
 if token_present?.(access_token) and token_present?.(refresh_token) do
   # Delete any existing token for this user+provider to allow re-seeding
-  OAuthToken.for_user_and_provider(user.id, "chatgpt")
+  OAuthToken.for_user_and_provider(user.id, "openai_codex")
   |> Repo.delete_all()
 
   # Cloak encrypts the tokens transparently via the Ecto type
   %OAuthToken{user_id: user.id}
   |> OAuthToken.changeset(%{
-    provider: "chatgpt",
+    provider: "openai_codex",
     access_token: access_token,
     refresh_token: refresh_token,
     # Set expires_at far in the future so the server uses the access_token
@@ -63,9 +63,7 @@ if token_present?.(access_token) and token_present?.(refresh_token) do
   })
   |> Repo.insert!()
 
-  IO.puts("ChatGPT OAuth token seeded for #{user.email}")
+  IO.puts("OpenAI OAuth token seeded for #{user.email}")
 else
-  IO.puts(
-    "Skipping ChatGPT token seed — set E2E_CHATGPT_ACCESS_TOKEN and E2E_CHATGPT_REFRESH_TOKEN"
-  )
+  IO.puts("Skipping OpenAI token seed — set E2E_OPENAI_ACCESS_TOKEN and E2E_OPENAI_REFRESH_TOKEN")
 end

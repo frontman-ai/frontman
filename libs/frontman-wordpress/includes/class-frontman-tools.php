@@ -240,6 +240,10 @@ class Frontman_Tools {
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':
+				if ( 'css' === $field_name && 'wp_update_custom_css' === $tool_name && ! is_string( $value ) ) {
+					return $value;
+				}
+
 				return $this->sanitize_string_value( (string) $value, $tool_name, $field_name, $preserve_input_strings );
 		}
 
@@ -324,6 +328,10 @@ class Frontman_Tools {
 
 		if ( 'content' === $field_name ) {
 			return in_array( $tool_name, [ 'wp_update_template', 'wp_upload_media' ], true ) ? $value : wp_kses_post( $value );
+		}
+
+		if ( 'css' === $field_name && 'wp_update_custom_css' === $tool_name ) {
+			return $value;
 		}
 
 		if ( 0 === strpos( $tool_name, 'wp_elementor_' ) ) {

@@ -23,7 +23,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
-    task_id = task_with_active_run_fixture(scope, framework: "nextjs")
+    task_id = task_with_active_run_fixture(scope, framework: "nextjs").id
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
     {:ok, task_id: task_id, scope: scope}

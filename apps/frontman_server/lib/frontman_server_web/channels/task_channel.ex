@@ -19,7 +19,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.{Model, Registry}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.RetryCoordinator
   alias FrontmanServer.Tasks.Todos.Todo
@@ -447,10 +446,10 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp resume_agent(socket, scope, task_id, meta) do
-    scope = Scope.with_env_api_keys(scope, Registry.extract_env_keys(meta))
+    scope = enrich_scope_with_env_keys(scope, meta)
 
     model =
-      case Model.from_client_params(meta["model"]) do
+      case Providers.model_from_client_params(meta["model"]) do
         {:ok, m} -> m
         :error -> nil
       end
@@ -715,12 +714,20 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  # Enrich scope with env API keys from params _meta (e.g., OPENROUTER_API_KEY, ANTHROPIC_API_KEY from project env)
-  defp enrich_scope_from_params(scope, params) when is_map(params) do
-    Scope.with_env_api_keys(scope, params |> get_in(["_meta"]) |> Registry.extract_env_keys())
+  defp enrich_scope_from_params(scope, %{"_meta" => meta}) when is_map(meta) do
+    enrich_scope_with_env_keys(scope, meta)
   end
 
   defp enrich_scope_from_params(scope, _), do: scope
+
+  defp enrich_scope_with_env_keys(scope, metadata) when is_map(metadata) do
+    case Providers.extract_env_keys(metadata) do
+      env_api_keys when map_size(env_api_keys) > 0 -> Scope.with_env_api_keys(scope, env_api_keys)
+      _env_api_keys -> scope
+    end
+  end
+
+  defp enrich_scope_with_env_keys(scope, _metadata), do: scope
 
   defp execution_request(socket, task_id, model, meta) do
     mcp_tools = socket.assigns[:mcp_tools] || []
@@ -745,7 +752,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp prompt_meta(_params), do: nil
 
   defp extract_model_from_params(params) when is_map(params) do
-    case Model.from_client_params(get_in(params, ["_meta", "model"])) do
+    case Providers.model_from_client_params(get_in(params, ["_meta", "model"])) do
       {:ok, model} -> model
       :error -> nil
     end
@@ -849,12 +856,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # Unified turn finalization — every code path that ends a turn goes through here.
   # This guarantees the domain invariant: retry_state is always nil when a turn ends.
-  @typep turn_outcome ::
-           {:completed, stop_reason :: String.t()}
-           | {:error, message :: String.t(), category :: String.t()}
 
-  @spec finalize_turn(Phoenix.Socket.t(), turn_outcome(), pos_integer() | nil) ::
-          {:noreply, Phoenix.Socket.t()}
   defp finalize_turn(socket, outcome, turn_number) do
     task_id = socket.assigns.task_id
     socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))

@@ -120,11 +120,11 @@ defmodule FrontmanServerWeb.Router do
     delete("/oauth/anthropic/disconnect", AnthropicOAuthController, :disconnect)
     get("/oauth/anthropic/status", AnthropicOAuthController, :status)
 
-    # ChatGPT OAuth routes (device auth flow - all require session)
-    post("/oauth/chatgpt/initiate", ChatGPTOAuthController, :initiate)
-    post("/oauth/chatgpt/poll", ChatGPTOAuthController, :poll)
-    delete("/oauth/chatgpt/disconnect", ChatGPTOAuthController, :disconnect)
-    get("/oauth/chatgpt/status", ChatGPTOAuthController, :status)
+    # OpenAI OAuth routes (device auth flow - all require session)
+    post("/oauth/openai/initiate", OpenAIOAuthController, :initiate)
+    post("/oauth/openai/poll", OpenAIOAuthController, :poll)
+    delete("/oauth/openai/disconnect", OpenAIOAuthController, :disconnect)
+    get("/oauth/openai/status", OpenAIOAuthController, :status)
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

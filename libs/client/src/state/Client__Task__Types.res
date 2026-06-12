@@ -510,6 +510,7 @@ type annotationMeta = {
   annotationIndex: int,
   annotationId: string,
   tagName: string,
+  selector: option<string>,
   comment: option<string>,
   file: option<string>,
   line: option<int>,
@@ -528,6 +529,7 @@ let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
   annotationIndex: s.field("annotation_index", S.int),
   annotationId: s.field("annotation_id", S.string),
   tagName: s.field("tag_name", S.string),
+  selector: s.field("selector", S.option(S.string)),
   comment: s.field("comment", S.option(S.string)),
   file: s.field("file", S.option(S.string)),
   line: s.field("line", S.option(S.int)),
@@ -636,6 +638,7 @@ let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t 
       annotationIndex: index,
       annotationId: annotation.id,
       tagName: annotation.tagName,
+      selector: annotation.selector,
       comment: annotation.comment,
       file,
       line,
@@ -1045,8 +1048,8 @@ let annotationMetaToMessageAnnotation = (
 
   {
     id: meta.annotationId,
-    selector: Ok(None),
     tagName: meta.tagName,
+    selector: Ok(meta.selector),
     cssClasses: meta.cssClasses,
     comment: meta.comment,
     screenshot: Ok(screenshot),
