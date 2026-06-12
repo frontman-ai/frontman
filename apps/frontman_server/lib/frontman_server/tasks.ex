@@ -367,28 +367,18 @@ defmodule FrontmanServer.Tasks do
          %Scope{} = scope,
          task_id,
          turn_number,
-         {:crashed, %{reason: reason, stacktrace: stacktrace}}
+         {:crashed, %{message: message}}
        ) do
     Logger.error("Execution crashed for task #{task_id}, reason: #{inspect(reason)}")
 
-    if is_exception(reason) do
-      Sentry.capture_exception(reason,
-        stacktrace: stacktrace,
-        tags: %{error_type: "agent_crash"},
-        extra: %{task_id: task_id}
-      )
-    else
-      Sentry.capture_message("Agent execution crashed",
-        level: :error,
-        tags: %{error_type: "agent_crash"},
-        extra: %{task_id: task_id, reason: inspect(reason)}
-      )
-    end
-
-    {reason_str, _category, _retryable} = ErrorClassifier.classify_error(reason)
+    Sentry.capture_message("Agent execution crashed",
+      level: :error,
+      tags: %{error_type: "agent_crash"},
+      extra: %{task_id: task_id, reason: inspect(message)}
+    )
 
     {:ok, _interaction} =
-      record_agent_run_result(scope, task_id, turn_number, {:crashed, reason_str})
+      record_agent_run_result(scope, task_id, turn_number, {:crashed, message})
 
     :ok
   end
