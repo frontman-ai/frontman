@@ -2,18 +2,12 @@ defmodule SwarmAi.Executor do
   @moduledoc false
 
   alias SwarmAi.LLM.Response
-  alias SwarmAi.{Loop, Message, Telemetry}
+  alias SwarmAi.{Loop, Telemetry}
 
-  import SwarmAi.Message, only: [is_message: 1]
-
-  @type dispatch_event :: ({atom(), term()} -> any())
-
-  @spec run(atom(), SwarmAi.Agent.t(), dispatch_event()) ::
-          {:completed | :failed | :paused, term()}
   def run(runtime, agent, dispatch_event)
       when is_atom(runtime) and is_function(dispatch_event, 1) do
     config = %Loop.Config{}
-    messages = agent |> SwarmAi.Agent.messages() |> normalize_messages()
+    messages = agent |> SwarmAi.Agent.messages()
     loop = Loop.make(agent, config)
 
     Telemetry.run_span(
@@ -213,10 +207,6 @@ defmodule SwarmAi.Executor do
       end
     )
   end
-
-  defp normalize_messages(msg) when is_binary(msg), do: [Message.user(msg)]
-  defp normalize_messages(msg) when is_message(msg), do: [msg]
-  defp normalize_messages(msgs) when is_list(msgs), do: msgs
 
   defp classify_exit_reason({:timeout, {GenServer, :call, _}}), do: :genserver_call_timeout
   defp classify_exit_reason(:timeout), do: :stream_timeout

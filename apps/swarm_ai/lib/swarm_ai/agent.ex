@@ -13,7 +13,7 @@ defprotocol SwarmAi.Agent do
   def id(agent)
 
   @doc "Return messages for this run."
-  @spec messages(t) :: SwarmAi.Message.input()
+  @spec messages(t) :: [SwarmAi.Message.t()]
   def messages(agent)
 
   @doc "Return dispatcher-only context for this run."

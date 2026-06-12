@@ -12,7 +12,6 @@ defmodule SwarmAi.Message do
 
   @type role :: :system | :user | :assistant | :tool
   @type t :: System.t() | User.t() | Assistant.t() | Tool.t()
-  @type input :: String.t() | t() | [t()]
 
   defguard is_message(msg)
            when is_struct(msg, System) or is_struct(msg, User) or
