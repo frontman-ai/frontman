@@ -134,6 +134,7 @@ defmodule FrontmanServer.Tasks.Execution do
     row
     |> InteractionSchema.to_struct()
     |> List.wrap()
+    # FIXME(Danni) - why not get rid of swarm messages? lets it just work with reqllm messages
     |> Interaction.to_swarm_messages()
   end
 
