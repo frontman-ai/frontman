@@ -6,20 +6,22 @@ defmodule SwarmAi.Supervisor do
   @doc false
   @spec start_link(keyword()) :: Supervisor.on_start()
   def start_link(opts) do
-    name = Keyword.fetch!(opts, :name)
+    runtime_name = Keyword.fetch!(opts, :name)
     {:ok, event_dispatcher} = Keyword.fetch(opts, :event_dispatcher)
 
-    Supervisor.start_link(__MODULE__, %{name: name, event_dispatcher: event_dispatcher},
-      name: name
+    Supervisor.start_link(
+      __MODULE__,
+      %{runtime_name: runtime_name, event_dispatcher: event_dispatcher},
+      name: runtime_name
     )
   end
 
   @impl true
   @spec init(keyword()) :: {:ok, {Supervisor.sup_flags(), [Supervisor.child_spec()]}}
-  def init(%{name: name, event_dispatcher: event_dispatcher}) do
-    registry_name = SwarmAi.registry_name(name)
-    task_sup_name = SwarmAi.task_supervisor_name(name)
-    execution_sup_name = SwarmAi.execution_supervisor_name(name)
+  def init(%{runtime_name: runtime_name, event_dispatcher: event_dispatcher}) do
+    registry_name = SwarmAi.registry_name(runtime_name)
+    task_sup_name = SwarmAi.task_supervisor_name(runtime_name)
+    execution_sup_name = SwarmAi.execution_supervisor_name(runtime_name)
 
     children = [
       {Registry, keys: :unique, name: registry_name},
