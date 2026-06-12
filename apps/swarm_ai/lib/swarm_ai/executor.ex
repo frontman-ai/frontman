@@ -7,7 +7,7 @@ defmodule SwarmAi.Executor do
   def run(runtime, agent, dispatch_event)
       when is_atom(runtime) and is_function(dispatch_event, 1) do
     config = %Loop.Config{}
-    messages = agent |> SwarmAi.Agent.messages()
+    messages = SwarmAi.Agent.messages(agent)
     loop = Loop.make(agent, config)
 
     Telemetry.run_span(

@@ -11,7 +11,7 @@ defmodule SwarmAi do
          event_dispatcher: {MyApp.SwarmDispatcher, :dispatch, []}}
       ]
 
-      agent = %MyAgent{id: task_id, messages: "Analyze this code"}
+      agent = %MyAgent{id: task_id, messages: [SwarmAi.Message.user("Analyze this code")]}
 
       {:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, agent)
       SwarmAi.running?(MyApp.AgentRuntime, SwarmAi.Agent.id(agent))

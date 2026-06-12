@@ -12,7 +12,7 @@ defmodule SwarmAi.Testing do
       test "runs agent", %{echo_execution: agent} do
         runtime = MyRuntime
         start_supervised!({SwarmAi, name: runtime})
-        agent = %{agent | id: "task", messages: "Hello"}
+        agent = %{agent | id: "task", messages: [SwarmAi.Message.user("Hello")]}
         {:ok, pid} = SwarmAi.run(runtime, agent)
         assert is_pid(pid)
       end
@@ -37,7 +37,7 @@ defmodule SwarmAi.Testing do
             id: String.t() | nil,
             name: String.t() | nil,
             llm: SwarmAi.LLM.t() | nil,
-            messages: SwarmAi.Message.input() | nil,
+            messages: [SwarmAi.Message.t()],
             context: map() | nil,
             tool_executor: SwarmAi.Agent.tool_executor() | nil
           }
@@ -337,7 +337,7 @@ defmodule SwarmAi.Testing do
       id: "task-#{:erlang.unique_integer([:positive])}",
       name: name,
       llm: llm,
-      messages: "Hello",
+      messages: [SwarmAi.Message.user("Hello")],
       context: %{},
       tool_executor: default_tool_executor()
     ]

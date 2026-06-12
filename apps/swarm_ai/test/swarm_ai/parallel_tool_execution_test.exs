@@ -198,7 +198,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       test_execution(
         llm,
         "TestBot",
-        Keyword.merge([id: id, messages: "Do work"], opts)
+        Keyword.merge([id: id, messages: [SwarmAi.Message.user("Do work")]], opts)
       )
 
     SwarmAi.run(runtime, agent)
