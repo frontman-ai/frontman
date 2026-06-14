@@ -51,7 +51,7 @@ defmodule SwarmAi.Testing do
     def context(%{context: context}), do: context
     def tool_executor(%{tool_executor: tool_executor}), do: tool_executor
     def system_prompt(%{name: name}), do: "You are #{name}"
-    def llm(%{llm: llm}), do: llm
+    def llm_client(%{llm: llm}), do: llm
   end
 
   defmodule MockLLM do

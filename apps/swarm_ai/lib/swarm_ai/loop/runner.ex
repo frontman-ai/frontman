@@ -135,7 +135,7 @@ defmodule SwarmAi.Loop.Runner do
     messages = input_msgs ++ [assistant_msg | tool_msgs]
 
     new_step = Loop.Step.new(length(steps) + 1, messages)
-    loop = %{loop | status: :running, steps: steps ++ [new_step], current_step: new_step.number}
+    loop = %{loop | status: :running, steps: steps ++ [new_step]}
 
     # Emit step_ended before starting the new LLM call
     {loop, [{:step_ended, completed_step}, {:call_llm, llm, messages}]}

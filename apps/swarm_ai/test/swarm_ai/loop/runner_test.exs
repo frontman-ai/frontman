@@ -182,7 +182,7 @@ defmodule SwarmAi.Loop.RunnerTest do
     test "increments step number correctly", %{loop: loop} do
       {loop_after_start, _} = Runner.start(loop, [Message.user("Test")])
 
-      assert loop_after_start.current_step == 1
+      assert Loop.current_step(loop_after_start) == 1
       assert length(loop_after_start.steps) == 1
       assert hd(loop_after_start.steps).number == 1
     end
