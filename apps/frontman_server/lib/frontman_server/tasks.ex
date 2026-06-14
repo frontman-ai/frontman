@@ -40,8 +40,6 @@ defmodule FrontmanServer.Tasks do
     ],
     exports: @exports
 
-  require Logger
-
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Repo
@@ -56,6 +54,7 @@ defmodule FrontmanServer.Tasks do
   }
 
   alias FrontmanServer.Workers.GenerateTitle
+  require Logger
 
   @task_scoped_interaction_types Interaction.task_scoped_types()
   @agent_run_starter_interaction_types [:user_message, :agent_retry]
@@ -369,8 +368,6 @@ defmodule FrontmanServer.Tasks do
          turn_number,
          {:crashed, %{message: message}}
        ) do
-    Logger.error("Execution crashed for task #{task_id}, reason: #{inspect(reason)}")
-
     Sentry.capture_message("Agent execution crashed",
       level: :error,
       tags: %{error_type: "agent_crash"},

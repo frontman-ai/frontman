@@ -13,7 +13,6 @@ mkcert="1.4.4"
 "npm:vscode-langservers-extracted"="latest"
 "npm:@biomejs/biome"="latest"
 "npm:typescript-language-server" = "latest"
-"dexter" = "latest"
 lefthook="latest"
 
 [env]

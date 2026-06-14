@@ -15,7 +15,5 @@ defprotocol SwarmAi.LLM do
   This is the primitive operation - batch responses are built via
   Response.from_stream/1. Returns a lazy enumerable of ReqLLM.StreamChunk.t().
   """
-  @spec stream(t, messages :: [SwarmAi.Message.t()], opts :: keyword()) ::
-          {:ok, Enumerable.t(ReqLLM.StreamChunk.t())} | {:error, term()}
   def stream(client, messages, opts)
 end

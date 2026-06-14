@@ -29,6 +29,6 @@ defprotocol SwarmAi.Agent do
   def system_prompt(agent)
 
   @doc "Return the LLM client for this run."
-  @spec llm(t) :: SwarmAi.LLM.t()
-  def llm(agent)
+  @spec llm_client(t) :: SwarmAi.LLM.t()
+  def llm_client(agent)
 end

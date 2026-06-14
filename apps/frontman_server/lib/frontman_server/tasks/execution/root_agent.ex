@@ -58,7 +58,7 @@ defimpl SwarmAi.Agent, for: FrontmanServer.Tasks.Execution.RootAgent do
 
   def system_prompt(%RootAgent{system_prompt: system_prompt}), do: system_prompt
 
-  def llm(%RootAgent{} = agent) do
+  def llm_client(%RootAgent{} = agent) do
     LLMClient.new(tools: agent.tools, llm_opts: agent.llm_opts, model: agent.model)
   end
 end

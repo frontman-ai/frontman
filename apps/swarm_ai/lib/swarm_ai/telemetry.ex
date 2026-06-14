@@ -14,7 +14,7 @@ defmodule SwarmAi.Telemetry do
       )
 
   Run events carry `loop_id`, `agent_id`, `execution_module`, `status`,
-  `step_count`, `result`, `error`, `output`, and `metadata` as applicable.
+  `step_count`, `result`, `error`, and `output` as applicable.
   Step, LLM, and tool events carry `loop_id`, `step`, and their local fields.
   """
 
@@ -27,8 +27,7 @@ defmodule SwarmAi.Telemetry do
     emit(Events.run_start(), %{
       loop_id: loop_id,
       agent_id: Keyword.get(opts, :agent_id),
-      execution_module: execution_module,
-      metadata: Keyword.get(opts, :metadata, %{})
+      execution_module: execution_module
     })
   end
 
@@ -41,8 +40,7 @@ defmodule SwarmAi.Telemetry do
       status: Keyword.get(opts, :status),
       result: Keyword.get(opts, :result),
       error: Keyword.get(opts, :error),
-      step_count: Keyword.get(opts, :step_count, 0),
-      metadata: Keyword.get(opts, :metadata, %{})
+      step_count: Keyword.get(opts, :step_count, 0)
     })
   end
 
@@ -54,52 +52,43 @@ defmodule SwarmAi.Telemetry do
       agent_id: Keyword.get(opts, :agent_id),
       kind: kind,
       reason: reason,
-      stacktrace: stacktrace,
-      metadata: Keyword.get(opts, :metadata, %{})
+      stacktrace: stacktrace
     })
   end
 
   @doc "Emit step start event."
-  @spec step_start(String.t(), pos_integer(), map()) :: :ok
-  def step_start(loop_id, step, metadata \\ %{}) do
+  def step_start(loop_id, step) do
     emit(Events.step_start(), %{
       loop_id: loop_id,
-      step: step,
-      metadata: metadata
+      step: step
     })
   end
 
   @doc "Emit step stop event."
-  @spec step_stop(String.t(), pos_integer(), map()) :: :ok
-  def step_stop(loop_id, step, metadata \\ %{}) do
+  def step_stop(loop_id, step) do
     emit(Events.step_stop(), %{
       loop_id: loop_id,
-      step: step,
-      metadata: metadata
+      step: step
     })
   end
 
   @doc "Emit step exception event."
-  @spec step_exception(String.t(), pos_integer(), atom(), term(), list(), map()) :: :ok
-  def step_exception(loop_id, step, kind, reason, stacktrace, metadata \\ %{}) do
+  def step_exception(loop_id, step, kind, reason, stacktrace) do
     emit(Events.step_exception(), %{
       loop_id: loop_id,
       step: step,
       kind: kind,
       reason: reason,
-      stacktrace: stacktrace,
-      metadata: metadata
+      stacktrace: stacktrace
     })
   end
 
   @doc "Emit LLM call start event."
-  @spec llm_call_start(String.t(), pos_integer(), String.t() | nil, map()) :: :ok
-  def llm_call_start(loop_id, step, model, metadata \\ %{}) do
+  def llm_call_start(loop_id, step, model) do
     emit(Events.llm_call_start(), %{
       loop_id: loop_id,
       step: step,
-      model: model,
-      metadata: metadata
+      model: model
     })
   end
 
@@ -113,61 +102,43 @@ defmodule SwarmAi.Telemetry do
       output_tokens: Keyword.get(opts, :output_tokens, 0),
       reasoning_tokens: Keyword.get(opts, :reasoning_tokens, 0),
       cached_tokens: Keyword.get(opts, :cached_tokens, 0),
-      tool_call_count: Keyword.get(opts, :tool_call_count, 0),
-      metadata: Keyword.get(opts, :metadata, %{})
+      tool_call_count: Keyword.get(opts, :tool_call_count, 0)
     })
   end
 
   @doc "Emit LLM call exception event."
-  @spec llm_call_exception(String.t(), pos_integer(), atom(), term(), list(), map()) :: :ok
-  def llm_call_exception(loop_id, step, kind, reason, stacktrace, metadata \\ %{}) do
+  def llm_call_exception(loop_id, step, kind, reason, stacktrace) do
     emit(Events.llm_call_exception(), %{
       loop_id: loop_id,
       step: step,
       kind: kind,
       reason: reason,
-      stacktrace: stacktrace,
-      metadata: metadata
+      stacktrace: stacktrace
     })
   end
 
   @doc "Emit tool execution start event."
-  @spec tool_execute_start(String.t(), pos_integer(), String.t(), String.t(), map()) :: :ok
-  def tool_execute_start(loop_id, step, tool_id, tool_name, metadata \\ %{}) do
+  def tool_execute_start(loop_id, step, tool_id, tool_name) do
     emit(Events.tool_execute_start(), %{
       loop_id: loop_id,
       step: step,
       tool_id: tool_id,
-      tool_name: tool_name,
-      metadata: metadata
+      tool_name: tool_name
     })
   end
 
   @doc "Emit tool execution stop event."
-  @spec tool_execute_stop(String.t(), pos_integer(), String.t(), String.t(), keyword()) :: :ok
   def tool_execute_stop(loop_id, step, tool_id, tool_name, opts \\ []) do
     emit(Events.tool_execute_stop(), %{
       loop_id: loop_id,
       step: step,
       tool_id: tool_id,
       tool_name: tool_name,
-      is_error: Keyword.get(opts, :is_error, false),
-      metadata: Keyword.get(opts, :metadata, %{})
+      is_error: Keyword.get(opts, :is_error, false)
     })
   end
 
   @doc "Emit tool execution exception event."
-  @spec tool_execute_exception(
-          String.t(),
-          pos_integer(),
-          String.t(),
-          String.t(),
-          atom(),
-          term(),
-          list(),
-          map()
-        ) ::
-          :ok
   def tool_execute_exception(
         loop_id,
         step,
@@ -175,8 +146,7 @@ defmodule SwarmAi.Telemetry do
         tool_name,
         kind,
         reason,
-        stacktrace,
-        metadata \\ %{}
+        stacktrace
       ) do
     emit(Events.tool_execute_exception(), %{
       loop_id: loop_id,
@@ -185,8 +155,7 @@ defmodule SwarmAi.Telemetry do
       tool_name: tool_name,
       kind: kind,
       reason: reason,
-      stacktrace: stacktrace,
-      metadata: metadata
+      stacktrace: stacktrace
     })
   end
 
@@ -202,8 +171,7 @@ defmodule SwarmAi.Telemetry do
         {result, %{loop_id: id, agent_id: agent_id, status: :completed, step_count: 3}}
       end)
   """
-  @spec run_span(map(), (-> {term(), map()})) :: term()
-  def run_span(metadata, fun) when is_function(fun, 0) do
+  def run_span(%{} = metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :run], metadata, fun)
   end
 
@@ -214,13 +182,12 @@ defmodule SwarmAi.Telemetry do
 
   ## Example
 
-      SwarmAi.Telemetry.step_span(%{loop_id: id, step: 1, metadata: %{}}, fn ->
+      SwarmAi.Telemetry.step_span(%{loop_id: id, step: 1}, fn ->
         result = do_step_work()
         {result, %{}}
       end)
   """
-  @spec step_span(map(), (-> {term(), map()})) :: term()
-  def step_span(metadata, fun) when is_function(fun, 0) do
+  def step_span(%{} = metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :step], metadata, fun)
   end
 
@@ -236,8 +203,7 @@ defmodule SwarmAi.Telemetry do
         {response, %{input_tokens: 100, output_tokens: 50, tool_call_count: 2}}
       end)
   """
-  @spec llm_span(map(), (-> {term(), map()})) :: term()
-  def llm_span(metadata, fun) when is_function(fun, 0) do
+  def llm_span(%{} = metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :llm, :call], metadata, fun)
   end
 
@@ -253,7 +219,6 @@ defmodule SwarmAi.Telemetry do
         {result, %{is_error: false}}
       end)
   """
-  @spec tool_span(map(), (-> {term(), map()})) :: term()
   def tool_span(metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :tool, :execute], metadata, fun)
   end
@@ -272,7 +237,6 @@ defmodule SwarmAi.Telemetry do
       SwarmAi.Telemetry.attach_default_logger()
       SwarmAi.Telemetry.attach_default_logger(level: :debug)
   """
-  @spec attach_default_logger(keyword()) :: :ok | {:error, :already_exists}
   def attach_default_logger(opts \\ []) do
     level = Keyword.get(opts, :level, :info)
 
@@ -287,13 +251,11 @@ defmodule SwarmAi.Telemetry do
   @doc """
   Detaches the default logger.
   """
-  @spec detach_default_logger() :: :ok | {:error, :not_found}
   def detach_default_logger do
     :telemetry.detach("swarm-default-logger")
   end
 
   @doc false
-  @spec handle_event([atom()], map(), map(), map()) :: :ok
   def handle_event(event, measurements, metadata, config) do
     level = Map.get(config, :level, :info)
     message = format_event(event, measurements, metadata)

@@ -22,28 +22,6 @@ defmodule SwarmAi.Loop.Runner do
   alias SwarmAi.{Agent, Effect, LLM, Loop, Message}
 
   @doc """
-  Starts the execution loop with user messages.
-
-  Prepends the system prompt, starts the loop, and returns effects to call
-  the LLM.
-
-  """
-  @spec start(Loop.t(), [Message.t()]) :: {Loop.t(), [Effect.t()]}
-  def start(%Loop{status: :ready, agent: agent} = loop, user_messages)
-      when is_list(user_messages) do
-    system_prompt = Agent.system_prompt(agent)
-    llm = Agent.llm(agent)
-
-    messages = [Message.system(system_prompt) | user_messages]
-
-    loop = Loop.start(loop, messages)
-
-    effects = [{:call_llm, llm, messages}]
-
-    {loop, effects}
-  end
-
-  @doc """
   Handles successful LLM response.
 
   If the response contains tool calls, emits `{:execute_tool, tool_call}` effects.
@@ -149,8 +127,8 @@ defmodule SwarmAi.Loop.Runner do
            response_metadata: response_metadata
          }
        ) do
-    llm = Agent.llm(agent)
-    completed_step = loop.current_step
+    llm = Agent.llm_client(agent)
+    completed_step = Loop.current_step(loop)
 
     assistant_msg = Message.assistant(content, tool_calls, response_metadata, reasoning_details)
     tool_msgs = Enum.map(tool_calls, &format_tool_result/1)
