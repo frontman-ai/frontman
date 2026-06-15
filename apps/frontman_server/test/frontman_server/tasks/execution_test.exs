@@ -18,7 +18,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
   alias Ecto.Adapters.SQL.Sandbox
-  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema}
@@ -72,7 +72,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp setup_user(_context) do
-    scope = user_scope_fixture() |> Scope.with_env_api_keys(%{"openrouter" => "sk-or-test"})
+    scope = user_scope_fixture()
+    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
     {:ok, scope: scope}
   end
 

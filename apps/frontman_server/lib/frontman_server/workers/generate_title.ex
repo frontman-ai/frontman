@@ -8,7 +8,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   @moduledoc """
   Oban worker that generates a short task title from the first user prompt.
 
-  Resolves the API key through the standard priority chain (OAuth > user key > env key).
+  Resolves the API key through the standard priority chain (OAuth > user key).
   """
 
   use Oban.Worker,
@@ -26,7 +26,6 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   alias FrontmanServer.Accounts.{Scope, User}
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Vault
   alias ReqLLM.Message.ContentPart
 
   @system_prompt """
@@ -37,13 +36,12 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   @doc """
   Builds an Oban job changeset for title generation.
   """
-  def new_job(%Scope{user: %User{} = user} = scope, task_id, user_prompt_text, model) do
+  def new_job(%Scope{user: %User{} = user}, task_id, user_prompt_text, model) do
     new(%{
       user_id: user.id,
       task_id: task_id,
       user_prompt_text: user_prompt_text,
-      model: model,
-      encrypted_env_api_key: encrypt_env_api_key(Accounts.scope_env_api_keys(scope))
+      model: model
     })
   end
 
@@ -57,8 +55,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
           } = args
       }) do
     user = Accounts.get_user!(user_id)
-    env_api_keys = args |> Map.get("encrypted_env_api_key") |> decrypt_env_api_key()
-    scope = Accounts.scope_for_user_with_env_keys(user, env_api_keys)
+    scope = Scope.for_user(user)
     model = Map.get(args, "model")
 
     with {:ok, {model_spec, llm_opts}} <- Providers.prepare_llm_args(scope, model, max_tokens: 30),
@@ -92,17 +89,5 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     ]
 
     {:ok, ReqLLM.generate_text!(model_spec, messages, llm_opts)}
-  end
-
-  defp encrypt_env_api_key(env_api_key) when env_api_key == %{}, do: nil
-
-  defp encrypt_env_api_key(env_api_key) do
-    env_api_key |> Jason.encode!() |> Vault.encrypt!() |> Base.encode64()
-  end
-
-  defp decrypt_env_api_key(nil), do: %{}
-
-  defp decrypt_env_api_key(encrypted) do
-    encrypted |> Base.decode64!() |> Vault.decrypt!() |> Jason.decode!()
   end
 end

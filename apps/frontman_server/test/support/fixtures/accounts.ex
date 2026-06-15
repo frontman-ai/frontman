@@ -12,6 +12,7 @@ defmodule FrontmanServer.Test.Fixtures.Accounts do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Providers
 
   def unique_user_email, do: "user#{System.unique_integer()}@example.com"
   def valid_user_password, do: "hello world!"
@@ -54,9 +55,9 @@ defmodule FrontmanServer.Test.Fixtures.Accounts do
   end
 
   def user_scope_fixture(user) do
-    user
-    |> Scope.for_user()
-    |> Scope.with_env_api_keys(%{"openrouter" => "sk-or-test"})
+    scope = Scope.for_user(user)
+    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+    scope
   end
 
   def user_scope_fixture(user, organization) do

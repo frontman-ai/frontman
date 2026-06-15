@@ -17,7 +17,6 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
-  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServerWeb.ACPHistory
@@ -90,22 +89,11 @@ defmodule FrontmanServerWeb.TasksChannel do
        ) do
     Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
 
-    # Enrich scope with env API keys from clientInfo _meta (if provided by the project)
-    enriched_scope =
-      case extract_env_api_keys(params["clientInfo"]) do
-        env_api_keys when map_size(env_api_keys) > 0 ->
-          Scope.with_env_api_keys(socket.assigns.scope, env_api_keys)
-
-        _env_api_keys ->
-          socket.assigns.scope
-      end
-
     socket =
       socket
       |> assign(:acp_initialized, true)
       |> assign(:acp_client_info, params["clientInfo"])
       |> assign(:acp_client_capabilities, params["clientCapabilities"])
-      |> assign(:scope, enriched_scope)
 
     # Push config options immediately so the model selector is populated
     # before any session is created.
@@ -236,12 +224,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     do: framework
 
   defp extract_framework(_), do: nil
-
-  defp extract_env_api_keys(%{"_meta" => meta}) when is_map(meta) do
-    Providers.extract_env_keys(meta)
-  end
-
-  defp extract_env_api_keys(_), do: %{}
 
   # Parse errors
   defp handle_parse_error(reason, %{"id" => id}, socket) do

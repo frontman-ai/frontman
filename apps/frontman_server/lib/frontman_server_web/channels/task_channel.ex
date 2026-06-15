@@ -16,7 +16,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
-  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
@@ -398,8 +397,8 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         {:ok, _interaction, :no_executor} ->
           # No live executor (agent dead after server restart). If all active-run
-          # tool calls have results, resume the agent using scope.env_api_keys +
-          # model from the tool result's _meta (sent by the client per MCP spec).
+          # tool calls have results, resume the agent using model from the tool
+          # result's _meta (sent by the client per MCP spec).
           case Tasks.get_active_run_unresolved_tool_calls(scope, task_id) do
             {:ok, _turn_number, []} ->
               Logger.info(
@@ -437,15 +436,13 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp resume_agent(socket, scope, task_id, meta) do
-    scope = enrich_scope_with_env_keys(scope, meta)
-
     model =
       case Providers.model_from_client_params(meta["model"]) do
         {:ok, m} -> m
         :error -> nil
       end
 
-    Tasks.resume_execution(scope, task_id, execution_request(socket, task_id, model, meta))
+    Tasks.resume_execution(scope, task_id, execution_request(socket, model, meta))
     socket
   end
 
@@ -614,7 +611,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # This is called after the client has joined the session channel, allowing
   # history notifications to be received through the onUpdate callback.
-  defp handle_session_load(id, params, socket) do
+  defp handle_session_load(id, _params, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
@@ -624,9 +621,8 @@ defmodule FrontmanServerWeb.TaskChannel do
         stream_session_history(socket, task)
 
         # Return ACP-compliant LoadSessionResponse with config options.
-        # Enrich scope with env keys from _meta if present in params.
         config_options =
-          enrich_scope_from_params(scope, params)
+          scope
           |> Providers.model_config_data()
           |> ACP.build_model_config_options()
 
@@ -665,22 +661,21 @@ defmodule FrontmanServerWeb.TaskChannel do
     end)
   end
 
-  defp process_prompt(id, %{"prompt" => prompt_content} = params, socket) do
+  defp process_prompt(id, %{"prompt" => user_message} = params, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
-    # FIXME(Itay): Potential cleanup, we probably don't need this enrichment and env api keys.
-    scope = enrich_scope_from_params(scope, params)
-    socket = assign(socket, :scope, scope)
-
-    model = extract_model_from_params(params)
+    {:ok, model} = Providers.model_from_client_params(get_in(params, ["_meta", "model"]))
+    meta = prompt_meta(params)
 
     Logger.info("process_prompt", %{task_id: task_id, model: model})
 
-    # FIXME(Itay): Lets use ACP accessors to retrieve the prompt data
-    # FIXME(Itay): function name is a constructor and not an actual request.
-    execution = execution_request(socket, task_id, model, prompt_meta(params))
-
-    case Tasks.submit_user_message(scope, task_id, prompt_content, execution) do
+    case Tasks.submit_user_message(scope, %{
+           task_id: task_id,
+           message: user_message,
+           model: model,
+           mcp_tools: socket.assigns.mcp_tools,
+           project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+         }) do
       {:error, :already_running} ->
         Logger.info("Rejected prompt — agent already running for task #{task_id}")
         error_response = JsonRpc.error_response(id, -32_000, "Agent already running")
@@ -693,8 +688,6 @@ defmodule FrontmanServerWeb.TaskChannel do
             jsonrpc_id: id
           })
 
-        socket = assign(socket, :last_execution, execution)
-
         Logger.info("User message added, agent spawned for task #{task_id}")
 
         {:noreply, socket}
@@ -706,52 +699,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp enrich_scope_from_params(scope, %{"_meta" => meta}) when is_map(meta) do
-    enrich_scope_with_env_keys(scope, meta)
-  end
-
-  defp enrich_scope_from_params(scope, _), do: scope
-
-  defp enrich_scope_with_env_keys(scope, metadata) when is_map(metadata) do
-    case Providers.extract_env_keys(metadata) do
-      env_api_keys when map_size(env_api_keys) > 0 -> Scope.with_env_api_keys(scope, env_api_keys)
-      _env_api_keys -> scope
-    end
-  end
-
-  defp enrich_scope_with_env_keys(scope, _metadata), do: scope
-
-  defp execution_request(socket, task_id, model, meta) do
-    mcp_tools = socket.assigns[:mcp_tools] || []
-
-    # QUESTION(Itay): Why do we have tools and mcp_tool_defs?
-    # FIXME(Itay): Cleanup: task_id not used, we can perhaps just have a single tools or since its
-    # static, we can just use it in the callsite and pass any parameter thats needed.
-    %{
-      tools: Tools.prepare_for_task(mcp_tools, task_id),
-      model: model,
-      mcp_tool_defs: mcp_tools,
-      backend_tool_modules: Tools.backend_tool_modules(),
-      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
-    }
-  end
-
-  defp retry_execution_request(socket) do
-    case socket.assigns[:last_execution] do
-      %{tools: _tools} = execution -> execution
-      _none -> execution_request(socket, socket.assigns.task_id, nil, nil)
-    end
-  end
-
   defp prompt_meta(%{"_meta" => meta}) when is_map(meta), do: meta
   defp prompt_meta(_params), do: nil
-
-  defp extract_model_from_params(params) when is_map(params) do
-    case Providers.model_from_client_params(get_in(params, ["_meta", "model"])) do
-      {:ok, model} -> model
-      :error -> nil
-    end
-  end
 
   defp handle_execution_chunk(socket, %{type: :content, text: text})
        when is_binary(text) and text != "" do

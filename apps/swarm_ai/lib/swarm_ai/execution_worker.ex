@@ -6,12 +6,9 @@ defmodule SwarmAi.ExecutionWorker do
 
   require Logger
 
-  @type dispatcher :: {module(), atom(), list()}
-
   typedstruct enforce: true do
     field(:runtime, atom())
-    field(:agent, SwarmAi.Agent.t())
-    field(:event_dispatcher, dispatcher())
+    field(:loop, SwarmAi.Loop.t())
   end
 
   @spec start_link(dispatcher(), {atom(), SwarmAi.Agent.t()}) :: GenServer.on_start()
@@ -46,10 +43,7 @@ defmodule SwarmAi.ExecutionWorker do
     spawn_death_watcher(agent_id, agent_context, event_dispatcher)
 
     try do
-      event =
-        SwarmAi.Executor.run(state.runtime, state.agent, fn event ->
-          dispatch_event(event_dispatcher, agent_id, agent_context, event)
-        end)
+      event = SwarmAi.Executor.run(loop)
 
       unregister(registry, state.agent)
       dispatch_event(event_dispatcher, agent_id, agent_context, event)

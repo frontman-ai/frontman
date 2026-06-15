@@ -20,6 +20,7 @@ defmodule FrontmanServerWeb.ChannelCase do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Providers
   alias FrontmanServer.Test.Fixtures.LLMProvider
 
   using do
@@ -227,10 +228,8 @@ defmodule FrontmanServerWeb.ChannelCase do
         password: "testpassword123!"
       })
 
-    scope =
-      user
-      |> Scope.for_user()
-      |> Scope.with_env_api_keys(%{"openrouter" => "sk-or-test"})
+    scope = Scope.for_user(user)
+    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
     {:ok, scope: scope, user: user}
   end

@@ -4,14 +4,12 @@ import Config
 # derived from this ordered list.
 #
 # Fields:
-#   :env_key_name        – metadata key the client sends for project-level keys (nil = n/a)
 #   :display_name        – human-readable label for the UI
 #   :max_image_dimension – hard pixel-per-side limit (nil = provider auto-resizes)
 # Model tuple shape: {display_name, model_id, llm_db_metadata | :packaged}
 providers = [
   {:openai_codex,
    %{
-     env_key_name: nil,
      display_name: "OpenAI",
      max_image_dimension: nil,
      llm_db_provider: [],
@@ -25,7 +23,6 @@ providers = [
    }},
   {:anthropic,
    %{
-     env_key_name: "anthropicKeyValue",
      display_name: "Anthropic (Claude Pro/Max)",
      # Anthropic hard-rejects images > 8000px per side; 7680 leaves margin.
      max_image_dimension: 7680,
@@ -44,7 +41,6 @@ providers = [
    }},
   {:openrouter,
    %{
-     env_key_name: "openrouterKeyValue",
      display_name: "OpenRouter",
      max_image_dimension: nil,
      llm_db_provider: [],
@@ -72,7 +68,6 @@ providers = [
    }},
   {:fireworks_ai,
    %{
-     env_key_name: "fireworksKeyValue",
      display_name: "Fireworks AI",
      max_image_dimension: nil,
      llm_db_provider: [],
@@ -83,7 +78,6 @@ providers = [
    }},
   {:nvidia,
    %{
-     env_key_name: "nvidiaKeyValue",
      display_name: "NVIDIA",
      max_image_dimension: nil,
      llm_db_provider: [],
@@ -107,7 +101,6 @@ providers = [
    }},
   {:google,
    %{
-     env_key_name: nil,
      display_name: "Google",
      max_image_dimension: nil,
      llm_db_provider: [],
@@ -115,7 +108,6 @@ providers = [
    }},
   {:xai,
    %{
-     env_key_name: nil,
      display_name: "xAI",
      max_image_dimension: nil,
      llm_db_provider: [],

@@ -56,7 +56,7 @@ defmodule FrontmanServer.Tools do
   ## Example
       Tools.prepare_for_task(mcp_tools, task_id)
   """
-  def prepare_for_task(mcp_tools, _task_id) do
+  def prepare_for_task(mcp_tools) do
     mcp_formatted = MCP.to_swarm_tools(mcp_tools)
     backend = backend_tools()
 

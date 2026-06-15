@@ -26,20 +26,7 @@ defmodule FrontmanServer.Accounts.Scope do
   alias FrontmanServer.Organizations.Organization
 
   defstruct user: nil,
-            organization: nil,
-            env_api_keys: %{}
-
-  @doc """
-  Returns a scope enriched with environment-provided API keys.
-
-  Keys set here travel with the scope to all domain functions, so callers
-  don't need to pass env_api_key as a separate argument.
-  """
-  def with_env_api_keys(%__MODULE__{} = scope, keys) when is_map(keys) do
-    %{scope | env_api_keys: keys}
-  end
-
-  def with_env_api_keys(%__MODULE__{} = scope, _), do: scope
+            organization: nil
 
   @doc """
   Creates a scope for the given user.

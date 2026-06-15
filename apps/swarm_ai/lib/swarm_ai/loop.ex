@@ -37,6 +37,7 @@ defmodule SwarmAi.Loop do
 
   typedstruct do
     field(:id, SwarmAi.Id.t(), enforce: true)
+    field(:conversation_id, SwarmAi.Id.t(), enforce: true)
     field(:agent, SwarmAi.Agent.t(), enforce: true)
     field(:runtime, atom(), enforce: true)
     field(:dispatch_event, (term() -> term()), enforce: true)
@@ -49,7 +50,9 @@ defmodule SwarmAi.Loop do
   @doc """
   Creates a new loop for the given agent and configuration.
   """
-  def make(%{
+  def new(%{
+        conversation_id: conversation_id,
+        turn_number: turn_number,
         agent: agent,
         runtime: runtime,
         dispatch_event: dispatch_event,

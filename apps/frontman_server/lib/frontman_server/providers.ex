@@ -37,8 +37,7 @@ defmodule FrontmanServer.Providers do
   Call this before making LLM calls, not inside LLM implementations.
 
   ## Parameters
-    - scope: The user scope (or nil for anonymous). Must have `env_api_keys`
-      populated if project-level keys should be considered.
+    - scope: The user scope (or nil for anonymous).
     - model: The model string (e.g., "openrouter:openai/gpt-4"), or nil for default
 
   ## Returns
@@ -185,27 +184,6 @@ defmodule FrontmanServer.Providers do
   end
 
   @doc """
-  Extracts provider API keys from a metadata map sent by the client.
-  """
-  def extract_env_keys(metadata) when is_map(metadata) do
-    nested_keys =
-      case metadata["envApiKey"] do
-        env_api_key when is_map(env_api_key) -> extract_env_keys(env_api_key)
-        _ -> %{}
-      end
-
-    top_level_keys =
-      for {provider, %{env_key_name: name}} when is_binary(name) <- @providers,
-          key = metadata[name],
-          is_binary(key) and key != "",
-          into: %{} do
-        {provider, key}
-      end
-
-    Map.merge(top_level_keys, nested_keys)
-  end
-
-  @doc """
   Returns a human-friendly model name for logs and telemetry.
   """
   def display_model_name(model_ref) when is_binary(model_ref), do: model_ref
@@ -301,7 +279,7 @@ defmodule FrontmanServer.Providers do
         key
 
       _ ->
-        Accounts.scope_env_api_keys(scope)[provider]
+        nil
     end
   end
 
@@ -450,8 +428,7 @@ defmodule FrontmanServer.Providers do
 
   ## Parameters
 
-    * `scope` – the user's `%Scope{}` struct. `env_api_keys` must be populated
-      if project-level keys should be considered.
+    * `scope` – the user's `%Scope{}` struct.
 
   ## Returns
 
@@ -463,7 +440,6 @@ defmodule FrontmanServer.Providers do
   """
   def model_config_data(scope) do
     api_key_providers = list_api_key_providers(scope)
-    env_api_keys = Accounts.scope_env_api_keys(scope)
 
     oauth_providers =
       OAuthToken
@@ -474,11 +450,7 @@ defmodule FrontmanServer.Providers do
     provider_configs =
       Enum.filter(@providers, fn
         {provider, %{models: [_ | _]}} ->
-          provider in oauth_providers or provider in api_key_providers or
-            case env_api_keys[provider] do
-              key when is_binary(key) and key != "" -> true
-              _ -> false
-            end
+          provider in oauth_providers or provider in api_key_providers
 
         {_provider, _config} ->
           false

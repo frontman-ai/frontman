@@ -38,7 +38,7 @@ defmodule SwarmAi do
 
   @doc "Runs an agent in a supervised runtime."
   @spec run(atom(), SwarmAi.Agent.t()) :: {:ok, pid()} | {:error, term()}
-  def run(runtime, agent) when is_atom(runtime) do
+  def run(runtime, %Loop{} = loop) when is_atom(runtime) do
     DynamicSupervisor.start_child(
       execution_supervisor_name(runtime),
       {SwarmAi.ExecutionWorker, {runtime, agent}}
@@ -47,13 +47,13 @@ defmodule SwarmAi do
 
   @doc "Returns true when an agent id is running."
   @spec running?(atom(), String.t()) :: boolean()
-  def running?(runtime, id) when is_atom(runtime) and is_binary(id),
-    do: running_lookup(runtime, id) != []
+  def running?(runtime, conversation_id) when is_atom(runtime) and is_binary(conversation_id),
+    do: running_lookup(runtime, conversation_id) != []
 
   @doc "Cancels a running execution by agent id."
   @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
-  def cancel(runtime, id) when is_atom(runtime) and is_binary(id) do
-    case running_lookup(runtime, id) do
+  def cancel(runtime, conversation_id) when is_atom(runtime) and is_binary(conversation_id) do
+    case running_lookup(runtime, conversation_id) do
       [{pid, _}] ->
         Logger.info("Cancelling execution for agent #{inspect(id)}")
         Process.exit(pid, :cancelled)

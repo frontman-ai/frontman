@@ -9,10 +9,10 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
   alias Ecto.Adapters.SQL.Sandbox
-  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Image
   alias FrontmanServer.InteractionCase.Helpers, as: I
   alias FrontmanServer.Repo
+  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema, TaskSchema}
@@ -25,9 +25,9 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     pid = Sandbox.start_owner!(Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    scope =
-      user_scope_fixture()
-      |> Scope.with_env_api_keys(%{"anthropic" => "sk-ant-test", "openrouter" => "sk-or-test"})
+    scope = user_scope_fixture()
+    {:ok, _api_key} = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
+    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
     task_id = task_with_pubsub_fixture(scope).id
 

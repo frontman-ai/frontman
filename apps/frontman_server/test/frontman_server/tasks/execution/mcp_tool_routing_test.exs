@@ -7,7 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
@@ -76,7 +76,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], ""}, "Component implemented!"])
 
-      scope = Scope.with_env_api_keys(scope, %{"openrouter" => "test-key"})
+      {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "test-key")
 
       {:ok, _interaction, _turn_number} =
         Tasks.submit_user_message(

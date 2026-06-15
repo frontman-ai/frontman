@@ -32,12 +32,6 @@ defmodule FrontmanServer.Accounts do
     |> Map.fetch!(:id)
   end
 
-  @doc """
-  Returns environment API keys carried in scope.
-  """
-  def scope_env_api_keys(%Scope{env_api_keys: env_api_keys}) when is_map(env_api_keys),
-    do: env_api_keys
-
   ## Database getters
 
   @doc """
@@ -91,15 +85,6 @@ defmodule FrontmanServer.Accounts do
   def get_user(id), do: Repo.get(User, id)
 
   def get_user!(id), do: Repo.get!(User, id)
-
-  @doc """
-  Builds a scope for a user and attaches environment API keys.
-  """
-  def scope_for_user_with_env_keys(%User{} = user, env_api_keys) do
-    user
-    |> Scope.for_user()
-    |> Scope.with_env_api_keys(env_api_keys)
-  end
 
   @doc """
   Sends the welcome email for a user.

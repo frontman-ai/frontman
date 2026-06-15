@@ -2,7 +2,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   @moduledoc """
   Integration tests for the full `Providers.prepare_llm_args/3` resolution chain.
 
-  Tests the priority order: OAuth > user key > env key.
+  Tests the priority order: OAuth > user key.
   This is the primary entry point for all LLM key resolution in the system.
   """
   use FrontmanServer.DataCase, async: true
@@ -26,7 +26,6 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
         Providers.upsert_oauth_token(scope, "anthropic", "oauth_access", "refresh", expires_at)
 
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
-      scope = Scope.with_env_api_keys(scope, %{"anthropic" => "env_key_789"})
 
       {:ok, {model, llm_opts}} =
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
@@ -40,7 +39,6 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
     test "falls back to user key when no OAuth token", %{scope: scope} do
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
-      scope = Scope.with_env_api_keys(scope, %{"anthropic" => "env_key_789"})
 
       {:ok, {_model, llm_opts}} =
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
@@ -48,27 +46,18 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert llm_opts[:api_key] == "user_key_456"
     end
 
-    test "falls back to env key when no OAuth or user key", %{scope: scope} do
-      scope = Scope.with_env_api_keys(scope, %{"anthropic" => "env_key_789"})
-
-      {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
-
-      assert llm_opts[:api_key] == "env_key_789"
-    end
-
     test "returns :no_api_key when no key source is available", %{scope: scope} do
       assert {:error, :no_api_key} =
                Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
     end
 
-    test "openrouter env key resolves correctly", %{scope: scope} do
-      scope = Scope.with_env_api_keys(scope, %{"openrouter" => "sk-or-env-test"})
+    test "openrouter user key resolves correctly", %{scope: scope} do
+      {:ok, _} = Providers.upsert_api_key(scope, "openrouter", "sk-or-user-test")
 
       {:ok, {model, llm_opts}} = Providers.prepare_llm_args(scope, "openrouter:openai/gpt-5.5")
 
       assert model == "openrouter:openai/gpt-5.5"
-      assert llm_opts[:api_key] == "sk-or-env-test"
+      assert llm_opts[:api_key] == "sk-or-user-test"
     end
 
     test "openai codex oauth resolves direct ReqLLM args", %{scope: scope} do
@@ -123,18 +112,4 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
   end
 
-  describe "extract_env_keys/1" do
-    test "extracts configured provider keys from ACP metadata" do
-      assert Providers.extract_env_keys(%{
-               "anthropicKeyValue" => "sk-ant-test",
-               "openrouterKeyValue" => "sk-or-test",
-               "fireworksKeyValue" => "sk-fw-test",
-               "model" => %{"provider" => "fireworks_ai", "value" => "model"}
-             }) == %{
-               "anthropic" => "sk-ant-test",
-               "openrouter" => "sk-or-test",
-               "fireworks_ai" => "sk-fw-test"
-             }
-    end
-  end
 end

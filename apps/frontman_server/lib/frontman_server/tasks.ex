@@ -496,34 +496,47 @@ defmodule FrontmanServer.Tasks do
   and kicking off the agent loop. If an execution is already running, the
   prompt is rejected entirely (nothing persisted).
   """
-  def submit_user_message(scope, task_id, content_blocks, execution) do
-    # FIXME(Itay): prompt_content is content_blocks here, lets be consistent throughout
-    interaction = Interaction.UserMessage.new(content_blocks)
+  def submit_user_message(scope, %{
+        task_id: task_id,
+        message: user_message,
+        model: model,
+        mcp_tools: mcp_tools,
+        project_traits: project_traits
+      }) do
+    user_message_interaction = Interaction.UserMessage.new(message)
 
-    # FIXME(Itay): We can rewrite this to be an assignment
-    case Repo.transact(fn -> insert_user_turn(scope, task_id, interaction) end) do
-      {:ok, {schema, interaction, turn_number}} ->
-        broadcast_task(schema.id, {:interaction, interaction, turn_number})
+    with {:ok, {turn_number}} <-
+           insert_user_turn(scope, task_id, user_message_interaction) do
+      broadcast_task(task_id, {:interaction, user_message_interaction, turn_number})
+      generate_agent_response(scope, task_id, turn_number, execution)
 
-        run_task_execution(scope, task_id, execution, turn_number)
-
-        case {turn_number, interaction.messages} do
-          {1, [_ | _] = messages} ->
-            GenerateTitle.new_job(scope, task_id, Enum.join(messages, "\n"), execution.model)
-            |> Oban.insert()
-
-          _ ->
-            :ok
-        end
-
-        {:ok, interaction, turn_number}
-
-      {:error, reason} ->
-        {:error, reason}
+      if turn_number == 1 do
+        GenerateTitle.new_job(scope, task_id, Enum.join(messages, "\n"), execution.model)
+      end
+      |> Oban.insert()
     end
+
+    # case do
+    #   {:ok, {schema, interaction, turn_number}} ->
+    #     run_task_execution(scope, task_id, execution, turn_number)
+
+    #     case {turn_number, interaction.messages} do
+    #       {1, [_ | _] = messages} ->
+    #         GenerateTitle.new_job(scope, task_id, Enum.join(messages, "\n"), execution.model)
+    #         |> Oban.insert()
+
+    #       _ ->
+    #         :ok
+    #     end
+
+    #     {:ok, interaction, turn_number}
+
+    #   {:error, reason} ->
+    #     {:error, reason}
+    # end
   end
 
-  defp insert_user_turn(scope, task_id, interaction) do
+  defp insert_user_message(scope, task_id, interaction) do
     # Lock task row so concurrent submissions serialize before calculating next turn number.
     case get_task_by_id_for_update(scope, task_id) do
       {:ok, schema} -> insert_user_turn(schema, interaction)

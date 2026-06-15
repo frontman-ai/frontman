@@ -4,24 +4,15 @@ defmodule SwarmAi.Executor do
   alias SwarmAi.LLM.Response
   alias SwarmAi.{Loop, Telemetry}
 
-  def run(runtime, agent, dispatch_event)
-      when is_atom(runtime) and is_function(dispatch_event, 1) do
-    agent_id = SwarmAi.Agent.id(agent)
-
+  def run(%Loop{} = loop) do
     Telemetry.run_span(
       %{
-        agent_id: agent_id,
+        loop_id: loop.id,
+        conversation_id: loop.conversation_id,
+        turn_number: loop.turn_number,
         execution_module: agent.__struct__
       },
       fn ->
-        loop =
-          Loop.make(%{
-            agent: agent,
-            runtime: runtime,
-            dispatch_event: dispatch_event,
-            config: %Loop.Config{}
-          })
-
         # QUESTION(Danni) - why do we need both loop.execute which does almost
         # nothing compared to make, then we've run_effects
         {loop, effects} = Loop.execute(loop)
