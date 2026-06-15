@@ -29,7 +29,7 @@ There are over a dozen open-source AI coding tools that have gained serious trac
 
 > **Looking for the latest releases?** See our [monthly open source AI releases roundup](/open-source-ai-releases/) for what shipped recently.
 
-Last updated: April 2026. Star counts are approximate.
+Last updated: April 2026. Star counts are approximate. Update: Roo Code was shut down and archived in May 2026; see the dedicated [Roo Code vs Cline comparison](/blog/roo-code-vs-cline/) for current adoption guidance.
 
 ## The Full List
 
@@ -86,9 +86,9 @@ It has the largest community of any open-source coding agent, with human-in-the-
 
 [roocode.com](https://roocode.com) | 22,500 stars | Apache-2.0
 
-Originally forked from Cline, Roo Code has diverged into its own product. The main differentiator is a multi-mode system: Code mode for editing, Architect mode for planning, Ask mode for questions, Debug mode for troubleshooting, and customizable modes you define yourself. Backed by Roo Code, Inc.
+Originally forked from Cline, Roo Code diverged into its own product. The main differentiator was a multi-mode system: Code mode for editing, Architect mode for planning, Ask mode for questions, Debug mode for troubleshooting, and customizable modes you define yourself. Backed by Roo Code, Inc.
 
-The mode system gives more structured control over the agent's behavior than Cline's single-mode approach, and custom modes let teams define specialized workflows. 300 contributors as of March 2026. On the other hand, it's VS Code only, and the mode switching adds a mental model layer that some developers find unnecessary.
+The mode system gives more structured control over the agent's behavior than Cline's single-mode approach, and custom modes let teams define specialized workflows. 300 contributors as of March 2026. On the other hand, it's VS Code only, and the mode switching adds a mental model layer that some developers find unnecessary. Roo Code was later shut down and archived in May 2026; read the current [Roo Code vs Cline guide](/blog/roo-code-vs-cline/) before adopting it.
 
 ### Kilo Code
 
