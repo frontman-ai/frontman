@@ -5,24 +5,24 @@ description: 'CLI agents, IDE extensions, browser tools, and BYOK options — we
 author: 'Danni Friedland'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
-updatedDate: 2026-04-16T00:00:00Z
+updatedDate: 2026-06-15T10:00:00Z
 faq:
   - question: 'What are the best open-source AI coding tools in 2026?'
-    answer: 'The most popular open-source AI coding tools by GitHub stars are OpenHands (68k stars, MIT), Cline (58k, Apache 2.0), Aider (41k, Apache 2.0), Tabby (33k, Apache 2.0), Goose (32k, Apache 2.0), Continue (31k, Apache 2.0), Roo Code (22k, Apache 2.0), and bolt.diy (19k, MIT). Each targets a different workflow: Aider and Goose are CLI-based, Cline and Roo Code are VS Code extensions, Tabby is self-hosted autocomplete, and OpenHands is a full agent platform.'
+    answer: 'The most popular open-source AI coding tools by GitHub stars are OpenHands (68k stars, MIT), Cline (58k, Apache 2.0), Aider (41k, Apache 2.0), Tabby (33k, Apache 2.0), Goose (32k, Apache 2.0), Continue (31k, Apache 2.0), archived Roo Code (22k, Apache 2.0), and bolt.diy (19k, MIT). Each targets a different workflow: Aider and Goose are CLI-based, Cline and Roo-style forks are VS Code agents, Tabby is self-hosted autocomplete, and OpenHands is a full agent platform.'
   - question: 'What is the best open-source alternative to Cursor?'
-    answer: 'Void (28k stars) was the most direct open-source Cursor alternative as a VS Code fork, but the project paused development in 2025. Active alternatives include Cline (58k stars) and Roo Code (22k stars) as VS Code extensions with BYOK, Continue (31k stars) for IDE integration, and Aider (41k stars) for terminal-based pair programming. For visual frontend editing specifically, Frontman and Stagewise take a browser-based approach instead of the IDE approach.'
+    answer: 'Void (28k stars) was the most direct open-source Cursor alternative as a VS Code fork, but the project paused development in 2025. Active alternatives include Cline (58k stars) as a VS Code agent with BYOK, Continue (31k stars) for IDE integration, and Aider (41k stars) for terminal-based pair programming. Roo Code was archived in May 2026, so evaluate maintained Roo-style forks instead. For visual frontend editing specifically, Frontman and Stagewise take a browser-based approach instead of the IDE approach.'
   - question: 'What is the best open-source alternative to GitHub Copilot?'
     answer: 'Tabby (33k stars) is the closest open-source alternative to GitHub Copilot. It provides self-hosted code completion for VS Code and JetBrains with support for local models. Continue (31k stars) also offers autocomplete and chat as a VS Code/JetBrains extension. Both are Apache 2.0 licensed and support BYOK.'
   - question: 'Which open-source AI coding tools support BYOK (bring your own key)?'
-    answer: 'Most major open-source AI coding tools support BYOK: Aider, Cline, Roo Code, Kilo Code, Goose, Continue, Frontman, and bolt.diy all let you connect your own API keys to Claude, OpenAI, OpenRouter, or other providers. Tabby supports local models. Stagewise requires its own account for the built-in agent but can bridge to IDE agents.'
+    answer: 'Most major open-source AI coding tools support BYOK: Aider, Cline, Kilo Code, Goose, Continue, Frontman, and bolt.diy all let you connect your own API keys to Claude, OpenAI, OpenRouter, or other providers. Roo Code supported BYOK before it was archived in May 2026. Tabby supports local models. Stagewise requires its own account for the built-in agent but can bridge to IDE agents.'
   - question: 'Are there open-source AI coding tools that work in the browser?'
     answer: 'Yes. Frontman (frontman.sh) and Stagewise (stagewise.io) both let you click elements in your running web app and describe changes in natural language. Frontman installs as framework middleware for Next.js, Astro, and Vite. Stagewise is a CLI overlay that injects a toolbar. bolt.diy runs a full cloud IDE in the browser for generating new apps from scratch.'
   - question: 'What are the best open-source AI CLI coding tools in 2026?'
     answer: 'The two leading open-source CLI coding tools are Aider (41k stars, Apache 2.0) and Goose (32k stars, Apache 2.0). Aider is a terminal-based pair programmer with deep git integration — it auto-commits changes and supports any LLM via BYOK. Goose, built by Block, combines a CLI with a desktop app and supports MCP for extensibility. Both run locally and work with any editor. Claude Code is another popular terminal agent but is proprietary, not open-source.'
   - question: 'How do Aider, Cline, and Roo Code compare in 2026?'
-    answer: 'Aider (41k stars) is a CLI tool — you run it in the terminal and it edits files with git integration. Cline (58k stars) is a VS Code extension that acts as an autonomous coding agent with human-in-the-loop approval. Roo Code (22k stars) forked from Cline and added a multi-mode system (Code, Architect, Ask, Debug) for structured workflows. All three are Apache 2.0, support BYOK, and are actively maintained. The choice depends on your workflow: terminal (Aider), VS Code with approval gates (Cline), or VS Code with structured modes (Roo Code).'
+    answer: 'Aider (41k stars) is a CLI tool — you run it in the terminal and it edits files with git integration. Cline (58k stars) is a VS Code extension that acts as an autonomous coding agent with human-in-the-loop approval. Roo Code (22k stars) forked from Cline and added a multi-mode system (Code, Architect, Ask, Debug) for structured workflows, but it was archived in May 2026. The choice depends on your workflow: terminal (Aider), VS Code with approval gates (Cline), or a maintained Roo-style fork if you specifically want structured modes.'
   - question: 'What are the best BYOK AI coding tools in 2026?'
-    answer: 'BYOK (bring your own key) tools let you connect your own API keys to Claude, OpenAI, OpenRouter, or other providers instead of paying a tool subscription. The best BYOK options are: Aider (CLI, 41k stars), Cline (VS Code, 58k stars), Roo Code (VS Code, 22k stars), Kilo Code (VS Code + JetBrains, 16k stars), Goose (CLI + desktop, 32k stars), Continue (IDE + CLI, 31k stars), Frontman (browser-based, Apache 2.0), and bolt.diy (cloud IDE, 19k stars). Tabby supports local models instead of API keys.'
+    answer: 'BYOK (bring your own key) tools let you connect your own API keys to Claude, OpenAI, OpenRouter, or other providers instead of paying a tool subscription. The best active BYOK options are: Aider (CLI, 41k stars), Cline (VS Code, 58k stars), Kilo Code (VS Code + JetBrains, 16k stars), Goose (CLI + desktop, 32k stars), Continue (IDE + CLI, 31k stars), Frontman (browser-based, Apache 2.0), and bolt.diy (cloud IDE, 19k stars). Tabby supports local models instead of API keys. Roo Code supported BYOK before it was archived.'
 ---
 
 There are over a dozen open-source AI coding tools that have gained serious traction in 2026. They range from terminal pair programmers to full agent platforms to browser-based visual editors that bridge the [runtime context gap](/blog/runtime-context-gap/). This is a factual comparison of every major one, organized by architecture category. We built Frontman (one of the tools listed), so we'll note that where relevant and call out where other tools are stronger.
@@ -42,7 +42,7 @@ Last updated: April 2026. Star counts are approximate. Update: Roo Code was shut
 | [Goose](https://github.com/block/goose) | 32,300 | Apache-2.0 | CLI + Desktop | Yes | Active |
 | [Continue](https://github.com/continuedev/continue) | 31,600 | Apache-2.0 | CLI + IDE | Yes | Pivoting |
 | [Void](https://github.com/voideditor/void) | 28,300 | Apache-2.0 | IDE (VS Code fork) | Yes | Paused |
-| [Roo Code](https://github.com/RooCodeInc/Roo-Code) | 22,500 | Apache-2.0 | VS Code extension | Yes | Active |
+| [Roo Code](https://github.com/RooCodeInc/Roo-Code) | 22,500 | Apache-2.0 | VS Code extension | Yes | Archived |
 | [bolt.diy](https://github.com/stackblitz-labs/bolt.diy) | 19,100 | MIT | Cloud IDE | Yes | Active |
 | [Kilo Code](https://github.com/Kilo-Org/kilocode) | 16,200 | Apache-2.0 | VS Code + JetBrains | Yes | Active |
 | [Stagewise](https://github.com/stagewise-io/stagewise) | 6,500 | AGPL-3.0 | Browser-based | Partial | Active |
@@ -209,7 +209,7 @@ The right tool depends on what you're trying to do:
 
 **"I want an AI agent in my terminal."** Aider for pair programming with git integration. Goose for broader task execution beyond just code.
 
-**"I want an AI agent in VS Code."** Cline is the most popular. Roo Code if you want structured modes. Kilo Code if you need JetBrains support.
+**"I want an AI agent in VS Code."** Cline is the most popular. Kilo Code if you need JetBrains support. Evaluate a maintained Roo-style fork if you specifically want structured modes.
 
 **"I want to click things in the browser and have AI edit the code."** These are [browser-aware AI coding tools](/blog/what-are-browser-aware-ai-coding-tools/). Frontman if you want deep framework integration and BYOK. Stagewise if you want zero-install and IDE agent bridging.
 
