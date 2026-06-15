@@ -2099,7 +2099,7 @@ __metadata:
     sury: "catalog:"
     sury-ppx: "npm:^11.0.0-alpha.2"
     tailwind-merge: "npm:^3.5.0"
-    tailwindcss: "npm:^4.2.4"
+    tailwindcss: "npm:^4.3.0"
     tw-animate-css: "npm:^1.4.0"
     vite: "npm:^8.0.8"
     vitest: "catalog:"
@@ -2334,7 +2334,7 @@ __metadata:
     "@vitejs/plugin-react": "npm:^6.0.1"
     react: "npm:^19.2.5"
     react-dom: "npm:^19.2.5"
-    tailwindcss: "npm:^4.2.4"
+    tailwindcss: "npm:^4.3.0"
     vite: "npm:^8.0.8"
   languageName: unknown
   linkType: soft
@@ -12736,7 +12736,7 @@ __metadata:
     prettier-plugin-tailwindcss: "npm:^0.8.0"
     satori: "npm:^0.26.0"
     sharp: "npm:^0.34.5"
-    tailwindcss: "npm:^4.2.4"
+    tailwindcss: "npm:^4.3.0"
     typescript: "npm:^6.0.3"
   languageName: unknown
   linkType: soft
@@ -16616,6 +16616,13 @@ __metadata:
   version: 4.3.0
   resolution: "tailwindcss@npm:4.3.0"
   checksum: 10c0/4cde389ee5e9132e7ef90e4c1d05978d52821761a00700c18b7d46d325881086f0a9c9ec7f616929ecd6e26109c41913538883e066c6dd4bd993debbbbc99084
+  languageName: node
+  linkType: hard
+
+"tailwindcss@npm:^4.3.0":
+  version: 4.3.1
+  resolution: "tailwindcss@npm:4.3.1"
+  checksum: 10c0/7d852a242cd9367c1ba54c0aa4a9f7e437753ed3530f0dd7eb6c9c5be577323695412d3e14df80c28013bfc22cc2b55255558005fc0b73de8d633ff2dfc29b5f
   languageName: node
   linkType: hard
 
