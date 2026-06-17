@@ -28,7 +28,9 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
       assert args.task_id == "task-123"
       assert args.user_prompt_text == "Help me build a login page"
       assert args.model == "anthropic:claude-sonnet-4-20250514"
-      assert Map.keys(args) == [:model, :task_id, :user_id, :user_prompt_text]
+
+      assert MapSet.new(Map.keys(args)) ==
+               MapSet.new([:model, :task_id, :user_id, :user_prompt_text])
     end
   end
 end

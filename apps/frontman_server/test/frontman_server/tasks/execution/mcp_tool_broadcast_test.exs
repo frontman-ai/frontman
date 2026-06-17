@@ -78,6 +78,12 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       assert persisted_call["name"] == "some_mcp_tool"
       assert Jason.decode!(persisted_call["arguments"]) == %{"arg" => "value"}
       refute Map.has_key?(persisted_call, "function")
+
+      assert :ok = Tasks.cancel_execution(scope, task_id)
+
+      assert_receive {:interaction, %Tasks.Interaction.AgentError{kind: "cancelled"},
+                      _turn_number},
+                     5_000
     end
   end
 
@@ -157,6 +163,12 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
       assert registered,
              "Agent not registered when tool call broadcast - race condition exists"
+
+      assert :ok = Tasks.cancel_execution(scope, task_id)
+
+      assert_receive {:interaction, %Tasks.Interaction.AgentError{kind: "cancelled"},
+                      _turn_number},
+                     5_000
     end
   end
 end

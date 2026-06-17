@@ -507,28 +507,37 @@ defmodule FrontmanServer.Tasks do
 
     execution = %{model: model, mcp_tools: mcp_tools, project_traits: project_traits}
 
-    # NOTE(Danni) - this is a hack since we do this weird thing where we create a turn and start executing it.
-    # it should be different..
-    # BUG(Danni) - get_stask_by_id_for_update will not work, it should be insdie the same transaction
-    with %TaskSchema{} = task_schema <- get_task_by_id_for_update(scope, task_id),
-         {:ok, turn_number} <- insert_user_turn(task_schema, user_message_interaction) do
-      run_execution(scope, task_schema, turn_number, execution)
+    case insert_user_turn_for_locked_task(scope, task_id, user_message_interaction) do
+      {:ok, {task_schema, turn_number}} ->
+        run_execution(scope, task_schema, turn_number, execution)
 
-      if turn_number == 1 do
-        GenerateTitle.new_job(
-          scope,
-          task_id,
-          Enum.join(user_message_interaction.messages, "\n"),
-          model
-        )
-        |> Oban.insert()
-      end
+        if turn_number == 1 do
+          GenerateTitle.new_job(
+            scope,
+            task_id,
+            Enum.join(user_message_interaction.messages, "\n"),
+            model
+          )
+          |> Oban.insert()
+        end
 
-      {:ok, user_message_interaction, turn_number}
-    else
-      nil -> {:error, :not_found}
-      {:error, reason} -> {:error, reason}
+        {:ok, user_message_interaction, turn_number}
+
+      {:error, reason} ->
+        {:error, reason}
     end
+  end
+
+  defp insert_user_turn_for_locked_task(%Scope{} = scope, task_id, user_message_interaction) do
+    Repo.transact(fn ->
+      with %TaskSchema{} = task_schema <- get_task_by_id_for_update(scope, task_id),
+           {:ok, turn_number} <- insert_user_turn(task_schema, user_message_interaction) do
+        {:ok, {task_schema, turn_number}}
+      else
+        nil -> {:error, :not_found}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
   end
 
   defp insert_user_turn(%TaskSchema{} = task_schema, interaction) do

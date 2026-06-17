@@ -5,6 +5,5 @@ module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 module type Tool = ProtocolTool.BrowserTool
 module ToolNames = ProtocolTool.ToolNames
 
-let textResult = ProtocolTool.textResult
 let jsonResult = ProtocolTool.jsonResult
 let imageResult = ProtocolTool.imageResult

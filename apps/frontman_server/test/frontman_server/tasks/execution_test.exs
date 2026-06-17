@@ -405,6 +405,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Now add a signup form"))
 
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+
       enqueued = all_enqueued(worker: GenerateTitle)
 
       title_jobs_for_task =
