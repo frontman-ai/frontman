@@ -1,6 +1,6 @@
 ---
 title: How the Agent Works
-description: Understand the Frontman agent loop — how it sees your page, reads your code, and makes changes.
+description: Understand the Frontman agent loop, from browser context and source-code reads to file edits, verification, and live preview feedback.
 ---
 
 Frontman is an AI agent that sits between your browser and your source code. You describe a change in natural language, and it executes that change by looking at your running app, reading relevant files, and editing them — all without you leaving the browser.

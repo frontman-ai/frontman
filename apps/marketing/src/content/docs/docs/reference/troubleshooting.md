@@ -3,8 +3,6 @@ title: Troubleshooting
 description: Fix common Frontman issues — UI not loading, agent timeouts, tool failures, WebSocket connection problems, and more.
 ---
 
-# Frontman Troubleshooting Guide
-
 This guide helps you diagnose and fix common Frontman issues quickly: Frontman not loading, agent timeouts, tool call failures, WebSocket disconnects, and code edits that do not apply.
 
 If you are looking for setup docs, start with [Reference](/docs/reference/). You can also check [Compatibility](/docs/reference/compatibility/), [Configuration](/docs/reference/configuration/), [Environment Variables](/docs/reference/env-vars/), [Models](/docs/reference/models/), and [Architecture](/docs/reference/architecture/).

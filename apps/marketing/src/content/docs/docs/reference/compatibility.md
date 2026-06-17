@@ -1,6 +1,6 @@
 ---
 title: Supported Frameworks
-description: What Frontman supports today across Next.js, Astro, Vite-based apps, and WordPress, including requirements, limits, and what each integration exposes to the agent.
+description: See what Frontman supports across Next.js, Astro, Vite-based apps, and WordPress, including version requirements and integration limits.
 ---
 
 Frontman has two compatibility layers:

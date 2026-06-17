@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: How to install Frontman in your project.
+description: Install Frontman in Astro, Next.js, or Vite projects with the right package command, then open the browser agent in your local dev server.
 ---
 
 Frontman ships as a framework-specific integration — pick the guide that matches your project.

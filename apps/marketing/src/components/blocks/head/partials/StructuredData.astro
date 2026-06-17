@@ -1,7 +1,7 @@
 ---
 // Structured Data (JSON-LD)
 // ------------
-// Description: Injects Organization, SoftwareApplication (homepage only), and BreadcrumbList schema markup for SEO.
+// Description: Injects Organization and BreadcrumbList schema markup for SEO.
 
 type BreadcrumbItem = {
 	name: string
@@ -19,7 +19,6 @@ const { noindex = false, breadcrumbs } = Astro.props
 const url = new URL(Astro.request.url)
 const pathname = url.pathname
 const segments = pathname.split('/').filter(Boolean)
-const isHomepage = segments.length === 0
 
 const defaultBreadcrumbItems = [
 	{ name: 'Home', url: 'https://frontman.sh/' },
@@ -68,30 +67,6 @@ const breadcrumbJsonLd = {
 		"http://www.wikidata.org/entity/Q138753470"
 	]
 })} />
-
-{/* SoftwareApplication - only on homepage where it's contextually relevant */}
-{isHomepage && (
-	<script is:inline type="application/ld+json" set:html={JSON.stringify({
-		"@context": "https://schema.org",
-		"@type": "SoftwareApplication",
-		"name": "Frontman",
-		"url": "https://frontman.sh/",
-		"applicationCategory": "DesignApplication",
-		"operatingSystem": "Web",
-		"description": "Point at any element in your running app, describe what you want in plain English, and get real code edits. Frontman lets designers and product managers work on a running application the way they work in Figma. Supports Next.js, Astro, and Vite.",
-		"author": {
-			"@type": "Organization",
-			"name": "Frontman",
-			"url": "https://frontman.sh/"
-		},
-		"license": "https://github.com/frontman-ai/frontman/blob/main/LICENSE",
-		"codeRepository": "https://github.com/frontman-ai/frontman",
-		"downloadUrl": "https://github.com/frontman-ai/frontman",
-		"screenshot": "https://frontman.sh/og-image.png",
-		"featureList": "Click-to-select UI elements, Live DOM context, AI-powered code edits, Framework-aware (Next.js, Astro, Vite), BYOK (Bring Your Own Key), Open-source core",
-		"softwareRequirements": "Next.js, Astro, or Vite development project"
-	})} />
-)}
 
 {/* BreadcrumbList - helps Google show breadcrumb trails in search results */}
 {shouldEmitBreadcrumbs && (

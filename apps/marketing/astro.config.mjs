@@ -128,6 +128,7 @@ export default defineConfig({
       disable404Route: true,
       logo: {
         src: "./src/assets/logo.svg",
+        alt: "Frontman logo",
       },
       social: [
         {
@@ -290,7 +291,7 @@ export default defineConfig({
         if (/\/vs\//.test(item.url)) return item;
       },
       integrations: (item) => {
-        if (/\/integrations\//.test(item.url)) return item;
+        if (/(?<!\/docs)\/integrations\//.test(item.url)) return item;
       },
       docs: (item) => {
         if (/\/docs\//.test(item.url)) return item;

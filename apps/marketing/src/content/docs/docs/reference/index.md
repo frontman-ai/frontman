@@ -1,6 +1,6 @@
 ---
 title: Reference
-description: Technical reference for Frontman — configuration options, environment variables, architecture internals, supported models, framework compatibility, self-hosting, and troubleshooting.
+description: Technical reference for Frontman configuration, environment variables, architecture, supported models, compatibility, self-hosting, and troubleshooting.
 ---
 
 The reference section covers everything under the hood: how Frontman is structured, how to configure it, and what to do when something goes wrong. If you're looking for step-by-step workflows, head to [Using Frontman](/docs/using/how-the-agent-works/) instead.

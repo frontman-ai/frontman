@@ -1,6 +1,6 @@
 ---
 title: The Question Flow
-description: How the Frontman agent asks you questions, how to answer, and what happens when you decline.
+description: Learn how Frontman pauses to ask structured questions, when the agent needs your input, how to answer, and what happens when you decline.
 ---
 
 Most of the time, the Frontman agent works autonomously — it reads your prompt, looks at the page, edits code, and verifies the result. But sometimes it doesn't have enough information to proceed confidently. When that happens, it uses the **question tool** to pause the agent loop and ask you directly.

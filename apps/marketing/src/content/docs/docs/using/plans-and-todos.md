@@ -1,6 +1,6 @@
 ---
 title: Plans & Todo Lists
-description: How Frontman uses structured plans to track progress on complex tasks.
+description: See how Frontman creates visible task plans and todo lists for complex edits, tracks progress step by step, and keeps one active item at a time.
 ---
 
 For complex tasks, Frontman creates a structured plan — a visible todo list that tracks each step of the work. This gives you real-time insight into what the agent is doing, what's done, and what's next.

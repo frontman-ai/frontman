@@ -1,6 +1,6 @@
 ---
 title: API Keys & Providers
-description: Configure your AI model provider — use the free tier, bring your own key, or connect via OAuth.
+description: Configure AI model access in Frontman, choose a provider, bring your own API key, connect OAuth, and control model selection and usage costs.
 ---
 
 Frontman needs access to a large language model (LLM) to power the coding agent. You have three options for connecting a provider.

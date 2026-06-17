@@ -144,18 +144,16 @@ const pricingJsonLd = {
 	'@context': 'https://schema.org',
 	'@graph': [
 		{
-			'@type': 'SoftwareApplication',
-			name: 'Frontman Pro',
-			url: 'https://frontman.sh/pricing/',
-			applicationCategory: 'DeveloperApplication',
-			operatingSystem: 'Web',
+			'@type': 'WebPage',
+			name: SEO.title,
 			description: SEO.description,
-			author: {
-				'@type': 'Organization',
-				name: 'Frontman',
-				url: 'https://frontman.sh/'
-			},
-			offers: [
+			url: 'https://frontman.sh/pricing/'
+		},
+		{
+			'@type': 'OfferCatalog',
+			name: 'Frontman Pro pricing',
+			url: 'https://frontman.sh/pricing/',
+			itemListElement: [
 				{
 					'@type': 'Offer',
 					name: 'Frontman Pro monthly seat',
@@ -176,8 +174,7 @@ const pricingJsonLd = {
 					category: 'subscription',
 					description: 'Hosted Frontman Pro seat billed yearly. AI provider usage is billed separately.'
 				}
-			],
-			featureList: planFeatures
+			]
 		},
 		{
 			'@type': 'FAQPage',

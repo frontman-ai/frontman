@@ -11,6 +11,7 @@ export const legalInfo = {
 	registerNumber: 'HRB 273526 B',
 	managingDirector: 'Fridland Dimitri',
 	supportEmail: 'support@frontman.sh',
+	supportEmailDisplay: 'support [at] frontman.sh',
 	vatId: 'not yet issued'
 } as const
 
@@ -27,7 +28,7 @@ export const legalPlaceholders = {
 	'{{company.registerNumber}}': legalInfo.registerNumber,
 	'{{company.managingDirector}}': legalInfo.managingDirector,
 	'{{company.supportEmail}}': legalInfo.supportEmail,
-	'{{company.supportMailto}}': `[${legalInfo.supportEmail}](mailto:${legalInfo.supportEmail})`,
+	'{{company.supportMailto}}': legalInfo.supportEmailDisplay,
 	'{{company.vatId}}': legalInfo.vatId,
 	'{{company.fullAddress}}': `${legalInfo.streetAddress}, ${legalInfo.postalCode} ${legalInfo.city}, ${legalInfo.country}`
 } as const

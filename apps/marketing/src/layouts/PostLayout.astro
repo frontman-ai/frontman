@@ -87,63 +87,13 @@ const itemListJsonLd = frontmatter.comparisonItems?.length
 					"@type": "ListItem",
 					"position": index + 1,
 					"item": {
-						"@type": "SoftwareApplication",
+						"@type": "Thing",
 						"name": item.name,
 						"url": item.url,
-						"applicationCategory": "DeveloperApplication",
 						...(item.description ? { "description": item.description } : {})
 					}
 				})
 			)
-		}
-	: null
-
-// SoftwareApplication JSON-LD (optional, driven by frontmatter.softwareApplication)
-const softwareApplicationJsonLd = frontmatter.softwareApplication
-	? {
-			"@context": "https://schema.org",
-			"@type": "SoftwareApplication",
-			"name": frontmatter.softwareApplication.name,
-			"url": frontmatter.softwareApplication.url,
-			"applicationCategory": frontmatter.softwareApplication.applicationCategory,
-			"operatingSystem": frontmatter.softwareApplication.operatingSystem,
-			"description": frontmatter.softwareApplication.description,
-			"author": {
-				"@type": "Organization",
-				"name": "Frontman",
-				"url": "https://frontman.sh/"
-			},
-			...(frontmatter.softwareApplication.license
-				? { "license": frontmatter.softwareApplication.license }
-				: {}),
-			...(frontmatter.softwareApplication.codeRepository
-				? { "codeRepository": frontmatter.softwareApplication.codeRepository }
-				: {}),
-			...(frontmatter.softwareApplication.featureList?.length
-				? { "featureList": frontmatter.softwareApplication.featureList }
-				: {}),
-			...(frontmatter.softwareApplication.offers?.length
-				? {
-						"offers": frontmatter.softwareApplication.offers.map(
-							(offer: {
-								name: string
-								price: string
-								priceCurrency: string
-								url: string
-								category?: string
-								description?: string
-							}) => ({
-								"@type": "Offer",
-								"name": offer.name,
-								"price": offer.price,
-								"priceCurrency": offer.priceCurrency,
-								"url": offer.url,
-								...(offer.category ? { "category": offer.category } : {}),
-								...(offer.description ? { "description": offer.description } : {})
-							})
-						)
-					}
-				: {})
 		}
 	: null
 
@@ -181,7 +131,6 @@ const videoJsonLd = frontmatter.video
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(blogPostJsonLd)} />
 	{faqJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
 	{itemListJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(itemListJsonLd)} />}
-	{softwareApplicationJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(softwareApplicationJsonLd)} />}
 	{videoJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(videoJsonLd)} />}
 	<BlogPostHero
 		tags={frontmatter.tags}

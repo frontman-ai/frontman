@@ -1,8 +1,8 @@
 ---
 // ComparisonStructuredData
 // ------------------------
-// Emits all JSON-LD structured data for a /vs/ comparison page.
-// Blocks: FAQPage, SoftwareApplication (Frontman), SoftwareApplication (competitor), WebPage.
+// Emits JSON-LD structured data for a /vs/ comparison page.
+// Blocks: FAQPage and WebPage. Software-app rich results require real ratings or reviews, so avoid emitting incomplete SoftwareApplication markup.
 
 type FAQ = {
   question: string
@@ -31,7 +31,7 @@ type Props = {
   seo: SEOInfo
 }
 
-const { competitor, faqs, seo } = Astro.props
+const { faqs, seo } = Astro.props
 const pageUrl = Astro.url.href
 
 // FAQPage
@@ -46,44 +46,6 @@ const faqJsonLd = {
       "text": faq.answer,
     },
   })),
-}
-
-// SoftwareApplication — Frontman
-const frontmanAppJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "Frontman",
-  "url": "https://frontman.sh/",
-  "applicationCategory": "DesignApplication",
-  "operatingSystem": "Web",
-  "description": "An open-source AI agent that lets designers and product managers edit a running app in the browser. Point at any element, describe the change, get real code.",
-  "license": "https://github.com/frontman-ai/frontman/blob/main/LICENSE",
-  "codeRepository": "https://github.com/frontman-ai/frontman",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD",
-    "description": "Free and open source — bring your own API key",
-  },
-  "isSimilarTo": {
-    "@type": "SoftwareApplication",
-    "name": competitor.name,
-    "url": competitor.url,
-  },
-}
-
-// SoftwareApplication — Competitor
-const competitorAppJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": competitor.name,
-  "url": competitor.url,
-  "applicationCategory": competitor.category,
-  "description": competitor.description,
-  "offers": {
-    "@type": "Offer",
-    "description": `${competitor.pricing.cost} — ${competitor.pricing.model}`,
-  },
 }
 
 // WebPage
@@ -102,6 +64,4 @@ const webPageJsonLd = {
 ---
 
 <script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
-<script is:inline type="application/ld+json" set:html={JSON.stringify(frontmanAppJsonLd)} />
-<script is:inline type="application/ld+json" set:html={JSON.stringify(competitorAppJsonLd)} />
 <script is:inline type="application/ld+json" set:html={JSON.stringify(webPageJsonLd)} />

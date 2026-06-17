@@ -1,6 +1,6 @@
 ---
 title: WordPress (Beta)
-description: Install the Frontman WordPress plugin to edit posts, blocks, Elementor pages, menus, templates, widgets, and site settings through a conversational AI interface.
+description: Install the Frontman WordPress plugin to edit posts, blocks, Elementor pages, menus, templates, widgets, and settings through an AI interface.
 ---
 
 The Frontman WordPress plugin adds an AI agent directly to your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow inside the site preview — no code editor or terminal required for those supported changes.
