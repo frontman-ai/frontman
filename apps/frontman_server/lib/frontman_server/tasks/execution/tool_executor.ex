@@ -71,8 +71,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @doc false
   def run_backend_tool(%Scope{} = scope, module, task_id, turn_number, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
-    %{"content" => content, "isError" => is_error} =
+    %{"content" => content} =
+      result =
       execute_backend_tool(scope, module, tool_call, task_id, turn_number)
+
+    is_error = MCP.error?(result)
 
     SwarmAi.ToolResult.make(
       tool_call.id,
@@ -242,13 +245,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp handle_backend_outcome(
-         {:returned, %{"content" => content, "isError" => is_error} = result},
+         {:returned, %{"content" => content} = result},
          scope,
          tool_call,
          task_id,
          turn_number
        )
-       when is_list(content) and is_boolean(is_error) do
+       when is_list(content) do
+    is_error = MCP.error?(result)
+
     if is_error do
       metadata = [
         error_type: "tool_soft_error",

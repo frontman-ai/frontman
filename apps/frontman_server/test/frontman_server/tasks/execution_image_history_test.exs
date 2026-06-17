@@ -10,12 +10,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Image
-  alias FrontmanServer.InteractionCase.Helpers, as: I
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
-  alias FrontmanServer.Tasks.{Interaction, InteractionSchema, TaskSchema}
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
 
@@ -34,46 +33,91 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     {:ok, scope: scope, task_id: task_id}
   end
 
-  test "old screenshot result decays until get_tool_result returns it", %{
+  test "client screenshot result decays on next turn and get_tool_result restores image", %{
     scope: scope,
     task_id: task_id
   } do
-    old_tool_call_id = "tc_old_screenshot"
-    get_tool_call_id = "tc_get_old_screenshot_#{System.unique_integer([:positive])}"
+    screenshot_tool_call_id = "tc_screenshot_#{System.unique_integer([:positive])}"
+    get_tool_call_id = "tc_get_screenshot_#{System.unique_integer([:positive])}"
     screenshot = png_fixture(800, 600)
+    tool_defs = screenshot_tool_defs()
     parent = self()
 
-    insert_screenshot_tool_result(task_id, 1, old_tool_call_id, screenshot)
+    client_result = client_mcp_image_result(screenshot)
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
-      send(parent, {:provider_messages, :before_get_tool_result, messages})
+      send(parent, {:provider_messages, :turn1_before_screenshot, messages})
+
+      ReqLLMResponses.response(
+        {:tool_calls, [llm_tool_call(screenshot_tool_call_id, "take_screenshot")], "look"}
+      )
+    end)
+
+    expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+      send(parent, {:provider_messages, :turn1_after_screenshot, messages})
+      ReqLLMResponses.response("The screenshot is visible.")
+    end)
+
+    {:ok, _interaction, 1} =
+      submit_anthropic_message(scope, task_id, "look at the page", mcp_tools: tool_defs)
+
+    assert_receive {:interaction, %Interaction.ToolCall{tool_call_id: ^screenshot_tool_call_id},
+                    1},
+                   5_000
+
+    {:ok, _interaction, _status} =
+      Tasks.resolve_tool_request(
+        scope,
+        task_id,
+        %{id: screenshot_tool_call_id, name: "take_screenshot"},
+        client_result,
+        false
+      )
+
+    assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+    assert_receive {:provider_messages, :turn1_after_screenshot, turn1_after_messages}, 1_000
+
+    turn1_tool_message = tool_message!(turn1_after_messages, screenshot_tool_call_id)
+    assert [%{type: :image, data: ^screenshot}] = image_parts([turn1_tool_message])
+    refute content_text([turn1_tool_message]) =~ "data:image"
+
+    {:ok, task} = Tasks.get_task(scope, task_id)
+    persisted = tool_result!(task.interactions, screenshot_tool_call_id)
+    assert persisted.result == client_result
+
+    expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+      send(parent, {:provider_messages, :turn2_before_get_tool_result, messages})
 
       ReqLLMResponses.response(
         {:tool_calls,
          [
            llm_tool_call(get_tool_call_id, "get_tool_result", %{
-             "tool_call_id" => old_tool_call_id
+             "tool_call_id" => screenshot_tool_call_id
            })
          ], "retrieve it"}
       )
     end)
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
-      send(parent, {:provider_messages, :after_get_tool_result, messages})
+      send(parent, {:provider_messages, :turn2_after_get_tool_result, messages})
       ReqLLMResponses.response("Recovered screenshot is visible.")
     end)
 
     {:ok, _interaction, 2} = submit_anthropic_message(scope, task_id, "show old screenshot")
 
     assert_receive {:interaction, %Interaction.AgentCompleted{}, 2}, 5_000
-    assert_receive {:provider_messages, :before_get_tool_result, before_messages}, 1_000
-    assert_receive {:provider_messages, :after_get_tool_result, after_messages}, 1_000
+    assert_receive {:provider_messages, :turn2_before_get_tool_result, before_messages}, 1_000
+    assert_receive {:provider_messages, :turn2_after_get_tool_result, after_messages}, 1_000
 
     assert image_parts(before_messages) == []
+
+    assert content_text(before_messages) =~
+             "[image: omitted, tool_call_id: #{screenshot_tool_call_id}]"
+
     refute content_text(before_messages) =~ "data:image"
 
     tool_message = tool_message!(after_messages, get_tool_call_id)
-    assert [%{type: :image}] = image_parts([tool_message])
+    assert [%{type: :image, data: ^screenshot}] = image_parts([tool_message])
     refute content_text([tool_message]) =~ "data:image"
   end
 
@@ -164,22 +208,6 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   defp prompt_content(content) when is_binary(content), do: user_content(content)
   defp prompt_content(content) when is_list(content), do: content
 
-  defp insert_screenshot_tool_result(task_id, turn_number, tool_call_id, screenshot) do
-    persist_interaction(
-      task_id,
-      I.tool_result(tool_call_id, "take_screenshot", mcp_image_result(screenshot)),
-      turn_number
-    )
-  end
-
-  defp persist_interaction(task_id, interaction, turn_number) do
-    task = Repo.get!(TaskSchema, task_id)
-
-    task
-    |> InteractionSchema.create_changeset(interaction, turn_number)
-    |> Repo.insert!()
-  end
-
   defp screenshot_tool_defs do
     MCP.from_maps([
       %{
@@ -197,6 +225,13 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   defp mcp_image_result(binary, mime \\ "image/png"),
     do: ModelContextProtocol.tool_result_image(Base.encode64(binary), mime)
+
+  defp client_mcp_image_result(binary, mime \\ "image/png") do
+    %{
+      "content" => [%{"type" => "image", "data" => Base.encode64(binary), "mimeType" => mime}],
+      "_meta" => %{}
+    }
+  end
 
   defp user_image_block(binary, mime \\ "image/png") do
     %{

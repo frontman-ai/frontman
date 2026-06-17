@@ -79,8 +79,10 @@ defmodule FrontmanServer.InteractionCase do
       * `:css_classes`    — CSS class string
       * `:nearby_text`    — visible text near the element
       * `:comment`        — user comment
+      * `:component_props` — component props map
       * `:metadata`       — extra annotation `_meta` fields to preserve generically
       * `:bounding_box`   — `%{"x" => …, "y" => …, "width" => …, "height" => …}`
+      * `:parent`         — parent location map
     """
     def annotation_block(id, tag, file, line, col, extra \\ %{}) do
       base_meta =
@@ -98,10 +100,12 @@ defmodule FrontmanServer.InteractionCase do
         (extra[:metadata] || %{})
         |> Map.merge(base_meta)
         |> maybe_put("component_name", extra[:component_name])
+        |> maybe_put("component_props", extra[:component_props])
         |> maybe_put("css_classes", extra[:css_classes])
         |> maybe_put("nearby_text", extra[:nearby_text])
         |> maybe_put("comment", extra[:comment])
         |> maybe_put("bounding_box", extra[:bounding_box])
+        |> maybe_put("parent", extra[:parent])
 
       %{
         "type" => "resource",

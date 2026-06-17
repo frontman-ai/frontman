@@ -512,7 +512,7 @@ defmodule FrontmanServer.Tasks do
     # BUG(Danni) - get_stask_by_id_for_update will not work, it should be insdie the same transaction
     with %TaskSchema{} = task_schema <- get_task_by_id_for_update(scope, task_id),
          {:ok, turn_number} <- insert_user_turn(task_schema, user_message_interaction) do
-      run_task_execution(scope, task_id, execution, turn_number)
+      run_execution(scope, task_schema, turn_number, execution)
 
       if turn_number == 1 do
         GenerateTitle.new_job(
@@ -692,7 +692,7 @@ defmodule FrontmanServer.Tasks do
          :ok <- ensure_latest_retry_turn(turn_number, rows),
          {:ok, _retry} <-
            record_interaction(schema, Interaction.AgentRetry.new(retried_error_id), turn_number) do
-      run_task_execution(scope, task_id, execution, turn_number)
+      run_execution(scope, schema, turn_number, execution)
     end
   end
 
@@ -743,20 +743,8 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp run_task_execution(scope, task_id, execution, turn_number)
-       when is_integer(turn_number) and turn_number > 0 do
-    case get_task(scope, task_id) do
-      {:ok, task} ->
-        run_execution(scope, task, turn_number, execution)
-
-      {:error, :not_found} ->
-        {:error, :not_found}
-    end
-  end
-
   defp run_execution(scope, task, turn_number, execution)
        when is_integer(turn_number) and turn_number > 0 do
-    # QUESTION(Danni) - If we keep exection, it should own creating/managing itself
     case Execution.run(scope, task, turn_number, execution) do
       {:error, :already_running} ->
         :already_running
@@ -765,12 +753,17 @@ defmodule FrontmanServer.Tasks do
         :ok
 
       {:error, reason} ->
-        message = Execution.error_message(scope, reason)
-        {:ok, _error} = record_agent_run_result(scope, task.id, turn_number, {:failed, message})
-        broadcast_task(task.id, {:execution_start_error, message, turn_number})
-
-        :ok
+        record_execution_start_failure(scope, task.id, turn_number, reason)
     end
+  end
+
+  defp record_execution_start_failure(scope, task_id, turn_number, reason)
+       when is_integer(turn_number) and turn_number > 0 do
+    message = Execution.error_message(scope, reason)
+    {:ok, _error} = record_agent_run_result(scope, task_id, turn_number, {:failed, message})
+    broadcast_task(task_id, {:execution_start_error, message, turn_number})
+
+    :ok
   end
 
   @doc """

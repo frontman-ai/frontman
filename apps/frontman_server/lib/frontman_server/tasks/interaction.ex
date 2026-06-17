@@ -769,6 +769,24 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
+  def to_data_map(value), do: normalize_data(value)
+
+  defp normalize_data(%DateTime{} = timestamp), do: DateTime.to_iso8601(timestamp)
+
+  defp normalize_data(value) when is_struct(value),
+    do: value |> Map.from_struct() |> normalize_data()
+
+  defp normalize_data(value) when is_list(value), do: Enum.map(value, &normalize_data/1)
+
+  defp normalize_data(value) when is_map(value) do
+    Map.new(value, fn {key, value} -> {data_key(key), normalize_data(value)} end)
+  end
+
+  defp normalize_data(value), do: value
+
+  defp data_key(key) when is_atom(key), do: Atom.to_string(key)
+  defp data_key(key), do: key
+
   def to_json_map(%UserMessage{} = value) do
     %{
       type: type_for(value),

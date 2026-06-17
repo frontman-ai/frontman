@@ -50,7 +50,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> Ecto.build_assoc(:interaction_rows)
     |> change(
       type: type,
-      data: Map.from_struct(interaction),
+      data: Interaction.to_data_map(interaction),
       sequence: generate_sequence(),
       turn_number: turn_number
     )
@@ -145,21 +145,27 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   defp validate_agent_response_metadata(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :data)} do
-      {:agent_response, %{metadata: metadata}} when is_map(metadata) ->
-        changeset
-        |> validate_metadata_string(metadata, "response_id")
-        |> validate_metadata_string(metadata, "phase")
+      {:agent_response, data} when is_map(data) ->
+        metadata = fetch_data_field(data, ["metadata", :metadata], nil)
 
-      {:agent_response, %{metadata: _metadata}} ->
-        add_error(changeset, :data, "metadata must be a map")
-
-      {:agent_response, _data} ->
-        add_error(changeset, :data, "metadata must be a map")
+        validate_agent_response_metadata(changeset, metadata)
 
       _other ->
         changeset
     end
   end
+
+  defp validate_agent_response_metadata(changeset, metadata) when is_map(metadata) do
+    changeset
+    |> validate_metadata_string(metadata, "response_id")
+    |> validate_metadata_string(metadata, "phase")
+  end
+
+  defp validate_agent_response_metadata(changeset, nil),
+    do: add_error(changeset, :data, "metadata must be a map")
+
+  defp validate_agent_response_metadata(changeset, _metadata),
+    do: add_error(changeset, :data, "metadata must be a map")
 
   defp validate_metadata_string(changeset, metadata, field) do
     case Map.fetch(metadata, field) do

@@ -11,6 +11,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   import Phoenix.ChannelTest
 
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [
+      annotation_block: 6,
+      current_page_block: 2,
+      extract_content_text: 1,
+      screenshot_block: 3,
+      text_block: 1
+    ]
+
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
@@ -203,6 +212,71 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                )
 
       assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+    end
+
+    test "submits browser context prompt through production recording path" do
+      scope = user_scope_fixture()
+      task_id = task_with_pubsub_fixture(scope).id
+
+      content_blocks = [
+        text_block("Change headline"),
+        current_page_block("http://localhost:4321/", %{
+          "viewport_width" => 1316,
+          "viewport_height" => 1269,
+          "device_pixel_ratio" => 2,
+          "title" => "Frontman: Visual AI Frontend Editing",
+          "color_scheme" => "dark",
+          "scroll_y" => 0
+        }),
+        annotation_block("ann-hero", "H1", "apps/marketing/src/components/Hero.astro", 65, 36,
+          comment: "change this text to Danni",
+          component_name: "Hero",
+          component_props: %{},
+          css_classes: "hero-section__title",
+          nearby_text: "See it. Say it. Ship it.",
+          bounding_box: %{"x" => 373.8, "y" => 152.0, "width" => 553.4, "height" => 62.0},
+          parent: %{
+            "file" => "apps/marketing/src/layouts/Layout.astro",
+            "line" => 56,
+            "column" => 51,
+            "component_name" => "Header",
+            "component_props" => %{"title" => "Frontman"}
+          }
+        ),
+        screenshot_block("ann-hero", Base.encode64("screenshot"), "image/jpeg")
+      ]
+
+      {:ok, returned, 1} =
+        submit_user_message(scope, task_id, content_blocks, model: "missing:test")
+
+      assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.current_page
+
+      assert [%Interaction.Annotation{parent: %Interaction.ParentLocation{}}] =
+               returned.annotations
+
+      assert_receive {:interaction, %Interaction.UserMessage{} = broadcast_message, 1}
+
+      assert [%Interaction.Annotation{screenshot: %Interaction.Screenshot{}}] =
+               broadcast_message.annotations
+
+      assert_receive {:execution_start_error, "No API key available for this request.", 1}
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      assert [%Interaction.UserMessage{} = persisted_message | _] = task.interactions
+
+      assert %Interaction.CurrentPage{title: "Frontman: Visual AI Frontend Editing"} =
+               persisted_message.current_page
+
+      assert [%Interaction.Annotation{bounding_box: %Interaction.BoundingBox{}}] =
+               persisted_message.annotations
+
+      [swarm_message] = Interaction.to_swarm_messages([persisted_message])
+      text = extract_content_text(swarm_message.content)
+
+      assert text =~ "[Current Page Context]"
+      assert text =~ "[Annotated Elements]"
+      assert text =~ "apps/marketing/src/components/Hero.astro"
+      assert Enum.any?(swarm_message.content, &match?(%{type: :image}, &1))
     end
 
     test "conversation with tool calls supports follow-up messages", %{

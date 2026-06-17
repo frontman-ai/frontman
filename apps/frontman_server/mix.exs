@@ -9,7 +9,7 @@ defmodule FrontmanServer.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: [warnings_as_errors: true],
       start_permanent: Mix.env() == :prod,
-      consolidate_protocols: Mix.env() != :test,
+      consolidate_protocols: Mix.env() == :prod,
       deps: deps(),
       compilers: [:boundary, :phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],

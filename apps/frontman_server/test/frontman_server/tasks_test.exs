@@ -2,7 +2,6 @@ defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
-  import FrontmanServer.InteractionCase.Helpers
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Migration.Runner
@@ -640,54 +639,6 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :not_found} =
                Tasks.add_discovered_project_structure(scope, nonexistent_id, "summary")
-    end
-  end
-
-  describe "annotation round-trip through JSONB" do
-    test "annotation survives DB round-trip and appears in Swarm messages", %{
-      scope: scope
-    } do
-      task_id = task_fixture(scope).id
-
-      content_blocks = [
-        text_block("Fix the button"),
-        annotation_block("ann-test-1", "button", "src/components/Button.tsx", 42, 5),
-        screenshot_block("ann-test-1", "iVBORw0KGgoAAAANSUhEUg==")
-      ]
-
-      {:ok, _interaction} =
-        user_message_fixture(scope, task_id, content_blocks)
-
-      # Retrieve via Swarm conversion (exercises the full JSONB round-trip)
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
-
-      assert length(messages) == 1
-      [msg] = messages
-      assert SwarmAi.Message.role(msg) == :user
-
-      # Extract text from content parts
-      content_text = extract_content_text(msg.content)
-
-      # The annotation location should have been appended by append_annotations/2
-      assert content_text =~ "[Annotated Elements]"
-      assert content_text =~ "src/components/Button.tsx"
-      assert content_text =~ "42"
-
-      # Screenshot should be present as an image content part
-      image_parts =
-        case msg.content do
-          parts when is_list(parts) ->
-            Enum.filter(parts, fn
-              %{type: :image} -> true
-              _ -> false
-            end)
-
-          _ ->
-            []
-        end
-
-      assert [_ | _] = image_parts
     end
   end
 

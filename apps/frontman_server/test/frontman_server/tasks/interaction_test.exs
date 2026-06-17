@@ -3,6 +3,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
 
   alias FrontmanServer.Tasks.Interaction.{
     Annotation,
@@ -520,6 +521,27 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert %SwarmAi.ToolCall{} = tc
       assert tc.id == "call_flat_1"
       assert tc.name == "get_weather"
+    end
+  end
+
+  describe "InteractionSchema.to_struct/1" do
+    test "deserializes normalized user message data" do
+      message =
+        UserMessage.new([
+          text_block("hello"),
+          current_page_block("http://localhost:4321/"),
+          annotation_block("ann-1", "H1", "/src/Hero.tsx", 12, 4,
+            bounding_box: %{"x" => 1.0, "y" => 2.0, "width" => 3.0, "height" => 4.0}
+          )
+        ])
+
+      row = %InteractionSchema{
+        type: :user_message,
+        data: Interaction.to_data_map(message)
+      }
+
+      assert %Interaction.UserMessage{current_page: %Interaction.CurrentPage{}, annotations: [_]} =
+               InteractionSchema.to_struct(row)
     end
   end
 
