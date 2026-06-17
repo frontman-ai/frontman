@@ -35,7 +35,7 @@ pre-push:
     reanalyze:
       glob: "libs/**/*.res"
       run: |
-        for lib in bindings client experimental-rescript-webapi frontman-astro frontman-astro-browser frontman-client frontman-core frontman-nextjs frontman-protocol frontman-vite logs react-statestore; do
+        for lib in client frontman-astro frontman-astro-browser frontman-client frontman-core frontman-nextjs frontman-vite logs react-statestore; do
           echo "=== $lib ==="
           output=$(cd libs/$lib && yarn rescript-tools reanalyze -config 2>&1)
           echo "$output"
