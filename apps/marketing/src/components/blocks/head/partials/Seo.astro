@@ -7,7 +7,7 @@
 // - description: The page description
 // - ogImage: The page image for Open Graph
 // - canonical: Whether to use the canonical URL
-// - noindex: Whether to add noindex and nofollow meta tags
+// - noindex: Whether to add noindex and follow meta tags
 // - article: Optional article metadata for blog posts (og:type=article)
 
 // Props
@@ -65,7 +65,7 @@ const metaDescription = normalizedDescription.length > 160
 
 	<!-- Open Graph (Facebook, WhatsApp, Discord, LinkedIn, Slack, Telegram, iMessage, Reddit) -->
 	<meta property="og:type" content={ogType} />
-	<meta property="og:url" content={Astro.url} />
+	<meta property="og:url" content={canonicalUrl} />
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={metaDescription} />
 	<meta property="og:site_name" content="Frontman" />
@@ -92,5 +92,5 @@ const metaDescription = normalizedDescription.length > 160
 	<meta name="twitter:image:alt" content={imageAlt} />
 
 	{canonical && <link rel="canonical" href={canonicalUrl} />}
-	{noindex && <meta name="robots" content="noindex,nofollow" />}
+	{noindex && <meta name="robots" content="noindex,follow" />}
 </Fragment>

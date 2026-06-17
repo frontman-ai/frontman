@@ -1,18 +1,21 @@
 ---
 title: 'Introducing Frontman: AI That Sees Your UI'
+seoTitle: 'Browser-Aware AI Coding Agent'
 pubDate: 2026-02-18T05:00:00Z
-description: 'Claude Code, Cursor, Copilot, Windsurf — every AI coding agent shares the same blind spot. They read your source files but cannot see what your app actually looks like. This is not a model quality problem. It is an architectural gap.'
+description: 'What browser-aware AI coding agents can see that file-only agents miss: rendered DOM, computed CSS, layout, viewport state, and source context.'
 author: 'Danni Friedland'
 image: '/blog/introducing-frontman-cover.png'
 tags: ['ai', 'frontend', 'developer-tools']
-updatedDate: 2026-04-14T00:00:00Z
+updatedDate: 2026-06-17T00:00:00Z
 ---
 
 Name any AI coding agent. Claude Code. Cursor. GitHub Copilot. Windsurf. They can all read your source files, trace your imports, and generate diffs that compile. For backend code, that is usually enough.
 
 For frontend work, it is not even close.
 
-### What Your Agent Reads vs. What You See
+**Quick answer:** a browser-aware AI coding agent connects source files to the running browser. It can inspect rendered DOM, computed CSS, responsive layout, and clicked elements, then use that runtime context to make more accurate frontend code edits.
+
+## What Your Agent Reads vs. What You See
 
 Your source file says `className="p-4 md:p-8 lg:p-12"`. Your browser renders 32px of padding at the current viewport width. Your agent has the source. You have the screen. Neither of you has both.
 
@@ -26,7 +29,7 @@ This gap exists for everything visual:
 
 **Visual hierarchy.** Two elements overlap. One has `z-index: 10` from a utility class; the other inherits `z-index: auto` from a parent. Your agent can grep for z-index values, but computing stacking context requires rendering — and rendering requires a browser.
 
-### The Cycle Everyone Recognizes
+## The Cycle Everyone Recognizes
 
 You tell your agent to fix the spacing on the hero section. It reads the file, picks a Tailwind class that looks right, and saves. You switch to the browser. Wrong element. You switch back, add more context — the exact file path, the line number, a hint about which div. The agent tries again. You check the browser again. Closer. One more round.
 
@@ -34,7 +37,7 @@ Three iterations and six tab switches to change a padding value. The agent had f
 
 This is not a prompt engineering problem. You cannot solve it by adding more context to your instructions or switching to a different model. The information your agent needs — computed styles, resolved layout, component-to-DOM mapping, viewport state — does not exist in your source files. It exists only at runtime, in the browser.
 
-### The Runtime Context Gap
+## The Runtime Context Gap
 
 We call this the [runtime context gap](/blog/runtime-context-gap/). It is the set of information that exists only when your application is running in a browser:
 
@@ -46,7 +49,7 @@ We call this the [runtime context gap](/blog/runtime-context-gap/). It is the se
 
 Every AI coding agent today operates without this information. They read files and infer what the UI probably looks like. For a `div` with three Tailwind classes, the inference is often right. For a component that renders differently based on props, viewport, theme, and application state — inference is a guess.
 
-### This Is an Architecture Problem
+## This Is an Architecture Problem
 
 The important thing to understand: this is not about model intelligence. GPT-5 will not fix it. Claude's next release will not fix it. A smarter model reading the same source files still cannot see computed styles, because computed styles do not exist in source files.
 

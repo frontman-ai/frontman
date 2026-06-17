@@ -11,7 +11,8 @@ const ogImage = new URL('/og.png', Astro.site).href;
 const ogImageAlt = 'Frontman — The AI agent that lives inside your framework';
 
 // Build breadcrumb structured data
-const entry = Astro.props.entry;
+const routeData = Astro.locals.starlightRoute ?? Astro.props;
+const entry = routeData.entry;
 const breadcrumbItems = [];
 
 // Always add Home
@@ -38,12 +39,14 @@ if (!isDocsIndex) {
   // it via the top-level props. Fall back to capitalising the URL slug.
   const slug = pathname.split('/').pop() ?? '';
   const fallbackTitle = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  const pageTitle = entry?.data?.title ?? Astro.props.title ?? fallbackTitle;
+  const entryTitle = typeof entry?.data?.title === 'string' ? entry.data.title.trim() : '';
+  const routeTitle = typeof routeData.title === 'string' ? routeData.title.trim() : '';
+  const pageTitle = entryTitle || routeTitle || fallbackTitle;
   breadcrumbItems.push({
     "@type": "ListItem",
     "position": 3,
     "name": pageTitle,
-    "item": Astro.url.href
+    "item": new URL(Astro.url.pathname, Astro.site).href
   });
 }
 

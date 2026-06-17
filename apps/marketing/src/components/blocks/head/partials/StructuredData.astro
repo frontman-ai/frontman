@@ -3,19 +3,40 @@
 // ------------
 // Description: Injects Organization, SoftwareApplication (homepage only), and BreadcrumbList schema markup for SEO.
 
+type BreadcrumbItem = {
+	name: string
+	url: string
+}
+
+type Props = {
+	noindex?: boolean
+	breadcrumbs?: BreadcrumbItem[]
+}
+
+const { noindex = false, breadcrumbs } = Astro.props
+
 // Generate breadcrumb structured data from the current URL
 const url = new URL(Astro.request.url)
 const pathname = url.pathname
 const segments = pathname.split('/').filter(Boolean)
 const isHomepage = segments.length === 0
 
-const breadcrumbItems = [
+const defaultBreadcrumbItems = [
 	{ name: 'Home', url: 'https://frontman.sh/' },
 	...segments.map((segment, index) => ({
 		name: segment.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
 		url: `https://frontman.sh/${segments.slice(0, index + 1).join('/')}/`
 	}))
 ]
+
+const breadcrumbItems = (breadcrumbs ?? defaultBreadcrumbItems)
+	.map((item) => ({
+		name: item.name.trim(),
+		url: new URL(item.url, Astro.site).href
+	}))
+	.filter((item) => item.name.length > 0)
+
+const shouldEmitBreadcrumbs = !noindex && breadcrumbItems.length > 1
 
 const breadcrumbJsonLd = {
 	"@context": "https://schema.org",
@@ -73,6 +94,6 @@ const breadcrumbJsonLd = {
 )}
 
 {/* BreadcrumbList - helps Google show breadcrumb trails in search results */}
-{segments.length > 0 && (
+{shouldEmitBreadcrumbs && (
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)} />
 )}

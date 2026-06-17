@@ -12,13 +12,13 @@ import starlight from "@astrojs/starlight";
 
 const appRoot = path.resolve(import.meta.dirname);
 
-// Build slug -> pubDate maps from content markdown files so the sitemap can
-// use real publication dates instead of a blanket "build date" for every URL.
+// Build slug -> date maps from content markdown files so the sitemap can use
+// durable content dates instead of a blanket build date for every URL.
 function buildDateMap(dir) {
   const map = new Map();
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".md"))) {
     const raw = fs.readFileSync(path.join(dir, file), "utf-8");
-    const match = raw.match(/^pubDate:\s*(.+)$/m);
+    const match = raw.match(/^updatedDate:\s*(.+)$/m) ?? raw.match(/^pubDate:\s*(.+)$/m);
     if (match) {
       const slug = file.replace(/\.md$/, "");
       map.set(slug, new Date(match[1].trim()));
@@ -241,8 +241,8 @@ export default defineConfig({
       // Exclude explicit noindex pages from sitemap output.
       if (/\/(404|pricing)\/?$/.test(item.url)) return undefined;
 
-      // Use the real pubDate for blog and release posts; fall back to
-      // build date for everything else.
+      // Use real publication dates where available. Omit lastmod for
+      // pages without a durable source date instead of emitting build time.
       const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
       const releasesMatch = item.url.match(/\/open-source-ai-releases\/([^/]+)\/?$/);
       if (blogMatch && blogDateMap.has(blogMatch[1])) {
@@ -250,7 +250,7 @@ export default defineConfig({
       } else if (releasesMatch && releasesDateMap.has(releasesMatch[1])) {
         item.lastmod = releasesDateMap.get(releasesMatch[1]);
       } else {
-        item.lastmod = new Date();
+        delete item.lastmod;
       }
 
       // Assign priority and changefreq by page type.

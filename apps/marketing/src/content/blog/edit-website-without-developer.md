@@ -1,10 +1,12 @@
 ---
-title: 'How PMs Can Ship Website Edits'
+title: 'How PMs Can Edit a Website Without Developers'
+seoTitle: 'Edit a Website Without a Developer'
 pubDate: 2026-04-17T05:00:00Z
-description: 'Frontman lets PMs click any element in the running application, describe the change, and open a pull request without touching a code editor or filing a ticket.'
+description: 'Edit website copy, spacing, CTAs, and UI polish without filing a developer ticket. Frontman turns browser feedback into reviewable code changes.'
 author: 'Danni Friedland'
 image: '/blog/edit-website-without-developer-cover.png'
 tags: ['product-management', 'design-ops', 'cross-functional']
+updatedDate: 2026-06-17T00:00:00Z
 faq:
   - question: 'Do I need to set up a development environment to use Frontman?'
     answer: "No. Your engineering team installs Frontman once during initial setup. After that, you open the browser and start working. No terminal, no IDE, no local server setup required on your end. You work in the browser the same way you already review builds."
@@ -21,6 +23,8 @@ You caught a copy error on the pricing page at 4pm on a Tuesday. You know exactl
 Instead, you open Jira. You write a ticket. You label it "copy fix," assign it to the frontend team, set the priority, and attach a screenshot with an annotation. The ticket sits in the backlog until someone picks it up, usually 3 to 8 days later, depending on sprint priorities and who's on vacation. For a 30-second fix.
 
 This isn't a process problem you can fix with better ceremony. It's an access problem. PMs can see what needs to change. They just can't make the change.
+
+**Quick answer:** PMs can edit a website without a developer when the change is visual, content-level, or UI polish, and the output still goes through code review. Frontman gives non-developers a browser workflow for those changes while engineering keeps control of what ships.
 
 Frontman solves the access problem directly.
 
@@ -105,6 +109,6 @@ Frontman is set up once by your engineering team. It takes about 10 minutes to i
 
 After setup, you get access to the staging environment in your browser and start clicking. No new tools to learn. No development environment to configure. The browser you already use to review builds is the tool.
 
-Read about [how the code review workflow protects your codebase](/blog/security/), or see [how designers and PMs use Frontman alongside engineers](/blog/team-collaboration/).
+Read about [how the code review workflow protects your codebase](/blog/security/), see [how designers and PMs use Frontman alongside engineers](/blog/team-collaboration/), or compare the full [AI frontend editing feature set](/features/).
 
 [Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon.

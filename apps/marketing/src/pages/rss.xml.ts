@@ -13,7 +13,7 @@ export async function GET(context: APIContext) {
 		throw new Error('Astro `site` config is required for RSS feed generation')
 	}
 
-	return rss({
+	const response = await rss({
 		title: 'Frontman Blog',
 		description:
 			'The open-source AI agent that lives in your browser, sees your live DOM, and edits your frontend. Updates, tutorials, and insights.',
@@ -32,4 +32,7 @@ export async function GET(context: APIContext) {
 			<sy:updateFrequency xmlns:sy="http://purl.org/rss/1.0/modules/syndication/">1</sy:updateFrequency>
 		`
 	})
+
+	response.headers.set('X-Robots-Tag', 'noindex')
+	return response
 }

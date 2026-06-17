@@ -59,9 +59,9 @@ const faqJsonLd = {
 	<section class="hero-section">
 		<div class="hero-container">
 			<p class="hero-label">Features</p>
-			<h1 class="hero-title">You see the problem. Now you can fix it.</h1>
+			<h1 class="hero-title">AI frontend editing features for real apps.</h1>
 			<p class="hero-subtitle">
-				Click any element in your running app. Describe what you want in plain English. Watch it change. Frontman turns your eye for detail into shipped improvements — no tickets, no waiting.
+				Click any element in your running app. Describe what you want in plain English. Watch it change. Frontman turns your eye for detail into reviewable frontend code changes — no tickets, no waiting.
 			</p>
 		</div>
 	</section>
@@ -147,7 +147,7 @@ const faqJsonLd = {
 				<h2 class="section-title">It sees what you see.</h2>
 				<div class="prose-content">
 					<p>Most AI tools only read code files. They can guess what the page looks like, but they've never actually seen it.</p>
-					<p>Frontman runs inside your browser. When you click an element, it sees the actual rendered result — sizes in pixels, real colors, how things overlap, what's visible at your current screen size. That's why the edits land accurately.</p>
+					<p>Frontman runs inside your browser. When you click an element, it sees the actual rendered result — sizes in pixels, real colors, how things overlap, what's visible at your current screen size. That <a href="/blog/introducing-frontman/" class="feature-link">browser-aware AI context</a> is why the edits land accurately.</p>
 				</div>
 				<div class="context-grid">
 					<div class="context-card">
@@ -179,7 +179,7 @@ const faqJsonLd = {
 				<h2 class="section-title section-title--dark">Nothing ships without review.</h2>
 				<div class="prose-content prose-content--dark">
 					<p>Frontman makes changes to the actual project files — the same files your engineers work in. That means every change is visible, reviewable, and reversible.</p>
-					<p>Your team's existing review process doesn't change. Engineering still approves what ships. There's no separate tool, no shadow edits, no "who changed this?" moments. You get speed without giving up control.</p>
+					<p>Your team's existing review process doesn't change. Engineering still approves what ships. There's no separate tool, no shadow edits, no "who changed this?" moments. You get speed without giving up control. Read the full <a href="/blog/security/" class="feature-link feature-link--dark">AI coding agent security model</a>.</p>
 				</div>
 			</div>
 		</div>
@@ -298,6 +298,15 @@ const faqJsonLd = {
 		margin-bottom: 16px;
 	}
 	.prose-content--dark p { color: #52525b; }
+	.feature-link {
+		color: #c084fc;
+		font-weight: 600;
+		text-decoration: underline;
+		text-underline-offset: 4px;
+	}
+	.feature-link:hover { color: #e9d5ff; }
+	.feature-link--dark { color: #7c3aed; }
+	.feature-link--dark:hover { color: #5b21b6; }
 
 	/* Feature blocks */
 	.feature-block { position: relative; }

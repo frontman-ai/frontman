@@ -79,14 +79,20 @@ const {
 } = Astro.props
 
 const shouldShowArchitectureDiagram =
-  showArchitectureDiagram === undefined
-    ? Astro.slots.has('architecture-diagram')
-    : showArchitectureDiagram
+	showArchitectureDiagram === undefined
+		? Astro.slots.has('architecture-diagram')
+		: showArchitectureDiagram
 
 const shouldShowAlternatives = showAlternatives && alternatives.length > 0
+
+const comparisonBreadcrumbs = [
+	{ name: 'Home', url: '/' },
+	{ name: 'Comparisons', url: '/vs/' },
+	{ name: competitor.name, url: Astro.url.pathname }
+]
 ---
 
-<Layout title={seo.title} description={seo.description}>
+<Layout title={seo.title} description={seo.description} breadcrumbs={comparisonBreadcrumbs}>
   <ComparisonStructuredData
     competitor={{ name: competitor.name, url: competitor.url, category: competitor.category, description: competitor.description, pricing: { cost: competitor.pricing.cost, model: competitor.pricing.model } }}
     faqs={faqs}

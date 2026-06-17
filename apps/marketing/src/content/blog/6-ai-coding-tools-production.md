@@ -1,12 +1,13 @@
 ---
 title: 'AI Coding Tools for Existing Codebases'
+seoTitle: '6 AI Coding Tools for Existing Codebases (2026)'
 pubDate: 2026-03-23T05:00:00Z
-description: 'Most AI coding tools are built for greenfield. Six that actually work on production codebases — including one that runs in the browser for visual work.'
+description: 'Compare Cursor, Claude Code, Windsurf, GitHub Copilot, Cline, and Frontman for working inside existing production codebases.'
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
 image: '/blog/ai-coding-tools.png'
 tags: ['ai', 'tools', 'cursor', 'claude-code', 'windsurf', 'github-copilot', 'cline', 'production']
-updatedDate: 2026-03-23T00:00:00Z
+updatedDate: 2026-06-17T00:00:00Z
 faq:
   - question: 'Which AI coding tool is best for non-engineers?'
     answer: 'Frontman. It runs in the browser and lets you select elements visually. You don''t need to know your way around an IDE or terminal.'
@@ -19,6 +20,8 @@ faq:
   - question: 'How do framework-aware AI tools differ from general-purpose ones?'
     answer: 'Framework-aware tools like Frontman integrate at the framework level (Next.js, Astro, Vite), so they understand your routing, component tree, and build system. General-purpose tools treat your code as text files.'
 ---
+
+For existing production codebases, Cursor is the strongest AI IDE, Claude Code is best for terminal-native deep context, Windsurf is a cheaper IDE workflow, GitHub Copilot is the lowest-friction default, Cline is the open-source VS Code agent, and Frontman is best for browser-based visual UI edits.
 
 You open your laptop on a Monday morning. There's a button on the homepage that's supposed to be blue. It's gray. The designer filed a ticket two weeks ago. The developer has three higher-priority items in the sprint. You can see exactly what's wrong, but you can't fix it.
 
@@ -147,7 +150,7 @@ The trade-off is managing your own API costs. Cline shows real-time usage and es
 
 ---
 
-## Comparison table
+## AI coding tools for existing codebases: comparison table
 
 | Tool | Type | Price | Browser access | Open source | Best for |
 |------|------|-------|---------------|-------------|----------|

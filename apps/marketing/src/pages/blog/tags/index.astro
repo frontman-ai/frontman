@@ -18,6 +18,7 @@ const allPosts = await getCollection('blog')
 <Layout
 	title="Frontman | Blog Tags"
 	description="Browse all blog post tags on the Frontman blog. Find articles by topic — AI coding, browser tools, frontend development, and more."
+	noindex={true}
 >
 	<Hero title="Tags" />
 	<BlogPosts data={allPosts} />

@@ -30,14 +30,29 @@ type Props = {
 		modifiedTime?: string
 		tags?: string[]
 	}
+	breadcrumbs?: {
+		name: string
+		url: string
+	}[]
 }
 // Page Metadata
-const { title, description, ogImage, ogImageWidth, ogImageHeight, ogImageAlt, noindex, classes, article } = Astro.props
+const {
+	title,
+	description,
+	ogImage,
+	ogImageWidth,
+	ogImageHeight,
+	ogImageAlt,
+	noindex,
+	classes,
+	article,
+	breadcrumbs
+} = Astro.props
 ---
 
 <!doctype html>
 <html lang="en" class="relative">
-	<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} noindex={noindex} article={article} />
+	<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} noindex={noindex} article={article} breadcrumbs={breadcrumbs} />
 	<body class:list={[{ [`${classes}`]: classes }]}>
 		<a href="#main-content" class="skip-link">Skip to main content</a>
 		<NavigationBar />

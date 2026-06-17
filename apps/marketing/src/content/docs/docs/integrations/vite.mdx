@@ -1,6 +1,6 @@
 ---
-title: Vite
-description: Complete reference for the @frontman-ai/vite plugin — installation, configuration, framework auto-detection, Vue SFC source mapping, SvelteKit support, and troubleshooting.
+title: Vite Integration
+description: Install and configure the @frontman-ai/vite plugin for React, Vue, Svelte, SolidJS, and SvelteKit apps, including options, source mapping, logs, and troubleshooting.
 ---
 
 import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
@@ -11,12 +11,24 @@ import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
 
 **Frontman is a development-only tool.** The plugin registers a Connect middleware in the dev server only. In production builds, it is a complete no-op.
 
+Use this guide when your app runs on Vite directly or through a Vite-based framework. If you are choosing between integrations, see [Supported Frameworks](/docs/reference/compatibility/). If you only need the package list, start with [Installation](/docs/installation/).
+
+## Quick Start
+
+Run the installer from your Vite project:
+
+```sh
+npx @frontman-ai/vite install
+```
+
+Then start your dev server and open `/frontman` on the same local origin. For example, if Vite runs at `http://localhost:5173`, open `http://localhost:5173/frontman`.
+
 ## Requirements
 
 - Node.js 18 or later
 - Vite 5.x or 6.x
 
-## Installation
+## Manual Installation
 
 Run the Frontman CLI from your project directory:
 

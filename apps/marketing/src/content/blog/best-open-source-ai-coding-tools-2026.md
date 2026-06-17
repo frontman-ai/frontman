@@ -1,11 +1,12 @@
 ---
 title: 'Best Open-Source AI Coding Tools in 2026'
+seoTitle: '12 Best Open-Source AI Coding Tools (2026)'
 pubDate: 2026-03-03T10:00:00Z
-description: 'CLI agents, IDE extensions, browser tools, and BYOK options — we tested 12 open-source AI coding tools and ranked them with honest tradeoffs. Updated April 2026.'
+description: 'Compare 12 open-source AI coding tools in 2026: Cline, Aider, Kilo Code, Goose, Continue, OpenHands, Tabby, Stagewise, Frontman, and more.'
 author: 'Danni Friedland'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
-updatedDate: 2026-06-15T10:00:00Z
+updatedDate: 2026-06-17T00:00:00Z
 faq:
   - question: 'What are the best open-source AI coding tools in 2026?'
     answer: 'The most popular open-source AI coding tools by GitHub stars are OpenHands (68k stars, MIT), Cline (58k, Apache 2.0), Aider (41k, Apache 2.0), Tabby (33k, Apache 2.0), Goose (32k, Apache 2.0), Continue (31k, Apache 2.0), archived Roo Code (22k, Apache 2.0), and bolt.diy (19k, MIT). Each targets a different workflow: Aider and Goose are CLI-based, Cline and Roo-style forks are VS Code agents, Tabby is self-hosted autocomplete, and OpenHands is a full agent platform.'
@@ -25,13 +26,15 @@ faq:
     answer: 'BYOK (bring your own key) tools let you connect your own API keys to Claude, OpenAI, OpenRouter, or other providers instead of paying a tool subscription. The best active BYOK options are: Aider (CLI, 41k stars), Cline (VS Code, 58k stars), Kilo Code (VS Code + JetBrains, 16k stars), Goose (CLI + desktop, 32k stars), Continue (IDE + CLI, 31k stars), Frontman (browser-based, Apache 2.0), and bolt.diy (cloud IDE, 19k stars). Tabby supports local models instead of API keys. Roo Code supported BYOK before it was archived.'
 ---
 
+The best open-source AI coding tool in 2026 depends on your workflow: use Aider or Goose for terminal agents, Cline or Kilo Code for IDE-based agents, Tabby for self-hosted autocomplete, OpenHands for autonomous agent platforms, and Frontman or Stagewise for browser-based visual editing.
+
 There are over a dozen open-source AI coding tools that have gained serious traction in 2026. They range from terminal pair programmers to full agent platforms to browser-based visual editors that bridge the [runtime context gap](/blog/runtime-context-gap/). This is a factual comparison of every major one, organized by architecture category. We built Frontman (one of the tools listed), so we'll note that where relevant and call out where other tools are stronger.
 
 > **Looking for the latest releases?** See our [monthly open source AI releases roundup](/open-source-ai-releases/) for what shipped recently.
 
-Last updated: April 2026. Star counts are approximate. Update: Roo Code was shut down and archived in May 2026; see the dedicated [Roo Code vs Cline comparison](/blog/roo-code-vs-cline/) for current adoption guidance.
+Last updated: June 2026. Star counts are approximate. Update: Roo Code was shut down and archived in May 2026; see the dedicated [Roo Code vs Cline comparison](/blog/roo-code-vs-cline/) for current adoption guidance.
 
-## The Full List
+## Best open-source AI coding tools: quick ranking
 
 | Tool | Stars | License | Category | BYOK | Status |
 |------|------:|---------|----------|------|--------|

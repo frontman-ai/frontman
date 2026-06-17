@@ -1,6 +1,6 @@
 ---
-title: Next.js
-description: Complete reference for the @frontman-ai/nextjs integration — installation, middleware setup, App Router vs Pages Router, OpenTelemetry instrumentation, and troubleshooting.
+title: Next.js Integration
+description: Install @frontman-ai/nextjs with App Router, Pages Router, Next.js 16 proxy.ts, middleware matchers, Turbopack HMR, and OpenTelemetry troubleshooting.
 ---
 
 import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
@@ -11,12 +11,16 @@ import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
 
 **Frontman is a development-only tool.** The middleware and instrumentation have no effect in production. Your deployment bundle is identical whether Frontman is installed or not.
 
+## Quick Start
+
+Run `npx @frontman-ai/nextjs install` from your project directory, start `next dev`, then open `http://localhost:3000/frontman`. For Next.js 16, the installer writes `proxy.ts`; for Next.js 13-15, it writes `middleware.ts` with a matcher scoped to Frontman routes.
+
 ## Requirements
 
 - Node.js 18 or later
 - Next.js 13.2 or later (`^13.2.0 || ^14.0 || ^15.0 || ^16.0`)
 
-## Installation
+## Install Frontman in Next.js
 
 Run the Frontman CLI installer from your project directory:
 

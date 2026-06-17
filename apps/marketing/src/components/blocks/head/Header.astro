@@ -28,6 +28,10 @@ type Props = {
 		modifiedTime?: string
 		tags?: string[]
 	}
+	breadcrumbs?: {
+		name: string
+		url: string
+	}[]
 }
 // Page Metadata
 const {
@@ -39,7 +43,8 @@ const {
 	ogImageAlt,
 	canonical = configData.canonical,
 	noindex = configData.noindex,
-	article
+	article,
+	breadcrumbs
 } = Astro.props
 ---
 
@@ -72,5 +77,5 @@ const {
 	<meta name="generator" content={Astro.generator} />
 	<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
 	<meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
-	<StructuredData />
+	<StructuredData noindex={noindex} breadcrumbs={breadcrumbs} />
 </head>

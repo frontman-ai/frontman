@@ -1,11 +1,12 @@
 ---
-title: 'How Frontman Keeps Your Code Safe'
+title: "Frontman's AI Coding Agent Security Model"
+seoTitle: 'AI Coding Agent Security Model'
 pubDate: 2026-02-17T05:00:00Z
-description: 'Frontman runs only in development, never touches production, and every change produces a reviewable code diff. Here is our security model.'
+description: "Frontman's AI coding agent security model: development-only runtime, scoped file edits, BYOK providers, encrypted API keys, and reviewable git diffs."
 author: 'Danni Friedland'
 image: '/blog/security-cover.png'
 tags: ['security', 'open-source']
-updatedDate: 2026-03-10T00:00:00Z
+updatedDate: 2026-06-17T00:00:00Z
 faq:
   - question: 'Is Frontman safe to use?'
     answer: 'Yes. Frontman runs exclusively in your local development environment as a dev dependency. It never ships to production — the code is removed at compile time by tree-shaking. Every change produces a standard git diff that goes through your normal PR review process. It cannot deploy code, run arbitrary shell commands, or modify files outside your project directory.'
