@@ -50,7 +50,7 @@ Frontman takes a fundamentally different approach:
 
 - **Fully open source.** Frontman's source code, including every prompt, every tool definition, and every piece of agent logic, is open on [GitHub](https://github.com/frontman-ai/frontman). Licenses vary by package and integration, and are declared in the source and release artifacts.
 
-The tradeoff: Frontman is newer and more experimental. AI Engine has 100k+ installs, a Pro tier, WooCommerce tools, embeddings, and years of polish. If you need a production-ready AI content pipeline today, AI Engine is solid. If you want an agent that can edit actual WordPress content, Elementor pages, menus, templates, widgets, and settings inside a live preview, that's what Frontman does.
+The tradeoff: Frontman is newer and more experimental. AI Engine has 100k+ installs, a Pro tier, WooCommerce tools, embeddings, and years of polish. If you need a production-ready AI content pipeline today, AI Engine is solid. If you want an agent that can edit actual WordPress content, Elementor pages, menus, templates, widgets, and settings inside a live preview, that's what Frontman does. For the broader comparison, read [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/).
 
 ### Architecture
 
@@ -76,6 +76,6 @@ That said, this is experimental software. If you choose to use it in production,
 
 ### Getting Started
 
-Frontman is now available in the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/). Install it from **Plugins → Add New Plugin** in wp-admin.
+Frontman is now available in the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/). Install it from **Plugins > Add New Plugin** in wp-admin.
 
 We're excited to bring Frontman to the WordPress ecosystem. This is just the beginning, and with your help, it'll get a lot better.

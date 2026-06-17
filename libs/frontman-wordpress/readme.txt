@@ -1,6 +1,6 @@
 === Frontman - Agentic AI Editor ===
 Contributors: frontmanai
-Tags: ai, editing, content, gutenberg, blocks
+Tags: ai, agent, editing, elementor, woocommerce
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
@@ -8,7 +8,7 @@ Stable tag: 1.0.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI agent for WordPress that edits posts, blocks, menus, templates, site options, Elementor pages, and WooCommerce stores from a conversational UI.
+AI agent that edits posts, blocks, Elementor pages, WooCommerce data, menus, templates, and site options beside a live preview.
 
 == Description ==
 
@@ -18,31 +18,34 @@ https://www.youtube.com/watch?v=-4GD1GYwH8Y
 
 Learn more on the [Frontman Website](https://frontman.sh).
 
-Agentic AI puts an AI agent inside your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow — posts, pages, blocks, menus, templates, site settings, WooCommerce store operations, and more.
+Frontman puts an AI agent beside a live view of your site. Open `/frontman`, describe the change you want, and the agent takes action with built-in tools while you review the result in context.
 
-No code editor. No terminal. Just a chat interface alongside a live view of your site.
+Frontman is closer to an editor than a chatbot or content generator. It is built for real editing tasks: updating content, changing blocks, adjusting Elementor pages, managing menus, inspecting templates, changing safe site options, and working with WooCommerce data when WooCommerce is active.
+
+No code editor. No terminal. Just an AI agent workflow alongside a live page preview.
 
 **What the agent can do:**
 
 * Create, edit, and delete posts and pages
 * Insert, update, and rearrange Gutenberg blocks
-* Edit Elementor pages with complete Elementor support and versioning
+* Edit Elementor pages with Elementor-aware tools and versioning
 * Manage WooCommerce products, orders, customers, coupons, shipping, taxes, reports, settings, and store data when WooCommerce is active
 * Update navigation menus and menu items
-* Read and change site options (title, tagline, permalinks, etc.)
-* Browse block templates and template parts
+* Read and change safe site options such as title, tagline, permalinks, and homepage settings
+* Inspect and update Additional CSS for the active theme
+* Browse block templates, template parts, widgets, and theme settings
 
-Frontman supports WordPress content workflows across Gutenberg, templates, menus, site options, Elementor pages, and WooCommerce stores.
+The important part is the feedback loop. The AI agent can change the site, then you can see the result in the same workflow instead of jumping between admin screens and browser tabs.
 
 **Who it's for:**
 
-Developers who want faster iteration. Designers and content editors who want to make changes without opening an IDE. Anyone managing a WordPress site who'd rather describe what they want than dig through admin screens.
+Developers who want faster iteration. Designers and content editors who want to make changes without opening an IDE. Store owners and site managers who would rather describe the task than dig through admin screens.
 
 **Open source:**
 
-The Frontman WordPress plugin is open source under GPLv2 or later. The code is available on [GitHub](https://github.com/frontman-ai/frontman).
+The Frontman plugin is open source under GPLv2 or later. The code is available on [GitHub](https://github.com/frontman-ai/frontman).
 
-**Early release — help us improve it:**
+**Early release - help us improve it:**
 
 This is an experimental release. It works, but it hasn't been tested across every theme, page builder, and hosting setup. We're looking for users to try it and share feedback. [Open an issue](https://github.com/frontman-ai/frontman/issues) or join the conversation on GitHub.
 
@@ -66,7 +69,7 @@ Only WordPress administrators (`manage_options` capability) can access Frontman.
 
 = Can I use this in production? =
 
-Technically, yes — unlike the JavaScript framework integrations, the WordPress plugin can run on a live site. But this is experimental software. We recommend starting on a staging site, keeping backups, and reviewing changes carefully.
+Technically, yes. Unlike the JavaScript framework integrations, this plugin can run on a live site. But this is experimental software. We recommend starting on a staging site, keeping backups, and reviewing changes carefully.
 
 = Which themes work? =
 
@@ -84,7 +87,7 @@ The chat interface is loaded from `https://app.frontman.sh`. This serves the Jav
 * Privacy Policy: [https://frontman.sh/terms](https://frontman.sh/terms)
 
 **Frontman API (api.frontman.sh)**
-The plugin connects via WebSocket to `wss://api.frontman.sh` for AI agent communication — sending tool results and receiving agent responses. Your site content and, when you use WooCommerce tools, store data such as products, orders, customers, coupons, reports, and settings are sent to this service when the agent processes requests.
+The plugin connects via WebSocket to `wss://api.frontman.sh` for AI agent communication, sending tool results and receiving agent responses. Your site content and, when you use WooCommerce tools, store data such as products, orders, customers, coupons, reports, and settings are sent to this service when the agent processes requests.
 
 * Service URL: [https://api.frontman.sh](https://api.frontman.sh)
 * Provider: Frontman AI
