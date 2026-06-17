@@ -51,12 +51,12 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   # ===========================================================================
 
   def handle_swarm_run_start(_event, _measurements, metadata, _config) do
-    %{loop_id: loop_id, execution_module: execution_module} = metadata
+    %{loop_id: loop_id, task_id: task_id, turn_number: turn_number} = metadata
     start_time = System.monotonic_time(:millisecond)
-    :ets.insert(@table, {{:swarm_run, loop_id}, start_time, execution_module})
+    :ets.insert(@table, {{:swarm_run, loop_id}, start_time, task_id, turn_number})
 
     Logger.info(
-      "[swarm] run:start loop=#{short_id(loop_id)} execution=#{inspect(execution_module)}"
+      "[swarm] run:start loop=#{short_id(loop_id)} task=#{short_id(task_id)} turn=#{turn_number}"
     )
   end
 
@@ -64,14 +64,14 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
     %{loop_id: loop_id, status: status, step_count: step_count} = metadata
 
     case :ets.lookup(@table, {:swarm_run, loop_id}) do
-      [{{:swarm_run, ^loop_id}, start_time, execution_module}] ->
+      [{{:swarm_run, ^loop_id}, start_time, task_id, turn_number}] ->
         duration = System.monotonic_time(:millisecond) - start_time
         :ets.delete(@table, {:swarm_run, loop_id})
 
         status_str = format_status(status)
 
         Logger.info(
-          "[swarm] run:stop  loop=#{short_id(loop_id)} execution=#{inspect(execution_module)} " <>
+          "[swarm] run:stop  loop=#{short_id(loop_id)} task=#{short_id(task_id)} turn=#{turn_number} " <>
             "#{status_str} steps=#{step_count} (#{duration}ms)"
         )
 
@@ -182,6 +182,8 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   defp format_status(:ok), do: "✓"
   defp format_status(:completed), do: "✓"
+  defp format_status({:failed, _reason}), do: "✗"
+  defp format_status({:paused, _reason}), do: "⏸"
   defp format_status(:error), do: "✗"
-  defp format_status(status), do: "#{status}"
+  defp format_status(status), do: inspect(status)
 end

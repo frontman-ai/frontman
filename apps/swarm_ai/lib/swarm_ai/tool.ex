@@ -2,9 +2,8 @@ defmodule SwarmAi.Tool do
   @moduledoc """
   Tool definition for LLM consumption.
 
-  This is pure data describing a tool's interface and execution policy.
-  Agents return tool execution descriptors via `SwarmAi.Agent.tool_executor/1`,
-  and SwarmAi executes those descriptors under supervision.
+  This is pure data describing a tool's interface and execution policy for LLM
+  consumption. Callers provide loop tool execution separately.
 
   Both `timeout_ms` and `on_timeout` are required. There are no defaults —
   every tool must explicitly declare its execution policy. Missing either

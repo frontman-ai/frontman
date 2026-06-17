@@ -242,7 +242,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       workspace_section = format_workspace_section(workspaces)
 
       summary = type_line <> workspace_section <> "\n\nDirectory layout:\n" <> tree
-      Tasks.add_discovered_project_structure(state.scope, state.task_id, summary)
+      {:ok, _} = Tasks.add_discovered_project_structure(state.scope, state.task_id, summary)
       Logger.info("MCPInitializer: Discovered project structure")
     else
       "" ->

@@ -16,27 +16,28 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.ToolExecution
 
-  @doc """
-  Returns a tool executor config for use with `SwarmAi.ParallelExecutor`.
+  def execute(%Scope{} = scope, %{
+        task_id: task_id,
+        turn_number: turn_number,
+        tool_calls: tool_calls,
+        task_supervisor: task_supervisor,
+        backend_tool_modules: backend_tool_modules,
+        mcp_tool_defs: mcp_tool_defs,
+        execution_mode: execution_mode
+      }) do
+    exec_opts =
+      build_exec_opts(%{
+        backend_tool_modules: backend_tool_modules,
+        mcp_tool_defs: mcp_tool_defs
+      })
 
-  The `:build` function maps tool-call structs to tool-execution structs.
+    executions =
+      Enum.map(tool_calls, &build_execution(&1, scope, task_id, turn_number, exec_opts))
 
-  ## Options
-
-  - `:backend_tool_modules` - List of backend tool modules (required)
-  - `:mcp_tool_defs` - List of MCP tool structs with timeout/policy (required)
-  - `:execution_mode` - `:parallel` or `:serial` (required)
-  """
-  def make(%Scope{} = scope, task_id, turn_number, opts)
-      when is_integer(turn_number) and turn_number > 0 and is_map(opts) do
-    exec_opts = build_exec_opts(opts)
-
-    %{
-      build: fn tool_calls ->
-        Enum.map(tool_calls, &build_execution(&1, scope, task_id, turn_number, exec_opts))
-      end,
-      execution_mode: Map.fetch!(opts, :execution_mode)
-    }
+    case execution_mode do
+      :serial -> SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor)
+      :parallel -> SwarmAi.ParallelExecutor.run(executions, task_supervisor)
+    end
   end
 
   defp build_execution(tool_call, scope, task_id, turn_number, exec_opts) do

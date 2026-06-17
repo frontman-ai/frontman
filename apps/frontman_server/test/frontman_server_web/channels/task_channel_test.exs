@@ -918,10 +918,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       turn_number = latest_turn_number(task_id)
 
-      Tasks.handle_swarm_event(scope, task_id, %{
-        turn_number: turn_number,
-        event: {:terminated, :shutdown}
-      })
+      Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       refute Enum.any?(task.interactions, &match?(%Interaction.AgentError{}, &1))
@@ -974,10 +971,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       turn_number = latest_turn_number(task_id)
 
-      Tasks.handle_swarm_event(scope, task_id, %{
-        turn_number: turn_number,
-        event: {:terminated, :shutdown}
-      })
+      Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
       {:ok, _reply, socket} =
         UserSocket
@@ -1005,10 +999,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       turn_number = latest_turn_number(task_id)
 
-      Tasks.handle_swarm_event(scope, task_id, %{
-        turn_number: turn_number,
-        event: {:terminated, :shutdown}
-      })
+      Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
       {:ok, _reply, socket} =
         UserSocket

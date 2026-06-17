@@ -90,7 +90,7 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "submit_user_message/4" do
+  describe "submit_user_message/2" do
     test "returns an error instead of raising when existing rows have invalid turn state", %{
       scope: scope
     } do
@@ -101,9 +101,10 @@ defmodule FrontmanServer.TasksTest do
       assert {:error, {:missing_turn_number, :user_message}} =
                Tasks.submit_user_message(
                  scope,
-                 task_id,
-                 user_content("hello"),
-                 execution_request_fixture()
+                 Map.merge(execution_request_fixture(), %{
+                   task_id: task_id,
+                   message: user_content("hello")
+                 })
                )
     end
   end
@@ -129,10 +130,7 @@ defmodule FrontmanServer.TasksTest do
           named_swarm_tool_call("read_1", "read_file")
         )
 
-      Tasks.handle_swarm_event(scope, task_id, %{
-        turn_number: turn_number,
-        event: {:terminated, :shutdown}
-      })
+      Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       refute Enum.any?(task.interactions, &match?(%Interaction.AgentError{}, &1))
@@ -160,10 +158,7 @@ defmodule FrontmanServer.TasksTest do
       response = %SwarmAi.LLM.Response{content: "hello", metadata: %{response_id: 123}}
 
       assert {:error, changeset} =
-               Tasks.handle_swarm_event(scope, task_id, %{
-                 turn_number: turn_number,
-                 event: {:response, response}
-               })
+               Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
 
       assert %{data: ["metadata.response_id must be a string"]} = errors_on(changeset)
     end

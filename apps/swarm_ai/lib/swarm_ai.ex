@@ -1,28 +1,26 @@
 defmodule SwarmAi do
   @moduledoc """
-  Public API for supervised SwarmAi agent execution.
+  Public API for supervised SwarmAi loop execution.
 
-  Add `SwarmAi` to your supervision tree, then run agents through the
+  Add `SwarmAi` to your supervision tree, then run loops through the
   top-level API:
 
       children = [
-        {SwarmAi,
-         name: MyApp.AgentRuntime,
-         event_dispatcher: {MyApp.SwarmDispatcher, :dispatch, []}}
+        {SwarmAi, name: MyApp.AgentRuntime}
       ]
 
-      agent = %MyAgent{id: task_id, messages: [SwarmAi.Message.user("Analyze this code")]}
+      {:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, loop)
+      SwarmAi.running?(MyApp.AgentRuntime, loop.task_id)
+      SwarmAi.cancel(MyApp.AgentRuntime, loop.task_id)
 
-      {:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, agent)
-      SwarmAi.running?(MyApp.AgentRuntime, SwarmAi.Agent.id(agent))
-      SwarmAi.cancel(MyApp.AgentRuntime, SwarmAi.Agent.id(agent))
-
-  `SwarmAi.Agent.tool_executor/1` returns the batch tool builder and
-  execution mode. SwarmAi owns execution lifecycle, concurrency, timeouts,
-  cancellation, telemetry, and execution events.
+  SwarmAi owns execution lifecycle, cancellation, telemetry, and execution
+  events. Callers provide LLM messages, tool execution, and event dispatch on
+  the loop.
   """
 
   require Logger
+
+  alias SwarmAi.Loop
 
   @doc "Returns a child spec for a supervised SwarmAi runtime."
   @spec child_spec(keyword()) :: Supervisor.child_spec()
@@ -36,26 +34,31 @@ defmodule SwarmAi do
     }
   end
 
-  @doc "Runs an agent in a supervised runtime."
-  @spec run(atom(), SwarmAi.Agent.t()) :: {:ok, pid()} | {:error, term()}
+  @doc "Runs a loop in a supervised runtime."
+  @spec run(atom(), Loop.t()) ::
+          {:ok, pid()} | {:error, :already_running | {:start_failed, term()}}
   def run(runtime, %Loop{} = loop) when is_atom(runtime) do
-    DynamicSupervisor.start_child(
-      execution_supervisor_name(runtime),
-      {SwarmAi.ExecutionWorker, {runtime, agent}}
-    )
+    case DynamicSupervisor.start_child(
+           execution_supervisor_name(runtime),
+           {SwarmAi.ExecutionWorker, {runtime, loop}}
+         ) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, _pid}} -> {:error, :already_running}
+      {:error, reason} -> {:error, {:start_failed, reason}}
+    end
   end
 
-  @doc "Returns true when an agent id is running."
+  @doc "Returns true when a conversation/task id is running."
   @spec running?(atom(), String.t()) :: boolean()
-  def running?(runtime, conversation_id) when is_atom(runtime) and is_binary(conversation_id),
-    do: running_lookup(runtime, conversation_id) != []
+  def running?(runtime, task_id) when is_atom(runtime) and is_binary(task_id),
+    do: running_lookup(runtime, task_id) != []
 
-  @doc "Cancels a running execution by agent id."
+  @doc "Cancels a running execution by conversation/task id."
   @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
-  def cancel(runtime, conversation_id) when is_atom(runtime) and is_binary(conversation_id) do
-    case running_lookup(runtime, conversation_id) do
+  def cancel(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
+    case running_lookup(runtime, task_id) do
       [{pid, _}] ->
-        Logger.info("Cancelling execution for agent #{inspect(id)}")
+        Logger.info("Cancelling execution for #{inspect(task_id)}")
         Process.exit(pid, :cancelled)
         :ok
 
@@ -77,18 +80,10 @@ defmodule SwarmAi do
   def execution_supervisor_name(runtime), do: :"#{runtime}.ExecutionSupervisor"
 
   @doc false
-  @spec running_execution_registry_entry(String.t()) :: {:running, String.t()}
-  def running_execution_registry_entry(id) when is_binary(id), do: {:running, id}
-
-  @doc false
-  @spec running_execution_registry_entry_for_agent(SwarmAi.Agent.t()) :: {:running, String.t()}
-  def running_execution_registry_entry_for_agent(agent),
-    do: agent |> SwarmAi.Agent.id() |> running_execution_registry_entry()
-
-  defp running_lookup(runtime, agent_id) do
+  defp running_lookup(runtime, task_id) do
     Registry.lookup(
       registry_name(runtime),
-      running_execution_registry_entry(agent_id)
+      task_id
     )
   end
 end

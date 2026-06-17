@@ -81,14 +81,16 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       {:ok, _interaction, _turn_number} =
         Tasks.submit_user_message(
           scope,
-          task_id,
-          user_content("Implement the component"),
-          execution_request_fixture(
-            tools: MCP.to_swarm_tools([mcp_tool_def]),
-            backend_tool_modules: [],
-            mcp_tool_defs: [mcp_tool_def],
-            model: "openrouter:anthropic/claude-sonnet-4-20250514",
-            project_traits: []
+          Map.merge(
+            execution_request_fixture(
+              mcp_tools: [mcp_tool_def],
+              model: "openrouter:anthropic/claude-sonnet-4-20250514",
+              project_traits: []
+            ),
+            %{
+              task_id: task_id,
+              message: user_content("Implement the component")
+            }
           )
         )
 

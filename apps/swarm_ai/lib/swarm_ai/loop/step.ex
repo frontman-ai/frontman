@@ -57,13 +57,17 @@ defmodule SwarmAi.Loop.Step do
   @doc "Records the LLM response on this step, including any tool calls."
   @spec record_response(t(), SwarmAi.LLM.Response.t()) :: t()
   def record_response(%__MODULE__{} = step, %SwarmAi.LLM.Response{} = response) do
+    now = DateTime.utc_now()
+
     %{
       step
       | content: response.content,
         reasoning_details: response.reasoning_details,
         usage: response.usage,
         tool_calls: response.tool_calls,
-        response_metadata: response.metadata || %{}
+        response_metadata: response.metadata || %{},
+        completed_at: now,
+        duration_ms: DateTime.diff(now, step.started_at, :millisecond)
     }
   end
 

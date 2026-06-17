@@ -4,24 +4,24 @@ defmodule SwarmAi.Executor do
   alias SwarmAi.LLM.Response
   alias SwarmAi.{Loop, Telemetry}
 
-  def run(%Loop{} = loop) do
+  def run(%Loop{} = loop, task_supervisor) do
     Telemetry.run_span(
       %{
         loop_id: loop.id,
-        conversation_id: loop.conversation_id,
-        turn_number: loop.turn_number,
-        execution_module: agent.__struct__
+        task_id: loop.task_id,
+        turn_number: loop.turn_number
       },
       fn ->
         # QUESTION(Danni) - why do we need both loop.execute which does almost
         # nothing compared to make, then we've run_effects
         {loop, effects} = Loop.execute(loop)
-        final_loop = run_effects(loop, effects)
+        final_loop = run_effects(loop, effects, task_supervisor)
 
-        {final_loop.status,
+        {final_loop,
          %{
            loop_id: final_loop.id,
-           agent_id: agent_id,
+           task_id: final_loop.task_id,
+           turn_number: final_loop.turn_number,
            status: final_loop.status,
            step_count: length(final_loop.steps),
            output: final_loop.result
@@ -30,11 +30,11 @@ defmodule SwarmAi.Executor do
     )
   end
 
-  defp run_effects(loop, effects) do
-    run_effects(loop, effects, loop.config.max_steps)
+  defp run_effects(loop, effects, task_supervisor) do
+    run_effects(loop, effects, task_supervisor, loop.config.max_steps)
   end
 
-  defp run_effects(loop, effects, steps_left) do
+  defp run_effects(loop, effects, task_supervisor, steps_left) do
     case effects do
       [] ->
         loop
@@ -44,39 +44,39 @@ defmodule SwarmAi.Executor do
 
       [{:call_llm, llm, messages} | rest] when steps_left > 0 ->
         {updated_loop, new_effects} = execute_llm_call(loop, llm, messages)
-        run_effects(updated_loop, new_effects ++ rest, steps_left - 1)
+        run_effects(updated_loop, new_effects ++ rest, task_supervisor, steps_left - 1)
 
       [{:execute_tool, _} | _] ->
-        execute_tool_effects(loop, effects, steps_left)
+        execute_tool_effects(loop, effects, task_supervisor, steps_left)
 
       [{:step_ended, step} | rest] ->
         Telemetry.step_stop(loop.id, step)
-        run_effects(loop, rest, steps_left)
+        run_effects(loop, rest, task_supervisor, steps_left)
 
       [{:complete, _result} | _rest] ->
-        Telemetry.step_stop(loop.id, Loop.current_step(loop))
+        Telemetry.step_stop(loop.id, loop.current_step)
         loop
 
       [{:fail, _error} | _rest] ->
-        Telemetry.step_stop(loop.id, Loop.current_step(loop))
+        Telemetry.step_stop(loop.id, loop.current_step)
         loop
     end
   end
 
-  defp execute_tool_effects(loop, effects, steps_left) do
+  defp execute_tool_effects(loop, effects, task_supervisor, steps_left) do
     {tool_effects, rest} = split_tool_effects(effects)
     tool_calls = Enum.map(tool_effects, fn {:execute_tool, tc} -> tc end)
 
     Enum.each(tool_calls, fn tool_call -> loop.dispatch_event.({:tool_call, tool_call}) end)
 
     loop_id = loop.id
-    step = Loop.current_step(loop)
+    step = loop.current_step
 
     Enum.each(tool_calls, &emit_tool_start(loop_id, step, &1))
 
     executor_result =
       try do
-        run_tools(loop.agent, tool_calls, loop.runtime)
+        loop.execute_tools.(tool_calls, task_supervisor)
       rescue
         e ->
           Enum.each(tool_calls, &emit_tool_exception(loop_id, step, &1, e))
@@ -85,7 +85,7 @@ defmodule SwarmAi.Executor do
 
     case executor_result do
       {:halt, halt_reason} ->
-        Telemetry.step_stop(loop.id, Loop.current_step(loop))
+        Telemetry.step_stop(loop.id, loop.current_step)
         Loop.pause(loop, halt_reason)
 
       {:ok, results} ->
@@ -101,27 +101,15 @@ defmodule SwarmAi.Executor do
         run_effects(
           updated_loop,
           new_effects ++ rest,
+          task_supervisor,
           steps_left
         )
     end
   end
 
-  defp run_tools(agent, tool_calls, runtime) do
-    task_supervisor = SwarmAi.task_supervisor_name(runtime)
-    tool_executor = SwarmAi.Agent.tool_executor(agent)
-    build = Map.fetch!(tool_executor, :build)
-    execution_mode = Map.fetch!(tool_executor, :execution_mode)
-    executions = build.(tool_calls)
-
-    case execution_mode do
-      :serial -> SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor)
-      :parallel -> SwarmAi.ParallelExecutor.run(executions, task_supervisor)
-    end
-  end
-
   defp execute_llm_call(loop, llm, messages) do
     loop_id = loop.id
-    current_step = Loop.current_step(loop)
+    current_step = loop.current_step
 
     Telemetry.step_start(loop_id, current_step)
 

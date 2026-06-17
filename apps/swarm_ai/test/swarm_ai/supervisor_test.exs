@@ -34,7 +34,7 @@ defmodule SwarmAi.SupervisorTest do
       {:ok, pid2} = run_after_recovery(runtime, "task-post", mock_llm("after crash"))
       await_exit(pid2)
 
-      assert_receive {:test_event, "task-post", {:completed, nil}}
+      assert_receive {:test_event, "task-post", :completed}
     end
   end
 
@@ -62,29 +62,27 @@ defmodule SwarmAi.SupervisorTest do
       {:ok, pid2} = run_after_recovery(runtime, "task-post", mock_llm("recovered"))
       await_exit(pid2)
 
-      assert_receive {:test_event, "task-post", {:completed, nil}}
-    end
-  end
-
-  defmodule TestDispatcher do
-    def dispatch(test_pid, key, event, _context) do
-      send(test_pid, {:test_event, key, event})
-      :ok
+      assert_receive {:test_event, "task-post", :completed}
     end
   end
 
   defp start_runtime! do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
-    test_pid = self()
-
-    start_supervised!(
-      {SwarmAi, name: name, event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
-    )
-
+    start_supervised!({SwarmAi, name: name})
     name
   end
 
-  defp agent(_runtime, id, llm), do: test_execution(llm, "TestBot", id: id)
+  defp agent(_runtime, id, llm) do
+    test_pid = self()
+
+    test_execution(llm, "TestBot",
+      id: id,
+      dispatch_event: fn event ->
+        send(test_pid, {:test_event, id, event})
+        :ok
+      end
+    )
+  end
 
   defp run_agent(runtime, id, llm) do
     SwarmAi.run(runtime, agent(runtime, id, llm))

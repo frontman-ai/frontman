@@ -45,11 +45,9 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   @doc "Build a production-shaped execution request for task execution tests."
   def execution_request_fixture(overrides \\ []) do
     %{
-      tools: [],
       model: nil,
       project_traits: [],
-      backend_tool_modules: FrontmanServer.Tools.backend_tool_modules(),
-      mcp_tool_defs: []
+      mcp_tools: []
     }
     |> Map.merge(Map.new(overrides))
   end

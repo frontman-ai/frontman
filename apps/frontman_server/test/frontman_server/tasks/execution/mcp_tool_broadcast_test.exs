@@ -50,11 +50,12 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       {:ok, _, _} =
         Tasks.submit_user_message(
           scope,
-          task_id,
-          user_content("Please call the MCP tool"),
-          execution_request_fixture(
-            tools: MCP.to_swarm_tools([some_mcp_tool_def]),
-            mcp_tool_defs: [some_mcp_tool_def]
+          Map.merge(
+            execution_request_fixture(mcp_tools: [some_mcp_tool_def]),
+            %{
+              task_id: task_id,
+              message: user_content("Please call the MCP tool")
+            }
           )
         )
 
@@ -133,11 +134,12 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       {:ok, _, _} =
         Tasks.submit_user_message(
           scope,
-          task_id,
-          user_content("Call tool"),
-          execution_request_fixture(
-            tools: MCP.to_swarm_tools([mcp_tool_def]),
-            mcp_tool_defs: [mcp_tool_def]
+          Map.merge(
+            execution_request_fixture(mcp_tools: [mcp_tool_def]),
+            %{
+              task_id: task_id,
+              message: user_content("Call tool")
+            }
           )
         )
 

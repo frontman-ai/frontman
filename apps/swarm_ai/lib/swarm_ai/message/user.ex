@@ -1,4 +1,6 @@
 defmodule SwarmAi.Message.User do
+  @moduledoc "User-authored message in a loop conversation."
+
   use TypedStruct
   alias SwarmAi.Message.ContentPart
 

@@ -11,56 +11,48 @@ defmodule SwarmAi.ExecutionWorker do
     field(:loop, SwarmAi.Loop.t())
   end
 
-  @spec start_link(dispatcher(), {atom(), SwarmAi.Agent.t()}) :: GenServer.on_start()
-  def start_link(event_dispatcher, {runtime, agent}) do
+  @spec start_link({atom(), SwarmAi.Loop.t()}) :: GenServer.on_start()
+  def start_link({runtime, %SwarmAi.Loop{task_id: task_id} = loop}) do
     registry = SwarmAi.registry_name(runtime)
 
     name =
-      {:via, Registry, {registry, SwarmAi.running_execution_registry_entry_for_agent(agent)}}
+      {:via, Registry, {registry, task_id}}
 
-    GenServer.start_link(__MODULE__, {runtime, agent, event_dispatcher}, name: name)
+    GenServer.start_link(__MODULE__, {runtime, loop}, name: name)
   end
 
   @impl true
-  def init({runtime, agent, event_dispatcher}) do
+  def init({runtime, %SwarmAi.Loop{} = loop}) do
     state = %__MODULE__{
       runtime: runtime,
-      agent: agent,
-      event_dispatcher: event_dispatcher
+      loop: loop
     }
 
     {:ok, state, {:continue, :run}}
   end
 
   @impl true
-  def handle_continue(:run, %__MODULE__{} = state) do
-    registry = SwarmAi.registry_name(state.runtime)
+  def handle_continue(:run, %__MODULE__{loop: loop, runtime: runtime} = state) do
+    registry = SwarmAi.registry_name(runtime)
+    task_supervisor = SwarmAi.task_supervisor_name(runtime)
 
-    agent_id = SwarmAi.Agent.id(state.agent)
-    agent_context = SwarmAi.Agent.context(state.agent)
-    event_dispatcher = state.event_dispatcher
-
-    spawn_death_watcher(agent_id, agent_context, event_dispatcher)
+    spawn_death_watcher(loop)
 
     try do
-      event = SwarmAi.Executor.run(loop)
-
-      unregister(registry, state.agent)
-      dispatch_event(event_dispatcher, agent_id, agent_context, event)
+      final_loop = SwarmAi.Executor.run(loop, task_supervisor)
+      final_loop.dispatch_event.(final_loop.status)
     after
-      unregister(registry, state.agent)
-      # Safety net, idempotent if already unregistered above.
+      unregister(registry, loop)
     end
 
     {:stop, :normal, state}
   end
 
-  defp unregister(registry, agent) do
-    registry_entry = SwarmAi.running_execution_registry_entry_for_agent(agent)
-    Registry.unregister(registry, registry_entry)
+  defp unregister(registry, %SwarmAi.Loop{task_id: task_id}) do
+    Registry.unregister(registry, task_id)
   end
 
-  defp spawn_death_watcher(agent_id, agent_context, event_dispatcher) do
+  defp spawn_death_watcher(%SwarmAi.Loop{} = loop) do
     worker_pid = self()
 
     pid =
@@ -68,7 +60,7 @@ defmodule SwarmAi.ExecutionWorker do
         try do
           monitor_ref = Process.monitor(worker_pid)
           send(worker_pid, {:watcher_ready, self()})
-          watcher_loop(monitor_ref, worker_pid, agent_id, agent_context, event_dispatcher)
+          watcher_loop(monitor_ref, worker_pid, loop)
         rescue
           error ->
             Logger.error(
@@ -90,46 +82,42 @@ defmodule SwarmAi.ExecutionWorker do
     end
   end
 
-  defp watcher_loop(monitor_ref, worker_pid, agent_id, agent_context, event_dispatcher) do
+  defp watcher_loop(monitor_ref, worker_pid, %SwarmAi.Loop{} = loop) do
     receive do
       {:DOWN, ^monitor_ref, :process, ^worker_pid, :normal} ->
         :ok
 
       {:DOWN, ^monitor_ref, :process, ^worker_pid, :cancelled} ->
-        Logger.info("Execution cancelled for #{agent_id}")
+        Logger.info("Execution cancelled for #{loop.task_id}")
         event = {:cancelled, nil}
-        dispatch_event(event_dispatcher, agent_id, agent_context, event)
+        loop.dispatch_event.(event)
 
       {:DOWN, ^monitor_ref, :process, ^worker_pid, :shutdown} ->
-        Logger.info("Execution terminated by supervisor for #{agent_id}, reason: :shutdown")
+        Logger.info("Execution terminated by supervisor for #{loop.task_id}, reason: :shutdown")
         event = {:terminated, nil}
-        dispatch_event(event_dispatcher, agent_id, agent_context, event)
+        loop.dispatch_event.(event)
 
       {:DOWN, ^monitor_ref, :process, ^worker_pid, {:shutdown, reason}} ->
         Logger.info(fn ->
-          "Execution terminated by supervisor for #{agent_id}, reason: #{inspect(reason)}"
+          "Execution terminated by supervisor for #{loop.task_id}, reason: #{inspect(reason)}"
         end)
 
         event = {:terminated, reason}
-        dispatch_event(event_dispatcher, agent_id, agent_context, event)
+        loop.dispatch_event.(event)
 
       {:DOWN, ^monitor_ref, :process, ^worker_pid, reason} ->
         message = Exception.format_exit(reason)
-        Logger.warning(fn -> "Execution crashed for #{agent_id}, reason: #{inspect(reason)}" end)
+
+        Logger.warning(fn ->
+          "Execution crashed for #{loop.task_id}, reason: #{inspect(reason)}"
+        end)
+
         event = {:crashed, %{message: message}}
-        dispatch_event(event_dispatcher, agent_id, agent_context, event)
+        loop.dispatch_event.(event)
 
       _other ->
         # Draining unrelated messages
-        watcher_loop(monitor_ref, worker_pid, agent_id, agent_context, event_dispatcher)
+        watcher_loop(monitor_ref, worker_pid, loop)
     end
-  end
-
-  defp dispatch_event({mod, fun, args}, agent_id, agent_context, event) do
-    apply(mod, fun, args ++ [agent_id, event, agent_context])
-  rescue
-    error ->
-      Logger.error("SwarmAi event dispatch failed: #{Exception.message(error)}")
-      {:error, error}
   end
 end

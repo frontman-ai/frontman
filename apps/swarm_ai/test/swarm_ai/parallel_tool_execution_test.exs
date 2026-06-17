@@ -72,7 +72,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           Enum.each(pids, &send(&1, :go))
         end)
 
-      executor = fn tool_calls ->
+      execute_tools = fn tool_calls, task_supervisor ->
         Enum.map(tool_calls, fn tc ->
           %ToolExecution.Sync{
             tool_call: tc,
@@ -82,14 +82,15 @@ defmodule SwarmAi.ParallelToolExecutionTest do
             on_timeout: {__MODULE__, :noop_timeout, []}
           }
         end)
+        |> SwarmAi.ParallelExecutor.run(task_supervisor)
       end
 
       {:ok, pid} =
-        run_execution(runtime, "task-parallel", llm, tool_executor: tool_executor(executor))
+        run_execution(runtime, "task-parallel", llm, execute_tools: execute_tools)
 
       assert_receive :all_concurrent, 5_000
       await_exit(pid)
-      assert_receive {:test_event, "task-parallel", {:completed, nil}, _}, 2_000
+      assert_receive {:test_event, "task-parallel", :completed}, 2_000
     end
 
     test "fault isolation - crashing tool produces error result, agent continues" do
@@ -105,7 +106,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           {:complete, "Handled"}
         ])
 
-      executor = fn tool_calls ->
+      execute_tools = fn tool_calls, task_supervisor ->
         Enum.map(tool_calls, fn tc ->
           run_mfa =
             case tc.name do
@@ -121,13 +122,14 @@ defmodule SwarmAi.ParallelToolExecutionTest do
             on_timeout: {__MODULE__, :noop_timeout, []}
           }
         end)
+        |> SwarmAi.ParallelExecutor.run(task_supervisor)
       end
 
       {:ok, pid} =
-        run_execution(runtime, "task-crash", llm, tool_executor: tool_executor(executor))
+        run_execution(runtime, "task-crash", llm, execute_tools: execute_tools)
 
       await_exit(pid)
-      assert_receive {:test_event, "task-crash", {:completed, nil}, _}, 2_000
+      assert_receive {:test_event, "task-crash", :completed}, 2_000
     end
 
     test "can execute a tool batch serially" do
@@ -144,7 +146,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           {:complete, "All done"}
         ])
 
-      executor = fn tool_calls ->
+      execute_tools = fn tool_calls, task_supervisor ->
         Enum.map(tool_calls, fn tc ->
           %ToolExecution.Sync{
             tool_call: tc,
@@ -154,12 +156,11 @@ defmodule SwarmAi.ParallelToolExecutionTest do
             on_timeout: {__MODULE__, :noop_timeout, []}
           }
         end)
+        |> SwarmAi.ParallelExecutor.run_serial(task_supervisor)
       end
 
       {:ok, pid} =
-        run_execution(runtime, "task-serial", llm,
-          tool_executor: tool_executor(executor, :serial)
-        )
+        run_execution(runtime, "task-serial", llm, execute_tools: execute_tools)
 
       assert_receive {:serial_started, "t1", first_pid}, 1_000
       refute_receive {:serial_started, "t2", _}, 100
@@ -169,39 +170,39 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       send(second_pid, :go)
 
       await_exit(pid)
-      assert_receive {:test_event, "task-serial", {:completed, nil}, _}, 2_000
+      assert_receive {:test_event, "task-serial", :completed}, 2_000
     end
   end
 
   # --- Helpers ---
 
-  defmodule TestDispatcher do
-    def dispatch(test_pid, key, event, context) do
-      send(test_pid, {:test_event, key, event, context})
-      :ok
-    end
-  end
-
   defp start_runtime! do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
-    test_pid = self()
-
-    start_supervised!(
-      {SwarmAi, name: name, event_dispatcher: {TestDispatcher, :dispatch, [test_pid]}}
-    )
-
+    start_supervised!({SwarmAi, name: name})
     name
   end
 
   defp run_execution(runtime, id, llm, opts) do
-    agent =
+    test_pid = self()
+
+    loop =
       test_execution(
         llm,
         "TestBot",
-        Keyword.merge([id: id, messages: [SwarmAi.Message.user("Do work")]], opts)
+        Keyword.merge(
+          [
+            id: id,
+            messages: [SwarmAi.Message.system("You are TestBot"), SwarmAi.Message.user("Do work")],
+            dispatch_event: fn event ->
+              send(test_pid, {:test_event, id, event})
+              :ok
+            end
+          ],
+          opts
+        )
       )
 
-    SwarmAi.run(runtime, agent)
+    SwarmAi.run(runtime, loop)
   end
 
   defp await_exit(pid) do

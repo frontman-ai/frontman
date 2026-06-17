@@ -4,7 +4,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   Tests the full lifecycle: cancel, tool result routing, consecutive messages,
   and terminal events through the channel layer. These exercise the Tasks
-  facade, SwarmDispatcher, and TaskChannel together.
+  facade, SwarmAi loop dispatch, and TaskChannel together.
   """
   use FrontmanServer.ExecutionCase
   use Oban.Testing, repo: FrontmanServer.Repo
@@ -61,7 +61,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp submit_user_message(scope, task_id, content, overrides \\ []) do
-    Tasks.submit_user_message(scope, task_id, content, execution_request_fixture(overrides))
+    Tasks.submit_user_message(
+      scope,
+      Map.merge(execution_request_fixture(overrides), %{task_id: task_id, message: content})
+    )
   end
 
   defp setup_sandbox(_context) do
@@ -94,6 +97,30 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     {:ok, socket: socket}
   end
 
+  defp refute_running_eventually(task_id, attempts \\ 50)
+
+  defp refute_running_eventually(task_id, attempts) when attempts > 0 do
+    case SwarmAi.running?(FrontmanServer.AgentRuntime, task_id) do
+      false ->
+        :ok
+
+      true ->
+        Process.sleep(10)
+        refute_running_eventually(task_id, attempts - 1)
+    end
+  end
+
+  defp refute_running_eventually(task_id, 0) do
+    refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
+           "Agent should not be running after completion"
+  end
+
+  defp with_backend_tools(modules) do
+    previous = Application.fetch_env!(:frontman_server, :backend_tools)
+    Application.put_env(:frontman_server, :backend_tools, modules)
+    on_exit(fn -> Application.put_env(:frontman_server, :backend_tools, previous) end)
+  end
+
   describe "cancel_execution/2 (end-to-end)" do
     setup [:setup_sandbox, :setup_user, :setup_task]
 
@@ -113,7 +140,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive {:interaction, %Interaction.AgentError{kind: "cancelled"}, _turn_number},
                      5_000
 
-      refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
+      refute_running_eventually(task_id)
     end
 
     test "cancel respects task ownership", %{task_id: task_id} do
@@ -141,13 +168,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 
-      refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
-             "Agent should not be running after completion"
+      refute_running_eventually(task_id)
 
       {:ok, _, 2} = submit_user_message(scope, task_id, user_content("Second message"))
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
-      refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
+      refute_running_eventually(task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -242,14 +268,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       question_tc_id = "tc_question_#{System.unique_integer([:positive])}"
       question_tc = tool_call("question", question_args(), id: question_tc_id)
 
-      question_swarm_tools = MCP.to_swarm_tools(question_mcp_tool_defs())
-
       expect_llm_responses([{:tool_calls, [question_tc], "Great choice!"}, "Great choice!"])
 
       {:ok, _, _} =
         submit_user_message(scope, task_id, user_content("Ask me"),
-          tools: question_swarm_tools,
-          mcp_tool_defs: question_mcp_tool_defs()
+          mcp_tools: question_mcp_tool_defs()
         )
 
       Process.sleep(200)
@@ -327,13 +350,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       question_tc_id = "tc_timeout_#{System.unique_integer([:positive])}"
       question_tc = tool_call("question", question_args(), id: question_tc_id)
 
-      swarm_tools = MCP.to_swarm_tools(short_timeout_question_mcp_tool_defs())
       expect_llm_responses([{:tool_calls, [question_tc], "done"}])
 
       {:ok, _, _} =
         submit_user_message(scope, task_id, user_content("Ask me"),
-          tools: swarm_tools,
-          mcp_tool_defs: short_timeout_question_mcp_tool_defs()
+          mcp_tools: short_timeout_question_mcp_tool_defs()
         )
 
       assert_receive {:interaction, %Interaction.AgentPaused{}, _turn_number}, 5_000
@@ -354,7 +375,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert tool_result.is_error == true
 
       assert result_text =~ "on_timeout: :pause_agent",
-             "Expected ToolResult message to come from SwarmDispatcher (includes policy name), got: #{inspect(tool_result.result)}"
+             "Expected ToolResult message to come from loop pause handling (includes policy name), got: #{inspect(tool_result.result)}"
     end
   end
 
@@ -368,8 +389,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       question_tc_id = "tc_error_timeout_#{System.unique_integer([:positive])}"
       question_tc = tool_call("question", question_args(), id: question_tc_id)
 
-      swarm_tools = MCP.to_swarm_tools(error_timeout_mcp_tool_defs())
-
       expect_llm_responses([
         {:tool_calls, [question_tc], "Calling question"},
         "Understood, the tool timed out."
@@ -377,8 +396,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} =
         submit_user_message(scope, task_id, user_content("Ask me"),
-          tools: swarm_tools,
-          mcp_tool_defs: error_timeout_mcp_tool_defs()
+          mcp_tools: error_timeout_mcp_tool_defs()
         )
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
@@ -552,12 +570,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     } do
       tc_id = "tc_crash_ch_#{System.unique_integer([:positive])}"
       crash_tc = tool_call("crash_tool", %{}, id: tc_id)
+      with_backend_tools([CrashTool])
       expect_llm_responses([{:tool_calls, [crash_tc], "Calling crash tool"}, "Handled."])
 
-      {:ok, _, _} =
-        submit_user_message(scope, task_id, user_content("Do a thing"),
-          backend_tool_modules: [CrashTool]
-        )
+      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 
@@ -589,12 +605,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     } do
       tc_id = "tc_hang_ch_#{System.unique_integer([:positive])}"
       hang_tc = tool_call("hang_tool", %{}, id: tc_id)
+      with_backend_tools([HangTool])
       expect_llm_responses([{:tool_calls, [hang_tc], "Calling hang tool"}, "Handled."])
 
-      {:ok, _, _} =
-        submit_user_message(scope, task_id, user_content("Do a thing"),
-          backend_tool_modules: [HangTool]
-        )
+      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 
@@ -750,16 +764,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     } do
       tc_id = "tc_crash_#{System.unique_integer([:positive])}"
       crash_tc = tool_call("crash_tool", %{}, id: tc_id)
+      with_backend_tools([CrashTool])
 
       expect_llm_responses([
         {:tool_calls, [crash_tc], "Calling crash tool"},
         "Handled the crash."
       ])
 
-      {:ok, _, _} =
-        submit_user_message(scope, task_id, user_content("Do a thing"),
-          backend_tool_modules: [CrashTool]
-        )
+      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 
@@ -788,16 +800,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     } do
       tc_id = "tc_hang_#{System.unique_integer([:positive])}"
       hang_tc = tool_call("hang_tool", %{}, id: tc_id)
+      with_backend_tools([HangTool])
 
       expect_llm_responses([
         {:tool_calls, [hang_tc], "Calling hang tool"},
         "Handled the timeout."
       ])
 
-      {:ok, _, _} =
-        submit_user_message(scope, task_id, user_content("Do a thing"),
-          backend_tool_modules: [HangTool]
-        )
+      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 

@@ -5,22 +5,21 @@ defmodule SwarmAi.Loop.RunnerTest do
   alias SwarmAi.Loop.{Config, Runner, Step}
 
   setup do
-    agent = test_execution(mock_llm("test"))
     config = %Config{max_steps: 10, timeout_ms: 60_000, step_timeout_ms: 120_000}
-    loop = Loop.make(agent, config)
+    loop = test_execution(mock_llm("test"), "TestBot", config: config)
 
     %{loop: loop}
   end
 
-  describe "Runner.start/2" do
+  describe "Loop.execute/1" do
     test "transitions loop from :ready to :running", %{loop: loop} do
-      {updated_loop, _effects} = Runner.start(loop, [Message.user("Test")])
+      {updated_loop, _effects} = Loop.execute(loop)
 
       assert updated_loop.status == :running
     end
 
     test "creates step with system and user messages", %{loop: loop} do
-      {updated_loop, _effects} = Runner.start(loop, [Message.user("Hello")])
+      {updated_loop, _effects} = Loop.execute(loop)
 
       assert [%Step{input_messages: messages}] = updated_loop.steps
 
@@ -34,23 +33,23 @@ defmodule SwarmAi.Loop.RunnerTest do
     end
 
     test "returns call_llm effect", %{loop: loop} do
-      {_updated_loop, effects} = Runner.start(loop, [Message.user("Test message")])
+      {_updated_loop, effects} = Loop.execute(loop)
 
       assert [{:call_llm, _llm, messages}] = effects
       assert length(messages) == 2
     end
 
-    test "includes agent's LLM client in effect", %{loop: loop} do
-      {_loop, effects} = Runner.start(loop, [Message.user("Test")])
+    test "includes loop LLM client in effect", %{loop: loop} do
+      {_loop, effects} = Loop.execute(loop)
 
       assert {:call_llm, llm, _messages} = Enum.at(effects, 0)
-      assert llm == loop.agent.llm
+      assert llm == loop.llm
     end
   end
 
   describe "Runner.handle_llm_response/2" do
     test "transitions loop from :running to :completed", %{loop: loop} do
-      {running_loop, _} = Runner.start(loop, [Message.user("Hello")])
+      {running_loop, _} = Loop.execute(loop)
       response = %LLM.Response{content: "Done", usage: nil, raw: nil}
 
       {completed_loop, _effects} = Runner.handle_llm_response(running_loop, response)
@@ -60,7 +59,7 @@ defmodule SwarmAi.Loop.RunnerTest do
     end
 
     test "updates step with response content and usage", %{loop: loop} do
-      {running_loop, _} = Runner.start(loop, [Message.user("Test")])
+      {running_loop, _} = Loop.execute(loop)
 
       response = %LLM.Response{
         content: "Response text",
@@ -78,7 +77,7 @@ defmodule SwarmAi.Loop.RunnerTest do
     end
 
     test "updates step with reasoning_details from response", %{loop: loop} do
-      {running_loop, _} = Runner.start(loop, [Message.user("Test")])
+      {running_loop, _} = Loop.execute(loop)
 
       reasoning = [
         %{"type" => "reasoning.text", "index" => 0, "text" => "Let me think..."},
@@ -99,7 +98,7 @@ defmodule SwarmAi.Loop.RunnerTest do
     end
 
     test "includes reasoning_details in assistant message after tool results", %{loop: loop} do
-      {running_loop, _} = Runner.start(loop, [Message.user("Test")])
+      {running_loop, _} = Loop.execute(loop)
 
       tool_call = %SwarmAi.ToolCall{id: "tc_1", name: "read_file", arguments: "{}"}
       reasoning = [%{"type" => "reasoning.encrypted", "data" => "encrypted-data"}]
@@ -113,6 +112,11 @@ defmodule SwarmAi.Loop.RunnerTest do
       }
 
       {waiting_loop, _effects} = Runner.handle_llm_response(running_loop, response)
+      [step] = waiting_loop.steps
+
+      assert step.completed_at != nil
+      assert is_integer(step.duration_ms)
+
       result = SwarmAi.ToolResult.make("tc_1", "file contents", false)
 
       {_continued_loop, [{:step_ended, _step}, {:call_llm, _llm, messages}]} =
@@ -123,7 +127,7 @@ defmodule SwarmAi.Loop.RunnerTest do
     end
 
     test "returns complete effect", %{loop: loop} do
-      {running_loop, _} = Runner.start(loop, [Message.user("Test")])
+      {running_loop, _} = Loop.execute(loop)
       response = %LLM.Response{content: "Final answer", usage: nil, raw: nil}
 
       {_loop, effects} = Runner.handle_llm_response(running_loop, response)
@@ -136,15 +140,14 @@ defmodule SwarmAi.Loop.RunnerTest do
     test "transitions loop to :failed status", %{loop: loop} do
       {failed_loop, _effects} = Runner.handle_llm_error(loop, :timeout)
 
-      assert failed_loop.status == :failed
-      assert failed_loop.error == :timeout
+      assert failed_loop.status == {:failed, :timeout}
     end
 
     test "preserves error details", %{loop: loop} do
       error = {:rate_limit, "Too many requests"}
       {failed_loop, _} = Runner.handle_llm_error(loop, error)
 
-      assert failed_loop.error == error
+      assert failed_loop.status == {:failed, error}
     end
 
     test "returns fail effect", %{loop: loop} do
@@ -157,7 +160,7 @@ defmodule SwarmAi.Loop.RunnerTest do
 
   describe "effect flow" do
     test "happy path produces correct effect sequence", %{loop: loop} do
-      {running_loop, start_effects} = Runner.start(loop, [Message.user("Hello")])
+      {running_loop, start_effects} = Loop.execute(loop)
       assert [{:call_llm, _, _}] = start_effects
 
       response = %LLM.Response{content: "World", usage: nil, raw: nil}
@@ -168,27 +171,27 @@ defmodule SwarmAi.Loop.RunnerTest do
     end
 
     test "error path produces correct effect sequence", %{loop: loop} do
-      {running_loop, start_effects} = Runner.start(loop, [Message.user("Test")])
+      {running_loop, start_effects} = Loop.execute(loop)
       assert [{:call_llm, _, _}] = start_effects
 
       {failed_loop, error_effects} = Runner.handle_llm_error(running_loop, :timeout)
 
       assert [{:fail, :timeout}] = error_effects
-      assert failed_loop.status == :failed
+      assert failed_loop.status == {:failed, :timeout}
     end
   end
 
   describe "loop state tracking" do
     test "increments step number correctly", %{loop: loop} do
-      {loop_after_start, _} = Runner.start(loop, [Message.user("Test")])
+      {loop_after_start, _} = Loop.execute(loop)
 
-      assert Loop.current_step(loop_after_start) == 1
+      assert Loop.current_step(loop_after_start).number == 1
       assert length(loop_after_start.steps) == 1
       assert hd(loop_after_start.steps).number == 1
     end
 
     test "preserves loop configuration", %{loop: loop} do
-      {updated_loop, _} = Runner.start(loop, [Message.user("Test")])
+      {updated_loop, _} = Loop.execute(loop)
 
       assert updated_loop.config == loop.config
       assert updated_loop.id == loop.id

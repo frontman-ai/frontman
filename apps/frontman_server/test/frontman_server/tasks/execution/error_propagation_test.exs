@@ -50,9 +50,10 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       {:ok, _, _} =
         Tasks.submit_user_message(
           scope,
-          task_id,
-          user_content("Take a screenshot"),
-          execution_request_fixture()
+          Map.merge(execution_request_fixture(), %{
+            task_id: task_id,
+            message: user_content("Take a screenshot")
+          })
         )
 
       # Stream errors are now caught and surfaced as graceful failures.
@@ -73,9 +74,10 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       {:ok, _, _} =
         Tasks.submit_user_message(
           scope,
-          task_id,
-          user_content("Hello"),
-          execution_request_fixture()
+          Map.merge(execution_request_fixture(), %{
+            task_id: task_id,
+            message: user_content("Hello")
+          })
         )
 
       # Should receive a failed interaction broadcast.

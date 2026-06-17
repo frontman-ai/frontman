@@ -8,23 +8,23 @@ defmodule SwarmAi.Loop.Runner do
   ## Flow
 
       start/2
-        → {:call_llm, messages}
+        → Effect.call_llm(llm, messages)
 
       handle_llm_response/2
-        → if no tool calls: {:complete, result}
-        → if tool calls: [{:execute_tool, call}, ...]
+        → if no tool calls: Effect.complete(result)
+        → if tool calls: [Effect.execute_tool(call), ...]
 
       handle_tool_result/2
-        → if all complete: {:call_llm, messages}
+        → if all complete: Effect.call_llm(llm, messages)
         → if pending: [] (wait for more)
   """
 
-  alias SwarmAi.{Agent, Effect, LLM, Loop, Message}
+  alias SwarmAi.{Effect, LLM, Loop, Message}
 
   @doc """
   Handles successful LLM response.
 
-  If the response contains tool calls, emits `{:execute_tool, tool_call}` effects.
+  If the response contains tool calls, emits `Effect.execute_tool/1` effects.
   Otherwise completes the loop.
 
   ## Example
@@ -34,7 +34,6 @@ defmodule SwarmAi.Loop.Runner do
       loop.status  # => :completed
       loop.result  # => "Hello!"
   """
-  @spec handle_llm_response(Loop.t(), LLM.Response.t()) :: {Loop.t(), [Effect.t()]}
   def handle_llm_response(%Loop{status: :running} = loop, %LLM.Response{} = response) do
     cond do
       truncated_tool_calls?(response) ->
@@ -59,21 +58,21 @@ defmodule SwarmAi.Loop.Runner do
   defp handle_completion(loop, response) do
     loop = Loop.complete(loop, response)
 
-    effects = [{:complete, response.content}]
+    effects = [Effect.complete(response.content)]
 
     {loop, effects}
   end
 
   defp handle_tool_calls(loop, response) do
     loop = Loop.wait_for_tools(loop, response)
-    tool_effects = Enum.map(response.tool_calls, &{:execute_tool, &1})
+    tool_effects = Enum.map(response.tool_calls, &Effect.execute_tool/1)
 
     {loop, tool_effects}
   end
 
   defp handle_truncation_error(loop) do
     loop = Loop.fail(loop, :output_truncated)
-    {loop, [{:fail, :output_truncated}]}
+    {loop, [Effect.fail(:output_truncated)]}
   end
 
   @doc """
@@ -113,12 +112,12 @@ defmodule SwarmAi.Loop.Runner do
         end
 
       {:error, reason} ->
-        {loop, [{:fail, {:tool_result_error, reason}}]}
+        {loop, [Effect.fail({:tool_result_error, reason})]}
     end
   end
 
   defp continue_after_tools(
-         %Loop{agent: agent, steps: steps} = loop,
+         %Loop{llm: llm, steps: steps} = loop,
          %Loop.Step{
            input_messages: input_msgs,
            tool_calls: tool_calls,
@@ -127,18 +126,17 @@ defmodule SwarmAi.Loop.Runner do
            response_metadata: response_metadata
          }
        ) do
-    llm = Agent.llm_client(agent)
-    completed_step = Loop.current_step(loop)
+    completed_step = loop.current_step
 
     assistant_msg = Message.assistant(content, tool_calls, response_metadata, reasoning_details)
     tool_msgs = Enum.map(tool_calls, &format_tool_result/1)
     messages = input_msgs ++ [assistant_msg | tool_msgs]
 
     new_step = Loop.Step.new(length(steps) + 1, messages)
-    loop = %{loop | status: :running, steps: steps ++ [new_step]}
+    loop = %{loop | status: :running, steps: steps ++ [new_step], current_step: new_step.number}
 
     # Emit step_ended before starting the new LLM call
-    {loop, [{:step_ended, completed_step}, {:call_llm, llm, messages}]}
+    {loop, [Effect.step_ended(completed_step), Effect.call_llm(llm, messages)]}
   end
 
   defp format_tool_result(%SwarmAi.ToolCall{
@@ -161,14 +159,13 @@ defmodule SwarmAi.Loop.Runner do
   ## Example
 
       {loop, effects} = Runner.handle_llm_error(loop, :timeout)
-      loop.status # => :failed
-      loop.error  # => :timeout
+      loop.status # => {:failed, :timeout}
   """
   @spec handle_llm_error(Loop.t(), term()) :: {Loop.t(), [Effect.t()]}
   def handle_llm_error(%Loop{} = loop, error) do
     loop = Loop.fail(loop, error)
 
-    effects = [{:fail, error}]
+    effects = [Effect.fail(error)]
 
     {loop, effects}
   end

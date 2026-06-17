@@ -171,7 +171,11 @@ defmodule FrontmanServerWeb.TaskChannel do
           socket.assigns.scope,
           task_id,
           retried_error_id,
-          retry_execution_request(socket)
+          %{
+            model: nil,
+            mcp_tools: socket.assigns.mcp_tools,
+            project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
+          }
         )
 
       _stale_or_nil ->
@@ -442,7 +446,12 @@ defmodule FrontmanServerWeb.TaskChannel do
         :error -> nil
       end
 
-    Tasks.resume_execution(scope, task_id, execution_request(socket, model, meta))
+    Tasks.resume_execution(scope, task_id, %{
+      model: model,
+      mcp_tools: socket.assigns.mcp_tools,
+      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+    })
+
     socket
   end
 
@@ -661,21 +670,24 @@ defmodule FrontmanServerWeb.TaskChannel do
     end)
   end
 
-  defp process_prompt(id, %{"prompt" => user_message} = params, socket) do
+  defp process_prompt(id, %{"prompt" => content_blocks, "_meta" => meta}, socket)
+       when is_map(meta) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
-    {:ok, model} = Providers.model_from_client_params(get_in(params, ["_meta", "model"]))
-    meta = prompt_meta(params)
+    {:ok, model} = Providers.model_from_client_params(meta["model"])
+
+    execution = %{
+      model: model,
+      mcp_tools: socket.assigns.mcp_tools,
+      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+    }
 
     Logger.info("process_prompt", %{task_id: task_id, model: model})
 
-    case Tasks.submit_user_message(scope, %{
-           task_id: task_id,
-           message: user_message,
-           model: model,
-           mcp_tools: socket.assigns.mcp_tools,
-           project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
-         }) do
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution, %{task_id: task_id, message: content_blocks})
+         ) do
       {:error, :already_running} ->
         Logger.info("Rejected prompt — agent already running for task #{task_id}")
         error_response = JsonRpc.error_response(id, -32_000, "Agent already running")
@@ -687,6 +699,7 @@ defmodule FrontmanServerWeb.TaskChannel do
             turn_number: turn_number,
             jsonrpc_id: id
           })
+          |> assign(:last_execution, execution)
 
         Logger.info("User message added, agent spawned for task #{task_id}")
 
@@ -698,9 +711,6 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:reply, {:ok, %{@acp_message => error_response}}, socket}
     end
   end
-
-  defp prompt_meta(%{"_meta" => meta}) when is_map(meta), do: meta
-  defp prompt_meta(_params), do: nil
 
   defp handle_execution_chunk(socket, %{type: :content, text: text})
        when is_binary(text) and text != "" do
@@ -771,7 +781,11 @@ defmodule FrontmanServerWeb.TaskChannel do
       socket.assigns.scope,
       task_id,
       retried_error_id,
-      retry_execution_request(socket)
+      %{
+        model: nil,
+        mcp_tools: socket.assigns.mcp_tools,
+        project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
+      }
     )
 
     {:noreply, socket}

@@ -111,5 +111,4 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
                nil
     end
   end
-
 end

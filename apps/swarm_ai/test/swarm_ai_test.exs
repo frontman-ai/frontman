@@ -82,9 +82,9 @@ defmodule SwarmAiTest do
       assert SwarmAi.cancel(runtime, "task-c") == :ok
       await_exit(pid)
 
-      assert_receive {:test_event, "task-c", {:cancelled, _}, _metadata}
-      refute_receive {:test_event, "task-c", {:crashed, _}, _}, 100
-      refute_receive {:test_event, "task-c", {:terminated, _}, _}, 0
+      assert_receive {:test_event, "task-c", {:cancelled, _}}
+      refute_receive {:test_event, "task-c", {:crashed, _}}, 100
+      refute_receive {:test_event, "task-c", {:terminated, _}}, 0
       refute SwarmAi.running?(runtime, "task-c")
     end
 
@@ -99,16 +99,19 @@ defmodule SwarmAiTest do
       runtime = start_runtime!()
 
       # Executor returns Sync executions with 10ms timeout and :pause_agent policy.
-      pause_executor = fn tool_calls ->
-        Enum.map(tool_calls, fn tool_call ->
-          %ToolExecution.Sync{
-            tool_call: tool_call,
-            timeout_ms: 10,
-            on_timeout_policy: :pause_agent,
-            run: {__MODULE__, :slow_run, []},
-            on_timeout: {__MODULE__, :noop_timeout, []}
-          }
-        end)
+      execute_tools = fn tool_calls, task_supervisor ->
+        executions =
+          Enum.map(tool_calls, fn tool_call ->
+            %ToolExecution.Sync{
+              tool_call: tool_call,
+              timeout_ms: 10,
+              on_timeout_policy: :pause_agent,
+              run: {__MODULE__, :slow_run, []},
+              on_timeout: {__MODULE__, :noop_timeout, []}
+            }
+          end)
+
+        SwarmAi.ParallelExecutor.run(executions, task_supervisor)
       end
 
       llm = %MockLLM{
@@ -124,36 +127,23 @@ defmodule SwarmAiTest do
       }
 
       {:ok, pid} =
-        run_agent(runtime, "task-pause", llm, tool_executor: tool_executor(pause_executor))
+        run_agent(runtime, "task-pause", llm, execute_tools: execute_tools)
 
       await_exit(pid)
 
-      assert_receive {:test_event, "task-pause", {:paused, {:timeout, "tc1", "test_tool", 10}},
-                      _metadata},
+      assert_receive {:test_event, "task-pause", {:paused, {:timeout, "tc1", "test_tool", 10}}},
                      200
 
-      refute_receive {:test_event, "task-pause", {:completed, _}, _}, 200
-      refute_receive {:test_event, "task-pause", {:failed, _}, _}, 0
-      refute_receive {:test_event, "task-pause", {:crashed, _}, _}, 0
+      refute_receive {:test_event, "task-pause", :completed}, 200
+      refute_receive {:test_event, "task-pause", {:failed, _}}, 0
+      refute_receive {:test_event, "task-pause", {:crashed, _}}, 0
       refute SwarmAi.running?(runtime, "task-pause")
-    end
-  end
-
-  defmodule TestDispatcher do
-    def dispatch(test_pid, key, event, context) do
-      send(test_pid, {:test_event, key, event, context})
-      :ok
     end
   end
 
   defp start_runtime! do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
-    test_pid = self()
-
-    start_supervised!(
-      {SwarmAi, name: name, event_dispatcher: {__MODULE__.TestDispatcher, :dispatch, [test_pid]}}
-    )
-
+    start_supervised!({SwarmAi, name: name})
     name
   end
 
@@ -164,7 +154,22 @@ defmodule SwarmAiTest do
   end
 
   defp agent(id, llm, opts) do
-    test_execution(llm, "TestBot", Keyword.merge([id: id], opts))
+    test_pid = self()
+
+    test_execution(
+      llm,
+      "TestBot",
+      Keyword.merge(
+        [
+          id: id,
+          dispatch_event: fn event ->
+            send(test_pid, {:test_event, id, event})
+            :ok
+          end
+        ],
+        opts
+      )
+    )
   end
 
   defp run_agent(runtime, id, llm, opts \\ []) do

@@ -100,9 +100,9 @@ function DropdownMenuSeparator({
 
 export {
 	DropdownMenu,
-	DropdownMenuTrigger,
 	DropdownMenuContent,
-	DropdownMenuLabel,
 	DropdownMenuItem,
+	DropdownMenuLabel,
 	DropdownMenuSeparator,
+	DropdownMenuTrigger,
 };

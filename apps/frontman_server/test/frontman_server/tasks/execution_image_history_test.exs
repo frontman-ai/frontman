@@ -11,8 +11,8 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Image
   alias FrontmanServer.InteractionCase.Helpers, as: I
-  alias FrontmanServer.Repo
   alias FrontmanServer.Providers
+  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema, TaskSchema}
@@ -98,10 +98,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     end)
 
     {:ok, _interaction, 1} =
-      submit_anthropic_message(scope, task_id, "look at the page",
-        tools: MCP.to_swarm_tools(tool_defs),
-        mcp_tool_defs: tool_defs
-      )
+      submit_anthropic_message(scope, task_id, "look at the page", mcp_tools: tool_defs)
 
     assert_receive {:interaction, %Interaction.ToolCall{tool_call_id: ^tool_call_id}, 1},
                    5_000
@@ -155,9 +152,12 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   defp submit_anthropic_message(scope, task_id, content, overrides \\ []) do
     Tasks.submit_user_message(
       scope,
-      task_id,
-      prompt_content(content),
-      execution_request_fixture(Keyword.merge([model: "anthropic:claude-sonnet-4-5"], overrides))
+      Map.merge(
+        execution_request_fixture(
+          Keyword.merge([model: "anthropic:claude-sonnet-4-5"], overrides)
+        ),
+        %{task_id: task_id, message: prompt_content(content)}
+      )
     )
   end
 

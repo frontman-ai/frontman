@@ -15,12 +15,16 @@ defmodule FrontmanServer.Tasks.Execution do
   """
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
-  alias FrontmanServer.Tasks.Execution.Prompts
-  alias FrontmanServer.Tasks.Execution.RootAgent
+  alias FrontmanServer.Repo
+  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts, ToolExecutor}
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
+  alias FrontmanServer.Tools
+  alias SwarmAi.{Loop, Message}
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.Message.Tool
 
@@ -31,52 +35,81 @@ defmodule FrontmanServer.Tasks.Execution do
   and submits the agent to SwarmAi.
 
   ## Params
-  - `:tools` - LLM-visible tool schemas
   - `:model` - LLM model spec (nil uses provider default)
-  - `:turn_number` - turn being executed
-  - `:interaction_rows` - persisted rows used to build prompt history
+  - `:mcp_tools` - client MCP tool definitions for this turn
   - `:project_traits` - client/framework traits used for system prompt guidance
-  - `:backend_tool_modules` - backend tool modules available for execution
-  - `:mcp_tool_defs` - client MCP tool definitions with timeout/policy metadata
 
   ## Returns
   - `{:ok, pid}` - Execution started successfully
-  - `{:ok, :already_running}` - An execution is already running for this task
+  - `{:error, {:start_failed, reason}}` - Execution worker failed to start
   - `{:error, :no_api_key}` - No API key available
   """
-  def run(%Scope{} = scope, %TaskSchema{} = task, %{
-        tools: tools,
-        model: requested_model,
-        turn_number: turn_number,
-        # FIXME(Danni): why do we pass interaction_rows vs just getting it from TaskSchema
-        interaction_rows: interaction_rows,
-        project_traits: project_traits,
-        backend_tool_modules: backend_tool_modules,
-        mcp_tool_defs: mcp_tool_defs
-      }) do
+  def run(
+        %Scope{} = scope,
+        %TaskSchema{} = task,
+        turn_number,
+        %{
+          model: requested_model,
+          mcp_tools: mcp_tools,
+          project_traits: project_traits
+        }
+      )
+      when is_integer(turn_number) and turn_number > 0 and is_list(mcp_tools) and
+             is_list(project_traits) do
     max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
 
     case Providers.prepare_llm_args(scope, requested_model, max_tokens: max_tokens) do
       {:ok, {model_spec, llm_opts}} ->
-        # FIXME(Danni) - this is just Agent, RootAgent is a relic from the past
-        agent = %RootAgent{
-          task: task,
-          scope: scope,
-          turn_number: turn_number,
-          messages: prompt_messages(interaction_rows, turn_number),
-          tools: tools,
-          backend_tool_modules: backend_tool_modules,
-          mcp_tool_defs: mcp_tool_defs,
-          system_prompt: system_prompt(task, project_traits),
-          model: model_spec,
-          llm_opts: llm_opts
-        }
+        interaction_rows = interaction_rows(task.id, turn_number)
+        backend_tool_modules = Tools.backend_tool_modules()
+        tools = Tools.prepare_for_task(mcp_tools)
 
-        SwarmAi.run(FrontmanServer.AgentRuntime, agent)
+        messages = [
+          Message.system(system_prompt(task, project_traits))
+          | prompt_messages(interaction_rows, turn_number)
+        ]
+
+        llm = LLMClient.new(tools: tools, llm_opts: llm_opts, model: model_spec)
+        execution_mode = Frameworks.tool_execution_mode(task.framework)
+
+        execute_tools = fn tool_calls, task_supervisor ->
+          ToolExecutor.execute(scope, %{
+            task_id: task.id,
+            turn_number: turn_number,
+            tool_calls: tool_calls,
+            task_supervisor: task_supervisor,
+            backend_tool_modules: backend_tool_modules,
+            mcp_tool_defs: mcp_tools,
+            execution_mode: execution_mode
+          })
+        end
+
+        dispatch_event = fn event ->
+          Tasks.handle_swarm_event(scope, task.id, turn_number, event)
+        end
+
+        loop =
+          Loop.new(%{
+            task_id: task.id,
+            turn_number: turn_number,
+            messages: messages,
+            llm: llm,
+            execute_tools: execute_tools,
+            dispatch_event: dispatch_event
+          })
+
+        SwarmAi.run(FrontmanServer.AgentRuntime, loop)
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp interaction_rows(task_id, turn_number) do
+    InteractionSchema.for_task(task_id)
+    |> InteractionSchema.up_to_turn(turn_number)
+    |> InteractionSchema.ordered()
+    |> Repo.all()
   end
 
   @doc """

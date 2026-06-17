@@ -2,18 +2,18 @@ defmodule SwarmAi.Testing do
   @moduledoc """
   Test helpers for SwarmAi execution tests.
 
-  Provides common fixtures, agents, and LLM mocks.
+  Provides common fixtures, loops, and LLM mocks.
 
   ## Usage
 
       use SwarmAi.Testing, async: true
 
       @tag echo_execution: true
-      test "runs agent", %{echo_execution: agent} do
+      test "runs loop", %{echo_execution: loop} do
         runtime = MyRuntime
         start_supervised!({SwarmAi, name: runtime})
-        agent = %{agent | id: "task", messages: [SwarmAi.Message.user("Hello")]}
-        {:ok, pid} = SwarmAi.run(runtime, agent)
+        loop = %{loop | task_id: "task", messages: [SwarmAi.Message.user("Hello")]}
+        {:ok, pid} = SwarmAi.run(runtime, loop)
         assert is_pid(pid)
       end
 
@@ -21,38 +21,14 @@ defmodule SwarmAi.Testing do
 
   All fixtures are opt-in via setup tags:
 
-  - `:echo_execution` - Agent with EchoLLM that echoes back messages
-  - `:error_execution` - Agent with ErrorLLM that returns errors
+  - `:echo_execution` - Loop with EchoLLM that echoes back messages
+  - `:error_execution` - Loop with ErrorLLM that returns errors
   - `:mock_llm` - Configurable MockLLM (use `mock_llm: response`)
   """
 
   use ExUnit.CaseTemplate
 
   alias SwarmAi.LLM
-
-  defmodule TestAgent do
-    @moduledoc false
-
-    @type t :: %__MODULE__{
-            id: String.t() | nil,
-            name: String.t() | nil,
-            llm: SwarmAi.LLM.t() | nil,
-            messages: [SwarmAi.Message.t()],
-            context: map() | nil,
-            tool_executor: SwarmAi.Agent.tool_executor() | nil
-          }
-
-    defstruct [:id, :name, :llm, :messages, :context, :tool_executor]
-  end
-
-  defimpl SwarmAi.Agent, for: SwarmAi.Testing.TestAgent do
-    def id(%{id: id}) when is_binary(id), do: id
-    def messages(%{messages: messages}), do: messages
-    def context(%{context: context}), do: context
-    def tool_executor(%{tool_executor: tool_executor}), do: tool_executor
-    def system_prompt(%{name: name}), do: "You are #{name}"
-    def llm_client(%{llm: llm}), do: llm
-  end
 
   defmodule MockLLM do
     @moduledoc """
@@ -279,13 +255,13 @@ defmodule SwarmAi.Testing do
     quote do
       import SwarmAi.Testing
       alias SwarmAi.LLM
+      alias SwarmAi.Loop
       alias SwarmAi.Testing.EchoLLM
       alias SwarmAi.Testing.ErrorLLM
       alias SwarmAi.Testing.MockLLM
       alias SwarmAi.Testing.StallingLLM
       alias SwarmAi.Testing.StreamErrorLLM
       alias SwarmAi.Testing.StreamTimeoutLLM
-      alias SwarmAi.Testing.TestAgent
       alias SwarmAi.ToolCall
       alias SwarmAi.ToolResult
     end
@@ -331,43 +307,45 @@ defmodule SwarmAi.Testing do
   @doc """
   Creates a test execution with the given LLM client.
   """
-  @spec test_execution(SwarmAi.LLM.t(), String.t(), keyword()) :: TestAgent.t()
+  @spec test_execution(SwarmAi.LLM.t(), String.t(), keyword()) :: SwarmAi.Loop.t()
   def test_execution(llm, name \\ "TestBot", opts \\ []) do
     defaults = [
-      id: "task-#{:erlang.unique_integer([:positive])}",
-      name: name,
+      task_id: "task-#{:erlang.unique_integer([:positive])}",
+      turn_number: 1,
       llm: llm,
-      messages: [SwarmAi.Message.user("Hello")],
-      context: %{},
-      tool_executor: default_tool_executor()
+      messages: [SwarmAi.Message.system("You are #{name}"), SwarmAi.Message.user("Hello")],
+      execute_tools: default_execute_tools(),
+      dispatch_event: fn _event -> :ok end
     ]
 
-    struct!(TestAgent, Keyword.merge(defaults, opts))
-  end
-
-  @doc false
-  @spec default_tool_executor() :: SwarmAi.Agent.tool_executor()
-  def default_tool_executor do
-    tool_executor(fn tool_calls ->
-      Enum.map(tool_calls, fn tc ->
-        %SwarmAi.ToolExecution.Sync{
-          tool_call: tc,
-          timeout_ms: 5_000,
-          on_timeout_policy: :error,
-          run: {__MODULE__, :default_tool_run, []},
-          on_timeout: {__MODULE__, :default_tool_timeout, []}
-        }
+    attrs =
+      defaults
+      |> Keyword.merge(opts)
+      |> Keyword.new(fn
+        {:id, id} -> {:task_id, id}
+        entry -> entry
       end)
-    end)
+
+    SwarmAi.Loop.new(Map.new(attrs))
   end
 
   @doc false
-  @spec tool_executor(
-          ([SwarmAi.ToolCall.t()] -> [SwarmAi.ToolExecution.t()]),
-          :parallel | :serial
-        ) :: SwarmAi.Agent.tool_executor()
-  def tool_executor(build, execution_mode \\ :parallel) when is_function(build, 1) do
-    %{build: build, execution_mode: execution_mode}
+  @spec default_execute_tools() :: SwarmAi.Loop.execute_tools()
+  def default_execute_tools do
+    fn tool_calls, task_supervisor ->
+      executions =
+        Enum.map(tool_calls, fn tc ->
+          %SwarmAi.ToolExecution.Sync{
+            tool_call: tc,
+            timeout_ms: 5_000,
+            on_timeout_policy: :error,
+            run: {__MODULE__, :default_tool_run, []},
+            on_timeout: {__MODULE__, :default_tool_timeout, []}
+          }
+        end)
+
+      SwarmAi.ParallelExecutor.run(executions, task_supervisor)
+    end
   end
 
   @doc false

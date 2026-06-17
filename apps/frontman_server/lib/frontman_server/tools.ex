@@ -12,22 +12,18 @@ defmodule FrontmanServer.Tools do
   alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tools.MCP
 
-  @backend_tools [
-    FrontmanServer.Tools.GetToolResult,
-    FrontmanServer.Tools.TodoWrite,
-    FrontmanServer.Tools.WebFetch
-  ]
-
   @todo_mutations [FrontmanServer.Tools.TodoWrite.name()]
 
-  def backend_tool_modules, do: @backend_tools
+  def backend_tool_modules do
+    Application.fetch_env!(:frontman_server, :backend_tools)
+  end
 
   def backend_tools do
-    Enum.map(@backend_tools, &Backend.to_swarm_tool/1)
+    Enum.map(backend_tool_modules(), &Backend.to_swarm_tool/1)
   end
 
   def find_tool(tool_name) do
-    case Enum.find(@backend_tools, fn mod -> mod.name() == tool_name end) do
+    case Enum.find(backend_tool_modules(), fn mod -> mod.name() == tool_name end) do
       nil -> :not_found
       mod -> {:ok, mod}
     end
@@ -54,7 +50,7 @@ defmodule FrontmanServer.Tools do
   Aggregates backend tools and MCP tools into LLM format.
 
   ## Example
-      Tools.prepare_for_task(mcp_tools, task_id)
+      Tools.prepare_for_task(mcp_tools)
   """
   def prepare_for_task(mcp_tools) do
     mcp_formatted = MCP.to_swarm_tools(mcp_tools)

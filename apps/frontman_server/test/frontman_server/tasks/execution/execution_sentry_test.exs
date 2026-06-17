@@ -1,6 +1,6 @@
 defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   @moduledoc """
-  Tests SwarmDispatcher Sentry reporting for agent execution failures.
+  Tests Swarm execution event Sentry reporting for agent execution failures.
 
   Tests Gap 3 from issue #474:
   - Failed event triggers Sentry report at :error level
@@ -13,8 +13,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
-  alias FrontmanServer.Tasks.SwarmDispatcher
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
@@ -35,15 +35,11 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      loop_id = "loop_test_failed"
-
-      SwarmDispatcher.dispatch(
+      Tasks.handle_swarm_event(
+        scope,
         task_id,
-        {:failed, %{reason: :llm_api_failure, loop_id: loop_id}},
-        %{
-          scope: scope,
-          turn_number: latest_turn_number(task_id)
-        }
+        latest_turn_number(task_id),
+        {:failed, :llm_api_failure}
       )
 
       assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
@@ -60,7 +56,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       [report | _] = error_reports
       assert report.message.formatted == "Agent execution failed"
       assert report.extra[:reason] == ":llm_api_failure"
-      assert report.extra[:loop_id] == loop_id
     end
   end
 
@@ -70,13 +65,9 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       task_id: task_id,
       scope: scope
     } do
-      loop_id = "loop_test_stream_error"
       reason = %RuntimeError{message: "Sentry test: simulated stream error"}
 
-      SwarmDispatcher.dispatch(task_id, {:failed, %{reason: reason, loop_id: loop_id}}, %{
-        scope: scope,
-        turn_number: latest_turn_number(task_id)
-      })
+      Tasks.handle_swarm_event(scope, task_id, latest_turn_number(task_id), {:failed, reason})
 
       assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
                      5_000
@@ -92,7 +83,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       [report | _] = error_reports
       assert report.message.formatted == "Agent execution failed"
       assert report.extra[:reason] == "Sentry test: simulated stream error"
-      assert report.extra[:loop_id] == loop_id
     end
   end
 

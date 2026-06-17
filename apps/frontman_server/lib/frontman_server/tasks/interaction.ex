@@ -195,6 +195,8 @@ defmodule FrontmanServer.Tasks.Interaction do
               filename: nil,
               uri: nil
 
+    def from_map(%__MODULE__{} = image), do: image
+
     def from_map(data) when is_map(data) do
       %__MODULE__{
         blob: data["blob"],

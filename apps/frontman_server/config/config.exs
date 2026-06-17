@@ -31,6 +31,12 @@ config :frontman_server,
   # Sonnet 4.5 supports up to 64K output tokens.
   llm_max_tokens: 64_000
 
+config :frontman_server, :backend_tools, [
+  FrontmanServer.Tools.GetToolResult,
+  FrontmanServer.Tools.TodoWrite,
+  FrontmanServer.Tools.WebFetch
+]
+
 config :frontman_server, FrontmanServer.Providers.OpenAIOAuth,
   client_id: "app_EMoamEEZ73f0CkXaXp7hrann",
   issuer: "https://auth.openai.com"

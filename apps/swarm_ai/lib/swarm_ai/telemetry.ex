@@ -3,7 +3,7 @@ defmodule SwarmAi.Telemetry do
   Telemetry instrumentation for SwarmAi executions.
 
   Events use the `[:swarm_ai, ...]` prefix and the start/stop/exception shape.
-  Run metadata identifies the run as `agent_id`, returned by `SwarmAi.Agent.id/1`.
+  Run metadata identifies the run by `loop_id`, `task_id`, and `turn_number`.
   Dispatcher context is not copied into telemetry.
 
       :telemetry.attach_many(
@@ -13,7 +13,7 @@ defmodule SwarmAi.Telemetry do
         nil
       )
 
-  Run events carry `loop_id`, `agent_id`, `execution_module`, `status`,
+  Run events carry `loop_id`, `task_id`, `turn_number`, `status`,
   `step_count`, `result`, `error`, and `output` as applicable.
   Step, LLM, and tool events carry `loop_id`, `step`, and their local fields.
   """
@@ -22,12 +22,12 @@ defmodule SwarmAi.Telemetry do
   alias SwarmAi.Telemetry.Events
 
   @doc "Emit run start event."
-  @spec run_start(String.t(), module(), keyword()) :: :ok
-  def run_start(loop_id, execution_module, opts \\ []) do
+  @spec run_start(String.t(), String.t(), pos_integer()) :: :ok
+  def run_start(loop_id, task_id, turn_number) do
     emit(Events.run_start(), %{
       loop_id: loop_id,
-      agent_id: Keyword.get(opts, :agent_id),
-      execution_module: execution_module
+      task_id: task_id,
+      turn_number: turn_number
     })
   end
 
@@ -36,7 +36,8 @@ defmodule SwarmAi.Telemetry do
   def run_stop(loop_id, opts \\ []) do
     emit(Events.run_stop(), %{
       loop_id: loop_id,
-      agent_id: Keyword.get(opts, :agent_id),
+      task_id: Keyword.get(opts, :task_id),
+      turn_number: Keyword.get(opts, :turn_number),
       status: Keyword.get(opts, :status),
       result: Keyword.get(opts, :result),
       error: Keyword.get(opts, :error),
@@ -49,7 +50,8 @@ defmodule SwarmAi.Telemetry do
   def run_exception(loop_id, kind, reason, stacktrace, opts \\ []) do
     emit(Events.run_exception(), %{
       loop_id: loop_id,
-      agent_id: Keyword.get(opts, :agent_id),
+      task_id: Keyword.get(opts, :task_id),
+      turn_number: Keyword.get(opts, :turn_number),
       kind: kind,
       reason: reason,
       stacktrace: stacktrace
@@ -166,10 +168,10 @@ defmodule SwarmAi.Telemetry do
 
   ## Example
 
-      SwarmAi.Telemetry.run_span(%{loop_id: id, agent_id: agent_id, execution_module: MyRun}, fn ->
-        result = do_run()
-        {result, %{loop_id: id, agent_id: agent_id, status: :completed, step_count: 3}}
-      end)
+        SwarmAi.Telemetry.run_span(%{loop_id: id, task_id: task_id, turn_number: 1}, fn ->
+          result = do_run()
+          {result, %{loop_id: id, task_id: task_id, turn_number: 1, status: :completed, step_count: 3}}
+        end)
   """
   def run_span(%{} = metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :run], metadata, fun)
@@ -263,7 +265,7 @@ defmodule SwarmAi.Telemetry do
   end
 
   defp format_event([:swarm_ai, :run, :start], _measurements, metadata) do
-    "[swarm_ai] run:start loop=#{short_id(metadata.loop_id)} execution=#{inspect(metadata.execution_module)}"
+    "[swarm_ai] run:start loop=#{short_id(metadata.loop_id)} task=#{short_id(metadata.task_id)} turn=#{metadata.turn_number}"
   end
 
   defp format_event([:swarm_ai, :run, :stop], measurements, metadata) do
@@ -357,9 +359,11 @@ defmodule SwarmAi.Telemetry do
 
   defp format_status(:ok), do: "✓"
   defp format_status(:completed), do: "✓"
+  defp format_status({:failed, _reason}), do: "✗"
+  defp format_status({:paused, _reason}), do: "⏸"
   defp format_status(:error), do: "✗"
   defp format_status(:failed), do: "✗"
-  defp format_status(status), do: "#{status}"
+  defp format_status(status), do: inspect(status)
 
   defp native_to_ms(native) when is_integer(native) do
     System.convert_time_unit(native, :native, :millisecond)
