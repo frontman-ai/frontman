@@ -247,7 +247,6 @@ type sessionConfigOption =
       name: string,
       description: option<string>,
       category: option<sessionConfigOptionCategory>,
-      currentValue: option<sessionConfigValueId>,
       options: sessionConfigSelectOptions,
       _meta: option<JSON.t>,
     })
@@ -260,7 +259,6 @@ let sessionConfigOptionSchema = S.union([
       name: s.field("name", S.string),
       description: s.field("description", S.option(S.string)),
       category: s.field("category", S.option(sessionConfigOptionCategorySchema)),
-      currentValue: s.field("currentValue", S.option(S.string)),
       options: s.field("options", sessionConfigSelectOptionsSchema),
       _meta: s.field("_meta", S.option(S.json)),
     })

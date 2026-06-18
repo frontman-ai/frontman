@@ -60,14 +60,12 @@ module SampleConfig = {
   // Helper to build a grouped model config option
   let _makeModelConfigOption = (
     ~groups: array<ACP.sessionConfigSelectGroup>,
-    ~currentValue: string,
   ): ACP.sessionConfigOption => {
     ACP.SelectConfigOption({
       id: "model",
       name: "Model",
       description: None,
       category: Some(ACP.Model),
-      currentValue: Some(currentValue),
       options: ACP.Grouped(groups),
       _meta: None,
     })
@@ -137,33 +135,15 @@ module SampleConfig = {
     _meta: None,
   }
 
-  let configWithAnthropic = [
-    _makeModelConfigOption(
-      ~groups=[_anthropicGroup, _openrouterGroup],
-      ~currentValue="anthropic:claude-sonnet-4-5",
-    ),
-  ]
+  let configWithAnthropic = [_makeModelConfigOption(~groups=[_anthropicGroup, _openrouterGroup])]
 
   let configWithOpenAI = [
-    _makeModelConfigOption(
-      ~groups=[_openaiGroup, _anthropicGroup, _openrouterGroup],
-      ~currentValue="openai_codex:gpt-5.1-codex-max",
-    ),
+    _makeModelConfigOption(~groups=[_openaiGroup, _anthropicGroup, _openrouterGroup]),
   ]
 
-  let configWithOpenRouterOnly = [
-    _makeModelConfigOption(
-      ~groups=[_openrouterGroup],
-      ~currentValue="openrouter:google/gemini-3-flash-preview",
-    ),
-  ]
+  let configWithOpenRouterOnly = [_makeModelConfigOption(~groups=[_openrouterGroup])]
 
-  let configWithFireworksOnly = [
-    _makeModelConfigOption(
-      ~groups=[_fireworksGroup],
-      ~currentValue="fireworks:accounts/fireworks/routers/kimi-k2p5-turbo",
-    ),
-  ]
+  let configWithFireworksOnly = [_makeModelConfigOption(~groups=[_fireworksGroup])]
 }
 
 describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
