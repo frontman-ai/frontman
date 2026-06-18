@@ -97,6 +97,11 @@ defmodule SwarmAi.ExecutionWorker do
         event = {:terminated, nil}
         loop.dispatch_event.(event)
 
+      {:DOWN, ^monitor_ref, :process, ^worker_pid, :killed} ->
+        Logger.info("Execution terminated by supervisor for #{loop.task_id}, reason: :killed")
+        event = {:terminated, :killed}
+        loop.dispatch_event.(event)
+
       {:DOWN, ^monitor_ref, :process, ^worker_pid, {:shutdown, reason}} ->
         Logger.info(fn ->
           "Execution terminated by supervisor for #{loop.task_id}, reason: #{inspect(reason)}"

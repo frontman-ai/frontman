@@ -51,6 +51,18 @@ defmodule SwarmAi.SupervisorTest do
       refute_receive {:test_event, "task-ts", {:crashed, _}}, 100
     end
 
+    test "dispatches terminated events for killed execution workers" do
+      runtime = start_runtime!()
+
+      {:ok, pid} = run_agent(runtime, "task-kill", %MockLLM{response: "slow", delay_ms: 5000})
+
+      Process.exit(pid, :kill)
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-kill", {:terminated, :killed}}, 2000
+      refute_receive {:test_event, "task-kill", {:crashed, _}}, 100
+    end
+
     test "accepts new work after task supervisor crash" do
       runtime = start_runtime!()
 
