@@ -5,7 +5,7 @@ defmodule FrontmanServer.TasksTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Migration.Runner
-  alias FrontmanServer.Repo.Migrations.BackfillInteractionTurnNumbers
+  alias FrontmanServer.Repo.Migrations.{BackfillInteractionTurnNumbers, BackfillUserMessageModels}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -192,6 +192,35 @@ defmodule FrontmanServer.TasksTest do
                {Interaction.ToolCall, 2},
                {Interaction.ToolResult, 2}
              ] = db_type_turns(task_id)
+    end
+  end
+
+  describe "user-message model backfill migration" do
+    test "sets the legacy default model on old user messages", %{scope: scope} do
+      task_id = task_fixture(scope).id
+
+      insert_interaction_row(task_id, Interaction.UserMessage, 1, %{"messages" => ["hello"]})
+      run_user_message_model_backfill_migration()
+
+      assert [%{data: %{"model" => "openrouter:google/gemini-3-flash-preview"}}] =
+               InteractionSchema.for_task(task_id)
+               |> InteractionSchema.of_type(Interaction.UserMessage)
+               |> Repo.all()
+    end
+
+    test "leaves explicit models untouched", %{scope: scope} do
+      task_id = task_fixture(scope).id
+
+      insert_interaction_row(task_id, Interaction.UserMessage, 1, %{
+        "model" => "anthropic:claude-sonnet-4-6"
+      })
+
+      run_user_message_model_backfill_migration()
+
+      assert [%{data: %{"model" => "anthropic:claude-sonnet-4-6"}}] =
+               InteractionSchema.for_task(task_id)
+               |> InteractionSchema.of_type(Interaction.UserMessage)
+               |> Repo.all()
     end
   end
 
@@ -522,6 +551,22 @@ defmodule FrontmanServer.TasksTest do
                Repo.config(),
                0,
                BackfillInteractionTurnNumbers,
+               :forward,
+               :up,
+               :up,
+               log: false
+             )
+  end
+
+  defp run_user_message_model_backfill_migration do
+    Code.require_file("priv/repo/migrations/20260618000000_backfill_user_message_models.exs")
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               BackfillUserMessageModels,
                :forward,
                :up,
                :up,
