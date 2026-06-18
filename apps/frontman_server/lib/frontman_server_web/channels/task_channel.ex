@@ -676,17 +676,11 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     case Providers.model_from_client_params(meta["model"]) do
       {:ok, model} ->
-        execution = %{
-          model: model,
-          mcp_tools: socket.assigns.mcp_tools,
-          project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
-        }
-
         Logger.info("process_prompt", %{task_id: task_id, model: model})
 
         case Tasks.submit_user_message(
                scope,
-               Map.merge(execution, %{task_id: task_id, message: content_blocks})
+               prompt_submission_params(socket, content_blocks, model, meta)
              ) do
           {:error, :already_running} ->
             Logger.info("Rejected prompt — agent already running for task #{task_id}")
@@ -717,6 +711,16 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         {:reply, {:ok, %{@acp_message => error_response}}, socket}
     end
+  end
+
+  defp prompt_submission_params(socket, content_blocks, model, meta) do
+    %{
+      task_id: socket.assigns.task_id,
+      message: content_blocks,
+      model: model,
+      mcp_tools: socket.assigns.mcp_tools,
+      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+    }
   end
 
   defp handle_execution_chunk(socket, %{type: :content, text: text})
