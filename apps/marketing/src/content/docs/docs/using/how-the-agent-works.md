@@ -49,12 +49,12 @@ When you type a message and hit send, the client packages it — text, images, a
 
 ### 2. The server picks an LLM
 
-The server resolves which AI model and API key to use, checking in this order:
+The server resolves which AI model and credential to use, checking in this order:
 
 1. **OAuth connection** — if you've linked your Anthropic or OpenAI account directly
 2. **Your API key** — a key you've saved in Frontman settings
-3. **Environment key** — a key from your project's `.env` file
-4. **Free tier** — Frontman's built-in model access
+
+If no credential is available for the selected provider, the run fails with a missing API key error.
 
 See [API Keys & Providers](/docs/api-keys/) for setup details.
 

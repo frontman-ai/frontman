@@ -9,8 +9,8 @@ Frontman supports multiple AI providers. The available models depend on your pro
 
 | Provider | Auth methods | Models |
 |----------|-------------|--------|
-| **OpenRouter** | API key, env variable | GPT-5.x, Claude family, Gemini, Kimi, Minimax, and more |
-| **Anthropic** | OAuth, API key, env variable | Claude Opus 4.6, Sonnet 4.5, Opus 4.5, Haiku 4.5, Sonnet 4, Opus 4 |
+| **OpenRouter** | API key | GPT-5.x, Claude family, Gemini, Kimi, Minimax, and more |
+| **Anthropic** | OAuth, API key | Claude Opus 4.6, Sonnet 4.5, Opus 4.5, Haiku 4.5, Sonnet 4, Opus 4 |
 | **OpenAI** | OAuth | GPT-5.5, GPT-5.4, GPT-5.3 Codex, GPT-5.2, GPT-5.1 Codex variants |
 | **Google** | API key | Gemini 3 Pro/Flash, Gemini 2.5 Pro (via OpenRouter) |
 | **xAI** | API key | Grok models (via OpenRouter) |
@@ -19,7 +19,7 @@ Frontman supports multiple AI providers. The available models depend on your pro
 
 OpenRouter gives access to the widest range of models through a single API key.
 
-**Auth:** API key or environment variable
+**Auth:** API key
 **Get a key:** [openrouter.ai/keys](https://openrouter.ai/keys)
 
 ### Model list
@@ -44,9 +44,9 @@ OpenRouter gives access to the widest range of models through a single API key.
 
 ## Anthropic
 
-Direct access to Claude models via API key, environment variable, or OAuth with your Claude Pro/Max subscription.
+Direct access to Claude models via API key or OAuth with your Claude Pro/Max subscription.
 
-**Auth:** OAuth, API key, environment variable
+**Auth:** OAuth, API key
 **Get a key:** [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
 
 | Model | ID |
@@ -97,4 +97,4 @@ You can always switch models from the dropdown in the chat header.
 
 ## Authentication
 
-Frontman does not include a built-in server key or no-key free tier. Connect a provider with OAuth, save an API key in settings, or configure an environment key through your integration.
+Frontman does not include a built-in server key or no-key free tier. Connect a provider with OAuth or save an API key in settings.
