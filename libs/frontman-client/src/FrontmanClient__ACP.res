@@ -73,6 +73,21 @@ type session = {
   onUpdate: (string, Types.sessionUpdate) => unit,
 }
 
+let cleanupSessionChannel = (session: session): unit => {
+  session.channel->Channel.off(~event=#"acp:message")
+  session.channel->Channel.off(~event=#"mcp:message")
+  session.channel->Channel.off(~event=#title_updated)
+  Channel.leave(session.channel)->ignore
+}
+
+let disconnect = (conn: connection, ~session: option<session>=?): unit => {
+  session->Option.forEach(cleanupSessionChannel)
+  conn.channel->Channel.off(~event=#"acp:message")
+  conn.channel->Channel.off(~event=#config_options_updated)
+  Channel.leave(conn.channel)->ignore
+  Socket.disconnect(conn.socket)
+}
+
 let waitForSocket = (socket: Socket.t): promise<result<unit, string>> => {
   Promise.make((resolve, _) => {
     socket->Socket.onError(~callback=_ => resolve(Error("Socket connection failed")))

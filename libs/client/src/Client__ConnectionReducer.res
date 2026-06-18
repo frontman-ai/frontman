@@ -11,7 +11,6 @@ module Log = FrontmanLogs.Logs.Make({
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
-module Channel = FrontmanAiFrontmanClient.FrontmanClient__Phoenix__Channel
 
 // Configuration for initialization
 type initConfig = {
@@ -129,7 +128,7 @@ type effect =
     })
   | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
   | DisconnectRelay(Relay.t)
-  | DisconnectACP(ACP.connection)
+  | DisconnectACP({connection: ACP.connection, session: option<ACP.session>})
   | AbortConnections(WebAPI.EventAPI.abortController)
   | CreateSessionEffect({
       connection: ACP.connection,
@@ -423,8 +422,12 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     | Some(relay) => [DisconnectRelay(relay)]
     | None => []
     }
+    let activeSession = switch state.session {
+    | SessionActive(session) => Some(session)
+    | NoSession | SessionCreating | SessionError(_) => None
+    }
     let acpEffects = switch state.acp {
-    | ACPConnected(conn) => [DisconnectACP(conn)]
+    | ACPConnected(conn) => [DisconnectACP({connection: conn, session: activeSession})]
     | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => []
     }
     (
@@ -462,10 +465,7 @@ let next = reduce
 
 // Helper to clean up a session's channel handlers
 let cleanupSession = (session: ACP.session): unit => {
-  session.channel->Channel.off(~event=#"acp:message")
-  session.channel->Channel.off(~event=#"mcp:message")
-  session.channel->Channel.off(~event=#title_updated)
-  Channel.leave(session.channel)->ignore
+  ACP.cleanupSessionChannel(session)
   Log.debug(~ctx={"sessionId": session.sessionId}, "Cleaned up session channel")
 }
 
@@ -482,7 +482,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
   | DisconnectRelay(relay) => Relay.disconnect(relay)
-  | DisconnectACP(_) => ()
+  | DisconnectACP({connection, session}) => ACP.disconnect(connection, ~session?)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | AbortConnections(controller) =>
     Log.info("Aborting in-flight connections")
