@@ -1339,17 +1339,20 @@ let next = (state: state, action) => {
   // ACP session config option actions
   | ConfigOptionsReceived({configOptions}) =>
     open FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
-    let modelConfigOption = findConfigOptionByCategory(configOptions, Model)
+    let modelConfigOption =
+      findConfigOptionByCategory(configOptions, Model)->Option.getOrThrow(
+        ~message="ConfigOptionsReceived missing model config option",
+      )
 
     let firstModelValue = switch modelConfigOption {
-    | Some(SelectConfigOption({options: Grouped(groups)})) =>
+    | SelectConfigOption({options: Grouped(groups)}) =>
       groups
       ->Array.get(0)
       ->Option.flatMap(g => g.options->Array.get(0))
       ->Option.map(opt => opt.value)
-    | Some(SelectConfigOption({options: Ungrouped(options)})) =>
-      options->Array.get(0)->Option.map(opt => opt.value)
-    | None => None
+      ->Option.getOrThrow(~message="Model config option has no models")
+    | SelectConfigOption({options: Ungrouped(_)}) =>
+      failwith("Model config option must use grouped options")
     }
 
     // When a provider was just connected, auto-select its first model.
@@ -1358,12 +1361,13 @@ let next = (state: state, action) => {
     | Some(providerId) =>
       // Find the first model value from the newly connected provider's group
       let providerModelValue = switch modelConfigOption {
-      | Some(SelectConfigOption({options: Grouped(groups)})) =>
+      | SelectConfigOption({options: Grouped(groups)}) =>
         groups
         ->Array.find(g => g.group == providerId)
         ->Option.flatMap(g => g.options->Array.get(0))
         ->Option.map(opt => opt.value)
-      | _ => None
+      | SelectConfigOption({options: Ungrouped(_)}) =>
+        failwith("Model config option must use grouped options")
       }
       switch providerModelValue {
       | Some(value) => (Some(value), true)
@@ -1372,7 +1376,7 @@ let next = (state: state, action) => {
     | None =>
       switch state.selectedModelValue {
       | Some(value) => (Some(value), false)
-      | None => (firstModelValue, firstModelValue->Option.isSome)
+      | None => (Some(firstModelValue), true)
       }
     }
     // Persist whenever we picked a new model
