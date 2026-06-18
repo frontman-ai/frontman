@@ -81,25 +81,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     - Used by `implement_component`, `visual_compare_component_to_figma`, etc. for detailed implementation
     """
 
-    # The Figma node ID extracted from the resource URI (e.g., "123:456")
-    # DSL text representation OR full JSON node data (depending on is_dsl)
-    # Base64 encoded PNG image of the node
-    # True if node contains DSL text, false if it contains full JSON data
-    @enforce_keys [:id]
-    defstruct id: nil,
-              node: nil,
-              image: nil,
-              is_dsl: true
+    use Ecto.Schema
 
-    def from_map(nil), do: nil
-
-    def from_map(data) when is_map(data) do
-      %__MODULE__{
-        id: data["id"],
-        node: data["node"],
-        image: data["image"],
-        is_dsl: Map.get(data, "is_dsl", true)
-      }
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :node, :string
+      field :image, :string
+      field :is_dsl, :boolean, default: true
     end
   end
 
@@ -108,18 +97,22 @@ defmodule FrontmanServer.Tasks.Interaction do
     Base64-encoded screenshot with MIME type.
     """
 
+    use Ecto.Schema
+
     @derive Jason.Encoder
-    @enforce_keys [:blob, :mime_type]
-    defstruct blob: nil,
-              mime_type: nil
+    @primary_key false
+    embedded_schema do
+      field :blob, :string
+      field :mime_type, :string
+    end
 
-    def from_map(nil), do: nil
+    def from_attrs(nil), do: nil
 
-    def from_map(%{"blob" => blob, "mime_type" => mime_type})
+    def from_attrs(%{"blob" => blob, "mime_type" => mime_type} = attrs)
         when is_binary(blob) and is_binary(mime_type),
-        do: %__MODULE__{blob: blob, mime_type: mime_type}
+        do: Ecto.embedded_load(__MODULE__, attrs, :json)
 
-    def from_map(_), do: nil
+    def from_attrs(_), do: nil
   end
 
   defmodule BoundingBox do
@@ -127,20 +120,24 @@ defmodule FrontmanServer.Tasks.Interaction do
     Bounding box of an element in viewport coordinates.
     """
 
+    use Ecto.Schema
+
     @derive Jason.Encoder
-    @enforce_keys [:x, :y, :width, :height]
-    defstruct x: nil,
-              y: nil,
-              width: nil,
-              height: nil
+    @primary_key false
+    embedded_schema do
+      field :x, :float
+      field :y, :float
+      field :width, :float
+      field :height, :float
+    end
 
-    def from_map(nil), do: nil
+    def from_attrs(nil), do: nil
 
-    def from_map(%{"x" => x, "y" => y, "width" => w, "height" => h})
+    def from_attrs(%{"x" => x, "y" => y, "width" => w, "height" => h} = attrs)
         when is_number(x) and is_number(y) and is_number(w) and is_number(h),
-        do: %__MODULE__{x: x / 1, y: y / 1, width: w / 1, height: h / 1}
+        do: Ecto.embedded_load(__MODULE__, attrs, :json)
 
-    def from_map(_), do: nil
+    def from_attrs(_), do: nil
   end
 
   defmodule ParentLocation do
@@ -150,37 +147,34 @@ defmodule FrontmanServer.Tasks.Interaction do
     Forms a recursive chain via the `parent` field.
     """
 
+    use Ecto.Schema
+
     @derive Jason.Encoder
-    @enforce_keys [:file, :line, :column]
-    defstruct file: nil,
-              line: nil,
-              column: nil,
-              component_name: nil,
-              component_props: nil,
-              parent: nil
+    @primary_key false
+    embedded_schema do
+      field :file, :string
+      field :line, :integer
+      field :column, :integer
+      field :component_name, :string
+      field :component_props, :map
+      embeds_one :parent, __MODULE__
+    end
 
-    def from_map(nil), do: nil
+    def from_attrs(nil), do: nil
 
-    def from_map(data) when is_map(data) do
+    def from_attrs(data) when is_map(data) do
       file = data["file"]
       line = data["line"]
       column = data["column"]
 
       if is_binary(file) and is_integer(line) and is_integer(column) do
-        %__MODULE__{
-          file: file,
-          line: line,
-          column: column,
-          component_name: data["component_name"],
-          component_props: data["component_props"],
-          parent: from_map(data["parent"])
-        }
+        Ecto.embedded_load(__MODULE__, data, :json)
       else
         nil
       end
     end
 
-    def from_map(_), do: nil
+    def from_attrs(_), do: nil
   end
 
   defmodule UserImage do
@@ -188,22 +182,26 @@ defmodule FrontmanServer.Tasks.Interaction do
     A user-uploaded image or PDF attachment.
     """
 
+    use Ecto.Schema
+
     @derive Jason.Encoder
-    @enforce_keys [:blob, :mime_type, :filename]
-    defstruct blob: nil,
-              mime_type: nil,
-              filename: nil,
-              uri: nil
+    @primary_key false
+    embedded_schema do
+      field :blob, :string
+      field :mime_type, :string
+      field :filename, :string
+      field :uri, :string
+    end
 
-    def from_map(%__MODULE__{} = image), do: image
+    def from_attrs(%__MODULE__{} = image), do: image
 
-    def from_map(data) when is_map(data) do
-      %__MODULE__{
-        blob: data["blob"],
-        mime_type: data["mime_type"] || "image/png",
-        filename: data["filename"] || "attachment",
-        uri: data["uri"]
-      }
+    def from_attrs(data) when is_map(data) do
+      data =
+        data
+        |> Map.put_new("mime_type", "image/png")
+        |> Map.put_new("filename", "attachment")
+
+      Ecto.embedded_load(__MODULE__, data, :json)
     end
   end
 
@@ -214,20 +212,22 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     alias FrontmanServer.CurrentPageContext
 
+    use Ecto.Schema
+
     @derive Jason.Encoder
-    @enforce_keys [:url]
-    defstruct url: nil,
-              viewport_width: nil,
-              viewport_height: nil,
-              device_pixel_ratio: nil,
-              title: nil,
-              color_scheme: nil,
-              scroll_y: nil
+    @primary_key false
+    embedded_schema do
+      field :url, :string
+      field :viewport_width, :integer
+      field :viewport_height, :integer
+      field :device_pixel_ratio, :float
+      field :title, :string
+      field :color_scheme, :string
+      field :scroll_y, :integer
+    end
 
-    def from_map(nil), do: nil
-
-    def from_map(data) when is_map(data) do
-      case CurrentPageContext.fields_from_meta(data) do
+    def from_acp_meta(meta) when is_map(meta) do
+      case CurrentPageContext.fields_from_current_page_meta(meta) do
         %{url: url} = fields ->
           %__MODULE__{
             url: url,
@@ -244,14 +244,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    def from_map(_), do: nil
-
-    def from_acp_meta(nil), do: nil
-
-    def from_acp_meta(meta) when is_map(meta) do
-      if CurrentPageContext.current_page_in_meta?(meta), do: from_map(meta), else: nil
-    end
-
     def from_acp_meta(_), do: nil
   end
 
@@ -262,23 +254,28 @@ defmodule FrontmanServer.Tasks.Interaction do
     Contains source location, screenshot, and enrichment data.
     """
 
+    use Ecto.Schema
+
     @derive Jason.Encoder
-    defstruct annotation_id: nil,
-              annotation_index: nil,
-              tag_name: nil,
-              selector: nil,
-              comment: nil,
-              file: nil,
-              line: nil,
-              column: nil,
-              component_name: nil,
-              component_props: nil,
-              parent: nil,
-              css_classes: nil,
-              nearby_text: nil,
-              metadata: %{},
-              bounding_box: nil,
-              screenshot: nil
+    @primary_key false
+    embedded_schema do
+      field :annotation_id, :string
+      field :annotation_index, :integer
+      field :tag_name, :string
+      field :selector, :string
+      field :comment, :string
+      field :file, :string
+      field :line, :integer
+      field :column, :integer
+      field :component_name, :string
+      field :component_props, :map
+      embeds_one :parent, ParentLocation
+      field :css_classes, :string
+      field :nearby_text, :string
+      field :metadata, :map, default: %{}
+      embeds_one :bounding_box, BoundingBox
+      embeds_one :screenshot, Screenshot
+    end
 
     @known_meta_keys ~w(
       annotation
@@ -302,12 +299,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     )
 
     @doc """
-    Builds an Annotation from a string-key ACP/DB map.
-
-    Used by both DB deserialization (InteractionSchema.to_struct) and
-    ACP content block parsing (via from_meta/2).
+    Builds an Annotation from flattened ACP metadata.
     """
-    def from_map(data) when is_map(data) do
+    def from_acp_meta(data) when is_map(data) do
       %__MODULE__{
         annotation_id: data["annotation_id"],
         annotation_index: data["annotation_index"],
@@ -319,12 +313,12 @@ defmodule FrontmanServer.Tasks.Interaction do
         column: data["column"],
         component_name: data["component_name"],
         component_props: data["component_props"],
-        parent: ParentLocation.from_map(data["parent"]),
+        parent: ParentLocation.from_attrs(data["parent"]),
         css_classes: data["css_classes"],
         nearby_text: data["nearby_text"],
         metadata: metadata_from_map(data),
-        bounding_box: BoundingBox.from_map(data["bounding_box"]),
-        screenshot: Screenshot.from_map(data["screenshot"])
+        bounding_box: BoundingBox.from_attrs(data["bounding_box"]),
+        screenshot: Screenshot.from_attrs(data["screenshot"])
       }
     end
 
@@ -352,7 +346,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     the caller.
     """
     def from_meta(meta, screenshot_map \\ %{}) when is_map(meta) do
-      ann = from_map(meta)
+      ann = from_acp_meta(meta)
       %{ann | screenshot: Map.get(screenshot_map, ann.annotation_id)}
     end
   end
@@ -377,14 +371,18 @@ defmodule FrontmanServer.Tasks.Interaction do
     # User-uploaded image/PDF attachments
 
     # Extracted current page context from resource with _meta.current_page
-    @enforce_keys [:id, :timestamp]
-    defstruct id: nil,
-              timestamp: nil,
-              messages: [],
-              annotations: [],
-              selected_figma_node: nil,
-              images: [],
-              current_page: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :messages, {:array, :string}, default: []
+      embeds_many :annotations, Annotation
+      embeds_one :selected_figma_node, FigmaNode
+      embeds_many :images, UserImage
+      embeds_one :current_page, CurrentPage
+    end
 
     def new(content_blocks) do
       %__MODULE__{
@@ -436,7 +434,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         annotation_id = get_in(resource, ["_meta", "annotation_id"])
         inner = Map.get(resource, "resource", %{})
 
-        case Screenshot.from_map(%{
+        case Screenshot.from_attrs(%{
                "blob" => inner["blob"],
                "mime_type" => inner["mimeType"] || "image/jpeg"
              }) do
@@ -521,8 +519,8 @@ defmodule FrontmanServer.Tasks.Interaction do
         meta = Map.get(resource, "_meta", %{})
 
         # UserImage fields come from both _meta (filename) and inner resource (blob, mimeType, uri).
-        # Merge into a flat map with the keys UserImage.from_map expects.
-        UserImage.from_map(%{
+        # Merge into the embedded schema attrs.
+        UserImage.from_attrs(%{
           "blob" => inner["blob"] || "",
           "mime_type" => inner["mimeType"] || "image/png",
           "filename" => meta["filename"] || "attachment",
@@ -547,11 +545,15 @@ defmodule FrontmanServer.Tasks.Interaction do
     This is the final, stored interaction after streaming is complete.
     """
 
-    @enforce_keys [:id, :content, :timestamp]
-    defstruct id: nil,
-              content: nil,
-              timestamp: nil,
-              metadata: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :content, :string
+      field :timestamp, :utc_datetime_usec
+      field :metadata, :map
+    end
 
     def new(content, metadata \\ %{}) do
       %__MODULE__{
@@ -568,10 +570,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     Represents an agent finishing its work.
     """
 
-    @enforce_keys [:id, :timestamp]
-    defstruct id: nil,
-              timestamp: nil,
-              result: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :result, :map
+    end
 
     def new(result \\ nil) do
       %__MODULE__{
@@ -590,13 +596,17 @@ defmodule FrontmanServer.Tasks.Interaction do
     even when the channel process was dead when the error occurred.
     """
 
-    @enforce_keys [:id, :timestamp, :error]
-    defstruct id: nil,
-              timestamp: nil,
-              error: nil,
-              kind: "failed",
-              retryable: false,
-              category: "unknown"
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :error, :string
+      field :kind, :string, default: "failed"
+      field :retryable, :boolean, default: false
+      field :category, :string, default: "unknown"
+    end
 
     @doc """
     Creates a new AgentError interaction.
@@ -623,10 +633,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     Persisted for observability — lets you measure retry success rates.
     """
 
-    @enforce_keys [:id, :timestamp, :retried_error_id]
-    defstruct id: nil,
-              timestamp: nil,
-              retried_error_id: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :retried_error_id, :string
+    end
 
     def new(retried_error_id) do
       %__MODULE__{
@@ -644,12 +658,16 @@ defmodule FrontmanServer.Tasks.Interaction do
     clients and the debug-task tool can see why the agent stopped.
     """
 
-    @enforce_keys [:id, :timestamp, :reason, :tool_name, :timeout_ms]
-    defstruct id: nil,
-              timestamp: nil,
-              reason: nil,
-              tool_name: nil,
-              timeout_ms: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :reason, :string
+      field :tool_name, :string
+      field :timeout_ms, :integer
+    end
 
     def new(tool_name, timeout_ms) do
       %__MODULE__{
@@ -667,12 +685,16 @@ defmodule FrontmanServer.Tasks.Interaction do
     Represents an LLM requesting a tool execution.
     """
 
-    @enforce_keys [:id, :tool_call_id, :tool_name, :arguments, :timestamp]
-    defstruct id: nil,
-              tool_call_id: nil,
-              tool_name: nil,
-              arguments: nil,
-              timestamp: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :tool_call_id, :string
+      field :tool_name, :string
+      field :arguments, :map
+      field :timestamp, :utc_datetime_usec
+    end
 
     def new(%SwarmAi.ToolCall{} = tc) do
       case SwarmAi.ToolCall.parse_arguments(tc) do
@@ -697,13 +719,17 @@ defmodule FrontmanServer.Tasks.Interaction do
     Represents the result of a tool execution.
     """
 
-    @enforce_keys [:id, :tool_call_id, :tool_name, :result, :timestamp]
-    defstruct id: nil,
-              tool_call_id: nil,
-              tool_name: nil,
-              result: nil,
-              is_error: false,
-              timestamp: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :tool_call_id, :string
+      field :tool_name, :string
+      field :result, :map
+      field :is_error, :boolean, default: false
+      field :timestamp, :utc_datetime_usec
+    end
 
     def new(tool_call_data, result, is_error \\ false) do
       %__MODULE__{
@@ -725,10 +751,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     explores the codebase. They are injected into LLM messages as context.
     """
 
-    @enforce_keys [:path, :content, :timestamp]
-    defstruct path: nil,
-              content: nil,
-              timestamp: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :path, :string
+      field :content, :string
+      field :timestamp, :utc_datetime_usec
+    end
 
     def new(path, content) do
       %__MODULE__{
@@ -747,9 +777,13 @@ defmodule FrontmanServer.Tasks.Interaction do
     so the agent always has structural awareness of the project.
     """
 
-    @enforce_keys [:summary, :timestamp]
-    defstruct summary: nil,
-              timestamp: nil
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :summary, :string
+      field :timestamp, :utc_datetime_usec
+    end
 
     def new(summary) do
       %__MODULE__{
@@ -769,23 +803,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
-  def to_data_map(value), do: normalize_data(value)
-
-  defp normalize_data(%DateTime{} = timestamp), do: DateTime.to_iso8601(timestamp)
-
-  defp normalize_data(value) when is_struct(value),
-    do: value |> Map.from_struct() |> normalize_data()
-
-  defp normalize_data(value) when is_list(value), do: Enum.map(value, &normalize_data/1)
-
-  defp normalize_data(value) when is_map(value) do
-    Map.new(value, fn {key, value} -> {data_key(key), normalize_data(value)} end)
-  end
-
-  defp normalize_data(value), do: value
-
-  defp data_key(key) when is_atom(key), do: Atom.to_string(key)
-  defp data_key(key), do: key
+  def to_data_map(value) when is_struct(value), do: Ecto.embedded_dump(value, :json)
 
   def to_json_map(%UserMessage{} = value) do
     %{

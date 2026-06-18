@@ -29,9 +29,9 @@ defmodule FrontmanServer.CurrentPageContext do
   @doc "Returns the placeholder used when page context repeats."
   def unchanged_placeholder, do: @unchanged_placeholder
 
-  @doc "Returns true when ACP metadata contains current-page context."
-  def current_page_in_meta?(%{@marker_key => true}), do: true
-  def current_page_in_meta?(_), do: false
+  @doc "Extracts normalized fields from metadata marked as current-page context."
+  def fields_from_current_page_meta(%{@marker_key => true} = meta), do: fields_from_meta(meta)
+  def fields_from_current_page_meta(_), do: nil
 
   @doc "Extracts normalized fields from ACP/DB metadata."
   def fields_from_meta(nil), do: nil

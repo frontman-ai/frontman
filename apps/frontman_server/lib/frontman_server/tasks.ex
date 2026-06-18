@@ -146,7 +146,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp hydrate_task(%TaskSchema{} = task_schema) do
-    # FIXME(Itay): We need to use EmbeddedSchema so Ecto will handle the mapping for us.
     %{task_schema | interactions: load_interactions(task_schema.id)}
   end
 

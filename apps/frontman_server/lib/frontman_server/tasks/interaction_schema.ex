@@ -17,7 +17,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   import Ecto.Query
   import FrontmanServer.ChangesetSanitizer
 
-  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.TaskSchema
 
@@ -114,7 +113,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   """
   def to_struct(%__MODULE__{type: type, data: data}) when is_atom(type) and is_map(data) do
     module = Interaction.module_for(type)
-    struct!(module, struct_fields(module, data))
+    Ecto.embedded_load(module, data, :json)
   end
 
   defp generate_sequence do
@@ -146,7 +145,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   defp validate_agent_response_metadata(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :data)} do
       {:agent_response, data} when is_map(data) ->
-        metadata = fetch_data_field(data, ["metadata", :metadata], nil)
+        metadata = Map.get(data, :metadata)
 
         validate_agent_response_metadata(changeset, metadata)
 
@@ -179,57 +178,4 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
         changeset
     end
   end
-
-  defp struct_fields(module, data) do
-    module.__struct__()
-    |> Map.from_struct()
-    |> Map.new(fn {field, default} ->
-      {field, field |> data_field(data, default) |> parse_field(field)}
-    end)
-  end
-
-  defp data_field(:current_page, data, default) do
-    fetch_data_field(
-      data,
-      [CurrentPageContext.data_key(), "current_page", :current_page],
-      default
-    )
-  end
-
-  defp data_field(field, data, default) do
-    fetch_data_field(data, [Atom.to_string(field), field], default)
-  end
-
-  defp fetch_data_field(data, keys, default) do
-    Enum.reduce_while(keys, default, fn key, acc ->
-      case Map.fetch(data, key) do
-        {:ok, value} -> {:halt, value}
-        :error -> {:cont, acc}
-      end
-    end)
-  end
-
-  defp parse_field(value, :timestamp), do: parse_datetime(value)
-  defp parse_field(value, :annotations), do: parse_annotations(value)
-  defp parse_field(value, :selected_figma_node), do: Interaction.FigmaNode.from_map(value)
-  defp parse_field(value, :images), do: parse_images(value)
-  defp parse_field(value, :current_page), do: Interaction.CurrentPage.from_map(value)
-  defp parse_field(value, _field), do: value
-
-  defp parse_datetime(%DateTime{} = dt), do: dt
-
-  defp parse_datetime(str) when is_binary(str) do
-    {:ok, dt, _} = DateTime.from_iso8601(str)
-    dt
-  end
-
-  defp parse_annotations(nil), do: []
-
-  defp parse_annotations(annotations) when is_list(annotations),
-    do: Enum.map(annotations, &Interaction.Annotation.from_map/1)
-
-  defp parse_images(nil), do: []
-
-  defp parse_images(images) when is_list(images),
-    do: Enum.map(images, &Interaction.UserImage.from_map/1)
 end

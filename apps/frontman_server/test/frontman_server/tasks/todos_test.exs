@@ -156,7 +156,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
-        "Invalid todo at index 0",
+        MCP.tool_result_error("Invalid todo at index 0"),
         true,
         turn_number: turn_number
       )
