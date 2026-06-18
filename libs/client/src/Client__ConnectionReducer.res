@@ -180,6 +180,26 @@ let initialState: state = {
   abortController: None,
 }
 
+let cleanupEffects = (state: state): array<effect> => {
+  let abortEffects = switch state.abortController {
+  | Some(controller) => [AbortConnections(controller)]
+  | None => []
+  }
+  let relayEffects = switch state.relayInstance {
+  | Some(relay) => [DisconnectRelay(relay)]
+  | None => []
+  }
+  let activeSession = switch state.session {
+  | SessionActive(session) => Some(session)
+  | NoSession | SessionCreating | SessionError(_) => None
+  }
+  let acpEffects = switch state.acp {
+  | ACPConnected(conn) => [DisconnectACP({connection: conn, session: activeSession})]
+  | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => []
+  }
+  Array.flat([abortEffects, relayEffects, acpEffects])
+}
+
 module Selectors = {
   let getSession = (state: state): option<ACP.session> => {
     switch state.session {
@@ -413,26 +433,9 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   | (_, CreateSession(_)) => (state, [LogError("Cannot create session: not ready")])
 
   // === Cleanup ===
-  | (_, Cleanup) =>
-    let abortEffects = switch state.abortController {
-    | Some(controller) => [AbortConnections(controller)]
-    | None => []
-    }
-    let relayEffects = switch state.relayInstance {
-    | Some(relay) => [DisconnectRelay(relay)]
-    | None => []
-    }
-    let activeSession = switch state.session {
-    | SessionActive(session) => Some(session)
-    | NoSession | SessionCreating | SessionError(_) => None
-    }
-    let acpEffects = switch state.acp {
-    | ACPConnected(conn) => [DisconnectACP({connection: conn, session: activeSession})]
-    | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => []
-    }
-    (
+  | (_, Cleanup) => (
       {...initialState, initialAuthBehavior: state.initialAuthBehavior},
-      Array.flat([abortEffects, relayEffects, acpEffects]),
+      cleanupEffects(state),
     )
 
   // === Invalid transitions ===
@@ -689,4 +692,8 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
 
   | CleanupSessionEffect({session}) => cleanupSession(session)
   }
+}
+
+let cleanupNow = (state: state, dispatch: action => unit): unit => {
+  cleanupEffects(state)->Array.forEach(effect => handleEffect(effect, state, dispatch))
 }

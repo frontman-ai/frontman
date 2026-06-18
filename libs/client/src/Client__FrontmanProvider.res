@@ -207,6 +207,12 @@ module Provider = {
       initialAuthBehavior: Client__FtueState.getAuthBehavior(),
     }
     let (state, dispatch) = StateReducer.useReducer(module(Reducer), initialConnectionState)
+    let connectionStateRef = React.useRef(state)
+
+    React.useEffect(() => {
+      connectionStateRef.current = state
+      None
+    }, [state])
 
     // Single initialization effect
     React.useEffect0(() => {
@@ -266,7 +272,7 @@ module Provider = {
           textDeltaBuffer.reset()
           _userMsgBuffer.pending = false
           _userMsgBuffer.blocks = []
-          dispatch(Cleanup)
+          Reducer.cleanupNow(connectionStateRef.current, dispatch)
         },
       )
     })
