@@ -115,7 +115,6 @@ type action =
     })
   | DeleteSession({taskId: string, onComplete: result<unit, string> => unit})
   | ClearSession
-  | Cleanup
 
 // Effects - side effects the reducer wants to trigger
 type effect =
@@ -128,7 +127,6 @@ type effect =
     })
   | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
   | DisconnectRelay(Relay.t)
-  | DisconnectACP({connection: ACP.connection, session: option<ACP.session>})
   | AbortConnections(WebAPI.EventAPI.abortController)
   | CreateSessionEffect({
       connection: ACP.connection,
@@ -178,26 +176,6 @@ let initialState: state = {
   relayInstance: None,
   mcpServer: None,
   abortController: None,
-}
-
-let cleanupEffects = (state: state): array<effect> => {
-  let abortEffects = switch state.abortController {
-  | Some(controller) => [AbortConnections(controller)]
-  | None => []
-  }
-  let relayEffects = switch state.relayInstance {
-  | Some(relay) => [DisconnectRelay(relay)]
-  | None => []
-  }
-  let activeSession = switch state.session {
-  | SessionActive(session) => Some(session)
-  | NoSession | SessionCreating | SessionError(_) => None
-  }
-  let acpEffects = switch state.acp {
-  | ACPConnected(conn) => [DisconnectACP({connection: conn, session: activeSession})]
-  | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => []
-  }
-  Array.flat([abortEffects, relayEffects, acpEffects])
 }
 
 module Selectors = {
@@ -432,12 +410,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (_, CreateSession(_)) => (state, [LogError("Cannot create session: not ready")])
 
-  // === Cleanup ===
-  | (_, Cleanup) => (
-      {...initialState, initialAuthBehavior: state.initialAuthBehavior},
-      cleanupEffects(state),
-    )
-
   // === Invalid transitions ===
   | (_, Initialize(_)) => (state, [LogInfo("Initialize ignored: already initialized")])
 
@@ -485,7 +457,6 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
   | DisconnectRelay(relay) => Relay.disconnect(relay)
-  | DisconnectACP({connection, session}) => ACP.disconnect(connection, ~session?)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | AbortConnections(controller) =>
     Log.info("Aborting in-flight connections")

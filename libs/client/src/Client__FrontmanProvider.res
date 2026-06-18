@@ -127,24 +127,6 @@ let _flushUserMessageBuffer = () => {
 // Register the user message buffer flush callback (used by StateReducer before LoadComplete)
 let () = Client__TextDeltaBuffer.flushUserMessageBuffer := _flushUserMessageBuffer
 
-let cleanupConnectionState = (state: Reducer.state): unit => {
-  state.abortController->Option.forEach(controller => WebAPI.AbortController.abort(controller))
-  state.relayInstance->Option.forEach(relay => Relay.disconnect(relay))
-
-  let activeSession = switch state.session {
-  | Reducer.SessionActive(session) => Some(session)
-  | Reducer.NoSession | Reducer.SessionCreating | Reducer.SessionError(_) => None
-  }
-
-  switch state.acp {
-  | Reducer.ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
-  | Reducer.ACPDisconnected
-  | Reducer.ACPConnecting
-  | Reducer.ACPAuthRequired(_)
-  | Reducer.ACPError(_) => ()
-  }
-}
-
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
 
@@ -225,10 +207,10 @@ module Provider = {
       initialAuthBehavior: Client__FtueState.getAuthBehavior(),
     }
     let (state, dispatch) = StateReducer.useReducer(module(Reducer), initialConnectionState)
-    let cleanupConnectionRef = React.useRef(() => ())
+    let connectionStateRef = React.useRef(state)
 
     React.useEffect(() => {
-      cleanupConnectionRef.current = () => cleanupConnectionState(state)
+      connectionStateRef.current = state
       None
     }, [state])
 
@@ -290,7 +272,19 @@ module Provider = {
           textDeltaBuffer.reset()
           _userMsgBuffer.pending = false
           _userMsgBuffer.blocks = []
-          cleanupConnectionRef.current()
+          let state = connectionStateRef.current
+          state.abortController->Option.forEach(controller =>
+            WebAPI.AbortController.abort(controller)
+          )
+          state.relayInstance->Option.forEach(relay => Relay.disconnect(relay))
+          let activeSession = switch state.session {
+          | SessionActive(session) => Some(session)
+          | NoSession | SessionCreating | SessionError(_) => None
+          }
+          switch state.acp {
+          | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
+          | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => ()
+          }
         },
       )
     })
