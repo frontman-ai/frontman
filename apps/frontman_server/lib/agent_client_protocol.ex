@@ -136,19 +136,18 @@ defmodule AgentClientProtocol do
   @doc """
   Translates domain model config data into ACP SessionConfigOption format.
 
-  Receives the output of `Providers.model_config_data/2` — a domain DTO
-  containing model groups and a default model — and serializes it into
-  the ACP wire format.  This function has no knowledge of provider
+  Receives the output of `Providers.model_config_data/1` — a domain DTO
+  containing model groups — and serializes it into the ACP wire format.
+  This function has no knowledge of provider
   internals; all domain logic is encapsulated in the Providers context.
   """
-  def build_model_config_options(%{groups: groups, default_model: default_model}) do
+  def build_model_config_options(%{groups: groups}) do
     [
       %{
         "type" => "select",
         "id" => "model",
         "name" => "Model",
         "category" => "model",
-        "currentValue" => default_model,
         "options" =>
           Enum.map(groups, fn %{id: id, name: name, options: options} ->
             %{

@@ -51,6 +51,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
                Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
     end
 
+    test "returns :missing_model when no model is provided", %{scope: scope} do
+      assert {:error, :missing_model} = Providers.prepare_llm_args(scope, nil)
+    end
+
     test "openrouter user key resolves correctly", %{scope: scope} do
       {:ok, _} = Providers.upsert_api_key(scope, "openrouter", "sk-or-user-test")
 

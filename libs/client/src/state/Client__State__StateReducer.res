@@ -1341,14 +1341,19 @@ let next = (state: state, action) => {
     open FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
     let modelConfigOption = findConfigOptionByCategory(configOptions, Model)
 
-    // Extract the server's default currentValue from the model config option
-    let serverDefault = switch modelConfigOption {
-    | Some(SelectConfigOption({currentValue})) => Some(currentValue)
+    let firstModelValue = switch modelConfigOption {
+    | Some(SelectConfigOption({options: Grouped(groups)})) =>
+      groups
+      ->Array.get(0)
+      ->Option.flatMap(g => g.options->Array.get(0))
+      ->Option.map(opt => opt.value)
+    | Some(SelectConfigOption({options: Ungrouped(options)})) =>
+      options->Array.get(0)->Option.map(opt => opt.value)
     | None => None
     }
 
     // When a provider was just connected, auto-select its first model.
-    // Otherwise keep the current selection (or fall back to server default).
+    // Otherwise keep the current selection or choose the first listed model.
     let (selectedModelValue, didAutoSelect) = switch state.pendingProviderAutoSelect {
     | Some(providerId) =>
       // Find the first model value from the newly connected provider's group
@@ -1367,7 +1372,7 @@ let next = (state: state, action) => {
     | None =>
       switch state.selectedModelValue {
       | Some(value) => (Some(value), false)
-      | None => (serverDefault, serverDefault->Option.isSome)
+      | None => (firstModelValue, firstModelValue->Option.isSome)
       }
     }
     // Persist whenever we picked a new model

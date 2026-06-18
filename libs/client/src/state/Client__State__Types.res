@@ -163,7 +163,7 @@ type state = {
   // Persisted to localStorage. Derives from configOptions where category=Model.
   selectedModelValue: option<ACPConfig.sessionConfigValueId>,
   // When a provider is freshly connected, this holds its id (e.g. "anthropic")
-  // so the next config options refresh auto-selects a default model from it.
+  // so the next config options refresh auto-selects its first model.
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
   // Update banner: set when a newer integration package version is available

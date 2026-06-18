@@ -35,7 +35,7 @@ defmodule FrontmanServer.Tasks.Execution do
   and submits the agent to SwarmAi.
 
   ## Params
-  - `:model` - LLM model spec (nil uses provider default)
+  - `:model` - LLM model spec
   - `:mcp_tools` - client MCP tool definitions for this turn
   - `:project_traits` - client/framework traits used for system prompt guidance
 
@@ -219,6 +219,9 @@ defmodule FrontmanServer.Tasks.Execution do
 
   def error_message(%Scope{}, :registration_timeout),
     do: "Agent failed to start. Please try again."
+
+  def error_message(%Scope{}, :missing_model),
+    do: "Model is required for this request."
 
   def error_message(%Scope{}, reason),
     do: inspect(reason)

@@ -501,9 +501,9 @@ defmodule FrontmanServer.Tasks do
           project_traits: project_traits
         }
       )
-      when is_binary(task_id) and is_list(mcp_tools) and is_list(project_traits) do
-    user_message_interaction = Interaction.UserMessage.new(content_blocks)
-
+      when is_binary(task_id) and is_binary(model) and model != "" and is_list(mcp_tools) and
+             is_list(project_traits) do
+    user_message_interaction = Interaction.UserMessage.new(content_blocks, model)
     execution = %{model: model, mcp_tools: mcp_tools, project_traits: project_traits}
 
     case insert_user_turn_for_locked_task(scope, task_id, user_message_interaction) do
@@ -525,6 +525,10 @@ defmodule FrontmanServer.Tasks do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  def submit_user_message(%Scope{}, %{model: _model}) do
+    {:error, :missing_model}
   end
 
   defp insert_user_turn_for_locked_task(%Scope{} = scope, task_id, user_message_interaction) do
@@ -698,6 +702,7 @@ defmodule FrontmanServer.Tasks do
          rows = load_interaction_rows(task_id),
          {:ok, turn_number} <- retry_turn_number(task_id, retried_error_id),
          :ok <- ensure_latest_retry_turn(turn_number, rows),
+         {:ok, execution} <- ensure_execution_model(task_id, turn_number, execution),
          {:ok, _retry} <-
            record_interaction(schema, Interaction.AgentRetry.new(retried_error_id), turn_number) do
       run_execution(scope, schema, turn_number, execution)
@@ -720,23 +725,40 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Resumes execution for the active agent run."
   def resume_execution(scope, task_id, execution) do
-    case get_task(scope, task_id) do
-      {:ok, task} ->
-        rows = load_interaction_rows(task_id)
+    with {:ok, task} <- get_task(scope, task_id),
+         rows = load_interaction_rows(task_id),
+         {:ok, turn_number} when is_integer(turn_number) <- active_agent_run_turn_number(rows),
+         {:ok, execution} <- ensure_execution_model(task_id, turn_number, execution) do
+      run_execution(scope, task, turn_number, execution)
+    else
+      {:ok, nil} -> {:error, :not_running}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-        case active_agent_run_turn_number(rows) do
-          {:ok, turn_number} when is_integer(turn_number) ->
-            run_execution(scope, task, turn_number, execution)
+  defp ensure_execution_model(_task_id, _turn_number, %{model: model} = execution)
+       when is_binary(model) and model != "" do
+    {:ok, execution}
+  end
 
-          {:ok, nil} ->
-            {:error, :not_running}
+  defp ensure_execution_model(task_id, turn_number, execution) do
+    case model_for_turn(task_id, turn_number) do
+      {:ok, model} -> {:ok, Map.put(execution, :model, model)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-          {:error, reason} ->
-            {:error, reason}
-        end
+  defp model_for_turn(task_id, turn_number) do
+    InteractionSchema.for_task(task_id)
+    |> InteractionSchema.for_turn(turn_number)
+    |> InteractionSchema.of_type(Interaction.UserMessage)
+    |> Repo.one()
+    |> case do
+      %InteractionSchema{data: %{"model" => model}} when is_binary(model) and model != "" ->
+        {:ok, model}
 
-      {:error, :not_found} ->
-        {:error, :not_found}
+      _missing ->
+        {:error, :missing_model}
     end
   end
 

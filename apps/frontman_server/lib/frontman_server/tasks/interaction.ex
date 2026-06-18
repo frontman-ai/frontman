@@ -377,6 +377,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :id, :string
       field :timestamp, :utc_datetime_usec
+      field :model, :string
       field :messages, {:array, :string}, default: []
       embeds_many :annotations, Annotation
       embeds_one :selected_figma_node, FigmaNode
@@ -384,10 +385,11 @@ defmodule FrontmanServer.Tasks.Interaction do
       embeds_one :current_page, CurrentPage
     end
 
-    def new(content_blocks) do
+    def new(content_blocks, model \\ nil) do
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
+        model: model,
         messages: extract_messages(content_blocks),
         annotations: extract_annotations(content_blocks),
         selected_figma_node: extract_selected_figma_node(content_blocks),
@@ -809,6 +811,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     %{
       type: type_for(value),
       id: value.id,
+      model: value.model,
       messages: value.messages,
       timestamp: DateTime.to_iso8601(value.timestamp),
       annotations: Enum.map(value.annotations, &annotation_json_map/1),

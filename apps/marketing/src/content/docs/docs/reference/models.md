@@ -108,17 +108,11 @@ Grok models are available through OpenRouter with an OpenRouter API key. You can
 **Auth:** API key
 **Get a key:** [console.x.ai](https://console.x.ai/)
 
-## How defaults are chosen
+## Initial selection
 
-When multiple providers are available, Frontman picks the default model from the highest-priority provider:
+When model options load, Frontman selects the first available model in the dropdown. If you connect a new provider, Frontman switches to the first model from that provider.
 
-1. **OpenAI** (priority 10)
-2. **Anthropic** (priority 20)
-3. **OpenRouter** (priority 30)
-4. **Google** (priority 40)
-5. **xAI** (priority 50)
-
-For example, if you have both an Anthropic API key and an OpenRouter key, Frontman defaults to Claude Sonnet 4.5 (Anthropic). You can always switch models from the dropdown in the chat header.
+You can always switch models from the dropdown in the chat header.
 
 ## Tiers
 

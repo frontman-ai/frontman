@@ -13,7 +13,6 @@ providers = [
      display_name: "OpenAI",
      max_image_dimension: nil,
      llm_db_provider: [],
-     default_model: "gpt-5.5",
      models: [
        {"GPT-5.5", "gpt-5.5", :packaged},
        {"GPT-5.4", "gpt-5.4", :packaged},
@@ -27,7 +26,6 @@ providers = [
      # Anthropic hard-rejects images > 8000px per side; 7680 leaves margin.
      max_image_dimension: 7680,
      llm_db_provider: [],
-     default_model: "claude-sonnet-4-6",
      models: [
        {"Claude Opus 4.8", "claude-opus-4-8", :packaged},
        {"Claude Opus 4.7", "claude-opus-4-7", :packaged},
@@ -44,7 +42,6 @@ providers = [
      display_name: "OpenRouter",
      max_image_dimension: nil,
      llm_db_provider: [],
-     default_model: "google/gemini-3-flash-preview",
      models: [
        {"GPT-5.5", "openai/gpt-5.5", :packaged},
        {"GPT-5.5 Pro", "openai/gpt-5.5-pro", :packaged},
@@ -71,7 +68,6 @@ providers = [
      display_name: "Fireworks AI",
      max_image_dimension: nil,
      llm_db_provider: [],
-     default_model: "accounts/fireworks/routers/kimi-k2p6-turbo",
      models: [
        {"Kimi K2.6 Turbo", "accounts/fireworks/routers/kimi-k2p6-turbo", :packaged}
      ]
@@ -81,7 +77,6 @@ providers = [
      display_name: "NVIDIA",
      max_image_dimension: nil,
      llm_db_provider: [],
-     default_model: "moonshotai/kimi-k2.6",
      models: [
        {"Kimi K2.6", "moonshotai/kimi-k2.6",
         %{

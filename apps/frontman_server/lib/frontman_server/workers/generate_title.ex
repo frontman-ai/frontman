@@ -65,6 +65,10 @@ defmodule FrontmanServer.Workers.GenerateTitle do
          :ok <- Tasks.apply_title_suggestion(scope, task_id, title) do
       :ok
     else
+      {:error, :missing_model} ->
+        Logger.debug("GenerateTitle: Missing model, cancelling")
+        {:cancel, :missing_model}
+
       {:error, :no_api_key} ->
         Logger.debug("GenerateTitle: No API key available, cancelling")
         {:cancel, :no_api_key}

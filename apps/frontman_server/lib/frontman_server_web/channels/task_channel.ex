@@ -674,40 +674,48 @@ defmodule FrontmanServerWeb.TaskChannel do
        when is_map(meta) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
-    {:ok, model} = Providers.model_from_client_params(meta["model"])
 
-    execution = %{
-      model: model,
-      mcp_tools: socket.assigns.mcp_tools,
-      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
-    }
+    case Providers.model_from_client_params(meta["model"]) do
+      {:ok, model} ->
+        execution = %{
+          model: model,
+          mcp_tools: socket.assigns.mcp_tools,
+          project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+        }
 
-    Logger.info("process_prompt", %{task_id: task_id, model: model})
+        Logger.info("process_prompt", %{task_id: task_id, model: model})
 
-    case Tasks.submit_user_message(
-           scope,
-           Map.merge(execution, %{task_id: task_id, message: content_blocks})
-         ) do
-      {:error, :already_running} ->
-        Logger.info("Rejected prompt — agent already running for task #{task_id}")
-        error_response = JsonRpc.error_response(id, -32_000, "Agent already running")
-        {:reply, {:ok, %{@acp_message => error_response}}, socket}
+        case Tasks.submit_user_message(
+               scope,
+               Map.merge(execution, %{task_id: task_id, message: content_blocks})
+             ) do
+          {:error, :already_running} ->
+            Logger.info("Rejected prompt — agent already running for task #{task_id}")
+            error_response = JsonRpc.error_response(id, -32_000, "Agent already running")
+            {:reply, {:ok, %{@acp_message => error_response}}, socket}
 
-      {:ok, _interaction, turn_number} ->
-        socket =
-          assign(socket, :pending_prompt, %{
-            turn_number: turn_number,
-            jsonrpc_id: id
-          })
-          |> assign(:last_execution, execution)
+          {:ok, _interaction, turn_number} ->
+            socket =
+              assign(socket, :pending_prompt, %{
+                turn_number: turn_number,
+                jsonrpc_id: id
+              })
+              |> assign(:last_execution, execution)
 
-        Logger.info("User message added, agent spawned for task #{task_id}")
+            Logger.info("User message added, agent spawned for task #{task_id}")
 
-        {:noreply, socket}
+            {:noreply, socket}
 
-      {:error, reason} ->
-        Logger.error("Failed to add user message: #{inspect(reason)}")
-        error_response = JsonRpc.error_response(id, -32_000, to_string(reason))
+          {:error, reason} ->
+            Logger.error("Failed to add user message: #{inspect(reason)}")
+            error_response = JsonRpc.error_response(id, -32_000, to_string(reason))
+            {:reply, {:ok, %{@acp_message => error_response}}, socket}
+        end
+
+      :error ->
+        error_response =
+          JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Model is required")
+
         {:reply, {:ok, %{@acp_message => error_response}}, socket}
     end
   end

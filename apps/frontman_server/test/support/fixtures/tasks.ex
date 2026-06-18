@@ -21,6 +21,8 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     TaskSchema
   }
 
+  @default_test_model "openrouter:openai/gpt-5.5"
+
   @doc """
   Create a task and return its schema.
 
@@ -45,7 +47,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   @doc "Build a production-shaped execution request for task execution tests."
   def execution_request_fixture(overrides \\ []) do
     %{
-      model: nil,
+      model: @default_test_model,
       project_traits: [],
       mcp_tools: []
     }
@@ -74,7 +76,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   """
   def user_message_fixture(scope, task_id, content_blocks) do
     task = task_schema!(scope, task_id)
-    interaction = Interaction.UserMessage.new(content_blocks)
+    interaction = Interaction.UserMessage.new(content_blocks, @default_test_model)
 
     case InteractionSchema.create_changeset(task, interaction, next_turn_number(task_id))
          |> Repo.insert() do

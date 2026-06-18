@@ -38,14 +38,17 @@ defmodule FrontmanServer.Providers do
 
   ## Parameters
     - scope: The user scope (or nil for anonymous).
-    - model: The model string (e.g., "openrouter:openai/gpt-4"), or nil for default
+    - model: The model string (e.g., "openrouter:openai/gpt-4")
 
   ## Returns
     - `{:ok, {model_spec, llm_opts}}` - Ready to use for LLM calls
     - `{:error, :no_api_key}` - No API key available
   """
-  def prepare_llm_args(scope, model, opts \\ []) do
-    model = model || default_model()
+  def prepare_llm_args(scope, model, opts \\ [])
+
+  def prepare_llm_args(_scope, nil, _opts), do: {:error, :missing_model}
+
+  def prepare_llm_args(scope, model, opts) when is_binary(model) and model != "" do
     provider = model_provider_name(model)
 
     case oauth_llm_opts(provider, resolve_oauth_token(scope, provider)) do
@@ -54,6 +57,8 @@ defmodule FrontmanServer.Providers do
       :use_api_key -> api_key_llm_args(scope, provider, model, opts)
     end
   end
+
+  def prepare_llm_args(_scope, _model, _opts), do: {:error, :missing_model}
 
   defp oauth_llm_opts("anthropic", %OAuthToken{access_token: access_token}) do
     {:ok,
@@ -96,10 +101,14 @@ defmodule FrontmanServer.Providers do
     {:ok, model_string(provider, value)}
   end
 
-  def model_from_client_params(params) do
-    {provider, name} = model_parts(params)
-    {:ok, model_string(provider, name)}
+  def model_from_client_params(params) when is_binary(params) do
+    case String.split(params, ":", parts: 2) do
+      [provider, name] when provider != "" and name != "" -> {:ok, model_string(provider, name)}
+      _invalid -> :error
+    end
   end
+
+  def model_from_client_params(_params), do: :error
 
   def start_anthropic_oauth do
     {verifier, challenge} = AnthropicOAuth.generate_pkce()
@@ -422,9 +431,8 @@ defmodule FrontmanServer.Providers do
   @doc """
   Returns model selection data for a user, ready for ACP serialization.
 
-  Resolves which providers the user can access, then builds model groups and
-  picks the best default. Returns a domain DTO that ACP
-  translates to `SessionConfigOption` wire format.
+  Resolves which providers the user can access, then builds model groups.
+  Returns a domain DTO that ACP translates to `SessionConfigOption` wire format.
 
   ## Parameters
 
@@ -436,7 +444,6 @@ defmodule FrontmanServer.Providers do
     * `:groups` – list of model group maps, each with `:id`, `:name`, and
       `:options` (list of `%{name: name, value: value}` maps where
       `value` is a serialized `"provider:model"` string)
-    * `:default_model` – serialized `"provider:model"` string for the best default
   """
   def model_config_data(scope) do
     api_key_providers = list_api_key_providers(scope)
@@ -470,30 +477,11 @@ defmodule FrontmanServer.Providers do
         %{id: provider, name: config.display_name, options: options}
       end)
 
-    default_model = pick_default_model(provider_configs)
-
-    %{groups: groups, default_model: default_model}
+    %{groups: groups}
   end
 
   defp provider_config(provider) do
     Map.fetch!(@provider_configs, String.downcase(provider))
-  end
-
-  defp default_model do
-    default_model_for("openrouter", provider_config("openrouter"))
-  end
-
-  defp default_model_for(provider, config) do
-    model_string(String.downcase(provider), config.default_model)
-  end
-
-  defp pick_default_model([]) do
-    default_model_for("openrouter", provider_config("openrouter"))
-  end
-
-  defp pick_default_model(provider_configs) do
-    [{provider, config} | _] = provider_configs
-    default_model_for(provider, config)
   end
 
   defp model_parts(model) when is_binary(model) do

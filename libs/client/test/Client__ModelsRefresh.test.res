@@ -67,7 +67,7 @@ module SampleConfig = {
       name: "Model",
       description: None,
       category: Some(ACP.Model),
-      currentValue,
+      currentValue: Some(currentValue),
       options: ACP.Grouped(groups),
       _meta: None,
     })
@@ -288,7 +288,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
-  test("falls back to server default when no selection and no pending provider", t => {
+  test("selects first model when no selection and no pending provider", t => {
     let state = _makeState()
 
     let (nextState, _effects) = Reducer.next(

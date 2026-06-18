@@ -64,8 +64,8 @@ defmodule AgentClientProtocolTest do
   end
 
   describe "build_model_config_options/1" do
-    defp config_data(groups, default_model \\ "anthropic:claude-sonnet-4-5") do
-      %{groups: groups, default_model: default_model}
+    defp config_data(groups) do
+      %{groups: groups}
     end
 
     defp model_group(id, name, options) do
@@ -126,12 +126,12 @@ defmodule AgentClientProtocolTest do
       assert Enum.all?(values, &String.starts_with?(&1, "anthropic:"))
     end
 
-    test "currentValue uses provided default" do
-      data = config_data([], "anthropic:claude-sonnet-4-5")
+    test "does not set currentValue" do
+      data = config_data([])
 
       [option] = ACP.build_model_config_options(data)
 
-      assert option["currentValue"] == "anthropic:claude-sonnet-4-5"
+      refute Map.has_key?(option, "currentValue")
     end
   end
 
