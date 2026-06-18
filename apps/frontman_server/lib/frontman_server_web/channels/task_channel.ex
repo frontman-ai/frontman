@@ -546,7 +546,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     # Store error result and notify agent.
     # :no_executor means the agent is dead (e.g. server restart). Unlike the
     # success path in handle_tool_call_response/4, we don't auto-resume here because MCP
-    # error responses don't carry _meta (env API keys + model) needed to restart.
+    # error responses don't carry _meta with the model needed to restart.
     # The error is persisted; the user can retry via a new prompt.
     case Tasks.resolve_tool_request(
            scope,
