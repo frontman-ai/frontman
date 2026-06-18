@@ -693,7 +693,3 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | CleanupSessionEffect({session}) => cleanupSession(session)
   }
 }
-
-let cleanupNow = (state: state, dispatch: action => unit): unit => {
-  cleanupEffects(state)->Array.forEach(effect => handleEffect(effect, state, dispatch))
-}
