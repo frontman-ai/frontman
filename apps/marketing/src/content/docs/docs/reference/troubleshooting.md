@@ -165,7 +165,7 @@ When Frontman is not working, these checks resolve most issues:
 ### Fix
 1. Re-check key configuration in user settings.
 2. Try another model/provider to isolate provider-specific failures.
-3. If using free tier, add your own API key to use more models.
+3. Connect OAuth or save an API key for the selected provider.
 4. Re-run after updating credentials.
 5. Review [Models](/docs/reference/models/) and [Configuration](/docs/reference/configuration/) to confirm your selected provider/model is supported for your setup.
 

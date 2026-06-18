@@ -3,37 +3,38 @@ title: API Keys & Providers
 description: Configure AI model access in Frontman, choose a provider, bring your own API key, connect OAuth, and control model selection and usage costs.
 ---
 
-Frontman needs access to a large language model (LLM) to power the coding agent. You have three options for connecting a provider.
+Frontman needs access to a large language model (LLM) to power the coding agent. Connect a supported provider with OAuth or a saved API key.
 
-## Free tier (default)
+## Provider access
 
-Frontman uses a bring-your-own-key model. Connect your own AI provider account to use the agent with Claude, OpenAI, OpenRouter, or another supported provider.
+Frontman does not include a built-in server key or no-key free tier. Runs require a provider credential for the selected model.
 
 :::note
-The free tier is subject to rate limits and may use a smaller model. For production use or heavier workloads, bring your own key.
+If a run fails with a missing API key error, connect OAuth or save an API key for the selected provider.
 :::
 
 ## Bring your own key (BYOK)
 
-Use your own API key from any supported provider for full control over model selection and costs.
+Use your own API key from any supported provider for control over model selection and costs.
 
 ### Supported providers
 
 | Provider | Model examples | How to get a key |
 |----------|---------------|-----------------|
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| **Anthropic** | `claude-sonnet-4-20250514`, `claude-3.5-haiku` | [console.anthropic.com](https://console.anthropic.com/) |
-| **OpenRouter** | Any model on OpenRouter | [openrouter.ai](https://openrouter.ai) |
+| **Anthropic** | Claude Opus, Sonnet, Haiku | [console.anthropic.com](https://console.anthropic.com/) |
+| **OpenRouter** | GPT, Claude, Gemini, Kimi, MiniMax | [openrouter.ai](https://openrouter.ai) |
+| **Fireworks AI** | Kimi models | [fireworks.ai](https://fireworks.ai/) |
+| **NVIDIA** | Kimi, DeepSeek, MiniMax, Qwen | [build.nvidia.com](https://build.nvidia.com/) |
 
 ### Setting your key
 
-Open the Frontman chat panel in your browser and click the **settings icon** (⚙️). Paste your API key in the provider field and select your preferred model.
+Open the Frontman chat panel in your browser and click the **settings icon**. Paste your API key in the provider field and select your preferred model.
 
-Your key is stored locally in the browser and sent only to the model provider — it never touches Frontman's servers.
+Your key is stored encrypted in Frontman's database and used by the server when running the agent.
 
-## OAuth (Google / GitHub)
+## OAuth
 
-Sign in with your Google or GitHub account to use Frontman's managed model access. This ties usage to your Frontman account and unlocks higher rate limits compared to the free tier.
+Connect supported provider accounts directly. Frontman currently supports Anthropic OAuth for Claude Pro/Max and OpenAI device OAuth.
 
 ## Next steps
 

@@ -30,7 +30,7 @@ Start here if Frontman isn't running in your project yet.
 
 Then continue with:
 
-1. **[API Keys & Providers](/docs/api-keys/)** — Configure your AI model (free tier, bring-your-own-key, or OAuth)
+1. **[API Keys & Providers](/docs/api-keys/)** — Configure your AI model with OAuth or a provider API key
 
 
 ### Learning to use Frontman

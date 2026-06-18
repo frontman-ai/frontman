@@ -71,14 +71,14 @@ The client packages your message (text, images, or other attachments) and sends 
 
 ### 2. The server resolves which LLM to use
 
-The server figures out which API key and model to use based on a priority chain:
+The server figures out which credential and model to use based on a priority chain:
 
 | Priority | Source | Description |
 |----------|--------|-------------|
 | 1st | OAuth token | If you've connected your Anthropic or OpenAI account directly |
 | 2nd | Your API key | A key you've saved in your Frontman settings |
-| 3rd | Environment key | A key from your project's environment (e.g., `.env`) |
-| 4th | Server key | Frontman's built-in free tier model access |
+
+If no credential is available for the selected provider, the run fails with a missing API key error.
 
 ### 3. The agent loop begins
 

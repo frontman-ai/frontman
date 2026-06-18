@@ -181,15 +181,15 @@ Wire format: JSON-RPC 2.0. Event types: `"acp:message"`, `"mcp:message"`. No cat
 ### API Key Resolution
 
 Priority order:
-1. User API key (encrypted in DB)
-2. Environment API key (passed from client)
-3. Server API key (from config, free tier model access)
+1. OAuth token (when supported by the provider)
+2. User API key (encrypted in DB)
+
+There is no server-provided fallback key or free-tier quota path. Requests without a usable provider credential fail with `:no_api_key`.
 
 ### Model Catalog
 
-Providers: OpenRouter (full + free tier), Anthropic, Fireworks, NVIDIA, OpenAI.
-Defaults: Gemini 3 Flash (OpenRouter free), Claude Sonnet 4.5 (Anthropic), Kimi K2.5 Turbo (Fireworks), Kimi K2.6 (NVIDIA), GPT-5.5 (OpenAI).
-Tier logic: full tier = user has own key; free tier = server key with limited model selection.
+Providers: OpenAI, Anthropic, OpenRouter, Fireworks, NVIDIA.
+Available models derive from the user's connected OAuth tokens and saved API keys.
 
 ### Routes
 
