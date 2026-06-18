@@ -60,7 +60,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           |> assign(:mcp_tools, [])
           |> assign(:mcp_status, :pending)
           |> assign(:pending_mcp_tool_requests, %{})
-          |> assign(:last_execution, nil)
 
         send(self(), {:start_mcp_init, init_actions})
 
@@ -696,11 +695,11 @@ defmodule FrontmanServerWeb.TaskChannel do
 
           {:ok, _interaction, turn_number} ->
             socket =
-              assign(socket, :pending_prompt, %{
+              socket
+              |> assign(:pending_prompt, %{
                 turn_number: turn_number,
                 jsonrpc_id: id
               })
-              |> assign(:last_execution, execution)
 
             Logger.info("User message added, agent spawned for task #{task_id}")
 

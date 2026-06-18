@@ -186,9 +186,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         )
       )
 
-      %{assigns: assigns} = :sys.get_state(socket.channel_pid)
-
-      assert assigns.last_execution.project_traits == [:react, :typescript]
+      :sys.get_state(socket.channel_pid)
 
       assert_enqueued(
         worker: GenerateTitle,
