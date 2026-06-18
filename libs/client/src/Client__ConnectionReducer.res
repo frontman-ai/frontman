@@ -126,8 +126,6 @@ type effect =
       initialAuthBehavior: Client__FtueState.authBehavior,
     })
   | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
-  | DisconnectRelay(Relay.t)
-  | AbortConnections(WebAPI.EventAPI.abortController)
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
@@ -456,11 +454,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   switch effect {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
-  | DisconnectRelay(relay) => Relay.disconnect(relay)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
-  | AbortConnections(controller) =>
-    Log.info("Aborting in-flight connections")
-    WebAPI.AbortController.abort(controller)
   | ConnectACP({config, signal, initialAuthBehavior}) =>
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
