@@ -43,7 +43,7 @@ defmodule FrontmanServer.CurrentPageContext do
           url: url,
           viewport_width: meta["viewport_width"],
           viewport_height: meta["viewport_height"],
-          device_pixel_ratio: meta["device_pixel_ratio"],
+          device_pixel_ratio: device_pixel_ratio(meta["device_pixel_ratio"]),
           title: meta["title"],
           color_scheme: meta["color_scheme"],
           scroll_y: meta["scroll_y"]
@@ -55,6 +55,9 @@ defmodule FrontmanServer.CurrentPageContext do
   end
 
   def fields_from_meta(_), do: nil
+
+  defp device_pixel_ratio(nil), do: nil
+  defp device_pixel_ratio(value) when is_number(value), do: value / 1
 
   @doc "Appends current-page prompt context to user text when present."
   def append_prompt_section(text, nil), do: text

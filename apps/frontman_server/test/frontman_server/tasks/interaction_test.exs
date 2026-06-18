@@ -142,6 +142,17 @@ defmodule FrontmanServer.Tasks.InteractionTest do
              }
     end
 
+    test "coerces integer device pixel ratio before persistence" do
+      msg =
+        UserMessage.new([
+          current_page_block("https://example.com/app", %{"device_pixel_ratio" => 1})
+        ])
+
+      assert msg.current_page.device_pixel_ratio == 1.0
+
+      assert %{current_page: %{device_pixel_ratio: 1.0}} = Interaction.to_data_map(msg)
+    end
+
     test "ignores resource url meta without current page marker" do
       msg =
         UserMessage.new([
