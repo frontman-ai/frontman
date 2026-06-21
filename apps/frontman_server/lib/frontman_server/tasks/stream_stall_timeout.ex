@@ -19,7 +19,8 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
   A linked feeder process consumes the inner stream and sends chunks
   via messages. The consumer pulls chunks with `receive ... after timeout`.
   If no chunk arrives within the deadline, `StreamStallTimeout.Error` is
-  raised. The feeder is killed on timeout or when the stream completes.
+  raised. The feeder is killed on timeout or when the stream completes. ReqLLM
+  owns upstream stream cleanup when its consumer exits.
   """
 
   require Logger
@@ -39,10 +40,6 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
 
   Returns a new stream that behaves identically to the input but raises
   `StreamStallTimeout.Error` if no chunk arrives within `stall_timeout_ms`.
-
-  Must be wired before `StreamCleanup.wrap_stream/2` so that when the
-  timeout raises, StreamCleanup's after callback fires and releases the
-  Finch connection.
 
   ## Options
 
@@ -64,8 +61,7 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
   # Spawns a linked feeder process that consumes the inner stream and
   # forwards chunks to the caller via messages.
   #
-  # Uses a ready handshake (like StreamCleanup) to guarantee the feeder
-  # is set up before we return.
+  # Uses a ready handshake to guarantee the feeder is set up before we return.
   defp start_feeder(stream) do
     caller = self()
 

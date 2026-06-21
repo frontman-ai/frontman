@@ -60,7 +60,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProvider
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
-  alias FrontmanServer.Tasks.{StreamCleanup, StreamStallTimeout}
+  alias FrontmanServer.Tasks.StreamStallTimeout
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
 
@@ -109,7 +109,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
           response.stream
           |> StreamStallTimeout.wrap_stream(stall_timeout_ms: stall_timeout_ms)
           |> Stream.map(&normalize_reqllm_chunk/1)
-          |> StreamCleanup.wrap_stream(response.cancel)
 
         {:ok, reqllm_stream}
 
