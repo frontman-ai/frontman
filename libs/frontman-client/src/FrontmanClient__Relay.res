@@ -10,7 +10,7 @@ module Log = FrontmanLogs.Logs.Make({
 
 type relayState =
   | Disconnected
-  | Connected({tools: array<Types.remoteTool>, serverInfo: MCPTypes.info})
+  | Connected({tools: array<Types.remoteTool>, @live serverInfo: MCPTypes.info})
   | Error(string)
 
 type t = {
@@ -19,6 +19,7 @@ type t = {
   state: ref<relayState>,
 }
 
+@@live
 let make = (~baseUrl: string, ~requestHeaders: Dict.t<string>=Dict.make()): t => {
   baseUrl,
   requestHeaders,
@@ -87,6 +88,7 @@ let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): 
 }
 
 // Disconnect (reset state)
+@@live
 let disconnect = (relay: t): unit => {
   relay.state := Disconnected
 }
