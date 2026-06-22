@@ -106,15 +106,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/internal-helpers@npm:0.9.0":
-  version: 0.9.0
-  resolution: "@astrojs/internal-helpers@npm:0.9.0"
-  dependencies:
-    picomatch: "npm:^4.0.4"
-  checksum: 10c0/6513b28955d1d4fe250c2978e0496d1a5b72be0a19db427e475bc31930d1704cdea63f67862eefd046d480aa7f1fb775b14e143e66ef70eabf187f17655d0047
-  languageName: node
-  linkType: hard
-
 "@astrojs/internal-helpers@npm:0.9.1":
   version: 0.9.1
   resolution: "@astrojs/internal-helpers@npm:0.9.1"
@@ -212,11 +203,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/preact@npm:^5.1.1":
-  version: 5.1.2
-  resolution: "@astrojs/preact@npm:5.1.2"
+"@astrojs/preact@npm:^5.1.3":
+  version: 5.1.3
+  resolution: "@astrojs/preact@npm:5.1.3"
   dependencies:
-    "@astrojs/internal-helpers": "npm:0.9.0"
+    "@astrojs/internal-helpers": "npm:0.9.1"
     "@preact/preset-vite": "npm:^2.10.5"
     "@preact/signals": "npm:^2.8.2"
     devalue: "npm:^5.6.4"
@@ -224,7 +215,7 @@ __metadata:
     vite: "npm:^7.3.2"
   peerDependencies:
     preact: ^10.6.5
-  checksum: 10c0/750b2f151ce2e6eb8340b8b85e71a9e38d28bb08d5eb19ca674bf0d7ae1f56bbe199afede07e465716a99d18c66e64dfc538ad6b073ae074c665a571ea07b92e
+  checksum: 10c0/2ac5cef6ff01cc64d2a7df82863ae5c8d58377b1f8f4195cedebb5093d70bd69ac14881d0e48a053e2bc936b9bb7955de754f9a117e722921b54d3c4d4b3a14e
   languageName: node
   linkType: hard
 
@@ -12751,7 +12742,7 @@ __metadata:
   resolution: "marketing@workspace:apps/marketing"
   dependencies:
     "@astrojs/check": "npm:^0.9.9"
-    "@astrojs/preact": "npm:^5.1.1"
+    "@astrojs/preact": "npm:^5.1.3"
     "@astrojs/rss": "npm:^4.0.18"
     "@astrojs/sitemap": "npm:^3.7.2"
     "@astrojs/starlight": "npm:^0.38.3"
