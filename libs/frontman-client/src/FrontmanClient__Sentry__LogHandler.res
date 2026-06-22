@@ -30,6 +30,7 @@ let run = (~component, ~stacktrace as _, ~level, message, _ctx, error) => {
   }
 }
 
+@@live
 let handler: FrontmanLogs.Logs.Handler.t = {
   id: "sentry",
   run,
