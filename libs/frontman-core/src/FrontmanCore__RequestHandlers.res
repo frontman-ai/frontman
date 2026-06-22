@@ -56,7 +56,8 @@ let handleGetTools = (
     ~serverVersion=config.serverVersion,
   )
 
-  let json = response->S.reverseConvertToJsonOrThrow(Relay.toolsResponseSchema)
+  let json =
+    response->S.decodeOrThrow(~from=Relay.toolsResponseSchema, ~to=S.json->S.noValidation(true))
   let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
   WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
 }
@@ -70,15 +71,17 @@ let handleToolCall = async (
   let body = await req->WebAPI.Request.json
 
   let request = try {
-    Ok(body->S.parseOrThrow(Relay.toolCallRequestSchema))
+    Ok(body->S.parseOrThrow(~to=Relay.toolCallRequestSchema))
   } catch {
-  | S.Error(e) => Error(e.message)
+  | exn =>
+    Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid request"))
   }
 
   switch request {
   | Error(msg) =>
     let errorResult = MCP.CallToolResult.makeError(`Invalid request: ${msg}`)
-    let json = errorResult->S.reverseConvertToJsonOrThrow(MCP.callToolResultSchema)
+    let json =
+      errorResult->S.decodeOrThrow(~from=MCP.callToolResultSchema, ~to=S.json->S.noValidation(true))
     WebAPI.Response.jsonR(~data=json, ~init={status: 400})
 
   | Ok(request) =>
@@ -140,16 +143,18 @@ let handleResolveSourceLocation = async (
   let body = await req->WebAPI.Request.json
 
   let request = try {
-    Ok(body->S.parseOrThrow(resolveSourceLocationRequestSchema))
+    Ok(body->S.parseOrThrow(~to=resolveSourceLocationRequestSchema))
   } catch {
-  | S.Error(e) => Error(e.message)
+  | exn =>
+    Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid request"))
   }
 
   switch request {
   | Error(msg) =>
     let json =
-      {error: `Invalid request: ${msg}`, details: None}->S.reverseConvertToJsonOrThrow(
-        errorResponseSchema,
+      {error: `Invalid request: ${msg}`, details: None}->S.decodeOrThrow(
+        ~from=errorResponseSchema,
+        ~to=S.json,
       )
     WebAPI.Response.jsonR(~data=json, ~init={status: 400})
 
@@ -177,7 +182,8 @@ let handleResolveSourceLocation = async (
         column: resolved.column,
       }
 
-      let json = responseJson->S.reverseConvertToJsonOrThrow(resolveSourceLocationResponseSchema)
+      let json =
+        responseJson->S.decodeOrThrow(~from=resolveSourceLocationResponseSchema, ~to=S.json)
       let headers = WebAPI.HeadersInit.fromDict(
         Dict.fromArray([("Content-Type", "application/json")]),
       )
@@ -189,7 +195,7 @@ let handleResolveSourceLocation = async (
       let json = {
         error: "Failed to resolve source location",
         details: Some(msg),
-      }->S.reverseConvertToJsonOrThrow(errorResponseSchema)
+      }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json->S.noValidation(true))
       WebAPI.Response.jsonR(~data=json, ~init={status: 500})
     }
   }

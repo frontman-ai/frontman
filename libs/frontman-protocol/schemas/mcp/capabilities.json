@@ -3,16 +3,15 @@
   "properties": {
     "tools": {
       "type": "object",
-      "additionalProperties": {}
+      "additionalProperties": true
     },
     "resources": {
       "type": "object",
-      "additionalProperties": {}
+      "additionalProperties": true
     },
     "prompts": {
       "type": "object",
-      "additionalProperties": {}
+      "additionalProperties": true
     }
-  },
-  "additionalProperties": true
+  }
 }

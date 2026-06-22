@@ -21,11 +21,9 @@
               "type": "object",
               "properties": {
                 "_meta": {}
-              },
-              "additionalProperties": true
+              }
             }
           },
-          "additionalProperties": true,
           "required": [
             "type",
             "text"
@@ -49,11 +47,9 @@
               "type": "object",
               "properties": {
                 "_meta": {}
-              },
-              "additionalProperties": true
+              }
             }
           },
-          "additionalProperties": true,
           "required": [
             "type",
             "data",
@@ -78,11 +74,9 @@
               "type": "object",
               "properties": {
                 "_meta": {}
-              },
-              "additionalProperties": true
+              }
             }
           },
-          "additionalProperties": true,
           "required": [
             "type",
             "data",
@@ -107,11 +101,9 @@
               "type": "object",
               "properties": {
                 "_meta": {}
-              },
-              "additionalProperties": true
+              }
             }
           },
-          "additionalProperties": true,
           "required": [
             "type",
             "name",
@@ -133,8 +125,7 @@
                   "type": "object",
                   "properties": {
                     "_meta": {}
-                  },
-                  "additionalProperties": true
+                  }
                 },
                 "resource": {
                   "anyOf": [
@@ -151,7 +142,6 @@
                           "type": "string"
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "uri",
                         "text"
@@ -170,7 +160,6 @@
                           "type": "string"
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "uri",
                         "blob"
@@ -179,7 +168,6 @@
                   ]
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "resource"
               ]
@@ -189,11 +177,9 @@
               "type": "object",
               "properties": {
                 "_meta": {}
-              },
-              "additionalProperties": true
+              }
             }
           },
-          "additionalProperties": true,
           "required": [
             "type",
             "resource"
@@ -202,7 +188,6 @@
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "type"
   ]

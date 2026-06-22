@@ -79,7 +79,7 @@ let read = (): t => {
     }
   `)
   let json = getRuntime()->Nullable.toOption->Option.getOrThrow
-  let config = S.parseOrThrow(json, parsedSchema)
+  let config = S.parseOrThrow(json, ~to=parsedSchema)
   {
     framework: frameworkIdFromString(config.framework),
     basePath: switch config.basePath {

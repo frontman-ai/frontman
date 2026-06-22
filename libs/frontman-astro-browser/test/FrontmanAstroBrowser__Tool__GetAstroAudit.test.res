@@ -29,7 +29,10 @@ describe("FrontmanAstroBrowser__Tool__GetAstroAudit", _t => {
       ~taskId="t1",
       ~toolCallId="tc1",
     )
-    let json = result->S.reverseConvertToJsonOrThrow(Tool.MCP.callToolResultSchema)->JSON.stringify
+    let json =
+      result
+      ->S.decodeOrThrow(~from=Tool.MCP.callToolResultSchema, ~to=S.json->S.noValidation(true))
+      ->JSON.stringify
     t->expect(json->String.includes("Preview iframe is not available"))->Expect.toBe(true)
   })
 })

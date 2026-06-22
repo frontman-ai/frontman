@@ -183,7 +183,8 @@ let handleIncomingMessage = (
         // After server restart, resumed turns may not have a live session/prompt
         // request id to answer. The completion notification still closes the prompt.
         let result: Types.promptResult = {stopReason: stopReason}
-        let resultJson = result->S.reverseConvertToJsonOrThrow(Types.promptResultSchema)
+        let resultJson =
+          result->S.decodeOrThrow(~from=Types.promptResultSchema, ~to=S.json->S.noValidation(true))
         state :=
           state.contents->Client.resolvePendingSessionRequest(
             ~method="session/prompt",

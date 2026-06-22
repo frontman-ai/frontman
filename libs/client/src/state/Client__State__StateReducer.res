@@ -584,7 +584,8 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
       let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
-        let userProfile = S.parseJsonOrThrow(json, Client__State__Types.userProfileSchema)
+        let userProfile =
+          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
         dispatch(UserProfileReceived({userProfile: userProfile}))
       }
     } catch {
@@ -607,10 +608,12 @@ let deriveApiKeySource = (~hasUserKey, ~hasEnvKey): Client__State__Types.apiKeyS
 
 let encodeUserApiKeySaveRequest = (~provider, ~key) => {
   let payload: Client__State__Types.userApiKeySaveRequest = {provider, key}
-  S.reverseConvertToJsonOrThrow(
-    payload,
-    Client__State__Types.userApiKeySaveRequestSchema,
-  )->JSON.stringify
+  payload
+  ->S.decodeOrThrow(
+    ~from=Client__State__Types.userApiKeySaveRequestSchema,
+    ~to=S.json->S.noValidation(true),
+  )
+  ->JSON.stringify
 }
 
 let jsonContentHeaders = () =>
@@ -624,10 +627,8 @@ let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
       let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
-        let apiKeysResponse = S.parseJsonOrThrow(
-          json,
-          Client__State__Types.userApiKeysResponseSchema,
-        )
+        let apiKeysResponse =
+          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userApiKeysResponseSchema)
         let runtimeConfig = Client__RuntimeConfig.read()
 
         apiKeyProviders->Array.forEach(provider => {
@@ -1076,10 +1077,11 @@ let handleEffect = (effect, state: state, dispatch) => {
           )
         | true =>
           let json = await response->WebAPI.Response.json
-          let {versions} = S.parseJsonOrThrow(
-            json,
-            Client__State__Types.latestVersionsResponseSchema,
-          )
+          let {versions} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.latestVersionsResponseSchema,
+            )
           switch versions->Dict.get(npmPackage)->Option.flatMap(v => v) {
           | Some(latest) =>
             // Only show banner when installed is strictly behind latest

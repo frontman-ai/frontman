@@ -1,5 +1,4 @@
 // Task domain types - extracted from Client__State__Types for modularity
-S.enableJson()
 
 module Log = FrontmanLogs.Logs.Make({
   let component = #TaskReducer
@@ -632,31 +631,28 @@ let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t 
   | None => (None, None, None, None, None, None)
   }
 
-  S.reverseConvertToJsonOrThrow(
-    {
-      annotation: true,
-      annotationIndex: index,
-      annotationId: annotation.id,
-      tagName: annotation.tagName,
-      selector: annotation.selector,
-      comment: annotation.comment,
-      file,
-      line,
-      column,
-      componentName,
-      componentProps,
-      parent,
-      cssClasses: annotation.cssClasses,
-      nearbyText: nearbyTextWithElementorHint(
-        ~nearbyText=annotation.nearbyText,
-        ~elementorContext=annotation.elementorContext,
-        ~tagName=annotation.tagName,
-      ),
-      elementorContext: annotation.elementorContext,
-      boundingBox: annotation.boundingBox,
-    },
-    annotationMetaSchema,
-  )
+  {
+    annotation: true,
+    annotationIndex: index,
+    annotationId: annotation.id,
+    tagName: annotation.tagName,
+    selector: annotation.selector,
+    comment: annotation.comment,
+    file,
+    line,
+    column,
+    componentName,
+    componentProps,
+    parent,
+    cssClasses: annotation.cssClasses,
+    nearbyText: nearbyTextWithElementorHint(
+      ~nearbyText=annotation.nearbyText,
+      ~elementorContext=annotation.elementorContext,
+      ~tagName=annotation.tagName,
+    ),
+    elementorContext: annotation.elementorContext,
+    boundingBox: annotation.boundingBox,
+  }->S.decodeOrThrow(~from=annotationMetaSchema, ~to=S.json->S.noValidation(true))
 }
 
 let annotationResourceUriAndText = (annotation: annotationBlockData): (string, string) =>
@@ -732,14 +728,11 @@ let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): 
   annotation.screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
 
-    let screenshotMeta: JSON.t = S.reverseConvertToJsonOrThrow(
-      {
-        annotationScreenshot: true,
-        annotationIndex: index,
-        annotationId: annotation.id,
-      },
-      screenshotMetaSchema,
-    )
+    let screenshotMeta: JSON.t = {
+      annotationScreenshot: true,
+      annotationIndex: index,
+      annotationId: annotation.id,
+    }->S.decodeOrThrow(~from=screenshotMetaSchema, ~to=S.json->S.noValidation(true))
 
     ACPTypes.EmbeddedResource({
       resource: {

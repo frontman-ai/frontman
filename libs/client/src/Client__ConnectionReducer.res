@@ -68,7 +68,7 @@ type clientInfoMeta = {framework: option<string>}
 @val external encodeURIComponent: string => string = "encodeURIComponent"
 
 let frameworkFromClientInfoMeta = (meta: JSON.t): option<string> =>
-  S.parseOrThrow(meta, clientInfoMetaSchema).framework
+  S.parseOrThrow(meta, ~to=clientInfoMetaSchema).framework
 
 // Initialization payload - includes pre-created instances
 type initPayload = {

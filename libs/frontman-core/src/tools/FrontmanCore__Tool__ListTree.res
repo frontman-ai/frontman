@@ -261,7 +261,7 @@ let readPackageName = async (dirPath: string): option<string> => {
   switch await readJsonFile(pkgPath) {
   | Ok(json) =>
     try {
-      let pkg = S.parseOrThrow(json, packageJsonNameSchema)
+      let pkg = S.parseOrThrow(json, ~to=packageJsonNameSchema)
       pkg.name
     } catch {
     | _ => None
@@ -279,13 +279,13 @@ let extractWorkspaceGlobs = (json: JSON.t): option<array<string>> => {
     | Some(wsJson) =>
       // Try as array<string> first
       try {
-        let globs = S.parseOrThrow(wsJson, S.array(S.string))
+        let globs = S.parseOrThrow(wsJson, ~to=S.array(S.string))
         Some(globs)
       } catch {
       | _ =>
         // Try as {packages: array<string>}
         try {
-          let wsObj = S.parseOrThrow(wsJson, packageJsonWorkspacesObjSchema)
+          let wsObj = S.parseOrThrow(wsJson, ~to=packageJsonWorkspacesObjSchema)
           wsObj.packages
         } catch {
         | _ => None

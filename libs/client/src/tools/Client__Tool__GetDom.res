@@ -3,7 +3,6 @@
 // Enforces size limits and guides the agent toward progressive disclosure:
 // start narrow, drill down, never dump the full page.
 
-S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.getDom

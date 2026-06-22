@@ -2,7 +2,6 @@
 // Supports click, hover, and focus actions.
 // Elements can be targeted by CSS selector, role+name, or text content.
 
-S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.interactWithElement

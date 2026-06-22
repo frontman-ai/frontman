@@ -2061,7 +2061,7 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.5"
+    sury-ppx: "catalog:"
     vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown
@@ -2129,7 +2129,7 @@ __metadata:
     rescript-vitest: "catalog:"
     streamdown: "npm:^2.5.0"
     sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.5"
+    sury-ppx: "catalog:"
     tailwind-merge: "npm:^3.6.0"
     tailwindcss: "npm:^4.3.0"
     tw-animate-css: "npm:^1.4.0"
@@ -2152,7 +2152,7 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.5"
+    sury-ppx: "catalog:"
     vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown
@@ -5625,24 +5625,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/darwin-arm64@npm:12.2.0":
-  version: 12.2.0
-  resolution: "@rescript/darwin-arm64@npm:12.2.0"
-  conditions: os=darwin & cpu=arm64
-  languageName: node
-  linkType: hard
-
 "@rescript/darwin-arm64@npm:12.3.0":
   version: 12.3.0
   resolution: "@rescript/darwin-arm64@npm:12.3.0"
   conditions: os=darwin & cpu=arm64
-  languageName: node
-  linkType: hard
-
-"@rescript/darwin-x64@npm:12.2.0":
-  version: 12.2.0
-  resolution: "@rescript/darwin-x64@npm:12.2.0"
-  conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
@@ -5653,24 +5639,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/linux-arm64@npm:12.2.0":
-  version: 12.2.0
-  resolution: "@rescript/linux-arm64@npm:12.2.0"
-  conditions: os=linux & cpu=arm64
-  languageName: node
-  linkType: hard
-
 "@rescript/linux-arm64@npm:12.3.0":
   version: 12.3.0
   resolution: "@rescript/linux-arm64@npm:12.3.0"
   conditions: os=linux & cpu=arm64
-  languageName: node
-  linkType: hard
-
-"@rescript/linux-x64@npm:12.2.0":
-  version: 12.2.0
-  resolution: "@rescript/linux-x64@npm:12.2.0"
-  conditions: os=linux & cpu=x64
   languageName: node
   linkType: hard
 
@@ -5692,13 +5664,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@rescript/runtime@npm:12.2.0":
-  version: 12.2.0
-  resolution: "@rescript/runtime@npm:12.2.0"
-  checksum: 10c0/59c0194ae52fbbaadc736bbf1cfac1ed6ffde92b2346e36b9f1a29bb136e38b7ef203c780647203912fa657d293eab5c4e208f04dd65ed4bf47d53843980f7e1
-  languageName: node
-  linkType: hard
-
 "@rescript/runtime@npm:12.3.0":
   version: 12.3.0
   resolution: "@rescript/runtime@npm:12.3.0"
@@ -5713,13 +5678,6 @@ __metadata:
     rescript: "npm:^12.3.0"
   languageName: unknown
   linkType: soft
-
-"@rescript/win32-x64@npm:12.2.0":
-  version: 12.2.0
-  resolution: "@rescript/win32-x64@npm:12.2.0"
-  conditions: os=win32 & cpu=x64
-  languageName: node
-  linkType: hard
 
 "@rescript/win32-x64@npm:12.3.0":
   version: 12.3.0
@@ -15490,38 +15448,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rescript@npm:12.2.0":
-  version: 12.2.0
-  resolution: "rescript@npm:12.2.0"
-  dependencies:
-    "@rescript/darwin-arm64": "npm:12.2.0"
-    "@rescript/darwin-x64": "npm:12.2.0"
-    "@rescript/linux-arm64": "npm:12.2.0"
-    "@rescript/linux-x64": "npm:12.2.0"
-    "@rescript/runtime": "npm:12.2.0"
-    "@rescript/win32-x64": "npm:12.2.0"
-  dependenciesMeta:
-    "@rescript/darwin-arm64":
-      optional: true
-    "@rescript/darwin-x64":
-      optional: true
-    "@rescript/linux-arm64":
-      optional: true
-    "@rescript/linux-x64":
-      optional: true
-    "@rescript/win32-x64":
-      optional: true
-  bin:
-    bsc: cli/bsc.js
-    bstracing: cli/bstracing.js
-    rescript: cli/rescript.js
-    rescript-legacy: cli/rescript-legacy.js
-    rescript-tools: cli/rescript-tools.js
-  checksum: 10c0/7650a77a66e2f2ba2523eac54fd930f0b70bad922e9b498678e701e842a56c7b6facd0daf1ef9c7b71d344d9483a0293d17db72a67515a22d07856bdfc34fb46
-  languageName: node
-  linkType: hard
-
-"rescript@npm:^12.3.0":
+"rescript@npm:12.3.0, rescript@npm:^12.3.0":
   version: 12.3.0
   resolution: "rescript@npm:12.3.0"
   dependencies:
@@ -16673,24 +16600,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sury-ppx@npm:^11.0.0-alpha.5":
+"sury-ppx@npm:11.0.0-alpha.5":
   version: 11.0.0-alpha.5
   resolution: "sury-ppx@npm:11.0.0-alpha.5"
   peerDependencies:
     sury: ^11.0.0-alpha.5
   checksum: 10c0/cbbe0d4d7c4e35d9d7abff4b95361fe2611420bc6a6d38d3d3c142c855492834051b7a35edd30043fbb94b1964927c31d919993949e497135f3116be731f5525
-  languageName: node
-  linkType: hard
-
-"sury@npm:11.0.0-alpha.4":
-  version: 11.0.0-alpha.4
-  resolution: "sury@npm:11.0.0-alpha.4"
-  peerDependencies:
-    rescript: 12.x
-  peerDependenciesMeta:
-    rescript:
-      optional: true
-  checksum: 10c0/ba62718a206fb72f5c1c33fc779a403eb599cc47cec6217b76e24988ff4b8df8c1dca6a940fa3560af0854387bc7b5af6236532c449dc6bfbc9e7fb29421e990
   languageName: node
   linkType: hard
 

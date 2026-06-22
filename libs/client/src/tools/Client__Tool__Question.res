@@ -2,7 +2,6 @@
 // The execute function returns a promise that blocks until the user responds.
 // The server routes this as an interactive MCP tool call (24h safety-net timeout).
 
-S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.question
@@ -80,7 +79,7 @@ let execute = async (
   switch result {
   | Ok(json) =>
     try {
-      Tool.jsonResult(json->S.parseOrThrow(outputSchema), outputSchema)
+      Tool.jsonResult(json->S.parseOrThrow(~to=outputSchema), outputSchema)
     } catch {
     | _ => Tool.MCP.CallToolResult.makeError("Failed to parse question tool output")
     }

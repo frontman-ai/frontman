@@ -1,8 +1,6 @@
 // Shared types for the question tool UI.
 // Used by the task reducer, question drawer, and question tool block components.
 
-S.enableJson()
-
 @schema
 type questionOption = {
   label: string,

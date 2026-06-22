@@ -1,7 +1,6 @@
 // Client tool that evaluates arbitrary JavaScript in the preview iframe.
 // Returns serialized results with captured console output.
 
-S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.executeJs

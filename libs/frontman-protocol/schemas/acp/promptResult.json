@@ -11,7 +11,6 @@
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "stopReason"
   ]

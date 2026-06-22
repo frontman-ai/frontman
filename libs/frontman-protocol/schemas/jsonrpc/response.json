@@ -5,28 +5,30 @@
       "type": "string"
     },
     "id": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
     },
     "result": {},
     "error": {
       "type": "object",
       "properties": {
         "code": {
-          "type": "integer"
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
         },
         "message": {
           "type": "string"
         },
         "data": {}
       },
-      "additionalProperties": true,
       "required": [
         "code",
         "message"
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "jsonrpc",
     "id"

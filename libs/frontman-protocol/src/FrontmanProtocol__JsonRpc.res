@@ -1,7 +1,5 @@
 // JSON-RPC 2.0 message types for ACP communication
 
-S.enableJson()
-
 let version = "2.0"
 
 // Standard error codes (named constants for convenience)
@@ -109,7 +107,7 @@ module Request: {
   let id = t => t.id
   let method = t => t.method
   let params = t => t.params
-  let toJson = t => t->S.reverseConvertToJsonOrThrow(schema)
+  let toJson = t => t->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
 }
 
 // JSON-RPC Response
@@ -164,7 +162,7 @@ module Response: {
       Dict.fromArray([
         ("jsonrpc", JSON.Encode.string(version)),
         ("id", Id.toJson(id)),
-        ("error", error->S.reverseConvertToJsonOrThrow(RpcError.schema)),
+        ("error", error->S.decodeOrThrow(~from=RpcError.schema, ~to=S.json->S.noValidation(true))),
       ]),
     )
 
@@ -173,7 +171,7 @@ module Response: {
   let error = t => t.error
   let isSuccess = t => t.result->Option.isSome
   let isError = t => t.error->Option.isSome
-  let fromJsonExn = json => json->S.parseOrThrow(schema)
+  let fromJsonExn = json => json->S.parseOrThrow(~to=schema)
 }
 
 // JSON-RPC Notification (no id, no response expected)
@@ -201,5 +199,5 @@ module Notification: {
 
   let method = t => t.method
   let params = t => t.params
-  let toJson = t => t->S.reverseConvertToJsonOrThrow(schema)
+  let toJson = t => t->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
 }

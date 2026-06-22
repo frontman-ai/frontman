@@ -18,7 +18,6 @@
             "type": "string"
           }
         },
-        "additionalProperties": true,
         "required": [
           "sessionId",
           "title",
@@ -29,7 +28,6 @@
       "type": "array"
     }
   },
-  "additionalProperties": true,
   "required": [
     "sessions"
   ]

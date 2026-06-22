@@ -1,7 +1,8 @@
 module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
 let text = (result: MCP.CallToolResult.t): result<string, string> => {
-  let json = result->S.reverseConvertToJsonOrThrow(MCP.callToolResultSchema)
+  let json =
+    result->S.decodeOrThrow(~from=MCP.callToolResultSchema, ~to=S.json->S.noValidation(true))
   let obj = json->JSON.Decode.object->Option.getOrThrow
   let isError = obj->Dict.get("isError")->Option.flatMap(JSON.Decode.bool)->Option.getOr(false)
   let content = obj->Dict.get("content")->Option.flatMap(JSON.Decode.array)->Option.getOrThrow
@@ -21,7 +22,7 @@ let decode = (result: MCP.CallToolResult.t, schema: S.t<'a>): result<'a, string>
   | Error(msg) => Error(msg)
   | Ok(text) =>
     try {
-      Ok(text->JSON.parseOrThrow->S.parseOrThrow(schema))
+      Ok(text->JSON.parseOrThrow->S.parseOrThrow(~to=schema))
     } catch {
     | _ => Error("Failed to decode tool result")
     }

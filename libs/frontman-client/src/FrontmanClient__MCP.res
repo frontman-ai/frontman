@@ -92,7 +92,8 @@ let handleInitialize = (
   try {
     let {serverInterface} = handler
     let result = serverInterface.buildInitializeResult(serverInterface.server)
-    let resultJson = result->S.reverseConvertToJsonOrThrow(Types.initializeResultSchema)
+    let resultJson =
+      result->S.decodeOrThrow(~from=Types.initializeResultSchema, ~to=S.json->S.noValidation(true))
     sendResponse(handler, id, resultJson)
   } catch {
   | exn =>
@@ -107,7 +108,8 @@ let handleToolsList = (handler: mcpHandler<'server>, id: JsonRpc.Id.t): unit => 
   try {
     let {serverInterface} = handler
     let result = serverInterface.buildToolsListResult(serverInterface.server)
-    let resultJson = result->S.reverseConvertToJsonOrThrow(Types.toolsListResultSchema)
+    let resultJson =
+      result->S.decodeOrThrow(~from=Types.toolsListResultSchema, ~to=S.json->S.noValidation(true))
     sendResponse(handler, id, resultJson)
   } catch {
   | exn =>
@@ -125,32 +127,43 @@ let handleToolsCall = async (
 ): unit => {
   switch params {
   | Some(paramsJson) =>
-    try {
-      let {callId, name, arguments}: Types.toolCallParams =
-        paramsJson->S.parseOrThrow(Types.toolCallParamsSchema)
-      let {serverInterface} = handler
-      let result = await serverInterface.executeTool(
-        serverInterface.server,
-        ~name,
-        ~arguments,
-        ~taskId=handler.sessionId,
-        ~callId,
-        ~onProgress=None,
-      )
-      switch result {
-      | Completed(callToolResult) =>
-        let resultJson = callToolResult->S.reverseConvertToJsonOrThrow(Types.callToolResultSchema)
-        sendResponse(handler, id, resultJson)
-      | Suspended => () // Interactive tool — result will be delivered separately
-      }
+    let paramsResult = try {
+      Ok(paramsJson->S.parseOrThrow(~to=Types.toolCallParamsSchema))
     } catch {
-    | S.Error(e) =>
-      sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${e.message}`)
     | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
-      sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
+      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid params"))
+    }
+
+    switch paramsResult {
+    | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+    | Ok({callId, name, arguments}) =>
+      try {
+        let {serverInterface} = handler
+        let result = await serverInterface.executeTool(
+          serverInterface.server,
+          ~name,
+          ~arguments,
+          ~taskId=handler.sessionId,
+          ~callId,
+          ~onProgress=None,
+        )
+        switch result {
+        | Completed(callToolResult) =>
+          let resultJson =
+            callToolResult->S.decodeOrThrow(
+              ~from=Types.callToolResultSchema,
+              ~to=S.json->S.noValidation(true),
+            )
+          sendResponse(handler, id, resultJson)
+        | Suspended => () // Interactive tool — result will be delivered separately
+        }
+      } catch {
+      | exn =>
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
+        sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
+      }
     }
   | None => sendError(handler, id, Types.ErrorCode.invalidParams, "Missing params for tools/call")
   }

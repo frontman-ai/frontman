@@ -16,7 +16,6 @@
             "type": "boolean"
           }
         },
-        "additionalProperties": true,
         "required": [
           "name",
           "description",
@@ -36,7 +35,6 @@
           "type": "string"
         }
       },
-      "additionalProperties": true,
       "required": [
         "name",
         "version"
@@ -46,7 +44,6 @@
       "type": "string"
     }
   },
-  "additionalProperties": true,
   "required": [
     "tools",
     "serverInfo",

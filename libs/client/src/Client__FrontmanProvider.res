@@ -41,7 +41,7 @@ let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
       })
       if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) !=
         None =>
-      let parsed = S.parseOrThrow(meta, Client__Task__Types.screenshotMetaSchema)
+      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.screenshotMetaSchema)
       if parsed.annotationScreenshot {
         screenshotMap->Dict.set(
           parsed.annotationId,
@@ -61,7 +61,7 @@ let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
       content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
     | EmbeddedResource({resource: {_meta: Some(meta), resource: TextResourceContents(_)}})
       if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation")) != None =>
-      let parsed = S.parseOrThrow(meta, Client__Task__Types.annotationMetaSchema)
+      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.annotationMetaSchema)
       if parsed.annotation {
         let screenshot = screenshotMap->Dict.get(parsed.annotationId)
         annotations

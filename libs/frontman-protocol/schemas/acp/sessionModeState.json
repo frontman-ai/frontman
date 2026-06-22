@@ -19,7 +19,6 @@
           },
           "_meta": {}
         },
-        "additionalProperties": true,
         "required": [
           "id",
           "name"
@@ -29,7 +28,6 @@
     },
     "_meta": {}
   },
-  "additionalProperties": true,
   "required": [
     "currentModeId",
     "availableModes"

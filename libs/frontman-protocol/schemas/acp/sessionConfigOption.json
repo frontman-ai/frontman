@@ -60,7 +60,6 @@
                     },
                     "_meta": {}
                   },
-                  "additionalProperties": true,
                   "required": [
                     "value",
                     "name"
@@ -70,7 +69,6 @@
               },
               "_meta": {}
             },
-            "additionalProperties": true,
             "required": [
               "group",
               "name",
@@ -94,7 +92,6 @@
               },
               "_meta": {}
             },
-            "additionalProperties": true,
             "required": [
               "value",
               "name"
@@ -106,7 +103,6 @@
     },
     "_meta": {}
   },
-  "additionalProperties": true,
   "required": [
     "type",
     "id",

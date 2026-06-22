@@ -1,5 +1,4 @@
 // State type definitions - extracted to avoid circular dependencies
-S.enableJson()
 
 // Re-export Task domain types for backward compatibility
 module UserContentPart = Client__Task__Types.UserContentPart

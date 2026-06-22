@@ -13,7 +13,6 @@
     },
     "_meta": {}
   },
-  "additionalProperties": true,
   "required": [
     "sessionId",
     "cwd",

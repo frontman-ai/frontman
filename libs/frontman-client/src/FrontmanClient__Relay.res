@@ -132,7 +132,8 @@ let executeTool = async (
     Log.debug(~ctx={"tool": name}, "Executing relay tool")
     let url = `${relay.baseUrl}/frontman/tools/call`
     let request: Types.toolCallRequest = {name, arguments}
-    let body = request->S.reverseConvertToJsonOrThrow(Types.toolCallRequestSchema)
+    let body =
+      request->S.decodeOrThrow(~from=Types.toolCallRequestSchema, ~to=S.json->S.noValidation(true))
     let headers = Dict.fromArray([
       ("Content-Type", "application/json"),
       ("Accept", "text/event-stream"),

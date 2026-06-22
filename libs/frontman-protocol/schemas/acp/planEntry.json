@@ -19,7 +19,6 @@
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "content",
     "priority",

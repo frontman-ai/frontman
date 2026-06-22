@@ -86,17 +86,25 @@ let main = async () => {
     let outDir = FrontmanBindings.Path.join([schemasDir, entry.dir])
     let _ = await FrontmanBindings.Fs.Promises.mkdir(outDir, {recursive: true})
 
-    try {
-      let jsonSchema = entry.schema->S.toJSONSchema->jsonSchemaAsJson
+    let jsonSchemaResult = try {
+      Ok(entry.schema->S.toJSONSchema->jsonSchemaAsJson)
+    } catch {
+    | exn =>
+      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error"))
+    }
+
+    switch jsonSchemaResult {
+    | Ok(jsonSchema) =>
       let outPath = FrontmanBindings.Path.join([outDir, `${entry.name}.json`])
       await FrontmanBindings.Fs.Promises.writeFile(
         outPath,
         JSON.stringify(jsonSchema, ~space=2) ++ "\n",
       )
       totalExported := totalExported.contents + 1
-    } catch {
-    | S.Error({code: InvalidJsonSchema(_)}) =>
-      Console.error(`Skipping ${entry.dir}/${entry.name}: schema not convertible to JSON Schema`)
+    | Error(msg) =>
+      Console.error(
+        `Skipping ${entry.dir}/${entry.name}: schema not convertible to JSON Schema (${msg})`,
+      )
       skipped := skipped.contents + 1
     }
   }

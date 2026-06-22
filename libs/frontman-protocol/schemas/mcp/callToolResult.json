@@ -15,7 +15,6 @@
                 "type": "string"
               }
             },
-            "additionalProperties": true,
             "required": [
               "type",
               "text"
@@ -35,7 +34,6 @@
                 "type": "string"
               }
             },
-            "additionalProperties": true,
             "required": [
               "type",
               "data",
@@ -63,7 +61,6 @@
               "type": "string"
             }
           },
-          "additionalProperties": true,
           "required": [
             "provider",
             "value"
@@ -76,13 +73,11 @@
           }
         }
       },
-      "additionalProperties": true,
       "required": [
         "envApiKey"
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "content",
     "_meta"

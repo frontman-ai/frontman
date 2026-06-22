@@ -8,7 +8,6 @@
       "type": "string"
     }
   },
-  "additionalProperties": true,
   "required": [
     "name",
     "version"

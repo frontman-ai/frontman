@@ -394,16 +394,10 @@ let sendPrompt = async (
 ): result<Types.promptResult, string> => {
   // Build prompt array starting with the text block
   let textBlock: Types.contentBlock = TextContent({text, _meta: None, annotations: None})
-  // Workaround for Sury bug in jsonableValidation (Sury.res.mjs line 1304):
-  // reverseConvertToJsonOrThrow rejects S.option fields inside S.union object arms
-  // because it passes the union as parent instead of the enclosing object when walking
-  // properties, causing the undefined check to fail with "not valid JSON".
-  // reverseConvertOrThrow performs the same conversion without the broken pre-check.
-  // Obj.magic is safe here: the output is structurally JSON (objects, strings, arrays)
-  // with absent keys for None values — reverseConvertOrThrow just returns unknown.
+  // Serialize through S.unknown to avoid strict JSON checks on option fields inside union arms.
   let allBlocks =
     Array.concat([textBlock], additionalBlocks)->Array.map(block =>
-      (block->S.reverseConvertOrThrow(Types.contentBlockSchema): unknown)->Obj.magic
+      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
     )
 
   await Protocol.sendPrompt(
@@ -458,7 +452,11 @@ let listSessions = (conn: connection): promise<result<array<Types.sessionSummary
 let deleteSession = (conn: connection, sessionId: string): promise<result<unit, string>> => {
   Promise.make((resolve, _) => {
     let params: Types.deleteSessionParams = {sessionId: sessionId}
-    let payload = params->S.reverseConvertToJsonOrThrow(Types.deleteSessionParamsSchema)
+    let payload =
+      params->S.decodeOrThrow(
+        ~from=Types.deleteSessionParamsSchema,
+        ~to=S.json->S.noValidation(true),
+      )
     let pushRef = conn.channel->Channel.push(~event=#delete_session, ~payload)
     pushRef.receive(~status="ok", ~callback=_ => resolve(Ok())).receive(
       ~status="error",
@@ -508,7 +506,12 @@ let loadSession = async (
       ~channel=session.channel,
       ~state=conn.state,
       ~method="session/load",
-      ~params=Some(params->S.reverseConvertToJsonOrThrow(Types.sessionLoadParamsSchema)),
+      ~params=Some(
+        params->S.decodeOrThrow(
+          ~from=Types.sessionLoadParamsSchema,
+          ~to=S.json->S.noValidation(true),
+        ),
+      ),
       ~parseResult=Client.parseSessionLoadResult,
       ~onMessage=conn.onMessage,
     )

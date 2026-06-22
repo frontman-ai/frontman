@@ -1,3 +1,6 @@
+// Display-only types for parsing the tool result JSON.
+// The server sends this format in tool_call_update completed notifications.
+
 /**
  * QuestionToolBlock - Compact summary card for question tool calls
  *
@@ -6,10 +9,6 @@
  * - Answered: per-question summary with check/skip icons
  * - Cancelled/error: red-tinted card
  */
-// Display-only types for parsing the tool result JSON.
-// The server sends this format in tool_call_update completed notifications.
-S.enableJson()
-
 @schema
 type questionAnswerDisplay = {
   question: string,
@@ -71,7 +70,7 @@ module QuestionList = {
     let parsed = switch input {
     | Some(json) =>
       try {
-        Some(S.parseOrThrow(json, toolInputDisplaySchema))
+        Some(S.parseOrThrow(json, ~to=toolInputDisplaySchema))
       } catch {
       | _ => None
       }
@@ -117,7 +116,7 @@ let make = (
 
   | (OutputAvailable, Some(resultJson)) => {
       let parsed = try {
-        Some(S.parseOrThrow(resultJson, toolOutputDisplaySchema))
+        Some(S.parseOrThrow(resultJson, ~to=toolOutputDisplaySchema))
       } catch {
       | _ => None
       }

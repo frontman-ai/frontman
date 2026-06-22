@@ -14,7 +14,7 @@ describe("ACP Types encoding/decoding", _t => {
       clientInfo: Some({name: "test-client", version: "1.0.0", title: None, _meta: None}),
     }
 
-    params->S.reverseConvertToJsonOrThrow(Types.initializeParamsSchema)->ignore
+    params->Types.initializeParamsToJson->ignore
   })
 
   test("initializeParams should encode correct JSON structure", t => {
@@ -24,7 +24,7 @@ describe("ACP Types encoding/decoding", _t => {
       clientInfo: Some({name: "test", version: "1.0", title: Some("Test Client"), _meta: None}),
     }
 
-    let json = params->S.reverseConvertToJsonOrThrow(Types.initializeParamsSchema)
+    let json = params->Types.initializeParamsToJson
     let obj = json->JSON.Decode.object->Option.getOrThrow
 
     t->expect(obj->Dict.get("protocolVersion"))->Expect.toEqual(Some(JSON.Encode.int(1)))
@@ -40,7 +40,7 @@ describe("ACP Types encoding/decoding", _t => {
     json->Dict.set("agentInfo", JSON.Encode.object(agentInfo))
 
     let payload = JSON.Encode.object(json)
-    let decoded = payload->S.parseOrThrow(Types.initializeResultSchema)
+    let decoded = payload->S.parseOrThrow(~to=Types.initializeResultSchema)
 
     t->expect(decoded.protocolVersion)->Expect.toEqual(1)
     t->expect(decoded.agentInfo->Option.map(i => i.name))->Expect.toEqual(Some("test-agent"))
@@ -61,7 +61,7 @@ describe("ACP Types encoding/decoding", _t => {
     json->Dict.set("agentCapabilities", JSON.Encode.object(agentCaps))
 
     let payload = JSON.Encode.object(json)
-    let decoded = payload->S.parseOrThrow(Types.initializeResultSchema)
+    let decoded = payload->S.parseOrThrow(~to=Types.initializeResultSchema)
 
     t
     ->expect(
@@ -125,7 +125,7 @@ describe("sessionUpdate schema parsing", () => {
       ~text="Hello from the agent",
       ~timestamp="2024-01-15T10:00:30Z",
     )
-    let parsed = json->S.parseOrThrow(Types.sessionUpdateSchema)
+    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
 
     switch parsed {
     | Types.AgentMessageChunk({content: Types.TextContent({text}), timestamp}) =>
@@ -140,7 +140,7 @@ describe("sessionUpdate schema parsing", () => {
       ~text="Hello from the user",
       ~timestamp="2024-01-15T10:00:00Z",
     )
-    let parsed = json->S.parseOrThrow(Types.sessionUpdateSchema)
+    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
 
     switch parsed {
     | Types.UserMessageChunk({content: Types.TextContent({text}), timestamp}) =>
@@ -167,7 +167,7 @@ describe("sessionUpdate schema parsing", () => {
     )
 
     let result = try {
-      Ok(json->S.parseOrThrow(Types.sessionUpdateSchema))
+      Ok(json->S.parseOrThrow(~to=Types.sessionUpdateSchema))
     } catch {
     | _ => Error("parse threw")
     }

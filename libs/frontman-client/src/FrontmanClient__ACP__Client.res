@@ -87,8 +87,9 @@ let handleResponse = (state: state, payload: JSON.t): state => {
       state
     }
   } catch {
-  | S.Error(e) =>
-    Log.error(`Failed to parse JSON-RPC response: ${e.message}`)
+  | exn =>
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    Log.error(`Failed to parse JSON-RPC response: ${msg}`)
     state
   }
 }
@@ -126,7 +127,7 @@ let buildInitializeParams = (config: config): JSON.t => {
     clientCapabilities: Some(config.clientCapabilities),
     clientInfo: Some(config.clientInfo),
   }
-  params->S.reverseConvertToJsonOrThrow(Types.initializeParamsSchema)
+  params->Types.initializeParamsToJson
 }
 
 // Parse initialize result

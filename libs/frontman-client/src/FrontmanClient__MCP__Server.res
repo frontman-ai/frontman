@@ -97,7 +97,7 @@ let serializeTool = (m: module(Tool.Tool)): JSON.t => {
     "inputSchema": T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
     "visibleToAgent": T.visibleToAgent,
     "executionMode": T.executionMode,
-  }->S.reverseConvertToJsonOrThrow(toolWireSchema)
+  }->S.decodeOrThrow(~from=toolWireSchema, ~to=S.json->S.noValidation(true))
 }
 
 // Get tools as JSON array for MCP tools/list response
@@ -126,20 +126,24 @@ let executeLocalTool = async (
   let meta = currentMeta(server)
   Log.debug(~ctx={"tool": T.name}, "Executing local tool")
   let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
-  try {
-    let input = inputJson->S.parseOrThrow(T.inputSchema)
+  let inputResult: result<T.input, string> = try {
+    Ok(inputJson->S.parseOrThrow(~to=T.inputSchema))
+  } catch {
+  | exn =>
+    Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid input"))
+  }
+
+  switch inputResult {
+  | Error(msg) =>
+    Log.error(~ctx={"tool": T.name}, "Schema error")
+    Completed(
+      Types.CallToolResult.makeError(`Invalid input: ${msg}`)->Types.CallToolResult.withMeta(meta),
+    )
+  | Ok(input) =>
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
     let result = await T.execute(input, ~taskId, ~toolCallId)
     Log.debug(~ctx={"tool": T.name}, "Execute returned")
     Completed(result->Types.CallToolResult.withMeta(meta))
-  } catch {
-  | S.Error(e) =>
-    Log.error(~ctx={"tool": T.name}, "Schema error")
-    Completed(
-      Types.CallToolResult.makeError(`Invalid input: ${e.message}`)->Types.CallToolResult.withMeta(
-        meta,
-      ),
-    )
   }
 }
 

@@ -39,11 +39,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "text"
@@ -67,11 +65,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "data",
@@ -96,11 +92,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "data",
@@ -125,11 +119,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "name",
@@ -151,8 +143,7 @@
                               "type": "object",
                               "properties": {
                                 "_meta": {}
-                              },
-                              "additionalProperties": true
+                              }
                             },
                             "resource": {
                               "anyOf": [
@@ -169,7 +160,6 @@
                                       "type": "string"
                                     }
                                   },
-                                  "additionalProperties": true,
                                   "required": [
                                     "uri",
                                     "text"
@@ -188,7 +178,6 @@
                                       "type": "string"
                                     }
                                   },
-                                  "additionalProperties": true,
                                   "required": [
                                     "uri",
                                     "blob"
@@ -197,7 +186,6 @@
                               ]
                             }
                           },
-                          "additionalProperties": true,
                           "required": [
                             "resource"
                           ]
@@ -207,11 +195,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "resource"
@@ -223,7 +209,6 @@
                   "type": "string"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "content",
@@ -254,11 +239,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "text"
@@ -282,11 +265,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "data",
@@ -311,11 +292,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "data",
@@ -340,11 +319,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "name",
@@ -366,8 +343,7 @@
                               "type": "object",
                               "properties": {
                                 "_meta": {}
-                              },
-                              "additionalProperties": true
+                              }
                             },
                             "resource": {
                               "anyOf": [
@@ -384,7 +360,6 @@
                                       "type": "string"
                                     }
                                   },
-                                  "additionalProperties": true,
                                   "required": [
                                     "uri",
                                     "text"
@@ -403,7 +378,6 @@
                                       "type": "string"
                                     }
                                   },
-                                  "additionalProperties": true,
                                   "required": [
                                     "uri",
                                     "blob"
@@ -412,7 +386,6 @@
                               ]
                             }
                           },
-                          "additionalProperties": true,
                           "required": [
                             "resource"
                           ]
@@ -422,11 +395,9 @@
                           "type": "object",
                           "properties": {
                             "_meta": {}
-                          },
-                          "additionalProperties": true
+                          }
                         }
                       },
-                      "additionalProperties": true,
                       "required": [
                         "type",
                         "resource"
@@ -438,7 +409,6 @@
                   "type": "string"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "content",
@@ -479,7 +449,6 @@
                   "type": "string"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "toolCallId",
@@ -529,11 +498,9 @@
                                 "type": "object",
                                 "properties": {
                                   "_meta": {}
-                                },
-                                "additionalProperties": true
+                                }
                               }
                             },
-                            "additionalProperties": true,
                             "required": [
                               "type",
                               "text"
@@ -557,11 +524,9 @@
                                 "type": "object",
                                 "properties": {
                                   "_meta": {}
-                                },
-                                "additionalProperties": true
+                                }
                               }
                             },
-                            "additionalProperties": true,
                             "required": [
                               "type",
                               "data",
@@ -586,11 +551,9 @@
                                 "type": "object",
                                 "properties": {
                                   "_meta": {}
-                                },
-                                "additionalProperties": true
+                                }
                               }
                             },
-                            "additionalProperties": true,
                             "required": [
                               "type",
                               "data",
@@ -615,11 +578,9 @@
                                 "type": "object",
                                 "properties": {
                                   "_meta": {}
-                                },
-                                "additionalProperties": true
+                                }
                               }
                             },
-                            "additionalProperties": true,
                             "required": [
                               "type",
                               "name",
@@ -641,8 +602,7 @@
                                     "type": "object",
                                     "properties": {
                                       "_meta": {}
-                                    },
-                                    "additionalProperties": true
+                                    }
                                   },
                                   "resource": {
                                     "anyOf": [
@@ -659,7 +619,6 @@
                                             "type": "string"
                                           }
                                         },
-                                        "additionalProperties": true,
                                         "required": [
                                           "uri",
                                           "text"
@@ -678,7 +637,6 @@
                                             "type": "string"
                                           }
                                         },
-                                        "additionalProperties": true,
                                         "required": [
                                           "uri",
                                           "blob"
@@ -687,7 +645,6 @@
                                     ]
                                   }
                                 },
-                                "additionalProperties": true,
                                 "required": [
                                   "resource"
                                 ]
@@ -697,11 +654,9 @@
                                 "type": "object",
                                 "properties": {
                                   "_meta": {}
-                                },
-                                "additionalProperties": true
+                                }
                               }
                             },
-                            "additionalProperties": true,
                             "required": [
                               "type",
                               "resource"
@@ -710,7 +665,6 @@
                         ]
                       }
                     },
-                    "additionalProperties": true,
                     "required": [
                       "type"
                     ]
@@ -718,7 +672,6 @@
                   "type": "array"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "toolCallId"
@@ -753,7 +706,6 @@
                         ]
                       }
                     },
-                    "additionalProperties": true,
                     "required": [
                       "content",
                       "priority",
@@ -763,7 +715,6 @@
                   "type": "array"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "entries"
@@ -839,7 +790,6 @@
                                       },
                                       "_meta": {}
                                     },
-                                    "additionalProperties": true,
                                     "required": [
                                       "value",
                                       "name"
@@ -849,7 +799,6 @@
                                 },
                                 "_meta": {}
                               },
-                              "additionalProperties": true,
                               "required": [
                                 "group",
                                 "name",
@@ -873,7 +822,6 @@
                                 },
                                 "_meta": {}
                               },
-                              "additionalProperties": true,
                               "required": [
                                 "value",
                                 "name"
@@ -885,7 +833,6 @@
                       },
                       "_meta": {}
                     },
-                    "additionalProperties": true,
                     "required": [
                       "type",
                       "id",
@@ -896,7 +843,6 @@
                   "type": "array"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "configOptions"
@@ -913,7 +859,6 @@
                   "type": "string"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "currentModeId"
@@ -936,7 +881,6 @@
                   ]
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "stopReason"
@@ -959,16 +903,19 @@
                   "type": "string"
                 },
                 "attempt": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": -2147483648,
+                  "maximum": 2147483647
                 },
                 "maxAttempts": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": -2147483648,
+                  "maximum": 2147483647
                 },
                 "category": {
                   "type": "string"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate",
                 "message",
@@ -982,7 +929,6 @@
                   "type": "string"
                 }
               },
-              "additionalProperties": true,
               "required": [
                 "sessionUpdate"
               ]
@@ -990,14 +936,12 @@
           ]
         }
       },
-      "additionalProperties": true,
       "required": [
         "sessionId",
         "update"
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "jsonrpc",
     "method",

@@ -1,7 +1,6 @@
 // Client tool that takes a screenshot of the web preview using Snapdom
 // Captures the document body from the previewFrame
 
-S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.takeScreenshot

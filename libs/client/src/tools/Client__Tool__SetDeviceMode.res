@@ -1,7 +1,6 @@
 // Client tool that sets the device emulation mode in the web preview
 // Allows the agent to simulate mobile/tablet/desktop viewports
 
-S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.setDeviceMode

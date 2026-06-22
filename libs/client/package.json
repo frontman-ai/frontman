@@ -70,7 +70,7 @@
 		"rescript-vitest": "catalog:",
 		"streamdown": "^2.5.0",
 		"sury": "catalog:",
-		"sury-ppx": "^11.0.0-alpha.5",
+		"sury-ppx": "catalog:",
 		"tailwind-merge": "^3.6.0",
 		"tailwindcss": "^4.3.0",
 		"tw-animate-css": "^1.4.0",

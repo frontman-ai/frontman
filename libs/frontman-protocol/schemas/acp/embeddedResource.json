@@ -6,8 +6,7 @@
       "type": "object",
       "properties": {
         "_meta": {}
-      },
-      "additionalProperties": true
+      }
     },
     "resource": {
       "anyOf": [
@@ -24,7 +23,6 @@
               "type": "string"
             }
           },
-          "additionalProperties": true,
           "required": [
             "uri",
             "text"
@@ -43,7 +41,6 @@
               "type": "string"
             }
           },
-          "additionalProperties": true,
           "required": [
             "uri",
             "blob"
@@ -52,7 +49,6 @@
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "resource"
   ]

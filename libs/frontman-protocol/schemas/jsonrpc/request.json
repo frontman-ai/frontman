@@ -5,14 +5,15 @@
       "type": "string"
     },
     "id": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
     },
     "method": {
       "type": "string"
     },
     "params": {}
   },
-  "additionalProperties": true,
   "required": [
     "jsonrpc",
     "id",

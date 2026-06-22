@@ -97,7 +97,8 @@ describe("JsonRpc RpcError", _t => {
       ~message="test",
       ~data=None,
     )
-    let json = error->S.reverseConvertToJsonOrThrow(JsonRpc.RpcError.schema)
+    let json =
+      error->S.decodeOrThrow(~from=JsonRpc.RpcError.schema, ~to=S.json->S.noValidation(true))
     let obj = json->JSON.Decode.object->Option.getOrThrow
 
     t->expect(obj->Dict.get("code"))->Expect.toEqual(Some(JSON.Encode.int(-32700)))
@@ -116,7 +117,8 @@ describe("JsonRpc RpcError", _t => {
     codes->Array.forEach(
       ((code, expected)) => {
         let error = JsonRpc.RpcError.make(~code, ~message="test", ~data=None)
-        let json = error->S.reverseConvertToJsonOrThrow(JsonRpc.RpcError.schema)
+        let json =
+          error->S.decodeOrThrow(~from=JsonRpc.RpcError.schema, ~to=S.json->S.noValidation(true))
         let obj = json->JSON.Decode.object->Option.getOrThrow
         t->expect(obj->Dict.get("code"))->Expect.toEqual(Some(JSON.Encode.int(expected)))
       },

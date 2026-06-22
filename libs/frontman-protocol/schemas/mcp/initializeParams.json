@@ -9,18 +9,17 @@
       "properties": {
         "tools": {
           "type": "object",
-          "additionalProperties": {}
+          "additionalProperties": true
         },
         "resources": {
           "type": "object",
-          "additionalProperties": {}
+          "additionalProperties": true
         },
         "prompts": {
           "type": "object",
-          "additionalProperties": {}
+          "additionalProperties": true
         }
-      },
-      "additionalProperties": true
+      }
     },
     "clientInfo": {
       "type": "object",
@@ -32,14 +31,12 @@
           "type": "string"
         }
       },
-      "additionalProperties": true,
       "required": [
         "name",
         "version"
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "protocolVersion",
     "capabilities",

@@ -5,7 +5,6 @@
       "type": "string"
     }
   },
-  "additionalProperties": true,
   "required": [
     "sessionId"
   ]

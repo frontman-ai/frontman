@@ -12,7 +12,6 @@
     },
     "_meta": {}
   },
-  "additionalProperties": true,
   "required": [
     "name",
     "version"

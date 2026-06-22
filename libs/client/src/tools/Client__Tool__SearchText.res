@@ -2,7 +2,6 @@
 // Like Ctrl+F — finds leaf elements containing the query string
 // and returns matches with surrounding context and CSS selectors.
 
-S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.searchText

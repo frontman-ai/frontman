@@ -6,10 +6,9 @@
     },
     "arguments": {
       "type": "object",
-      "additionalProperties": {}
+      "additionalProperties": true
     }
   },
-  "additionalProperties": true,
   "required": [
     "name"
   ]

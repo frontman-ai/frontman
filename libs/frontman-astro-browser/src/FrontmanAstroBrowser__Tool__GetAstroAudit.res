@@ -10,8 +10,6 @@
 // the standard interface. The factory closes over getPreviewDoc at
 // construction time.
 
-S.enableJson()
-
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = Tool.ToolNames.getAstroAudit

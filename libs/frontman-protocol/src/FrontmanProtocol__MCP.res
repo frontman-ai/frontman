@@ -1,7 +1,5 @@
 // MCP Protocol Types
 
-S.enableJson()
-
 // Protocol version constant
 let protocolVersion = "2025-11-25"
 

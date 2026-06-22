@@ -10,8 +10,6 @@ Vite/Astro/general build tool output.
 `)
 module CircularBuffer = FrontmanCore__CircularBuffer
 
-S.enableJson()
-
 let isBrowser = (): bool => %raw(`typeof window !== 'undefined'`)
 
 // Custom globalThis properties for Frontman

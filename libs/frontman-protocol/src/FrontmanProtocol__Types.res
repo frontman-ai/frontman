@@ -1,7 +1,5 @@
 // Shared domain types used across protocol boundaries
 
-S.enableJson()
-
 // A model selection — identifies a provider + model pair.
 // Used in MCP tool result metadata and prompt metadata.
 @schema

@@ -5,7 +5,7 @@ module MCP = FrontmanProtocol__MCP
 let textResult = MCP.CallToolResult.makeText
 
 let jsonResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
-  let json = value->S.reverseConvertToJsonOrThrow(schema)
+  let json = value->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
   MCP.CallToolResult.makeText(JSON.stringify(json))
 }
 

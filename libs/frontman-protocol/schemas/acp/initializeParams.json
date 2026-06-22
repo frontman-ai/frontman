@@ -2,7 +2,9 @@
   "type": "object",
   "properties": {
     "protocolVersion": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
     },
     "clientCapabilities": {
       "type": "object",
@@ -16,8 +18,7 @@
             "writeTextFile": {
               "type": "boolean"
             }
-          },
-          "additionalProperties": true
+          }
         },
         "terminal": {
           "type": "boolean"
@@ -27,11 +28,9 @@
           "properties": {
             "form": {},
             "url": {}
-          },
-          "additionalProperties": true
+          }
         }
-      },
-      "additionalProperties": true
+      }
     },
     "clientInfo": {
       "type": "object",
@@ -47,14 +46,12 @@
         },
         "_meta": {}
       },
-      "additionalProperties": true,
       "required": [
         "name",
         "version"
       ]
     }
   },
-  "additionalProperties": true,
   "required": [
     "protocolVersion"
   ]

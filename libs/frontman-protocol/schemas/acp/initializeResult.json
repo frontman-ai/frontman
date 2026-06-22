@@ -2,7 +2,9 @@
   "type": "object",
   "properties": {
     "protocolVersion": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
     },
     "agentCapabilities": {
       "type": "object",
@@ -22,8 +24,7 @@
             "websocket": {
               "type": "boolean"
             }
-          },
-          "additionalProperties": true
+          }
         },
         "promptCapabilities": {
           "type": "object",
@@ -37,11 +38,9 @@
             "embeddedContext": {
               "type": "boolean"
             }
-          },
-          "additionalProperties": true
+          }
         }
-      },
-      "additionalProperties": true
+      }
     },
     "agentInfo": {
       "type": "object",
@@ -57,7 +56,6 @@
         },
         "_meta": {}
       },
-      "additionalProperties": true,
       "required": [
         "name",
         "version"
@@ -77,7 +75,6 @@
             "type": "string"
           }
         },
-        "additionalProperties": true,
         "required": [
           "id",
           "name"
@@ -86,7 +83,6 @@
       "type": "array"
     }
   },
-  "additionalProperties": true,
   "required": [
     "protocolVersion"
   ]

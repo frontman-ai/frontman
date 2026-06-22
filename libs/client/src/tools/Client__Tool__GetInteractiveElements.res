@@ -2,7 +2,6 @@
 // Returns a snapshot of clickable/interactive elements with their roles,
 // accessible names, and CSS selectors for use by interact_with_element.
 
-S.enableJson()
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.getInteractiveElements

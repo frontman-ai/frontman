@@ -11,7 +11,6 @@
           "type": "string"
         }
       },
-      "additionalProperties": true,
       "required": [
         "type",
         "text"
@@ -31,7 +30,6 @@
           "type": "string"
         }
       },
-      "additionalProperties": true,
       "required": [
         "type",
         "data",
