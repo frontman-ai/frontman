@@ -13,7 +13,7 @@ We started Frontman with a clear idea: put an AI agent inside the app, not the e
 
 WordPress powers over 40% of the web. Millions of sites, run by people who range from full-time developers to business owners who just want their site to look right. So we built a WordPress integration.
 
-**Quick answer:** Frontman is an AI WordPress editor plugin that lets you describe changes in plain English, edit WordPress content and Elementor pages, and verify the result in a live site preview.
+**Quick answer:** [Frontman for WordPress](/wordpress/) is an AI WordPress editor plugin that lets you describe changes in plain English, edit WordPress content and Elementor pages, and verify the result in a live site preview.
 
 ## How It Works
 

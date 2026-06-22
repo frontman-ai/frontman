@@ -13,7 +13,7 @@ Open wp-admin. Search for the plugin. Click install. Activate it. Start editing 
 
 That is now the Frontman workflow.
 
-The [Frontman WordPress plugin](https://wordpress.org/plugins/frontman-agentic-ai-editor/) is live in the WordPress Plugin Directory as **Frontman - Agentic AI Editor**. It puts an AI agent inside your WordPress site, next to a live preview, with tools for posts, pages, blocks, Elementor pages, menus, templates, widgets, and settings.
+[Frontman for WordPress](/wordpress/) is live in the WordPress Plugin Directory as **Frontman - Agentic AI Editor**. It puts an AI agent inside your WordPress site, next to a live preview, with tools for posts, pages, blocks, Elementor pages, menus, templates, widgets, and settings. You can install it from the [Frontman WordPress plugin page](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
 
 ### Install Frontman from the WordPress Plugin Directory
 

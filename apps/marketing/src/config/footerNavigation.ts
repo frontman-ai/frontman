@@ -58,6 +58,10 @@ export const footerNavigationData: FooterData = {
 			category: 'Product',
 			subCategories: [
 				{
+					subCategory: 'WordPress',
+					subCategoryLink: '/wordpress/'
+				},
+				{
 					subCategory: 'About',
 					subCategoryLink: '/about/'
 				},
@@ -105,6 +109,10 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'Vite (React, Vue, Svelte)',
 					subCategoryLink: '/docs/integrations/vite/'
+				},
+				{
+					subCategory: 'WordPress',
+					subCategoryLink: '/wordpress/'
 				}
 			]
 		},

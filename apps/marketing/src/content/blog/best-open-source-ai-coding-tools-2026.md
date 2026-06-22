@@ -1,12 +1,12 @@
 ---
-title: 'Best Open-Source AI Coding Tools in 2026'
-seoTitle: '12 Best Open-Source AI Coding Tools (2026)'
+title: 'Best Open-Source AI Coding Tools in 2026: Cline, Roo Code, OpenHands, Kilo Code Compared'
+seoTitle: 'Best Open-Source AI Coding Tools 2026: Cline, Roo Code, OpenHands, Kilo Code Compared'
 pubDate: 2026-03-03T10:00:00Z
-description: 'Compare 12 open-source AI coding tools in 2026: Cline, Aider, Kilo Code, Goose, Continue, OpenHands, Tabby, Stagewise, Frontman, and more.'
+description: 'Compare the best open-source AI coding tools in 2026, including Cline, Roo Code, OpenHands, Kilo Code, Aider, Goose, Continue, Tabby, Stagewise, and Frontman.'
 author: 'Danni Friedland'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
-updatedDate: 2026-06-17T00:00:00Z
+updatedDate: 2026-06-22T00:00:00Z
 faq:
   - question: 'What are the best open-source AI coding tools in 2026?'
     answer: 'The most popular open-source AI coding tools by GitHub stars are OpenHands (68k stars, MIT), Cline (58k, Apache 2.0), Aider (41k, Apache 2.0), Tabby (33k, Apache 2.0), Goose (32k, Apache 2.0), Continue (31k, Apache 2.0), archived Roo Code (22k, Apache 2.0), and bolt.diy (19k, MIT). Each targets a different workflow: Aider and Goose are CLI-based, Cline and Roo-style forks are VS Code agents, Tabby is self-hosted autocomplete, and OpenHands is a full agent platform.'
@@ -52,6 +52,19 @@ Last updated: June 2026. Star counts are approximate. Update: Roo Code was shut 
 | [Frontman](https://github.com/frontman-ai/frontman) | ~131 | Apache-2.0 / AGPL-3.0 | Browser-based | Yes | Active |
 
 Apache-2.0 is the dominant license. AGPL-3.0 appears on Stagewise and Frontman's server component. MIT on OpenHands and bolt.diy.
+
+## Cline vs Roo Code vs Kilo Code vs OpenHands
+
+If you're choosing between the highest-intent 2026 AI coding agents, the short version is this:
+
+| Tool | Best fit | Main tradeoff |
+|------|----------|---------------|
+| Cline | VS Code users who want the largest open-source agent community | Approval-heavy workflow can feel slow |
+| Roo Code | Teams that liked Cline-style agents with structured modes | Original project was archived in May 2026 |
+| Kilo Code | Developers who want a Cline-family agent with JetBrains support | Newer project with overlapping features |
+| OpenHands | Teams evaluating full autonomous agent platforms | Broader scope, more complex self-hosting |
+
+Cline is the safest default for an open-source VS Code AI coding agent in 2026. Roo Code is still useful as a reference point because many teams compare Roo Code vs Cline, but the archived status changes the adoption calculus. Kilo Code is the Cline-family option to watch if JetBrains support matters. OpenHands is not a drop-in editor assistant; it is closer to an open-source Devin-style agent platform.
 
 ## CLI-Based Open-Source AI Coding Tools
 

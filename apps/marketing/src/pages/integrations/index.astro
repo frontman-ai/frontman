@@ -5,9 +5,9 @@
 import Layout from '../../layouts/Layout.astro'
 
 const SEO = {
-	title: 'Next.js, Astro & Vite Integrations | Frontman',
+	title: 'Next.js, Astro, Vite & WordPress Integrations | Frontman',
 	description:
-		'Install in one command. Frontman supports Next.js, Astro, and Vite (React, Vue, Svelte) with deep framework context and visual editing.'
+		'Install Frontman in JavaScript frameworks or as a WordPress plugin with live preview and AI editing.'
 }
 
 const integrations = [
@@ -31,6 +31,13 @@ const integrations = [
 		description: 'One integration for React, Vue, and Svelte. Frontman hooks into Vite\'s dev server and HMR pipeline for instant feedback on every edit.',
 		command: 'npx @frontman-ai/vite install',
 		tags: ['React', 'Vue', 'Svelte', 'HMR']
+	},
+	{
+		title: 'WordPress',
+		href: '/wordpress/',
+		description: 'Install from the WordPress Plugin Directory. Frontman adds an AI agent to /frontman with tools for posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, settings, cache, and WooCommerce when active.',
+		command: 'Plugins -> Add New Plugin',
+		tags: ['Plugin Directory', 'Gutenberg', 'Elementor', 'WooCommerce', 'Live Preview']
 	}
 ]
 ---
@@ -41,7 +48,7 @@ const integrations = [
 			<p class="hero-label">Integrations</p>
 			<h1 class="hero-title">Frontman Integrations</h1>
 			<p class="hero-subtitle">
-				Frontman installs as framework middleware inside your dev server. Each integration gives the AI direct access to the component tree, computed styles, and server-side context for your specific framework.
+				Frontman installs as framework middleware for JavaScript apps and as a native WordPress plugin for CMS workflows. Each integration gives the AI runtime context for the thing you are editing.
 			</p>
 		</div>
 	</section>
@@ -70,17 +77,16 @@ const integrations = [
 
 	<section class="content-section">
 		<div class="content-container">
-			<h2 class="section-title">Why Framework Middleware?</h2>
+			<h2 class="section-title">Two Integration Models</h2>
 			<div class="prose-content">
-				<p>Most AI coding tools are "code-first." They read your source files but never see the running application. Browser-based tools like CLI overlays inject a toolbar on top of your app and only see the DOM surface.</p>
-				<p>Frontman takes a different approach. It installs as <strong>framework middleware</strong> and runs inside your dev server, which gives the AI access to information that's invisible from the outside:</p>
+				<p>For Next.js, Astro, and Vite, Frontman installs as <strong>framework middleware</strong> inside your dev server. That gives the AI access to source files, component context, computed styles, routes, logs, and hot reload.</p>
+				<p>For WordPress, Frontman installs as a <strong>WordPress plugin</strong>. It serves the /frontman workspace, respects WordPress permissions, and exposes platform-native tools for the content and settings that power the live site.</p>
 				<ul>
-					<li>The <strong>component tree</strong>: React fiber nodes, Vue reactivity graph, Svelte component hierarchy. The actual components that rendered each element, not just the DOM output.</li>
-					<li>The <strong>props and state</strong> each component received, how state flows through the tree, and what data drives the current render.</li>
-					<li><strong>Server-side context</strong> including routes, server logs, query timing, and middleware chains. The AI sees both the client and the server.</li>
-					<li><strong>Computed styles</strong> with the full cascade resolved, including specificity and inherited values.</li>
+					<li><strong>Framework apps:</strong> edit source files in local development with browser runtime context and HMR.</li>
+					<li><strong>WordPress sites:</strong> edit posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, settings, cache, and WooCommerce data beside live preview.</li>
+					<li><strong>Same principle:</strong> the agent should see the thing you see before changing it.</li>
 				</ul>
-				<p>When you click an element and describe a change, the AI has the full picture. It targets the right component file, adjusts the right props, and understands how the edit affects the rest of the UI.</p>
+				<p>When correctness depends on the rendered result, source files or admin screens alone are not enough. Frontman keeps context, tools, and visual review in one loop.</p>
 			</div>
 		</div>
 	</section>

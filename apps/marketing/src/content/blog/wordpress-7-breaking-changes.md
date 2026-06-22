@@ -400,4 +400,4 @@ WordPress market share dropped from 65.2% in 2022 to [60.2% in 2026](https://blo
 
 If you maintain dozens of client sites with varied plugin stacks, the calculus is different. The maintenance burden compounds with every major release, and WordPress 7 is a heavier release than most.
 
-You just read a 2,500-word breaking changes audit. WordPress 8 will need one too. [Frontman](https://frontman.sh) is how developer teams stop doing this — visual AI editing on Next.js and Astro, with none of the upgrade overhead. Your content team edits visually while your codebase stays modern.
+You just read a 2,500-word breaking changes audit. WordPress 8 will need one too. [Frontman for WordPress](/wordpress/) helps teams edit existing WordPress sites with an AI agent beside live preview, while still treating staging, backups, and review as part of the workflow.

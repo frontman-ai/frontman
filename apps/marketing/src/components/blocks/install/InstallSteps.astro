@@ -14,9 +14,62 @@ import astroLogo from '../../../assets/frameworks/astro.svg'
 import viteLogo from '../../../assets/frameworks/vite.svg'
 
 const frameworks = [
-	{ id: 'nextjs', name: 'Next.js', logo: nextjsLogo, command: 'npx @frontman-ai/nextjs install', port: '3000' },
-	{ id: 'astro', name: 'Astro', logo: astroLogo, command: 'astro add @frontman-ai/astro', port: '4321' },
-	{ id: 'vite', name: 'Vite', logo: viteLogo, command: 'npx @frontman-ai/vite install', port: '5173' }
+	{
+		id: 'nextjs',
+		name: 'Next.js',
+		logo: nextjsLogo,
+		command: 'npx @frontman-ai/nextjs install',
+		url: 'http://localhost:3000/frontman',
+		step1Title: 'Add to your project',
+		step1Description: 'Run one command in your project folder',
+		step2Title: 'Open Frontman',
+		step2Description: 'Visit localhost/frontman in your browser',
+		step3Title: 'Connect your AI',
+		step3Description: 'Connect to your preferred AI model subscription',
+		showPluginLink: 'false'
+	},
+	{
+		id: 'astro',
+		name: 'Astro',
+		logo: astroLogo,
+		command: 'astro add @frontman-ai/astro',
+		url: 'http://localhost:4321/frontman',
+		step1Title: 'Add to your project',
+		step1Description: 'Run one command in your project folder',
+		step2Title: 'Open Frontman',
+		step2Description: 'Visit localhost/frontman in your browser',
+		step3Title: 'Connect your AI',
+		step3Description: 'Connect to your preferred AI model subscription',
+		showPluginLink: 'false'
+	},
+	{
+		id: 'vite',
+		name: 'Vite',
+		logo: viteLogo,
+		command: 'npx @frontman-ai/vite install',
+		url: 'http://localhost:5173/frontman',
+		step1Title: 'Add to your project',
+		step1Description: 'Run one command in your project folder',
+		step2Title: 'Open Frontman',
+		step2Description: 'Visit localhost/frontman in your browser',
+		step3Title: 'Connect your AI',
+		step3Description: 'Connect to your preferred AI model subscription',
+		showPluginLink: 'false'
+	},
+	{
+		id: 'wordpress',
+		name: 'WordPress',
+		logo: { src: '/logo.svg' },
+		command: 'Plugins -> Add New Plugin',
+		url: 'https://yoursite.com/frontman',
+		step1Title: 'Install the plugin',
+		step1Description: 'Search for Frontman Agentic AI Editor in wp-admin',
+		step2Title: 'Activate and open Frontman',
+		step2Description: 'Visit /frontman on your WordPress site',
+		step3Title: 'Describe a site change',
+		step3Description: 'Connect your AI provider, describe the edit, and review it beside live preview',
+		showPluginLink: 'true'
+	}
 ]
 ---
 
@@ -43,7 +96,14 @@ const frameworks = [
 					class={`framework-tab ${i === 0 ? 'active' : ''}`}
 					data-framework={fw.id}
 					data-command={fw.command}
-					data-port={fw.port}
+					data-url={fw.url}
+					data-step1-title={fw.step1Title}
+					data-step1-description={fw.step1Description}
+					data-step2-title={fw.step2Title}
+					data-step2-description={fw.step2Description}
+					data-step3-title={fw.step3Title}
+					data-step3-description={fw.step3Description}
+					data-show-plugin-link={fw.showPluginLink}
 				>
 						<img src={fw.logo.src} alt="" width="24" height="24" loading="lazy" aria-hidden="true" />
 						{fw.name}
@@ -60,8 +120,8 @@ const frameworks = [
 					<div class="step-line"></div>
 				</div>
 				<div class="step-card step-card--yellow">
-					<h3 class="step-title">Add to your project</h3>
-					<p class="step-description">Run one command in your project folder</p>
+					<h3 class="step-title" data-step1-title>Add to your project</h3>
+					<p class="step-description" data-step1-description>Run one command in your project folder</p>
 					<div class="terminal">
 						<div class="terminal-bar">
 							<span class="terminal-dot"></span>
@@ -79,6 +139,7 @@ const frameworks = [
 							</button>
 						</div>
 					</div>
+					<a class="plugin-directory-link" data-plugin-directory-link href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" hidden>Open WordPress Plugin Directory &rarr;</a>
 				</div>
 			</div>
 
@@ -89,8 +150,8 @@ const frameworks = [
 					<div class="step-line"></div>
 				</div>
 				<div class="step-card step-card--pink">
-					<h3 class="step-title">Open Frontman</h3>
-					<p class="step-description">Visit localhost/frontman in your browser</p>
+					<h3 class="step-title" data-step2-title>Open Frontman</h3>
+					<p class="step-description" data-step2-description>Visit localhost/frontman in your browser</p>
 					<div class="terminal">
 						<div class="terminal-bar">
 							<span class="terminal-dot"></span>
@@ -121,8 +182,8 @@ const frameworks = [
 					<div class="step-number step-number--peach">3</div>
 				</div>
 				<div class="step-card step-card--peach">
-					<h3 class="step-title">Connect your AI</h3>
-					<p class="step-description">Connect to your preferred AI model subscription</p>
+					<h3 class="step-title" data-step3-title>Connect your AI</h3>
+					<p class="step-description" data-step3-description>Connect to your preferred AI model subscription</p>
 					<div class="ai-badges">
 						<span class="ai-badge">Claude</span>
 						<span class="ai-badge">ChatGPT</span>
@@ -319,6 +380,10 @@ const frameworks = [
 		color: #C084FF;
 	}
 
+	.plugin-directory-link {
+		@apply mt-4 inline-flex text-sm font-semibold text-primary-600 underline underline-offset-4 hover:text-primary-700;
+	}
+
 	/* AI badges */
 	.ai-badges {
 		@apply mt-5 flex flex-wrap gap-2;
@@ -337,6 +402,13 @@ const frameworks = [
 		const tabs = document.querySelectorAll('.framework-tab')
 		const installCommand = document.querySelector('[data-install-command]')
 		const portUrl = document.querySelector('[data-port-url]')
+		const step1Title = document.querySelector('[data-step1-title]')
+		const step1Description = document.querySelector('[data-step1-description]')
+		const step2Title = document.querySelector('[data-step2-title]')
+		const step2Description = document.querySelector('[data-step2-description]')
+		const step3Title = document.querySelector('[data-step3-title]')
+		const step3Description = document.querySelector('[data-step3-description]')
+		const pluginDirectoryLink = document.querySelector('[data-plugin-directory-link]')
 
 		// Framework tab switching
 		tabs.forEach((tab) => {
@@ -349,9 +421,30 @@ const frameworks = [
 					installCommand.textContent = command
 				}
 
-				const port = tab.getAttribute('data-port')
-				if (portUrl && port) {
-					portUrl.textContent = `http://localhost:${port}/frontman`
+				const url = tab.getAttribute('data-url')
+				if (portUrl && url) {
+					portUrl.textContent = url
+				}
+
+
+				const updates = [
+					{ element: step1Title, text: tab.getAttribute('data-step1-title') },
+					{ element: step1Description, text: tab.getAttribute('data-step1-description') },
+					{ element: step2Title, text: tab.getAttribute('data-step2-title') },
+					{ element: step2Description, text: tab.getAttribute('data-step2-description') },
+					{ element: step3Title, text: tab.getAttribute('data-step3-title') },
+					{ element: step3Description, text: tab.getAttribute('data-step3-description') }
+				]
+
+				updates.forEach(({ element, text }) => {
+					if (element && text) {
+						element.textContent = text
+					}
+				})
+
+				if (pluginDirectoryLink) {
+					const showPluginLink = tab.getAttribute('data-show-plugin-link') === 'true'
+					pluginDirectoryLink.toggleAttribute('hidden', !showPluginLink)
 				}
 			})
 		})

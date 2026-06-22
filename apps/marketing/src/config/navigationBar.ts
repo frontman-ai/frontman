@@ -38,6 +38,7 @@ export const navigationBarData: NavData = {
 		text: 'Frontman'
 	},
 	navItems: [
+		{ name: 'WordPress', link: '/wordpress/' },
 		{ name: 'Docs', link: '/docs/' },
 		{
 			name: 'Compare',
@@ -55,6 +56,7 @@ export const navigationBarData: NavData = {
 			link: '/integrations/',
 			submenu: [
 				{ name: 'All integrations', link: '/integrations/' },
+				{ name: 'WordPress', link: '/wordpress/' },
 				{ name: 'Next.js', link: '/docs/integrations/nextjs/' },
 				{ name: 'Astro', link: '/docs/integrations/astro/' },
 				{ name: 'Vite', link: '/docs/integrations/vite/' }

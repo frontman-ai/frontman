@@ -106,6 +106,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@astrojs/internal-helpers@npm:0.10.0":
+  version: 0.10.0
+  resolution: "@astrojs/internal-helpers@npm:0.10.0"
+  dependencies:
+    "@types/hast": "npm:^3.0.4"
+    "@types/mdast": "npm:^4.0.4"
+    js-yaml: "npm:^4.1.1"
+    picomatch: "npm:^4.0.4"
+    retext-smartypants: "npm:^6.2.0"
+    shiki: "npm:^4.0.2"
+    smol-toml: "npm:^1.6.0"
+    unified: "npm:^11.0.5"
+  checksum: 10c0/e6729142b607b9aebaf36afeb045c5e137a4dd2a89051a5221c16c8d55379e6986e663c683ec524459dd3f35965027b94cbd02c9034bddc5a6acd0da21dfe5d4
+  languageName: node
+  linkType: hard
+
 "@astrojs/internal-helpers@npm:0.9.1":
   version: 0.9.1
   resolution: "@astrojs/internal-helpers@npm:0.9.1"
@@ -180,6 +196,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@astrojs/markdown-remark@npm:7.2.0":
+  version: 7.2.0
+  resolution: "@astrojs/markdown-remark@npm:7.2.0"
+  dependencies:
+    "@astrojs/internal-helpers": "npm:0.10.0"
+    "@astrojs/prism": "npm:4.0.2"
+    github-slugger: "npm:^2.0.0"
+    hast-util-from-html: "npm:^2.0.3"
+    hast-util-to-text: "npm:^4.0.2"
+    mdast-util-definitions: "npm:^6.0.0"
+    rehype-raw: "npm:^7.0.0"
+    rehype-stringify: "npm:^10.0.1"
+    remark-gfm: "npm:^4.0.1"
+    remark-parse: "npm:^11.0.0"
+    remark-rehype: "npm:^11.1.2"
+    remark-smartypants: "npm:^3.0.2"
+    unified: "npm:^11.0.5"
+    unist-util-remove-position: "npm:^5.0.0"
+    unist-util-visit: "npm:^5.1.0"
+    unist-util-visit-parents: "npm:^6.0.2"
+    vfile: "npm:^6.0.3"
+  checksum: 10c0/4332f03768733beff038ebdd68ae1d0207d0b66f1089bf98a42ed5f25614bfe5bfc6b8459acd7d639ebb03a914375b942d8253f80ee6141dcf2b305449a77938
+  languageName: node
+  linkType: hard
+
 "@astrojs/mdx@npm:^5.0.4":
   version: 5.0.6
   resolution: "@astrojs/mdx@npm:5.0.6"
@@ -204,18 +245,18 @@ __metadata:
   linkType: hard
 
 "@astrojs/preact@npm:^5.1.3":
-  version: 5.1.3
-  resolution: "@astrojs/preact@npm:5.1.3"
+  version: 5.1.5
+  resolution: "@astrojs/preact@npm:5.1.5"
   dependencies:
-    "@astrojs/internal-helpers": "npm:0.9.1"
+    "@astrojs/internal-helpers": "npm:0.10.0"
     "@preact/preset-vite": "npm:^2.10.5"
     "@preact/signals": "npm:^2.8.2"
-    devalue: "npm:^5.6.4"
+    devalue: "npm:^5.8.1"
     preact-render-to-string: "npm:^6.6.6"
     vite: "npm:^7.3.2"
   peerDependencies:
     preact: ^10.6.5
-  checksum: 10c0/2ac5cef6ff01cc64d2a7df82863ae5c8d58377b1f8f4195cedebb5093d70bd69ac14881d0e48a053e2bc936b9bb7955de754f9a117e722921b54d3c4d4b3a14e
+  checksum: 10c0/1f085b1c7ec210908a9536f5f9dd1d1f7394edfab298a3a9c0a2f5ca37199f3294237a32ae8d807727839cb0116355fc6c57c9c9074c166180cd5874eb1ebb5f
   languageName: node
   linkType: hard
 
@@ -8346,12 +8387,12 @@ __metadata:
   linkType: hard
 
 "astro@npm:^6.3.7":
-  version: 6.3.7
-  resolution: "astro@npm:6.3.7"
+  version: 6.4.8
+  resolution: "astro@npm:6.4.8"
   dependencies:
     "@astrojs/compiler": "npm:^4.0.0"
-    "@astrojs/internal-helpers": "npm:0.9.1"
-    "@astrojs/markdown-remark": "npm:7.1.2"
+    "@astrojs/internal-helpers": "npm:0.10.0"
+    "@astrojs/markdown-remark": "npm:7.2.0"
     "@astrojs/telemetry": "npm:3.3.2"
     "@capsizecss/unpack": "npm:^4.0.0"
     "@clack/prompts": "npm:^1.1.0"
@@ -8363,7 +8404,7 @@ __metadata:
     clsx: "npm:^2.1.1"
     common-ancestor-path: "npm:^2.0.0"
     cookie: "npm:^1.1.1"
-    devalue: "npm:^5.6.3"
+    devalue: "npm:^5.8.1"
     diff: "npm:^8.0.3"
     dset: "npm:^3.1.4"
     es-module-lexer: "npm:^2.0.0"
@@ -8410,7 +8451,7 @@ __metadata:
       optional: true
   bin:
     astro: ./bin/astro.mjs
-  checksum: 10c0/5ba358816a4c8c50ebb055e9f0d37540abbeeee8b33334d9bfecd20e1255d0de163c870a08767a2b614ec889242c5b9f22a9f819eb043cc876aa029c81522b2a
+  checksum: 10c0/52cb75f1bf4acd9a6fba0e4f949411763bab6294b9a2d4c819334c0632e2194a13cb1a3f8a437b84862191c923f303ff421ec1fb7d0a5ac69feb51903bed1040
   languageName: node
   linkType: hard
 
@@ -12749,11 +12790,11 @@ __metadata:
   linkType: hard
 
 "marked@npm:^18.0.4":
-  version: 18.0.4
-  resolution: "marked@npm:18.0.4"
+  version: 18.0.5
+  resolution: "marked@npm:18.0.5"
   bin:
     marked: bin/marked.js
-  checksum: 10c0/f54dcbb39d3acdcd0356f7629b42811eec56db5f6daef7404e582cdf800f5b598b681f9f8a187e7f51262e37c607f5e0cd9880e56b5c8160a49c3f7828e9e459
+  checksum: 10c0/22763935a0a243c41851b010a086ea85a09951e379948b6aa629b6cecdcd66e3a5e8c4acac2f6b29c183c20609d3e5102495270207dfd5f4c46ddd773a4ddb9b
   languageName: node
   linkType: hard
 

@@ -1,6 +1,6 @@
 ---
-title: Introduction
-description: Frontman is an open-source AI coding agent that lives in your browser. Chat with it, point at elements, and watch it edit your source code in real time. 
+title: Frontman Docs
+description: Frontman documentation for installation, framework integrations, API keys, usage guides, troubleshooting, and self-hosting.
 ---
 
 Frontman is an open-source AI coding agent that runs inside your development browser. You chat with it in natural language or point at elements on your page, and it edits your actual source files — with instant hot reload so you see changes immediately.
@@ -11,7 +11,7 @@ You describe a change → the agent takes a screenshot of your running app → r
 
 ## Who uses Frontman?
 
-**Developers** set up Frontman in their project (a one-line integration for Astro, Next.js, or Vite) and use it alongside their existing editor. The agent sees both the rendered page and the source code, so it makes precise, file-level edits that compile and render correctly.
+**Developers** set up Frontman in their project (a one-line integration for Astro, Next.js, or Vite) or install the WordPress plugin. The agent sees the rendered experience plus the underlying source or CMS context, so it makes precise edits you can review.
 
 **Designers, PMs, and non-technical teammates** use the chat UI to make changes directly. Select an element, describe what you want ("make this button larger," "change the heading text," "swap the layout to two columns"), and the agent handles the code. No IDE required.
 
@@ -26,7 +26,7 @@ Start here if Frontman isn't running in your project yet.
 | **Astro** | `astro add @frontman-ai/astro` | [Astro integration →](/docs/integrations/astro/) |
 | **Next.js** | `npx @frontman-ai/nextjs install` | [Next.js integration →](/docs/integrations/nextjs/) |
 | **Vite** | `npx @frontman-ai/vite install` | [Vite integration →](/docs/integrations/vite/) |
-| **WordPress** | WordPress Plugin Directory (beta) | [WordPress setup →](/docs/integrations/wordpress/) |
+| **WordPress** | [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/) (beta) | [WordPress setup →](/docs/integrations/wordpress/) |
 
 Then continue with:
 

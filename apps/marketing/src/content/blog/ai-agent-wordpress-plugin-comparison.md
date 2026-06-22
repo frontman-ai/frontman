@@ -63,7 +63,7 @@ The winner depends on the job. Annoying, but true.
 
 If you want a chatbot, use the chatbot plugin. If you want embeddings and knowledge search, use the framework. If you want Claude Desktop or ChatGPT to talk to WordPress tools, evaluate MCP plugins. If you want to edit the site you are looking at, use the tool built around the page.
 
-That last sentence is where Frontman lives.
+That last sentence is where [Frontman for WordPress](/wordpress/) lives.
 
 ### Why Frontman's WordPress plugin is different
 
@@ -173,4 +173,4 @@ There are content AI plugins. There are MCP servers. There are site builders. An
 
 Frontman belongs in the last category. It is not the broadest AI plugin. It is not the canonical MCP adapter. It is not a site generator. It is the WordPress agent workflow for people who need to change the page, see the result, and stay inside the same loop.
 
-Install [Frontman - Agentic AI Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open `/frontman`, and start on staging. The better workflow is not more AI buttons in wp-admin. It is an agent that changes WordPress while the page stays visible.
+Install [Frontman - Agentic AI Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open `/frontman`, and start on staging. For the product overview, see [Frontman for WordPress](/wordpress/). The better workflow is not more AI buttons in wp-admin. It is an agent that changes WordPress while the page stays visible.

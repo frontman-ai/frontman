@@ -31,6 +31,12 @@ const frameworks = [
 		logo: viteLogo,
 		features: ['React', 'Vue', 'Svelte'],
 		href: '/docs/integrations/vite/'
+	},
+	{
+		name: 'WordPress',
+		logo: { src: '/logo.svg' },
+		features: ['Plugin Directory', 'Elementor', 'Gutenberg'],
+		href: '/wordpress/'
 	}
 ]
 ---
@@ -40,11 +46,12 @@ const frameworks = [
 		<Row>
 			<Col span="12" align="center" classes="mb-12 lg:mb-16">
 				<h2 class="frameworks-title">Works with your stack</h2>
+				<p class="frameworks-subtitle">Framework middleware for modern apps. Plugin-native editing for WordPress sites.</p>
 			</Col>
 		</Row>
 		<Row classes="gap-6 lg:gap-8">
 			{frameworks.map((fw) => (
-				<Col spanMobile="12" span="4">
+				<Col spanMobile="12" span="3">
 					<a href={fw.href} class="framework-card-link">
 						<div class="framework-card">
 							<div class="framework-logo">
@@ -83,6 +90,10 @@ const frameworks = [
 
 	.frameworks-title {
 		@apply font-headings text-4xl lg:text-5xl font-bold text-black;
+	}
+
+	.frameworks-subtitle {
+		@apply mx-auto mt-4 max-w-2xl text-base lg:text-lg leading-relaxed text-neutral-600;
 	}
 
 	.framework-card {
