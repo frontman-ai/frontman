@@ -503,26 +503,27 @@ defmodule FrontmanServer.Tasks do
       when is_binary(task_id) and is_binary(model) and model != "" and is_list(mcp_tools) and
              is_list(project_traits) do
     user_message_interaction = Interaction.UserMessage.new(content_blocks, model)
-    execution = %{model: model, mcp_tools: mcp_tools, project_traits: project_traits}
 
-    case insert_user_turn_for_locked_task(scope, task_id, user_message_interaction) do
-      {:ok, {task_schema, turn_number}} ->
-        run_execution(scope, task_schema, turn_number, execution)
+    with {:ok, {task_schema, turn_number}} <-
+           insert_user_turn_for_locked_task(scope, task_id, user_message_interaction) do
+      _ =
+        run_execution(scope, task_schema, turn_number, %{
+          model: model,
+          mcp_tools: mcp_tools,
+          project_traits: project_traits
+        })
 
-        if turn_number == 1 do
-          GenerateTitle.new_job(
-            scope,
-            task_id,
-            Enum.join(user_message_interaction.messages, "\n"),
-            model
-          )
-          |> Oban.insert()
-        end
+      if turn_number == 1 do
+        GenerateTitle.new(%{
+          user_id: scope.user.id,
+          task_id: task_id,
+          user_prompt_text: Enum.join(user_message_interaction.messages, "\n"),
+          model: model
+        })
+        |> Oban.insert!()
+      end
 
-        {:ok, user_message_interaction, turn_number}
-
-      {:error, reason} ->
-        {:error, reason}
+      {:ok, user_message_interaction, turn_number}
     end
   end
 
@@ -533,7 +534,7 @@ defmodule FrontmanServer.Tasks do
   defp insert_user_turn_for_locked_task(%Scope{} = scope, task_id, user_message_interaction) do
     Repo.transact(fn ->
       with %TaskSchema{} = task_schema <- get_task_by_id_for_update(scope, task_id),
-           {:ok, turn_number} <- insert_user_turn(task_schema, user_message_interaction) do
+           {:ok, turn_number} <- insert_user_turn_if_idle(task_schema, user_message_interaction) do
         {:ok, {task_schema, turn_number}}
       else
         nil -> {:error, :not_found}
@@ -542,10 +543,9 @@ defmodule FrontmanServer.Tasks do
     end)
   end
 
-  defp insert_user_turn(%TaskSchema{} = task_schema, interaction) do
+  defp insert_user_turn_if_idle(%TaskSchema{} = task_schema, interaction) do
     rows = load_interaction_rows(task_schema.id)
 
-    # NOTE(Itay): OMG this is so complex.
     case active_agent_run_turn_number(rows) do
       {:ok, nil} ->
         turn_number = next_turn_number(rows)
@@ -788,6 +788,8 @@ defmodule FrontmanServer.Tasks do
 
   defp record_execution_start_failure(scope, task_id, turn_number, reason)
        when is_integer(turn_number) and turn_number > 0 do
+    Logger.error("Execution failed to start for task #{task_id}: #{inspect(reason)}")
+
     message = Execution.error_message(scope, reason)
     {:ok, _error} = record_agent_run_result(scope, task_id, turn_number, {:failed, message})
     broadcast_task(task_id, {:execution_start_error, message, turn_number})

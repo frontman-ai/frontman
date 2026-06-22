@@ -400,10 +400,16 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     # Extract text messages from content blocks
     defp extract_messages(content_blocks) do
-      content_blocks
-      |> Enum.filter(&match?(%{"type" => "text"}, &1))
-      |> Enum.map(&Map.get(&1, "text", ""))
-      |> Enum.reject(&(&1 == ""))
+      Enum.flat_map(content_blocks, fn
+        %{"type" => "text", "text" => text} when is_binary(text) and text != "" ->
+          [text]
+
+        %{"type" => "text"} ->
+          raise ArgumentError, "text content block must include non-empty string text"
+
+        _block ->
+          []
+      end)
     end
 
     # Extract annotations from content blocks.

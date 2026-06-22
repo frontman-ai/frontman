@@ -18,6 +18,26 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   # ---------------------------------------------------------------------------
 
   describe "UserMessage.new/1" do
+    test "extracts non-empty text messages" do
+      msg = UserMessage.new([text_block("Hello")])
+
+      assert msg.messages == ["Hello"]
+    end
+
+    test "raises for text blocks without non-empty string text" do
+      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
+        UserMessage.new([%{"type" => "text"}])
+      end
+
+      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
+        UserMessage.new([%{"type" => "text", "text" => ""}])
+      end
+
+      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
+        UserMessage.new([%{"type" => "text", "text" => 1}])
+      end
+    end
+
     test "extracts annotation from resource block" do
       msg =
         UserMessage.new([

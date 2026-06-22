@@ -23,7 +23,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   require Logger
 
   alias FrontmanServer.Accounts
-  alias FrontmanServer.Accounts.{Scope, User}
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias ReqLLM.Message.ContentPart
@@ -32,18 +32,6 @@ defmodule FrontmanServer.Workers.GenerateTitle do
   Generate a concise 3-6 word title for this chat based on the user's message.
   Return only the title text, nothing else. No quotes, no punctuation at the end.
   """
-
-  @doc """
-  Builds an Oban job changeset for title generation.
-  """
-  def new_job(%Scope{user: %User{} = user}, task_id, user_prompt_text, model) do
-    new(%{
-      user_id: user.id,
-      task_id: task_id,
-      user_prompt_text: user_prompt_text,
-      model: model
-    })
-  end
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -92,6 +80,8 @@ defmodule FrontmanServer.Workers.GenerateTitle do
       ReqLLM.Context.user(user_prompt_text)
     ]
 
-    {:ok, ReqLLM.generate_text!(model_spec, messages, llm_opts)}
+    with {:ok, response} <- ReqLLM.generate_text(model_spec, messages, llm_opts) do
+      {:ok, ReqLLM.Response.text(response)}
+    end
   end
 end

@@ -223,6 +223,6 @@ defmodule FrontmanServer.Tasks.Execution do
   def error_message(%Scope{}, :missing_model),
     do: "Model is required for this request."
 
-  def error_message(%Scope{}, reason),
-    do: inspect(reason)
+  def error_message(%Scope{}, _reason),
+    do: "Agent failed to start. Please try again."
 end

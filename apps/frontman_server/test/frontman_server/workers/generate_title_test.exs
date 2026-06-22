@@ -3,7 +3,6 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
 
-  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Workers.GenerateTitle
 
   setup do
@@ -11,17 +10,15 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
     {:ok, user: user}
   end
 
-  describe "new_job/4" do
+  describe "new/1" do
     test "builds a job changeset with model", %{user: user} do
-      scope = Scope.for_user(user)
-
       changeset =
-        GenerateTitle.new_job(
-          scope,
-          "task-123",
-          "Help me build a login page",
-          "anthropic:claude-sonnet-4-20250514"
-        )
+        GenerateTitle.new(%{
+          user_id: user.id,
+          task_id: "task-123",
+          user_prompt_text: "Help me build a login page",
+          model: "anthropic:claude-sonnet-4-20250514"
+        })
 
       args = changeset.changes.args
       assert args.user_id == user.id
