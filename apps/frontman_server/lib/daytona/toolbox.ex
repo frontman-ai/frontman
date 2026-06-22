@@ -22,6 +22,7 @@ defmodule Daytona.Toolbox do
   defstruct Zoi.Struct.struct_fields(@schema)
 
   def fetch(%Daytona{} = daytona) do
+    # API reference: https://www.daytona.io/docs/en/tools/api#daytona/tag/config/GET/config
     with {:ok, %Req.Response{status: status, body: body}} when status in 200..299 <-
            daytona |> Daytona.app_request() |> Req.get(url: "/config"),
          {:ok, toolbox} <- Zoi.parse(@schema, body) do

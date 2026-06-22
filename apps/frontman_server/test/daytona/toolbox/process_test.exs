@@ -24,7 +24,7 @@ defmodule Daytona.Toolbox.ProcessTest do
         Req.Test.json(conn, %{"exitCode" => 0, "result" => "installed"})
       end)
 
-      assert {:ok, %Req.Response{status: 200, body: %{"exitCode" => 0}}} =
+      assert {:ok, %{exit_code: 0, body: %{"exitCode" => 0, "result" => "installed"}}} =
                ToolboxProcess.execute(toolbox(), "sandbox_123", %{
                  command: "npx astro add @frontman-ai/astro --yes",
                  cwd: "workspace",

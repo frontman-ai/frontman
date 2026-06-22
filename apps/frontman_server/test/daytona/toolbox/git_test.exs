@@ -23,7 +23,7 @@ defmodule Daytona.Toolbox.GitTest do
       Req.Test.json(conn, %{})
     end)
 
-    assert {:ok, %Req.Response{status: 200}} =
+    assert :ok =
              Git.clone(toolbox(), "sandbox_123", %{
                branch: "main",
                commit_id: "abc123",

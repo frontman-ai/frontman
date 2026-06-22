@@ -58,11 +58,7 @@ defmodule FrontmanServer.PlayGithub do
 
   defp get_sandbox_preview_link(sandbox_id, port) do
     daytona = Daytona.new()
-
-    case DaytonaSandbox.get_preview_link(daytona, sandbox_id, port) do
-      {:ok, %Req.Response{} = response} -> preview_link_from_response(response)
-      {:error, reason} -> {:error, reason}
-    end
+    DaytonaSandbox.get_preview_link(daytona, sandbox_id, port)
   end
 
   def get_owned_sandbox_by_daytona_id(%Accounts.Scope{} = scope, daytona_sandbox_id)
@@ -76,32 +72,6 @@ defmodule FrontmanServer.PlayGithub do
   def get_owned_sandbox_by_daytona_id(_scope, daytona_sandbox_id)
       when is_binary(daytona_sandbox_id) do
     {:error, :playgithub_sandbox_not_found}
-  end
-
-  defp preview_link_from_response(%Req.Response{
-         status: status,
-         body: %{"url" => url, "token" => token}
-       })
-       when status in 200..299 and is_binary(url) and is_binary(token) do
-    {:ok, %{url: url, preview_token: token}}
-  end
-
-  defp preview_link_from_response(%Req.Response{status: status, body: %{"url" => url}})
-       when status in 200..299 and is_binary(url) do
-    {:ok, %{url: url, preview_token: nil}}
-  end
-
-  defp preview_link_from_response(%Req.Response{status: 404}) do
-    {:error, :daytona_sandbox_not_found}
-  end
-
-  defp preview_link_from_response(%Req.Response{status: status, body: body})
-       when status in 200..299 do
-    {:error, {:malformed_daytona_preview_response, body}}
-  end
-
-  defp preview_link_from_response(%Req.Response{status: status, body: body}) do
-    {:error, {:daytona_preview_lookup_failed, status, body}}
   end
 
   def run_repository_command(scope, github_reference, command, opts \\ [])
@@ -251,7 +221,7 @@ defmodule FrontmanServer.PlayGithub do
   defp create_daytona_sandbox(daytona, sandbox) do
     with {:ok, sandbox} <- persist_status(sandbox, :sandbox_creating) do
       case DaytonaSandbox.create(daytona, %{labels: sandbox_labels(sandbox)}) do
-        {:ok, %Req.Response{} = response} -> persist_create_response(response, sandbox)
+        {:ok, %{id: sandbox_id}} -> attach_daytona_sandbox_id(sandbox, sandbox_id)
         {:error, reason} -> persist_create_failure(sandbox, reason)
       end
     end
@@ -262,23 +232,6 @@ defmodule FrontmanServer.PlayGithub do
       "frontman.playgithub.sandbox_id" => sandbox.id,
       "frontman.playgithub.github_url" => sandbox.github_url
     }
-  end
-
-  defp persist_create_response(
-         %Req.Response{status: status, body: %{"id" => sandbox_id}},
-         sandbox
-       )
-       when status in 200..299 and is_binary(sandbox_id) do
-    attach_daytona_sandbox_id(sandbox, sandbox_id)
-  end
-
-  defp persist_create_response(%Req.Response{status: status, body: body}, sandbox)
-       when status in 200..299 do
-    persist_create_failure(sandbox, {:malformed_daytona_response, body})
-  end
-
-  defp persist_create_response(%Req.Response{status: status, body: body}, sandbox) do
-    persist_create_failure(sandbox, {:daytona_create_failed, status, body})
   end
 
   defp persist_create_failure(sandbox, reason) do
@@ -341,16 +294,12 @@ defmodule FrontmanServer.PlayGithub do
     end
   end
 
-  defp persist_clone_result({:ok, %Req.Response{status: status}}, sandbox)
-       when status in 200..299 do
+  defp persist_clone_result(:ok, sandbox) do
     persist_status(sandbox, :clone_finished)
   end
 
-  defp persist_clone_result({:ok, %Req.Response{body: body}}, sandbox) do
-    case repository_already_cloned_response?(body) do
-      true -> persist_status(sandbox, :clone_finished)
-      false -> persist_status(sandbox, :clone_failed, failure_reason(body))
-    end
+  defp persist_clone_result({:error, :repository_already_exists}, sandbox) do
+    persist_status(sandbox, :clone_finished)
   end
 
   defp persist_clone_result({:error, reason}, sandbox) do
@@ -364,14 +313,6 @@ defmodule FrontmanServer.PlayGithub do
 
   defp maybe_put_branch(request, nil), do: request
   defp maybe_put_branch(request, branch), do: Map.put(request, :branch, branch)
-
-  defp repository_already_cloned_response?(%{
-         "code" => "CONFLICT",
-         "message" => "conflict: repository already exists"
-       }),
-       do: true
-
-  defp repository_already_cloned_response?(_body), do: false
 
   defp install_action(%Sandbox{status: :clone_finished}, _retry?), do: :start
   defp install_action(%Sandbox{status: :clone_starting}, _retry?), do: :wait
@@ -444,10 +385,10 @@ defmodule FrontmanServer.PlayGithub do
              timeout: @frontman_install_timeout_seconds
            }
          ) do
-      {:ok, %Req.Response{status: status, body: %{"exitCode" => 0}}} when status in 200..299 ->
+      {:ok, %{exit_code: 0}} ->
         :ok
 
-      {:ok, %Req.Response{}} ->
+      {:ok, _result} ->
         {:error, "Path #{workspace_path} does not exist"}
 
       {:error, _reason} ->
@@ -470,10 +411,10 @@ defmodule FrontmanServer.PlayGithub do
              timeout: @dependency_install_timeout_seconds
            }
          ) do
-      {:ok, %Req.Response{status: status, body: %{"exitCode" => 0}}} when status in 200..299 ->
+      {:ok, %{exit_code: 0}} ->
         :ok
 
-      {:ok, %Req.Response{body: body}} ->
+      {:ok, %{body: body}} ->
         {:error, dependency_install_failure_reason(body)}
 
       {:error, reason} ->
@@ -496,10 +437,10 @@ defmodule FrontmanServer.PlayGithub do
              timeout: @frontman_install_timeout_seconds
            }
          ) do
-      {:ok, %Req.Response{status: status, body: %{"exitCode" => 0}}} when status in 200..299 ->
+      {:ok, %{exit_code: 0}} ->
         persist_status(sandbox, :install_finished)
 
-      {:ok, %Req.Response{body: body}} ->
+      {:ok, %{body: body}} ->
         persist_status(sandbox, :install_failed, failure_reason(body))
 
       {:error, reason} ->
@@ -546,7 +487,7 @@ defmodule FrontmanServer.PlayGithub do
          {:ok, _sandbox} <- persist_status(sandbox, :dev_server_started) do
       :ok
     else
-      {:error, :daytona_dev_server_failed, _status, body} ->
+      {:error, :daytona_dev_server_failed, body} ->
         persist_status(sandbox, :dev_server_failed, failure_reason(body))
 
       {:error, reason} ->
@@ -564,11 +505,11 @@ defmodule FrontmanServer.PlayGithub do
              timeout: @dev_server_start_timeout_seconds
            }
          ) do
-      {:ok, %Req.Response{status: status, body: %{"exitCode" => 0}}} when status in 200..299 ->
+      {:ok, %{exit_code: 0}} ->
         :ok
 
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, :daytona_dev_server_failed, status, body}
+      {:ok, %{body: body}} ->
+        {:error, :daytona_dev_server_failed, body}
 
       {:error, reason} ->
         {:error, reason}
@@ -596,32 +537,19 @@ defmodule FrontmanServer.PlayGithub do
 
   defp start_daytona_sandbox(client, sandbox) do
     case DaytonaSandbox.start(client, sandbox.daytona_sandbox_id) do
-      {:ok, %Req.Response{status: status, body: %{"state" => "started"}}}
-      when status in 200..299 ->
-        :ok
-
-      {:ok, %Req.Response{status: status}} when status in 200..299 ->
-        :ok
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, :daytona_start_failed, status, body}
-
-      {:error, reason} ->
-        {:error, reason}
+      :started -> :ok
+      :ok -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp start_sandbox_until_started(client, sandbox_id) do
     case DaytonaSandbox.start(client, sandbox_id) do
-      {:ok, %Req.Response{status: status, body: %{"state" => "started"}}}
-      when status in 200..299 ->
+      :started ->
         :ok
 
-      {:ok, %Req.Response{status: status}} when status in 200..299 ->
+      :ok ->
         wait_for_started_sandbox(client, sandbox_id, @sandbox_start_poll_attempts)
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, {:daytona_start_failed, status, body}}
 
       {:error, reason} ->
         {:error, reason}
@@ -634,15 +562,11 @@ defmodule FrontmanServer.PlayGithub do
     Process.sleep(@sandbox_start_poll_interval_ms)
 
     case DaytonaSandbox.get(client, sandbox_id) do
-      {:ok, %Req.Response{status: status, body: %{"state" => "started"}}}
-      when status in 200..299 ->
+      {:ok, %{"state" => "started"}} ->
         :ok
 
-      {:ok, %Req.Response{status: status}} when status in 200..299 ->
+      {:ok, _sandbox} ->
         wait_for_started_sandbox(client, sandbox_id, attempts_remaining - 1)
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, {:daytona_get_failed, status, body}}
 
       {:error, reason} ->
         {:error, reason}

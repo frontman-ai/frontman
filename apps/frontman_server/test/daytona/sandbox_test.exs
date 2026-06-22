@@ -23,7 +23,7 @@ defmodule Daytona.SandboxTest do
         Req.Test.json(conn, %{"id" => "sandbox_123", "state" => "started"})
       end)
 
-      assert {:ok, %Req.Response{status: 200}} =
+      assert {:ok, %{id: "sandbox_123"}} =
                Sandbox.create(daytona(), %{
                  name: "playgithub-test",
                  labels: %{
@@ -68,7 +68,7 @@ defmodule Daytona.SandboxTest do
         Req.Test.json(conn, %{"id" => "sandbox_123", "state" => "started"})
       end)
 
-      assert {:ok, %Req.Response{status: 200}} =
+      assert {:ok, %{id: "sandbox_123"}} =
                Sandbox.create(daytona(), %{
                  name: "playgithub-test",
                  snapshot: "ubuntu-4vcpu-8ram-100gb",
@@ -106,7 +106,7 @@ defmodule Daytona.SandboxTest do
         Req.Test.json(conn, %{"id" => "sandbox_123", "state" => "started"})
       end)
 
-      assert {:ok, %Req.Response{status: 200, body: %{"state" => "started"}}} =
+      assert {:ok, %{"id" => "sandbox_123", "state" => "started"}} =
                Sandbox.get(daytona(), "sandbox_123")
     end
   end
@@ -122,8 +122,7 @@ defmodule Daytona.SandboxTest do
         Req.Test.json(conn, %{"id" => "sandbox_123", "state" => "started"})
       end)
 
-      assert {:ok, %Req.Response{status: 200, body: %{"state" => "started"}}} =
-               Sandbox.start(daytona(), "sandbox_123")
+      assert :started = Sandbox.start(daytona(), "sandbox_123")
     end
   end
 
@@ -141,7 +140,7 @@ defmodule Daytona.SandboxTest do
         })
       end)
 
-      assert {:ok, %Req.Response{status: 200, body: %{"url" => preview_url}}} =
+      assert {:ok, %{url: preview_url, preview_token: "preview-token"}} =
                Sandbox.get_preview_link(daytona(), "sandbox_123", 4321)
 
       assert preview_url == "https://4321-sandbox-123.proxy.daytona.work"
