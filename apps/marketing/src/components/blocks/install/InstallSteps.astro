@@ -400,14 +400,15 @@ const frameworks = [
 <script>
 	document.addEventListener('DOMContentLoaded', () => {
 		const tabs = document.querySelectorAll('.framework-tab')
+		const stepsTimeline = document.querySelector('.steps-timeline')
 		const installCommand = document.querySelector('[data-install-command]')
 		const portUrl = document.querySelector('[data-port-url]')
-		const step1Title = document.querySelector('[data-step1-title]')
-		const step1Description = document.querySelector('[data-step1-description]')
-		const step2Title = document.querySelector('[data-step2-title]')
-		const step2Description = document.querySelector('[data-step2-description]')
-		const step3Title = document.querySelector('[data-step3-title]')
-		const step3Description = document.querySelector('[data-step3-description]')
+		const step1Title = stepsTimeline?.querySelector('[data-step1-title]')
+		const step1Description = stepsTimeline?.querySelector('[data-step1-description]')
+		const step2Title = stepsTimeline?.querySelector('[data-step2-title]')
+		const step2Description = stepsTimeline?.querySelector('[data-step2-description]')
+		const step3Title = stepsTimeline?.querySelector('[data-step3-title]')
+		const step3Description = stepsTimeline?.querySelector('[data-step3-description]')
 		const pluginDirectoryLink = document.querySelector('[data-plugin-directory-link]')
 
 		// Framework tab switching
