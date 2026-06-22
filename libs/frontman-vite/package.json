@@ -63,12 +63,12 @@
 	"devDependencies": {
 		"@frontman-ai/frontman-core": "*",
 		"@frontman-ai/frontman-protocol": "*",
-		"@rescript/runtime": "12.2.0",
+		"@rescript/runtime": "12.3.0",
 		"@rescript/webapi": "*",
 		"dom-element-to-component-source": "0.5.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"sury": "11.0.0-alpha.4",
+		"sury": "11.0.0-alpha.5",
 		"tsup": "^8.0.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"

@@ -5,7 +5,7 @@
 	"type": "module",
 	"private": true,
 	"dependencies": {
-		"@rescript/runtime": "12.2.0"
+		"@rescript/runtime": "12.3.0"
 	},
 	"devDependencies": {
 		"rescript": "catalog:",

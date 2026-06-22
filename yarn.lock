@@ -2056,12 +2056,12 @@ __metadata:
   resolution: "@frontman-ai/astro-browser@workspace:libs/frontman-astro-browser"
   dependencies:
     "@frontman-ai/frontman-protocol": "workspace:*"
-    "@rescript/runtime": "npm:12.2.0"
+    "@rescript/runtime": "npm:12.3.0"
     "@rescript/webapi": "npm:*"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.2"
+    sury-ppx: "npm:^11.0.0-alpha.5"
     vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown
@@ -2074,7 +2074,7 @@ __metadata:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@frontman/bindings": "npm:*"
-    "@rescript/runtime": "npm:12.2.0"
+    "@rescript/runtime": "npm:12.3.0"
     "@rescript/webapi": "npm:*"
     chrome-launcher: "npm:^1.1.2"
     dom-element-to-component-source: "npm:0.5.0"
@@ -2129,7 +2129,7 @@ __metadata:
     rescript-vitest: "catalog:"
     streamdown: "npm:^2.5.0"
     sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.2"
+    sury-ppx: "npm:^11.0.0-alpha.5"
     tailwind-merge: "npm:^3.6.0"
     tailwindcss: "npm:^4.3.0"
     tw-animate-css: "npm:^1.4.0"
@@ -2152,7 +2152,7 @@ __metadata:
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
-    sury-ppx: "npm:^11.0.0-alpha.2"
+    sury-ppx: "npm:^11.0.0-alpha.5"
     vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown
@@ -2164,14 +2164,14 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-protocol": "npm:1.0.0"
     "@frontman/bindings": "npm:0.3.1"
-    "@rescript/runtime": "npm:12.2.0"
+    "@rescript/runtime": "npm:12.3.0"
     "@rescript/webapi": "npm:*"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
     lighthouse: "npm:^13.3.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.4"
+    sury: "npm:11.0.0-alpha.5"
     vite: "catalog:"
     vitest: "catalog:"
   dependenciesMeta:
@@ -2186,7 +2186,7 @@ __metadata:
   dependencies:
     "@rescript/webapi": "npm:*"
     rescript: "catalog:"
-    sury: "npm:11.0.0-alpha.4"
+    sury: "npm:11.0.0-alpha.5"
   languageName: unknown
   linkType: soft
 
@@ -2196,7 +2196,7 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
-    "@rescript/runtime": "npm:12.2.0"
+    "@rescript/runtime": "npm:12.3.0"
     "@rescript/webapi": "npm:*"
     "@sentry/nextjs": "npm:^10.53.1"
     chrome-launcher: "npm:^1.1.2"
@@ -2205,7 +2205,7 @@ __metadata:
     next: "npm:^16.2.4"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.4"
+    sury: "npm:11.0.0-alpha.5"
     tsup: "npm:^8.0.0"
     vite: "catalog:"
     vitest: "catalog:"
@@ -2254,14 +2254,14 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
-    "@rescript/runtime": "npm:12.2.0"
+    "@rescript/runtime": "npm:12.3.0"
     "@rescript/webapi": "npm:*"
     chrome-launcher: "npm:^1.1.2"
     dom-element-to-component-source: "npm:0.5.0"
     lighthouse: "npm:^13.3.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.4"
+    sury: "npm:11.0.0-alpha.5"
     tsup: "npm:^8.0.0"
     vite: "catalog:"
     vitest: "catalog:"
@@ -2277,7 +2277,7 @@ __metadata:
   resolution: "@frontman/bindings@workspace:libs/bindings"
   dependencies:
     "@rescript/react": "npm:^0.15.0"
-    "@rescript/runtime": "npm:12.2.0"
+    "@rescript/runtime": "npm:12.3.0"
     dom-element-to-component-source: "npm:^0.5.0"
     rescript: "catalog:"
     sentry-testkit: "npm:^6.4.0"
@@ -2349,7 +2349,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/logs@workspace:libs/logs"
   dependencies:
-    "@rescript/runtime": "npm:12.2.0"
+    "@rescript/runtime": "npm:12.3.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     vite: "catalog:"
@@ -5632,9 +5632,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@rescript/darwin-arm64@npm:12.3.0":
+  version: 12.3.0
+  resolution: "@rescript/darwin-arm64@npm:12.3.0"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
 "@rescript/darwin-x64@npm:12.2.0":
   version: 12.2.0
   resolution: "@rescript/darwin-x64@npm:12.2.0"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@rescript/darwin-x64@npm:12.3.0":
+  version: 12.3.0
+  resolution: "@rescript/darwin-x64@npm:12.3.0"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
@@ -5646,9 +5660,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@rescript/linux-arm64@npm:12.3.0":
+  version: 12.3.0
+  resolution: "@rescript/linux-arm64@npm:12.3.0"
+  conditions: os=linux & cpu=arm64
+  languageName: node
+  linkType: hard
+
 "@rescript/linux-x64@npm:12.2.0":
   version: 12.2.0
   resolution: "@rescript/linux-x64@npm:12.2.0"
+  conditions: os=linux & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@rescript/linux-x64@npm:12.3.0":
+  version: 12.3.0
+  resolution: "@rescript/linux-x64@npm:12.3.0"
   conditions: os=linux & cpu=x64
   languageName: node
   linkType: hard
@@ -5671,17 +5699,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@rescript/runtime@npm:12.3.0":
+  version: 12.3.0
+  resolution: "@rescript/runtime@npm:12.3.0"
+  checksum: 10c0/6d7b58078cec4444a3abd50fdb2ef35dfcc155c45cf824219dbc20180caef1aa891b10f4edf0c13396f7438023014eff0ab9289c9c8fae31d1a6e9d3849924a4
+  languageName: node
+  linkType: hard
+
 "@rescript/webapi@npm:*, @rescript/webapi@workspace:libs/experimental-rescript-webapi":
   version: 0.0.0-use.local
   resolution: "@rescript/webapi@workspace:libs/experimental-rescript-webapi"
   dependencies:
-    rescript: "npm:^12.2.0"
+    rescript: "npm:^12.3.0"
   languageName: unknown
   linkType: soft
 
 "@rescript/win32-x64@npm:12.2.0":
   version: 12.2.0
   resolution: "@rescript/win32-x64@npm:12.2.0"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@rescript/win32-x64@npm:12.3.0":
+  version: 12.3.0
+  resolution: "@rescript/win32-x64@npm:12.3.0"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
@@ -15448,7 +15490,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rescript@npm:12.2.0, rescript@npm:^12.2.0":
+"rescript@npm:12.2.0":
   version: 12.2.0
   resolution: "rescript@npm:12.2.0"
   dependencies:
@@ -15476,6 +15518,37 @@ __metadata:
     rescript-legacy: cli/rescript-legacy.js
     rescript-tools: cli/rescript-tools.js
   checksum: 10c0/7650a77a66e2f2ba2523eac54fd930f0b70bad922e9b498678e701e842a56c7b6facd0daf1ef9c7b71d344d9483a0293d17db72a67515a22d07856bdfc34fb46
+  languageName: node
+  linkType: hard
+
+"rescript@npm:^12.3.0":
+  version: 12.3.0
+  resolution: "rescript@npm:12.3.0"
+  dependencies:
+    "@rescript/darwin-arm64": "npm:12.3.0"
+    "@rescript/darwin-x64": "npm:12.3.0"
+    "@rescript/linux-arm64": "npm:12.3.0"
+    "@rescript/linux-x64": "npm:12.3.0"
+    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/win32-x64": "npm:12.3.0"
+  dependenciesMeta:
+    "@rescript/darwin-arm64":
+      optional: true
+    "@rescript/darwin-x64":
+      optional: true
+    "@rescript/linux-arm64":
+      optional: true
+    "@rescript/linux-x64":
+      optional: true
+    "@rescript/win32-x64":
+      optional: true
+  bin:
+    bsc: cli/bsc.js
+    bstracing: cli/bstracing.js
+    rescript: cli/rescript.js
+    rescript-legacy: cli/rescript-legacy.js
+    rescript-tools: cli/rescript-tools.js
+  checksum: 10c0/f16231ef95bb4371e531485c33dfd9227cbddc079c06dab9a8395d444b5e8a8cfb844e018667dfaf36465138eb832cf219f6f71c7c37b65621a5fe0db781809c
   languageName: node
   linkType: hard
 
@@ -16600,12 +16673,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sury-ppx@npm:^11.0.0-alpha.2":
-  version: 11.0.0-alpha.2
-  resolution: "sury-ppx@npm:11.0.0-alpha.2"
+"sury-ppx@npm:^11.0.0-alpha.5":
+  version: 11.0.0-alpha.5
+  resolution: "sury-ppx@npm:11.0.0-alpha.5"
   peerDependencies:
-    sury: ^11.0.0-alpha.2
-  checksum: 10c0/ae9190fa4e406de46e88b67db233e757db36f5377301227cf5b084b5b81d360725d6fc4781e24c56cb87476cd3a42af5acc0cfc49f0c7ea17435caf065ba22ab
+    sury: ^11.0.0-alpha.5
+  checksum: 10c0/cbbe0d4d7c4e35d9d7abff4b95361fe2611420bc6a6d38d3d3c142c855492834051b7a35edd30043fbb94b1964927c31d919993949e497135f3116be731f5525
   languageName: node
   linkType: hard
 
@@ -16618,6 +16691,18 @@ __metadata:
     rescript:
       optional: true
   checksum: 10c0/ba62718a206fb72f5c1c33fc779a403eb599cc47cec6217b76e24988ff4b8df8c1dca6a940fa3560af0854387bc7b5af6236532c449dc6bfbc9e7fb29421e990
+  languageName: node
+  linkType: hard
+
+"sury@npm:11.0.0-alpha.5":
+  version: 11.0.0-alpha.5
+  resolution: "sury@npm:11.0.0-alpha.5"
+  peerDependencies:
+    rescript: 12.x
+  peerDependenciesMeta:
+    rescript:
+      optional: true
+  checksum: 10c0/ad471aa3bea223437665fd34d07f90656c20878d3998daa9711b77955f2dc6ce032c9f3549e182408a758237f91d5c0fbdcec2c2c6d6fec21dfb12da67089d5e
   languageName: node
   linkType: hard
 

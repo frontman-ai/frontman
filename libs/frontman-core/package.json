@@ -38,10 +38,10 @@
 	"dependencies": {
 		"@frontman-ai/frontman-protocol": "1.0.0",
 		"@frontman/bindings": "0.3.1",
-		"@rescript/runtime": "12.2.0",
+		"@rescript/runtime": "12.3.0",
 		"chrome-launcher": "^1.1.2",
 		"lighthouse": "^13.3.0",
-		"sury": "11.0.0-alpha.4"
+		"sury": "11.0.0-alpha.5"
 	},
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"

@@ -32,6 +32,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "rescript": "^12.2.0"
+    "rescript": "^12.3.0"
   }
 }

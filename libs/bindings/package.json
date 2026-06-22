@@ -8,7 +8,7 @@
 		"./src/*.res.mjs": "./src/*.res.mjs"
 	},
 	"dependencies": {
-		"@rescript/runtime": "12.2.0",
+		"@rescript/runtime": "12.3.0",
 		"dom-element-to-component-source": "^0.5.0"
 	},
 	"devDependencies": {

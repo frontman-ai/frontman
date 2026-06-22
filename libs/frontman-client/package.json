@@ -41,7 +41,7 @@
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",
-		"sury-ppx": "^11.0.0-alpha.2",
+		"sury-ppx": "^11.0.0-alpha.5",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}

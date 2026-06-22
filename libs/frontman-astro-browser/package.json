@@ -6,7 +6,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@rescript/runtime": "12.2.0"
+    "@rescript/runtime": "12.3.0"
   },
   "devDependencies": {
     "@frontman-ai/frontman-protocol": "workspace:*",
@@ -14,7 +14,7 @@
     "rescript": "catalog:",
     "rescript-vitest": "catalog:",
     "sury": "catalog:",
-    "sury-ppx": "^11.0.0-alpha.2",
+    "sury-ppx": "^11.0.0-alpha.5",
     "vite": "catalog:",
     "vitest": "catalog:"
   }
