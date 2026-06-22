@@ -39,18 +39,14 @@ defmodule FrontmanServer.PlayGithub do
   @sandbox_start_poll_interval_ms 1_000
   @task_supervisor FrontmanServer.PlayGithub.TaskSupervisor
 
-  @type repository_command :: :create | :start | :clone | :install | :dev
-
   def get_or_create_repository_sandbox(scope, %GithubReference{} = github_reference) do
     run_repository_command(scope, github_reference, :create)
   end
 
-  @spec workspace_path(GithubReference.t()) :: String.t()
   def workspace_path(%GithubReference{} = github_reference) do
     launch_workspace_path(github_reference)
   end
 
-  @spec dev_server_port() :: pos_integer()
   def dev_server_port, do: @dev_server_port
 
   def get_owned_sandbox_preview_link(scope, sandbox_id, port)
@@ -108,16 +104,6 @@ defmodule FrontmanServer.PlayGithub do
     {:error, {:daytona_preview_lookup_failed, status, body}}
   end
 
-  @spec run_repository_command(
-          Accounts.scope(),
-          GithubReference.t(),
-          repository_command(),
-          keyword()
-        ) ::
-          {:ok, %{command: String.t(), sandbox: Sandbox.t()}}
-          | {:error, term()}
-          | {:error, term(), term()}
-          | {:error, term(), non_neg_integer(), term()}
   def run_repository_command(scope, github_reference, command, opts \\ [])
 
   def run_repository_command(scope, %GithubReference{} = github_reference, command, opts)

@@ -22,10 +22,6 @@ defmodule Daytona.Toolbox.Process do
                             coerce: true
                           )
 
-  @type execute_request :: unquote(Zoi.type_spec(@execute_request_schema))
-
-  @spec execute(Toolbox.t(), String.t(), execute_request(), keyword()) ::
-          {:ok, Req.Response.t()} | {:error, Exception.t()}
   def execute(%Toolbox{} = toolbox, sandbox_id, request, opts \\ [])
       when is_binary(sandbox_id) and is_map(request) and is_list(opts) do
     request = Zoi.parse!(@execute_request_schema, request)

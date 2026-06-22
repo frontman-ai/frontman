@@ -43,9 +43,6 @@ defmodule Daytona.Sandbox do
                            coerce: true
                          )
 
-  @type create_request :: unquote(Zoi.type_spec(@create_sandbox_schema))
-
-  @spec create(Daytona.t(), create_request()) :: {:ok, Req.Response.t()} | {:error, Exception.t()}
   def create(%Daytona{} = daytona, sandbox) when is_map(sandbox) do
     daytona
     |> Daytona.app_request()

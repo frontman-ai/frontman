@@ -21,10 +21,6 @@ defmodule Daytona.Toolbox.Git do
                           coerce: true
                         )
 
-  @type clone_request :: unquote(Zoi.type_spec(@clone_request_schema))
-
-  @spec clone(Toolbox.t(), String.t(), clone_request(), keyword()) ::
-          {:ok, Req.Response.t()} | {:error, Exception.t()}
   def clone(%Toolbox{} = toolbox, sandbox_id, request, opts \\ [])
       when is_binary(sandbox_id) and is_map(request) and is_list(opts) do
     timeout_seconds = Keyword.get(opts, :timeout_seconds, 300)

@@ -8,16 +8,9 @@ defmodule Daytona do
   @moduledoc false
 
   use Boundary, exports: [Sandbox, Toolbox, Toolbox.Git, Toolbox.Process]
-  use TypedStruct
+  @enforce_keys [:app_api_url, :api_key, :organization_id]
+  defstruct [:app_api_url, :api_key, :organization_id, req_options: []]
 
-  typedstruct enforce: true do
-    field(:app_api_url, String.t())
-    field(:api_key, String.t())
-    field(:organization_id, String.t())
-    field(:req_options, keyword(), default: [])
-  end
-
-  @spec new() :: t()
   def new do
     config = config()
 

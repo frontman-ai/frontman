@@ -23,9 +23,6 @@ defmodule FrontmanServer.PlayGithub.Sandbox do
   )a
   @failure_statuses ~w(sandbox_create_failed clone_failed install_failed dev_server_failed)a
 
-  @type status :: unquote(Enum.reduce(@statuses, &{:|, [], [&1, &2]}))
-  @type t :: %__MODULE__{}
-
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "playgithub_sandboxes" do
@@ -40,7 +37,6 @@ defmodule FrontmanServer.PlayGithub.Sandbox do
     timestamps(type: :utc_datetime)
   end
 
-  @spec statuses() :: [status()]
   def statuses, do: @statuses
 
   @doc """
@@ -48,7 +44,6 @@ defmodule FrontmanServer.PlayGithub.Sandbox do
 
   `user_id` must be set on the struct before calling this changeset.
   """
-  @spec create_changeset(t(), map()) :: Ecto.Changeset.t()
   def create_changeset(%__MODULE__{} = sandbox, attrs) do
     sandbox
     |> cast(attrs, [:github_url])
@@ -65,7 +60,6 @@ defmodule FrontmanServer.PlayGithub.Sandbox do
   @doc """
   Changeset for recording the Daytona sandbox id after external creation succeeds.
   """
-  @spec attach_daytona_sandbox_changeset(t(), String.t()) :: Ecto.Changeset.t()
   def attach_daytona_sandbox_changeset(%__MODULE__{} = sandbox, daytona_sandbox_id)
       when is_binary(daytona_sandbox_id) do
     sandbox
@@ -85,7 +79,6 @@ defmodule FrontmanServer.PlayGithub.Sandbox do
   @doc """
   Changeset for updating internal PlayGithub workflow status.
   """
-  @spec status_changeset(t(), status()) :: Ecto.Changeset.t()
   def status_changeset(%__MODULE__{} = sandbox, status) when status in @statuses do
     sandbox
     |> change(
@@ -99,7 +92,6 @@ defmodule FrontmanServer.PlayGithub.Sandbox do
   @doc """
   Changeset for recording failed PlayGithub workflow status with an error.
   """
-  @spec failure_status_changeset(t(), status(), String.t()) :: Ecto.Changeset.t()
   def failure_status_changeset(%__MODULE__{} = sandbox, status, error)
       when status in @failure_statuses and is_binary(error) do
     sandbox
@@ -112,14 +104,12 @@ defmodule FrontmanServer.PlayGithub.Sandbox do
     |> validate_length(:status_error, min: 1, max: 1_000)
   end
 
-  @spec by_github_url(Accounts.scope(), String.t()) :: Ecto.Query.t()
   def by_github_url(scope, github_url) do
     user_id = Accounts.scope_user_id(scope)
 
     from(s in __MODULE__, where: s.user_id == ^user_id and s.github_url == ^github_url)
   end
 
-  @spec by_daytona_sandbox_id(Accounts.scope(), String.t()) :: Ecto.Query.t()
   def by_daytona_sandbox_id(scope, daytona_sandbox_id) do
     user_id = Accounts.scope_user_id(scope)
 

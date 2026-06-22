@@ -53,7 +53,6 @@ jobs:
       # Cloak encryption key (same test key used in dev)
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
       DAYTONA_API_KEY: "test-daytona-key"
-      DAYTONA_ORGANIZATION_ID: "test-daytona-org"
       # Disable Yarn hardened mode — adds ~20s to resolution for public-PR detection.
       # --immutable already prevents lockfile changes, so hardened mode is redundant.
       YARN_ENABLE_HARDENED_MODE: "0"

@@ -13,18 +13,14 @@ defmodule Daytona.Toolbox do
             __MODULE__,
             %{
               daytona: Zoi.any() |> Zoi.optional(),
-              proxyToolboxUrl:
-                Zoi.url(typespec: quote(do: URI.t()))
-                |> Zoi.transform(&URI.parse/1)
+              proxyToolboxUrl: Zoi.url() |> Zoi.transform(&URI.parse/1)
             },
             coerce: true
           )
 
-  @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 
-  @spec fetch(Daytona.t()) :: {:ok, t()} | {:error, term()}
   def fetch(%Daytona{} = daytona) do
     with {:ok, %Req.Response{status: status, body: body}} when status in 200..299 <-
            daytona |> Daytona.app_request() |> Req.get(url: "/config"),

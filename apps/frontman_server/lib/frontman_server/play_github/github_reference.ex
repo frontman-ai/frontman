@@ -24,17 +24,9 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
             raw_segments: Zoi.array(Zoi.string())
           })
 
-  @type resource :: unquote(Zoi.type_spec(@resource_schema))
-  @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 
-  @spec parse_path([String.t()]) ::
-          {:ok, t()}
-          | {:error, :missing_owner_or_repo}
-          | {:error, :missing_tree_ref}
-          | {:error, :invalid_issue_number}
-          | {:error, {:unsupported_github_path, [String.t()]}}
   def parse_path([owner, repo]) do
     {:ok,
      %__MODULE__{
@@ -90,7 +82,6 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
     {:error, {:unsupported_github_path, extra_segments}}
   end
 
-  @spec github_url(t()) :: String.t()
   def github_url(%__MODULE__{resource: %TreePath{} = tree_path} = github_reference) do
     repo_url = repository_url(github_reference)
 
@@ -106,28 +97,23 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
 
   def github_url(%__MODULE__{} = github_reference), do: repository_url(github_reference)
 
-  @spec repository_backed?(t()) :: boolean()
   def repository_backed?(%__MODULE__{resource: %RepositoryPath{}}), do: true
   def repository_backed?(%__MODULE__{resource: %TreePath{}}), do: true
   def repository_backed?(%__MODULE__{}), do: false
 
-  @spec repository_url(t()) :: String.t()
   def repository_url(%__MODULE__{owner: owner, repo: repo}) do
     "https://github.com/#{owner}/#{repo}"
   end
 
-  @spec branch(t()) :: String.t() | nil
   def branch(%__MODULE__{resource: %TreePath{ref: ref}}), do: ref
   def branch(%__MODULE__{}), do: nil
 
-  @spec repository_path(t()) :: String.t() | nil
   def repository_path(%__MODULE__{resource: %TreePath{} = tree_path}) do
     TreePath.repo_path(tree_path)
   end
 
   def repository_path(%__MODULE__{}), do: nil
 
-  @spec workspace_path(t()) :: String.t()
   def workspace_path(%__MODULE__{} = github_reference) do
     case repository_path(github_reference) do
       nil -> "workspace"
@@ -135,7 +121,6 @@ defmodule FrontmanServer.PlayGithub.GithubReference do
     end
   end
 
-  @spec repository_identity(t()) :: String.t()
   def repository_identity(%__MODULE__{} = github_reference) do
     github_url(github_reference)
   end

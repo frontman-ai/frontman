@@ -52,8 +52,6 @@ config :frontman_server, :cookie_domain, ".frontman.local"
 
 config :frontman_server, :playgithub, hosts: ["playgithub.frontman.local"]
 
-config :frontman_server, Daytona, organization_id: "5d79dbea-e1d6-4c0b-9fab-771e7d73641d"
-
 # Watch static and templates for browser reloading.
 config :frontman_server, FrontmanServerWeb.Endpoint,
   live_reload: [
@@ -72,6 +70,7 @@ config :frontman_server, dev_routes: true
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id, :task_id, :pid, :reason]
+
 # Set a higher stacktrace during development. Avoid configuring such
 # in production as building large stacktraces may be expensive.
 config :phoenix, :stacktrace_depth, 20

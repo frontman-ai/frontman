@@ -14,11 +14,9 @@ defmodule FrontmanServer.PlayGithub.GithubReference.TreePath do
             path_segments: Zoi.array(Zoi.string()) |> Zoi.default([]) |> Zoi.optional()
           })
 
-  @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 
-  @spec repo_path(t()) :: String.t() | nil
   def repo_path(%__MODULE__{path_segments: []}), do: nil
   def repo_path(%__MODULE__{path_segments: path_segments}), do: Enum.join(path_segments, "/")
 end

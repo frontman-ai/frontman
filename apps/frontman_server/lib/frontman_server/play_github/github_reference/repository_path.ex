@@ -11,7 +11,6 @@ defmodule FrontmanServer.PlayGithub.GithubReference.RepositoryPath do
 
   @schema Zoi.struct(__MODULE__, %{})
 
-  @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 end

@@ -11,7 +11,6 @@ defmodule FrontmanServer.PlayGithub.GithubReference.IssuePath do
 
   @schema Zoi.struct(__MODULE__, %{number: Zoi.integer() |> Zoi.positive()})
 
-  @type t :: unquote(Zoi.type_spec(@schema))
   @enforce_keys Zoi.Struct.enforce_keys(@schema)
   defstruct Zoi.Struct.struct_fields(@schema)
 end
