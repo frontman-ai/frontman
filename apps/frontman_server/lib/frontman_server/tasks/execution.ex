@@ -212,17 +212,4 @@ defmodule FrontmanServer.Tasks.Execution do
 
   defp to_swarm_content_part(%{"type" => "image", "data" => data, "mimeType" => mime_type}),
     do: ContentPart.image(Base.decode64!(data), mime_type)
-
-  @doc false
-  def error_message(%Scope{}, :no_api_key),
-    do: "No API key available for this request."
-
-  def error_message(%Scope{}, :registration_timeout),
-    do: "Agent failed to start. Please try again."
-
-  def error_message(%Scope{}, :missing_model),
-    do: "Model is required for this request."
-
-  def error_message(%Scope{}, _reason),
-    do: "Agent failed to start. Please try again."
 end

@@ -790,9 +790,15 @@ defmodule FrontmanServer.Tasks do
        when is_integer(turn_number) and turn_number > 0 do
     Logger.error("Execution failed to start for task #{task_id}: #{inspect(reason)}")
 
-    message = Execution.error_message(scope, reason)
-    {:ok, _error} = record_agent_run_result(scope, task_id, turn_number, {:failed, message})
-    broadcast_task(task_id, {:execution_start_error, message, turn_number})
+    {message, category, retryable} = ErrorClassifier.classify_error(reason)
+
+    {:ok, _error} =
+      record_agent_run_result(
+        scope,
+        task_id,
+        turn_number,
+        {:failed, message, retryable, category}
+      )
 
     :ok
   end

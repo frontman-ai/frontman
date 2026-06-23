@@ -12,6 +12,7 @@
  * - Submit button with status
  */
 module Icons = Client__ToolIcons
+module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 // ============================================================================
 // Types
@@ -239,7 +240,6 @@ let focusAtEnd: Dom.element => unit = %raw(`
 // Uses Radix UI Select for consistent dark theme styling across all platforms (including Linux)
 module ModelSelector = {
   module Select = FrontmanBindings.Bindings__RadixUI__Select
-  module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
   // Get the display name for the currently selected value from config option
   let _getSelectedDisplay = (configOption: ACP.sessionConfigOption, selectedValue: string): option<
@@ -351,6 +351,14 @@ module ModelSelector = {
         </Select.Content>
       </Select.Portal>
     </Select.Root>
+  }
+}
+
+let modelConfigOptionHasModels = (configOption: ACP.sessionConfigOption) => {
+  switch configOption {
+  | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
+    groups->Array.some(group => group.options->Array.length > 0)
+  | ACP.SelectConfigOption({options: ACP.Ungrouped(options)}) => options->Array.length > 0
   }
 }
 
@@ -469,12 +477,11 @@ module SubmitButton = {
 let make = (
   ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => unit,
   ~onCancel: unit => unit,
-  ~modelConfigOption: option<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption>,
+  ~modelConfigOption: option<ACP.sessionConfigOption>,
   ~isModelsConfigLoading: bool,
-  ~selectedModelValue: option<
-    FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId,
-  >,
+  ~selectedModelValue: option<ACP.sessionConfigValueId>,
   ~onModelChange: string => unit,
+  ~onConfigureProvider: unit => unit,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
   ~placeholder: string="What would you like to change?",
@@ -497,6 +504,12 @@ let make = (
   let formRef = React.useRef(Nullable.null)
   // Ref to hold the latest inputItems so callbacks always see current value
   let itemsRef: React.ref<array<inputItem>> = React.useRef([])
+  let noModelsConfigured =
+    !isModelsConfigLoading &&
+    switch modelConfigOption {
+    | Some(configOption) => !modelConfigOptionHasModels(configOption)
+    | None => false
+    }
 
   // Keep itemsRef in sync
   React.useEffect1(() => {
@@ -798,7 +811,7 @@ let make = (
     })
   }
 
-  let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled
+  let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled || noModelsConfigured
   let isSubmitDisabled = isInputDisabled || !hasContent && !hasAnnotations || isEnrichingAnnotations
 
   // Handle keydown in contentEditable.
@@ -818,7 +831,9 @@ let make = (
   }
 
   // Determine placeholder text based on state
-  let currentPlaceholder = if disabled {
+  let currentPlaceholder = if noModelsConfigured {
+    "Connect an AI provider to start chatting."
+  } else if disabled {
     disabledPlaceholder->Option.getOr("Input disabled")
   } else if isAgentRunning {
     "Waiting for response..."
@@ -958,6 +973,16 @@ let make = (
           >
             <span className="truncate"> {React.string("Loading...")} </span>
           </div>
+        | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
+          <button
+            type_="button"
+            onClick={_ => onConfigureProvider()}
+            className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md
+                       text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
+                       transition-colors cursor-pointer shrink-0"
+          >
+            {React.string("Configure provider")}
+          </button>
         | (false, Some(configOption)) =>
           <div className="shrink min-w-0 max-w-[160px]">
             <ModelSelector

@@ -70,10 +70,12 @@ let make = (
 
   // Sticky container with dark background for proper stacking
   <div className={`sticky top-0 z-10 bg-[#130d20] py-2 px-3 ${animationClass}`}>
-    <div className="inline-block max-w-[85%] bg-violet-600/80 rounded-2xl px-4 py-3">
+    <div
+      className="inline-block max-w-[85%] min-w-0 overflow-hidden bg-violet-600/80 rounded-2xl px-4 py-3"
+    >
       // Annotation chips (above images/text)
       {hasAnnotations
-        ? <div className="flex flex-wrap gap-1.5 mb-2">
+        ? <div className="flex flex-wrap gap-1.5 mb-2 min-w-0">
             {annotations
             ->Array.mapWithIndex((annotation, i) => {
               let badge = _getBadge(i)
@@ -85,13 +87,16 @@ let make = (
                   : `<${annotation.tagName}>`
               | None => `<${annotation.tagName}>`
               }
-              <div key={`${messageId}-ann-${Int.toString(i)}`} className="flex flex-col gap-0.5">
+              <div
+                key={`${messageId}-ann-${Int.toString(i)}`}
+                className="flex flex-col gap-0.5 min-w-0"
+              >
                 <div
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0
                              bg-violet-500/60 text-violet-100 text-xs font-mono"
                 >
-                  <span className="text-violet-200"> {React.string(badge)} </span>
-                  <span className="truncate max-w-[160px]"> {React.string(label)} </span>
+                  <span className="text-violet-200 shrink-0"> {React.string(badge)} </span>
+                  <span className="truncate min-w-0 max-w-[160px]"> {React.string(label)} </span>
                 </div>
                 {switch annotation.comment {
                 | Some(comment) =>

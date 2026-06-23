@@ -157,10 +157,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_interaction(interaction, turn_number, socket)
   end
 
-  def handle_info({:execution_start_error, msg, turn_number}, socket) do
-    finalize_turn(socket, {:error, msg, "unknown"}, turn_number)
-  end
-
   def handle_info({:fire_retry, token}, socket) do
     case socket.assigns[:retry_state] do
       %{timer_token: ^token, retried_error_id: retried_error_id} ->

@@ -144,6 +144,8 @@ module SampleConfig = {
   let configWithOpenRouterOnly = [_makeModelConfigOption(~groups=[_openrouterGroup])]
 
   let configWithFireworksOnly = [_makeModelConfigOption(~groups=[_fireworksGroup])]
+
+  let configWithNoModels = [_makeModelConfigOption(~groups=[])]
 }
 
 describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
@@ -294,6 +296,18 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     )
 
     t->expect(nextState.selectedModelValue)->Expect.toEqual(Some(existingModel))
+    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
+  })
+
+  test("accepts empty model config when no providers are configured", t => {
+    let state = _makeState()
+
+    let (nextState, _effects) = Reducer.next(
+      state,
+      ConfigOptionsReceived({configOptions: SampleConfig.configWithNoModels}),
+    )
+
+    t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 })

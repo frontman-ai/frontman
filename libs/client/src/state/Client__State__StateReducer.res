@@ -12,6 +12,7 @@ let name = "Client::StateReducer"
 module UserContentPart = Client__State__Types.UserContentPart
 module Message = Client__State__Types.Message
 module Task = Client__State__Types.Task
+module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 type state = Client__State__Types.state
 
 // ============================================================================
@@ -1338,20 +1339,18 @@ let next = (state: state, action) => {
 
   // ACP session config option actions
   | ConfigOptionsReceived({configOptions}) =>
-    open FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
     let modelConfigOption =
-      findConfigOptionByCategory(configOptions, Model)->Option.getOrThrow(
+      ACP.findConfigOptionByCategory(configOptions, ACP.Model)->Option.getOrThrow(
         ~message="ConfigOptionsReceived missing model config option",
       )
 
     let firstModelValue = switch modelConfigOption {
-    | SelectConfigOption({options: Grouped(groups)}) =>
+    | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
       groups
       ->Array.get(0)
       ->Option.flatMap(g => g.options->Array.get(0))
       ->Option.map(opt => opt.value)
-      ->Option.getOrThrow(~message="Model config option has no models")
-    | SelectConfigOption({options: Ungrouped(_)}) =>
+    | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) =>
       failwith("Model config option must use grouped options")
     }
 
@@ -1361,12 +1360,12 @@ let next = (state: state, action) => {
     | Some(providerId) =>
       // Find the first model value from the newly connected provider's group
       let providerModelValue = switch modelConfigOption {
-      | SelectConfigOption({options: Grouped(groups)}) =>
+      | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
         groups
         ->Array.find(g => g.group == providerId)
         ->Option.flatMap(g => g.options->Array.get(0))
         ->Option.map(opt => opt.value)
-      | SelectConfigOption({options: Ungrouped(_)}) =>
+      | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) =>
         failwith("Model config option must use grouped options")
       }
       switch providerModelValue {
@@ -1376,7 +1375,7 @@ let next = (state: state, action) => {
     | None =>
       switch state.selectedModelValue {
       | Some(value) => (Some(value), false)
-      | None => (Some(firstModelValue), true)
+      | None => (firstModelValue, firstModelValue->Option.isSome)
       }
     }
     // Persist whenever we picked a new model

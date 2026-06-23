@@ -26,6 +26,12 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
     classify_reqllm_request(status, reason)
   end
 
+  def classify_error(:no_api_key), do: {"No API key available for this request.", "auth", false}
+  def classify_error(:missing_model), do: {"Model is required for this request.", "auth", false}
+
+  def classify_error(:registration_timeout),
+    do: {"Agent failed to start. Please try again.", "unknown", false}
+
   def classify_error(%StreamStallTimeout.Error{}) do
     {"The AI provider stopped responding mid-reply. " <>
        "This usually happens when the provider is temporarily overloaded. " <>

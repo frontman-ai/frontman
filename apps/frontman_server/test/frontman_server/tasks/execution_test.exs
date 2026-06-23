@@ -203,9 +203,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _, 1} =
         submit_user_message(scope, task_id, user_content("Hello"), model: "missing:test")
 
-      assert_receive {:execution_start_error, "No API key available for this request.", 1}
+      assert_receive {:interaction, %Interaction.AgentError{category: "auth"}, 1}
 
-      assert %InteractionSchema{turn_number: 1} =
+      assert %InteractionSchema{turn_number: 1, data: %{"category" => "auth"}} =
                Repo.get_by!(InteractionSchema,
                  task_id: task_id,
                  type: Interaction.type_for(Interaction.AgentError)
@@ -259,7 +259,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [%Interaction.Annotation{screenshot: %Interaction.Screenshot{}}] =
                broadcast_message.annotations
 
-      assert_receive {:execution_start_error, "No API key available for this request.", 1}
+      assert_receive {:interaction, %Interaction.AgentError{category: "auth"}, 1}
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert [%Interaction.UserMessage{} = persisted_message | _] = task.interactions

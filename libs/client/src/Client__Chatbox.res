@@ -96,7 +96,7 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
 }
 
 @react.component
-let make = () => {
+let make = (~onConfigureProvider: unit => unit) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
@@ -361,6 +361,7 @@ let make = () => {
         <ErrorBanner
           error={Message.ErrorMessage.error(err)}
           category={Message.ErrorMessage.category(err)}
+          onConfigureProvider
           onRetry={switch currentTaskId {
           | Some(taskId) =>
             () =>
@@ -399,6 +400,7 @@ let make = () => {
           <ErrorBanner
             error=message
             category
+            onConfigureProvider
             onRetry={() =>
               Client__State.Actions.retryTurn(
                 ~taskId,
@@ -429,6 +431,7 @@ let make = () => {
           isModelsConfigLoading
           selectedModelValue
           onModelChange={value => Client__State.Actions.setSelectedModelValue(~value)}
+          onConfigureProvider
           isAgentRunning
           hasActiveACPSession
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}

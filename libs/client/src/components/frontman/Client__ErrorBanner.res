@@ -2,7 +2,12 @@
 // Always shows a retry button. Permanent errors show category-specific guidance.
 
 @react.component
-let make = (~error: string, ~category: string, ~onRetry: unit => unit) => {
+let make = (
+  ~error: string,
+  ~category: string,
+  ~onRetry: unit => unit,
+  ~onConfigureProvider: option<unit => unit>=?,
+) => {
   let guidance = switch category {
   | "auth" | "billing" => Some("Check Settings")
   | "rate_limit" => Some("Wait a moment before retrying")
@@ -24,6 +29,16 @@ let make = (~error: string, ~category: string, ~onRetry: unit => unit) => {
       >
         {React.string("Retry")}
       </button>
+      {switch (category, onConfigureProvider) {
+      | ("auth", Some(onConfigureProvider)) | ("billing", Some(onConfigureProvider)) =>
+        <button
+          onClick={_ => onConfigureProvider()}
+          className="text-xs text-red-100 border border-red-500/70 bg-red-500/10 hover:bg-red-500/20 hover:border-red-400 px-3 py-1 rounded transition-colors"
+        >
+          {React.string("Configure provider")}
+        </button>
+      | _ => React.null
+      }}
       <a
         href="https://frontman.sh/docs"
         target="_blank"
