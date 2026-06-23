@@ -43,7 +43,10 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post("#{@issuer}/api/accounts/deviceauth/usercode", body: body, headers: headers) do
+    case Req.post(
+           "#{@issuer}/api/accounts/deviceauth/usercode",
+           [body: body, headers: headers] ++ req_options()
+         ) do
       {:ok, %Req.Response{status: status, body: response_body}} when status in 200..299 ->
         device_auth_id = response_body["device_auth_id"]
         user_code = response_body["user_code"] || response_body["usercode"]
@@ -94,7 +97,10 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post("#{@issuer}/api/accounts/deviceauth/token", body: body, headers: headers) do
+    case Req.post(
+           "#{@issuer}/api/accounts/deviceauth/token",
+           [body: body, headers: headers] ++ req_options()
+         ) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         authorization_code = response_body["authorization_code"]
         code_verifier = response_body["code_verifier"]
@@ -150,7 +156,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post(@token_url, body: body, headers: headers) do
+    case Req.post(@token_url, [body: body, headers: headers] ++ req_options()) do
       {:ok,
        %Req.Response{
          status: 200,
@@ -201,7 +207,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post(@token_url, body: body, headers: headers) do
+    case Req.post(@token_url, [body: body, headers: headers] ++ req_options()) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok,
          %{
@@ -281,4 +287,8 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
 
   defp get_first_org_id(%{"organizations" => [%{"id" => id} | _]}) when is_binary(id), do: id
   defp get_first_org_id(_), do: nil
+
+  defp req_options do
+    Application.get_env(:frontman_server, :openai_oauth_req_options, [])
+  end
 end

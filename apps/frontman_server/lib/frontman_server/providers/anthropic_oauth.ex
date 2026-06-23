@@ -90,7 +90,7 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post(@token_url, json: body, headers: headers) do
+    case Req.post(@token_url, [json: body, headers: headers] ++ req_options()) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok,
          %{
@@ -129,7 +129,7 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post(@token_url, json: body, headers: headers) do
+    case Req.post(@token_url, [json: body, headers: headers] ++ req_options()) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok,
          %{
@@ -155,4 +155,8 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
 
   defp add_state(body, nil), do: body
   defp add_state(body, state), do: Map.put(body, "state", state)
+
+  defp req_options do
+    Application.get_env(:frontman_server, :anthropic_oauth_req_options, [])
+  end
 end

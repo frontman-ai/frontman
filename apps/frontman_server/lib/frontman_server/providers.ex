@@ -51,10 +51,19 @@ defmodule FrontmanServer.Providers do
   def prepare_llm_args(scope, model, opts) when is_binary(model) and model != "" do
     provider = model_provider_name(model)
 
-    case oauth_llm_opts(provider, resolve_oauth_token(scope, provider)) do
-      {:ok, llm_opts} -> {:ok, {model, Keyword.merge(llm_opts, opts)}}
-      {:error, reason} -> {:error, reason}
-      :use_api_key -> api_key_llm_args(scope, provider, model, opts)
+    case resolve_oauth_token(scope, provider) do
+      {:ok, token} ->
+        case oauth_llm_opts(provider, token) do
+          {:ok, llm_opts} -> {:ok, {model, Keyword.merge(llm_opts, opts)}}
+          {:error, reason} -> {:error, reason}
+          :use_api_key -> api_key_llm_args(scope, provider, model, opts)
+        end
+
+      :none ->
+        api_key_llm_args(scope, provider, model, opts)
+
+      {:error, {:refresh_failed, _token, _reason}} ->
+        api_key_llm_args(scope, provider, model, opts)
     end
   end
 
@@ -148,16 +157,19 @@ defmodule FrontmanServer.Providers do
   end
 
   def oauth_connection_status(scope, provider) do
-    case get_oauth_token(scope, provider) do
-      nil ->
+    case resolve_oauth_token(scope, provider) do
+      :none ->
         %{connected: false}
 
-      token ->
+      {:ok, token} ->
         %{
           connected: true,
           expires_at: DateTime.to_iso8601(token.expires_at),
-          expired: OAuthToken.expired?(token)
+          expired: false
         }
+
+      {:error, {:refresh_failed, _token, _reason}} ->
+        %{connected: false}
     end
   end
 
@@ -273,14 +285,14 @@ defmodule FrontmanServer.Providers do
   defp resolve_oauth_token(%Scope{} = scope, provider) do
     case get_oauth_token(scope, provider) do
       %OAuthToken{} = token ->
-        if OAuthToken.expired?(token), do: refresh_oauth_token(scope, token), else: token
+        if OAuthToken.expired?(token), do: refresh_oauth_token(scope, token), else: {:ok, token}
 
       nil ->
-        nil
+        :none
     end
   end
 
-  defp resolve_oauth_token(_scope, _provider), do: nil
+  defp resolve_oauth_token(_scope, _provider), do: :none
 
   defp resolve_api_key(%Scope{} = scope, provider) do
     case get_api_key(scope, provider) do
@@ -350,16 +362,20 @@ defmodule FrontmanServer.Providers do
                expires_at,
                metadata
              ) do
-          {:ok, token} -> token
-          {:error, _reason} -> nil
+          {:ok, token} -> {:ok, token}
+          {:error, reason} -> {:error, {:refresh_failed, token, reason}}
         end
 
-      {:error, _reason} ->
-        nil
+      {:error, {:token_refresh_failed, 400, %{"error" => "invalid_grant"}} = reason} ->
+        delete_oauth_token(scope, token.provider)
+        {:error, {:refresh_failed, token, reason}}
+
+      {:error, reason} ->
+        {:error, {:refresh_failed, token, reason}}
     end
   end
 
-  defp refresh_oauth_token(%Scope{} = scope, %OAuthToken{} = token) do
+  defp refresh_oauth_token(%Scope{} = scope, %OAuthToken{provider: "anthropic"} = token) do
     case AnthropicOAuth.refresh_token(token.refresh_token) do
       {:ok, new_tokens} ->
         expires_at = OAuthToken.calculate_expires_at(new_tokens.expires_in)
@@ -368,17 +384,23 @@ defmodule FrontmanServer.Providers do
                scope,
                token.provider,
                new_tokens.access_token,
-               new_tokens.refresh_token,
+               new_tokens.refresh_token || token.refresh_token,
                expires_at
              ) do
-          {:ok, token} -> token
-          {:error, _reason} -> nil
+          {:ok, token} -> {:ok, token}
+          {:error, reason} -> {:error, {:refresh_failed, token, reason}}
         end
 
-      {:error, _reason} ->
-        nil
+      {:error, {:token_refresh_failed, 400, %{"error" => "invalid_grant"}} = reason} ->
+        delete_oauth_token(scope, token.provider)
+        {:error, {:refresh_failed, token, reason}}
+
+      {:error, reason} ->
+        {:error, {:refresh_failed, token, reason}}
     end
   end
+
+  defp refresh_oauth_token(_scope, %OAuthToken{} = token), do: {:ok, token}
 
   @doc """
   Deletes an OAuth token for a provider.
@@ -451,8 +473,13 @@ defmodule FrontmanServer.Providers do
     oauth_providers =
       OAuthToken
       |> OAuthToken.for_user(Accounts.scope_user_id(scope))
-      |> select([token], token.provider)
       |> Repo.all()
+      |> Enum.flat_map(fn token ->
+        case resolve_oauth_token(scope, token.provider) do
+          {:ok, token} -> [token.provider]
+          _unavailable -> []
+        end
+      end)
 
     provider_configs =
       Enum.filter(@providers, fn
