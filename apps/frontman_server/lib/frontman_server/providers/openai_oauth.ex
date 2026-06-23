@@ -23,9 +23,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
 
   require Logger
 
-  @client_id Application.compile_env!(:frontman_server, [__MODULE__, :client_id])
-  @issuer Application.compile_env!(:frontman_server, [__MODULE__, :issuer])
-  @token_url "#{@issuer}/oauth/token"
+  @config Application.compile_env!(:frontman_server, __MODULE__)
 
   @doc """
   Step 1: Request a device code from OpenAI.
@@ -36,7 +34,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
   The `interval` is the polling interval in seconds.
   """
   def request_device_code do
-    body = Jason.encode!(%{"client_id" => @client_id})
+    body = Jason.encode!(%{"client_id" => @config[:client_id]})
 
     headers = [
       {"content-type", "application/json"},
@@ -44,7 +42,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
     ]
 
     case Req.post(
-           "#{@issuer}/api/accounts/deviceauth/usercode",
+           "#{@config[:issuer]}/api/accounts/deviceauth/usercode",
            [body: body, headers: headers] ++ req_options()
          ) do
       {:ok, %Req.Response{status: status, body: response_body}} when status in 200..299 ->
@@ -58,7 +56,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
              device_auth_id: device_auth_id,
              user_code: user_code,
              interval: interval,
-             verification_url: "#{@issuer}/codex/device"
+             verification_url: "#{@config[:issuer]}/codex/device"
            }}
         else
           Logger.error("OpenAI device code response missing fields: #{inspect(response_body)}")
@@ -98,7 +96,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
     ]
 
     case Req.post(
-           "#{@issuer}/api/accounts/deviceauth/token",
+           "#{@config[:issuer]}/api/accounts/deviceauth/token",
            [body: body, headers: headers] ++ req_options()
          ) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
@@ -146,8 +144,8 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
       URI.encode_query(%{
         "grant_type" => "authorization_code",
         "code" => authorization_code,
-        "redirect_uri" => "#{@issuer}/deviceauth/callback",
-        "client_id" => @client_id,
+        "redirect_uri" => "#{@config[:issuer]}/deviceauth/callback",
+        "client_id" => @config[:client_id],
         "code_verifier" => code_verifier
       })
 
@@ -156,7 +154,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post(@token_url, [body: body, headers: headers] ++ req_options()) do
+    case Req.post(token_url(), [body: body, headers: headers] ++ req_options()) do
       {:ok,
        %Req.Response{
          status: 200,
@@ -199,7 +197,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
       URI.encode_query(%{
         "grant_type" => "refresh_token",
         "refresh_token" => refresh_token,
-        "client_id" => @client_id
+        "client_id" => @config[:client_id]
       })
 
     headers = [
@@ -207,7 +205,7 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post(@token_url, [body: body, headers: headers] ++ req_options()) do
+    case Req.post(token_url(), [body: body, headers: headers] ++ req_options()) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok,
          %{
@@ -289,8 +287,8 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
   defp get_first_org_id(_), do: nil
 
   defp req_options do
-    :frontman_server
-    |> Application.fetch_env!(__MODULE__)
-    |> Keyword.get(:req_options, [])
+    Keyword.get(@config, :req_options, [])
   end
+
+  defp token_url, do: "#{@config[:issuer]}/oauth/token"
 end
