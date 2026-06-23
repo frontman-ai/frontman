@@ -289,6 +289,8 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
   defp get_first_org_id(_), do: nil
 
   defp req_options do
-    Application.get_env(:frontman_server, :openai_oauth_req_options, [])
+    :frontman_server
+    |> Application.fetch_env!(__MODULE__)
+    |> Keyword.get(:req_options, [])
   end
 end

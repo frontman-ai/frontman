@@ -157,6 +157,8 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
   defp add_state(body, state), do: Map.put(body, "state", state)
 
   defp req_options do
-    Application.get_env(:frontman_server, :anthropic_oauth_req_options, [])
+    :frontman_server
+    |> Application.fetch_env!(__MODULE__)
+    |> Keyword.get(:req_options, [])
   end
 end
