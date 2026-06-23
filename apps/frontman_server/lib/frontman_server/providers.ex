@@ -280,8 +280,6 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  defp resolve_oauth_token(_scope, _provider), do: nil
-
   defp resolve_api_key(%Scope{} = scope, provider) do
     case get_api_key(scope, provider) do
       %ApiKey{key: key} when is_binary(key) and key != "" ->
