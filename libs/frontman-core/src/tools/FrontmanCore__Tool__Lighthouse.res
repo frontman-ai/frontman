@@ -44,6 +44,7 @@ type preset =
   | @as("desktop") Desktop
   | @as("mobile") Mobile
 
+@@live
 let presetSchema = S.union([S.literal(Desktop), S.literal(Mobile)])
 
 let presetToString = preset =>
@@ -68,15 +69,19 @@ type elementDetail = {
   nodeLabel: option<string>,
   explanation: option<string>,
   url: option<string>,
+  @live
   sourceLocation: option<string>,
 }
 
 @schema
 type auditIssue = {
   id: string,
+  @live
   title: string,
+  @live
   description: string,
   score: float,
+  @live
   displayValue: option<string>,
   elements: array<elementDetail>,
 }
@@ -84,17 +89,21 @@ type auditIssue = {
 @schema
 type categoryResult = {
   id: string,
+  @live
   title: string,
   score: int,
+  @live
   topIssues: array<auditIssue>,
 }
 
 @schema
 type output = {
   url: string,
+  @live
   fetchTime: string,
   categories: array<categoryResult>,
   overallScore: int,
+  @live
   warnings: array<string>,
 }
 

@@ -105,7 +105,7 @@ let serve = (config: MiddlewareConfig.t, ~enableReactScan=false): WebAPI.FetchAP
 let serveWithEntrypoint = (
   ~config: MiddlewareConfig.t,
   ~entrypointUrl: option<string>,
-  ~enableReactScan=false,
+  ~enableReactScan: bool,
 ): WebAPI.FetchAPI.response => {
   let effectiveConfig = switch entrypointUrl {
   | Some(_) => {...config, entrypointUrl}

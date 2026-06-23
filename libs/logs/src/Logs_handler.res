@@ -1,5 +1,7 @@
 type t = {
+  @live
   id: string,
+  @live
   run: 'a. (
     ~component: string,
     ~stacktrace: option<string>,
@@ -10,5 +12,5 @@ type t = {
   ) => unit,
 }
 
-@inline
+@@live
 let run = h => h.run

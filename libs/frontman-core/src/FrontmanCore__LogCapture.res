@@ -37,7 +37,9 @@ type logEntry = {
   level: logLevel,
   message: string,
   attributes: option<JSON.t>,
+  @live
   resource: option<JSON.t>,
+  @live
   consoleMethod: option<consoleMethod>,
 }
 
@@ -149,26 +151,31 @@ let detectLevel = (state: state, message: string): logLevel => {
   }
 }
 
+@@live
 let handleConsoleLog = (state: state, args: array<'a>): unit => {
   let message = argsToString(args)
   addLog(state, detectLevel(state, message), message, ~consoleMethod=Log)
 }
 
+@@live
 let handleConsoleWarn = (state: state, args: array<'a>): unit => {
   let message = argsToString(args)
   addLog(state, detectLevel(state, message), message, ~consoleMethod=Warn)
 }
 
+@@live
 let handleConsoleError = (state: state, args: array<'a>): unit => {
   let message = argsToString(args)
   addLog(state, detectLevel(state, message), message, ~consoleMethod=ConsoleError)
 }
 
+@@live
 let handleConsoleInfo = (state: state, args: array<'a>): unit => {
   let message = argsToString(args)
   addLog(state, detectLevel(state, message), message, ~consoleMethod=Info)
 }
 
+@@live
 let handleConsoleDebug = (state: state, args: array<'a>): unit => {
   let message = argsToString(args)
   addLog(state, detectLevel(state, message), message, ~consoleMethod=Debug)
@@ -209,6 +216,7 @@ let interceptConsole: state => unit = %raw(`(function(state) {
   };
 })`)
 
+@@live
 let handleStdoutWrite = (state: state, message: string): unit => {
   switch state.insideConsoleHandler.contents {
   | true => ()

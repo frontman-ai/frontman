@@ -78,6 +78,7 @@ let maxEntriesPerLevel = 15
 let showEntriesBeforeTruncation = 10
 
 type rec trieNode = {
+  @live
   name: string,
   children: ref<Dict.t<trieNode>>,
   isFile: ref<bool>,

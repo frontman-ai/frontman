@@ -32,16 +32,21 @@ type resolveSourceLocationRequest = {
 
 @schema
 type resolveSourceLocationResponse = {
+  @live
   componentName: string,
+  @live
   file: string,
+  @live
   line: int,
+  @live
   column: int,
 }
 
 @schema
 type errorResponse = {
+  @live
   error: string,
-  @s.matches(S.option(S.string))
+  @live @s.matches(S.option(S.string))
   details: option<string>,
 }
 

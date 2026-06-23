@@ -10,6 +10,7 @@ type launchedChrome = B.launchedChrome
 type launchOptions = B.launchOptions
 
 let getPort = B.getPort
+@@live
 let getPid = B.getPid
 
 // Launch Chrome and return a LaunchedChrome instance.
@@ -37,8 +38,9 @@ let killSafely = async (chrome: B.launchedChrome): unit => {
     await B.kill(chrome)
   } catch {
   | exn =>
-    let msg =
-      exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Console.error(`[chrome-launcher] Failed to kill Chrome (pid ${B.getPid(chrome)->Int.toString}): ${msg}`)
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    Console.error(
+      `[chrome-launcher] Failed to kill Chrome (pid ${B.getPid(chrome)->Int.toString}): ${msg}`,
+    )
   }
 }

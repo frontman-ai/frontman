@@ -6,12 +6,6 @@ module Lighthouse = FrontmanCore__Tool__Lighthouse
 module LighthouseBindings = FrontmanBindings.Lighthouse
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
-// Create a mock execution context
-let mockCtx: Tool.serverExecutionContext = {
-  projectRoot: "/tmp",
-  sourceRoot: "/tmp",
-}
-
 // --- Test helpers ---
 
 module Mock = {
@@ -28,7 +22,10 @@ module Mock = {
     auditRefs,
   }
 
-  let makeLhr = (~categories: array<(string, LighthouseBindings.category)>, ~audits=Dict.make()): LighthouseBindings.lhr => {
+  let makeLhr = (
+    ~categories: array<(string, LighthouseBindings.category)>,
+    ~audits: Dict.t<LighthouseBindings.auditResult>,
+  ): LighthouseBindings.lhr => {
     lighthouseVersion: "12.0.0",
     fetchTime: "2024-01-01T00:00:00.000Z",
     requestedUrl: Some("http://example.com"),
@@ -64,10 +61,16 @@ module Mock = {
 
 describe("Lighthouse Tool - processLhr", _t => {
   test("should extract category scores correctly", t => {
-    let mockLhr = Mock.makeLhr(~categories=[
-      ("performance", Mock.makeCategory(~id="performance", ~title="Performance", ~score=0.85)),
-      ("accessibility", Mock.makeCategory(~id="accessibility", ~title="Accessibility", ~score=0.92)),
-    ])
+    let mockLhr = Mock.makeLhr(
+      ~categories=[
+        ("performance", Mock.makeCategory(~id="performance", ~title="Performance", ~score=0.85)),
+        (
+          "accessibility",
+          Mock.makeCategory(~id="accessibility", ~title="Accessibility", ~score=0.92),
+        ),
+      ],
+      ~audits=Dict.make(),
+    )
 
     let result = Lighthouse.processLhr(mockLhr)
 
@@ -86,10 +89,16 @@ describe("Lighthouse Tool - processLhr", _t => {
   })
 
   test("should calculate overall score as average", t => {
-    let mockLhr = Mock.makeLhr(~categories=[
-      ("performance", Mock.makeCategory(~id="performance", ~title="Performance", ~score=0.80)),
-      ("accessibility", Mock.makeCategory(~id="accessibility", ~title="Accessibility", ~score=1.0)),
-    ])
+    let mockLhr = Mock.makeLhr(
+      ~categories=[
+        ("performance", Mock.makeCategory(~id="performance", ~title="Performance", ~score=0.80)),
+        (
+          "accessibility",
+          Mock.makeCategory(~id="accessibility", ~title="Accessibility", ~score=1.0),
+        ),
+      ],
+      ~audits=Dict.make(),
+    )
 
     let result = Lighthouse.processLhr(mockLhr)
 
@@ -107,13 +116,30 @@ describe("Lighthouse Tool - getTopIssues", _t => {
       {id: "audit-4", weight: 1.0},
     ]
 
-    let category = Mock.makeCategory(~id="performance", ~title="Performance", ~score=0.75, ~auditRefs=refs)
+    let category = Mock.makeCategory(
+      ~id="performance",
+      ~title="Performance",
+      ~score=0.75,
+      ~auditRefs=refs,
+    )
 
     let audits = Dict.fromArray([
       ("audit-1", Mock.makeAudit(~id="audit-1", ~title="Audit 1", ~score=0.9)),
-      ("audit-2", Mock.makeAudit(~id="audit-2", ~title="Audit 2", ~score=0.3, ~scoreDisplayMode=Binary, ~displayValue=Some("Bad"))),
+      (
+        "audit-2",
+        Mock.makeAudit(
+          ~id="audit-2",
+          ~title="Audit 2",
+          ~score=0.3,
+          ~scoreDisplayMode=Binary,
+          ~displayValue=Some("Bad"),
+        ),
+      ),
       ("audit-3", Mock.makeAudit(~id="audit-3", ~title="Audit 3", ~score=0.6)),
-      ("audit-4", Mock.makeAudit(~id="audit-4", ~title="Audit 4", ~score=1.0, ~scoreDisplayMode=Binary)),
+      (
+        "audit-4",
+        Mock.makeAudit(~id="audit-4", ~title="Audit 4", ~score=1.0, ~scoreDisplayMode=Binary),
+      ),
     ])
 
     let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
@@ -147,16 +173,21 @@ describe("Lighthouse Tool - getTopIssues", _t => {
     )
 
     let audits = Dict.fromArray([
-      ("info-audit", {
-        id: "info-audit",
-        title: "Info Audit",
-        description: "Just informational",
-        score: Nullable.null,
-        scoreDisplayMode: Informative,
-        displayValue: None,
-        numericValue: None,
-        details: None,
-      }: LighthouseBindings.auditResult),
+      (
+        "info-audit",
+        (
+          {
+            id: "info-audit",
+            title: "Info Audit",
+            description: "Just informational",
+            score: Nullable.null,
+            scoreDisplayMode: Informative,
+            displayValue: None,
+            numericValue: None,
+            details: None,
+          }: LighthouseBindings.auditResult
+        ),
+      ),
     ])
 
     let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
@@ -208,15 +239,9 @@ describe("Lighthouse Tool - getTopIssues", _t => {
                     Dict.fromArray([
                       ("type", JSON.Encode.string("node")),
                       ("selector", JSON.Encode.string("body > main > img.hero")),
-                      (
-                        "snippet",
-                        JSON.Encode.string(`<img src="/hero.jpg" class="hero">`),
-                      ),
+                      ("snippet", JSON.Encode.string(`<img src="/hero.jpg" class="hero">`)),
                       ("nodeLabel", JSON.Encode.string("hero")),
-                      (
-                        "explanation",
-                        JSON.Encode.string("Element does not have an alt attribute"),
-                      ),
+                      ("explanation", JSON.Encode.string("Element does not have an alt attribute")),
                     ]),
                   ),
                 ),
@@ -250,7 +275,9 @@ describe("Lighthouse Tool - getTopIssues", _t => {
             t->expect(el.selector)->Expect.toEqual(Some("body > main > img.hero"))
             t->expect(el.snippet)->Expect.toEqual(Some(`<img src="/hero.jpg" class="hero">`))
             t->expect(el.nodeLabel)->Expect.toEqual(Some("hero"))
-            t->expect(el.explanation)->Expect.toEqual(Some("Element does not have an alt attribute"))
+            t
+            ->expect(el.explanation)
+            ->Expect.toEqual(Some("Element does not have an alt attribute"))
             t->expect(el.url)->Expect.toEqual(None)
           }
         | None => failwith("Expected element detail")
@@ -276,14 +303,10 @@ describe("Lighthouse Tool - getTopIssues", _t => {
           "items",
           JSON.Encode.array([
             JSON.Encode.object(
-              Dict.fromArray([
-                ("url", JSON.Encode.string("https://example.com/style.css")),
-              ]),
+              Dict.fromArray([("url", JSON.Encode.string("https://example.com/style.css"))]),
             ),
             JSON.Encode.object(
-              Dict.fromArray([
-                ("url", JSON.Encode.string("https://example.com/app.js")),
-              ]),
+              Dict.fromArray([("url", JSON.Encode.string("https://example.com/app.js"))]),
             ),
           ]),
         ),

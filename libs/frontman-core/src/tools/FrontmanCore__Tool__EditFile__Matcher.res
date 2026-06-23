@@ -63,7 +63,12 @@ let lineOffset = (lines: array<string>, lineIndex: int): int => {
 }
 
 // Extract the original substring spanning lines [startLine..endLine] (inclusive)
-let extractBlock = (content: string, lines: array<string>, startLine: int, endLine: int): string => {
+let extractBlock = (
+  content: string,
+  lines: array<string>,
+  startLine: int,
+  endLine: int,
+): string => {
   let startIdx = lineOffset(lines, startLine)
   let endIdx = lineOffset(lines, endLine) + lines[endLine]->Option.getOrThrow->String.length
   content->String.slice(~start=startIdx, ~end=endIdx)
@@ -71,7 +76,7 @@ let extractBlock = (content: string, lines: array<string>, startLine: int, endLi
 
 // Escape special regex characters in a string
 let escapeRegex = (str: string): string => {
-  str->String.replaceRegExp(%re("/[.*+?^${}()|[\\]\\\\]/g"), "\\$&")
+  str->String.replaceRegExp(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")
 }
 
 // ============================================
@@ -109,8 +114,7 @@ let lineTrimMatch = (content: string, find: string): array<string> => {
     let j = ref(0)
 
     while j.contents < searchLen && matches.contents {
-      let origTrimmed =
-        contentLines[i + j.contents]->Option.getOrThrow->String.trim
+      let origTrimmed = contentLines[i + j.contents]->Option.getOrThrow->String.trim
       let searchTrimmed = searchLines[j.contents]->Option.getOrThrow->String.trim
 
       switch origTrimmed == searchTrimmed {
@@ -158,8 +162,7 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
   | true => []
   | false =>
     let firstLineSearch = searchLines[0]->Option.getOrThrow->String.trim
-    let lastLineSearch =
-      searchLines[searchLines->Array.length - 1]->Option.getOrThrow->String.trim
+    let lastLineSearch = searchLines[searchLines->Array.length - 1]->Option.getOrThrow->String.trim
     let searchBlockSize = searchLines->Array.length
 
     // Collect candidate positions where both anchors match
@@ -195,18 +198,14 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
         let sim = ref(0.0)
         let j = ref(1)
         while j.contents < searchBlockSize - 1 && j.contents < actualBlockSize - 1 {
-          let origLine =
-            contentLines[startLine + j.contents]->Option.getOrThrow->String.trim
+          let origLine = contentLines[startLine + j.contents]->Option.getOrThrow->String.trim
           let searchLine = searchLines[j.contents]->Option.getOrThrow->String.trim
-          let maxLen =
-            max(origLine->String.length, searchLine->String.length)->Int.toFloat
+          let maxLen = max(origLine->String.length, searchLine->String.length)->Int.toFloat
           switch maxLen > 0.0 {
           | false => ()
           | true =>
             let distance = levenshtein(origLine, searchLine)->Int.toFloat
-            sim :=
-              sim.contents +.
-              (1.0 -. distance /. maxLen) /. linesToCheck->Int.toFloat
+            sim := sim.contents +. (1.0 -. distance /. maxLen) /. linesToCheck->Int.toFloat
           }
           // Early exit when threshold is already met
           switch sim.contents >= singleCandidateThreshold {
@@ -236,11 +235,9 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
         | true =>
           let sim = ref(0.0)
           for j in 1 to min(searchBlockSize - 2, actualBlockSize - 2) {
-            let origLine =
-              contentLines[startLine + j]->Option.getOrThrow->String.trim
+            let origLine = contentLines[startLine + j]->Option.getOrThrow->String.trim
             let searchLine = searchLines[j]->Option.getOrThrow->String.trim
-            let maxLen =
-              max(origLine->String.length, searchLine->String.length)->Int.toFloat
+            let maxLen = max(origLine->String.length, searchLine->String.length)->Int.toFloat
             switch maxLen > 0.0 {
             | false => ()
             | true =>
@@ -275,8 +272,7 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
 // Collapses all whitespace runs to a single space, then matches.
 // Returns the original content substring, not the normalized version.
 let normalizedWhitespaceMatch = (content: string, find: string): array<string> => {
-  let normalize = (text: string): string =>
-    text->String.replaceRegExp(%re("/\s+/g"), " ")->String.trim
+  let normalize = (text: string): string => text->String.replaceRegExp(/\s+/g, " ")->String.trim
 
   let normalizedFind = normalize(find)
   let contentLines = content->String.split("\n")
@@ -292,16 +288,15 @@ let normalizedWhitespaceMatch = (content: string, find: string): array<string> =
       | false => ()
       | true =>
         // Build a regex from the search words to find the original substring
-          let words =
-            find
-            ->String.trim
-            ->String.splitByRegExp(%re("/\s+/"))
-            ->Array.filterMap(x => x)
+        let words =
+          find
+          ->String.trim
+          ->String.splitByRegExp(/\s+/)
+          ->Array.filterMap(x => x)
         switch words->Array.length > 0 {
         | false => ()
         | true =>
-          let pattern =
-            words->Array.map(escapeRegex)->Array.join("\\s+")
+          let pattern = words->Array.map(escapeRegex)->Array.join("\\s+")
           try {
             let regex = RegExp.fromString(pattern)
             switch line->String.match(regex) {
@@ -349,21 +344,19 @@ let normalizedWhitespaceMatch = (content: string, find: string): array<string> =
 let flexibleIndentMatch = (content: string, find: string): array<string> => {
   let removeIndent = (text: string): string => {
     let lines = text->String.split("\n")
-    let nonEmptyLines =
-      lines->Array.filter(line => line->String.trim->String.length > 0)
+    let nonEmptyLines = lines->Array.filter(line => line->String.trim->String.length > 0)
 
     switch nonEmptyLines->Array.length {
     | 0 => text
     | _ =>
-      let minIndent =
-        nonEmptyLines->Array.reduce(999999, (acc, line) => {
-          let m = line->String.match(%re("/^(\s*)/"))
-          let indent = switch m {
-          | Some(result) => result->RegExp.Result.fullMatch->String.length
-          | None => 0
-          }
-          min(acc, indent)
-        })
+      let minIndent = nonEmptyLines->Array.reduce(999999, (acc, line) => {
+        let m = line->String.match(/^(\s*)/)
+        let indent = switch m {
+        | Some(result) => result->RegExp.Result.fullMatch->String.length
+        | None => 0
+        }
+        min(acc, indent)
+      })
 
       lines
       ->Array.map(line =>
@@ -493,8 +486,7 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
 
   // Drop trailing empty line
   let findLines = switch findLines[findLines->Array.length - 1] {
-  | Some(last) if last == "" =>
-    findLines->Array.slice(~start=0, ~end=findLines->Array.length - 1)
+  | Some(last) if last == "" => findLines->Array.slice(~start=0, ~end=findLines->Array.length - 1)
   | _ => findLines
   }
 
@@ -503,8 +495,7 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
   | false =>
     let contentLines = content->String.split("\n")
     let firstLine = findLines[0]->Option.getOrThrow->String.trim
-    let lastLine =
-      findLines[findLines->Array.length - 1]->Option.getOrThrow->String.trim
+    let lastLine = findLines[findLines->Array.length - 1]->Option.getOrThrow->String.trim
     let results = []
 
     for i in 0 to contentLines->Array.length - 1 {
@@ -517,8 +508,7 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
           switch contentLines[j.contents]->Option.getOrThrow->String.trim == lastLine {
           | false => j := j.contents + 1
           | true =>
-            let blockLines =
-              contentLines->Array.slice(~start=i, ~end=j.contents + 1)
+            let blockLines = contentLines->Array.slice(~start=i, ~end=j.contents + 1)
 
             // Check if block has same number of lines
             switch blockLines->Array.length == findLines->Array.length {
@@ -529,14 +519,10 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
               let totalNonEmpty = ref(0)
 
               for k in 1 to blockLines->Array.length - 2 {
-                let blockLine =
-                  blockLines[k]->Option.getOrThrow->String.trim
+                let blockLine = blockLines[k]->Option.getOrThrow->String.trim
                 let findLine = findLines[k]->Option.getOrThrow->String.trim
 
-                switch (
-                  blockLine->String.length > 0,
-                  findLine->String.length > 0,
-                ) {
+                switch (blockLine->String.length > 0, findLine->String.length > 0) {
                 | (false, false) => ()
                 | _ =>
                   totalNonEmpty := totalNonEmpty.contents + 1
@@ -549,16 +535,11 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
 
               let passes = switch totalNonEmpty.contents {
               | 0 => true // No middle content, accept
-              | total =>
-                matchingLines.contents->Int.toFloat /.
-                  total->Int.toFloat >= 0.5
+              | total => matchingLines.contents->Int.toFloat /. total->Int.toFloat >= 0.5
               }
 
               switch passes {
-              | true =>
-                results->Array.push(
-                  extractBlock(content, contentLines, i, j.contents),
-                )
+              | true => results->Array.push(extractBlock(content, contentLines, i, j.contents))
               | false => ()
               }
             }
@@ -583,7 +564,8 @@ let multiOccurrenceMatch = (content: string, find: string): array<string> => {
 
   let continue_ = ref(true)
   while continue_.contents {
-    let searchContent = content->String.slice(~start=startIndex.contents, ~end=content->String.length)
+    let searchContent =
+      content->String.slice(~start=startIndex.contents, ~end=content->String.length)
     let idx = searchContent->String.indexOfOpt(find)->Option.map(i => i + startIndex.contents)
     switch idx {
     | None => continue_ := false
@@ -673,7 +655,10 @@ let applyEdit = (
           | true =>
             let before = content->String.slice(~start=0, ~end=idx)
             let after =
-              content->String.slice(~start=idx + candidate->String.length, ~end=content->String.length)
+              content->String.slice(
+                ~start=idx + candidate->String.length,
+                ~end=content->String.length,
+              )
             result := Some(Applied(before ++ newText ++ after))
           }
         }

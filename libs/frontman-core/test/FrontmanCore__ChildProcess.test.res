@@ -12,8 +12,7 @@ describe("ChildProcess - spawnResult", _t => {
     let result = await ChildProcess.spawnResult("echo", ["hello"])
 
     switch result {
-    | Ok({stdout}) =>
-      t->expect(stdout->String.trim)->Expect.toBe("hello")
+    | Ok({stdout}) => t->expect(stdout->String.trim)->Expect.toBe("hello")
     | Error({message}) => failwith(`Expected Ok, got Error: ${message}`)
     }
   })
@@ -56,8 +55,7 @@ describe("ChildProcess - spawnResult", _t => {
 
     switch result {
     | Ok(_) => failwith("Expected Error when cwd does not exist, got Ok")
-    | Error({message}) =>
-      t->expect(message->String.length > 0)->Expect.toBe(true)
+    | Error({message}) => t->expect(message->String.length > 0)->Expect.toBe(true)
     }
   })
 })
@@ -67,8 +65,7 @@ describe("ChildProcess - exec", _t => {
     let result = await ChildProcess.exec("echo hello")
 
     switch result {
-    | Ok({stdout}) =>
-      t->expect(stdout->String.trim)->Expect.toBe("hello")
+    | Ok({stdout}) => t->expect(stdout->String.trim)->Expect.toBe("hello")
     | Error({message}) => failwith(`Expected Ok, got Error: ${message}`)
     }
   })

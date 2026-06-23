@@ -16,7 +16,7 @@ let mkdirRecursive = async (dir: string) => {
 
 // Helper to remove directory recursively
 let rmRecursive = async (dir: string) => {
-  let _result = await ChildProcess.exec(`rm -rf ${dir}`)
+  let _ = await ChildProcess.exec(`rm -rf ${dir}`)
 }
 
 // Helper to create a temporary test directory with files

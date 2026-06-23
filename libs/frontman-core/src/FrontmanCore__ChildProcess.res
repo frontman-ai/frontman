@@ -19,33 +19,27 @@ type execError = B.execError
 let defaultMaxBuffer = 50 * 1024 * 1024
 
 // Wrap exec in a Promise that resolves with result — never rejects.
-let execPromise = (
-  command: string,
-  options: B.execOptions,
-): Promise.t<result<B.execResult, B.execError>> => {
+let execPromise = (command: string, options: B.execOptions): Promise.t<
+  result<B.execResult, B.execError>,
+> => {
   let maxBuffer = options.maxBuffer->Option.getOr(defaultMaxBuffer)
   Promise.make((resolve, _reject) => {
     let cwd = options.cwd
     let env = options.env
-    B.nodeExec(
-      command,
-      {?cwd, ?env, maxBuffer, encoding: "utf8"},
-      (err, stdout, stderr) => {
-        switch err->Nullable.toOption {
-        | None =>
-          resolve(Ok({stdout, stderr}))
-        | Some(execErr) =>
-          resolve(
-            Error({
-              code: execErr->B.execExceptionCode->Nullable.toOption,
-              stdout,
-              stderr,
-              message: execErr->B.execExceptionMessage,
-            }),
-          )
-        }
-      },
-    )
+    B.nodeExec(command, {?cwd, ?env, maxBuffer, encoding: "utf8"}, (err, stdout, stderr) => {
+      switch err->Nullable.toOption {
+      | None => resolve(Ok({stdout, stderr}))
+      | Some(execErr) =>
+        resolve(
+          Error({
+            code: execErr->B.execExceptionCode->Nullable.toOption,
+            stdout,
+            stderr,
+            message: execErr->B.execExceptionMessage,
+          }),
+        )
+      }
+    })
   })
 }
 
@@ -55,11 +49,9 @@ let execPromise = (
 // re-interpreted as token separators.
 //
 // Resolves with result<execResult, execError> — never rejects.
-let spawnPromise = (
-  command: string,
-  args: array<string>,
-  options: B.execOptions,
-): Promise.t<result<B.execResult, B.execError>> => {
+let spawnPromise = (command: string, args: array<string>, options: B.execOptions): Promise.t<
+  result<B.execResult, B.execError>,
+> => {
   let maxBuffer = options.maxBuffer->Option.getOr(defaultMaxBuffer)
 
   Promise.make((resolve, _reject) => {
@@ -98,7 +90,9 @@ let spawnPromise = (
         }
       }
 
-      proc->B.processStdout->B.onData(chunk => {
+      proc
+      ->B.processStdout
+      ->B.onData(chunk => {
         switch resolved.contents {
         | true => ()
         | false =>
@@ -118,7 +112,9 @@ let spawnPromise = (
         }
       })
 
-      proc->B.processStderr->B.onData(chunk => {
+      proc
+      ->B.processStderr
+      ->B.onData(chunk => {
         switch resolved.contents {
         | true => ()
         | false =>
@@ -138,42 +134,50 @@ let spawnPromise = (
         }
       })
 
-      proc->B.onProcess(#error(err => {
-        guardedResolve(
-          Error({
-            code: None,
-            stdout: decodeStdout(),
-            stderr: decodeStderr(),
-            message: JsError.message(err),
-          }),
-        )
-      }))
+      proc->B.onProcess(
+        #error(
+          err => {
+            guardedResolve(
+              Error({
+                code: None,
+                stdout: decodeStdout(),
+                stderr: decodeStderr(),
+                message: JsError.message(err),
+              }),
+            )
+          },
+        ),
+      )
 
-      proc->B.onProcess(#close(nullableCode => {
-        let code = nullableCode->Nullable.toOption
-        switch code {
-        | Some(0) =>
-          guardedResolve(
-            Ok({
-              stdout: decodeStdout(),
-              stderr: decodeStderr(),
-            }),
-          )
-        | _ =>
-          let codeStr = switch code {
-          | Some(c) => Int.toString(c)
-          | None => "null"
-          }
-          guardedResolve(
-            Error({
-              code,
-              stdout: decodeStdout(),
-              stderr: decodeStderr(),
-              message: `Process exited with code ${codeStr}`,
-            }),
-          )
-        }
-      }))
+      proc->B.onProcess(
+        #close(
+          nullableCode => {
+            let code = nullableCode->Nullable.toOption
+            switch code {
+            | Some(0) =>
+              guardedResolve(
+                Ok({
+                  stdout: decodeStdout(),
+                  stderr: decodeStderr(),
+                }),
+              )
+            | _ =>
+              let codeStr = switch code {
+              | Some(c) => Int.toString(c)
+              | None => "null"
+              }
+              guardedResolve(
+                Error({
+                  code,
+                  stdout: decodeStdout(),
+                  stderr: decodeStderr(),
+                  message: `Process exited with code ${codeStr}`,
+                }),
+              )
+            }
+          },
+        ),
+      )
     } catch {
     | exn =>
       let msg =
@@ -208,11 +212,10 @@ let execWithOptions = async (command: string, options: B.execOptions): result<
 // Spawn a process with an args array (no shell) and return result or error.
 // This is the preferred way to run subprocesses when you have structured arguments,
 // since it avoids shell parsing issues with spaces and special characters.
-let spawnResult = async (
-  command: string,
-  args: array<string>,
-  ~cwd: option<string>=?,
-): result<B.execResult, B.execError> => {
+let spawnResult = async (command: string, args: array<string>, ~cwd: option<string>=?): result<
+  B.execResult,
+  B.execError,
+> => {
   let options: B.execOptions = {
     ?cwd,
     maxBuffer: defaultMaxBuffer,

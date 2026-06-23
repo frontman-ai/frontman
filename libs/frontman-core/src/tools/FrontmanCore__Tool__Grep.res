@@ -46,6 +46,7 @@ type input = {
 
 @schema
 type matchLine = {
+  @live
   lineNum: int,
   lineText: string,
 }

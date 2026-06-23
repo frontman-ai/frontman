@@ -14,6 +14,7 @@ let frameworkIdToString = (id: frameworkId): string =>
 
 // Map a framework ID to a human-readable display name.
 // Used by the client UI to show "Framework detected: Next.js" etc.
+@@live
 let frameworkDisplayName = (id: frameworkId): string =>
   switch id {
   | Nextjs => "Next.js"

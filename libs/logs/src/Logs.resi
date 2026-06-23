@@ -14,7 +14,9 @@ let prepareContext: {..} => {..}
 
 module Handler: {
   type t = {
+    @live
     id: string,
+    @live
     run: 'a. (
       ~component: string,
       ~stacktrace: option<string>,

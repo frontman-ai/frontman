@@ -28,12 +28,16 @@ type resolveError = {
   message: string,
   hint: option<string>,
   sourceRoot: string,
+  @live
   requestedPath: string,
 }
 
 type responseContext = {
+  @live
   sourceRoot: string,
+  @live
   resolvedPath: string,
+  @live
   relativePath: string,
 }
 
@@ -194,6 +198,7 @@ let formatError = (err: resolveError): string => {
 // Response Context Generation
 // ============================================
 
+@@live
 let makeResponseContext = (~sourceRoot: string, ~resolvedPath: string): responseContext => {
   {
     sourceRoot,
@@ -203,6 +208,7 @@ let makeResponseContext = (~sourceRoot: string, ~resolvedPath: string): response
 }
 
 // Convenience: create context from resolveResult
+@@live
 let contextFromResult = (result: resolveResult): responseContext => {
   {
     sourceRoot: result.sourceRoot,

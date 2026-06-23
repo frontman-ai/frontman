@@ -2,6 +2,7 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module CoreEditFile = FrontmanCore__Tool__EditFile
 
 type logEntry = {
+  @live
   timestamp: string,
   message: string,
 }

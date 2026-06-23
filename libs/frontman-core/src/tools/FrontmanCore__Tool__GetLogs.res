@@ -32,9 +32,13 @@ type input = {
 
 @schema
 type output = {
+  @live
   logs: array<LogCapture.logEntry>,
+  @live
   totalMatched: int,
+  @live
   bufferSize: int,
+  @live
   hasMore: bool,
 }
 

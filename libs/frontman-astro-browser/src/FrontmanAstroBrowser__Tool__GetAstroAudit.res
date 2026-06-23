@@ -28,28 +28,42 @@ Returns an empty array with a message if:
 - The audit has not run yet`
 
 @schema
-type input = {placeholder?: bool}
+type input = {
+  @live
+  placeholder?: bool,
+}
 
 @schema
 type elementInfo = {
+  @live
   tagName: string,
+  @live
   selector: string,
+  @live
   textSnippet: string,
 }
 
 @schema
 type auditEntry = {
+  @live
   code: string,
+  @live
   category: string,
+  @live
   title: string,
+  @live
   message: string,
+  @live
   description: string,
+  @live
   element: elementInfo,
 }
 
 @schema
 type output = {
+  @live
   audits: array<auditEntry>,
+  @live
   message: option<string>,
 }
 

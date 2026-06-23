@@ -67,7 +67,7 @@ let sortStrings = (items: array<string>): array<string> => {
   })
 }
 
-let readSiblingEntries = async (~dirPath: string, ~limit: int=12): array<string> => {
+let readSiblingEntries = async (~dirPath: string, ~limit: int): array<string> => {
   try {
     let entries = await Fs.Promises.readdir(dirPath)
     let sorted = entries->sortStrings

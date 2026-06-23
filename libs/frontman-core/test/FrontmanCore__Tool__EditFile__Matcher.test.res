@@ -322,29 +322,17 @@ describe("multiOccurrenceMatch", _t => {
 
 describe("applyEdit", _t => {
   test("exact match replacement", t => {
-    let result = Matcher.applyEdit(
-      ~content="hello world",
-      ~oldText="world",
-      ~newText="universe",
-    )
+    let result = Matcher.applyEdit(~content="hello world", ~oldText="world", ~newText="universe")
     t->expect(result)->Expect.toEqual(Matcher.Applied("hello universe"))
   })
 
   test("returns NotFound when text doesn't exist", t => {
-    let result = Matcher.applyEdit(
-      ~content="hello world",
-      ~oldText="xyz",
-      ~newText="abc",
-    )
+    let result = Matcher.applyEdit(~content="hello world", ~oldText="xyz", ~newText="abc")
     t->expect(result)->Expect.toEqual(Matcher.NotFound)
   })
 
   test("returns Ambiguous for duplicate matches without replaceAll", t => {
-    let result = Matcher.applyEdit(
-      ~content="foo bar foo",
-      ~oldText="foo",
-      ~newText="baz",
-    )
+    let result = Matcher.applyEdit(~content="foo bar foo", ~oldText="foo", ~newText="baz")
     t->expect(result)->Expect.toEqual(Matcher.Ambiguous)
   })
 
@@ -382,22 +370,16 @@ describe("applyEdit", _t => {
       ~newText="function goodbye() {\n  return 99;\n}",
     )
     switch result {
-    | Applied(newContent) =>
-      t->expect(newContent->String.includes("goodbye"))->Expect.toBe(true)
+    | Applied(newContent) => t->expect(newContent->String.includes("goodbye"))->Expect.toBe(true)
     | _ => failwith("Expected Applied result")
     }
   })
 
   test("handles whitespace-normalized matching", t => {
     let content = "const   x   =   42;"
-    let result = Matcher.applyEdit(
-      ~content,
-      ~oldText="const x = 42;",
-      ~newText="const x = 99;",
-    )
+    let result = Matcher.applyEdit(~content, ~oldText="const x = 42;", ~newText="const x = 99;")
     switch result {
-    | Applied(newContent) =>
-      t->expect(newContent->String.includes("99"))->Expect.toBe(true)
+    | Applied(newContent) => t->expect(newContent->String.includes("99"))->Expect.toBe(true)
     | _ => failwith("Expected Applied result")
     }
   })
@@ -410,8 +392,7 @@ describe("applyEdit", _t => {
       ~newText="goodbye world",
     )
     switch result {
-    | Applied(newContent) =>
-      t->expect(newContent)->Expect.toBe("goodbye world")
+    | Applied(newContent) => t->expect(newContent)->Expect.toBe("goodbye world")
     | _ => failwith("Expected Applied result")
     }
   })
@@ -480,8 +461,7 @@ describe("applyEdit", _t => {
       ~newText="const msg = `Hi ${name}`;",
     )
     switch result {
-    | Applied(newContent) =>
-      t->expect(newContent->String.includes("Hi"))->Expect.toBe(true)
+    | Applied(newContent) => t->expect(newContent->String.includes("Hi"))->Expect.toBe(true)
     | _ => failwith("Expected Applied result")
     }
   })

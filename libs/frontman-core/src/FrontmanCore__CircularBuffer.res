@@ -36,14 +36,14 @@ let toArray = (buffer: t<'a>): array<'a> => {
       buffer.data
       ->Array.slice(~start=buffer.writeIndex, ~end=buffer.maxSize)
       ->Array.filterMap(x => x)
-    let head =
-      buffer.data->Array.slice(~start=0, ~end=buffer.writeIndex)->Array.filterMap(x => x)
+    let head = buffer.data->Array.slice(~start=0, ~end=buffer.writeIndex)->Array.filterMap(x => x)
     Array.concat(tail, head)
   }
 }
 
 let length = (buffer: t<'a>): int => buffer.count
 
+@@live
 let clear = (buffer: t<'a>): t<'a> => {
   data: Array.make(~length=buffer.maxSize, None),
   writeIndex: 0,

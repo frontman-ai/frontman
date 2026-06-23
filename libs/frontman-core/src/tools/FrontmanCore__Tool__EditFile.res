@@ -45,15 +45,18 @@ type input = {
 
 @schema
 type pathContext = {
+  @live
   sourceRoot: string,
+  @live
   resolvedPath: string,
+  @live
   relativePath: string,
 }
 
 @schema
 type output = {
   message: string,
-  @s.meta({description: "Path resolution context for debugging"})
+  @live @s.meta({description: "Path resolution context for debugging"})
   _context?: pathContext,
 }
 
