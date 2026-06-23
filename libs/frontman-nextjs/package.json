@@ -81,7 +81,7 @@
 		"next": "^16.2.4",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"sury": "11.0.0-alpha.5",
+		"sury": "11.0.0-alpha.8",
 		"tsup": "^8.0.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"

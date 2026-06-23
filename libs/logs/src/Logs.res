@@ -130,8 +130,7 @@ module MakeGlobal = (): Logs_intf_global.IntfGlobal => {
 
   let info = (~ctx=empty(), ~component, message) => log(~ctx, Info, message, component)
 
-  let debug = (~ctx=empty(), ~component=#Global, message) =>
-    log(~ctx, Debug, message, component)
+  let debug = (~ctx=empty(), ~component=#Global, message) => log(~ctx, Debug, message, component)
 }
 
 include MakeGlobal()

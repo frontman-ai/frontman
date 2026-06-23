@@ -2171,7 +2171,7 @@ __metadata:
     lighthouse: "npm:^13.3.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.5"
+    sury: "npm:11.0.0-alpha.8"
     vite: "catalog:"
     vitest: "catalog:"
   dependenciesMeta:
@@ -2186,7 +2186,7 @@ __metadata:
   dependencies:
     "@rescript/webapi": "npm:*"
     rescript: "catalog:"
-    sury: "npm:11.0.0-alpha.5"
+    sury: "npm:11.0.0-alpha.8"
   languageName: unknown
   linkType: soft
 
@@ -2205,7 +2205,7 @@ __metadata:
     next: "npm:^16.2.4"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.5"
+    sury: "npm:11.0.0-alpha.8"
     tsup: "npm:^8.0.0"
     vite: "catalog:"
     vitest: "catalog:"
@@ -2261,7 +2261,7 @@ __metadata:
     lighthouse: "npm:^13.3.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.5"
+    sury: "npm:11.0.0-alpha.8"
     tsup: "npm:^8.0.0"
     vite: "catalog:"
     vitest: "catalog:"
@@ -16600,24 +16600,24 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sury-ppx@npm:11.0.0-alpha.5":
-  version: 11.0.0-alpha.5
-  resolution: "sury-ppx@npm:11.0.0-alpha.5"
+"sury-ppx@npm:11.0.0-alpha.8":
+  version: 11.0.0-alpha.8
+  resolution: "sury-ppx@npm:11.0.0-alpha.8"
   peerDependencies:
-    sury: ^11.0.0-alpha.5
-  checksum: 10c0/cbbe0d4d7c4e35d9d7abff4b95361fe2611420bc6a6d38d3d3c142c855492834051b7a35edd30043fbb94b1964927c31d919993949e497135f3116be731f5525
+    sury: ^11.0.0-alpha.6
+  checksum: 10c0/5ee0de740376ba1ad2cf038958e4c2d946eaa884c658490336f9bdda42373bbef836c9925e8d2b3b623de38db959db2f62f659eeb914b4871719ee0c69153450
   languageName: node
   linkType: hard
 
-"sury@npm:11.0.0-alpha.5":
-  version: 11.0.0-alpha.5
-  resolution: "sury@npm:11.0.0-alpha.5"
+"sury@npm:11.0.0-alpha.8":
+  version: 11.0.0-alpha.8
+  resolution: "sury@npm:11.0.0-alpha.8"
   peerDependencies:
     rescript: 12.x
   peerDependenciesMeta:
     rescript:
       optional: true
-  checksum: 10c0/ad471aa3bea223437665fd34d07f90656c20878d3998daa9711b77955f2dc6ce032c9f3549e182408a758237f91d5c0fbdcec2c2c6d6fec21dfb12da67089d5e
+  checksum: 10c0/97fdf345ad11b7103bf9d26d9d9ce47f1dc7338e379e51de7febf8a9d483ba95c3bff3aaf5cd542b7265a3eb09168af113817324a0b3bf3c51a07b950e5446f4
   languageName: node
   linkType: hard
 

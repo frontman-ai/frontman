@@ -29,7 +29,7 @@ lint: ## Check code formatting
 	yarn rescript format --check
 
 format: ## Format code
-	yarn rescript format -all
+	yarn rescript format
 
 check: lint test ## Run all checks (lint + test)
 

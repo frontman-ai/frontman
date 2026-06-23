@@ -310,30 +310,14 @@ let initialize = (~config: config=defaultConfig, ()): unit => {
   }
 }
 
-type regexCache = {
-  mutable pattern: option<string>,
-  mutable regex: option<Js.Re.t>,
-}
+let regexCache = ref(None)
 
-let regexCache: regexCache = {
-  pattern: None,
-  regex: None,
-}
-
-let getCompiledRegex = (pattern: string): Js.Re.t => {
-  switch regexCache.pattern {
-  | Some(cached) if cached === pattern =>
-    switch regexCache.regex {
-    | Some(r) => r
-    | None =>
-      let regex = Js.Re.fromStringWithFlags(pattern, ~flags="i")
-      regexCache.regex = Some(regex)
-      regex
-    }
+let getCompiledRegex = (pattern: string): RegExp.t => {
+  switch regexCache.contents {
+  | Some((cached, regex)) if cached === pattern => regex
   | _ =>
-    let regex = Js.Re.fromStringWithFlags(pattern, ~flags="i")
-    regexCache.pattern = Some(pattern)
-    regexCache.regex = Some(regex)
+    let regex = RegExp.fromString(pattern, ~flags="i")
+    regexCache := Some((pattern, regex))
     regex
   }
 }
@@ -362,7 +346,7 @@ let getLogs = (
     let logs = switch pattern {
     | Some(p) =>
       let regex = getCompiledRegex(p)
-      logs->Array.filter(entry => Js.Re.test_(regex, entry.message))
+      logs->Array.filter(entry => regex->RegExp.test(entry.message))
     | None => logs
     }
 

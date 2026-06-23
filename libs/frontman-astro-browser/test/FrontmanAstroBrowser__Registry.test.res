@@ -1,6 +1,6 @@
 open Vitest
 
-module Registry = FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry
+module Registry = FrontmanAstroBrowser__Registry
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 let unpackName = (toolModule: module(Tool.BrowserTool)): string => {

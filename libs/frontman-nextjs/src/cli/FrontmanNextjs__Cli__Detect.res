@@ -84,7 +84,7 @@ let hasNextDependency = async (projectDir: string): bool => {
   | None => false
   | Some(content) =>
     try {
-      let pkg = S.parseJsonStringOrThrow(content, packageJsonDepsSchema)
+      let pkg = content->S.decodeOrThrow(~from=S.jsonString, ~to=packageJsonDepsSchema)
       let hasDep =
         pkg.dependencies->Option.mapOr(false, deps => deps->Dict.get("next")->Option.isSome)
       let hasDevDep =
@@ -116,7 +116,7 @@ let detectNextVersion = async (projectDir: string): result<nextVersion, string> 
       | None => Error(`Could not read ${resolvedPath}`)
       | Some(content) =>
         try {
-          let pkg = S.parseJsonStringOrThrow(content, nextPackageJsonSchema)
+          let pkg = content->S.decodeOrThrow(~from=S.jsonString, ~to=nextPackageJsonSchema)
           switch Semver.parse(pkg.version) {
           | None => Error(`Could not parse version "${pkg.version}"`)
           | Some(sv) => Ok({major: sv.major, minor: sv.minor, raw: pkg.version})

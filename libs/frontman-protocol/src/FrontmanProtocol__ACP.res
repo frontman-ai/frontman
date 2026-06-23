@@ -365,7 +365,6 @@ type blobResourceContents = {
   blob: string,
 }
 
-// EmbeddedResourceResource union type
 type embeddedResourceResource =
   | TextResourceContents(textResourceContents)
   | BlobResourceContents(blobResourceContents)
@@ -474,16 +473,6 @@ let contentBlockSchema = S.union([
     })
   }),
 ])
-
-let embeddedResourceSchema = S.object(s => {
-  _meta: s.field("_meta", S.option(S.json)),
-  annotations: s.field("annotations", S.option(annotationsSchema)),
-  resource: s.field("resource", embeddedResourceResourceSchema),
-})
-
-let annotationsSchema = S.object(s => {
-  _meta: s.field("_meta", S.option(S.json)),
-})
 
 // Tool call content item (for tool_call_update)
 type toolCallContentItem = {

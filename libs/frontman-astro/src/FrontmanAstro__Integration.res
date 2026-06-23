@@ -24,7 +24,8 @@ let getAstroVersion = () => {
   let require = createRequire(importMetaUrl2)
   let pkgPath = require["resolve"]("astro/package.json")
   let raw = FrontmanBindings.Fs.readFileSync(pkgPath)
-  S.parseJsonStringOrThrow(raw, packageJsonSchema).version
+  let pkg = raw->S.decodeOrThrow(~from=S.jsonString, ~to=packageJsonSchema)
+  pkg.version
 }
 
 let parseMajorVersion = (version: string) =>
