@@ -17,7 +17,12 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
 
   require Logger
 
-  @config Application.compile_env!(:frontman_server, __MODULE__)
+  @client_id Application.compile_env!(:frontman_server, [__MODULE__, :client_id])
+  @auth_url Application.compile_env!(:frontman_server, [__MODULE__, :auth_url])
+  @token_url Application.compile_env!(:frontman_server, [__MODULE__, :token_url])
+  @redirect_uri Application.compile_env!(:frontman_server, [__MODULE__, :redirect_uri])
+  @scopes Application.compile_env!(:frontman_server, [__MODULE__, :scopes])
+  @req_options Application.compile_env(:frontman_server, [__MODULE__, :req_options], [])
 
   @doc """
   Generates a PKCE verifier and challenge.
@@ -43,16 +48,16 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
     params =
       URI.encode_query(%{
         "code" => "true",
-        "client_id" => @config[:client_id],
+        "client_id" => @client_id,
         "response_type" => "code",
-        "redirect_uri" => @config[:redirect_uri],
-        "scope" => @config[:scopes],
+        "redirect_uri" => @redirect_uri,
+        "scope" => @scopes,
         "code_challenge" => challenge,
         "code_challenge_method" => "S256",
         "state" => verifier
       })
 
-    "#{@config[:auth_url]}?#{params}"
+    "#{@auth_url}?#{params}"
   end
 
   @doc """
@@ -75,8 +80,8 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
       %{
         "code" => code,
         "grant_type" => "authorization_code",
-        "client_id" => @config[:client_id],
-        "redirect_uri" => @config[:redirect_uri],
+        "client_id" => @client_id,
+        "redirect_uri" => @redirect_uri,
         "code_verifier" => verifier
       }
       |> add_state(state)
@@ -86,7 +91,7 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post(@config[:token_url], [json: body, headers: headers] ++ req_options()) do
+    case Req.post(@token_url, [json: body, headers: headers] ++ @req_options) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok,
          %{
@@ -117,7 +122,7 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
     body = %{
       "grant_type" => "refresh_token",
       "refresh_token" => refresh_token,
-      "client_id" => @config[:client_id]
+      "client_id" => @client_id
     }
 
     headers = [
@@ -125,7 +130,7 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
       {"accept", "application/json"}
     ]
 
-    case Req.post(@config[:token_url], [json: body, headers: headers] ++ req_options()) do
+    case Req.post(@token_url, [json: body, headers: headers] ++ @req_options) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok,
          %{
@@ -151,8 +156,4 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
 
   defp add_state(body, nil), do: body
   defp add_state(body, state), do: Map.put(body, "state", state)
-
-  defp req_options do
-    Keyword.get(@config, :req_options, [])
-  end
 end
