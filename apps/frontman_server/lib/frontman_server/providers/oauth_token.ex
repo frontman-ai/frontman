@@ -40,6 +40,8 @@ defmodule FrontmanServer.Providers.OAuthToken do
     |> cast(attrs, [:provider, :access_token, :refresh_token, :expires_at, :metadata])
     |> validate_required([:provider, :access_token, :refresh_token, :expires_at])
     |> validate_length(:provider, min: 1, max: 64)
+    |> validate_length(:access_token, min: 1)
+    |> validate_length(:refresh_token, min: 1)
     |> unique_constraint([:user_id, :provider], name: :oauth_tokens_user_id_provider_index)
   end
 
