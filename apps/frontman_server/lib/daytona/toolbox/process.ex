@@ -25,10 +25,10 @@ defmodule Daytona.Toolbox.Process do
                             coerce: true
                           )
 
-  def execute(%Toolbox{} = toolbox, sandbox_id, request, opts \\ [])
-      when is_binary(sandbox_id) and is_map(request) and is_list(opts) do
+  def execute(%Toolbox{} = toolbox, sandbox_id, %{request: request} = params)
+      when is_binary(sandbox_id) and is_map(request) do
     request = Zoi.parse!(@execute_request_schema, request)
-    timeout_seconds = Keyword.get(opts, :timeout_seconds, request["timeout"])
+    timeout_seconds = Map.get(params, :timeout_seconds, request["timeout"])
 
     # API reference: https://www.daytona.io/docs/en/tools/api#daytona-toolbox/tag/process/POST/process/execute
     toolbox
@@ -36,6 +36,7 @@ defmodule Daytona.Toolbox.Process do
     |> Req.post(
       url: "/process/execute",
       json: request,
+      # Keep Req slightly past the process budget so Daytona can return its own timeout/error body.
       receive_timeout: timeout_seconds * 1_000 + 5_000
     )
     |> execute_response()

@@ -25,12 +25,14 @@ defmodule Daytona.Toolbox.GitTest do
 
     assert :ok =
              Git.clone(toolbox(), "sandbox_123", %{
-               branch: "main",
-               commit_id: "abc123",
-               password: "ghp_secret",
-               path: "workspace",
-               url: "https://github.com/octocat/Hello-World",
-               username: "octocat"
+               request: %{
+                 branch: "main",
+                 commit_id: "abc123",
+                 password: "ghp_secret",
+                 path: "workspace",
+                 url: "https://github.com/octocat/Hello-World",
+                 username: "octocat"
+               }
              })
   end
 

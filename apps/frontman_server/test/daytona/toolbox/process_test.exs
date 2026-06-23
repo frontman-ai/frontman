@@ -4,7 +4,7 @@ defmodule Daytona.Toolbox.ProcessTest do
   alias Daytona.Toolbox
   alias Daytona.Toolbox.Process, as: ToolboxProcess
 
-  describe "execute/4" do
+  describe "execute/3" do
     test "runs a command in the sandbox workspace" do
       Req.Test.expect(:playgithub_daytona, fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -26,10 +26,12 @@ defmodule Daytona.Toolbox.ProcessTest do
 
       assert {:ok, %{exit_code: 0, body: %{"exitCode" => 0, "result" => "installed"}}} =
                ToolboxProcess.execute(toolbox(), "sandbox_123", %{
-                 command: "npx astro add @frontman-ai/astro --yes",
-                 cwd: "workspace",
-                 envs: %{"NODE_ENV" => "test"},
-                 timeout: 300
+                 request: %{
+                   command: "npx astro add @frontman-ai/astro --yes",
+                   cwd: "workspace",
+                   envs: %{"NODE_ENV" => "test"},
+                   timeout: 300
+                 }
                })
     end
   end

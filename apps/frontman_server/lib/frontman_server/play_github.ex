@@ -284,9 +284,10 @@ defmodule FrontmanServer.PlayGithub do
     case Toolbox.fetch(daytona) do
       {:ok, toolbox} ->
         toolbox
-        |> Git.clone(sandbox.daytona_sandbox_id, clone_request(github_reference),
+        |> Git.clone(sandbox.daytona_sandbox_id, %{
+          request: clone_request(github_reference),
           timeout_seconds: @repository_clone_timeout_seconds
-        )
+        })
         |> persist_clone_result(sandbox)
 
       {:error, reason} ->
@@ -376,15 +377,14 @@ defmodule FrontmanServer.PlayGithub do
   end
 
   defp ensure_workspace_path_exists(toolbox, sandbox, workspace_path) do
-    case ToolboxProcess.execute(
-           toolbox,
-           sandbox.daytona_sandbox_id,
-           %{
+    case toolbox
+         |> ToolboxProcess.execute(sandbox.daytona_sandbox_id, %{
+           request: %{
              command: "test -d #{shell_quote(workspace_path)}",
              cwd: ".",
              timeout: @frontman_install_timeout_seconds
            }
-         ) do
+         }) do
       {:ok, %{exit_code: 0}} ->
         :ok
 
@@ -397,10 +397,9 @@ defmodule FrontmanServer.PlayGithub do
   end
 
   defp run_dependency_install_command(toolbox, sandbox, github_reference) do
-    case ToolboxProcess.execute(
-           toolbox,
-           sandbox.daytona_sandbox_id,
-           %{
+    case toolbox
+         |> ToolboxProcess.execute(sandbox.daytona_sandbox_id, %{
+           request: %{
              command:
                logged_install_command(
                  dependency_install_command(github_reference),
@@ -410,7 +409,7 @@ defmodule FrontmanServer.PlayGithub do
              cwd: ".",
              timeout: @dependency_install_timeout_seconds
            }
-         ) do
+         }) do
       {:ok, %{exit_code: 0}} ->
         :ok
 
@@ -423,10 +422,9 @@ defmodule FrontmanServer.PlayGithub do
   end
 
   defp run_frontman_install_command(toolbox, sandbox, github_reference) do
-    case ToolboxProcess.execute(
-           toolbox,
-           sandbox.daytona_sandbox_id,
-           %{
+    case toolbox
+         |> ToolboxProcess.execute(sandbox.daytona_sandbox_id, %{
+           request: %{
              command:
                logged_install_command(
                  @frontman_install_command,
@@ -436,7 +434,7 @@ defmodule FrontmanServer.PlayGithub do
              cwd: launch_workspace_path(github_reference),
              timeout: @frontman_install_timeout_seconds
            }
-         ) do
+         }) do
       {:ok, %{exit_code: 0}} ->
         persist_status(sandbox, :install_finished)
 
@@ -496,15 +494,14 @@ defmodule FrontmanServer.PlayGithub do
   end
 
   defp run_dev_server_command(toolbox, sandbox, github_reference) do
-    case ToolboxProcess.execute(
-           toolbox,
-           sandbox.daytona_sandbox_id,
-           %{
+    case toolbox
+         |> ToolboxProcess.execute(sandbox.daytona_sandbox_id, %{
+           request: %{
              command: dev_server_command(),
              cwd: launch_workspace_path(github_reference),
              timeout: @dev_server_start_timeout_seconds
            }
-         ) do
+         }) do
       {:ok, %{exit_code: 0}} ->
         :ok
 

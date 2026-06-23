@@ -1,0 +1,20 @@
+change_id: playgithub-cloud-launch-astro
+title: PlayGithub Cloud Launch For Astro
+status: proposed
+domain: playgithub-cloud-launch
+core_contexts:
+  - PlayGithubLaunch
+  - ProjectAnalyzer
+  - FrameworkBootstrap
+supporting_contexts:
+  - SourceTarget
+  - DevServerRuntime
+  - PreviewAccess
+  - LaunchExperience
+generic_contexts:
+  - SandboxRuntime
+  - SandboxAccessPolicy
+  - LaunchTelemetry
+entry_points:
+  - OpenPlayGithubUrl
+success_metric: URL-to-ready Astro launch succeeds without local development environment

@@ -9,6 +9,8 @@ defmodule Daytona.Toolbox.Git do
 
   alias Daytona.Toolbox
 
+  @default_clone_timeout_seconds 300
+
   @clone_request_schema Zoi.map(
                           %{
                             # Required
@@ -24,9 +26,9 @@ defmodule Daytona.Toolbox.Git do
                           coerce: true
                         )
 
-  def clone(%Toolbox{} = toolbox, sandbox_id, request, opts \\ [])
-      when is_binary(sandbox_id) and is_map(request) and is_list(opts) do
-    timeout_seconds = Keyword.get(opts, :timeout_seconds, 300)
+  def clone(%Toolbox{} = toolbox, sandbox_id, %{request: request} = params)
+      when is_binary(sandbox_id) and is_map(request) do
+    timeout_seconds = Map.get(params, :timeout_seconds, @default_clone_timeout_seconds)
 
     # API reference: https://www.daytona.io/docs/en/tools/api#daytona-toolbox/tag/git/POST/git/clone
     toolbox
@@ -34,6 +36,7 @@ defmodule Daytona.Toolbox.Git do
     |> Req.post(
       url: "/git/clone",
       json: Zoi.parse!(@clone_request_schema, request),
+      # Keep Req slightly past the clone budget so Daytona can return its own timeout/error body.
       receive_timeout: timeout_seconds * 1_000 + 5_000
     )
     |> clone_response()
