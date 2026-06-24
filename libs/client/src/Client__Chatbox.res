@@ -13,7 +13,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 module Icons = FrontmanBindings.Bindings__RadixUI__Icons
 module Message = Client__State__Types.Message
-module RuntimeConfig = Client__RuntimeConfig
 
 // Import Frontman UI components
 module UserMessage = Client__UserMessage
@@ -110,30 +109,18 @@ let make = (~onConfigureProvider: unit => unit) => {
   let lastErrorId = Client__State.useSelector(Client__State.Selectors.lastErrorId)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
-  let usageInfo = Client__State.useSelector(Client__State.Selectors.usageInfo)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
-  let hasProviderConfigured = Client__State.useSelector(
-    Client__State.Selectors.hasAnyProviderConfigured,
-  )
   let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasEnrichingAnnotations = Client__State.useSelector(
     Client__State.Selectors.hasEnrichingAnnotations,
   )
-  let runtimeConfig = RuntimeConfig.read()
-  let hasEnvKey = RuntimeConfig.hasAnyProviderKey(runtimeConfig)
-  let hasAnyKey = hasProviderConfigured || hasEnvKey
   let modelConfigOption =
     configOptions->Option.flatMap(opts =>
       FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.findConfigOptionByCategory(opts, Model)
     )
   let isModelsConfigLoading = configOptions->Option.isNone
-
-  let isUsageExhausted = switch (usageInfo, hasAnyKey) {
-  | (Some({remaining: Some(remaining), hasServerKey: Some(true)}), false) if remaining <= 0 => true
-  | _ => false
-  }
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
@@ -438,15 +425,6 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
-    {switch (usageInfo, hasAnyKey) {
-    | (Some({limit: Some(limit), remaining: Some(remaining), hasServerKey: Some(true)}), false) =>
-      <div className="px-4 pb-1 text-xs text-zinc-400 shrink-0">
-        {React.string(
-          `Free requests remaining: ${remaining->Int.toString} / ${limit->Int.toString}. Add your API key in Settings to remove limits.`,
-        )}
-      </div>
-    | _ => React.null
-    }}
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {
@@ -462,8 +440,6 @@ let make = (~onConfigureProvider: unit => unit) => {
           onConfigureProvider
           isAgentRunning
           hasActiveACPSession
-          disabled={isUsageExhausted}
-          disabledPlaceholder="Free requests exhausted. Add your API key in Settings to continue."
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
           onDrawShape={Client__State.Actions.toggleWebPreviewPen}
           isSelecting={isSelectingElement}
