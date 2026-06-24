@@ -1,5 +1,11 @@
 # @frontman-ai/frontman-client
 
+## 1.0.2
+
+### Patch Changes
+
+- [#1175](https://github.com/frontman-ai/frontman/pull/1175) [`8c07721`](https://github.com/frontman-ai/frontman/commit/8c077219700fbe773cadf7d55acb3165540ad7aa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Improve MCP tool schema validation error diagnostics in Sentry.
+
 ## 1.0.1
 
 ### Patch Changes

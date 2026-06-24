@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [1.2.0] - 2026-06-24
+
+
+#### @frontman-ai/frontman-client
+
+
+### Patch Changes
+
+- [#1175](https://github.com/frontman-ai/frontman/pull/1175) [`8c07721`](https://github.com/frontman-ai/frontman/commit/8c077219700fbe773cadf7d55acb3165540ad7aa) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Improve MCP tool schema validation error diagnostics in Sentry.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Patch Changes
+
+- [#1180](https://github.com/frontman-ai/frontman/pull/1180) [`6d4f43c`](https://github.com/frontman-ai/frontman/commit/6d4f43c883c3c634f2a905681daee117b3dcbcac) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update the WordPress.org listing copy to position Frontman as an AI website editor for non-developer WordPress teams.
+
 ## [1.1.0] - 2026-06-24
 
 
