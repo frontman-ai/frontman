@@ -10,13 +10,14 @@
 module Bindings = FrontmanBindings.Sentry__Browser
 module Sentry = FrontmanClient__Sentry
 
-let run = (~component, ~stacktrace as _, ~level, message, _ctx, error) => {
+let run = (~component, ~stacktrace as _, ~level, message, ctx, error) => {
   switch level {
   | FrontmanLogs.Logs_level.Error =>
     if Sentry.isEnabled() {
       Bindings.withScope(scope => {
         scope->Bindings.scopeSetTag("frontman.library", "frontman-client")
         scope->Bindings.scopeSetTag("frontman.component", component)
+        scope->Bindings.scopeSetContext("frontman.log_context", Obj.magic(ctx))
         switch error {
         | Some(jsExn) =>
           // captureException preserves stack traces for Sentry grouping.

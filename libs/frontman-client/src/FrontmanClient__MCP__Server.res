@@ -147,10 +147,9 @@ let executeLocalTool = async (
         "taskId": taskId,
         "toolCallId": toolCallId,
         "schemaError": msg,
+        "argumentKeys": argumentKeys(arguments),
       },
-      `Tool input schema validation failed: tool=${T.name} taskId=${taskId} toolCallId=${toolCallId} argumentKeys=${argumentKeys(
-          arguments,
-        )} error=${msg}`,
+      "Tool input schema validation failed",
     )
     Completed(
       Types.CallToolResult.makeError(`Invalid input: ${msg}`)->Types.CallToolResult.withMeta(meta),
