@@ -11,6 +11,7 @@ ROOT_DIR="$(git rev-parse --show-toplevel)"
 VERSION="${1:-${VERSION:-}}"
 FRONTMAN_PHP="$ROOT_DIR/libs/frontman-wordpress/frontman.php"
 README_TXT="$ROOT_DIR/libs/frontman-wordpress/readme.txt"
+PACKAGE_JSON="$ROOT_DIR/libs/frontman-wordpress/package.json"
 
 if [ -z "$VERSION" ]; then
   printf 'Provide VERSION as an argument or environment variable\n' >&2
@@ -55,6 +56,15 @@ awk -v version="$VERSION" '
 }
 
 mv "$tmp_frontman" "$FRONTMAN_PHP"
+
+node -e '
+  const fs = require("node:fs");
+  const path = process.argv[1];
+  const version = process.argv[2];
+  const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+  pkg.version = version;
+  fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
+' "$PACKAGE_JSON" "$VERSION"
 
 tmp_readme=$(mktemp)
 

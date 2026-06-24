@@ -23,6 +23,7 @@
 		"libs/frontman-astro",
 		"libs/frontman-astro-browser",
 		"libs/frontman-nextjs",
+		"libs/frontman-wordpress",
 		"libs/frontman-vite",
 		"test/sites/blog-starter",
 		"test/e2e",
