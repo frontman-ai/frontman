@@ -1,8 +1,8 @@
 <?php
 /**
- * Plugin Name:       Frontman - Agentic AI Editor
+ * Plugin Name:       Frontman - AI Website Editor
  * Plugin URI:        https://frontman.sh
- * Description:       AI agent that edits posts, blocks, Elementor pages, WooCommerce data, menus, templates, and site options beside a live preview.
+ * Description:       Edit WordPress with AI beside a live preview. Update pages, posts, Elementor layouts, WooCommerce data, menus, and settings without digging through admin screens.
  * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
