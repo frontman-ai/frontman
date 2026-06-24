@@ -17,7 +17,7 @@ defmodule FrontmanServerWeb.Router do
     plug(:protect_from_forgery)
     plug(:put_secure_browser_headers)
     plug(:fetch_current_scope_for_user)
-    plug(FrontmanServer.Observability.SentryContext)
+    plug(FrontmanServerWeb.Plugs.SentryContext)
   end
 
   pipeline :api do
@@ -29,7 +29,7 @@ defmodule FrontmanServerWeb.Router do
     plug(:fetch_session)
     plug(:fetch_current_scope_for_user)
     plug(:require_authenticated_user_api)
-    plug(FrontmanServer.Observability.SentryContext)
+    plug(FrontmanServerWeb.Plugs.SentryContext)
   end
 
   ## Public routes

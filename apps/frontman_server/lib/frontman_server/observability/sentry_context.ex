@@ -10,15 +10,6 @@ defmodule FrontmanServer.Observability.SentryContext do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Accounts.User
 
-  def init(opts), do: opts
-
-  def call(conn, _opts) do
-    conn.assigns[:current_scope]
-    |> set_scope_context()
-
-    conn
-  end
-
   def set_task_scope_context(%Scope{} = scope, task_id) when is_binary(task_id) do
     set_scope_context(scope)
     set_task_context(task_id)
