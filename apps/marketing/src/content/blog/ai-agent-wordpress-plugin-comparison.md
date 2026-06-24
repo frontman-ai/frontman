@@ -43,7 +43,7 @@ You do not want another blank box that writes a paragraph. You want to say, "sho
 
 That is the promise. The current market is messier.
 
-WordPress AI plugins now cover several different jobs: chatbots, content generation, embeddings, MCP servers, site builders, Elementor helpers, and agents that can operate on an existing site. Those products often appear side by side, but they do not solve the same problem.
+WordPress AI plugins now cover several different jobs: chatbots, content generation, embeddings, MCP servers, site builders, Elementor helpers, and agents that can operate on an existing site. Those products often appear side by side, but they do not solve the same problem. For the broader plugin landscape across agents, builders, SEO, forms, chatbots, and automation, see [Best WordPress AI Plugins in 2026](/blog/best-wordpress-ai-plugins-2026/).
 
 The useful comparison is not "which AI plugin has the most features." That is spreadsheet thinking. The better question is simpler: what do you want the agent to change, and where will you verify the result?
 
