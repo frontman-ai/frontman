@@ -4,7 +4,7 @@ Tags: ai, agent, editing, elementor, woocommerce
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -106,6 +106,10 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 4. Select mode lets you click page elements to target edits visually.
 
 == Changelog ==
+
+= 1.1.0 =
+* Sync the Frontman plugin release with Frontman v1.1.0
+* See the GitHub release notes for the full cross-product changelog
 
 = 1.0.0 =
 * Major release for the OpenAI provider rename and cross-package breaking changes

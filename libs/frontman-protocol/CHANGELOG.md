@@ -1,5 +1,15 @@
 # @frontman-ai/frontman-protocol
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1130](https://github.com/frontman-ai/frontman/pull/1130) [`c2d7e23`](https://github.com/frontman-ai/frontman/commit/c2d7e23a7fc79f0941bf1abcfe86181070f5620d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return MCP-standard tool results for text and image content.
+
+- [#1151](https://github.com/frontman-ai/frontman/pull/1151) [`4089f7f`](https://github.com/frontman-ai/frontman/commit/4089f7fcd1f31aaf1e7c17bd59072df558031d88) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove backend default model selection and let the client choose the first available model option.
+
+- [#1160](https://github.com/frontman-ai/frontman/pull/1160) [`ed80e09`](https://github.com/frontman-ai/frontman/commit/ed80e09ab233e5097c8e70ce7c33be674a08854a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update ReScript/Sury integration for `sury@11.0.0-alpha.5` and regenerate protocol JSON schemas.
+
 ## 1.0.0
 
 ### Major Changes

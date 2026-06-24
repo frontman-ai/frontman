@@ -1,5 +1,15 @@
 # @frontman-ai/frontman-client
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1154](https://github.com/frontman-ai/frontman/pull/1154) [`2786253`](https://github.com/frontman-ai/frontman/commit/2786253055f47bc2715884acd61b71b256f31727) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Cleanly leave ACP channels and disconnect the Phoenix socket when Frontman unmounts.
+
+- [#1130](https://github.com/frontman-ai/frontman/pull/1130) [`c2d7e23`](https://github.com/frontman-ai/frontman/commit/c2d7e23a7fc79f0941bf1abcfe86181070f5620d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return MCP-standard tool results for text and image content.
+
+- [#1160](https://github.com/frontman-ai/frontman/pull/1160) [`ed80e09`](https://github.com/frontman-ai/frontman/commit/ed80e09ab233e5097c8e70ce7c33be674a08854a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update ReScript/Sury integration for `sury@11.0.0-alpha.5` and regenerate protocol JSON schemas.
+
 ## 1.0.0
 
 ### Major Changes

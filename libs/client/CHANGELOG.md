@@ -1,5 +1,21 @@
 # @frontman-ai/client
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1112](https://github.com/frontman-ai/frontman/pull/1112) [`9b8fea7`](https://github.com/frontman-ai/frontman/commit/9b8fea73ab3ba4354ede9157deade5cb920b6f16) Thanks [@itayadler](https://github.com/itayadler)! - Serialize annotated element CSS selectors and clarify that `execute_js` is for inspection/navigation, not source-of-truth edits.
+
+- [#1154](https://github.com/frontman-ai/frontman/pull/1154) [`2786253`](https://github.com/frontman-ai/frontman/commit/2786253055f47bc2715884acd61b71b256f31727) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Cleanly leave ACP channels and disconnect the Phoenix socket when Frontman unmounts.
+
+- [#1130](https://github.com/frontman-ai/frontman/pull/1130) [`c2d7e23`](https://github.com/frontman-ai/frontman/commit/c2d7e23a7fc79f0941bf1abcfe86181070f5620d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return MCP-standard tool results for text and image content.
+
+- [#1172](https://github.com/frontman-ai/frontman/pull/1172) [`0f87d0d`](https://github.com/frontman-ai/frontman/commit/0f87d0d7133f77ac5ddb193afad768ffb5051744) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix no-API-key errors to show provider configuration and keep annotation chips within message bounds.
+
+- [#1151](https://github.com/frontman-ai/frontman/pull/1151) [`4089f7f`](https://github.com/frontman-ai/frontman/commit/4089f7fcd1f31aaf1e7c17bd59072df558031d88) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove backend default model selection and let the client choose the first available model option.
+
+- [#1160](https://github.com/frontman-ai/frontman/pull/1160) [`ed80e09`](https://github.com/frontman-ai/frontman/commit/ed80e09ab233e5097c8e70ce7c33be674a08854a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update ReScript/Sury integration for `sury@11.0.0-alpha.5` and regenerate protocol JSON schemas.
+
 ## 1.0.0
 
 ### Major Changes
