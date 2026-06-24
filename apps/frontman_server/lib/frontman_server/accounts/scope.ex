@@ -46,4 +46,12 @@ defmodule FrontmanServer.Accounts.Scope do
   def for_user(%User{} = user, nil) do
     %__MODULE__{user: user, organization: nil}
   end
+
+  def user(%__MODULE__{user: %User{} = user}), do: user
+
+  def user_id(%__MODULE__{} = scope), do: user(scope).id
+
+  def user_email(%__MODULE__{} = scope), do: user(scope).email
+
+  def user_name(%__MODULE__{} = scope), do: user(scope).name
 end

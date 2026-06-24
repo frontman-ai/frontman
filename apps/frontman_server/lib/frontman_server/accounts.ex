@@ -21,7 +21,7 @@ defmodule FrontmanServer.Accounts do
   @doc """
   Returns the user map from scope.
   """
-  def scope_user(%Scope{user: %User{} = user}), do: user
+  def scope_user(%Scope{} = scope), do: Scope.user(scope)
 
   @doc """
   Returns the user id from scope.
