@@ -10,6 +10,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   require Logger
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.Backend
   alias ModelContextProtocol, as: MCP
@@ -71,6 +72,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @doc false
   def run_backend_tool(%Scope{} = scope, module, task_id, turn_number, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
+    SentryContext.set_task_scope_context(scope, task_id)
+
     %{"content" => content} =
       result =
       execute_backend_tool(scope, module, tool_call, task_id, turn_number)
@@ -93,6 +96,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @doc false
   def start_mcp_tool(%Scope{} = scope, task_id, turn_number, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
+    SentryContext.set_task_scope_context(scope, task_id)
+
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     # Register BEFORE publishing to prevent a race where the client responds
@@ -105,6 +110,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   @doc false
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :triggered)
       when is_integer(turn_number) and turn_number > 0 do
+    SentryContext.set_task_scope_context(scope, task_id)
+
     timeout_msg = "Tool #{tool_call.name} timed out"
 
     metadata = [

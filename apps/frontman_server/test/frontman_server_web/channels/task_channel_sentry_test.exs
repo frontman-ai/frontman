@@ -16,6 +16,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
   setup %{scope: scope} do
     Sentry.Test.setup_sentry(dedup_events: false)
+    Sentry.Context.clear_all()
+    Logger.reset_metadata([])
 
     {socket, task_id} = join_task_channel(scope, framework: "nextjs")
     complete_mcp_handshake(socket)
@@ -138,8 +140,11 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       assert [report] = mcp_error_reports
       metadata = report.extra[:logger_metadata]
       assert report.message.formatted == "MCP tool execution failed"
+      assert report.tags[:user_id] == scope.user.id
+      assert report.tags[:task_id] == task_id
       assert metadata[:tool_name] == "testMcpTool"
       assert metadata[:task_id] == task_id
+      assert metadata[:user_id] == scope.user.id
       assert metadata[:error_message] =~ "permission denied"
     end
 

@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServerWeb.ACPHistory
@@ -33,6 +34,8 @@ defmodule FrontmanServerWeb.TasksChannel do
   @impl true
   def join("tasks", _params, socket) do
     if Map.has_key?(socket.assigns, :scope) do
+      SentryContext.set_scope_context(socket.assigns.scope)
+
       Logger.info("Client joining tasks channel (authenticated)")
 
       user_id = socket.assigns.scope.user.id

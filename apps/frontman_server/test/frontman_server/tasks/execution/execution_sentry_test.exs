@@ -18,6 +18,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
+    Sentry.Context.clear_all()
+    Logger.reset_metadata([])
 
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
@@ -55,6 +57,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       [report | _] = error_reports
       assert report.message.formatted == "Agent execution failed"
+      assert report.tags[:task_id] == task_id
+      assert report.tags[:user_id] == scope.user.id
       assert report.extra[:reason] == ":llm_api_failure"
     end
   end
@@ -82,6 +86,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       [report | _] = error_reports
       assert report.message.formatted == "Agent execution failed"
+      assert report.tags[:task_id] == task_id
+      assert report.tags[:user_id] == scope.user.id
       assert report.extra[:reason] == "Sentry test: simulated stream error"
     end
   end

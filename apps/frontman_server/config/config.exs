@@ -115,7 +115,7 @@ config :tailwind,
 
 config :logger, :default_formatter,
   format: "\n$time [$level] $metadata$message\n",
-  metadata: [:request_id, :module, :function, :reason]
+  metadata: [:request_id, :module, :function, :reason, :task_id, :user_id, :user_name]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

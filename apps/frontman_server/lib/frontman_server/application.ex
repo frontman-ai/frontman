@@ -21,6 +21,8 @@ defmodule FrontmanServer.Application do
     :tool_name,
     :tool_call_id,
     :task_id,
+    :user_id,
+    :user_name,
     :reason,
     :raw_arguments,
     :decode_error,
@@ -41,7 +43,7 @@ defmodule FrontmanServer.Application do
         capture_log_messages: true,
         level: :error,
         metadata: @sentry_metadata,
-        tags_from_metadata: [:error_type, :tool_name]
+        tags_from_metadata: [:error_type, :tool_name, :task_id, :user_id]
       }
     })
 

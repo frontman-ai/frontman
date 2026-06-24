@@ -22,6 +22,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
+    Sentry.Context.clear_all()
+    Logger.reset_metadata([])
 
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
@@ -77,9 +79,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       [report | _] = tool_error_reports
       metadata = report.extra[:logger_metadata]
       assert report.message.formatted == "Tool execution failed"
+      assert report.tags[:user_id] == scope.user.id
+      assert report.tags[:task_id] == task_id
       assert metadata[:tool_name] == "todo_write"
       assert metadata[:tool_call_id] == tool_call.id
       assert metadata[:task_id] == task_id
+      assert metadata[:user_id] == scope.user.id
       assert is_binary(metadata[:reason])
     end
   end
@@ -118,7 +123,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       metadata = report.extra[:logger_metadata]
       assert report.message.formatted == "Tool argument parse failure"
       assert report.tags[:tool_name] == "todo_write"
+      assert report.tags[:user_id] == scope.user.id
+      assert report.tags[:task_id] == task_id
       assert metadata[:tool_name] == "todo_write"
+      assert metadata[:user_id] == scope.user.id
+      assert metadata[:task_id] == task_id
       assert metadata[:raw_arguments] == "{invalid json!!!}"
       assert is_binary(metadata[:decode_error])
 
@@ -227,7 +236,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       reports = Sentry.Test.pop_sentry_reports()
       timeout_reports = Enum.filter(reports, &(&1.tags[:error_type] == "tool_timeout"))
-      assert length(timeout_reports) == 1
+      assert [report] = timeout_reports
+      assert report.tags[:user_id] == scope.user.id
+      assert report.tags[:task_id] == task_id
     end
 
     test "handle_timeout(:triggered) is a no-op for :pause_agent policy", %{

@@ -30,6 +30,7 @@ defmodule FrontmanServer do
     Encrypted.Binary,
     {Tools, []},
     Observability.ConsoleHandler,
+    Observability.SentryContext,
     Workers.GenerateTitle,
     Workers.NotifyDiscordNewUser,
     Workers.SendWelcomeEmail,

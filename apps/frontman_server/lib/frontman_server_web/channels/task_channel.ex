@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Frameworks
+  alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.RetryCoordinator
@@ -38,6 +39,8 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     case Tasks.get_task(scope, task_id) do
       {:ok, task} ->
+        SentryContext.set_task_scope_context(scope, task_id)
+
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
         # Start MCP initialization as a synchronous state machine.

@@ -40,6 +40,7 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Tasks.{
@@ -302,6 +303,8 @@ defmodule FrontmanServer.Tasks do
   """
   def handle_swarm_event(scope, task_id, turn_number, event)
       when is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
+    SentryContext.set_task_scope_context(scope, task_id)
+
     with :ok <- persist_swarm_event(scope, task_id, turn_number, event) do
       broadcast_swarm_event(task_id, turn_number, event)
     end
