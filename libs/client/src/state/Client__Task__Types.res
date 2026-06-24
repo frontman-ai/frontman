@@ -573,7 +573,14 @@ let elementorTargetText = (context: Client__ElementorDetection.t): string =>
   | None => `element_id=${context.elementId}`
   }
 
-let boundingBoxToMeta = (bb: Annotation.boundingBox): boundingBoxMeta => {
+let viewportBoundingBoxToMeta = (Annotation.ViewportBoundingBox(bb)): boundingBoxMeta => {
+  x: bb.x,
+  y: bb.y,
+  width: bb.width,
+  height: bb.height,
+}
+
+let documentBoundingBoxToMeta = (Annotation.DocumentBoundingBox(bb)): boundingBoxMeta => {
   x: bb.x,
   y: bb.y,
   width: bb.width,
@@ -581,8 +588,11 @@ let boundingBoxToMeta = (bb: Annotation.boundingBox): boundingBoxMeta => {
 }
 
 let penShapeToMeta = (shape: Annotation.penShape): penShapeMeta => {
-  points: shape.points->Array.map(point => {x: point.x, y: point.y}),
-  boundingBox: boundingBoxToMeta(shape.boundingBox),
+  points: shape.documentPoints->Array.map(point => {
+    let Annotation.DocumentPoint(point) = point
+    {x: point.x, y: point.y}
+  }),
+  boundingBox: documentBoundingBoxToMeta(shape.documentBoundingBox),
 }
 
 let boundingBoxText = (bb: boundingBoxMeta): string =>
@@ -593,7 +603,7 @@ let penShapeText = (shape: penShapeMeta, ~tagName: string, ~selector: option<str
   | Some(sel) => `<${tagName}> matching ${sel}`
   | None => `<${tagName}>`
   }
-  `Annotated pen mark inside ${container}; viewport bounding box: ${boundingBoxText(
+  `Annotated pen mark inside ${container}; document bounding box: ${boundingBoxText(
       shape.boundingBox,
     )}; path points: ${shape.points->Array.length->Int.toString}`
 }
@@ -814,9 +824,7 @@ let annotationContentBlocks = (annotation: annotationBlockData, ~index: int): ar
   ]->Array.filterMap(x => x)
 }
 
-let messageAnnotationBoundingBoxMeta = (
-  bb: Message.MessageAnnotation.boundingBox,
-): boundingBoxMeta => {
+let messageAnnotationBoundingBoxMeta = (Annotation.ViewportBoundingBox(bb)): boundingBoxMeta => {
   x: bb.x,
   y: bb.y,
   width: bb.width,
@@ -1104,23 +1112,20 @@ let annotationMetaToMessageAnnotation = (
     comment: meta.comment,
     screenshot: Ok(screenshot),
     sourceLocation,
-    boundingBox: meta.boundingBox->Option.map(bb => {
-      Annotation.x: bb.x,
-      y: bb.y,
-      width: bb.width,
-      height: bb.height,
-    }),
+    boundingBox: meta.boundingBox->Option.map(bb =>
+      Annotation.viewportBoundingBox(~x=bb.x, ~y=bb.y, ~width=bb.width, ~height=bb.height)
+    ),
     penShape: meta.penShape->Option.map(shape => {
-      Annotation.points: shape.points->Array.map(point => {
-        Annotation.x: point.x,
+      Annotation.documentPoints: shape.points->Array.map(point => Annotation.DocumentPoint({
+        x: point.x,
         y: point.y,
-      }),
-      boundingBox: {
-        Annotation.x: shape.boundingBox.x,
-        y: shape.boundingBox.y,
-        width: shape.boundingBox.width,
-        height: shape.boundingBox.height,
-      },
+      })),
+      documentBoundingBox: Annotation.documentBoundingBox(
+        ~x=shape.boundingBox.x,
+        ~y=shape.boundingBox.y,
+        ~width=shape.boundingBox.width,
+        ~height=shape.boundingBox.height,
+      ),
     }),
     nearbyText: meta.nearbyText,
     elementorContext: meta.elementorContext,

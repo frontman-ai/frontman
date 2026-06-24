@@ -24,7 +24,7 @@ let makeTestAnnotation = (
   ~screenshot: option<string>=?,
   ~cssClasses: option<string>=?,
   ~nearbyText: option<string>=?,
-  ~boundingBox: option<Annotation.boundingBox>=?,
+  ~boundingBox: option<Annotation.viewportBoundingBox>=?,
 ): Annotation.t => {
   id: "test-annotation-id",
   element: makeMockElement(),
@@ -351,7 +351,7 @@ describe("Client__State__Types", () => {
           ~file="file:///home/user/project/src/Component.tsx",
           ~line=42,
           ~column=5,
-          ~boundingBox={x: 10.5, y: 20.0, width: 200.0, height: 50.0},
+          ~boundingBox=Annotation.viewportBoundingBox(~x=10.5, ~y=20.0, ~width=200.0, ~height=50.0),
         )
 
         let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
@@ -393,7 +393,7 @@ describe("Client__State__Types", () => {
     test(
       "serializes pen shape coordinates in _meta and resource text",
       t => {
-        let shapeBox: Annotation.boundingBox = {x: 10.0, y: 20.0, width: 30.0, height: 40.0}
+        let shapeBox = Annotation.documentBoundingBox(~x=10.0, ~y=20.0, ~width=30.0, ~height=40.0)
         let annotation = {
           ...makeTestAnnotation(
             ~file="file:///home/user/project/src/Component.tsx",
@@ -401,11 +401,13 @@ describe("Client__State__Types", () => {
             ~column=5,
             ~tagName="section",
             ~selector="section.hero",
-            ~boundingBox=shapeBox,
           ),
           penShape: Some({
-            points: [{Annotation.x: 10.0, y: 20.0}, {x: 40.0, y: 60.0}],
-            boundingBox: shapeBox,
+            documentPoints: [
+              Annotation.DocumentPoint({x: 10.0, y: 20.0}),
+              Annotation.DocumentPoint({x: 40.0, y: 60.0}),
+            ],
+            documentBoundingBox: shapeBox,
           }),
         }
 
@@ -447,7 +449,7 @@ describe("MessageAnnotation.fromAnnotation", () => {
       ~selector=".btn-submit",
       ~cssClasses="btn-submit primary",
       ~nearbyText="Submit",
-      ~boundingBox={x: 10.0, y: 20.0, width: 100.0, height: 50.0},
+      ~boundingBox=Annotation.viewportBoundingBox(~x=10.0, ~y=20.0, ~width=100.0, ~height=50.0),
     )
     // Add a comment and screenshot to the annotation
     let annotation = {
@@ -493,13 +495,13 @@ describe("MessageAnnotation.fromAnnotation", () => {
       ~file="src/App.tsx",
       ~line=1,
       ~column=1,
-      ~boundingBox={x: 5.5, y: 10.5, width: 200.0, height: 100.0},
+      ~boundingBox=Annotation.viewportBoundingBox(~x=5.5, ~y=10.5, ~width=200.0, ~height=100.0),
     )
 
     let snapshot = MessageAnnotation.fromAnnotation(annotation)
 
     switch snapshot.boundingBox {
-    | Some(bb) =>
+    | Some(Annotation.ViewportBoundingBox(bb)) =>
       t->expect(bb.x)->Expect.toBe(5.5)
       t->expect(bb.y)->Expect.toBe(10.5)
       t->expect(bb.width)->Expect.toBe(200.0)

@@ -12,8 +12,8 @@ module AnnotationRow = {
     let inputRef = React.useRef(Nullable.null)
 
     let textContent = switch annotation.penShape {
-    | Some(shape) =>
-      `Pen mark: x=${shape.boundingBox.x->Float.toString}, y=${shape.boundingBox.y->Float.toString}, width=${shape.boundingBox.width->Float.toString}, height=${shape.boundingBox.height->Float.toString}`
+    | Some({documentBoundingBox: Annotation.DocumentBoundingBox(box)}) =>
+      `Pen mark: x=${box.x->Float.toString}, y=${box.y->Float.toString}, width=${box.width->Float.toString}, height=${box.height->Float.toString}`
     | None =>
       annotation.nearbyText->Option.getOr(
         annotation.element

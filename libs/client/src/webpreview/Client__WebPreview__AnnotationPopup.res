@@ -55,7 +55,7 @@ let make = (
   }
 
   switch rect {
-  | Some(rect) => {
+  | Some(Annotation.ViewportBoundingBox(rect)) => {
       let top = rect.y +. rect.height +. 8.0
       let left = rect.x
 

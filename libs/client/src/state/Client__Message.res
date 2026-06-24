@@ -26,8 +26,7 @@ let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
 // Serializable annotation snapshot — stored on user messages.
 // Captures all annotation metadata at send time, dropping the live DOM element ref.
 module MessageAnnotation = {
-  type boundingBox = Client__Annotation__Types.boundingBox
-  type point = Client__Annotation__Types.point
+  type boundingBox = Client__Annotation__Types.viewportBoundingBox
   type penShape = Client__Annotation__Types.penShape
 
   @@live

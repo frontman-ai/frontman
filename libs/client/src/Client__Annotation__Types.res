@@ -9,21 +9,63 @@ type annotationMode =
   | Selecting
   | Drawing
 
-type boundingBox = {
-  x: float,
-  y: float,
-  width: float,
-  height: float,
-}
+type viewportPoint = ViewportPoint({x: float, y: float})
+type documentPoint = DocumentPoint({x: float, y: float})
+type localPoint = LocalPoint({x: float, y: float})
 
-type point = {
-  x: float,
-  y: float,
-}
+type viewportBoundingBox = ViewportBoundingBox({x: float, y: float, width: float, height: float})
+type documentBoundingBox = DocumentBoundingBox({x: float, y: float, width: float, height: float})
+
+let viewportPoint = (~x: float, ~y: float): viewportPoint => ViewportPoint({x, y})
+
+let viewportBoundingBox = (
+  ~x: float,
+  ~y: float,
+  ~width: float,
+  ~height: float,
+): viewportBoundingBox => ViewportBoundingBox({x, y, width, height})
+
+let documentBoundingBox = (
+  ~x: float,
+  ~y: float,
+  ~width: float,
+  ~height: float,
+): documentBoundingBox => DocumentBoundingBox({x, y, width, height})
+
+let viewportPointToDocument = (
+  ViewportPoint(point): viewportPoint,
+  ~scrollX: float,
+  ~scrollY: float,
+): documentPoint => DocumentPoint({x: point.x +. scrollX, y: point.y +. scrollY})
+
+let viewportPointToLocal = (ViewportPoint(point): viewportPoint): localPoint => LocalPoint({
+  x: point.x,
+  y: point.y,
+})
+
+let documentBoundingBoxToViewport = (
+  DocumentBoundingBox(box): documentBoundingBox,
+  ~scrollX: float,
+  ~scrollY: float,
+): viewportBoundingBox => ViewportBoundingBox({
+  x: box.x -. scrollX,
+  y: box.y -. scrollY,
+  width: box.width,
+  height: box.height,
+})
+
+let localPointsFromDocument = (
+  points: array<documentPoint>,
+  DocumentBoundingBox(box): documentBoundingBox,
+): array<localPoint> =>
+  points->Array.map((DocumentPoint(point): documentPoint) => LocalPoint({
+    x: point.x -. box.x,
+    y: point.y -. box.y,
+  }))
 
 type penShape = {
-  points: array<point>,
-  boundingBox: boundingBox,
+  documentPoints: array<documentPoint>,
+  documentBoundingBox: documentBoundingBox,
 }
 
 // Enrichment lifecycle status — tracks the async FetchAnnotationDetails effect
@@ -43,7 +85,7 @@ type t = {
   tagName: string,
   // Sync enrichment fields — extracted from DOM, cannot fail
   cssClasses: option<string>,
-  boundingBox: option<boundingBox>,
+  boundingBox: option<viewportBoundingBox>,
   penShape: option<penShape>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
@@ -69,12 +111,11 @@ let make = (~element: WebAPI.DOMAPI.element, ~tagName: string): t => {
 let makePenShape = (
   ~element: WebAPI.DOMAPI.element,
   ~tagName: string,
-  ~points: array<point>,
-  ~boundingBox: boundingBox,
+  ~documentPoints: array<documentPoint>,
+  ~documentBoundingBox: documentBoundingBox,
 ): t => {
   ...make(~element, ~tagName),
-  boundingBox: Some(boundingBox),
-  penShape: Some({points, boundingBox}),
+  penShape: Some({documentPoints, documentBoundingBox}),
 }
 
 // Check if an element is already annotated (by DOM reference equality)

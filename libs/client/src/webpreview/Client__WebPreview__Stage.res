@@ -11,7 +11,14 @@ external asMouseEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.mouseEvent = 
 external elementFromPoint: (WebAPI.DOMAPI.document, int, int) => Nullable.t<WebAPI.DOMAPI.element> =
   "elementFromPoint"
 
-let elementContainsBox = (element: WebAPI.DOMAPI.element, bb: Annotation.boundingBox): bool => {
+let documentScroll = (doc: WebAPI.DOMAPI.document): (float, float) =>
+  doc.defaultView->Null.toOption->Option.mapOr((0.0, 0.0), win => (win.scrollX, win.scrollY))
+
+let elementContainsBox = (
+  element: WebAPI.DOMAPI.element,
+  bb: Annotation.viewportBoundingBox,
+): bool => {
+  let Annotation.ViewportBoundingBox(bb) = bb
   let rect = WebAPI.Element.getBoundingClientRect(element)
   rect.left <= bb.x &&
   rect.top <= bb.y &&
@@ -21,7 +28,7 @@ let elementContainsBox = (element: WebAPI.DOMAPI.element, bb: Annotation.boundin
 
 let rec closestContainingElement = (
   element: WebAPI.DOMAPI.element,
-  bb: Annotation.boundingBox,
+  bb: Annotation.viewportBoundingBox,
 ): WebAPI.DOMAPI.element => {
   switch elementContainsBox(element, bb) {
   | true => element
@@ -32,35 +39,46 @@ let rec closestContainingElement = (
   }
 }
 
-let boundingBoxFromPoints = (points: array<Annotation.point>): option<Annotation.boundingBox> => {
+let viewportBoundingBoxFromPoints = (points: array<Annotation.viewportPoint>): option<
+  Annotation.viewportBoundingBox,
+> => {
   switch points->Array.get(0) {
   | None => None
   | Some(first) => {
+      let Annotation.ViewportPoint(first) = first
       let minX = ref(first.x)
       let minY = ref(first.y)
       let maxX = ref(first.x)
       let maxY = ref(first.y)
 
       points->Array.forEach(point => {
+        let Annotation.ViewportPoint(point) = point
         minX.contents = Math.min(minX.contents, point.x)
         minY.contents = Math.min(minY.contents, point.y)
         maxX.contents = Math.max(maxX.contents, point.x)
         maxY.contents = Math.max(maxY.contents, point.y)
       })
 
-      Some({
-        x: minX.contents,
-        y: minY.contents,
-        width: maxX.contents -. minX.contents,
-        height: maxY.contents -. minY.contents,
-      })
+      Some(
+        Annotation.viewportBoundingBox(
+          ~x=minX.contents,
+          ~y=minY.contents,
+          ~width=maxX.contents -. minX.contents,
+          ~height=maxY.contents -. minY.contents,
+        ),
+      )
     }
   }
 }
 
-let shouldAppendPoint = (points: array<Annotation.point>, point: Annotation.point): bool => {
+let shouldAppendPoint = (
+  points: array<Annotation.viewportPoint>,
+  point: Annotation.viewportPoint,
+): bool => {
   switch points->Array.get(Array.length(points) - 1) {
   | Some(last) => {
+      let Annotation.ViewportPoint(last) = last
+      let Annotation.ViewportPoint(point) = point
       let dx = point.x -. last.x
       let dy = point.y -. last.y
       dx *. dx +. dy *. dy >= 4.0
@@ -69,10 +87,8 @@ let shouldAppendPoint = (points: array<Annotation.point>, point: Annotation.poin
   }
 }
 
-let pointFromMouse = (mouseEv: WebAPI.UIEventsAPI.mouseEvent): Annotation.point => {
-  x: mouseEv.clientX->Int.toFloat,
-  y: mouseEv.clientY->Int.toFloat,
-}
+let pointFromMouse = (mouseEv: WebAPI.UIEventsAPI.mouseEvent): Annotation.viewportPoint =>
+  Annotation.viewportPoint(~x=mouseEv.clientX->Int.toFloat, ~y=mouseEv.clientY->Int.toFloat)
 
 let addMouseListeners = (doc: WebAPI.DOMAPI.document, ~onMouseDown, ~onMouseMove, ~onMouseUp) => {
   WebAPI.Document.addEventListener(doc, Custom("mousedown"), onMouseDown, ~options={capture: true})
@@ -171,8 +187,10 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
   let (dragState, setDragState) = React.useState(() => Idle)
-  let (drawPoints, setDrawPoints) = React.useState((): option<array<Annotation.point>> => None)
-  let drawPointsRef: React.ref<array<Annotation.point>> = React.useRef([])
+  let (drawPoints, setDrawPoints) = React.useState((): option<array<Annotation.viewportPoint>> =>
+    None
+  )
+  let drawPointsRef: React.ref<array<Annotation.viewportPoint>> = React.useRef([])
   // Track whether a drag gesture occurred so the click handler can skip it
   let wasDragging = React.useRef(false)
   // Stash elements to dispatch after setDragState updater completes (React purity)
@@ -330,19 +348,20 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     }
   }, (document, isSelectingElements))
 
-  // Pen drawing event listeners. Coordinates are viewport-relative, matching DOMRect.
+  // Pen drawing tracks viewport coordinates live, then stores document coordinates.
   React.useEffect(() => {
     switch (document, isDrawingShape) {
     | (Some(doc), true) => {
-        let penAnnotationFromPoints = (points: array<Annotation.point>): option<
+        let penAnnotationFromPoints = (points: array<Annotation.viewportPoint>): option<
           Client__Task__Reducer.penAnnotation,
         > => {
-          switch boundingBoxFromPoints(points) {
+          switch viewportBoundingBoxFromPoints(points) {
           | Some(bb) =>
-            switch bb.width >= 3.0 || bb.height >= 3.0 {
+            let Annotation.ViewportBoundingBox(bbData) = bb
+            switch bbData.width >= 3.0 || bbData.height >= 3.0 {
             | true =>
-              let centerX = (bb.x +. bb.width /. 2.0)->Float.toInt
-              let centerY = (bb.y +. bb.height /. 2.0)->Float.toInt
+              let centerX = (bbData.x +. bbData.width /. 2.0)->Float.toInt
+              let centerY = (bbData.y +. bbData.height /. 2.0)->Float.toInt
               let element =
                 doc
                 ->elementFromPoint(centerX, centerY)
@@ -350,11 +369,19 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                 ->Option.mapOr(doc.body->WebAPI.HTMLElement.asElement, el =>
                   closestContainingElement(el, bb)
                 )
+              let (scrollX, scrollY) = documentScroll(doc)
               Some({
                 Client__Task__Reducer.element,
                 tagName: element.tagName,
-                points,
-                boundingBox: bb,
+                documentPoints: points->Array.map(point =>
+                  point->Annotation.viewportPointToDocument(~scrollX, ~scrollY)
+                ),
+                documentBoundingBox: Annotation.documentBoundingBox(
+                  ~x=bbData.x +. scrollX,
+                  ~y=bbData.y +. scrollY,
+                  ~width=bbData.width,
+                  ~height=bbData.height,
+                ),
               })
             | false => None
             }
@@ -531,7 +558,9 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let drawOverlay = switch drawPoints {
   | Some(points) =>
     <svg className="absolute inset-0 pointer-events-none z-[9998] overflow-visible">
-      <Client__WebPreview__PenPolyline points />
+      <Client__WebPreview__PenPolyline
+        points={points->Array.map(Annotation.viewportPointToLocal)}
+      />
     </svg>
   | None => React.null
   }

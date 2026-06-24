@@ -1,10 +1,24 @@
 module Annotation = Client__Annotation__Types
 
-let boundingBox = (annotation: Annotation.t): Annotation.boundingBox =>
+let scrollForElement = (element: WebAPI.DOMAPI.element): (float, float) =>
+  element.ownerDocument
+  ->Null.toOption
+  ->Option.flatMap(doc => doc.defaultView->Null.toOption)
+  ->Option.mapOr((0.0, 0.0), win => (win.scrollX, win.scrollY))
+
+let boundingBox = (annotation: Annotation.t): Annotation.viewportBoundingBox =>
   switch annotation.penShape {
-  | Some(shape) => shape.boundingBox
+  | Some(shape) => {
+      let (scrollX, scrollY) = annotation.element->scrollForElement
+      shape.documentBoundingBox->Annotation.documentBoundingBoxToViewport(~scrollX, ~scrollY)
+    }
   | None => {
       let rect = WebAPI.Element.getBoundingClientRect(annotation.element)
-      {Annotation.x: rect.left, y: rect.top, width: rect.width, height: rect.height}
+      Annotation.viewportBoundingBox(
+        ~x=rect.left,
+        ~y=rect.top,
+        ~width=rect.width,
+        ~height=rect.height,
+      )
     }
   }

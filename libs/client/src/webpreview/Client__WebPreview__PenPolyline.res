@@ -1,12 +1,13 @@
 module Annotation = Client__Annotation__Types
 
 @react.component
-let make = (~points: array<Annotation.point>, ~offsetX: float=0.0, ~offsetY: float=0.0) => {
+let make = (~points: array<Annotation.localPoint>) => {
   let pointsAttr =
     points
-    ->Array.map(point =>
-      `${(point.x -. offsetX)->Float.toString},${(point.y -. offsetY)->Float.toString}`
-    )
+    ->Array.map(point => {
+      let Annotation.LocalPoint(point) = point
+      `${point.x->Float.toString},${point.y->Float.toString}`
+    })
     ->Array.join(" ")
 
   <polyline

@@ -301,8 +301,8 @@ type annotationElement = {
 type penAnnotation = {
   element: WebAPI.DOMAPI.element,
   tagName: string,
-  points: array<Annotation.point>,
-  boundingBox: Annotation.boundingBox,
+  documentPoints: array<Annotation.documentPoint>,
+  documentBoundingBox: Annotation.documentBoundingBox,
 }
 
 type action =
@@ -334,7 +334,7 @@ type action =
       sourceLocation: result<option<Client__Types.SourceLocation.t>, string>,
       cssClasses: option<string>,
       nearbyText: option<string>,
-      boundingBox: option<Annotation.boundingBox>,
+      boundingBox: option<Annotation.viewportBoundingBox>,
       elementorContext: option<Client__ElementorDetection.t>,
       enrichmentStatus: Annotation.enrichmentStatus,
     })
@@ -714,8 +714,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       let annotation = Annotation.makePenShape(
         ~element=pen.element,
         ~tagName=pen.tagName,
-        ~points=pen.points,
-        ~boundingBox=pen.boundingBox,
+        ~documentPoints=pen.documentPoints,
+        ~documentBoundingBox=pen.documentBoundingBox,
       )
       addAnnotationAndFetch(task, annotation)
     }
@@ -1469,12 +1469,12 @@ let fetchAnnotationDetails = (
   }
 
   let rect = WebAPI.Element.getBoundingClientRect(element)
-  let boundingBox: Annotation.boundingBox = {
-    x: rect.left,
-    y: rect.top,
-    width: rect.width,
-    height: rect.height,
-  }
+  let boundingBox = Annotation.viewportBoundingBox(
+    ~x=rect.left,
+    ~y=rect.top,
+    ~width=rect.width,
+    ~height=rect.height,
+  )
 
   let elementorContext =
     document->Option.flatMap(doc =>

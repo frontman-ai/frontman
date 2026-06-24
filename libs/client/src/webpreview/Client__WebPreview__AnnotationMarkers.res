@@ -65,7 +65,7 @@ module Marker = {
     }
 
     switch rect {
-    | Some(rect) =>
+    | Some(Annotation.ViewportBoundingBox(rect)) =>
       <div
         className="absolute pointer-events-none z-[9999]"
         style={
@@ -81,7 +81,9 @@ module Marker = {
         | Some(shape) =>
           <svg className="absolute inset-0 overflow-visible pointer-events-none">
             <Client__WebPreview__PenPolyline
-              points={shape.points} offsetX={rect.x} offsetY={rect.y}
+              points={shape.documentPoints->Annotation.localPointsFromDocument(
+                shape.documentBoundingBox,
+              )}
             />
           </svg>
         | None => React.null
