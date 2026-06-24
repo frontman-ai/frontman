@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro'
+import UseCaseContentSection from '../../components/use-cases/UseCaseContentSection.astro'
 import UseCaseFaqSection from '../../components/use-cases/UseCaseFaqSection.astro'
 import UseCaseCtaSection from '../../components/use-cases/UseCaseCtaSection.astro'
 
@@ -85,10 +86,6 @@ const comparisonRows = [
 	}
 ]
 
-const textLinkClass =
-	'text-primary-500 underline underline-offset-2 transition-colors hover:text-primary-400'
-const proseBulletBaseClass =
-	'relative py-2 pl-[22px] text-[17px] leading-[1.6] before:absolute before:left-0 before:top-[17px] before:h-2 before:w-2 before:rounded-full before:bg-primary-500'
 const tableHeaderClass =
 	'border-b border-zinc-800 bg-[#111113] px-[14px] py-3 text-left text-[12px] uppercase tracking-[0.06em] text-zinc-300'
 const tableCellClass =
@@ -112,7 +109,7 @@ const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 				describe changes in plain English, and get source code edits with hot reload.
 			</p>
 			<p class="text-[17px] leading-[1.7] text-zinc-300">
-				<a href="https://frontman.sh" class={textLinkClass}>Frontman</a> is a vertically integrated
+				<a href="https://frontman.sh" class="text-link">Frontman</a> is a vertically integrated
 				AI agent that lives inside your framework and is accessible from the browser. Instead of
 				screenshots, tickets, and waiting for a sprint slot, designers can iterate directly on
 				the live app while engineering keeps normal review control.
@@ -120,87 +117,65 @@ const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 		</div>
 	</section>
 
-	<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
-		<div class="w-full max-w-[760px]">
-			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[32px]">
-				Why designers get blocked
-			</h2>
-			<div>
-				<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
-					The problem is not spotting visual issues. The problem is shipping them. Designers see spacing,
-					copy, and hierarchy issues immediately, but fixing them often means screenshots, annotations,
-					tickets, and backlog negotiations.
+	<UseCaseContentSection title="Why designers get blocked">
+		<p>
+			The problem is not spotting visual issues. The problem is shipping them. Designers see spacing,
+			copy, and hierarchy issues immediately, but fixing them often means screenshots, annotations,
+			tickets, and backlog negotiations.
+		</p>
+		<p>
+			That handoff loop slows down design quality and product velocity. Frontman removes the loop for
+			visual frontend work by letting designers work on the real running application.
+		</p>
+		<ul>
+			<li><strong>No IDE required</strong> for routine visual refinements.</li>
+			<li><strong>No guessing</strong> from static mocks: edits happen on real layouts and real data.</li>
+			<li><strong>No process rewrite</strong>: code still goes through the existing PR workflow.</li>
+		</ul>
+	</UseCaseContentSection>
+
+	<UseCaseContentSection title="How designers use Frontman" variant="light">
+		<div class="use-case-card-grid">
+			<div class="use-case-card">
+				<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+					1
+				</span>
+				<h3>Open the running app</h3>
+				<p class="m-0 text-[15px] leading-[1.6]">
+					Navigate to the app in your browser and enter Frontman mode.
 				</p>
-				<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
-					That handoff loop slows down design quality and product velocity. Frontman removes the loop for
-					visual frontend work by letting designers work on the real running application.
+			</div>
+			<div class="use-case-card">
+				<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+					2
+				</span>
+				<h3>Click what looks wrong</h3>
+				<p class="m-0 text-[15px] leading-[1.6]">
+					Select the real element on screen instead of describing file paths.
 				</p>
-				<ul class="my-3 list-none p-0">
-					<li class={`${proseBulletBaseClass} text-zinc-300`}>
-						<strong>No IDE required</strong> for routine visual refinements.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-300`}>
-						<strong>No guessing</strong> from static mocks: edits happen on real layouts and real data.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-300`}>
-						<strong>No process rewrite</strong>: code still goes through the existing PR workflow.
-					</li>
-				</ul>
+			</div>
+			<div class="use-case-card">
+				<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+					3
+				</span>
+				<h3>Describe the change</h3>
+				<p class="m-0 text-[15px] leading-[1.6]">
+					Use plain language: spacing, typography, hierarchy, copy, interaction states.
+				</p>
+			</div>
+			<div class="use-case-card">
+				<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+					4
+				</span>
+				<h3>Review and ship</h3>
+				<p class="m-0 text-[15px] leading-[1.6]">
+					See the update instantly, iterate if needed, and send through normal code review.
+				</p>
 			</div>
 		</div>
-	</section>
+	</UseCaseContentSection>
 
-	<section class="flex justify-center bg-zinc-50 px-5 py-16 text-[#09090b] md:px-6">
-		<div class="w-full max-w-[760px]">
-			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-[#09090b] md:text-[32px]">
-				How designers use Frontman
-			</h2>
-			<div class="grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
-				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
-					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
-						1
-					</span>
-					<h3 class="mb-2 text-[18px] text-slate-900">Open the running app</h3>
-					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
-						Navigate to the app in your browser and enter Frontman mode.
-					</p>
-				</div>
-				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
-					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
-						2
-					</span>
-					<h3 class="mb-2 text-[18px] text-slate-900">Click what looks wrong</h3>
-					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
-						Select the real element on screen instead of describing file paths.
-					</p>
-				</div>
-				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
-					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
-						3
-					</span>
-					<h3 class="mb-2 text-[18px] text-slate-900">Describe the change</h3>
-					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
-						Use plain language: spacing, typography, hierarchy, copy, interaction states.
-					</p>
-				</div>
-				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
-					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
-						4
-					</span>
-					<h3 class="mb-2 text-[18px] text-slate-900">Review and ship</h3>
-					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
-						See the update instantly, iterate if needed, and send through normal code review.
-					</p>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
-		<div class="w-full max-w-[1080px]">
-			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[32px]">
-				Comparison: Designer-to-Code Options
-			</h2>
+	<UseCaseContentSection title="Comparison: Designer-to-Code Options" maxWidth="1080px">
 			<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
 				These tools solve different parts of the workflow. Frontman is built for editing existing
 				production UI with runtime context.
@@ -233,39 +208,21 @@ const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 					</tbody>
 				</table>
 			</div>
-		</div>
-	</section>
+	</UseCaseContentSection>
 
-	<section class="flex justify-center bg-zinc-50 px-5 py-16 text-[#09090b] md:px-6">
-		<div class="w-full max-w-[760px]">
-			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-[#09090b] md:text-[32px]">
-				What designers can ship faster
-			</h2>
-			<div>
-				<ul class="my-3 list-none p-0">
-					<li class={`${proseBulletBaseClass} text-zinc-600`}>
-						Typography hierarchy fixes across marketing pages and product surfaces.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-600`}>
-						Spacing and alignment consistency in reusable components.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-600`}>
-						Copy and CTA refinements discovered during product reviews.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-600`}>
-						Responsive tweaks for breakpoints that are hard to catch in design files.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-600`}>
-						Small visual QA issues before launch, without creating ticket debt.
-					</li>
-				</ul>
-				<p class="mb-0 text-[17px] leading-[1.7] text-zinc-600">
-					For deeper architecture context, see <a href="/how-it-works/" class={textLinkClass}>how Frontman works</a>.
-					For tool-level tradeoffs, see <a href="/compare/" class={textLinkClass}>the full comparison matrix</a>.
-				</p>
-			</div>
-		</div>
-	</section>
+	<UseCaseContentSection title="What designers can ship faster" variant="light">
+		<ul>
+			<li>Typography hierarchy fixes across marketing pages and product surfaces.</li>
+			<li>Spacing and alignment consistency in reusable components.</li>
+			<li>Copy and CTA refinements discovered during product reviews.</li>
+			<li>Responsive tweaks for breakpoints that are hard to catch in design files.</li>
+			<li>Small visual QA issues before launch, without creating ticket debt.</li>
+		</ul>
+		<p>
+			For deeper architecture context, see <a href="/how-it-works/" class="text-link">how Frontman works</a>.
+			For tool-level tradeoffs, see <a href="/compare/" class="text-link">the full comparison matrix</a>.
+		</p>
+	</UseCaseContentSection>
 
 	<UseCaseFaqSection faqs={faqs} />
 

@@ -1,0 +1,37 @@
+---
+type Props = {
+	title: string
+	variant?: 'dark' | 'light'
+	maxWidth?: string
+}
+
+const { title, variant = 'dark', maxWidth = '760px' } = Astro.props
+const isLight = variant === 'light'
+---
+
+<section class:list={[
+	'flex justify-center px-5 py-16 md:px-6',
+	isLight ? 'bg-zinc-50 text-zinc-950' : 'bg-[#09090b] text-zinc-50',
+]}>
+	<div class="w-full" style={`max-width: ${maxWidth}`}>
+		<h2 class:list={[
+			'mb-5 !text-[26px] !font-bold !tracking-[-0.02em] md:!text-[32px]',
+			isLight ? '!text-zinc-950' : '!text-zinc-50',
+		]}>{title}</h2>
+		<div class:list={[
+			'[&_p]:mb-4 [&_p]:text-[17px] [&_p]:leading-[1.7] [&_p:last-child]:mb-0',
+			'[&_strong]:font-semibold',
+			'[&_ul]:my-3 [&_ul]:list-none [&_ul]:p-0',
+			'[&_li]:relative [&_li]:py-2 [&_li]:pl-[22px] [&_li]:text-[17px] [&_li]:leading-[1.6]',
+			"[&_li]:before:absolute [&_li]:before:left-0 [&_li]:before:top-[17px] [&_li]:before:h-2 [&_li]:before:w-2 [&_li]:before:rounded-full [&_li]:before:bg-primary-500 [&_li]:before:content-['']",
+			'[&_h3]:mb-2 [&_h3]:!text-[18px] [&_h3]:!font-bold',
+			'[&_.use-case-card]:rounded-xl [&_.use-case-card]:border [&_.use-case-card]:p-[18px]',
+			'[&_.use-case-card-grid]:grid [&_.use-case-card-grid]:grid-cols-2 [&_.use-case-card-grid]:gap-4 max-[900px]:[&_.use-case-card-grid]:grid-cols-1',
+			isLight
+				? '[&_p]:text-zinc-600 [&_li]:text-zinc-600 [&_strong]:text-zinc-950 [&_h3]:!text-slate-900 [&_.use-case-card]:border-zinc-200 [&_.use-case-card]:bg-white [&_.use-case-card_p]:!text-slate-600 [&_.text-link]:text-violet-700 [&_.text-link]:underline [&_.text-link]:underline-offset-2 [&_.text-link:hover]:text-violet-800'
+				: '[&_p]:text-zinc-300 [&_li]:text-zinc-300 [&_strong]:text-zinc-50 [&_h3]:!text-zinc-50 [&_.use-case-card]:border-zinc-800 [&_.use-case-card]:bg-[#111113] [&_.text-link]:text-primary-500 [&_.text-link]:underline [&_.text-link]:underline-offset-2 [&_.text-link:hover]:text-primary-400',
+		]}>
+			<slot />
+		</div>
+	</div>
+</section>
