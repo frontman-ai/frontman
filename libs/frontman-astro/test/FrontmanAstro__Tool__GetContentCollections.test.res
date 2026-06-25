@@ -3,8 +3,9 @@ open Vitest
 module Tool = FrontmanAstro__Tool__GetContentCollections
 module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
-let projectRoot = "/tmp/frontman-astro-content-collections-test"
-let ctx = {FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.projectRoot, sourceRoot: projectRoot}
+let sourceRoot = "/tmp/frontman-astro-content-collections-test"
+let projectRoot = sourceRoot ++ "/apps/site"
+let ctx = {FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.projectRoot, sourceRoot}
 
 let decodeToolResult = (result: MCP.CallToolResult.t): result<Tool.output, string> => {
   let json =
@@ -94,7 +95,7 @@ describe("get_content_collections", _t => {
       t->expect(output.totalEntries)->Expect.toBe(1)
       let entry = output.entries->Array.get(0)->Option.getOrThrow
       t->expect(entry.id)->Expect.toBe("hello-world")
-      t->expect(entry.filePath)->Expect.toBe(Some("src/content/blog/hello-world.md"))
+      t->expect(entry.filePath)->Expect.toBe(Some("apps/site/src/content/blog/hello-world.md"))
     }
   })
 

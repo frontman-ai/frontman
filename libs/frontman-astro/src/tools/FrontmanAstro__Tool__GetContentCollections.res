@@ -1,6 +1,8 @@
 // Exposes Astro content collection entries through Astro's runtime API.
 
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
+module Path = FrontmanBindings.Path
+module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext
 
 let name = "get_content_collections"
 let visibleToAgent = true
@@ -79,17 +81,26 @@ let jsonClone = (value: JSON.t): JSON.t => {
   }
 }
 
-let toContentEntry = (entry: runtimeEntry): contentEntry => {
+let normalizeFilePath = (~ctx: Tool.serverExecutionContext, filePath: string): string => {
+  let absolutePath = switch Path.isAbsolute(filePath) {
+  | true => filePath
+  | false => Path.join([ctx.projectRoot, filePath])
+  }
+
+  PathContext.toRelativePath(~sourceRoot=ctx.sourceRoot, ~absolutePath)
+}
+
+let toContentEntry = (~ctx: Tool.serverExecutionContext, entry: runtimeEntry): contentEntry => {
   id: entry.id,
   collection: entry.collection,
   data: entry.data->jsonClone,
   body: ?entry.body,
-  filePath: ?entry.filePath,
+  filePath: ?(entry.filePath->Option.map(filePath => normalizeFilePath(~ctx, filePath))),
 }
 
 let executeWith = async (
   ~loadContentApi: unit => promise<contentApi>,
-  _ctx: Tool.serverExecutionContext,
+  ctx: Tool.serverExecutionContext,
   input: input,
 ): Tool.MCP.CallToolResult.t => {
   try {
@@ -124,7 +135,7 @@ let executeWith = async (
         | Some(_) => false
         | None => offset + limit < allEntries->Array.length
         },
-        entries: selectedEntries->Array.map(toContentEntry),
+        entries: selectedEntries->Array.map(entry => toContentEntry(~ctx, entry)),
       },
       outputSchema,
     )
