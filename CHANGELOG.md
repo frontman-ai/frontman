@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [1.3.0] - 2026-06-25
+
+
+#### @frontman-ai/astro
+
+
+### Patch Changes
+
+- [#1184](https://github.com/frontman-ai/frontman/pull/1184) [`55a3f92`](https://github.com/frontman-ai/frontman/commit/55a3f928267b233430830c1e0c9aeb4ab44e528e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `get_content_collections` tool for Astro projects.
+
 ## [1.2.0] - 2026-06-24
 
 
