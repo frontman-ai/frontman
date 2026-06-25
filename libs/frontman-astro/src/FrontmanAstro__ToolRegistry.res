@@ -11,7 +11,10 @@ type t = CoreRegistry.t
 let astroTools: array<tool> = [
   module(FrontmanAstro__Tool__GetPages),
   module(FrontmanAstro__Tool__GetLogs),
+  module(FrontmanAstro__Tool__GetContentCollections),
 ]
+
+type loadContentApi = unit => promise<FrontmanAstro__Tool__GetContentCollections.contentApi>
 
 // Default: v4 filesystem-based page discovery
 let make = (): t => {
@@ -28,7 +31,39 @@ let makeWithResolvedRoutes = (
 ): t => {
   let resolvedRoutesTool = FrontmanAstro__Tool__GetResolvedRoutes.make(~getRoutes)
   CoreRegistry.coreTools()
-  ->CoreRegistry.addTools([resolvedRoutesTool, module(FrontmanAstro__Tool__GetLogs)])
+  ->CoreRegistry.addTools([
+    resolvedRoutesTool,
+    module(FrontmanAstro__Tool__GetLogs),
+    module(FrontmanAstro__Tool__GetContentCollections),
+  ])
+  ->CoreRegistry.replaceByName(module(FrontmanAstro__Tool__EditFile))
+}
+
+let makeWithAstroRuntime = (~loadContentApi: loadContentApi): t => {
+  let contentCollectionsTool = FrontmanAstro__Tool__GetContentCollections.make(~loadContentApi)
+
+  CoreRegistry.coreTools()
+  ->CoreRegistry.addTools([
+    module(FrontmanAstro__Tool__GetPages),
+    module(FrontmanAstro__Tool__GetLogs),
+    contentCollectionsTool,
+  ])
+  ->CoreRegistry.replaceByName(module(FrontmanAstro__Tool__EditFile))
+}
+
+let makeWithResolvedRoutesAndAstroRuntime = (
+  ~getRoutes: unit => array<FrontmanBindings.Astro.integrationResolvedRoute>,
+  ~loadContentApi: loadContentApi,
+): t => {
+  let resolvedRoutesTool = FrontmanAstro__Tool__GetResolvedRoutes.make(~getRoutes)
+  let contentCollectionsTool = FrontmanAstro__Tool__GetContentCollections.make(~loadContentApi)
+
+  CoreRegistry.coreTools()
+  ->CoreRegistry.addTools([
+    resolvedRoutesTool,
+    module(FrontmanAstro__Tool__GetLogs),
+    contentCollectionsTool,
+  ])
   ->CoreRegistry.replaceByName(module(FrontmanAstro__Tool__EditFile))
 }
 

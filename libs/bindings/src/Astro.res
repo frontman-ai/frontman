@@ -39,6 +39,9 @@ external use: (connectMiddlewareStack, NodeHttp.connectMiddleware) => unit = "us
 // Vite dev server (minimal bindings for astro:server:setup)
 type viteDevServer = {middlewares: connectMiddlewareStack}
 
+@send
+external ssrLoadModule: (viteDevServer, string) => promise<'a> = "ssrLoadModule"
+
 // Config for constructing a Vite plugin with typed fields we use.
 // Keeps vitePlugin opaque while avoiding Obj.magic at call sites.
 type vitePluginConfig = {

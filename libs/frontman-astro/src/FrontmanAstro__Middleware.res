@@ -19,6 +19,8 @@ type routeDiscovery =
   | Filesystem
   | ResolvedRoutes({getRoutes: unit => array<FrontmanBindings.Astro.integrationResolvedRoute>})
 
+type loadContentApi = unit => promise<FrontmanAstro__Tool__GetContentCollections.contentApi>
+
 // Convert Astro config to core middleware config
 let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   projectRoot: config.projectRoot,
@@ -37,10 +39,15 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
 // Returns a function: Request => promise<option<Response>>
 //   Some(response) => this route was handled
 //   None => not a frontman route, pass through
-let createMiddleware = (config: Config.t, ~routeDiscovery: routeDiscovery) => {
+let createMiddleware = (
+  config: Config.t,
+  ~routeDiscovery: routeDiscovery,
+  ~loadContentApi: loadContentApi,
+) => {
   let registry = switch routeDiscovery {
-  | Filesystem => ToolRegistry.make()
-  | ResolvedRoutes({getRoutes}) => ToolRegistry.makeWithResolvedRoutes(~getRoutes)
+  | Filesystem => ToolRegistry.makeWithAstroRuntime(~loadContentApi)
+  | ResolvedRoutes({getRoutes}) =>
+    ToolRegistry.makeWithResolvedRoutesAndAstroRuntime(~getRoutes, ~loadContentApi)
   }
   let middlewareConfig = toMiddlewareConfig(config)
   CoreMiddleware.createMiddleware(~config=middlewareConfig, ~registry)

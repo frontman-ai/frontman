@@ -110,20 +110,27 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               )
             }
 
-            // Create our Web API middleware and adapt it to Vite's Connect middleware.
-            // Registered as a Vite plugin via configureServer so it runs BEFORE Astro's
-            // own page routing. If registered via astro:server:setup instead, Astro's
-            // catch-all dynamic routes (e.g. blog/[...id]) would match suffix URLs
-            // like /blog/frontman and return 404 before our middleware gets the request.
-            let webMiddleware = Middleware.createMiddleware(config, ~routeDiscovery)
-            let connectMiddleware = ViteAdapter.adaptToConnect(
-              webMiddleware,
-              ~basePath=config.basePath,
-            )
             let middlewarePlugin = Bindings.makeVitePlugin({
               name: "frontman-middleware",
               configureServer: ?Some(
                 server => {
+                  // Create our Web API middleware and adapt it to Vite's Connect middleware.
+                  // Registered as a Vite plugin via configureServer so it runs BEFORE Astro's
+                  // own page routing. If registered via astro:server:setup instead, Astro's
+                  // catch-all dynamic routes (e.g. blog/[...id]) would match suffix URLs
+                  // like /blog/frontman and return 404 before our middleware gets the request.
+                  let loadContentApi = async () =>
+                    await server->Bindings.ssrLoadModule("astro:content")
+                  let webMiddleware = Middleware.createMiddleware(
+                    config,
+                    ~routeDiscovery,
+                    ~loadContentApi,
+                  )
+                  let connectMiddleware = ViteAdapter.adaptToConnect(
+                    webMiddleware,
+                    ~basePath=config.basePath,
+                  )
+
                   server.middlewares->Bindings.use(connectMiddleware)
                 },
               ),
