@@ -55,7 +55,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/marketing/dist --project-name=frontman-marketing --branch=main
+          workingDirectory: apps/marketing
+          command: pages deploy dist --project-name=frontman-marketing --branch=main
 
       - name: Submit to IndexNow
         if: success()
