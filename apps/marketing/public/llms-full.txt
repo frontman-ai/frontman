@@ -5,6 +5,7 @@ Frontman is an open-source AI agent for frontend development. It runs inside fra
 ## Primary Resources
 
 - Homepage: https://frontman.sh/
+- Markdown homepage: https://frontman.sh/index.md
 - Documentation: https://frontman.sh/docs/
 - Installation: https://frontman.sh/docs/installation/
 - API keys and providers: https://frontman.sh/docs/api-keys/
@@ -31,4 +32,11 @@ Frontman integrates with Next.js, Astro, and Vite. The framework plugin exposes 
 - Sitemap: https://frontman.sh/sitemap-index.xml
 - RSS: https://frontman.sh/rss.xml
 - API catalog: https://frontman.sh/.well-known/api-catalog
+- Agent card: https://frontman.sh/.well-known/agent-card.json
+- MCP discovery: https://frontman.sh/.well-known/mcp
+- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
 - Agent skills: https://frontman.sh/.well-known/agent-skills/index.json
+- Docs scoped context: https://frontman.sh/docs/llms.txt
+- API scoped context: https://frontman.sh/api/llms.txt
+- Developers scoped context: https://frontman.sh/developers/llms.txt
+- Schema map: https://frontman.sh/schema-map.xml

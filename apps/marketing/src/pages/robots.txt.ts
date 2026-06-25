@@ -33,6 +33,7 @@ Allow: /
 User-agent: Applebot-Extended
 Allow: /
 
+schemamap: ${new URL('schema-map.xml', import.meta.env.SITE).href}
 Sitemap: ${new URL('sitemap-index.xml', import.meta.env.SITE).href}
 `.trim()
 

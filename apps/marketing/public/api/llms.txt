@@ -1,0 +1,24 @@
+# Frontman API LLM Context
+
+Frontman public API resources support integration metadata, authenticated user sessions, OAuth provider status, and local agent transport.
+
+## Discovery
+
+- API catalog: https://frontman.sh/.well-known/api-catalog
+- Agent card: https://frontman.sh/.well-known/agent-card.json
+- MCP discovery: https://frontman.sh/.well-known/mcp
+- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+
+## Public Endpoints
+
+- GET https://api.frontman.sh/health/ready - service readiness
+- GET https://api.frontman.sh/api/integrations/latest-versions - latest integration package versions
+
+## Authenticated Endpoints
+
+- GET https://api.frontman.sh/api/socket-token - browser client socket token
+- GET https://api.frontman.sh/api/user/me - current user metadata
+- GET https://api.frontman.sh/api/user/api-keys - connected AI provider key status
+- POST https://api.frontman.sh/api/user/api-keys - save AI provider key
+
+Hosted accounts use GitHub or Google OAuth. AI model keys are user-managed BYOK credentials.

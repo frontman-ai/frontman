@@ -5,11 +5,20 @@
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), shared-storage=(), attribution-reporting=()
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com https://region1.analytics.google.com; frame-src 'self' https://www.googletagmanager.com https://www.youtube-nocookie.com; worker-src 'self' blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://rankinpublic.xyz
-  Link: </llms.txt>; rel="alternate"; type="text/plain", </llms-full.txt>; rel="alternate"; type="text/plain", </sitemap-index.xml>; rel="sitemap"; type="application/xml", </rss.xml>; rel="alternate"; type="application/rss+xml", </.well-known/api-catalog>; rel="service-desc"; type="application/linkset+json"
+  Link: </llms.txt>; rel="alternate"; type="text/plain", </llms-full.txt>; rel="alternate"; type="text/plain", </index.md>; rel="alternate"; type="text/markdown", </sitemap-index.xml>; rel="sitemap"; type="application/xml", </rss.xml>; rel="alternate"; type="application/rss+xml", </.well-known/api-catalog>; rel="service-desc"; type="application/linkset+json", </.well-known/agent-card.json>; rel="service-desc"; type="application/json", </.well-known/mcp/server-card.json>; rel="service-desc"; type="application/json"
   No-Vary-Search: params=(ref utm_source utm_medium utm_campaign utm_term utm_content gclid fbclid msclkid)
 
 /.well-known/api-catalog
   Content-Type: application/linkset+json; charset=utf-8
+
+/.well-known/mcp
+  Content-Type: application/json; charset=utf-8
+
+/index.md
+  Content-Type: text/markdown; charset=utf-8
+
+/schema-map.xml
+  Content-Type: application/xml; charset=utf-8
 
 /.well-known/security.txt
   Content-Type: text/plain; charset=utf-8

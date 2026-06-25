@@ -21,6 +21,52 @@ const SEO = {
 		'Frontman is an AI frontend agent that sees your live DOM, component tree, CSS, routes, and logs so it can turn visual requests into real code edits.'
 }
 
+if (Astro.url.searchParams.get('mode') === 'agent') {
+	return new Response(JSON.stringify({
+		name: 'Frontman',
+		canonicalUrl: 'https://frontman.sh/',
+		description: SEO.description,
+		capabilities: [
+			'Browser-aware visual editing for running web apps',
+			'Live DOM, computed CSS, screenshots, component tree, routes, and logs as agent context',
+			'Reviewable source-code edits with hot reload feedback',
+			'Next.js, Astro, Vite, React, Vue, Svelte, and WordPress support',
+			'Bring-your-own Claude, ChatGPT, or OpenRouter API key support'
+		],
+		developerResources: {
+			docs: 'https://frontman.sh/docs/',
+			installation: 'https://frontman.sh/docs/installation/',
+			auth: 'https://frontman.sh/docs/api-keys/',
+			configuration: 'https://frontman.sh/docs/reference/configuration/',
+			architecture: 'https://frontman.sh/docs/reference/architecture/',
+			markdownHomepage: 'https://frontman.sh/index.md',
+			llms: 'https://frontman.sh/llms.txt',
+			fullLlms: 'https://frontman.sh/llms-full.txt',
+			apiCatalog: 'https://frontman.sh/.well-known/api-catalog',
+			agentCard: 'https://frontman.sh/.well-known/agent-card.json',
+			mcpServerCard: 'https://frontman.sh/.well-known/mcp/server-card.json',
+			agentSkills: 'https://frontman.sh/.well-known/agent-skills/index.json',
+			github: 'https://github.com/frontman-ai/frontman'
+		},
+		authentication: {
+			signIn: 'GitHub or Google OAuth for hosted accounts',
+			modelAccess: 'Users bring their own Claude, ChatGPT, or OpenRouter API keys',
+			sessionApi: 'Authenticated browser sessions expose socket-token and user settings APIs'
+		},
+		apiEndpoints: [
+			{ method: 'GET', url: 'https://api.frontman.sh/health/ready', purpose: 'Readiness check' },
+			{ method: 'GET', url: 'https://api.frontman.sh/api/integrations/latest-versions', purpose: 'Latest integration package versions' },
+			{ method: 'GET', url: 'https://api.frontman.sh/api/socket-token', purpose: 'Authenticated socket token for the browser client' },
+			{ method: 'GET', url: 'https://api.frontman.sh/api/user/me', purpose: 'Authenticated current user metadata' },
+			{ method: 'GET', url: 'https://api.frontman.sh/api/user/api-keys', purpose: 'Authenticated AI provider key status' }
+		]
+	}, null, 2), {
+		headers: {
+			'Content-Type': 'application/json; charset=utf-8',
+		}
+	})
+}
+
 // FAQPage JSON-LD
 const faqJsonLd = {
 	"@context": "https://schema.org",
@@ -41,6 +87,25 @@ const faqJsonLd = {
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 	<!-- Act 1: The Insight — hook them, then show why we're different -->
 	<Hero />
+	<section id="agent-readiness" class="bg-neutral-950 px-6 py-12 text-neutral-100">
+		<div class="mx-auto grid max-w-5xl gap-8 md:grid-cols-[1.2fr_0.8fr]">
+			<div>
+				<h2 class="text-3xl font-semibold tracking-tight text-white">What is Frontman?</h2>
+				<p class="mt-4 text-base leading-7 text-neutral-300">Frontman is a browser-aware AI frontend agent. It runs inside your framework dev server or WordPress site, reads live DOM, CSS, screenshots, component context, routes, and logs, then turns visual requests into reviewable source-code edits.</p>
+				<h3 class="mt-8 text-xl font-semibold text-white">Why agents use Frontman</h3>
+				<p class="mt-3 text-base leading-7 text-neutral-300">File-only coding agents guess at rendered UI state. Frontman gives agents runtime evidence: selected elements, computed styles, source mappings, app routes, server logs, and hot reload feedback. That context helps agents make smaller, more accurate frontend changes.</p>
+			</div>
+			<div class="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+				<h3 class="text-lg font-semibold text-white">Developer resources</h3>
+				<ul class="mt-4 space-y-3 text-sm leading-6 text-neutral-300">
+					<li><a class="text-primary-300 underline underline-offset-4" href="/docs/">Frontman docs</a> cover installation, auth, integrations, and reference guides.</li>
+					<li><a class="text-primary-300 underline underline-offset-4" href="/index.md">/index.md</a> provides a markdown homepage for AI crawlers.</li>
+					<li><a class="text-primary-300 underline underline-offset-4" href="/.well-known/agent-card.json">/.well-known/agent-card.json</a> describes Frontman's agent capabilities.</li>
+					<li><a class="text-primary-300 underline underline-offset-4" href="/.well-known/mcp/server-card.json">/.well-known/mcp/server-card.json</a> describes MCP-style local agent integration.</li>
+				</ul>
+			</div>
+		</div>
+	</section>
 	<FullContextSection />
 
 	<!-- Act 2: The Product — show what it does, prove it fits -->

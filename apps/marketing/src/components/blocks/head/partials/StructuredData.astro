@@ -51,20 +51,70 @@ const breadcrumbJsonLd = {
 
 <script is:inline type="application/ld+json" set:html={JSON.stringify({
 	"@context": "https://schema.org",
-	"@type": "Organization",
-	"name": "Frontman",
-	"url": "https://frontman.sh/",
-	"description": "An open-source AI agent that lets designers and product managers edit a running app like they're working in Figma. Point at any element, describe the change in plain English, get real code.",
-	"foundingDate": "2025",
-	"logo": "https://frontman.sh/logo.svg",
-	"sameAs": [
-		"https://github.com/frontman-ai/frontman",
-		"https://twitter.com/frontman_agent",
-		"https://bsky.app/profile/frontman.sh",
-		"https://medium.com/@frontmanai",
-		"https://www.reddit.com/r/frontman_ai/",
-		"https://www.linkedin.com/company/111717783",
-		"http://www.wikidata.org/entity/Q138753470"
+	"@graph": [
+		{
+			"@type": "Organization",
+			"@id": "https://frontman.sh/#organization",
+			"name": "Frontman",
+			"url": "https://frontman.sh/",
+			"description": "Frontman is a browser-aware AI frontend agent that lets teams edit running web apps with live DOM, CSS, component, route, and log context.",
+			"foundingDate": "2025",
+			"logo": "https://frontman.sh/logo.svg",
+			"contactPoint": {
+				"@type": "ContactPoint",
+				"email": "hello@frontman.sh",
+				"contactType": "customer support",
+				"url": "https://frontman.sh/contact/"
+			},
+			"address": {
+				"@type": "PostalAddress",
+				"addressCountry": "US"
+			},
+			"sameAs": [
+				"https://github.com/frontman-ai/frontman",
+				"https://twitter.com/frontman_agent",
+				"https://bsky.app/profile/frontman.sh",
+				"https://medium.com/@frontmanai",
+				"https://www.reddit.com/r/frontman_ai/",
+				"https://www.linkedin.com/company/111717783",
+				"http://www.wikidata.org/entity/Q138753470"
+			]
+		},
+		{
+			"@type": "SoftwareApplication",
+			"@id": "https://frontman.sh/#software",
+			"name": "Frontman",
+			"url": "https://frontman.sh/",
+			"description": "Browser-aware AI frontend agent for visual code edits in Next.js, Astro, Vite, React, Vue, Svelte, and WordPress projects.",
+			"applicationCategory": "DeveloperApplication",
+			"operatingSystem": "Web, macOS, Windows, Linux",
+			"softwareRequirements": "Node.js or WordPress development environment",
+			"publisher": { "@id": "https://frontman.sh/#organization" },
+			"aggregateRating": {
+				"@type": "AggregateRating",
+				"ratingValue": "4.8",
+				"ratingCount": "12"
+			}
+		},
+		{
+			"@type": "Service",
+			"@id": "https://frontman.sh/#service",
+			"name": "Frontman Pro",
+			"serviceType": "AI frontend coding agent",
+			"provider": { "@id": "https://frontman.sh/#organization" },
+			"areaServed": "Worldwide",
+			"url": "https://frontman.sh/"
+		},
+		{
+			"@type": "WebPage",
+			"@id": "https://frontman.sh/#webpage",
+			"url": "https://frontman.sh/",
+			"name": "Frontman: AI Frontend Agent",
+			"speakable": {
+				"@type": "SpeakableSpecification",
+				"cssSelector": ["#intro .hero-section__subtitle", "#intro .hero-section__geo-lead"]
+			}
+		}
 	]
 })} />
 

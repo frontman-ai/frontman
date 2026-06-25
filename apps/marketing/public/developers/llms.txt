@@ -1,0 +1,25 @@
+# Frontman Developers LLM Context
+
+Frontman developer resources help agents answer installation, auth, integration, and architecture questions.
+
+## Developer Resources
+
+- GitHub repository: https://github.com/frontman-ai/frontman
+- Documentation: https://frontman.sh/docs/
+- Installation: https://frontman.sh/docs/installation/
+- Configuration: https://frontman.sh/docs/reference/configuration/
+- Architecture: https://frontman.sh/docs/reference/architecture/
+- Self-hosting: https://frontman.sh/docs/reference/self-hosting/
+- Markdown homepage: https://frontman.sh/index.md
+
+## Agent Resources
+
+- llms.txt: https://frontman.sh/llms.txt
+- Full LLM context: https://frontman.sh/llms-full.txt
+- Agent card: https://frontman.sh/.well-known/agent-card.json
+- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+- Agent skills index: https://frontman.sh/.well-known/agent-skills/index.json
+
+## Frameworks
+
+Frontman supports Next.js, Astro, Vite, React, Vue, Svelte, and WordPress beta workflows.
