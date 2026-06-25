@@ -41,22 +41,16 @@ const agentModeBody = {
 
 type PagesContext = {
 	request: Request
-	env: { ASSETS: { fetch: (request: Request) => Promise<Response> } }
 	next: () => Promise<Response>
 }
 
 export const onRequest = async (context: PagesContext) => {
 	const url = new URL(context.request.url)
 
-	if (url.pathname === '/' && url.searchParams.get('mode') === 'agent') {
+	if (url.searchParams.get('mode') === 'agent') {
 		return new Response(JSON.stringify(agentModeBody, null, 2), {
 			headers: { 'Content-Type': 'application/json; charset=utf-8' },
 		})
-	}
-
-	if (url.pathname === '/.well-known/mcp') {
-		url.pathname = '/.well-known/mcp/server-card.json'
-		return context.env.ASSETS.fetch(new Request(url, context.request))
 	}
 
 	return context.next()
