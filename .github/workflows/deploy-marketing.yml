@@ -55,6 +55,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: yarn
           workingDirectory: apps/marketing
           command: pages deploy dist --project-name=frontman-marketing --branch=main
 
