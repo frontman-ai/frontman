@@ -1,19 +1,19 @@
 [
 	{
 		"question": "What is Frontman?",
-		"reply": "Frontman is an AI agent that lives inside your app, not your editor. It plugs into your framework, giving anyone on your team a chat interface alongside a live view of your app. Describe what you want to change, and the agent makes it happen — outputting real code your team can review and merge.",
+		"reply": "Frontman is an AI website editor for existing sites. It runs inside WordPress or your framework dev server, shows chat beside a live view of your site, and lets you click what you want changed. For WordPress, it uses WordPress-native tools. For Next.js, Astro, and Vite sites, it outputs real code your team can review and merge.",
 		"category": "general",
 		"open": true
 	},
 	{
-		"question": "How is this different from Cursor or Claude Code?",
-		"reply": "Cursor and Claude Code work at the file level — they read your code but don't understand your running application. Frontman is wired into your app's runtime. It sees your component tree, routes, server logs, query performance, and everything happening live. That deep context means better results, faster.",
+		"question": "How is this different from AI coding tools like Cursor or Claude Code?",
+		"reply": "Cursor and Claude Code are built for developers working from files or terminals. Frontman starts from the website itself. It sees the live page, selected elements, CSS, CMS or component context, routes, and logs, so website changes start from what marketers, designers, and site owners can actually see.",
 		"category": "general",
 		"open": false
 	},
 	{
 		"question": "Who is Frontman built for?",
-		"reply": "Frontend developers who want faster iteration with richer context than terminal-based AI tools. But also designers, product managers, and other semi-technical teammates who need to make changes — from tweaking copy and structure to exploring entirely new feature ideas — without opening an IDE.",
+		"reply": "Frontman is built for WordPress site owners and maintainers, plus marketing and design teams responsible for Next.js, Astro, or Vite websites. Developers still install and review code-backed changes, but routine website edits can start from the browser instead of a ticket.",
 		"category": "general",
 		"open": false
 	},
@@ -25,7 +25,7 @@
 	},
 	{
 		"question": "What can I actually do with it?",
-		"reply": "Implement a design change from a Figma mockup. Explore a new feature idea end to end. Tweak page structure or copy. Fix styling issues. Anything involving your frontend and fullstack application — described in natural language, executed as real code.",
+		"reply": "Update landing page copy, CTAs, hero sections, spacing, colors, mobile polish, navigation menus, WordPress blocks, Elementor layouts, templates, widgets, media, and WooCommerce content. For code-backed sites, Frontman turns those requests into reviewable source changes.",
 		"category": "product",
 		"open": true
 	},

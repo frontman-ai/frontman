@@ -2,14 +2,14 @@ import type { APIRoute } from 'astro'
 
 const body = `# Frontman
 
-Frontman is a browser-aware AI frontend agent for teams building web products. It runs inside your framework dev server or WordPress site, sees live DOM, CSS, screenshots, component context, routes, and logs, then turns visual requests into reviewable source-code edits.
+Frontman is an AI website editor for existing WordPress, Next.js, Astro, and Vite sites. It runs inside your framework dev server or WordPress site, sees the live page plus CMS or source context, then turns visual requests into reviewable website updates.
 
 ## Core Capabilities
 
-- Select rendered elements and ask Frontman to change copy, spacing, color, layout, or behavior.
+- Select rendered elements and ask Frontman to change copy, spacing, color, layout, menus, or page content.
 - Use runtime context from Next.js, Astro, Vite, React, Vue, Svelte, and WordPress.
 - Bring your own Claude, ChatGPT, or OpenRouter API key.
-- Keep developers in control with local development edits and normal git diffs.
+- Keep developers in control with local development edits and normal git diffs for code-backed sites.
 - Run Frontman Pro hosted or self-host from the open-source repository.
 
 ## Developer Resources

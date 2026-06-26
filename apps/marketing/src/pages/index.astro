@@ -16,9 +16,9 @@ import faqData from '../data/json-files/faqData.json'
 // Content
 // - SEO
 const SEO = {
-	title: 'Frontman: AI Frontend Agent',
+	title: 'Frontman: AI Website Editor for Existing Sites',
 	description:
-		'Frontman is an AI frontend agent that sees your live DOM, component tree, CSS, routes, and logs so it can turn visual requests into real code edits.'
+		'Frontman is an AI website editor for WordPress, Next.js, Astro, and Vite sites. Click what you want changed and turn visual requests into reviewable updates.'
 }
 
 if (Astro.url.searchParams.get('mode') === 'agent') {
@@ -27,9 +27,9 @@ if (Astro.url.searchParams.get('mode') === 'agent') {
 		canonicalUrl: 'https://frontman.sh/',
 		description: SEO.description,
 		capabilities: [
-			'Browser-aware visual editing for running web apps',
+			'Click-to-edit AI website editing for existing sites',
 			'Live DOM, computed CSS, screenshots, component tree, routes, and logs as agent context',
-			'Reviewable source-code edits with hot reload feedback',
+			'Reviewable WordPress updates or source-code edits with hot reload feedback',
 			'Next.js, Astro, Vite, React, Vue, Svelte, and WordPress support',
 			'Bring-your-own Claude, ChatGPT, or OpenRouter API key support'
 		],
@@ -87,13 +87,36 @@ const faqJsonLd = {
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 	<!-- Act 1: The Insight — hook them, then show why we're different -->
 	<Hero />
+	<section id="site-type" class="bg-neutral-950 px-6 py-14 text-neutral-100">
+		<div class="mx-auto max-w-5xl">
+			<div class="mx-auto max-w-2xl text-center">
+				<p class="font-mono text-sm uppercase tracking-[0.14em] text-primary-300">Choose your path</p>
+				<h2 class="mt-3 text-3xl font-semibold tracking-tight text-white md:text-4xl">What kind of site do you maintain?</h2>
+				<p class="mt-4 text-base leading-7 text-neutral-300">Frontman keeps one promise across both workflows: update the site you already have from the page you can see.</p>
+			</div>
+			<div class="mt-10 grid gap-5 md:grid-cols-2">
+				<a href="/wordpress/" class="group rounded-3xl border border-white/10 bg-white/[0.04] p-7 no-underline transition hover:border-primary-300/60 hover:bg-primary-500/[0.08]">
+					<p class="font-mono text-sm uppercase tracking-[0.12em] text-primary-300">WordPress site owners</p>
+					<h3 class="mt-4 text-2xl font-semibold text-white">Edit WordPress beside your live site</h3>
+					<p class="mt-3 text-base leading-7 text-neutral-300">Update posts, pages, Gutenberg blocks, Elementor layouts, menus, media, settings, and WooCommerce data without hunting through wp-admin.</p>
+					<span class="mt-6 inline-flex font-semibold text-primary-200 group-hover:text-primary-100">Install WordPress plugin &rarr;</span>
+				</a>
+				<a href="/marketing-teams/" class="group rounded-3xl border border-white/10 bg-white/[0.04] p-7 no-underline transition hover:border-primary-300/60 hover:bg-primary-500/[0.08]">
+					<p class="font-mono text-sm uppercase tracking-[0.12em] text-primary-300">Marketing and design teams</p>
+					<h3 class="mt-4 text-2xl font-semibold text-white">Turn site requests into reviewable changes</h3>
+					<p class="mt-3 text-base leading-7 text-neutral-300">Use Frontman on Next.js, Astro, and Vite sites so marketers and designers can click the page, request changes, and hand developers a normal diff.</p>
+					<span class="mt-6 inline-flex font-semibold text-primary-200 group-hover:text-primary-100">See team workflow &rarr;</span>
+				</a>
+			</div>
+		</div>
+	</section>
 	<section id="agent-readiness" class="bg-neutral-950 px-6 py-12 text-neutral-100">
 		<div class="mx-auto grid max-w-5xl gap-8 md:grid-cols-[1.2fr_0.8fr]">
 			<div>
 				<h2 class="text-3xl font-semibold tracking-tight text-white">What is Frontman?</h2>
-				<p class="mt-4 text-base leading-7 text-neutral-300">Frontman is a browser-aware AI frontend agent. It runs inside your framework dev server or WordPress site, reads live DOM, CSS, screenshots, component context, routes, and logs, then turns visual requests into reviewable source-code edits.</p>
-				<h3 class="mt-8 text-xl font-semibold text-white">Why agents use Frontman</h3>
-				<p class="mt-3 text-base leading-7 text-neutral-300">File-only coding agents guess at rendered UI state. Frontman gives agents runtime evidence: selected elements, computed styles, source mappings, app routes, server logs, and hot reload feedback. That context helps agents make smaller, more accurate frontend changes.</p>
+				<p class="mt-4 text-base leading-7 text-neutral-300">Frontman is an AI website editor for existing sites. It runs inside WordPress or your framework dev server, reads the live page plus CMS or source context, then turns visual requests into reviewable website updates.</p>
+				<h3 class="mt-8 text-xl font-semibold text-white">Why it works better than tickets</h3>
+				<p class="mt-3 text-base leading-7 text-neutral-300">Website requests usually start with screenshots and vague descriptions. Frontman starts from the page itself: selected elements, computed styles, source mappings, routes, logs, and live preview feedback. That context helps the agent change the right thing with less back-and-forth.</p>
 			</div>
 			<div class="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
 				<h3 class="text-lg font-semibold text-white">Developer resources</h3>

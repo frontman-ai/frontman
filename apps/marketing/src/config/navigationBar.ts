@@ -39,6 +39,7 @@ export const navigationBarData: NavData = {
 	},
 	navItems: [
 		{ name: 'WordPress', link: '/wordpress/' },
+		{ name: 'Marketing Teams', link: '/marketing-teams/' },
 		{ name: 'Docs', link: '/docs/' },
 		{
 			name: 'Compare',

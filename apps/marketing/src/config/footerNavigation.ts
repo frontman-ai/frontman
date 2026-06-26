@@ -46,7 +46,7 @@ export const footerNavigationData: FooterData = {
 	footerAbout: {
 		title: 'Frontman',
 		aboutText:
-			"Frontman lets you skip the 'refresh and check' cycle and brings non-coding teammates into the workflow.",
+			'Frontman is an AI website editor for existing WordPress, Next.js, Astro, and Vite sites.',
 		logo: {
 			src: '/logo.svg',
 			alt: 'Frontman logo',
@@ -60,6 +60,10 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'WordPress',
 					subCategoryLink: '/wordpress/'
+				},
+				{
+					subCategory: 'Marketing Teams',
+					subCategoryLink: '/marketing-teams/'
 				},
 				{
 					subCategory: 'About',

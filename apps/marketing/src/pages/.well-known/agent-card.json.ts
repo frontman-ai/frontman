@@ -6,7 +6,7 @@ const origin = siteUrl.origin
 const agentCard = {
 	name: 'Frontman',
 	description:
-		'Browser-aware AI frontend agent that uses live DOM, CSS, screenshots, component context, routes, and logs to edit real source files.',
+		'AI website editor for existing WordPress, Next.js, Astro, and Vite sites. Uses live page context, CSS, screenshots, CMS or component context, routes, and logs to make reviewable updates.',
 	url: origin,
 	provider: {
 		name: 'Frontman AI',
@@ -24,15 +24,15 @@ const agentCard = {
 	defaultOutputModes: ['text/plain', 'application/json', 'text/x-diff'],
 	skills: [
 		{
-			id: 'visual-frontend-editing',
-			name: 'Visual frontend editing',
-			description: 'Select live UI elements and request source-code changes using runtime context.',
-			tags: ['frontend', 'ai-coding-agent', 'visual-editing'],
+			id: 'visual-website-editing',
+			name: 'Visual website editing',
+			description: 'Select live website elements and request WordPress updates or source-code changes using runtime context.',
+			tags: ['website-editor', 'visual-editing', 'wordpress'],
 		},
 		{
 			id: 'runtime-context',
 			name: 'Runtime context collection',
-			description: 'Collect DOM, CSS, screenshots, component tree, routes, and server logs for coding agents.',
+			description: 'Collect DOM, CSS, screenshots, CMS or component context, routes, and server logs for website editing agents.',
 			tags: ['mcp', 'browser', 'dev-server'],
 		},
 		{

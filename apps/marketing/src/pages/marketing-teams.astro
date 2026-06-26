@@ -1,0 +1,187 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Button from '../components/ui/Button.astro'
+
+const SEO = {
+	title: 'AI Website Editor for Marketing and Design Teams | Frontman',
+	description:
+		'Frontman helps marketing and design teams update existing Next.js, Astro, and Vite websites by clicking the live page and turning requests into reviewable code changes.'
+}
+
+const faqs = [
+	{
+		question: 'Can marketers and designers use Frontman without opening an IDE?',
+		answer:
+			'Yes. A developer installs Frontman once. After that, marketers and designers can work from the browser: click the live site, describe the update, review the result, and hand engineering a normal source-code diff.'
+	},
+	{
+		question: 'Does Frontman bypass engineering review?',
+		answer:
+			'No. For Next.js, Astro, and Vite sites, Frontman runs in development and produces regular source changes. Your team can review, approve, and ship those changes through the same git and deployment workflow you already use.'
+	},
+	{
+		question: 'What kinds of website changes fit this workflow?',
+		answer:
+			'Frontman is strongest for copy, CTAs, hero sections, spacing, colors, responsive polish, landing-page cleanup, visual QA, and small content or layout changes on existing websites.'
+	},
+	{
+		question: 'Which stacks are supported?',
+		answer:
+			'Frontman supports Next.js, Astro, and Vite projects, including React, Vue, Svelte, SvelteKit, SolidJS, and vanilla Vite apps.'
+	}
+]
+
+const faqJsonLd = {
+	'@context': 'https://schema.org',
+	'@type': 'FAQPage',
+	mainEntity: faqs.map((faq) => ({
+		'@type': 'Question',
+		name: faq.question,
+		acceptedAnswer: {
+			'@type': 'Answer',
+			text: faq.answer
+		}
+	}))
+}
+
+const useCases = [
+	'Update campaign landing page copy and CTAs',
+	'Fix spacing, alignment, and responsive polish before launch',
+	'Refresh pricing, feature, and comparison pages',
+	'Turn design-review comments into code changes',
+	'Ship visual QA fixes without creating ticket debt',
+	'Let developers review one concrete diff instead of interpreting screenshots'
+]
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<section class="team-hero">
+		<div class="team-container team-narrow">
+			<p class="team-label">Marketing and design teams</p>
+			<h1>Update your website without opening an IDE.</h1>
+			<p class="team-lead">Frontman runs inside your Next.js, Astro, or Vite site. Click the live page, describe the change, and turn visual requests into reviewable source changes your developers can approve.</p>
+			<div class="team-actions">
+				<Button size="lg" style="white" link="/#install">Add Frontman to your site</Button>
+				<a href="/use-cases/designers/" class="team-link">Designer workflow</a>
+			</div>
+		</div>
+	</section>
+
+	<section class="team-section team-section--light">
+		<div class="team-container team-split">
+			<div>
+				<p class="team-label team-label--dark">Problem</p>
+				<h2>Website updates get stuck between people who see the problem and people who can change the code.</h2>
+			</div>
+			<div class="team-copy">
+				<p>Marketers know the headline is wrong. Designers know the spacing is off. Site owners know the pricing page is stale. But code-backed websites turn small edits into screenshots, tickets, backlog grooming, and developer interpretation.</p>
+				<p>Frontman moves the request into the browser. Your team points at the real page, explains the desired outcome, and gets a concrete change to review.</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="team-section team-section--dark">
+		<div class="team-container">
+			<div class="team-section-header">
+				<p class="team-label">Workflow</p>
+				<h2>From visual request to reviewable change.</h2>
+			</div>
+			<div class="team-steps">
+				<div class="team-step"><span>1</span><h3>Open the live site</h3><p>Use Frontman from your browser beside the page you are changing.</p></div>
+				<div class="team-step"><span>2</span><h3>Click what needs work</h3><p>Select a headline, CTA, section, image, or layout issue directly on the rendered page.</p></div>
+				<div class="team-step"><span>3</span><h3>Describe the update</h3><p>Ask in plain English. Frontman uses live DOM, CSS, routes, logs, and source mappings to edit the right files.</p></div>
+				<div class="team-step"><span>4</span><h3>Review the diff</h3><p>Developers keep control through normal git review and deployment.</p></div>
+			</div>
+		</div>
+	</section>
+
+	<section class="team-section team-section--light">
+		<div class="team-container">
+			<div class="team-section-header">
+				<p class="team-label team-label--dark">Use cases</p>
+				<h2>Where Frontman saves the most time.</h2>
+			</div>
+			<div class="team-use-cases">
+				{useCases.map((useCase) => <div class="team-use-case">{useCase}</div>)}
+			</div>
+		</div>
+	</section>
+
+	<section class="team-section team-section--dark">
+		<div class="team-container team-split">
+			<div>
+				<p class="team-label">Safety</p>
+				<h2>Shorter handoff. Same developer control.</h2>
+			</div>
+			<div class="team-copy">
+				<p>Frontman does not turn marketers into production deployers. Framework integrations run in development, and production builds strip Frontman out.</p>
+				<p>Every edit lands as normal source changes. Your team can review the diff, test the result, and ship through the same workflow you already trust.</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="team-section team-section--light">
+		<div class="team-container team-narrow">
+			<p class="team-label team-label--dark">FAQ</p>
+			<h2>Common questions</h2>
+			<div class="team-faqs">
+				{faqs.map((faq) => (
+					<details class="team-faq">
+						<summary>{faq.question}</summary>
+						<p>{faq.answer}</p>
+					</details>
+				))}
+			</div>
+		</div>
+	</section>
+
+	<section class="team-final">
+		<div class="team-container team-narrow">
+			<h2>Give your website team a faster edit loop.</h2>
+			<p>Install Frontman in your Next.js, Astro, or Vite site and let visual requests start from the page, not a ticket.</p>
+			<div class="team-actions team-actions--center">
+				<Button size="lg" style="white" link="/#install">Add Frontman</Button>
+				<a href="/docs/installation/" class="team-link">Read install docs</a>
+			</div>
+		</div>
+	</section>
+</Layout>
+
+<style>
+	@reference "../styles/global.css";
+
+	.team-container { @apply mx-auto max-w-6xl px-6; }
+	.team-narrow { max-width: 760px; }
+	.team-label { @apply mb-3 font-mono text-sm uppercase tracking-[0.14em]; color: #c4b5fd; }
+	.team-label--dark { color: #7c3aed; }
+	.team-hero { @apply bg-primary-600 px-6 py-24 text-center text-white md:py-32; }
+	.team-hero h1 { @apply text-4xl font-bold tracking-[-0.04em] md:text-6xl; line-height: 1.02; text-wrap: balance; }
+	.team-lead { @apply mx-auto mt-6 max-w-2xl text-lg leading-8 text-white/85; text-wrap: pretty; }
+	.team-actions { @apply mt-8 flex flex-wrap items-center justify-center gap-4; }
+	.team-actions--center { justify-content: center; }
+	.team-link { @apply font-semibold text-white underline underline-offset-4 hover:text-primary-100; }
+	.team-section { @apply py-20; }
+	.team-section--light { @apply bg-zinc-50 text-zinc-950; }
+	.team-section--dark { @apply bg-zinc-950 text-white; }
+	.team-section h2 { @apply mb-5 text-3xl font-bold tracking-[-0.03em] md:text-5xl; line-height: 1.08; color: inherit; }
+	.team-section p { @apply text-lg leading-8; color: inherit; opacity: 0.78; }
+	.team-split { @apply grid gap-10 md:grid-cols-[0.9fr_1.1fr]; }
+	.team-copy { @apply space-y-5; }
+	.team-section-header { max-width: 760px; margin-bottom: 36px; }
+	.team-steps { @apply grid gap-5 md:grid-cols-4; }
+	.team-step { @apply rounded-3xl border border-white/10 bg-white/[0.04] p-6; }
+	.team-step span { @apply mb-5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary-500 text-sm font-bold text-white; }
+	.team-step h3 { @apply mb-3 text-xl font-semibold text-white; }
+	.team-step p { @apply m-0 text-base leading-7 text-white/70; }
+	.team-use-cases { @apply grid gap-4 md:grid-cols-2; }
+	.team-use-case { @apply rounded-2xl border-2 border-zinc-950 bg-white p-5 text-base font-semibold text-zinc-950; box-shadow: 5px 5px 0 #111827; }
+	.team-faqs { @apply mt-8 space-y-3; }
+	.team-faq { @apply rounded-2xl border border-zinc-200 bg-white p-5; }
+	.team-faq summary { @apply cursor-pointer text-lg font-semibold text-zinc-950; }
+	.team-faq p { @apply mt-3 text-base leading-7 text-zinc-700; }
+	.team-final { @apply bg-primary-600 px-6 py-20 text-center text-white; }
+	.team-final h2 { @apply text-3xl font-bold tracking-[-0.03em] md:text-5xl; }
+	.team-final p { @apply mx-auto mt-4 max-w-2xl text-lg leading-8 text-white/80; }
+</style>
