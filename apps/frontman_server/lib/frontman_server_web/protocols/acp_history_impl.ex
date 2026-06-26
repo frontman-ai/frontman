@@ -14,7 +14,7 @@ defimpl ACPHistory, for: Interaction.UserMessage do
   Reconstructs the original ACP content blocks from stored UserMessage fields
   and replays them as `user_message_chunk` notifications.
 
-  This is the inverse of `Interaction.UserMessage.new/1` which extracts fields
+  This is the inverse of `Interaction.UserMessage.build/1` which extracts fields
   from incoming content blocks.
   """
 

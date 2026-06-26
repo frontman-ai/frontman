@@ -705,9 +705,17 @@ defmodule FrontmanServerWeb.TaskChannel do
 
             {:noreply, socket}
 
+          {:error, {:invalid_content_block, message}} ->
+            Logger.error("Failed to add user message: #{message}")
+
+            error_response =
+              JsonRpc.error_response(id, JsonRpc.error_invalid_params(), message)
+
+            {:reply, {:ok, %{@acp_message => error_response}}, socket}
+
           {:error, reason} ->
             Logger.error("Failed to add user message: #{inspect(reason)}")
-            error_response = JsonRpc.error_response(id, -32_000, to_string(reason))
+            error_response = JsonRpc.error_response(id, -32_000, inspect(reason))
             {:reply, {:ok, %{@acp_message => error_response}}, socket}
         end
 

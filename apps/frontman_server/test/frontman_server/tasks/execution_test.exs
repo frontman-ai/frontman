@@ -196,6 +196,38 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                2
     end
 
+    test "returns invalid content block errors instead of raising", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      assert {:error,
+              {:invalid_content_block, "text content block must include non-empty string text"}} =
+               submit_user_message(scope, task_id, [%{"type" => "text", "text" => ""}])
+    end
+
+    test "uses resource context for attachment-only first turn title text", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      expect_llm_responses(["Response"])
+
+      {:ok, _, 1} =
+        submit_user_message(scope, task_id, [
+          current_page_block("https://example.com/app", %{
+            "viewport_width" => 390,
+            "viewport_height" => 844
+          })
+        ])
+
+      title_job =
+        all_enqueued(worker: GenerateTitle)
+        |> Enum.find(&(&1.args["task_id"] == task_id))
+
+      assert title_job.args["user_prompt_text"] =~ "https://example.com/app"
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+    end
+
     test "startup failure persists terminal error on the same turn" do
       scope = user_scope_fixture()
       task_id = task_with_pubsub_fixture(scope).id
@@ -512,7 +544,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        {:interaction, Interaction.AgentPaused.new("question", 120_000), 1}
+        {:interaction, Interaction.AgentPaused.build("question", 120_000), 1}
       )
 
       :sys.get_state(socket.channel_pid)

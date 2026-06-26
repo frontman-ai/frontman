@@ -392,11 +392,14 @@ let sendPrompt = async (
   ~additionalBlocks: array<Types.contentBlock>=[],
   ~_meta: option<JSON.t>=None,
 ): result<Types.promptResult, string> => {
-  // Build prompt array starting with the text block
-  let textBlock: Types.contentBlock = TextContent({text, _meta: None, annotations: None})
+  let baseBlocks: array<Types.contentBlock> = switch text->String.trim != "" {
+  | true => [TextContent({text, _meta: None, annotations: None})]
+  | false => []
+  }
+
   // Serialize through S.unknown to avoid strict JSON checks on option fields inside union arms.
   let allBlocks =
-    Array.concat([textBlock], additionalBlocks)->Array.map(block =>
+    Array.concat(baseBlocks, additionalBlocks)->Array.map(block =>
       block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
     )
 

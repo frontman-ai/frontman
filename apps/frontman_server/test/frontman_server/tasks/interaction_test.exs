@@ -14,33 +14,46 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias ModelContextProtocol, as: MCP
 
   # ---------------------------------------------------------------------------
-  # UserMessage.new/1
+  # UserMessage.build/1
   # ---------------------------------------------------------------------------
 
-  describe "UserMessage.new/1" do
+  describe "UserMessage.build/1" do
     test "extracts non-empty text messages" do
-      msg = UserMessage.new([text_block("Hello")])
+      msg = build_user_message([text_block("Hello")])
 
       assert msg.messages == ["Hello"]
     end
 
-    test "raises for text blocks without non-empty string text" do
-      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
-        UserMessage.new([%{"type" => "text"}])
-      end
+    test "accepts resource-only prompts without a text block" do
+      msg =
+        build_user_message([
+          current_page_block("https://example.com/app", %{
+            "viewport_width" => 390,
+            "viewport_height" => 844
+          })
+        ])
 
-      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
-        UserMessage.new([%{"type" => "text", "text" => ""}])
-      end
+      assert msg.messages == []
+      assert msg.current_page.url == "https://example.com/app"
+    end
 
-      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
-        UserMessage.new([%{"type" => "text", "text" => 1}])
-      end
+    test "returns error for text blocks without non-empty string text" do
+      assert {:error,
+              {:invalid_content_block, "text content block must include non-empty string text"}} =
+               UserMessage.build([%{"type" => "text"}])
+
+      assert {:error,
+              {:invalid_content_block, "text content block must include non-empty string text"}} =
+               UserMessage.build([%{"type" => "text", "text" => ""}])
+
+      assert {:error,
+              {:invalid_content_block, "text content block must include non-empty string text"}} =
+               UserMessage.build([%{"type" => "text", "text" => 1}])
     end
 
     test "extracts annotation from resource block" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Hello"),
           annotation_block("ann-1", "div", "/path/to/component.tsx", 42, 10)
         ])
@@ -56,13 +69,13 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "returns empty annotations when no annotation blocks" do
-      msg = UserMessage.new([text_block("Hello")])
+      msg = build_user_message([text_block("Hello")])
       assert msg.annotations == []
     end
 
     test "pairs screenshot with annotation by annotation_id" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Fix this button"),
           annotation_block("ann-1", "button", "/src/Button.tsx", 15, 3),
           screenshot_block("ann-1", "base64screenshotdata")
@@ -79,7 +92,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "extracts multiple annotations with enrichment data" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Fix these"),
           annotation_block("ann-1", "div", "/src/A.tsx", 10, 1,
             component_name: "Header",
@@ -105,7 +118,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       bb = %{"x" => 10.5, "y" => 20.0, "width" => 200.0, "height" => 50.0}
 
       msg =
-        UserMessage.new([
+        build_user_message([
           annotation_block("ann-bb", "div", "/src/Component.tsx", 5, 1, bounding_box: bb)
         ])
 
@@ -126,7 +139,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       }
 
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Fix this"),
           annotation_block("ann-el", "span", "/src/Component.tsx", 5, 1,
             metadata: %{"custom_context" => context}
@@ -139,7 +152,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "extracts current page context from resource block" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Hello"),
           current_page_block("https://example.com/app", %{
             "viewport_width" => 390,
@@ -164,7 +177,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "coerces integer device pixel ratio before persistence" do
       msg =
-        UserMessage.new([
+        build_user_message([
           current_page_block("https://example.com/app", %{"device_pixel_ratio" => 1})
         ])
 
@@ -175,7 +188,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "ignores resource url meta without current page marker" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Hello"),
           %{
             "type" => "resource",
@@ -558,7 +571,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   describe "InteractionSchema.to_struct/1" do
     test "deserializes normalized user message data" do
       message =
-        UserMessage.new([
+        build_user_message([
           text_block("hello"),
           current_page_block("http://localhost:4321/"),
           annotation_block("ann-1", "H1", "/src/Hero.tsx", 12, 4,
@@ -583,7 +596,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   describe "JSON encoding" do
     test "encodes UserMessage with annotation including all enrichment fields" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Fix this"),
           annotation_block("ann-full", "H1", "/src/Hero.tsx", 30, 5,
             component_name: "Hero",
@@ -648,8 +661,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "AgentPaused" do
-    test "new/2 builds struct with correct fields" do
-      interaction = Interaction.AgentPaused.new("question", 120_000)
+    test "build/2 builds struct with correct fields" do
+      interaction = Interaction.AgentPaused.build("question", 120_000)
 
       assert interaction.tool_name == "question"
       assert interaction.timeout_ms == 120_000
@@ -663,5 +676,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "AgentPaused is in interaction_modules list" do
       assert Interaction.AgentPaused in Interaction.interaction_modules()
     end
+  end
+
+  defp build_user_message(content_blocks) do
+    assert {:ok, message} = UserMessage.build(content_blocks)
+    message
   end
 end

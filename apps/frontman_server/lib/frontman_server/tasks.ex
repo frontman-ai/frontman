@@ -175,8 +175,7 @@ defmodule FrontmanServer.Tasks do
       if rule_loaded?(interactions, path) do
         {:ok, :already_loaded}
       else
-        interaction = Interaction.DiscoveredProjectRule.new(path, content)
-        record_interaction(schema, interaction)
+        record_interaction(schema, Interaction.DiscoveredProjectRule.build(path, content))
       end
     end
   end
@@ -192,8 +191,7 @@ defmodule FrontmanServer.Tasks do
       if Enum.any?(interactions, &match?(%Interaction.DiscoveredProjectStructure{}, &1)) do
         {:ok, :already_loaded}
       else
-        interaction = Interaction.DiscoveredProjectStructure.new(summary)
-        record_interaction(task, interaction)
+        record_interaction(task, Interaction.DiscoveredProjectStructure.build(summary))
       end
     end
   end
@@ -505,9 +503,8 @@ defmodule FrontmanServer.Tasks do
       )
       when is_binary(task_id) and is_binary(model) and model != "" and is_list(mcp_tools) and
              is_list(project_traits) do
-    user_message_interaction = Interaction.UserMessage.new(content_blocks, model)
-
-    with {:ok, {task_schema, turn_number}} <-
+    with {:ok, user_message_interaction} <- Interaction.UserMessage.build(content_blocks, model),
+         {:ok, {task_schema, turn_number}} <-
            insert_user_turn_for_locked_task(scope, task_id, user_message_interaction) do
       _ =
         run_execution(scope, task_schema, turn_number, %{
@@ -520,7 +517,7 @@ defmodule FrontmanServer.Tasks do
         GenerateTitle.new(%{
           user_id: scope.user.id,
           task_id: task_id,
-          user_prompt_text: Enum.join(user_message_interaction.messages, "\n"),
+          user_prompt_text: Interaction.user_prompt_text(user_message_interaction),
           model: model
         })
         |> Oban.insert!()
@@ -570,7 +567,7 @@ defmodule FrontmanServer.Tasks do
     with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
       record_interaction(
         task_schema,
-        Interaction.AgentResponse.new(content, metadata),
+        Interaction.AgentResponse.build(content, metadata),
         turn_number
       )
     end
@@ -579,24 +576,25 @@ defmodule FrontmanServer.Tasks do
   @doc "Records how the given agent run ended."
   def record_agent_run_result(scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
-    interaction =
-      case outcome do
-        :completed -> Interaction.AgentCompleted.new()
-        :cancelled -> turn_error("Cancelled", "cancelled")
-        :terminated -> turn_error("Terminated by supervisor", "terminated")
-        {:failed, error} -> turn_error(error)
-        {:failed, error, retry, category} -> turn_error(error, "failed", retry, category)
-        {:crashed, error} -> turn_error(error, "crashed")
-        {:paused_for_tool_timeout, tool, timeout} -> Interaction.AgentPaused.new(tool, timeout)
-      end
-
     with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
-      record_interaction(task_schema, interaction, turn_number)
+      record_interaction(task_schema, build_agent_run_result(outcome), turn_number)
+    end
+  end
+
+  defp build_agent_run_result(outcome) do
+    case outcome do
+      :completed -> Interaction.AgentCompleted.build()
+      :cancelled -> turn_error("Cancelled", "cancelled")
+      :terminated -> turn_error("Terminated by supervisor", "terminated")
+      {:failed, error} -> turn_error(error)
+      {:failed, error, retry, category} -> turn_error(error, "failed", retry, category)
+      {:crashed, error} -> turn_error(error, "crashed")
+      {:paused_for_tool_timeout, tool, timeout} -> Interaction.AgentPaused.build(tool, timeout)
     end
   end
 
   defp turn_error(error, kind \\ "failed", retryable \\ false, category \\ "unknown"),
-    do: Interaction.AgentError.new(error, kind, retryable, category)
+    do: Interaction.AgentError.build(error, kind, retryable, category)
 
   # --- Tool Requests ---
 
@@ -604,7 +602,7 @@ defmodule FrontmanServer.Tasks do
   def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
-         {:ok, interaction} <- Interaction.ToolCall.new(tool_call_data) do
+         {:ok, interaction} <- Interaction.ToolCall.build(tool_call_data) do
       record_interaction(schema, interaction, turn_number)
     end
   end
@@ -632,7 +630,7 @@ defmodule FrontmanServer.Tasks do
 
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          turn_number = tool_result_turn_number(task_id, tool_call_id, opts),
-         interaction = Interaction.ToolResult.new(tool_call_data, result, is_error),
+         interaction = Interaction.ToolResult.build(tool_call_data, result, is_error),
          {:ok, interaction} <- record_interaction(schema, interaction, turn_number) do
       executor_status = Execution.notify_tool_result(interaction)
 
@@ -705,8 +703,8 @@ defmodule FrontmanServer.Tasks do
          {:ok, turn_number} <- retry_turn_number(task_id, retried_error_id),
          :ok <- ensure_latest_retry_turn(turn_number, rows),
          {:ok, execution} <- ensure_execution_model(task_id, turn_number, execution),
-         {:ok, _retry} <-
-           record_interaction(schema, Interaction.AgentRetry.new(retried_error_id), turn_number) do
+         retry_interaction = Interaction.AgentRetry.build(retried_error_id),
+         {:ok, _retry} <- record_interaction(schema, retry_interaction, turn_number) do
       run_execution(scope, schema, turn_number, execution)
     end
   end

@@ -23,11 +23,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:execution_chunk, 1,
        %{type: :tool_call, name: name, arguments: %{}, metadata: %{id: id, index: 0}}}
 
-  defp agent_completed,
-    do: {:interaction, Interaction.AgentCompleted.new(), 1}
+  defp agent_completed do
+    {:interaction, Interaction.AgentCompleted.build(), 1}
+  end
 
-  defp agent_failed(message, category \\ "unknown"),
-    do: {:interaction, Interaction.AgentError.new(message, "failed", false, category), 1}
+  defp agent_failed(message, category \\ "unknown") do
+    {:interaction, Interaction.AgentError.build(message, "failed", false, category), 1}
+  end
 
   defp broadcast_retryable_error(scope, task_id) do
     user_message_fixture(scope, task_id, [%{"type" => "text", "text" => "retry me"}])
@@ -44,8 +46,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     error_interaction
   end
 
-  defp agent_cancelled,
-    do: {:interaction, Interaction.AgentError.new("Cancelled", "cancelled"), 1}
+  defp agent_cancelled do
+    {:interaction, Interaction.AgentError.build("Cancelled", "cancelled"), 1}
+  end
 
   # Collects all pending push messages from the test process mailbox.
   # Phoenix.ChannelTest sends pushes as {:socket_push, event, payload} messages.
@@ -198,6 +201,28 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       assert_agent_turn_complete(task_id)
+    end
+
+    test "returns invalid params for malformed text content block", %{socket: socket} do
+      complete_mcp_handshake(socket)
+
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_acp_request("session/prompt", 44, %{
+            "prompt" => [%{"type" => "text", "text" => ""}],
+            "_meta" => %{
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}
+            }
+          })
+        )
+
+      assert_reply(ref, :ok, %{"acp:message" => response})
+      assert response["error"]["code"] == JsonRpc.error_invalid_params()
+
+      assert response["error"]["message"] ==
+               "text content block must include non-empty string text"
     end
   end
 

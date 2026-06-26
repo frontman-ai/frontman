@@ -76,7 +76,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   """
   def user_message_fixture(scope, task_id, content_blocks) do
     task = task_schema!(scope, task_id)
-    interaction = Interaction.UserMessage.new(content_blocks, @default_test_model)
+    {:ok, interaction} = Interaction.UserMessage.build(content_blocks, @default_test_model)
 
     case InteractionSchema.create_changeset(task, interaction, next_turn_number(task_id))
          |> Repo.insert() do

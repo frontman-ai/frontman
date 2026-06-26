@@ -385,31 +385,42 @@ defmodule FrontmanServer.Tasks.Interaction do
       embeds_one :current_page, CurrentPage
     end
 
-    def new(content_blocks, model \\ nil) do
-      %__MODULE__{
-        id: Interaction.new_id(),
-        timestamp: Interaction.now(),
-        model: model,
-        messages: extract_messages(content_blocks),
-        annotations: extract_annotations(content_blocks),
-        selected_figma_node: extract_selected_figma_node(content_blocks),
-        images: extract_user_images(content_blocks),
-        current_page: extract_current_page(content_blocks)
-      }
+    def build(content_blocks, model \\ nil) do
+      with {:ok, messages} <- extract_messages(content_blocks) do
+        {:ok,
+         %__MODULE__{
+           id: Interaction.new_id(),
+           timestamp: Interaction.now(),
+           model: model,
+           messages: messages,
+           annotations: extract_annotations(content_blocks),
+           selected_figma_node: extract_selected_figma_node(content_blocks),
+           images: extract_user_images(content_blocks),
+           current_page: extract_current_page(content_blocks)
+         }}
+      end
     end
 
     # Extract text messages from content blocks
     defp extract_messages(content_blocks) do
-      Enum.flat_map(content_blocks, fn
-        %{"type" => "text", "text" => text} when is_binary(text) and text != "" ->
-          [text]
+      content_blocks
+      |> Enum.reduce_while({:ok, []}, fn
+        %{"type" => "text", "text" => text}, {:ok, messages}
+        when is_binary(text) and text != "" ->
+          {:cont, {:ok, [text | messages]}}
 
-        %{"type" => "text"} ->
-          raise ArgumentError, "text content block must include non-empty string text"
+        %{"type" => "text"}, {:ok, _messages} ->
+          {:halt,
+           {:error,
+            {:invalid_content_block, "text content block must include non-empty string text"}}}
 
-        _block ->
-          []
+        _block, {:ok, messages} ->
+          {:cont, {:ok, messages}}
       end)
+      |> case do
+        {:ok, messages} -> {:ok, Enum.reverse(messages)}
+        {:error, reason} -> {:error, reason}
+      end
     end
 
     # Extract annotations from content blocks.
@@ -563,7 +574,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :metadata, :map
     end
 
-    def new(content, metadata \\ %{}) do
+    def build(content, metadata \\ %{}) do
       %__MODULE__{
         id: Interaction.new_id(),
         content: content,
@@ -587,7 +598,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :result, :map
     end
 
-    def new(result \\ nil) do
+    def build(result \\ nil) do
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
@@ -623,7 +634,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     `retryable` indicates whether the client should offer a retry action.
     `category` is a machine-readable error category (e.g. "rate_limit", "context_limit").
     """
-    def new(error, kind \\ "failed", retryable \\ false, category \\ "unknown") do
+    def build(error, kind \\ "failed", retryable \\ false, category \\ "unknown") do
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
@@ -650,7 +661,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :retried_error_id, :string
     end
 
-    def new(retried_error_id) do
+    def build(retried_error_id) do
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
@@ -677,7 +688,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :timeout_ms, :integer
     end
 
-    def new(tool_name, timeout_ms) do
+    def build(tool_name, timeout_ms) do
       %__MODULE__{
         id: Interaction.new_id(),
         timestamp: Interaction.now(),
@@ -704,7 +715,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :timestamp, :utc_datetime_usec
     end
 
-    def new(%SwarmAi.ToolCall{} = tc) do
+    def build(%SwarmAi.ToolCall{} = tc) do
       case SwarmAi.ToolCall.parse_arguments(tc) do
         {:ok, arguments} ->
           {:ok,
@@ -739,7 +750,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :timestamp, :utc_datetime_usec
     end
 
-    def new(tool_call_data, result, is_error \\ false) do
+    def build(tool_call_data, result, is_error \\ false) do
       %__MODULE__{
         id: Interaction.new_id(),
         tool_call_id: tool_call_data.id,
@@ -768,7 +779,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :timestamp, :utc_datetime_usec
     end
 
-    def new(path, content) do
+    def build(path, content) do
       %__MODULE__{
         path: path,
         content: content,
@@ -793,7 +804,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :timestamp, :utc_datetime_usec
     end
 
-    def new(summary) do
+    def build(summary) do
       %__MODULE__{
         summary: summary,
         timestamp: Interaction.now()
@@ -904,7 +915,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp to_swarm_message(%UserMessage{} = msg) do
-    prompt_text = build_user_prompt_text(msg)
+    prompt_text = user_prompt_text(msg)
     content_parts = build_user_content_parts(prompt_text, msg)
 
     [build_swarm_user_message(content_parts)]
@@ -941,7 +952,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp to_swarm_message(%DiscoveredProjectRule{}), do: []
   defp to_swarm_message(%DiscoveredProjectStructure{}), do: []
 
-  defp build_user_prompt_text(%UserMessage{} = msg) do
+  def user_prompt_text(%UserMessage{} = msg) do
     msg.messages
     |> Enum.join("\n\n")
     |> CurrentPageContext.append_prompt_section(msg.current_page)
