@@ -695,7 +695,7 @@ defmodule FrontmanServer.Tasks do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, turn_number} <- retry_turn_number(task_id, retried_error_id),
-         :ok <- ensure_latest_retry_turn(turn_number, rows),
+         :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, rows),
          {:ok, execution} <- ensure_execution_model(task_id, turn_number, execution),
          retry_interaction = Interaction.AgentRetry.build(retried_error_id),
          {:ok, _retry} <- record_interaction(schema, retry_interaction, turn_number) do
@@ -719,8 +719,19 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp ensure_latest_retry_turn(turn_number, rows) do
-    if turn_number == latest_turn_number(rows), do: :ok, else: {:error, :stale_turn}
+  defp ensure_latest_retry_turn(retried_error_id, turn_number, rows) do
+    latest_turn_interaction =
+      rows
+      |> Enum.reverse()
+      |> Enum.find(&(&1.turn_number == turn_number))
+
+    case {turn_number == latest_turn_number(rows), latest_turn_interaction} do
+      {true, %InteractionSchema{type: :agent_error, data: %{"id" => ^retried_error_id}}} ->
+        :ok
+
+      _ ->
+        {:error, :stale_turn}
+    end
   end
 
   @doc "Resumes execution for the active agent run."
