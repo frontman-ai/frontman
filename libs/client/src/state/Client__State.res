@@ -143,6 +143,7 @@ module Actions = {
   // Error action creators (ForTask)
   let agentErrorReceived = (
     ~taskId: string,
+    ~id: string,
     ~error: string,
     ~timestamp: string,
     ~category: string,
@@ -150,7 +151,7 @@ module Actions = {
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: AgentError({error, timestamp, category}),
+        action: AgentError({id, error, timestamp, category}),
       }),
     )
 

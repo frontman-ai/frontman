@@ -238,24 +238,6 @@ module Selectors = {
     }
   }
 
-  // Get the ID of the last Error message in the messages list
-  let lastErrorId = (task: Task.t): option<string> => {
-    switch task {
-    | Task.Loaded({turnError: Some({id})}) => Some(id)
-    | _ =>
-      messages(task)->Option.flatMap(msgs =>
-        msgs
-        ->Array.toReversed
-        ->Array.findMap(msg =>
-          switch msg {
-          | Message.Error(err) => Some(Message.ErrorMessage.id(err))
-          | _ => None
-          }
-        )
-      )
-    }
-  }
-
   // Get message created at timestamp
   let getMessageCreatedAt = (msg: Message.t): float => {
     switch msg {
@@ -348,7 +330,7 @@ type action =
   | TurnCompleted
   | CancelTurn
   // Error actions
-  | AgentError({error: string, timestamp: string, category: string})
+  | AgentError({id: string, error: string, timestamp: string, category: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
@@ -1017,14 +999,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(_), AgentError({error, timestamp, category})) =>
-    let id = `error-${getTaskIdForError(task)}-${timestamp}`
+  | (Task.Loading(_), AgentError({id, error, timestamp, category})) =>
     let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~timestamp, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(data), AgentError({error, category, timestamp})) =>
+  | (Task.Loaded(data), AgentError({id, error, category, timestamp: _timestamp})) =>
     // Set turn error and stop agent running - user can still send messages
-    let id = `error-${getTaskIdForError(task)}-${timestamp}`
     let completed = task->Lens.completeStreamingMessage
     switch completed {
     | Task.Loaded(completedData) => (

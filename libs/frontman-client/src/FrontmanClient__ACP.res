@@ -425,7 +425,7 @@ let cancelPrompt = (session: session): unit => {
 }
 
 // Retry a failed turn
-// ACP spec: session/retry_turn is a notification (fire-and-forget).
+// Frontman extension: session/retry_turn is a notification (fire-and-forget).
 let retryTurn = (session: session, ~retriedErrorId: string): unit => {
   Protocol.sendRetryTurn(
     ~channel=session.channel,

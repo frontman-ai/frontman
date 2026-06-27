@@ -567,7 +567,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     ACP.cancelPrompt(session)
 
   | RetryTurnEffect({session, retriedErrorId}) =>
-    // ACP spec: session/retry_turn is a notification (fire-and-forget).
+    // Frontman extension: session/retry_turn is a notification (fire-and-forget).
     // Signals the server to retry the failed agent turn.
     ACP.retryTurn(session, ~retriedErrorId)
 

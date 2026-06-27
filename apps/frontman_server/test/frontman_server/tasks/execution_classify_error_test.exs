@@ -18,6 +18,12 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
       assert String.contains?(msg, "Rate limited")
     end
 
+    test "wrapped llm_error request error delegates to underlying classifier" do
+      err = {:llm_error, Request.exception(status: 429, reason: "Too many requests")}
+      {msg, "rate_limit", true} = ErrorClassifier.classify_error(err)
+      assert String.contains?(msg, "Rate limited")
+    end
+
     test "ReqLLM stream error with request cause 413 is classified as payload too large" do
       request_error =
         Request.exception(

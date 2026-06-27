@@ -395,6 +395,7 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
+        id: "agent-error-1",
         error: "Rate limit exceeded",
         timestamp: "2025-01-15T10:30:00Z",
         category: "unknown",
@@ -404,7 +405,7 @@ describe("Task - Error Handling", () => {
     ->expect(TaskReducer.Selectors.turnError(task2))
     ->Expect.toEqual(
       Some({
-        id: "error-test-task-1-2025-01-15T10:30:00Z",
+        id: "agent-error-1",
         message: "Rate limit exceeded",
         category: "unknown",
       }),
@@ -428,6 +429,7 @@ describe("Task - Error Handling", () => {
     let (task3, _) = TaskReducer.next(
       task2,
       AgentError({
+        id: "agent-error-1",
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
         category: "unknown",
@@ -463,6 +465,7 @@ describe("Task - Error Handling", () => {
     let (task3, _) = TaskReducer.next(
       task2,
       AgentError({
+        id: "agent-error-1",
         error: "Error occurred",
         timestamp: "2025-01-15T10:30:00Z",
         category: "unknown",
@@ -484,6 +487,7 @@ describe("Task - Error Handling", () => {
     let (_, effects) = TaskReducer.next(
       task,
       AgentError({
+        id: "agent-error-1",
         error: "Error",
         timestamp: "2025-01-15T10:30:00Z",
         category: "unknown",
@@ -498,6 +502,7 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
+        id: "agent-error-1",
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
         category: "unknown",
@@ -507,7 +512,7 @@ describe("Task - Error Handling", () => {
     ->expect(TaskReducer.Selectors.turnError(task2))
     ->Expect.toEqual(
       Some({
-        id: "error-test-task-1-2025-01-15T10:30:00Z",
+        id: "agent-error-1",
         message: "Some error",
         category: "unknown",
       }),
@@ -531,6 +536,7 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
+        id: "agent-error-1",
         error: "Previous error",
         timestamp: "2025-01-15T10:30:00Z",
         category: "unknown",
@@ -540,7 +546,7 @@ describe("Task - Error Handling", () => {
     ->expect(TaskReducer.Selectors.turnError(task2))
     ->Expect.toEqual(
       Some({
-        id: "error-test-task-1-2025-01-15T10:30:00Z",
+        id: "agent-error-1",
         message: "Previous error",
         category: "unknown",
       }),
@@ -683,6 +689,7 @@ describe("Task - CancelTurn", () => {
     let (task1, _) = TaskReducer.next(
       task,
       AgentError({
+        id: "agent-error-1",
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
         category: "unknown",

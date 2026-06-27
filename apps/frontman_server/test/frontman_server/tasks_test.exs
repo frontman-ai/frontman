@@ -229,9 +229,8 @@ defmodule FrontmanServer.TasksTest do
       task_id = task_fixture(scope).id
       {:ok, user_message} = user_message_fixture(scope, task_id, user_content("not an error"))
 
-      assert_raise MatchError, fn ->
-        Tasks.retry_execution(scope, task_id, user_message.id, execution_request_fixture())
-      end
+      assert {:error, :not_found} =
+               Tasks.retry_execution(scope, task_id, user_message.id, execution_request_fixture())
     end
   end
 

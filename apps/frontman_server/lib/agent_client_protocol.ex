@@ -294,14 +294,15 @@ defmodule AgentClientProtocol do
   Pass `retry_opts` when the server is scheduling an automatic retry. The client
   uses `retryAt` to show a countdown and infers retry state from its presence.
 
-    retry_opts: [retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
+    retry_opts: [category: "rate_limit", agent_error_id: "err_...", retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
   """
   def build_error_notification(session_id, message, timestamp, retry_opts \\ []) do
     update = %{
       "sessionUpdate" => "error",
       "message" => message,
       "timestamp" => DateTime.to_iso8601(timestamp),
-      "category" => Keyword.get(retry_opts, :category, "unknown")
+      "category" => Keyword.fetch!(retry_opts, :category),
+      "_meta" => %{"frontman.dev/agentErrorId" => Keyword.fetch!(retry_opts, :agent_error_id)}
     }
 
     update =

@@ -581,6 +581,7 @@ type sessionUpdate =
   | CurrentModeUpdate({currentModeId: sessionModeId})
   | AgentTurnComplete({stopReason: stopReason})
   | Error({
+      _meta: option<JSON.t>,
       message: string,
       timestamp: string,
       retryAt: option<string>,
@@ -653,6 +654,7 @@ let sessionUpdateSchema = S.union([
   S.object(s => {
     s.tag("sessionUpdate", "error")
     Error({
+      _meta: s.field("_meta", S.option(S.json)),
       message: s.field("message", S.string),
       timestamp: s.field("timestamp", S.string),
       retryAt: s.field("retryAt", S.option(S.string)),

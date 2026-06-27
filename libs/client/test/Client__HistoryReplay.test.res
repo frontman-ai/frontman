@@ -438,6 +438,7 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     let (updated, _) = TaskReducer.next(
       task.contents,
       AgentError({
+        id: "agent-error-1",
         error: "Rate limit exceeded",
         timestamp: "2025-01-10T10:00:10Z",
         category: "unknown",

@@ -26,6 +26,8 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
     classify_reqllm_request(status, reason)
   end
 
+  def classify_error({:llm_error, reason}), do: classify_error(reason)
+
   def classify_error(:no_api_key), do: {"No API key available for this request.", "auth", false}
   def classify_error(:missing_model), do: {"Model is required for this request.", "auth", false}
 

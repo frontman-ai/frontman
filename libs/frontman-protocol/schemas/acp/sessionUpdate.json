@@ -878,6 +878,7 @@
           "type": "string",
           "const": "error"
         },
+        "_meta": {},
         "message": {
           "type": "string"
         },

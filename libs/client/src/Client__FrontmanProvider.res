@@ -26,6 +26,20 @@ let getContentBlockText = (block: Types.contentBlock): option<string> =>
   | ImageContent(_) | AudioContent(_) | ResourceLink(_) | EmbeddedResource(_) => None
   }
 
+@schema
+type frontmanErrorMeta = {
+  @as("frontman.dev/agentErrorId")
+  agentErrorId: string,
+}
+
+let agentErrorId = meta => {
+  let json = switch meta {
+  | Some(json) => json
+  | None => failwith("Frontman error update missing _meta.frontman.dev/agentErrorId")
+  }
+  S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
+}
+
 // Parse accumulated user_message_chunk content blocks into (content, annotations).
 // Inverse of messageAnnotationsToContentBlocks + buildAttachmentContentBlocks on the send path.
 let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
@@ -381,7 +395,7 @@ module Provider = {
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
-      | Error({message, timestamp, retryAt, attempt, maxAttempts, category}) =>
+      | Error({_meta, message, timestamp, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>
@@ -396,6 +410,7 @@ module Provider = {
         | None =>
           Client__State.Actions.agentErrorReceived(
             ~taskId,
+            ~id=agentErrorId(_meta),
             ~error=message,
             ~timestamp,
             ~category=category->Option.getOr("unknown"),

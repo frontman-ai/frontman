@@ -132,7 +132,7 @@ let sendCancel = (
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-// ACP spec: session/retry_turn is a NOTIFICATION (no id, no response expected).
+// Frontman extension: session/retry_turn is a notification (no response expected).
 // Signals the server to retry the failed turn identified by retriedErrorId.
 let sendRetryTurn = (
   ~channel: Channel.t,

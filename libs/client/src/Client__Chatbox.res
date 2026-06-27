@@ -106,7 +106,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
-  let lastErrorId = Client__State.useSelector(Client__State.Selectors.lastErrorId)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
@@ -396,16 +395,12 @@ let make = (~onConfigureProvider: unit => unit) => {
         // Error banner (shows when there's a turn error, or retry banner during countdown)
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({message, category}), Some(taskId)) =>
+        | (None, Some({id, message, category}), Some(taskId)) =>
           <ErrorBanner
             error=message
             category
             onConfigureProvider
-            onRetry={() =>
-              Client__State.Actions.retryTurn(
-                ~taskId,
-                ~retriedErrorId=lastErrorId->Option.getOr(""),
-              )}
+            onRetry={() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=id)}
           />
         | _ => React.null
         }}

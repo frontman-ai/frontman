@@ -289,7 +289,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_interaction(%Tasks.Interaction.AgentError{} = error, turn_number, socket) do
-    finalize_turn(socket, {:error, error.error, error.category}, turn_number)
+    finalize_turn(socket, {:error, error.id, error.error, error.category}, turn_number)
   end
 
   defp handle_interaction(_interaction, _turn_number, socket) do
@@ -811,7 +811,11 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     case RetryCoordinator.handle_error(socket.assigns[:retry_state], error_info) do
       {:exhausted, error_info} ->
-        finalize_turn(socket, {:error, error_info.message, error_info.category}, turn_number)
+        finalize_turn(
+          socket,
+          {:error, error_info.retried_error_id, error_info.message, error_info.category},
+          turn_number
+        )
 
       {:retry_scheduled, state, notification} ->
         notification =
@@ -819,7 +823,8 @@ defmodule FrontmanServerWeb.TaskChannel do
             retry_at: notification.retry_at,
             attempt: notification.attempt,
             max_attempts: notification.max_attempts,
-            category: notification.category
+            category: notification.category,
+            agent_error_id: state.retried_error_id
           )
 
         push(socket, @acp_message, notification)
@@ -841,11 +846,14 @@ defmodule FrontmanServerWeb.TaskChannel do
         push(socket, @acp_message, notification)
         {:noreply, socket}
 
-      {:error, message, category} ->
+      {:error, agent_error_id, message, category} ->
         socket = resolve_pending_prompt(socket, {:error, message}, turn_number)
 
         notification =
-          ACP.build_error_notification(task_id, message, DateTime.utc_now(), category: category)
+          ACP.build_error_notification(task_id, message, DateTime.utc_now(),
+            category: category,
+            agent_error_id: agent_error_id
+          )
 
         push(socket, @acp_message, notification)
         {:noreply, socket}

@@ -644,21 +644,15 @@ defmodule FrontmanServer.Tasks do
         turn_number
 
       :error ->
-        persisted_tool_call_turn_number(task_id, tool_call_id)
-    end
-  end
-
-  defp persisted_tool_call_turn_number(task_id, tool_call_id) do
-    row =
-      InteractionSchema.for_task(task_id)
-      |> InteractionSchema.of_type(Interaction.ToolCall)
-      |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
-      |> Repo.one()
-
-    case row do
-      %InteractionSchema{turn_number: turn_number}
-      when is_integer(turn_number) and turn_number > 0 ->
-        turn_number
+        InteractionSchema.for_task(task_id)
+        |> InteractionSchema.of_type(Interaction.ToolCall)
+        |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
+        |> Repo.one()
+        |> case do
+          %InteractionSchema{turn_number: turn_number}
+          when is_integer(turn_number) and turn_number > 0 ->
+            turn_number
+        end
     end
   end
 
@@ -710,13 +704,19 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp retry_turn_number(task_id, retried_error_id) do
-    %InteractionSchema{turn_number: turn_number} =
+    row =
       InteractionSchema.for_task(task_id)
       |> InteractionSchema.of_type(Interaction.AgentError)
       |> InteractionSchema.data_equals("id", retried_error_id)
       |> Repo.one()
 
-    {:ok, turn_number}
+    case row do
+      %InteractionSchema{turn_number: turn_number} ->
+        {:ok, turn_number}
+
+      nil ->
+        {:error, :not_found}
+    end
   end
 
   defp ensure_latest_retry_turn(turn_number, rows) do

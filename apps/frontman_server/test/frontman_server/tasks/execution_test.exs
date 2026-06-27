@@ -9,6 +9,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   use FrontmanServer.ExecutionCase
   use Oban.Testing, repo: FrontmanServer.Repo
 
+  import Mox
   import Phoenix.ChannelTest
 
   import FrontmanServer.InteractionCase.Helpers,
@@ -30,9 +31,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema}
+  alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Workers.GenerateTitle
+  alias ReqLLM.Error.API.Request
 
   @endpoint FrontmanServerWeb.Endpoint
   @acp_message AgentClientProtocol.event_acp_message()
@@ -860,6 +864,58 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert agent_error.kind == "failed"
       assert agent_error.retryable == false
       assert agent_error.category == "unknown"
+    end
+
+    @tag :capture_log
+    test "retryable provider failures retry only after channel timer fires", %{
+      task_id: task_id,
+      scope: scope,
+      socket: socket
+    } do
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      attempts = :counters.new(1, [])
+
+      expect(LLMProviderMock, :stream_text, 2, fn
+        _model, _messages, opts ->
+          provider_attempts = if Keyword.get(opts, :max_retries, 2) == 0, do: 1, else: 2
+          :counters.add(attempts, 1, provider_attempts)
+
+          case :counters.get(attempts, 1) do
+            1 ->
+              {:error, Request.exception(status: 429, reason: "rate limited")}
+
+            count when count > 1 ->
+              ReqLLMResponses.response("Recovered")
+          end
+      end)
+
+      {:ok, _, 1} = submit_user_message(scope, task_id, user_content("Hello"))
+
+      assert_receive {:interaction,
+                      %Interaction.AgentError{retryable: true, category: "rate_limit"}, 1},
+                     5_000
+
+      :sys.get_state(socket.channel_pid)
+
+      assert :counters.get(attempts, 1) == 1
+
+      assert_push(@acp_message, %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "error",
+            "category" => "rate_limit",
+            "attempt" => 1,
+            "retryAt" => _
+          }
+        }
+      })
+
+      %{assigns: %{retry_state: retry_state}} = :sys.get_state(socket.channel_pid)
+      send(socket.channel_pid, {:fire_retry, retry_state.timer_token})
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      assert :counters.get(attempts, 1) == 2
     end
   end
 

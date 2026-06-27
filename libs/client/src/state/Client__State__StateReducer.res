@@ -333,10 +333,6 @@ module Selectors = {
     TaskReducer.Selectors.turnError(currentTask(state))
   }
 
-  let lastErrorId = (state: state): option<string> => {
-    TaskReducer.Selectors.lastErrorId(currentTask(state))
-  }
-
   let retryStatus = (state: state): option<Task.retryStatus> => {
     TaskReducer.Selectors.retryStatus(currentTask(state))
   }

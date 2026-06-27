@@ -1385,6 +1385,38 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_agent_turn_complete(task_id)
     end
 
+    test "session/retry_turn rejects client-generated error ids", %{
+      scope: scope,
+      socket: socket,
+      task_id: task_id
+    } do
+      user_message_fixture(scope, task_id, [%{"type" => "text", "text" => "retry me"}])
+      turn_number = latest_turn_number(task_id)
+
+      {:ok, _error_interaction} =
+        Tasks.record_agent_run_result(scope, task_id, turn_number, {:failed, "Rate limited"})
+
+      retried_error_id = "error-#{task_id}-2026-06-26T17:13:06.931002Z"
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/retry_turn", nil, %{
+          "sessionId" => task_id,
+          "retriedErrorId" => retried_error_id
+        })
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      refute Enum.any?(
+               task.interactions,
+               &match?(%Interaction.AgentRetry{}, &1)
+             )
+    end
+
     test "cancel during retry countdown clears pending retry without recording retry", %{
       scope: scope,
       socket: socket,

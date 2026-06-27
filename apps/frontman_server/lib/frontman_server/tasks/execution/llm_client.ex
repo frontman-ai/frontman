@@ -74,6 +74,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)
+      |> Keyword.put_new(:max_retries, 0)
       |> Keyword.reject(fn
         {:parallel_tool_calls, _value} -> true
         {_key, value} -> value == []
