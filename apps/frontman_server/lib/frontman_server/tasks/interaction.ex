@@ -361,6 +361,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :agent_id, :string
       field :model, :string
+      field :selected_server_skill_id, :binary_id
+      field :selected_server_skill_name, :string
+      field :selected_server_skill_content, :string
       field :messages, {:array, :string}, default: []
       embeds_many :annotations, Annotation
       embeds_one :selected_figma_node, FigmaNode
@@ -371,7 +374,16 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     def changeset(%__MODULE__{} = user_message, attrs) do
       user_message
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :agent_id, :model, :messages])
+      |> Interaction.cast_timestamped(attrs, [
+        :id,
+        :timestamp,
+        :agent_id,
+        :model,
+        :selected_server_skill_id,
+        :selected_server_skill_name,
+        :selected_server_skill_content,
+        :messages
+      ])
       |> cast_embed(:annotations, with: &Annotation.changeset/2)
       |> cast_embed(:selected_figma_node, with: &FigmaNode.changeset/2)
       |> cast_embed(:images, with: &UserImage.changeset/2)

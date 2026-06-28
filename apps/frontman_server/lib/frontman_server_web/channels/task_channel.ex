@@ -703,7 +703,8 @@ defmodule FrontmanServerWeb.TaskChannel do
                    message_id: meta["frontman.dev/messageId"],
                    message: content_blocks,
                    model: model,
-                   agent_id: agent_id
+                   agent_id: agent_id,
+                   selected_server_skill_id: meta["selectedServerSkillId"]
                  }
                ) do
           wake_runner(socket, meta)
@@ -720,6 +721,9 @@ defmodule FrontmanServerWeb.TaskChannel do
 
           {:error, :unknown_agent} ->
             reply_invalid_params(socket, id, "Unknown agent")
+
+          {:error, :skill_not_found} ->
+            reply_invalid_params(socket, id, "Selected skill not found")
 
           {:error, {:invalid_content_block, message}} ->
             Logger.error("Failed to add user message: #{message}")

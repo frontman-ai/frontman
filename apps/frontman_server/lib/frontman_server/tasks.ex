@@ -24,6 +24,7 @@ defmodule FrontmanServer.Tasks do
     Interaction.AgentError,
     Interaction.AgentPaused,
     Interaction.AgentRetry,
+    Interaction.SkillUsed,
     Interaction.ToolCall,
     Interaction.ToolResult,
     RetryCoordinator,
@@ -35,6 +36,7 @@ defmodule FrontmanServer.Tasks do
       FrontmanServer,
       FrontmanServer.Accounts,
       FrontmanServer.Providers,
+      FrontmanServer.Skills,
       ModelContextProtocol
     ],
     exports: @exports
@@ -44,6 +46,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Agents
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Repo
+  alias FrontmanServer.Skills
 
   alias FrontmanServer.Tasks.{
     Execution,
@@ -492,12 +495,16 @@ defmodule FrontmanServer.Tasks do
           message: [_ | _] = content_blocks,
           model: model,
           agent_id: agent_id
-        }
+        } = arguments
       )
       when is_binary(task_id) and is_binary(model) and model != "" and is_binary(agent_id) and
              agent_id != "" do
-    with {:ok, user_message_attrs} <-
+    selected_server_skill_id = Map.get(arguments, :selected_server_skill_id)
+
+    with {:ok, selected_skill} <- selected_skill(scope, selected_server_skill_id),
+         {:ok, user_message_attrs} <-
            Interaction.UserMessage.attrs(content_blocks, model, agent_id),
+         user_message_attrs = put_selected_skill(user_message_attrs, selected_skill),
          {:ok, task_schema} <- get_task_by_id(scope, task_id) do
       record_interaction_row(
         task_schema,
@@ -509,6 +516,24 @@ defmodule FrontmanServer.Tasks do
         }
       )
     end
+  end
+
+  defp selected_skill(_scope, nil), do: {:ok, nil}
+
+  defp selected_skill(%Scope{} = scope, selected_server_skill_id) do
+    case Skills.get_by_id(scope, selected_server_skill_id) do
+      {:ok, selected_skill} -> {:ok, selected_skill}
+      {:error, :not_found} -> {:error, :skill_not_found}
+    end
+  end
+
+  defp put_selected_skill(attrs, nil), do: attrs
+
+  defp put_selected_skill(attrs, selected_skill) do
+    attrs
+    |> Map.put(:selected_server_skill_id, selected_skill.id)
+    |> Map.put(:selected_server_skill_name, selected_skill.name)
+    |> Map.put(:selected_server_skill_content, selected_skill.content)
   end
 
   def submit_user_message(%Scope{}, %{agent_id: agent_id})
@@ -600,7 +625,8 @@ defmodule FrontmanServer.Tasks do
            user_message_ids: user_message_ids
          },
          {:ok, turn_started_row} <-
-           insert_turn_started(task_schema, turn_started_attrs, turn_number) do
+           insert_turn_started(task_schema, turn_started_attrs, turn_number),
+         :ok <- insert_skill_used_rows(task_schema, accepted_messages, turn_number) do
       {:ok,
        {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message}}
     else
@@ -649,6 +675,48 @@ defmodule FrontmanServer.Tasks do
        ) do
     default_agent_id
   end
+
+  defp insert_skill_used_rows(%TaskSchema{} = task_schema, accepted_messages, turn_number) do
+    accepted_messages
+    |> Enum.flat_map(&skill_used_attrs/1)
+    |> Enum.reduce_while(:ok, fn attrs, :ok ->
+      row_attrs = %{
+        id: attrs.id,
+        type: :skill_used,
+        data: attrs,
+        turn_number: turn_number
+      }
+
+      case task_schema
+           |> Ecto.build_assoc(:interaction_rows)
+           |> InteractionSchema.changeset(row_attrs)
+           |> Repo.insert() do
+        {:ok, _row} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp skill_used_attrs(%InteractionSchema{
+         data: %Interaction.UserMessage{
+           selected_server_skill_id: skill_id,
+           selected_server_skill_name: skill_name,
+           selected_server_skill_content: skill_content
+         }
+       })
+       when is_binary(skill_id) and is_binary(skill_name) and is_binary(skill_content) do
+    [
+      %{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        skill_id: skill_id,
+        skill_name: skill_name,
+        skill_content: skill_content
+      }
+    ]
+  end
+
+  defp skill_used_attrs(%InteractionSchema{}), do: []
 
   defp insert_turn_started(%TaskSchema{} = task_schema, turn_started_attrs, turn_number) do
     attrs = %{

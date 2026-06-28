@@ -12,7 +12,7 @@ defmodule FrontmanServer.Tasks.History do
 
   @task_scoped_types InteractionSchema.task_scoped_types()
   @terminal_types [:agent_completed, :agent_error, :agent_paused]
-  @active_turn_types @terminal_types ++ [:agent_response, :tool_call, :tool_result]
+  @active_turn_types @terminal_types ++ [:agent_response, :skill_used, :tool_call, :tool_result]
 
   @enforce_keys ~w(rows ordered_rows users_by_id turns_by_number user_owners response_counts active_turn)a
   defstruct @enforce_keys
