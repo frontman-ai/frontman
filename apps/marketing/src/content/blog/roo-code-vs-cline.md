@@ -41,7 +41,7 @@ Roo Code vs Cline used to be a close comparison between two Cline-family AI codi
 
 That does not make Roo Code irrelevant. Roo Code popularized a useful mode-driven workflow: Architect for planning, Code for implementation, Debug for troubleshooting, Ask for answers, and Custom Modes for team-specific behavior. If you are comparing Roo Code and Cline because you liked that structure, the right comparison is now Cline vs Roo-style community forks such as [ZooCode](https://github.com/Zoo-Code-Org/Zoo-Code/) as much as Cline vs the archived Roo Code project.
 
-This guide gives the practical answer first, then compares the workflows, context handling, model flexibility, review controls, and frontend fit. We build [Frontman](/), so the frontend/browser section includes a clear disclosure where our product fits and where it does not. Frontman is not a direct replacement for Cline or Roo Code; it solves a narrower browser-based frontend editing problem.
+This guide gives the practical answer first, then compares the workflows, context handling, model flexibility, review controls, and frontend fit. If you are evaluating Cline on its own, read the full [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/) for BYOK, pricing, MCP, CLI, and alternatives. We build [Frontman](/), so the frontend/browser section includes a clear disclosure where our product fits and where it does not. Frontman is not a direct replacement for Cline or Roo Code; it solves a narrower browser-based frontend editing problem.
 
 Source status checked: June 15, 2026. Product claims below are based on the public [Cline GitHub repository](https://github.com/cline/cline), [Roo Code docs](https://docs.roocode.com/), and [Roo Code GitHub repository](https://github.com/RooCodeInc/Roo-Code/). Author: [Danni Friedland](/about/), co-founder of Frontman.
 
@@ -62,7 +62,7 @@ Disclosure: we build Frontman. That creates a conflict of interest in the fronte
 
 ## Roo Code vs Cline: TL;DR
 
-- **Choose Cline for most new projects.** It is active, broadly documented, and now spans VS Code, CLI, SDK, JetBrains, plugins, MCP servers, and automation workflows.
+- **Choose Cline for most new projects.** It is active, broadly documented, and now spans VS Code, CLI, SDK, JetBrains, plugins, MCP servers, and automation workflows. Read the [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/) if Cline itself is your main evaluation target.
 - **Choose a Roo-style fork only if you specifically want modes.** Roo Code's main advantage was role-based modes: Architect, Code, Ask, Debug, and Custom.
 - **Do not adopt archived Roo Code without a maintenance plan.** Its docs say the extension was shut down on May 15, 2026, and its GitHub repo is read-only.
 - **Both tools fit developer-led IDE workflows.** They are strongest when an engineer is in or around the code editor and reviewing diffs.

@@ -32,7 +32,7 @@ There are over a dozen open-source AI coding tools that have gained serious trac
 
 > **Looking for the latest releases?** See our [monthly open source AI releases roundup](/open-source-ai-releases/) for what shipped recently.
 
-Last updated: June 2026. Star counts are approximate. Update: Roo Code was shut down and archived in May 2026; see the dedicated [Roo Code vs Cline comparison](/blog/roo-code-vs-cline/) for current adoption guidance.
+Last updated: June 2026. Star counts are approximate. Update: Roo Code was shut down and archived in May 2026; see the dedicated [Roo Code vs Cline comparison](/blog/roo-code-vs-cline/) for current adoption guidance. If you are evaluating Cline specifically, start with the full [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/).
 
 ## Best open-source AI coding tools: quick ranking
 
@@ -64,7 +64,7 @@ If you're choosing between the highest-intent 2026 AI coding agents, the short v
 | Kilo Code | Developers who want a Cline-family agent with JetBrains support | Newer project with overlapping features |
 | OpenHands | Teams evaluating full autonomous agent platforms | Broader scope, more complex self-hosting |
 
-Cline is the safest default for an open-source VS Code AI coding agent in 2026. Roo Code is still useful as a reference point because many teams compare Roo Code vs Cline, but the archived status changes the adoption calculus. Kilo Code is the Cline-family option to watch if JetBrains support matters. OpenHands is not a drop-in editor assistant; it is closer to an open-source Devin-style agent platform.
+Cline is the safest default for an open-source VS Code AI coding agent in 2026. Roo Code is still useful as a reference point because many teams compare Roo Code vs Cline, but the archived status changes the adoption calculus. Kilo Code is the Cline-family option to watch if JetBrains support matters. OpenHands is not a drop-in editor assistant; it is closer to an open-source Devin-style agent platform. For BYOK, pricing, model costs, setup, and alternatives, read the dedicated [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/).
 
 ## CLI-Based Open-Source AI Coding Tools
 
@@ -94,7 +94,7 @@ Corporate backing from Block means long-term maintenance is likely. The desktop 
 
 Autonomous coding agent that runs as a VS Code extension. Cline can create and edit files, run terminal commands, use a headless browser, and work with MCP tools. Every action requires human approval before execution, keeping you in the loop.
 
-Cline spawned two major forks (Roo Code and Kilo Code) that have become independent projects. The original remains the most popular with 238 releases and an enterprise offering (SSO, audit trails) through Cline Bot Inc.
+Cline spawned two major forks (Roo Code and Kilo Code) that have become independent projects. The original remains the most popular with 238 releases and an enterprise offering (SSO, audit trails) through Cline Bot Inc. See the [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/) for a deeper look at BYOK, pricing, MCP, CLI, and alternatives.
 
 It has the largest community of any open-source coding agent, with human-in-the-loop approval for every action and support for every major LLM provider via BYOK. The approval workflow adds friction for routine operations, and quality depends heavily on which model you connect. VS Code only.
 
