@@ -1,6 +1,8 @@
 defmodule FrontmanServer.Tasks.InteractionTest do
   use FrontmanServer.InteractionCase, async: true
 
+  alias FrontmanServer.CurrentPageContext
+  alias FrontmanServer.Skills.Skill
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
@@ -11,6 +13,25 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   }
 
   alias ModelContextProtocol, as: MCP
+
+  describe "SkillUsed.build/1" do
+    test "snapshots skill content" do
+      skill = %Skill{
+        id: Ecto.UUID.generate(),
+        name: "design_polish",
+        description: "Improve visual quality.",
+        content: "Use hierarchy."
+      }
+
+      assert %Interaction.SkillUsed{
+               skill_id: skill_id,
+               skill_name: "design_polish",
+               skill_content: "Use hierarchy."
+             } = Interaction.SkillUsed.build(skill)
+
+      assert skill_id == skill.id
+    end
+  end
 
   describe "UserMessage.attrs/1" do
     test "extracts non-empty text messages" do
@@ -309,6 +330,41 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert messages == []
     end
 
+    test "adds active skill as separate content part on previous user message" do
+      skill_used = %Interaction.SkillUsed{
+        id: "skill-used-1",
+        timestamp: DateTime.utc_now(),
+        skill_id: Ecto.UUID.generate(),
+        skill_name: "design_polish",
+        skill_content: "Use hierarchy."
+      }
+
+      messages = Interaction.to_swarm_messages([user_msg("Improve hero"), skill_used])
+
+      assert [%SwarmAi.Message.User{content: content}] = messages
+
+      assert [
+               %SwarmAi.Message.ContentPart{
+                 type: :text,
+                 text:
+                   "## Active Skill: design_polish\n\nUse this expert lens for this turn.\n\nUse hierarchy."
+               },
+               %SwarmAi.Message.ContentPart{type: :text, text: "Improve hero"}
+             ] = content
+    end
+
+    test "skips unpaired SkillUsed structs" do
+      skill_used = %Interaction.SkillUsed{
+        id: "skill-used-1",
+        timestamp: DateTime.utc_now(),
+        skill_id: Ecto.UUID.generate(),
+        skill_name: "design_polish",
+        skill_content: "Use hierarchy."
+      }
+
+      assert Interaction.to_swarm_messages([skill_used]) == []
+    end
+
     test "handles mixed conversation in correct order" do
       interactions = [
         user_msg("Calculate 2+2"),
@@ -579,6 +635,45 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert %Interaction.UserMessage{current_page: %Interaction.CurrentPage{}, annotations: [_]} =
                row.data
+    end
+
+    test "deserializes skill used data" do
+      skill_used = %Interaction.SkillUsed{
+        id: "skill-used-1",
+        timestamp: DateTime.utc_now(),
+        skill_id: Ecto.UUID.generate(),
+        skill_name: "design_polish",
+        skill_content: "Use hierarchy."
+      }
+
+      row = %InteractionSchema{
+        type: :skill_used,
+        data: Interaction.to_data_map(skill_used)
+      }
+
+      assert %Interaction.SkillUsed{skill_name: "design_polish", skill_content: "Use hierarchy."} =
+               InteractionSchema.to_struct(row)
+    end
+  end
+
+  describe "InteractionSchema.create_changeset/3" do
+    test "requires a turn number for SkillUsed" do
+      skill_used = %Interaction.SkillUsed{
+        id: "skill-used-1",
+        timestamp: DateTime.utc_now(),
+        skill_id: Ecto.UUID.generate(),
+        skill_name: "design_polish"
+      }
+
+      changeset =
+        InteractionSchema.create_changeset(
+          %FrontmanServer.Tasks.TaskSchema{id: Ecto.UUID.generate()},
+          skill_used,
+          nil
+        )
+
+      refute changeset.valid?
+      assert {"missing for skill_used", []} = changeset.errors[:turn_number]
     end
   end
 

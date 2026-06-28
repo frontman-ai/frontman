@@ -28,6 +28,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     agent_error: Interaction.AgentError,
     agent_paused: Interaction.AgentPaused,
     agent_retry: Interaction.AgentRetry,
+    skill_used: Interaction.SkillUsed,
     tool_call: Interaction.ToolCall,
     tool_result: Interaction.ToolResult,
     discovered_project_rule: Interaction.DiscoveredProjectRule,
