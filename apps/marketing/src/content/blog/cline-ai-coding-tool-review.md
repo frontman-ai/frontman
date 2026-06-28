@@ -39,6 +39,20 @@ faq:
     answer: 'For most new users in 2026, Cline is safer because it is active and Roo Code was shut down and archived in May 2026. Roo Code remains useful as a reference for role-based modes.'
   - question: 'When should you use Frontman instead of Cline?'
     answer: 'Use Frontman when the work starts from the running browser: visible UI bugs, layout changes, product copy edits, runtime state, or PM/designer collaboration that still needs reviewable source edits.'
+  - question: 'Is Cline an AI coding tool or coding assistant?'
+    answer: 'Cline is best described as an AI coding agent. It can inspect files, edit code, run commands, and use tools. That goes beyond autocomplete or chat-only assistance.'
+  - question: 'Does Cline work with VS Code?'
+    answer: 'Yes. Cline is widely known as a VS Code AI coding agent, though public Cline materials now also mention CLI, SDK, JetBrains, and automation workflows.'
+  - question: 'Does Cline support JetBrains?'
+    answer: 'Cline public materials list JetBrains plugin support. If JetBrains is a hard requirement, verify current IDE coverage and installation path before rollout.'
+  - question: 'Is Cline open source?'
+    answer: 'Yes. Cline has a public GitHub repository and open-source project. As with any open-source tool, verify license, release activity, and dependency risk before standardizing on it.'
+  - question: 'Does Cline support MCP?'
+    answer: 'Yes. Cline supports MCP and plugins for connecting external tools and context.'
+  - question: 'Is Cline better than Cursor?'
+    answer: 'Use Cline if you want open-source, BYOK, and agent control in your existing editor/terminal workflow. Use Cursor if you want a polished AI-first IDE experience and are comfortable with a closed product.'
+  - question: 'Is Cline good for frontend development?'
+    answer: 'Cline is good for developer-led frontend code edits. It can change components, styles, and tests. It is less natural when the work starts from the browser UI or from a non-engineer pointing at the page.'
 ---
 
 Cline is one of the default names people find when they search for an open-source AI coding tool in 2026. It is popular because it gives developers an agentic workflow without forcing one model provider, one editor, or one hosted workflow.
@@ -382,33 +396,3 @@ It is weaker for:
 - Organizations that want a fully managed, closed enterprise suite.
 
 Final recommendation: **use Cline as a general-purpose developer AI coding agent. Use Frontman when the job is specifically browser-visible frontend work that needs reviewable source edits.**
-
-## FAQ
-
-### Is Cline an AI coding tool or coding assistant?
-
-Cline is best described as an AI coding agent. It can inspect files, edit code, run commands, and use tools. That goes beyond autocomplete or chat-only assistance.
-
-### Does Cline work with VS Code?
-
-Yes. Cline is widely known as a VS Code AI coding agent, though public Cline materials now also mention CLI, SDK, JetBrains, and automation workflows.
-
-### Does Cline support JetBrains?
-
-Cline public materials list JetBrains plugin support. If JetBrains is a hard requirement, verify current IDE coverage and installation path before rollout.
-
-### Is Cline open source?
-
-Yes. Cline has a public GitHub repository and open-source project. As with any open-source tool, verify license, release activity, and dependency risk before standardizing on it.
-
-### Does Cline support MCP?
-
-Yes. Cline supports MCP and plugins for connecting external tools and context.
-
-### Is Cline better than Cursor?
-
-Use Cline if you want open-source, BYOK, and agent control in your existing editor/terminal workflow. Use Cursor if you want a polished AI-first IDE experience and are comfortable with a closed product.
-
-### Is Cline good for frontend development?
-
-Cline is good for developer-led frontend code edits. It can change components, styles, and tests. It is less natural when the work starts from the browser UI or from a non-engineer pointing at the page.
