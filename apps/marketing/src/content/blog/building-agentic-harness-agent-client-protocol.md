@@ -101,7 +101,10 @@ A new connection starts with `initialize`.
     "protocolVersion": 1,
     "clientInfo": {
       "name": "frontman-client",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "_meta": {
+        "framework": "nextjs"
+      }
     },
     "clientCapabilities": {
       "fs": {
@@ -120,7 +123,7 @@ Then the client creates or loads a session.
 
 `session/new` creates a new task-backed ACP session. Frontman maps ACP sessions to tasks. The client generates the session ID, the server creates the task, and the result can include session configuration options such as model choices.
 
-`session/load` hydrates an existing task. This is where ACP becomes more than a streaming format. Frontman replays persisted interactions back to the client as `session/update` notifications. User messages, agent responses, tool calls, tool results, errors, and plan state reconstruct through the same client reducer path as live updates.
+`session/load` hydrates an existing task. This is where ACP becomes more than a streaming format. Frontman replays persisted interactions back to the client as `session/update` notifications. User messages, agent responses, tool calls, tool results, and errors reconstruct through the same client reducer path as live updates.
 
 That is a small design choice with large consequences: reconnect is not a separate UI model. History replay is the same protocol as live streaming.
 
