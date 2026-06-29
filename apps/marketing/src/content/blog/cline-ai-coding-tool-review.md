@@ -5,9 +5,9 @@ pubDate: 2026-06-28T14:00:00Z
 description: 'A practical Cline AI coding tool review for 2026: BYOK setup, pricing model, model costs, VS Code and JetBrains support, MCP, CLI, pros, cons, Roo Code comparison, and alternatives.'
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
-image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
+image: '/blog/cline-ai-coding-tool-review-cover.png'
 imageWidth: 1200
-imageHeight: 630
+imageHeight: 450
 imageAlt: 'Cline AI coding tool review and alternatives guide'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
 updatedDate: 2026-06-28T14:00:00Z
