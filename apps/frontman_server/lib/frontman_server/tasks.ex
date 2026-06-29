@@ -791,7 +791,7 @@ defmodule FrontmanServer.Tasks do
        when is_integer(turn_number) and turn_number > 0 do
     case Execution.run(scope, task, turn_number, execution) do
       {:error, :already_running} ->
-        :already_running
+        {:error, :already_running}
 
       {:ok, _pid} ->
         :ok
