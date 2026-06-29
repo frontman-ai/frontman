@@ -89,7 +89,7 @@ jobs:
         run: make -C libs/frontman-client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@b7917e26056df1bc101e59400018f504c8154e49 # main (node24)
+        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
         with:
           filename: libs/frontman-client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -128,7 +128,7 @@ jobs:
         run: make -C libs/frontman-core test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@b7917e26056df1bc101e59400018f504c8154e49 # main (node24)
+        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
         with:
           filename: libs/frontman-core/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -167,7 +167,7 @@ jobs:
         run: make -C libs/frontman-nextjs test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@b7917e26056df1bc101e59400018f504c8154e49 # main (node24)
+        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
         with:
           filename: libs/frontman-nextjs/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -206,7 +206,7 @@ jobs:
         run: make -C libs/react-statestore test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@b7917e26056df1bc101e59400018f504c8154e49 # main (node24)
+        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
         with:
           filename: libs/react-statestore/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -245,7 +245,7 @@ jobs:
         run: make -C libs/client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@b7917e26056df1bc101e59400018f504c8154e49 # main (node24)
+        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
         with:
           filename: libs/client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -595,7 +595,7 @@ jobs:
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@b7917e26056df1bc101e59400018f504c8154e49 # main (node24)
+        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
         with:
           filename: apps/frontman_server/cover/cobertura.xml
           overall_coverage_fail_threshold: 0
