@@ -91,14 +91,12 @@ defmodule FrontmanServerWeb.TaskChannel do
         handle_session_load(id, params, socket)
 
       {:ok, {:request, id, method, _params}} ->
-        response =
-          JsonRpc.error_response(
-            id,
-            JsonRpc.error_method_not_found(),
-            "Method not found: #{method}"
-          )
-
-        {:reply, {:ok, %{@acp_message => response}}, socket}
+        reply_acp_error(
+          socket,
+          id,
+          JsonRpc.error_method_not_found(),
+          "Method not found: #{method}"
+        )
 
       {:ok, {:notification, "session/retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
         handle_retry_turn(retried_error_id, socket)
@@ -163,18 +161,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_info({:fire_retry, token}, socket) do
     case socket.assigns[:retry_state] do
       %{timer_token: ^token, retried_error_id: retried_error_id} ->
-        task_id = socket.assigns.task_id
-
-        Tasks.retry_execution(
-          socket.assigns.scope,
-          task_id,
-          retried_error_id,
-          %{
-            model: nil,
-            mcp_tools: socket.assigns.mcp_tools,
-            project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
-          }
-        )
+        retry_turn(socket, retried_error_id)
 
       _stale_or_nil ->
         :ok
@@ -650,13 +637,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       {:error, :not_found} ->
-        push(
-          socket,
-          @acp_message,
-          JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Session not found")
-        )
-
-        {:noreply, socket}
+        push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
     end
   end
 
@@ -690,8 +671,7 @@ defmodule FrontmanServerWeb.TaskChannel do
              ) do
           {:error, :already_running} ->
             Logger.info("Rejected prompt — agent already running for task #{task_id}")
-            error_response = JsonRpc.error_response(id, -32_000, "Agent already running")
-            {:reply, {:ok, %{@acp_message => error_response}}, socket}
+            reply_acp_error(socket, id, -32_000, "Agent already running")
 
           {:ok, _interaction, turn_number} ->
             socket =
@@ -707,24 +687,25 @@ defmodule FrontmanServerWeb.TaskChannel do
 
           {:error, {:invalid_content_block, message}} ->
             Logger.error("Failed to add user message: #{message}")
-
-            error_response =
-              JsonRpc.error_response(id, JsonRpc.error_invalid_params(), message)
-
-            {:reply, {:ok, %{@acp_message => error_response}}, socket}
+            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
 
           {:error, reason} ->
             Logger.error("Failed to add user message: #{inspect(reason)}")
-            error_response = JsonRpc.error_response(id, -32_000, inspect(reason))
-            {:reply, {:ok, %{@acp_message => error_response}}, socket}
+            reply_acp_error(socket, id, -32_000, inspect(reason))
         end
 
       :error ->
-        error_response =
-          JsonRpc.error_response(id, JsonRpc.error_invalid_params(), "Model is required")
-
-        {:reply, {:ok, %{@acp_message => error_response}}, socket}
+        reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Model is required")
     end
+  end
+
+  defp reply_acp_error(socket, id, code, message) do
+    {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
+  end
+
+  defp push_acp_error(socket, id, code, message) do
+    push(socket, @acp_message, JsonRpc.error_response(id, code, message))
+    {:noreply, socket}
   end
 
   defp handle_execution_chunk(socket, %{type: :content, text: text})
@@ -774,15 +755,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     case payload do
       %{"id" => id} ->
-        error_response =
-          JsonRpc.error_response(
-            id,
-            JsonRpc.error_invalid_request(),
-            "Invalid JSON-RPC message"
-          )
-
-        push(socket, @acp_message, error_response)
-        {:noreply, socket}
+        push_acp_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
 
       _ ->
         {:noreply, socket}
@@ -790,25 +763,39 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_retry_turn(retried_error_id, socket) do
-    task_id = socket.assigns.task_id
-
-    Tasks.retry_execution(
-      socket.assigns.scope,
-      task_id,
-      retried_error_id,
-      %{
-        model: nil,
-        mcp_tools: socket.assigns.mcp_tools,
-        project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
-      }
-    )
-
+    retry_turn(socket, retried_error_id)
     {:noreply, socket}
   end
 
-  defp handle_transient_error(socket, error_info, turn_number) do
-    task_id = socket.assigns.task_id
+  defp retry_turn(socket, retried_error_id) do
+    case Tasks.retry_execution(
+           socket.assigns.scope,
+           socket.assigns.task_id,
+           retried_error_id,
+           %{
+             model: nil,
+             mcp_tools: socket.assigns.mcp_tools,
+             project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
+           }
+         ) do
+      :ok ->
+        :ok
 
+      {:error, reason} ->
+        unless reason in [:not_found, :stale_turn] do
+          Logger.warning("Retry turn failed: #{inspect(reason)}")
+        end
+
+        push_agent_error(
+          socket,
+          retried_error_id,
+          "That response can no longer be retried. Please send a new message instead.",
+          "retry_unavailable"
+        )
+    end
+  end
+
+  defp handle_transient_error(socket, error_info, turn_number) do
     case RetryCoordinator.handle_error(socket.assigns[:retry_state], error_info) do
       {:exhausted, error_info} ->
         finalize_turn(
@@ -818,16 +805,16 @@ defmodule FrontmanServerWeb.TaskChannel do
         )
 
       {:retry_scheduled, state, notification} ->
-        notification =
-          ACP.build_error_notification(task_id, notification.message, DateTime.utc_now(),
-            retry_at: notification.retry_at,
-            attempt: notification.attempt,
-            max_attempts: notification.max_attempts,
-            category: notification.category,
-            agent_error_id: state.retried_error_id
-          )
+        push_agent_error(
+          socket,
+          state.retried_error_id,
+          notification.message,
+          notification.category,
+          retry_at: notification.retry_at,
+          attempt: notification.attempt,
+          max_attempts: notification.max_attempts
+        )
 
-        push(socket, @acp_message, notification)
         {:noreply, assign(socket, :retry_state, state)}
     end
   end
@@ -848,16 +835,21 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       {:error, agent_error_id, message, category} ->
         socket = resolve_pending_prompt(socket, {:error, message}, turn_number)
-
-        notification =
-          ACP.build_error_notification(task_id, message, DateTime.utc_now(),
-            category: category,
-            agent_error_id: agent_error_id
-          )
-
-        push(socket, @acp_message, notification)
+        push_agent_error(socket, agent_error_id, message, category)
         {:noreply, socket}
     end
+  end
+
+  defp push_agent_error(socket, agent_error_id, message, category, opts \\ []) do
+    notification =
+      ACP.build_error_notification(
+        socket.assigns.task_id,
+        message,
+        DateTime.utc_now(),
+        Keyword.merge(opts, category: category, agent_error_id: agent_error_id)
+      )
+
+    push(socket, @acp_message, notification)
   end
 
   defp resolve_pending_prompt(socket, result, turn_number) do

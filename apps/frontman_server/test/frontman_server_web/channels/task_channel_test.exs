@@ -1415,6 +1415,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                task.interactions,
                &match?(%Interaction.AgentRetry{}, &1)
              )
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "error",
+            "category" => "retry_unavailable",
+            "message" =>
+              "That response can no longer be retried. Please send a new message instead."
+          }
+        }
+      })
     end
 
     test "cancel during retry countdown clears pending retry without recording retry", %{

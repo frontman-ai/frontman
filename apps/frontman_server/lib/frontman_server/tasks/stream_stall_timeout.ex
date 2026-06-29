@@ -107,7 +107,7 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
         :erlang.raise(kind, reason, stacktrace)
     after
       stall_timeout_ms ->
-        Logger.error(
+        Logger.warning(
           "StreamStallTimeout: no chunk received for #{stall_timeout_ms}ms, aborting stream"
         )
 

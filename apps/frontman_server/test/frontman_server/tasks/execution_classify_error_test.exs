@@ -43,6 +43,12 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
       assert String.length(msg) > 0
     end
 
+    test "wrapped StreamStallTimeout.Error returns overload, retryable" do
+      err = {:exception, %StreamStallTimeout.Error{timeout_ms: 60_000}}
+      {msg, "overload", true} = ErrorClassifier.classify_error(err)
+      assert String.contains?(msg, "stopped responding")
+    end
+
     test ":genserver_call_timeout returns overload, retryable" do
       {msg, "overload", true} = ErrorClassifier.classify_error(:genserver_call_timeout)
       assert String.length(msg) > 0

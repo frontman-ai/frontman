@@ -249,6 +249,15 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "handle_swarm_event/4" do
+    test "returns persistence errors instead of crashing", %{scope: scope} do
+      missing_task_id = Ecto.UUID.generate()
+
+      assert {:error, :not_found} =
+               Tasks.handle_swarm_event(scope, missing_task_id, 1, :completed)
+    end
+  end
+
   describe "resume_execution/3" do
     test "returns not_running when no active agent run exists", %{scope: scope} do
       task_id = task_fixture(scope).id

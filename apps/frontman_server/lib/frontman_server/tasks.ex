@@ -326,8 +326,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, :completed) do
-    {:ok, _interaction} = record_agent_run_result(scope, task_id, turn_number, :completed)
-    :ok
+    persist_agent_run_result(scope, task_id, turn_number, :completed)
   end
 
   defp persist_swarm_event(
@@ -338,23 +337,15 @@ defmodule FrontmanServer.Tasks do
        ) do
     {reason_str, category, retryable} = ErrorClassifier.classify_error(reason)
 
-    Logger.error("Execution failed for task #{task_id}, reason: #{reason_str}")
-
-    Sentry.capture_message("Agent execution failed",
-      level: :error,
-      tags: %{error_type: "agent_execution_error"},
-      extra: %{task_id: task_id, reason: reason_str}
-    )
-
-    {:ok, _interaction} =
-      record_agent_run_result(
-        scope,
-        task_id,
-        turn_number,
-        {:failed, reason_str, retryable, category}
-      )
-
-    :ok
+    with :ok <-
+           persist_agent_run_result(
+             scope,
+             task_id,
+             turn_number,
+             {:failed, reason_str, retryable, category}
+           ) do
+      report_agent_execution_failure(task_id, reason_str, category, retryable)
+    end
   end
 
   defp persist_swarm_event(
@@ -369,15 +360,11 @@ defmodule FrontmanServer.Tasks do
       extra: %{task_id: task_id, reason: inspect(message)}
     )
 
-    {:ok, _interaction} =
-      record_agent_run_result(scope, task_id, turn_number, {:crashed, message})
-
-    :ok
+    persist_agent_run_result(scope, task_id, turn_number, {:crashed, message})
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:cancelled, _}) do
-    {:ok, _interaction} = record_agent_run_result(scope, task_id, turn_number, :cancelled)
-    :ok
+    persist_agent_run_result(scope, task_id, turn_number, :cancelled)
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:terminated, _}) do
@@ -401,8 +388,7 @@ defmodule FrontmanServer.Tasks do
 
     case interactive_tool_calls do
       [] ->
-        {:ok, _interaction} = record_agent_run_result(scope, task_id, turn_number, :terminated)
-        :ok
+        persist_agent_run_result(scope, task_id, turn_number, :terminated)
 
       [_ | _] ->
         :ok
@@ -426,19 +412,36 @@ defmodule FrontmanServer.Tasks do
       turn_number: turn_number
     )
 
-    {:ok, _interaction} =
-      record_agent_run_result(
-        scope,
-        task_id,
-        turn_number,
-        {:paused_for_tool_timeout, tool_name, timeout_ms}
-      )
-
-    :ok
+    persist_agent_run_result(
+      scope,
+      task_id,
+      turn_number,
+      {:paused_for_tool_timeout, tool_name, timeout_ms}
+    )
   end
 
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:chunk, _}), do: :ok
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:tool_call, _}), do: :ok
+
+  defp persist_agent_run_result(scope, task_id, turn_number, outcome) do
+    with {:ok, _interaction} <- record_agent_run_result(scope, task_id, turn_number, outcome) do
+      :ok
+    end
+  end
+
+  defp report_agent_execution_failure(task_id, reason_str, "overload", true) do
+    Logger.warning("Execution failed for task #{task_id}, reason: #{reason_str}")
+  end
+
+  defp report_agent_execution_failure(task_id, reason_str, _category, _retryable) do
+    Logger.error("Execution failed for task #{task_id}, reason: #{reason_str}")
+
+    Sentry.capture_message("Agent execution failed",
+      level: :error,
+      tags: %{error_type: "agent_execution_error"},
+      extra: %{task_id: task_id, reason: reason_str}
+    )
+  end
 
   defp broadcast_swarm_event(task_id, turn_number, {:chunk, chunk}) do
     broadcast_task(task_id, {:execution_chunk, turn_number, chunk})
