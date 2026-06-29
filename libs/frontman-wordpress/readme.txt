@@ -1,8 +1,8 @@
 === Frontman - AI Website Editor for WordPress, Elementor & WooCommerce ===
 Contributors: frontmanai
-Tags: ai, editor, elementor, woocommerce, openai
+Tags: ai editor, website editor, elementor, woocommerce, ai
 Requires at least: 6.0
-Tested up to: 6.9
+Tested up to: 6.9.4
 Requires PHP: 7.4
 Stable tag: 1.3.0
 License: GPL-2.0-or-later
@@ -16,7 +16,7 @@ Edit WordPress with AI beside a live preview. Update pages, posts, Elementor lay
 
 Frontman is not another AI chatbot or content generator. It is an editing workspace for real WordPress tasks: updating page copy, changing calls to action, editing posts, adjusting Elementor pages, refreshing WooCommerce product data, managing menus, inspecting templates, and changing safe site settings.
 
-See it. Say it. Update it.
+See it. Say it. Update your WordPress site with AI.
 
 No code editor. No terminal. No hunting through every WordPress admin screen. Just an AI editing workflow next to the page you are working on.
 
@@ -24,39 +24,38 @@ No code editor. No terminal. No hunting through every WordPress admin screen. Ju
 
 https://www.youtube.com/watch?v=-4GD1GYwH8Y
 
-Learn more on the [Frontman website](https://frontman.sh).
+Learn more on the [Frontman website](https://frontman.sh/wordpress/?utm_source=wordpress.org&utm_medium=plugin-readme&utm_campaign=frontman-wordpress&utm_content=watch-section).
 
 == Common Tasks ==
 
 Use Frontman to:
 
-* Update landing page copy, headlines, buttons, and calls to action
-* Refresh blog posts, help articles, product pages, and support content
-* Edit Gutenberg blocks without manually finding the right block controls
-* Adjust Elementor pages with Elementor-aware editing tools
-* Manage WooCommerce products, orders, customers, coupons, shipping, taxes, reports, settings, and store data when WooCommerce is active
-* Update navigation menus and menu items
-* Review templates, template parts, widgets, and theme settings
-* Change safe site options such as title, tagline, permalinks, and homepage settings
-* Inspect and update Additional CSS for the active theme
+* Update landing page copy, headlines, buttons, and calls to action without waiting on a developer
+* Refresh blog posts, help articles, product pages, and support content from one AI editing workflow
+* Edit Gutenberg blocks without manually hunting for the right block controls
+* Adjust Elementor pages with Elementor-aware AI editing tools
+* Update WooCommerce products, orders, customers, coupons, shipping, taxes, reports, settings, and store data when WooCommerce is active
+* Change navigation menus, menu items, templates, widgets, and theme settings with plain-language instructions
+* Update safe site options such as title, tagline, permalinks, and homepage settings
+* Inspect and update Additional CSS for the active theme while reviewing the site in context
 
 == Built for Teams That Manage WordPress Content ==
 
-Frontman is designed for people who manage websites but do not want to work like developers.
+Frontman is designed for people who manage WordPress websites but do not want to work like developers.
 
-**Marketers** can test copy, update CTAs, refresh landing pages, and make campaign changes faster.
+**Marketers** can test copy, update CTAs, refresh landing pages, and make campaign changes faster without waiting in a developer queue.
 
-**Content teams** can edit posts, pages, blocks, help docs, and knowledge base content from one workflow.
+**Content teams** can edit posts, pages, blocks, help docs, and knowledge base content from one AI WordPress editing workflow.
 
 **Support teams** can update outdated FAQs, support pages, policy content, and product information.
 
-**Store operators** can work with WooCommerce products, coupons, orders, reports, and store settings when WooCommerce is active.
+**Store operators** can use AI WooCommerce tools for products, coupons, orders, reports, and store settings when WooCommerce is active.
 
-**Agencies** can handle client edit requests faster while still reviewing changes in context.
+**Agencies** can handle client WordPress edit requests faster while still reviewing changes in context.
 
 == Live Preview Workflow ==
 
-The important part is the feedback loop. Frontman puts the AI editor beside a live view of your site, so you can describe a change and see the result in the same workspace.
+The important part is the feedback loop. Frontman puts the AI WordPress editor beside a live view of your site, so you can describe a change and see the result in the same workspace.
 
 Instead of switching between admin screens, browser tabs, and page builders, you can keep the page in view while Frontman works through the edit.
 
@@ -64,11 +63,11 @@ Instead of switching between admin screens, browser tabs, and page builders, you
 
 Frontman includes select mode for visual targeting. Click a page element, describe what should change, and give the AI editor clearer context about the exact part of the page you mean.
 
-This is useful for product cards, buttons, headlines, menu items, sections, and other page elements that are easier to point at than describe.
+This is useful for product cards, buttons, headlines, menu items, sections, and other WordPress page elements that are easier to point at than describe.
 
 == Elementor Editing ==
 
-Frontman includes Elementor-aware tools for editing Elementor pages. It can inspect Elementor page data, prepare targeted changes, and preserve versioning context so edits are easier to review and recover from.
+Frontman includes Elementor-aware AI tools for editing Elementor pages. It can inspect Elementor page data, prepare targeted changes, and preserve versioning context so edits are easier to review and recover from.
 
 Use it for everyday Elementor work such as changing copy, adjusting sections, updating page content, and refining existing layouts.
 
@@ -76,7 +75,7 @@ Use it for everyday Elementor work such as changing copy, adjusting sections, up
 
 When WooCommerce is active, Frontman can work with store data from the same AI editing workspace.
 
-WooCommerce tools include products, orders, customers, coupons, shipping, taxes, reports, settings, system status, and store data.
+AI WooCommerce tools include products, orders, customers, coupons, shipping, taxes, reports, settings, system status, and store data.
 
 This helps store teams make routine updates without jumping through multiple WooCommerce screens.
 
@@ -103,17 +102,17 @@ Frontman is early-access software. It works, but it has not been tested across e
 
 == Open Source ==
 
-The Frontman plugin is open source under GPLv2 or later. The code is available on [GitHub](https://github.com/frontman-ai/frontman).
+The Frontman plugin is open source under GPLv2 or later. The code is available on [GitHub](https://github.com/frontman-ai/frontman?utm_source=wordpress.org&utm_medium=plugin-readme&utm_campaign=frontman-wordpress&utm_content=open-source-section).
 
-We are actively improving Frontman for real WordPress teams. Try it, share feedback, [open an issue](https://github.com/frontman-ai/frontman/issues), or join the conversation on GitHub.
+We are actively improving Frontman for real WordPress teams. Try it, share feedback, [open an issue](https://github.com/frontman-ai/frontman/issues?utm_source=wordpress.org&utm_medium=plugin-readme&utm_campaign=frontman-wordpress&utm_content=open-issue), or join the conversation on GitHub.
 
 == Why Frontman? ==
 
 **Built for real WordPress edits**
-Frontman is focused on changing your site, not only generating text.
+Frontman is focused on changing your WordPress site with AI, not only generating text.
 
 **Live preview included**
-Review the page while the AI editor works, so changes are easier to understand in context.
+Review the page while the AI website editor works, so WordPress changes are easier to understand in context.
 
 **Made for non-developers**
 Marketers, content teams, support teams, store operators, and agencies can describe changes in plain language.
@@ -142,13 +141,29 @@ No. Frontman now runs the WordPress tools, Elementor editing tools, and WooComme
 
 No. Frontman is built for marketers, content teams, support teams, store operators, agencies, and other WordPress administrators who want to describe changes in plain language.
 
+= How do I edit WordPress pages with AI? =
+
+Install Frontman, open `/frontman`, keep the live preview beside the AI editor, and describe the WordPress page change you want. Frontman can work with posts, pages, Gutenberg blocks, menus, templates, widgets, settings, Additional CSS, Elementor pages, and WooCommerce data.
+
+= Can AI edit Elementor pages? =
+
+Yes. When Elementor is active, Frontman includes Elementor-aware AI editing tools that can inspect Elementor page data and prepare targeted page changes for review.
+
+= Can AI update WooCommerce products and store data? =
+
+Yes. When WooCommerce is active, Frontman includes AI WooCommerce tools for products, orders, customers, coupons, shipping, taxes, reports, settings, system status, and store data.
+
+= Can I make WordPress changes beside a live preview? =
+
+Yes. Frontman is built around a live preview workflow, so you can describe changes while keeping the page you are editing in view.
+
 = Is Frontman a chatbot? =
 
 No. Frontman uses chat as the interface, but it is an AI website editor. It can take action through WordPress tools while you review the site beside a live preview.
 
 = Does Frontman work with Elementor? =
 
-Yes. Frontman includes Elementor-aware tools for inspecting and editing Elementor pages.
+Yes. Frontman includes Elementor-aware AI tools for inspecting and editing Elementor pages.
 
 = Does Frontman work with WooCommerce? =
 
@@ -172,7 +187,7 @@ The Frontman UI loads from `https://app.frontman.sh`. When you submit a message,
 
 = Is Frontman open source? =
 
-Yes. The Frontman plugin is open source under GPLv2 or later, and the code is available on [GitHub](https://github.com/frontman-ai/frontman).
+Yes. The Frontman plugin is open source under GPLv2 or later, and the code is available on [GitHub](https://github.com/frontman-ai/frontman?utm_source=wordpress.org&utm_medium=plugin-readme&utm_campaign=frontman-wordpress&utm_content=faq-github).
 
 == Third-Party Services ==
 
@@ -199,20 +214,26 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 
 == Screenshots ==
 
-1. Describe a WordPress change in chat while Frontman prepares the edit.
-2. Work beside a live site preview instead of switching between admin screens.
-3. Target WooCommerce product elements visually with select mode.
-4. Click page elements to guide precise AI edits.
+1. AI WordPress editor chat for page changes, content updates, and site management tasks.
+2. Live preview WordPress editing workspace beside the AI website editor.
+3. AI WooCommerce product editor with visual select mode for precise store updates.
+4. Visual selection for Elementor pages, buttons, headings, menus, and other WordPress elements.
 
 == Changelog ==
 
 = 1.3.0 =
-* Sync the Frontman plugin release with Frontman v1.3.0
-* See the GitHub release notes for the full cross-product changelog
+* Keep the WordPress plugin aligned with the Frontman v1.3.0 release train.
+* Refresh WordPress.org listing metadata, including the tested WordPress version, to keep the plugin page current for new installers.
+* Improve plugin-directory search copy around AI WordPress editing, live preview editing, Elementor editing, and WooCommerce store management.
+* Add clearer FAQ entries for AI page editing, Elementor support, WooCommerce tools, and the live preview workflow.
+* Improve screenshot captions so users can understand the AI editor, live preview, visual selection, and WooCommerce editing workflow before installing.
 
 = 1.2.0 =
-* Sync the Frontman plugin release with Frontman v1.2.0
-* See the GitHub release notes for the full cross-product changelog
+* Improve WordPress.org listing copy for non-developer WordPress teams.
+* Position Frontman more clearly as an AI website editor for marketers, content teams, support teams, store operators, and agencies.
+* Highlight practical editing workflows for pages, posts, Gutenberg blocks, Elementor pages, WooCommerce data, menus, templates, widgets, settings, and Additional CSS.
+* Clarify the live preview workflow so users know they can review site changes beside the AI editor.
+* Expand safety and third-party service details so administrators understand access controls, data flow, and recommended staging-site use before using AI editing on important sites.
 
 = 1.1.0 =
 * Update WordPress.org listing copy for non-developer WordPress teams
@@ -240,39 +261,41 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 * Improve Elementor editing tool guidance and recovery errors for non-empty settings diffs and full-tree updates
 
 = 0.17.1 =
-* Sync the Frontman plugin release with Frontman v0.17.1
+* Align plugin metadata and release packaging for the next WordPress.org build
 
 = 0.17.0 =
-* Sync the Frontman plugin release with Frontman v0.17.0
-* See the GitHub release notes for the full cross-product changelog
-
-= 0.16.0 =
-* Sync the Frontman plugin release with Frontman v0.16.0
-* See the GitHub release notes for the full cross-product changelog
+* Align plugin dependencies with the Frontman v0.17.0 maintenance release
+* Keep WordPress package metadata current with the shared client and framework packages
 
 = 0.16.1 =
 * Fix image attachment uploads for WordPress media replacement workflows
 * Strengthen Elementor rollback safety for precise widget and HTML-fragment edits
 
 = 0.16.0 =
-* Sync the Frontman plugin release with Frontman v0.16.0
-* See the GitHub release notes for the full cross-product changelog
+* Add Elementor selected-element context so Frontman can inspect and edit Elementor-backed selections more directly
+* Add a WordPress media upload workflow that resolves user-provided images into Media Library attachments for posts and Elementor elements
+* Preserve previous Elementor data as private rollback snapshots when updating, removing, or replacing Elementor content
+* Fix WordPress page duplication so Elementor page metadata and post-backed navigation item metadata are preserved
+* Run WordPress Elementor edits serially and route target metadata deterministically between settings edits and HTML-fragment edits
 
 = 0.15.0 =
-* Sync the Frontman plugin release with Frontman v0.15.0
-* See the GitHub release notes for the full cross-product changelog
+* Fix WordPress Playground relay requests so scoped tool calls and source-location POSTs keep the leading `/scope:...` path prefix
+* Improve transient error handling in the shared Frontman UI with categorized errors, automatic retry, retry countdowns, and a manual retry button
+* Keep WordPress editing sessions more reliable when network or relay requests fail temporarily
 
 = 0.14.0 =
-* Sync the Frontman plugin release with Frontman v0.14.0
-* See the GitHub release notes for the full cross-product changelog
+* Bump package versions for a maintenance release across the Frontman workspace
 
 = 0.13.0 =
-* Sync the Frontman plugin release with Frontman v0.13.0
-* See the GitHub release notes for the full cross-product changelog
+* Bump package versions for a maintenance release across the Frontman workspace
 
 = 0.12.0 =
-* Sync the Frontman plugin release with Frontman v0.12.0
-* See the GitHub release notes for the full cross-product changelog
+* Add production-ready WordPress support with PHP-native filesystem tools and plugin ZIP release packaging
+* Add safer mutation history snapshots for WordPress editing tools
+* Add richer WordPress editing tools for menus, blocks, templates, and cache workflows
+* Require confirmation before destructive delete tools run
+* Preserve freeform HTML during block mutations and limit widget mutations to supported safe widget types
+* Remove the old standalone package and release flow from normal WordPress plugin operation
 
 = 0.3.3 =
 * Send the WordPress runtime nonce on plugin tool POST requests from the shared client
