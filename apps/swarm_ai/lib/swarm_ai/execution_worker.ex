@@ -23,6 +23,8 @@ defmodule SwarmAi.ExecutionWorker do
 
   @impl true
   def init({runtime, %SwarmAi.Loop{} = loop}) do
+    spawn_death_watcher(loop)
+
     state = %__MODULE__{
       runtime: runtime,
       loop: loop
@@ -36,8 +38,6 @@ defmodule SwarmAi.ExecutionWorker do
     registry = SwarmAi.registry_name(runtime)
     task_supervisor = SwarmAi.task_supervisor_name(runtime)
 
-    spawn_death_watcher(loop)
-
     try do
       final_loop = SwarmAi.Executor.run(loop, task_supervisor)
       final_loop.dispatch_event.(final_loop.status)
@@ -50,6 +50,9 @@ defmodule SwarmAi.ExecutionWorker do
 
   defp unregister(registry, %SwarmAi.Loop{task_id: task_id}) do
     Registry.unregister(registry, task_id)
+  catch
+    :exit, {:noproc, _} -> :ok
+    :exit, :noproc -> :ok
   end
 
   defp spawn_death_watcher(%SwarmAi.Loop{} = loop) do
