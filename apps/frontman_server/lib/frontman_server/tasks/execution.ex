@@ -173,33 +173,47 @@ defmodule FrontmanServer.Tasks.Execution do
   defp prompt_messages(rows, turn_number)
        when is_list(rows) and is_integer(turn_number) and turn_number > 0 do
     user_messages_by_row_id = user_messages_by_row_id(rows)
+    skill_used_by_turn = skill_used_by_turn(rows)
 
     rows
     |> Enum.filter(&(is_nil(&1.turn_number) or &1.turn_number <= turn_number))
     |> Enum.flat_map(fn row ->
       row
-      |> row_to_messages(user_messages_by_row_id)
+      |> row_to_messages(user_messages_by_row_id, skill_used_by_turn)
       |> decay_historical_images(row.turn_number, turn_number)
     end)
   end
 
   defp row_to_messages(
          %InteractionSchema{
+           turn_number: turn_number,
            type: :turn_started,
            data: %Interaction.TurnStarted{user_message_ids: user_message_ids}
          },
-         user_messages_by_row_id
+         user_messages_by_row_id,
+         skill_used_by_turn
        ) do
-    user_message_ids
-    |> Enum.map(&Map.fetch!(user_messages_by_row_id, &1))
-    |> Interaction.to_swarm_messages()
+    user_interactions = Enum.map(user_message_ids, &Map.fetch!(user_messages_by_row_id, &1))
+    skill_interactions = Map.get(skill_used_by_turn, turn_number, [])
+
+    Interaction.to_swarm_messages(user_interactions ++ skill_interactions)
   end
 
-  defp row_to_messages(%InteractionSchema{turn_number: nil}, _user_messages_by_row_id),
+  defp row_to_messages(%InteractionSchema{turn_number: nil}, _user_messages_by_row_id, _skills),
     do: []
 
-  defp row_to_messages(%InteractionSchema{} = row, _user_messages_by_row_id) do
+  defp row_to_messages(%InteractionSchema{type: :skill_used}, _user_messages_by_row_id, _skills),
+    do: []
+
+  defp row_to_messages(%InteractionSchema{} = row, _user_messages_by_row_id, _skills) do
     row_to_messages(row)
+  end
+
+  defp row_to_messages(row) do
+    row
+    |> Map.fetch!(:data)
+    |> List.wrap()
+    |> Interaction.to_swarm_messages()
   end
 
   defp decay_historical_images(messages, row_turn, turn_number)
@@ -216,11 +230,10 @@ defmodule FrontmanServer.Tasks.Execution do
     end)
   end
 
-  defp row_to_messages(row) do
-    row
-    |> Map.fetch!(:data)
-    |> List.wrap()
-    |> Interaction.to_swarm_messages()
+  defp skill_used_by_turn(rows) do
+    rows
+    |> Enum.filter(&(&1.type == :skill_used))
+    |> Enum.group_by(& &1.turn_number, & &1.data)
   end
 
   defp decay_images(%Tool{content: content, tool_call_id: tool_call_id} = msg)

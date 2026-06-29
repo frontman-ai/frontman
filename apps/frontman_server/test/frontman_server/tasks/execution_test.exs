@@ -34,6 +34,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
+  alias FrontmanServer.Skills
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema}
@@ -199,6 +200,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     previous = Application.fetch_env!(:frontman_server, :backend_tools)
     Application.put_env(:frontman_server, :backend_tools, modules)
     on_exit(fn -> Application.put_env(:frontman_server, :backend_tools, previous) end)
+  end
+
+  defp register_skill(scope) do
+    Skills.register(scope, %{
+      name: "design_polish",
+      description: "Improve visual quality.",
+      content: "Use hierarchy."
+    })
   end
 
   describe "cancel_execution/2 (end-to-end)" do
@@ -497,6 +506,58 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert title_job.args["user_prompt_text"] =~ "https://example.com/app"
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
+    test "sends selected skill content with scoped user turn", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      {:ok, skill} = register_skill(scope)
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("Response")
+      end)
+
+      {:ok, _, 1} =
+        submit_user_message(scope, task_id, user_content("Improve hero"),
+          selected_server_skill_id: skill.id
+        )
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      assert_receive {:provider_messages, messages}, 1_000
+
+      user_message = Enum.find(messages, &(&1.role == :user))
+      assert user_message != nil
+
+      assert [active_skill_part, user_prompt_part | _rest] = user_message.content
+      assert active_skill_part.text =~ "## Active Skill: design_polish"
+      assert active_skill_part.text =~ "Use hierarchy."
+      assert user_prompt_part.text == "Improve hero"
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:followup_provider_messages, messages})
+        ReqLLMResponses.response("Follow-up response")
+      end)
+
+      {:ok, _, 2} = submit_user_message(scope, task_id, user_content("Now tighten copy"))
+
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, 2}, 5_000
+      assert_receive {:followup_provider_messages, followup_messages}, 1_000
+
+      user_messages = Enum.filter(followup_messages, &(&1.role == :user))
+      assert [historical_user_message, current_user_message] = user_messages
+
+      assert [historical_skill_part, historical_prompt_part | _rest] =
+               historical_user_message.content
+
+      assert historical_skill_part.text =~ "## Active Skill: design_polish"
+      assert historical_skill_part.text =~ "Use hierarchy."
+      assert historical_prompt_part.text == "Improve hero"
+
+      assert [current_prompt_part] = current_user_message.content
+      assert current_prompt_part.text == "Now tighten copy"
     end
 
     test "startup failure persists terminal error on the same turn" do
