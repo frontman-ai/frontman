@@ -493,7 +493,7 @@ Use this expert lens for this turn.
 
 Build backend support first. No client work, no HTTP catalog API, no search endpoint, and no automatic skill router.
 
-### Implementation status as of 2026-06-28
+### Implementation status as of 2026-06-29
 
 Completed:
 
@@ -507,23 +507,20 @@ Completed:
 - Added optional explicit selected skill recording through `Tasks.submit_user_message/2`.
 - Added channel boundary mapping from `_meta.selectedServerSkillId` to internal `:selected_server_skill_id`.
 - Moved selected server skill lookup into `Tasks.submit_user_message/2` via `Skills.get_by_id/2`.
-- Simplified turn insertion by building `[UserMessage]` or `[UserMessage, SkillUsed]` and recording interactions in order.
+- Simplified turn insertion by recording `UserMessage` first and then optionally recording `SkillUsed` in the same transaction.
 - `TaskChannel` no longer queries `Skills`; it only translates ACP casing into domain argument names.
 - `Tasks.submit_user_message/2` maps `Skills.get_by_id/2` `{:error, :not_found}` to `{:error, :skill_not_found}`.
 - `Skills.get_by_id/2` returns `{:ok, nil}` for nil ids so no selected skill stays a normal no-op path.
 - Removed premature `ActiveSkill`/selected-skill wrapper ideas from MVP design.
 - Removed channel-side `rescue Ecto.NoResultsError` and id pre-validation; `Repo.get/2` owns lookup behavior.
 - Removed tiny selected-skill helper functions after they proved noisier than the direct flow.
-- Removed nested optional-skill cases in favor of a single ordered interaction list.
+- Removed nested optional-skill cases and tiny selected-skill wrappers in favor of direct optional interaction recording.
 - Added `:skill_not_found` handling as ACP invalid params with message `Selected skill not found`.
-- Added explicit `SkillUsed` no-op handling in `Interaction.to_swarm_messages/1` because execution currently serializes history immediately after turn insertion. This is now known to be incomplete: `SkillUsed` must instead be folded into its paired `UserMessage` when both are present.
-
-Not completed yet:
-
-- Store `skill_content` snapshot on `SkillUsed`.
-- Fold `[UserMessage, SkillUsed]` into one LLM user message with the active skill section prepended before the original user message.
-- Update execution prompt reconstruction so it serializes ordered turn interactions together instead of one database row at a time.
-- Final `mix precommit`.
+- Added `skill_content` snapshot on `SkillUsed`.
+- Updated `Interaction.to_swarm_messages/1` so `SkillUsed` prepends an active skill text part to the previous user message and emits nothing when unpaired.
+- Updated `Execution.prompt_messages/2` to serialize ordered interactions by turn instead of one database row at a time.
+- Verified selected skill content reaches the current LLM user turn, historical skilled turns replay with their stored skill snapshot, and unskilled later turns do not inherit previous skill instructions.
+- Final backend verification passed with `make precommit` from `apps/frontman_server` (`mix precommit` is not defined in this project).
 
 ### Task 1: Add skills table
 
@@ -688,21 +685,21 @@ Current backend contract:
 
 **Acceptance criteria:**
 
-- [ ] `Interaction.SkillUsed` has `skill_content`.
-- [ ] `Interaction.SkillUsed.build/1` snapshots `skill.content` into `skill_content`.
-- [ ] `Interaction.to_data_map/1` persists `skill_content` in `interactions.data`.
-- [ ] `InteractionSchema.to_struct/1` loads `skill_content` from persisted JSONB.
-- [ ] `Interaction.to_swarm_messages([user_message, skill_used])` emits exactly one user message.
-- [ ] The emitted user message prepends the deterministic `## Active Skill: ...` section before the original user message.
-- [ ] The emitted user message uses `skill_used.skill_content`, not a refetched `skills.content` value.
-- [ ] `Interaction.to_swarm_messages([skill_used])` returns `[]` because an unpaired skill row has no user message to modify.
-- [ ] `SkillUsed` never emits assistant or tool messages.
-- [ ] Existing turns without a selected skill serialize unchanged.
+- [x] `Interaction.SkillUsed` has `skill_content`.
+- [x] `Interaction.SkillUsed.build/1` snapshots `skill.content` into `skill_content`.
+- [x] `Interaction.to_data_map/1` persists `skill_content` in `interactions.data`.
+- [x] `InteractionSchema.to_struct/1` loads `skill_content` from persisted JSONB.
+- [x] `Interaction.to_swarm_messages([user_message, skill_used])` emits exactly one user message.
+- [x] The emitted user message prepends the deterministic `## Active Skill: ...` section before the original user message.
+- [x] The emitted user message uses `skill_used.skill_content`, not a refetched `skills.content` value.
+- [x] `Interaction.to_swarm_messages([skill_used])` returns `[]` because an unpaired skill row has no user message to modify.
+- [x] `SkillUsed` never emits assistant or tool messages.
+- [x] Existing turns without a selected skill serialize unchanged.
 
 **Verification:**
 
-- [ ] `mix test test/frontman_server/tasks/interaction_test.exs`
-- [ ] `mix test test/frontman_server/tasks_test.exs`
+- [x] `mix test test/frontman_server/tasks/interaction_test.exs`
+- [x] `mix test test/frontman_server/tasks_test.exs`
 
 **Dependencies:** Task 4
 
@@ -720,16 +717,16 @@ Current backend contract:
 
 **Acceptance criteria:**
 
-- [ ] `Execution.prompt_messages/2` serializes ordered interactions by turn, not one database row at a time.
-- [ ] A current turn with `[UserMessage, SkillUsed]` sends one user message containing the skill section and original user prompt.
-- [ ] A later turn reconstructs previous skilled turns with their historical skill content snapshot.
-- [ ] Previous turn skills are scoped to their original user messages and do not become global current-turn system instructions.
-- [ ] `Execution.system_prompt/2` and `Prompts.build/1` do not receive selected skill data for MVP.
-- [ ] No duplicate skill instructions are emitted through both user message and system prompt.
+- [x] `Execution.prompt_messages/2` serializes ordered interactions by turn, not one database row at a time.
+- [x] A current turn with `[UserMessage, SkillUsed]` sends one user message containing the skill section and original user prompt.
+- [x] A later turn reconstructs previous skilled turns with their historical skill content snapshot.
+- [x] Previous turn skills are scoped to their original user messages and do not become global current-turn system instructions.
+- [x] `Execution.system_prompt/2` and `Prompts.build/1` do not receive selected skill data for MVP.
+- [x] No duplicate skill instructions are emitted through both user message and system prompt.
 
 **Verification:**
 
-- [ ] `mix test test/frontman_server/tasks/execution_test.exs`
+- [x] `mix test test/frontman_server/tasks/execution_test.exs`
 
 **Dependencies:** Tasks 5 and 6
 
@@ -756,20 +753,20 @@ After Tasks 4-5:
 
 After Tasks 6-7:
 
-- [ ] Current-turn skill affects the paired LLM user message.
-- [ ] Historical skilled turns reconstruct with their stored skill content snapshots.
-- [ ] Conversation message serialization emits no standalone `SkillUsed` assistant/tool/user messages.
-- [ ] ACP replay does not render skill use.
+- [x] Current-turn skill affects the paired LLM user message.
+- [x] Historical skilled turns reconstruct with their stored skill content snapshots.
+- [x] Conversation message serialization emits no standalone `SkillUsed` assistant/tool/user messages.
+- [x] ACP replay does not render skill use.
 
 Final verification:
 
-- [ ] `mix test test/frontman_server/skills_test.exs`
-- [ ] `mix test test/frontman_server/tasks/interaction_test.exs`
-- [ ] `mix test test/frontman_server/tasks_test.exs`
-- [ ] `mix test test/frontman_server/tasks/execution_test.exs`
-- [ ] `mix test test/protocols/acp_history_test.exs`
-- [ ] `mix test test/frontman_server_web/channels/task_channel_test.exs`
-- [ ] `mix precommit`
+- [x] `mix test test/frontman_server/skills_test.exs`
+- [x] `mix test test/frontman_server/tasks/interaction_test.exs`
+- [x] `mix test test/frontman_server/tasks_test.exs`
+- [x] `mix test test/frontman_server/tasks/execution_test.exs`
+- [x] `mix test test/protocols/acp_history_test.exs`
+- [x] `mix test test/frontman_server_web/channels/task_channel_test.exs`
+- [x] `make precommit` from `apps/frontman_server`
 
 ## MVP
 
