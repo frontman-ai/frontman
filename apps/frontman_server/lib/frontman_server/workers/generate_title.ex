@@ -17,7 +17,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     unique: [
       keys: [:task_id],
       period: :infinity,
-      states: [:available, :scheduled, :executing, :retryable, :completed]
+      states: [:available, :scheduled, :executing, :retryable, :completed, :suspended]
     ]
 
   require Logger
