@@ -48,7 +48,7 @@
 		"build": "yarn build:rescript && yarn build:bundle"
 	},
 	"dependencies": {
-		"@sentry/nextjs": "^10.53.1",
+		"@sentry/nextjs": "^10.55.0",
 		"chrome-launcher": "^1.1.2",
 		"lighthouse": "^13.3.0"
 	},
