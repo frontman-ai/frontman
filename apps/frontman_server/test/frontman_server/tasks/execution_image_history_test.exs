@@ -194,15 +194,28 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   end
 
   defp submit_anthropic_message(scope, task_id, content, overrides \\ []) do
-    Tasks.submit_user_message(
-      scope,
-      Map.merge(
-        execution_request_fixture(
-          Keyword.merge([model: "anthropic:claude-sonnet-4-5"], overrides)
-        ),
-        %{task_id: task_id, message: prompt_content(content)}
-      )
-    )
+    execution_request =
+      execution_request_fixture(Keyword.merge([model: "anthropic:claude-sonnet-4-5"], overrides))
+
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution_request, %{task_id: task_id, message: prompt_content(content)})
+         ) do
+      {:ok, interaction, nil} ->
+        case Tasks.run_next_turn(scope, task_id, execution_request) do
+          :ok ->
+            {:ok, interaction, latest_turn_number(task_id)}
+
+          result when result in [:already_running, :no_accepted_messages] ->
+            {:error, result}
+
+          result ->
+            result
+        end
+
+      result ->
+        result
+    end
   end
 
   defp prompt_content(content) when is_binary(content), do: user_content(content)

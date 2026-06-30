@@ -12,20 +12,20 @@ alias FrontmanServerWeb.ACPHistory
 defimpl ACPHistory, for: Interaction.UserMessage do
   @moduledoc """
   Reconstructs the original ACP content blocks from stored UserMessage fields
-  and replays them as `user_message_chunk` notifications.
+  and replays them as canonical `user_message` notifications.
 
   This is the inverse of `Interaction.UserMessage.build/1` which extracts fields
   from incoming content blocks.
   """
 
   def to_history_items(%Interaction.UserMessage{} = msg, session_id) do
-    blocks =
+    content =
       text_blocks(msg.messages) ++
         annotation_blocks(msg.annotations) ++
         image_blocks(msg.images) ++
         CurrentPageContext.to_content_blocks(msg.current_page)
 
-    Enum.map(blocks, &ACP.build_user_message_chunk_notification(session_id, &1, msg.timestamp))
+    [ACP.build_user_message_notification(session_id, msg.id, content)]
   end
 
   defp text_blocks(messages), do: Enum.map(messages, &%{"type" => "text", "text" => &1})
@@ -133,6 +133,10 @@ defimpl ACPHistory, for: Interaction.UserMessage do
   end
 
   defp reject_nils(map), do: Map.reject(map, fn {_, v} -> is_nil(v) end)
+end
+
+defimpl ACPHistory, for: Interaction.TurnStarted do
+  def to_history_items(_turn_started, _session_id), do: []
 end
 
 defimpl ACPHistory, for: Interaction.AgentResponse do

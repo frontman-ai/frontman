@@ -5,7 +5,7 @@
 // This prevents dozens of full state rebuilds per second during fast streaming.
 //
 // Separated into its own module so both FrontmanProvider (producer) and
-// StateReducer (consumer needing to flush before TurnCompleted) can access it
+// StateReducer can flush streamed text before finalizing task state.
 // without circular dependencies.
 
 type entry = {
@@ -69,10 +69,7 @@ let make = (~onFlush: (~taskId: string, ~text: string, ~timestamp: string) => un
 // This is the only module-level state; all buffer state lives in closures.
 let active: ref<option<t>> = ref(None)
 
-let flushUserMessageBuffer: ref<unit => unit> = ref(() => ())
-
 let flush = () => {
-  flushUserMessageBuffer.contents()
   switch active.contents {
   | Some(instance) => instance.flush()
   | None => ()

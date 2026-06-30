@@ -40,17 +40,27 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_user_message_chunk_notification/3" do
+  describe "AgentClientProtocol.build_user_message_notification/3" do
     test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
       payload =
-        AgentClientProtocol.build_user_message_chunk_notification(
+        AgentClientProtocol.build_user_message_notification(
           "session-123",
-          "Hello from user",
-          DateTime.utc_now()
+          "msg-123",
+          [%{"type" => "text", "text" => "Hello from user"}]
         )
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
+
+      assert %{
+               "params" => %{
+                 "update" => %{
+                   "sessionUpdate" => "user_message",
+                   "messageId" => "msg-123",
+                   "content" => [%{"type" => "text", "text" => "Hello from user"}]
+                 }
+               }
+             } = payload
     end
   end
 
@@ -134,24 +144,48 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_agent_turn_complete_notification/2" do
-    test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
+  describe "AgentClientProtocol.build_state_update_notification/3" do
+    test "validates running state against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
+      payload = AgentClientProtocol.build_state_update_notification("session-123", "running")
+
+      ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
+
+      assert %{
+               "params" => %{
+                 "update" => %{
+                   "sessionUpdate" => "state_update",
+                   "state" => "running"
+                 }
+               }
+             } = payload
+    end
+
+    test "validates idle state with stop reason" do
       payload =
-        AgentClientProtocol.build_agent_turn_complete_notification(
+        AgentClientProtocol.build_state_update_notification(
           "session-123",
+          "idle",
           AgentClientProtocol.stop_reason_end_turn()
         )
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
+
+      assert %{
+               "params" => %{
+                 "update" => %{
+                   "sessionUpdate" => "state_update",
+                   "state" => "idle",
+                   "stopReason" => "end_turn"
+                 }
+               }
+             } = payload
     end
 
-    test "validates with cancelled stop reason" do
+    test "validates requires_action state" do
       payload =
-        AgentClientProtocol.build_agent_turn_complete_notification(
-          "session-123",
-          AgentClientProtocol.stop_reason_cancelled()
-        )
+        AgentClientProtocol.build_state_update_notification("session-123", "requires_action")
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")

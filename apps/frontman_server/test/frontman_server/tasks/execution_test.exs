@@ -74,10 +74,31 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp submit_user_message(scope, task_id, content, overrides \\ []) do
-    Tasks.submit_user_message(
-      scope,
-      Map.merge(execution_request_fixture(overrides), %{task_id: task_id, message: content})
-    )
+    execution = execution_request_fixture(overrides)
+
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution, %{task_id: task_id, message: content})
+         ) do
+      {:ok, interaction, nil} ->
+        case Tasks.run_next_turn(scope, task_id, execution) do
+          result when result in [:ok, :already_running] ->
+            {:ok, interaction, latest_turn_number_or_nil(task_id)}
+
+          result ->
+            result
+        end
+
+      result ->
+        result
+    end
+  end
+
+  defp latest_turn_number_or_nil(task_id) do
+    case Repo.aggregate(InteractionSchema.for_task(task_id), :max, :turn_number) do
+      nil -> nil
+      turn_number -> turn_number
+    end
   end
 
   defp setup_sandbox(_context) do
@@ -166,7 +187,27 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   describe "conversation lifecycle" do
     setup [:setup_sandbox, :setup_user, :setup_task]
 
-    test "allocates sequential turns and rejects active submit", %{
+    test "runs next accepted user message as a turn", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      expect_llm_responses(["Response"])
+
+      {:ok, _, nil} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message: user_content("Hello"),
+          model: "openrouter:openai/gpt-5.5"
+        })
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+
+      assert_receive {:interaction, %Interaction.TurnStarted{}, 1}, 5_000
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      refute_running_eventually(task_id)
+    end
+
+    test "accepts follow-up while running and drains it next", %{
       task_id: task_id,
       scope: scope
     } do
@@ -176,14 +217,18 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       Process.sleep(100)
 
-      assert {:error, :already_running} =
-               submit_user_message(scope, task_id, user_content("Blocked"))
+      assert {:ok, %Interaction.UserMessage{}, nil} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task_id,
+                 message: user_content("Queued follow-up"),
+                 model: "openrouter:openai/gpt-5.5"
+               })
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
 
       refute_running_eventually(task_id)
 
-      {:ok, _, 2} = submit_user_message(scope, task_id, user_content("Second message"))
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
 
       assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
       refute_running_eventually(task_id)
@@ -241,7 +286,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:interaction, %Interaction.AgentError{category: "auth"}, 1}
 
-      assert %InteractionSchema{turn_number: 1, data: %{"category" => "auth"}} =
+      assert %InteractionSchema{turn_number: 1, data: %Interaction.AgentError{category: "auth"}} =
                Repo.get_by!(InteractionSchema,
                  task_id: task_id,
                  type: Interaction.type_for(Interaction.AgentError)
@@ -290,7 +335,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [%Interaction.Annotation{parent: %Interaction.ParentLocation{}}] =
                returned.annotations
 
-      assert_receive {:interaction, %Interaction.UserMessage{} = broadcast_message, 1}
+      assert_receive {:interaction, %Interaction.UserMessage{} = broadcast_message, nil}
 
       assert [%Interaction.Annotation{screenshot: %Interaction.Screenshot{}}] =
                broadcast_message.annotations
@@ -365,6 +410,65 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       refute Enum.any?(task.interactions, &match?(%Interaction.AgentRetry{}, &1))
+    end
+  end
+
+  describe "append-only prompt building" do
+    setup [:setup_sandbox, :setup_user, :setup_task_only]
+
+    test "excludes accepted messages not claimed by the started turn", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      insert_accepted_user_message!(task, "included")
+
+      assert {:ok, _task, %Interaction.TurnStarted{}} =
+               Tasks.start_next_turn(scope, task_id, execution_request_fixture())
+
+      insert_accepted_user_message!(task, "queued for next turn")
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+
+      assert_receive {:provider_messages, messages}, 1_000
+      assert [user_text] = provider_user_texts(messages)
+      assert user_text =~ "included"
+      refute user_text =~ "queued for next turn"
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+    end
+
+    test "includes every user message claimed by the started turn in order", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      insert_accepted_user_message!(task, "first")
+      insert_accepted_user_message!(task, "second")
+
+      assert {:ok, _task, %Interaction.TurnStarted{}} =
+               Tasks.start_next_turn(scope, task_id, execution_request_fixture())
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+
+      assert_receive {:provider_messages, messages}, 1_000
+      assert provider_user_texts(messages) == ["first", "second"]
+      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
     end
   end
 
@@ -558,7 +662,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+          "update" => %{"sessionUpdate" => "state_update", "state" => "requires_action"}
         }
       })
     end
@@ -631,7 +735,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
         }
       })
 
@@ -675,7 +779,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_channel
     ]
 
-    test "session/update agent_turn_complete is pushed when backend tool raises", %{
+    test "session/update idle state is pushed when backend tool raises", %{
       task_id: task_id,
       scope: scope,
       socket: socket
@@ -696,7 +800,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
         }
       })
     end
@@ -710,7 +814,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       :setup_channel
     ]
 
-    test "session/update agent_turn_complete is pushed when ParallelExecutor deadline fires", %{
+    test "session/update idle state is pushed when ParallelExecutor deadline fires", %{
       task_id: task_id,
       scope: scope,
       socket: socket
@@ -731,7 +835,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
         }
       })
     end
@@ -989,5 +1093,22 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert tool_result.is_error == true
     end
+  end
+
+  defp task_schema!(task_id), do: Repo.get!(FrontmanServer.Tasks.TaskSchema, task_id)
+
+  defp insert_accepted_user_message!(task, text) do
+    {:ok, interaction} =
+      Interaction.UserMessage.build(user_content(text), "openrouter:openai/gpt-5.5")
+
+    task
+    |> InteractionSchema.create_changeset(interaction, nil)
+    |> Repo.insert!()
+  end
+
+  defp provider_user_texts(messages) do
+    messages
+    |> Enum.filter(&match?(%{role: :user}, &1))
+    |> Enum.map(&extract_content_text(&1.content))
   end
 end

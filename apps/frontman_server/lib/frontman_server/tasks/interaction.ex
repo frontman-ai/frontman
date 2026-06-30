@@ -15,6 +15,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   @types [
     user_message: __MODULE__.UserMessage,
+    turn_started: __MODULE__.TurnStarted,
     agent_response: __MODULE__.AgentResponse,
     agent_completed: __MODULE__.AgentCompleted,
     agent_error: __MODULE__.AgentError,
@@ -36,6 +37,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   @doc """
   Returns the list of all interaction type modules.
   """
+  def types, do: @types
   def interaction_modules, do: @interaction_modules
   def type_values, do: @type_values
   def task_scoped_types, do: @task_scoped_types
@@ -584,6 +586,45 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
+  defmodule TurnStarted do
+    @moduledoc """
+    Represents a normal agent turn starting from accepted user messages.
+
+    The persisted row turn_number identifies the execution turn; user_message_ids
+    records the accepted messages included in that turn in order.
+    """
+
+    use Ecto.Schema
+    import Ecto.Changeset
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :user_message_ids, {:array, :string}
+    end
+
+    def build(user_message_ids) when is_list(user_message_ids) do
+      %__MODULE__{
+        id: Interaction.new_id(),
+        timestamp: Interaction.now(),
+        user_message_ids: user_message_ids
+      }
+    end
+
+    def changeset(%__MODULE__{} = turn_started, attrs) do
+      turn_started
+      |> cast(attrs, [:id, :timestamp, :user_message_ids])
+      |> validate_required([:id, :timestamp, :user_message_ids])
+      |> validate_change(:user_message_ids, fn :user_message_ids, user_message_ids ->
+        case user_message_ids do
+          [_ | _] -> []
+          [] -> [user_message_ids: "must be non-empty"]
+        end
+      end)
+    end
+  end
+
   defmodule AgentCompleted do
     @moduledoc """
     Represents an agent finishing its work.
@@ -812,6 +853,23 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
   end
 
+  def embedded_changeset(%TurnStarted{} = turn_started, attrs) do
+    TurnStarted.changeset(turn_started, attrs)
+  end
+
+  def embedded_changeset(%module{} = struct, attrs) do
+    fields = module.__schema__(:fields) -- module.__schema__(:embeds)
+
+    Enum.reduce(module.__schema__(:embeds), Ecto.Changeset.cast(struct, attrs, fields), fn embed,
+                                                                                           changeset ->
+      Ecto.Changeset.cast_embed(changeset, embed, with: &embedded_changeset/2)
+    end)
+  end
+
+  def polymorphic_changesets do
+    Keyword.new(@types, fn {type, _module} -> {type, &embedded_changeset/2} end)
+  end
+
   for module <- @interaction_modules do
     defimpl Jason.Encoder, for: module do
       def encode(value, opts) do
@@ -921,7 +979,19 @@ defmodule FrontmanServer.Tasks.Interaction do
     [build_swarm_user_message(content_parts)]
   end
 
-  defp to_swarm_message(%AgentResponse{content: content, metadata: metadata}) do
+  defp to_swarm_message(%AgentResponse{content: nil, metadata: %{"tool_calls" => [_ | _]} = meta}) do
+    [
+      %SwarmMessage.Assistant{
+        content: [],
+        tool_calls: swarm_tool_calls(meta["tool_calls"]),
+        metadata: swarm_metadata(meta),
+        reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
+      }
+    ]
+  end
+
+  defp to_swarm_message(%AgentResponse{content: content, metadata: metadata})
+       when is_binary(content) do
     meta = metadata || %{}
 
     [
@@ -945,6 +1015,7 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp to_swarm_message(%ToolCall{}), do: []
+  defp to_swarm_message(%TurnStarted{}), do: []
   defp to_swarm_message(%AgentCompleted{}), do: []
   defp to_swarm_message(%AgentError{}), do: []
   defp to_swarm_message(%AgentPaused{}), do: []

@@ -117,7 +117,6 @@ let sendPrompt = (
 }
 
 // ACP spec: session/cancel is a NOTIFICATION (no id, no response expected).
-// The pending session/prompt request will be resolved by the agent with stopReason: "cancelled".
 let sendCancel = (
   ~channel: Channel.t,
   ~sessionId: string,
@@ -178,21 +177,6 @@ let handleIncomingMessage = (
     switch Client.parseSessionUpdateNotification(payload) {
     | Ok(notification) =>
       onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
-      switch notification.params.update {
-      | AgentTurnComplete({stopReason}) =>
-        // After server restart, resumed turns may not have a live session/prompt
-        // request id to answer. The completion notification still closes the prompt.
-        let result: Types.promptResult = {stopReason: stopReason}
-        let resultJson =
-          result->S.decodeOrThrow(~from=Types.promptResultSchema, ~to=S.json->S.noValidation(true))
-        state :=
-          state.contents->Client.resolvePendingSessionRequest(
-            ~method="session/prompt",
-            ~sessionId=notification.params.sessionId,
-            ~result=resultJson,
-          )
-      | _ => ()
-      }
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake

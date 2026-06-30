@@ -47,16 +47,14 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       # Create an LLM that returns a tool call on first turn, then completes
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
+      execution_request = execution_request_fixture(mcp_tools: [some_mcp_tool_def])
+
       {:ok, _, _} =
-        Tasks.submit_user_message(
+        submit_user_message_and_run(
           scope,
-          Map.merge(
-            execution_request_fixture(mcp_tools: [some_mcp_tool_def]),
-            %{
-              task_id: task_id,
-              message: user_content("Please call the MCP tool")
-            }
-          )
+          task_id,
+          execution_request,
+          user_content("Please call the MCP tool")
         )
 
       # Collect all tool call interactions broadcast via PubSub
@@ -90,6 +88,28 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   # Collects all {:interaction, %ToolCall{}, turn_number} broadcasts for a specific tool call ID
   defp collect_tool_call_broadcasts(expected_tool_call_id, timeout_ms) do
     collect_tool_call_broadcasts(expected_tool_call_id, timeout_ms, [])
+  end
+
+  defp submit_user_message_and_run(scope, task_id, execution_request, message) do
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution_request, %{task_id: task_id, message: message})
+         ) do
+      {:ok, interaction, nil} ->
+        case Tasks.run_next_turn(scope, task_id, execution_request) do
+          :ok ->
+            {:ok, interaction, latest_turn_number(task_id)}
+
+          result when result in [:already_running, :no_accepted_messages] ->
+            {:error, result}
+
+          result ->
+            result
+        end
+
+      result ->
+        result
+    end
   end
 
   defp collect_tool_call_broadcasts(expected_tool_call_id, timeout_ms, acc) do
@@ -137,17 +157,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
 
+      execution_request = execution_request_fixture(mcp_tools: [mcp_tool_def])
+
       {:ok, _, _} =
-        Tasks.submit_user_message(
-          scope,
-          Map.merge(
-            execution_request_fixture(mcp_tools: [mcp_tool_def]),
-            %{
-              task_id: task_id,
-              message: user_content("Call tool")
-            }
-          )
-        )
+        submit_user_message_and_run(scope, task_id, execution_request, user_content("Call tool"))
 
       # Wait for the interaction broadcast
       assert_receive {:interaction, %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id},

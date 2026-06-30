@@ -7,7 +7,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias AgentClientProtocol, as: ACP
+  alias Ecto.Migration.Runner
   alias FrontmanServer.Repo
+  alias FrontmanServer.Repo.Migrations.BackfillTurnStartedForUserMessages
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServerWeb.UserSocket
 
@@ -467,7 +470,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       })
     end
 
-    test "streams user message history with timestamps", %{
+    test "streams user message history as canonical accepted messages", %{
       socket: socket,
       scope: scope,
       task_id: task_id
@@ -489,29 +492,58 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "content" => %{"text" => "Hello"},
-            "timestamp" => timestamp1
+            "sessionUpdate" => "user_message",
+            "messageId" => message_id1,
+            "content" => [%{"text" => "Hello"}]
           }
         }
       })
 
-      assert is_binary(timestamp1)
+      assert is_binary(message_id1)
 
       assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "content" => %{"text" => "World"},
-            "timestamp" => timestamp2
+            "sessionUpdate" => "user_message",
+            "messageId" => message_id2,
+            "content" => [%{"text" => "World"}]
           }
         }
       })
 
-      assert is_binary(timestamp2)
+      assert is_binary(message_id2)
 
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+    end
+
+    test "streams migrated legacy turn-numbered user message history", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
+        "messages" => ["Legacy hello"],
+        "model" => "openrouter:openai/gpt-5.5"
+      })
+
+      run_turn_started_backfill_migration()
+
+      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
+
+      assert_push("acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "user_message",
+            "messageId" => message_id,
+            "content" => [%{"text" => "Legacy hello"}]
+          }
+        }
+      })
+
+      assert is_binary(message_id)
       assert_push("acp:message", %{"id" => 1, "result" => %{}})
     end
 
@@ -536,8 +568,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "content" => %{"text" => "Prompt"}
+            "sessionUpdate" => "user_message",
+            "content" => [%{"text" => "Prompt"}]
           }
         }
       })
@@ -584,8 +616,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert_push("acp:message", %{
         "params" => %{
           "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "content" => %{"text" => "Question"}
+            "sessionUpdate" => "user_message",
+            "content" => [%{"text" => "Question"}]
           }
         }
       })
@@ -649,5 +681,52 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
   defp acp_request(id, method, params) do
     %{"jsonrpc" => "2.0", "id" => id, "method" => method, "params" => params}
+  end
+
+  defp insert_legacy_interaction_row(task_id, type, turn_number, data) do
+    now = DateTime.utc_now(:second)
+
+    data =
+      %{
+        "__type__" => Interaction.type_for(type) |> Atom.to_string(),
+        "id" => Ecto.UUID.generate(),
+        "timestamp" => DateTime.to_iso8601(now),
+        "images" => []
+      }
+      |> Map.merge(data)
+
+    Repo.query!(
+      """
+      INSERT INTO interactions (id, task_id, type, data, turn_number, sequence, inserted_at)
+      VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7)
+      """,
+      [
+        Ecto.UUID.dump!(Ecto.UUID.generate()),
+        Ecto.UUID.dump!(task_id),
+        Interaction.type_for(type) |> Atom.to_string(),
+        Jason.encode!(data),
+        turn_number,
+        System.unique_integer([:monotonic, :positive]),
+        now
+      ]
+    )
+  end
+
+  defp run_turn_started_backfill_migration do
+    Code.require_file(
+      "priv/repo/migrations/20260630000000_backfill_turn_started_for_user_messages.exs"
+    )
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               BackfillTurnStartedForUserMessages,
+               :forward,
+               :up,
+               :up,
+               log: false
+             )
   end
 end

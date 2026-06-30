@@ -40,9 +40,9 @@ let agentErrorId = meta => {
   S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
 }
 
-// Parse accumulated user_message_chunk content blocks into (content, annotations).
+// Parse accepted user_message content blocks into (content, annotations).
 // Inverse of messageAnnotationsToContentBlocks + buildAttachmentContentBlocks on the send path.
-let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
+let parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
   array<Client__Message.UserContentPart.t>,
   array<Client__Message.MessageAnnotation.t>,
 ) => {
@@ -109,38 +109,6 @@ let _parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
   (content, annotations)
 }
 
-// Buffer for accumulating user_message_chunk content blocks during history replay.
-// A single user message may span multiple notifications (text, annotations, images).
-// The buffer is flushed at turn boundaries (agent message, tool call, turn complete, load complete).
-type _userMsgBufferState = {
-  mutable taskId: string,
-  mutable id: string,
-  mutable timestamp: string,
-  mutable blocks: array<Types.contentBlock>,
-  mutable pending: bool,
-}
-
-let _userMsgBuffer: _userMsgBufferState = {
-  taskId: "",
-  id: "",
-  timestamp: "",
-  blocks: [],
-  pending: false,
-}
-
-let _flushUserMessageBuffer = () => {
-  if _userMsgBuffer.pending {
-    let {taskId, id, timestamp, blocks} = _userMsgBuffer
-    _userMsgBuffer.pending = false
-    _userMsgBuffer.blocks = []
-    let (content, annotations) = _parseUserMessageBlocks(blocks)
-    Client__State.Actions.userMessageReceived(~taskId, ~id, ~content, ~annotations, ~timestamp)
-  }
-}
-
-// Register the user message buffer flush callback (used by StateReducer before LoadComplete)
-let () = Client__TextDeltaBuffer.flushUserMessageBuffer := _flushUserMessageBuffer
-
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
 
@@ -148,7 +116,6 @@ type connectionState = Reducer.Selectors.connectionStatus
 @@live
 type contextValue = {
   connectionState: connectionState,
-  isSendingPrompt: bool,
   session: option<ACP.session>,
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
@@ -169,7 +136,6 @@ type contextValue = {
 // Default context value
 let defaultContextValue: contextValue = {
   connectionState: Disconnected,
-  isSendingPrompt: false,
   session: None,
   relay: None,
   authRedirectUrl: None,
@@ -284,8 +250,6 @@ module Provider = {
       Some(
         () => {
           textDeltaBuffer.reset()
-          _userMsgBuffer.pending = false
-          _userMsgBuffer.blocks = []
           let state = connectionStateRef.current
           state.abortController->Option.forEach(controller =>
             WebAPI.AbortController.abort(controller)
@@ -315,28 +279,15 @@ module Provider = {
       switch update {
       | AgentMessageChunk({content, timestamp}) =>
         // Per ACP spec: first agent_message_chunk implicitly signals message start.
-        // Message end is signaled by session/prompt response with stopReason.
-        _flushUserMessageBuffer()
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
         getContentBlockText(content)->Option.forEach(text => {
           textDeltaBuffer.add(~taskId, ~text, ~timestamp)
         })
-      | UserMessageChunk({content, timestamp}) =>
-        // During history replay, a single user message is replayed as multiple
-        // user_message_chunk notifications (text, annotations, images, current_page).
-        // We accumulate them in a buffer and flush at the next turn boundary.
-        // If this is the first chunk for a new user message, flush any previous
-        // buffered agent text and any previous user message buffer first.
-        if !_userMsgBuffer.pending {
-          Client__TextDeltaBuffer.flush()
-          _userMsgBuffer.pending = true
-          _userMsgBuffer.taskId = taskId
-          _userMsgBuffer.id = `user-hydrated-${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`
-          _userMsgBuffer.timestamp = timestamp
-          _userMsgBuffer.blocks = []
-        }
-        _userMsgBuffer.blocks = Array.concat(_userMsgBuffer.blocks, [content])
+      | UserMessage({messageId, content}) =>
+        Client__TextDeltaBuffer.flush()
+        let (content, annotations) = parseUserMessageBlocks(content)
+        Client__State.Actions.userMessageReceived(~taskId, ~id=messageId, ~content, ~annotations)
       | ToolCall({toolCallId, title, timestamp, parentAgentId, spawningToolName}) =>
         Client__TextDeltaBuffer.flush()
         let createdAt = Date.fromString(timestamp)->Date.getTime
@@ -389,9 +340,16 @@ module Provider = {
         | None => ()
         }
       | Plan({entries}) => Client__State.Actions.planReceived(~taskId, ~entries)
-      | AgentTurnComplete({stopReason: _}) =>
-        Client__TextDeltaBuffer.flush()
-        Client__State.Actions.turnCompleted(~taskId)
+      | StateUpdate({state, stopReason: _}) =>
+        switch state {
+        | Running => Client__State.Actions.executionStateRunning(~taskId)
+        | Idle =>
+          Client__TextDeltaBuffer.flush()
+          Client__State.Actions.executionStateIdle(~taskId)
+        | RequiresAction =>
+          Client__TextDeltaBuffer.flush()
+          Client__State.Actions.executionStateRequiresAction(~taskId)
+        }
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
@@ -466,7 +424,6 @@ module Provider = {
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
-      isSendingPrompt: state.isSendingPrompt,
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,
       authRedirectUrl,

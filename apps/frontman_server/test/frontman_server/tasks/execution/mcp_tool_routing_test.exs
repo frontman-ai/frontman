@@ -78,20 +78,19 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "test-key")
 
+      execution_request =
+        execution_request_fixture(
+          mcp_tools: [mcp_tool_def],
+          model: "openrouter:anthropic/claude-sonnet-4-20250514",
+          project_traits: []
+        )
+
       {:ok, _interaction, _turn_number} =
-        Tasks.submit_user_message(
+        submit_user_message_and_run(
           scope,
-          Map.merge(
-            execution_request_fixture(
-              mcp_tools: [mcp_tool_def],
-              model: "openrouter:anthropic/claude-sonnet-4-20250514",
-              project_traits: []
-            ),
-            %{
-              task_id: task_id,
-              message: user_content("Implement the component")
-            }
-          )
+          task_id,
+          execution_request,
+          user_content("Implement the component")
         )
 
       # Verify MCP request is pushed to channel
@@ -116,6 +115,28 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       assert_receive {:interaction, %Tasks.Interaction.AgentCompleted{}, _turn_number},
                      10_000
+    end
+  end
+
+  defp submit_user_message_and_run(scope, task_id, execution_request, message) do
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution_request, %{task_id: task_id, message: message})
+         ) do
+      {:ok, interaction, nil} ->
+        case Tasks.run_next_turn(scope, task_id, execution_request) do
+          :ok ->
+            {:ok, interaction, FrontmanServer.Test.Fixtures.Tasks.latest_turn_number(task_id)}
+
+          result when result in [:already_running, :no_accepted_messages] ->
+            {:error, result}
+
+          result ->
+            result
+        end
+
+      result ->
+        result
     end
   end
 end

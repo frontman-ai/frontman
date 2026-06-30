@@ -53,6 +53,7 @@ module TestHelpers = {
   }
 
   let getMessages = Reducer.Selectors.messages
+  let getQueuedUserMessages = Reducer.Selectors.queuedUserMessages
   let getMessage = (state, index) => getMessages(state)->Array.get(index)
   let getTaskCount = (state: Client__State__Types.state) =>
     state.tasks->Dict.valuesToArray->Array.length
@@ -61,10 +62,26 @@ module TestHelpers = {
   let getCurrentTaskId = (state: Client__State__Types.state): option<string> => {
     Reducer.Selectors.currentTaskId(state)
   }
+
+  let acceptUserMessage = (
+    state,
+    ~taskId,
+    ~id="user-accepted-1",
+    ~content=[UserContentPart.text("Hello")],
+    ~annotations=[],
+  ) => {
+    Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessageReceived({id, content, annotations, createdAt: Date.now()}),
+      }),
+    )->Pair.first
+  }
 }
 
 describe("Client State Reducer", () => {
-  test("AddUserMessage creates task and appends user message", t => {
+  test("AddUserMessage creates task and sends without optimistic message", t => {
     let state = Reducer.defaultState
     let action = Reducer.AddUserMessage({
       id: "user-1",
@@ -73,24 +90,18 @@ describe("Client State Reducer", () => {
       annotations: [],
     })
 
-    let (nextState, _effects) = Reducer.next(state, action)
+    let (nextState, effects) = Reducer.next(state, action)
 
     // Should create a task
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
     t->expect(TestHelpers.getCurrentTaskId(nextState)->Option.isSome)->Expect.toBe(true)
 
-    // Check task has the message
     let messages = Reducer.Selectors.messages(nextState)
-    t->expect(messages->Array.length)->Expect.toBe(1)
+    t->expect(messages->Array.length)->Expect.toBe(0)
 
-    let message = messages->Array.get(0)->Option.getOrThrow
-
-    switch message {
-    | Reducer.Message.User({id, content, _}) => {
-        t->expect(id)->Expect.toBe("user-1")
-        t->expect(content->Array.length)->Expect.toBe(1)
-      }
-    | _ => JsExn.throw("Expected User message but got different message type")
+    switch effects->Array.get(0) {
+    | Some(Reducer.TaskEffect({effect: SendMessage(_)})) => ()
+    | _ => JsExn.throw("Expected SendMessage effect")
     }
   })
 
@@ -120,7 +131,7 @@ describe("Client State Reducer", () => {
     }
   })
 
-  test("TurnCompleted transitions to Completed variant", t => {
+  test("ExecutionStateIdle transitions streaming message to Completed", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
         Reducer.Message.Assistant(
@@ -130,7 +141,7 @@ describe("Client State Reducer", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({target: ForTask(taskId), action: TurnCompleted})
+    let action = Reducer.TaskAction({target: ForTask(taskId), action: ExecutionStateIdle})
     let (nextState, _effects) = Reducer.next(state, action)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
@@ -163,6 +174,17 @@ describe("Client State Reducer", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let state = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~id="user-1",
+      ~content=[UserContentPart.text("Hi")],
+    )
+
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
+    )
     let (state, _) = Reducer.next(
       state,
       TaskAction({target: ForTask(taskId), action: StreamingStarted}),
@@ -176,7 +198,7 @@ describe("Client State Reducer", () => {
     )
     let (state, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
 
     let messages = TestHelpers.getMessages(state)
@@ -282,7 +304,7 @@ describe("Client State Reducer", () => {
   })
 })
 
-describe("Client State Reducer - TurnCompleted Content Conversion", () => {
+describe("Client State Reducer - Idle Content Conversion", () => {
   test("handles empty textBuffer correctly", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
@@ -299,7 +321,7 @@ describe("Client State Reducer - TurnCompleted Content Conversion", () => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let (nextState, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
@@ -330,7 +352,7 @@ describe("Client State Reducer - TurnCompleted Content Conversion", () => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let (nextState, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
 
     let messages = TestHelpers.getMessages(nextState)
@@ -364,7 +386,7 @@ describe("Client State Reducer - TurnCompleted Content Conversion", () => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let (nextState, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
@@ -394,6 +416,12 @@ describe("Client State Reducer - Streaming Flow", () => {
 
     // Get taskId after task creation
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let state = TestHelpers.acceptUserMessage(state, ~taskId, ~id="user-1")
+
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
+    )
 
     // 1. Start streaming (ID is now generated internally)
     let (state, _) = Reducer.next(
@@ -427,7 +455,7 @@ describe("Client State Reducer - Streaming Flow", () => {
     // 3. Complete message
     let (state, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: TurnCompleted}),
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
 
     // Verify: Message ID stayed stable throughout (check second message, first is user)
@@ -827,13 +855,9 @@ describe("Client State Reducer - Task Management Actions", () => {
     // Must be a different task than the deleted one
     t->expect(newTaskId)->Expect.not->Expect.toBe("task-1")
 
-    // The new task should contain the new message
+    // The new task waits for server accepted-message update before showing message.
     let messages = Reducer.Selectors.messages(stateAfterMsg)
-    t->expect(messages->Array.length)->Expect.toBe(1)
-    switch messages->Array.get(0) {
-    | Some(User({id, _})) => t->expect(id)->Expect.toBe("user-2")
-    | _ => JsExn.throw("Expected User message in new task")
-    }
+    t->expect(messages->Array.length)->Expect.toBe(0)
 
     // Effect should target the new task
     switch effects->Array.get(0) {
@@ -1045,7 +1069,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
           id: "msg-1",
           content: [Client__Message.UserContentPart.text("Hello from history")],
           annotations: [],
-          timestamp: "2024-01-15T10:30:00Z",
+          createdAt: 1000.0,
         }),
       }),
     )
@@ -1151,18 +1175,27 @@ describe("Client State Reducer - Annotations on Messages", () => {
     },
   ]
 
-  test("AddUserMessage with annotations stores them on the message", t => {
+  test("UserMessageReceived with annotations stores them on the message", t => {
     let state = Reducer.defaultState
-    let action = Reducer.AddUserMessage({
-      id: "user-1",
-      sessionId: "session-1",
-      content: [UserContentPart.text("Fix this")],
-      annotations: _sampleAnnotations,
-    })
+    let (state, _) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: "user-1",
+        sessionId: "session-1",
+        content: [UserContentPart.text("Fix this")],
+        annotations: _sampleAnnotations,
+      }),
+    )
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
-    let (nextState, _effects) = Reducer.next(state, action)
+    let nextState = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~content=[UserContentPart.text("Fix this")],
+      ~annotations=_sampleAnnotations,
+    )
 
-    let messages = Reducer.Selectors.messages(nextState)
+    let messages = Reducer.Selectors.queuedUserMessages(nextState)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0)->Option.getOrThrow {
@@ -1178,18 +1211,27 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
   })
 
-  test("AddUserMessage with only annotations (no text) creates valid message", t => {
+  test("UserMessageReceived with only annotations creates valid message", t => {
     let state = Reducer.defaultState
-    let action = Reducer.AddUserMessage({
-      id: "user-1",
-      sessionId: "session-1",
-      content: [],
-      annotations: _sampleAnnotations,
-    })
+    let (state, _) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: "user-1",
+        sessionId: "session-1",
+        content: [],
+        annotations: _sampleAnnotations,
+      }),
+    )
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
-    let (nextState, _effects) = Reducer.next(state, action)
+    let nextState = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~content=[],
+      ~annotations=_sampleAnnotations,
+    )
 
-    let messages = Reducer.Selectors.messages(nextState)
+    let messages = Reducer.Selectors.queuedUserMessages(nextState)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0)->Option.getOrThrow {
@@ -1200,18 +1242,22 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
   })
 
-  test("AddUserMessage without annotations stores empty array", t => {
+  test("UserMessageReceived without annotations stores empty array", t => {
     let state = Reducer.defaultState
-    let action = Reducer.AddUserMessage({
-      id: "user-1",
-      sessionId: "session-1",
-      content: [UserContentPart.text("Hello")],
-      annotations: [],
-    })
+    let (state, _) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: "user-1",
+        sessionId: "session-1",
+        content: [UserContentPart.text("Hello")],
+        annotations: [],
+      }),
+    )
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
-    let (nextState, _effects) = Reducer.next(state, action)
+    let nextState = TestHelpers.acceptUserMessage(state, ~taskId)
 
-    let messages = Reducer.Selectors.messages(nextState)
+    let messages = Reducer.Selectors.queuedUserMessages(nextState)
     switch messages->Array.get(0)->Option.getOrThrow {
     | Reducer.Message.User({annotations, _}) => t->expect(annotations->Array.length)->Expect.toBe(0)
     | _ => JsExn.throw("Expected User message")

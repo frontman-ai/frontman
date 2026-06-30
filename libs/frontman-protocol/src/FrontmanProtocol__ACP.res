@@ -516,12 +516,17 @@ let stopReasonSchema = S.union([
   S.literal(Cancelled),
 ])
 
-// session/prompt result
-type promptResult = {stopReason: stopReason}
+type sessionState =
+  | @as("running") Running
+  | @as("idle") Idle
+  | @as("requires_action") RequiresAction
 
-let promptResultSchema = S.object(s => {
-  stopReason: s.field("stopReason", stopReasonSchema),
-})
+let sessionStateSchema = S.union([S.literal(Running), S.literal(Idle), S.literal(RequiresAction)])
+
+// session/prompt acceptance result
+type promptResult = unit
+
+let promptResultSchema = S.object(_s => ())
 
 // Plan entry priority (per ACP spec)
 type planEntryPriority =
@@ -557,11 +562,10 @@ let planEntrySchema = S.object(s => {
 })
 
 // Session update variants - discriminated by sessionUpdate field
-// Per ACP spec: only agent_message_chunk exists (first chunk implicitly starts message,
-// session/prompt response with stopReason signals message end)
+// Session update variants - discriminated by sessionUpdate field
 type sessionUpdate =
   | AgentMessageChunk({content: contentBlock, timestamp: string})
-  | UserMessageChunk({content: contentBlock, timestamp: string})
+  | UserMessage({messageId: string, content: array<contentBlock>})
   | ToolCall({
       toolCallId: string,
       title: string,
@@ -579,7 +583,7 @@ type sessionUpdate =
   | Plan({entries: array<planEntry>})
   | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
   | CurrentModeUpdate({currentModeId: sessionModeId})
-  | AgentTurnComplete({stopReason: stopReason})
+  | StateUpdate({state: sessionState, stopReason: option<stopReason>})
   | Error({
       _meta: option<JSON.t>,
       message: string,
@@ -601,10 +605,10 @@ let sessionUpdateSchema = S.union([
     })
   }),
   S.object(s => {
-    s.tag("sessionUpdate", "user_message_chunk")
-    UserMessageChunk({
-      content: s.field("content", contentBlockSchema),
-      timestamp: s.field("timestamp", S.string),
+    s.tag("sessionUpdate", "user_message")
+    UserMessage({
+      messageId: s.field("messageId", S.string),
+      content: s.field("content", S.array(contentBlockSchema)),
     })
   }),
   S.object(s => {
@@ -646,9 +650,10 @@ let sessionUpdateSchema = S.union([
     })
   }),
   S.object(s => {
-    s.tag("sessionUpdate", "agent_turn_complete")
-    AgentTurnComplete({
-      stopReason: s.field("stopReason", stopReasonSchema),
+    s.tag("sessionUpdate", "state_update")
+    StateUpdate({
+      state: s.field("state", sessionStateSchema),
+      stopReason: s.field("stopReason", S.option(stopReasonSchema)),
     })
   }),
   S.object(s => {

@@ -190,23 +190,24 @@ defmodule Mix.Tasks.DebugTask do
         Mix.shell().error("No interaction found with sequence #{seq}")
 
       i ->
-        is_error = get_in(i.data, ["is_error"]) == true
+        data = data_map(i.data)
+        is_error = get_in(data, ["is_error"]) == true
         error_label = if is_error, do: "\n  #{red("is_error: true")}", else: ""
 
         Mix.shell().info(
           "  #{bold(type_name(i.type))}  seq=#{i.sequence}  id=#{i.id}\n  timestamp: #{i.inserted_at}#{error_label}\n"
         )
 
-        Mix.shell().info(format_json(i.data))
+        Mix.shell().info(format_json(data))
 
         # For error tool_results, show the originating tool_call
         if i.type == @tool_result_type and is_error do
-          show_originating_call(task_id, i.data["tool_call_id"])
+          show_originating_call(task_id, data["tool_call_id"])
         end
 
         # For tool_results, always show the originating call if not an error too
-        if i.type == @tool_result_type and not is_error and i.data["tool_call_id"] do
-          show_originating_call(task_id, i.data["tool_call_id"])
+        if i.type == @tool_result_type and not is_error and data["tool_call_id"] do
+          show_originating_call(task_id, data["tool_call_id"])
         end
     end
   end
@@ -219,7 +220,7 @@ defmodule Mix.Tasks.DebugTask do
     case find_originating_tool_call(task_id, tool_call_id) do
       {:tool_call, call} ->
         Mix.shell().info("\n#{bold("  Originating tool_call (seq #{call.sequence})")}\n")
-        Mix.shell().info(format_json(call.data))
+        Mix.shell().info(format_json(data_map(call.data)))
 
       {:agent_response, response, call} ->
         Mix.shell().info(
@@ -254,7 +255,7 @@ defmodule Mix.Tasks.DebugTask do
       |> Repo.all()
 
     Enum.find_value(responses, fn response ->
-      tool_calls = get_in(response.data, ["metadata", "tool_calls"]) || []
+      tool_calls = get_in(data_map(response.data), ["metadata", "tool_calls"]) || []
 
       case Enum.find(tool_calls, &(&1["id"] == tool_call_id)) do
         nil -> nil
@@ -385,8 +386,9 @@ defmodule Mix.Tasks.DebugTask do
 
   defp print_interaction_line(i) do
     seq_str = String.pad_leading(to_string(i.sequence || 0), 6)
-    is_error = get_in(i.data, ["is_error"]) == true
-    tool_name = i.data["tool_name"]
+    data = data_map(i.data)
+    is_error = get_in(data, ["is_error"]) == true
+    tool_name = data["tool_name"]
     error_tag = if is_error, do: " #{red("ERROR")}", else: ""
 
     type_str = format_type(i.type)
@@ -407,7 +409,11 @@ defmodule Mix.Tasks.DebugTask do
   defp format_type(@discovered_project_structure_type), do: dim("project_struct ")
   defp format_type(other), do: other |> type_name() |> String.pad_trailing(15) |> dim()
 
-  defp interaction_summary(%{type: @tool_call_type, data: data}) do
+  defp data_map(%_{} = data), do: Interaction.to_data_map(data)
+  defp data_map(data), do: data
+
+  defp interaction_summary(%{type: @tool_call_type, data: raw_data}) do
+    data = data_map(raw_data)
     args = data["arguments"] || %{}
 
     arg_keys =
@@ -418,7 +424,8 @@ defmodule Mix.Tasks.DebugTask do
     if arg_keys == "", do: "()", else: "(#{arg_keys})"
   end
 
-  defp interaction_summary(%{type: @tool_result_type, data: data}) do
+  defp interaction_summary(%{type: @tool_result_type, data: raw_data}) do
+    data = data_map(raw_data)
     is_error = data["is_error"] == true
     result = data["result"]
 
@@ -441,11 +448,13 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  defp interaction_summary(%{type: @agent_response_type, data: data}) do
+  defp interaction_summary(%{type: @agent_response_type, data: raw_data}) do
+    data = data_map(raw_data)
     truncate(data["content"] || "", 80)
   end
 
-  defp interaction_summary(%{type: @user_message_type, data: data}) do
+  defp interaction_summary(%{type: @user_message_type, data: raw_data}) do
+    data = data_map(raw_data)
     messages = data["messages"] || []
 
     case messages do
@@ -460,20 +469,23 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  defp interaction_summary(%{type: @discovered_project_rule_type, data: data}) do
+  defp interaction_summary(%{type: @discovered_project_rule_type, data: raw_data}) do
+    data = data_map(raw_data)
     data["path"] || ""
   end
 
-  defp interaction_summary(%{type: @discovered_project_structure_type, data: data}) do
+  defp interaction_summary(%{type: @discovered_project_structure_type, data: raw_data}) do
+    data = data_map(raw_data)
     truncate(data["summary"] || "", 80)
   end
 
-  defp interaction_summary(%{type: @agent_completed_type, data: data}) do
+  defp interaction_summary(%{type: @agent_completed_type, data: raw_data}) do
+    data = data_map(raw_data)
     truncate(data["result"] || "", 80)
   end
 
-  defp interaction_summary(%{data: data}) do
-    truncate(inspect(data), 60)
+  defp interaction_summary(%{data: raw_data}) do
+    truncate(inspect(data_map(raw_data)), 60)
   end
 
   defp summarize_annotation_comments(data) do

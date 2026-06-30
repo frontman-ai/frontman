@@ -205,199 +205,202 @@
       "properties": {
         "sessionUpdate": {
           "type": "string",
-          "const": "user_message_chunk"
+          "const": "user_message"
+        },
+        "messageId": {
+          "type": "string"
         },
         "content": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "const": "text"
-                },
-                "text": {
-                  "type": "string"
-                },
-                "_meta": {},
-                "annotations": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {}
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "text"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "_meta": {},
+                  "annotations": {
+                    "type": "object",
+                    "properties": {
+                      "_meta": {}
+                    }
                   }
-                }
+                },
+                "required": [
+                  "type",
+                  "text"
+                ]
               },
-              "required": [
-                "type",
-                "text"
-              ]
-            },
-            {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "const": "image"
-                },
-                "data": {
-                  "type": "string"
-                },
-                "mimeType": {
-                  "type": "string"
-                },
-                "_meta": {},
-                "annotations": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {}
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "image"
+                  },
+                  "data": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "_meta": {},
+                  "annotations": {
+                    "type": "object",
+                    "properties": {
+                      "_meta": {}
+                    }
                   }
-                }
+                },
+                "required": [
+                  "type",
+                  "data",
+                  "mimeType"
+                ]
               },
-              "required": [
-                "type",
-                "data",
-                "mimeType"
-              ]
-            },
-            {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "const": "audio"
-                },
-                "data": {
-                  "type": "string"
-                },
-                "mimeType": {
-                  "type": "string"
-                },
-                "_meta": {},
-                "annotations": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {}
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "audio"
+                  },
+                  "data": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "_meta": {},
+                  "annotations": {
+                    "type": "object",
+                    "properties": {
+                      "_meta": {}
+                    }
                   }
-                }
+                },
+                "required": [
+                  "type",
+                  "data",
+                  "mimeType"
+                ]
               },
-              "required": [
-                "type",
-                "data",
-                "mimeType"
-              ]
-            },
-            {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "const": "resource_link"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "uri": {
-                  "type": "string"
-                },
-                "_meta": {},
-                "annotations": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {}
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "resource_link"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "uri": {
+                    "type": "string"
+                  },
+                  "_meta": {},
+                  "annotations": {
+                    "type": "object",
+                    "properties": {
+                      "_meta": {}
+                    }
                   }
-                }
-              },
-              "required": [
-                "type",
-                "name",
-                "uri"
-              ]
-            },
-            {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "const": "resource"
                 },
-                "resource": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {},
-                    "annotations": {
-                      "type": "object",
-                      "properties": {
-                        "_meta": {}
+                "required": [
+                  "type",
+                  "name",
+                  "uri"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "resource"
+                  },
+                  "resource": {
+                    "type": "object",
+                    "properties": {
+                      "_meta": {},
+                      "annotations": {
+                        "type": "object",
+                        "properties": {
+                          "_meta": {}
+                        }
+                      },
+                      "resource": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "uri": {
+                                "type": "string"
+                              },
+                              "mimeType": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "uri",
+                              "text"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "uri": {
+                                "type": "string"
+                              },
+                              "mimeType": {
+                                "type": "string"
+                              },
+                              "blob": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "uri",
+                              "blob"
+                            ]
+                          }
+                        ]
                       }
                     },
-                    "resource": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "uri": {
-                              "type": "string"
-                            },
-                            "mimeType": {
-                              "type": "string"
-                            },
-                            "text": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "uri",
-                            "text"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "uri": {
-                              "type": "string"
-                            },
-                            "mimeType": {
-                              "type": "string"
-                            },
-                            "blob": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "uri",
-                            "blob"
-                          ]
-                        }
-                      ]
-                    }
+                    "required": [
+                      "resource"
+                    ]
                   },
-                  "required": [
-                    "resource"
-                  ]
-                },
-                "_meta": {},
-                "annotations": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {}
+                  "_meta": {},
+                  "annotations": {
+                    "type": "object",
+                    "properties": {
+                      "_meta": {}
+                    }
                   }
-                }
-              },
-              "required": [
-                "type",
-                "resource"
-              ]
-            }
-          ]
-        },
-        "timestamp": {
-          "type": "string"
+                },
+                "required": [
+                  "type",
+                  "resource"
+                ]
+              }
+            ]
+          },
+          "type": "array"
         }
       },
       "required": [
         "sessionUpdate",
-        "content",
-        "timestamp"
+        "messageId",
+        "content"
       ]
     },
     {
@@ -854,7 +857,14 @@
       "properties": {
         "sessionUpdate": {
           "type": "string",
-          "const": "agent_turn_complete"
+          "const": "state_update"
+        },
+        "state": {
+          "enum": [
+            "running",
+            "idle",
+            "requires_action"
+          ]
         },
         "stopReason": {
           "enum": [
@@ -868,7 +878,7 @@
       },
       "required": [
         "sessionUpdate",
-        "stopReason"
+        "state"
       ]
     },
     {

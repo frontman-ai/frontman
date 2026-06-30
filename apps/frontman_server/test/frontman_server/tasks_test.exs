@@ -5,7 +5,13 @@ defmodule FrontmanServer.TasksTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Migration.Runner
-  alias FrontmanServer.Repo.Migrations.{BackfillInteractionTurnNumbers, BackfillUserMessageModels}
+
+  alias FrontmanServer.Repo.Migrations.{
+    BackfillInteractionTurnNumbers,
+    BackfillTurnStartedForUserMessages,
+    BackfillUserMessageModels
+  }
+
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -59,7 +65,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
 
-      insert_interaction_row(task_id, Interaction.UserMessage, 1)
+      insert_started_user_message_row(task_id, 1)
       insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
 
       assert {:ok, 1, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
@@ -70,19 +76,18 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, 1, []} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
     end
 
-    test "returns an error for turn-scoped rows missing turn numbers", %{scope: scope} do
-      task_id = task_fixture(scope).id
+    test "accepted user messages without turns do not create an active run", %{scope: scope} do
+      task = task_fixture(scope)
 
-      insert_interaction_row(task_id, Interaction.UserMessage, nil)
+      insert_accepted_user_message!(task, "queued")
 
-      assert {:error, {:missing_turn_number, :user_message}} =
-               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task.id)
     end
 
     test "returns an error for task-scoped rows with turn numbers", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      insert_interaction_row(task_id, Interaction.DiscoveredProjectRule, 1)
+      insert_legacy_interaction_row(task_id, Interaction.DiscoveredProjectRule, 1, %{})
 
       assert {:error, {:unknown_interaction_type, :discovered_project_rule}} =
                Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
@@ -90,21 +95,124 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "submit_user_message/2" do
-    test "returns an error instead of raising when existing rows have invalid turn state", %{
-      scope: scope
-    } do
+    test "persists an accepted user message without starting a turn", %{scope: scope} do
+      task = task_fixture(scope)
+
+      assert {:ok, %Interaction.UserMessage{}, nil} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message: user_content("hello"),
+                 model: "openrouter:openai/gpt-5.5"
+               })
+
+      assert [row] = db_rows(task.id)
+      assert row.type == :user_message
+      assert row.turn_number == nil
+    end
+
+    test "accepts another user message while a turn is running", %{scope: scope} do
+      task = task_fixture(scope)
+      insert_accepted_user_message!(task, "first")
+
+      assert {:ok, _task, %Interaction.TurnStarted{}} =
+               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+
+      assert {:ok, %Interaction.UserMessage{}, nil} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message: user_content("second"),
+                 model: "openrouter:openai/gpt-5.5"
+               })
+
+      assert [:user_message, :turn_started, :user_message] =
+               task.id
+               |> db_rows()
+               |> Enum.map(& &1.type)
+    end
+  end
+
+  describe "start_next_turn/3" do
+    test "returns no_accepted_messages when there are no accepted user messages", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      insert_interaction_row(task_id, Interaction.UserMessage, nil)
+      assert :no_accepted_messages =
+               Tasks.start_next_turn(scope, task_id, execution_request_fixture())
+    end
 
-      assert {:error, {:missing_turn_number, :user_message}} =
-               Tasks.submit_user_message(
-                 scope,
-                 Map.merge(execution_request_fixture(), %{
-                   task_id: task_id,
-                   message: user_content("hello")
-                 })
-               )
+    test "requires live execution context", %{scope: scope} do
+      task = task_fixture(scope)
+      insert_accepted_user_message!(task, "queued")
+
+      assert :missing_execution_context = Tasks.start_next_turn(scope, task.id, nil)
+    end
+
+    test "starts a turn with all accepted messages not already in a turn", %{scope: scope} do
+      task = task_fixture(scope)
+      first = insert_accepted_user_message!(task, "first")
+      second = insert_accepted_user_message!(task, "second")
+
+      assert {:ok, started_task, %Interaction.TurnStarted{} = turn_started} =
+               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+
+      assert started_task.id == task.id
+      assert turn_started.user_message_ids == [first.id, second.id]
+
+      rows = db_rows(task.id)
+
+      assert [%InteractionSchema{type: :turn_started, turn_number: 1}] =
+               Enum.filter(rows, &(&1.type == :turn_started))
+    end
+
+    test "returns already_running when a started turn is still active", %{scope: scope} do
+      task = task_fixture(scope)
+      insert_accepted_user_message!(task, "first")
+
+      assert {:ok, _task, %Interaction.TurnStarted{}} =
+               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+
+      insert_accepted_user_message!(task, "second")
+
+      assert :already_running =
+               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+    end
+
+    test "started turn without terminal interaction is an active run", %{scope: scope} do
+      task = task_fixture(scope)
+      insert_accepted_user_message!(task, "queued")
+
+      assert {:ok, _task, %Interaction.TurnStarted{}} =
+               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+
+      assert {:ok, 1, []} = Tasks.get_active_run_unresolved_tool_calls(scope, task.id)
+    end
+
+    test "concurrent starts append one turn for the accepted batch", %{scope: scope} do
+      task = task_fixture(scope)
+      first = insert_accepted_user_message!(task, "first")
+      second = insert_accepted_user_message!(task, "second")
+
+      results =
+        1..2
+        |> Task.async_stream(
+          fn _ -> Tasks.start_next_turn(scope, task.id, execution_request_fixture()) end,
+          max_concurrency: 2,
+          timeout: :infinity
+        )
+        |> Enum.map(fn {:ok, result} -> result end)
+
+      assert 1 == Enum.count(results, &match?({:ok, _task, %Interaction.TurnStarted{}}, &1))
+      assert 1 == Enum.count(results, &(&1 == :already_running))
+
+      assert [turn_started] =
+               task.id
+               |> db_rows()
+               |> Enum.filter(&(&1.type == :turn_started))
+
+      first_id = first.id
+      second_id = second.id
+
+      assert %Interaction.TurnStarted{user_message_ids: [^first_id, ^second_id]} =
+               turn_started.data
     end
   end
 
@@ -177,7 +285,7 @@ defmodule FrontmanServer.TasksTest do
             {Interaction.ToolCall, %{"tool_call_id" => "call_2"}},
             {Interaction.ToolResult, %{"tool_call_id" => "call_2"}}
           ] do
-        insert_interaction_row(task_id, type, nil, data)
+        insert_legacy_interaction_row(task_id, type, nil, data)
       end
 
       run_backfill_migration()
@@ -199,10 +307,17 @@ defmodule FrontmanServer.TasksTest do
     test "sets the legacy default model on old user messages", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      insert_interaction_row(task_id, Interaction.UserMessage, 1, %{"messages" => ["hello"]})
+      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
+        "messages" => ["hello"]
+      })
+
       run_user_message_model_backfill_migration()
 
-      assert [%{data: %{"model" => "openrouter:google/gemini-3-flash-preview"}}] =
+      assert [
+               %{
+                 data: %Interaction.UserMessage{model: "openrouter:google/gemini-3-flash-preview"}
+               }
+             ] =
                InteractionSchema.for_task(task_id)
                |> InteractionSchema.of_type(Interaction.UserMessage)
                |> Repo.all()
@@ -211,16 +326,49 @@ defmodule FrontmanServer.TasksTest do
     test "leaves explicit models untouched", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      insert_interaction_row(task_id, Interaction.UserMessage, 1, %{
+      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
         "model" => "anthropic:claude-sonnet-4-6"
       })
 
       run_user_message_model_backfill_migration()
 
-      assert [%{data: %{"model" => "anthropic:claude-sonnet-4-6"}}] =
+      assert [%{data: %Interaction.UserMessage{model: "anthropic:claude-sonnet-4-6"}}] =
                InteractionSchema.for_task(task_id)
                |> InteractionSchema.of_type(Interaction.UserMessage)
                |> Repo.all()
+    end
+  end
+
+  describe "turn-started backfill migration" do
+    test "converts legacy turn-numbered user messages into accepted messages plus TurnStarted", %{
+      scope: scope
+    } do
+      task_id = task_fixture(scope).id
+
+      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
+        "messages" => ["legacy hello"],
+        "model" => "openrouter:openai/gpt-5.5"
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.AgentResponse, 1, %{"content" => "hello"})
+
+      insert_legacy_interaction_row(task_id, Interaction.AgentCompleted, 1, %{})
+
+      run_turn_started_backfill_migration()
+
+      rows = db_rows(task_id)
+      user_message = Enum.find(rows, &(&1.type == :user_message))
+
+      assert %InteractionSchema{turn_number: nil} = user_message
+
+      assert %InteractionSchema{
+               type: :turn_started,
+               turn_number: 1,
+               data: %Interaction.TurnStarted{user_message_ids: [user_message_id]}
+             } = Enum.find(rows, &(&1.type == :turn_started))
+
+      assert user_message_id == user_message.id
+      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
     end
   end
 
@@ -235,7 +383,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "rejects an older error after later interactions in the same turn", %{scope: scope} do
       task_id = task_fixture(scope).id
-      insert_interaction_row(task_id, Interaction.UserMessage, 1)
+      insert_started_user_message_row(task_id, 1)
       insert_interaction_row(task_id, Interaction.AgentError, 1, %{"id" => "error-1"})
 
       insert_interaction_row(task_id, Interaction.AgentRetry, 1, %{
@@ -246,6 +394,27 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :stale_turn} =
                Tasks.retry_execution(scope, task_id, "error-1", execution_request_fixture())
+    end
+
+    test "fills missing model from started turn user messages", %{scope: scope} do
+      task = task_fixture(scope)
+      insert_accepted_user_message!(task, "failed", "missing:test")
+
+      assert {:ok, _task, %Interaction.TurnStarted{}} =
+               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+
+      {:ok, error} = Tasks.record_agent_run_result(scope, task.id, 1, {:failed, "boom"})
+
+      assert :ok =
+               Tasks.retry_execution(scope, task.id, error.id, %{
+                 mcp_tools: [],
+                 project_traits: []
+               })
+
+      assert [_retry] =
+               task.id
+               |> db_rows()
+               |> Enum.filter(&(&1.type == :agent_retry))
     end
   end
 
@@ -264,6 +433,16 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :not_running} =
                Tasks.resume_execution(scope, task_id, execution_request_fixture())
+    end
+
+    test "fills missing model from started turn user messages", %{scope: scope} do
+      task = task_fixture(scope)
+      insert_accepted_user_message!(task, "running", "missing:test")
+
+      assert {:ok, _task, %Interaction.TurnStarted{}} =
+               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+
+      assert :ok = Tasks.resume_execution(scope, task.id, %{mcp_tools: [], project_traits: []})
     end
   end
 
@@ -314,12 +493,13 @@ defmodule FrontmanServer.TasksTest do
 
       sequences = db_sequences(task_id)
 
-      assert length(sequences) == 5
+      assert length(sequences) == 6
       assert sequences == Enum.sort(sequences), "sequences should be strictly increasing"
       assert sequences == Enum.uniq(sequences), "sequences should be unique"
 
       assert [
-               {Interaction.UserMessage, ^turn_number},
+               {Interaction.UserMessage, nil},
+               {Interaction.TurnStarted, ^turn_number},
                {Interaction.AgentResponse, ^turn_number},
                {Interaction.ToolCall, ^turn_number},
                {Interaction.ToolResult, ^turn_number},
@@ -481,7 +661,7 @@ defmodule FrontmanServer.TasksTest do
 
       sequences = db_sequences(task_id)
 
-      assert length(sequences) == 3
+      assert length(sequences) == 4
       assert sequences == Enum.sort(sequences)
       assert sequences == Enum.uniq(sequences)
       assert Enum.all?(sequences, &(&1 > 0))
@@ -503,28 +683,9 @@ defmodule FrontmanServer.TasksTest do
 
       results = db_sequences(task_id)
 
-      assert length(results) == 21
+      assert length(results) == 22
       assert results == Enum.uniq(results), "sequences must be unique, got duplicates"
       assert results == Enum.sort(results), "DB ordering must be sorted"
-    end
-
-    test "preserves chronological history when legacy rows have nil sequence", %{scope: scope} do
-      task_id = task_fixture(scope).id
-
-      {:ok, legacy_message} = user_message_fixture(scope, task_id, user_content("legacy hello"))
-      turn_number = latest_turn_number(task_id)
-
-      from(i in InteractionSchema, where: i.id == ^legacy_message.id)
-      |> Repo.update_all(set: [sequence: nil])
-
-      {:ok, _new_response} = Tasks.agent_replied(scope, task_id, turn_number, "new response")
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      assert [
-               %Interaction.UserMessage{messages: ["legacy hello"]},
-               %Interaction.AgentResponse{content: "new response"}
-             ] = task.interactions
     end
   end
 
@@ -547,22 +708,104 @@ defmodule FrontmanServer.TasksTest do
     |> Repo.all()
   end
 
-  defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
-    defaults = %{
-      "id" => Ecto.UUID.generate(),
-      "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601(),
-      "tool_name" => "question",
-      "arguments" => %{},
-      "result" => "ok"
-    }
+  defp insert_started_user_message_row(task_id, turn_number) do
+    task = Repo.get!(TaskSchema, task_id)
 
-    Repo.insert!(%InteractionSchema{
-      task_id: task_id,
-      type: Interaction.type_for(type),
-      turn_number: turn_number,
-      sequence: System.unique_integer([:monotonic, :positive]),
-      data: Map.merge(defaults, data)
-    })
+    {:ok, interaction} =
+      Interaction.UserMessage.build(user_content("test turn"), "openrouter:openai/gpt-5.5")
+
+    row =
+      task
+      |> InteractionSchema.create_changeset(interaction, nil)
+      |> Repo.insert!()
+
+    turn_started = Interaction.TurnStarted.build([row.id])
+
+    task
+    |> InteractionSchema.create_changeset(turn_started, turn_number)
+    |> Repo.insert!()
+  end
+
+  defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
+    task = Repo.get!(TaskSchema, task_id)
+
+    task
+    |> InteractionSchema.create_changeset(test_interaction(type, data), turn_number)
+    |> Repo.insert!()
+  end
+
+  defp test_interaction(Interaction.DiscoveredProjectRule, _data),
+    do: Interaction.DiscoveredProjectRule.build("/project/AGENTS.md", "rules")
+
+  defp test_interaction(Interaction.ToolCall, data) do
+    {:ok, tool_call} =
+      Interaction.ToolCall.build(%SwarmAi.ToolCall{
+        id: Map.get(data, "tool_call_id", Ecto.UUID.generate()),
+        name: Map.get(data, "tool_name", "question"),
+        arguments: Jason.encode!(Map.get(data, "arguments", %{}))
+      })
+
+    tool_call
+  end
+
+  defp test_interaction(Interaction.ToolResult, data) do
+    Interaction.ToolResult.build(
+      %{id: Map.get(data, "tool_call_id", Ecto.UUID.generate()), name: "question"},
+      MCP.tool_result_text("ok")
+    )
+  end
+
+  defp test_interaction(Interaction.AgentError, data),
+    do: %{Interaction.AgentError.build("error") | id: Map.fetch!(data, "id")}
+
+  defp test_interaction(Interaction.AgentRetry, data),
+    do: Interaction.AgentRetry.build(Map.fetch!(data, "retried_error_id"))
+
+  defp test_interaction(Interaction.AgentCompleted, _data),
+    do: Interaction.AgentCompleted.build()
+
+  defp insert_legacy_interaction_row(task_id, type, turn_number, data) do
+    now = DateTime.utc_now(:second)
+
+    data =
+      %{
+        "__type__" => Interaction.type_for(type) |> Atom.to_string(),
+        "id" => Ecto.UUID.generate(),
+        "timestamp" => DateTime.to_iso8601(now),
+        "tool_name" => "question",
+        "arguments" => %{},
+        "result" => %{}
+      }
+      |> Map.merge(data)
+
+    Repo.query!(
+      """
+      INSERT INTO interactions (id, task_id, type, data, turn_number, sequence, inserted_at)
+      VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7)
+      """,
+      [
+        Ecto.UUID.dump!(Ecto.UUID.generate()),
+        Ecto.UUID.dump!(task_id),
+        Interaction.type_for(type) |> Atom.to_string(),
+        Jason.encode!(data),
+        turn_number,
+        System.unique_integer([:monotonic, :positive]),
+        now
+      ]
+    )
+  end
+
+  defp insert_accepted_user_message!(
+         %TaskSchema{} = task,
+         text,
+         model \\ "openrouter:openai/gpt-5.5"
+       ) do
+    {:ok, interaction} =
+      Interaction.UserMessage.build(user_content(text), model)
+
+    task
+    |> InteractionSchema.create_changeset(interaction, nil)
+    |> Repo.insert!()
   end
 
   defp run_backfill_migration do
@@ -590,6 +833,24 @@ defmodule FrontmanServer.TasksTest do
                Repo.config(),
                0,
                BackfillUserMessageModels,
+               :forward,
+               :up,
+               :up,
+               log: false
+             )
+  end
+
+  defp run_turn_started_backfill_migration do
+    Code.require_file(
+      "priv/repo/migrations/20260630000000_backfill_turn_started_for_user_messages.exs"
+    )
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               BackfillTurnStartedForUserMessages,
                :forward,
                :up,
                :up,

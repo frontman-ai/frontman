@@ -424,17 +424,16 @@ module StopIcon = {
   }
 }
 
-// Submit/Stop button — Send is the sole purple element at rest; Stop becomes a pill with label
+// Submit/Stop button — Send stays primary when content exists; Stop covers empty-input running state.
 module SubmitButton = {
   @react.component
   let make = (
     ~disabled: bool,
-    ~isAgentRunning: bool,
+    ~showStop: bool,
     ~onClick: unit => unit,
     ~onCancel: unit => unit,
   ) => {
-    if isAgentRunning {
-      // Stop — pill with text label, feels different from compose mode
+    if showStop {
       <button
         type_="button"
         onClick={e => {
@@ -450,7 +449,6 @@ module SubmitButton = {
         <span> {React.string("Stop")} </span>
       </button>
     } else {
-      // Send — circle, the only purple element in the composition surface
       <button
         type_="submit"
         disabled
@@ -811,8 +809,11 @@ let make = (
     })
   }
 
-  let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled || noModelsConfigured
-  let isSubmitDisabled = isInputDisabled || !hasContent && !hasAnnotations || isEnrichingAnnotations
+  let hasInputItems = Array.length(inputItems) > 0
+  let hasSubmittableContent = hasContent || hasAnnotations || hasInputItems
+  let isInputDisabled = !hasActiveACPSession || disabled || noModelsConfigured
+  let isSubmitDisabled = isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
+  let showStopButton = isAgentRunning && !hasSubmittableContent
 
   // Handle keydown in contentEditable.
   // Gates on isInputDisabled and isEnrichingAnnotations but NOT on hasContent —
@@ -835,8 +836,6 @@ let make = (
     "Connect an AI provider to start chatting."
   } else if disabled {
     disabledPlaceholder->Option.getOr("Input disabled")
-  } else if isAgentRunning {
-    "Waiting for response..."
   } else {
     placeholder
   }
@@ -921,11 +920,7 @@ let make = (
 
     // Footer with tools and submit — toolbar anchored at bottom, always stable position
     <div className="flex items-center justify-between px-3 pb-2 pt-1">
-      <div
-        className={`flex items-center gap-1 min-w-0 transition-opacity ${isAgentRunning
-            ? "opacity-40 pointer-events-none"
-            : ""}`}
-      >
+      <div className="flex items-center gap-1 min-w-0 transition-opacity">
         // Select element button (optional)
         {switch onSelectElement {
         | Some(handler) =>
@@ -994,7 +989,9 @@ let make = (
       </div>
 
       // Submit / Stop
-      <SubmitButton disabled={isSubmitDisabled} isAgentRunning onClick={doSubmit} onCancel />
+      <SubmitButton
+        disabled={isSubmitDisabled} showStop={showStopButton} onClick={doSubmit} onCancel
+      />
     </div>
 
     // Image lightbox preview

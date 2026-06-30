@@ -28,6 +28,8 @@ defmodule FrontmanServer.ChangesetSanitizer do
     end
   end
 
+  def strip_null_bytes_from_value(value), do: do_strip(value)
+
   defp do_strip(value) when is_binary(value) do
     :binary.replace(value, <<0>>, <<>>, [:global])
   end

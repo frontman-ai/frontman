@@ -240,49 +240,40 @@ defmodule AgentClientProtocol do
   end
 
   @doc """
-  Builds a user_message_chunk session/update notification.
+  Builds a canonical accepted user_message session/update notification.
 
-  Used during history replay to send stored user messages back to the client.
-  Accepts either a pre-built content block map or a plain text string.
+  Used when a user message is persisted as accepted session history. `message_id` is server-owned.
   """
-  def build_user_message_chunk_notification(session_id, %{} = content_block, timestamp) do
-    params = %{
+  def build_user_message_notification(session_id, message_id, content) do
+    JsonRpc.notification(@method_session_update, %{
       "sessionId" => session_id,
       "update" => %{
-        "sessionUpdate" => "user_message_chunk",
-        "content" => content_block,
-        "timestamp" => DateTime.to_iso8601(timestamp)
+        "sessionUpdate" => "user_message",
+        "messageId" => message_id,
+        "content" => content
       }
-    }
-
-    JsonRpc.notification(@method_session_update, params)
-  end
-
-  def build_user_message_chunk_notification(session_id, text, timestamp) when is_binary(text) do
-    build_user_message_chunk_notification(
-      session_id,
-      %{"type" => "text", "text" => text},
-      timestamp
-    )
+    })
   end
 
   @doc """
-  Builds an agent_turn_complete session/update notification.
-
-  Sent when the agent finishes a turn that was resumed via elicitation response
-  (not via session/prompt), so there is no pending JSON-RPC request to respond to.
-  The client uses this to finalize the streaming message and reset the agent-running state.
+  Builds a state_update session/update notification.
   """
-  def build_agent_turn_complete_notification(session_id, stop_reason) do
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "agent_turn_complete",
-        "stopReason" => stop_reason
-      }
+  def build_state_update_notification(session_id, state, stop_reason \\ nil) do
+    update = %{
+      "sessionUpdate" => "state_update",
+      "state" => state
     }
 
-    JsonRpc.notification(@method_session_update, params)
+    update =
+      case stop_reason do
+        nil -> update
+        stop_reason -> Map.put(update, "stopReason", stop_reason)
+      end
+
+    JsonRpc.notification(@method_session_update, %{
+      "sessionId" => session_id,
+      "update" => update
+    })
   end
 
   @doc """
@@ -321,10 +312,10 @@ defmodule AgentClientProtocol do
   end
 
   @doc """
-  Builds a session/prompt response with stop reason.
+  Builds a session/prompt acceptance response.
   """
   def build_prompt_result(stop_reason) when stop_reason in @stop_reasons do
-    %{"stopReason" => stop_reason}
+    %{}
   end
 
   @doc """

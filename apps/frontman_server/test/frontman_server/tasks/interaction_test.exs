@@ -261,6 +261,24 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                metadata: %{response_id: "resp_123", phase: "tool_call"}
              } = swarm_msg
     end
+
+    test "converts tool-call-only assistant responses without text content" do
+      interactions = [
+        agent_resp(nil, %{
+          "tool_calls" => [db_tool_call("toolu_012", "read_file", ~s({"path":"README.md"}))],
+          "response_id" => "resp_123",
+          "phase" => "tool_call"
+        })
+      ]
+
+      [swarm_msg] = Interaction.to_swarm_messages(interactions)
+
+      assert %SwarmAi.Message.Assistant{
+               content: [],
+               tool_calls: [%SwarmAi.ToolCall{id: "toolu_012", name: "read_file"}],
+               metadata: %{response_id: "resp_123", phase: "tool_call"}
+             } = swarm_msg
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -569,7 +587,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "InteractionSchema.to_struct/1" do
-    test "deserializes normalized user message data" do
+    test "returns typed embedded interaction data" do
       message =
         build_user_message([
           text_block("hello"),
@@ -581,7 +599,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       row = %InteractionSchema{
         type: :user_message,
-        data: Interaction.to_data_map(message)
+        data: message
       }
 
       assert %Interaction.UserMessage{current_page: %Interaction.CurrentPage{}, annotations: [_]} =

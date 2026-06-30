@@ -22,6 +22,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
   # :timestamp; types with additional enforced fields are listed explicitly.
   @minimal_fields %{
     Interaction.UserMessage => %{id: "t", messages: ["hi"], images: []},
+    Interaction.TurnStarted => %{id: "t", user_message_ids: ["um-1"]},
     Interaction.AgentResponse => %{id: "t", content: "c"},
     Interaction.AgentCompleted => %{id: "t"},
     Interaction.ToolCall => %{id: "t", tool_call_id: "tc", tool_name: "t", arguments: %{}},
@@ -67,6 +68,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
 
       items = ACPHistory.to_history_items(interaction, @session_id)
       assert items != []
+      assert [%{"params" => %{"update" => %{"sessionUpdate" => "user_message"}}}] = items
     end
 
     test "UserMessage annotation keeps generic metadata" do
@@ -93,7 +95,8 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
       }
 
       [item] = ACPHistory.to_history_items(interaction, @session_id)
-      resource = item["params"]["update"]["content"]["resource"]
+      [content] = item["params"]["update"]["content"]
+      resource = content["resource"]
 
       assert resource["_meta"]["custom_context"] == metadata["custom_context"]
       assert resource["resource"]["uri"] == "element://span"

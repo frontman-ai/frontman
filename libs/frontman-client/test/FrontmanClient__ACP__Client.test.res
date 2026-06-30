@@ -244,9 +244,7 @@ describe("ACP Client handleResponse", _t => {
       ->Client.reduce(Client.RequestSent(1, promptPending))
       ->Client.reduce(Client.RequestSent(2, loadPending))
 
-    let result = JSON.Encode.object(
-      Dict.fromArray([("stopReason", JSON.Encode.string("end_turn"))]),
-    )
+    let result = JSON.Encode.object(Dict.make())
 
     let newState =
       state->Client.resolvePendingSessionRequest(
@@ -269,9 +267,7 @@ describe("ACP Client handleResponse", _t => {
       reject: _ => (),
     }
     let state = Client.initialState->Client.reduce(Client.RequestSent(1, pending))
-    let result = JSON.Encode.object(
-      Dict.fromArray([("stopReason", JSON.Encode.string("end_turn"))]),
-    )
+    let result = JSON.Encode.object(Dict.make())
 
     let newState =
       state->Client.resolvePendingSessionRequest(
@@ -284,9 +280,9 @@ describe("ACP Client handleResponse", _t => {
     t->expect(newState.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toEqual(true)
   })
 
-  test("agent_turn_complete notification resolves pending prompt request", t => {
+  test("legacy agent_turn_complete notification is unknown and does not resolve prompt", t => {
     let resolved = ref(None)
-    let updateReceived = ref(false)
+    let updateReceived = ref(None)
     let pending: Client.pendingRequest = {
       method: "session/prompt",
       sessionId: Some("task-1"),
@@ -324,7 +320,7 @@ describe("ACP Client handleResponse", _t => {
       ~onUpdate=Some(
         (_sessionId, update) => {
           switch update {
-          | Types.AgentTurnComplete(_) => updateReceived := true
+          | Types.Unknown({sessionUpdate}) => updateReceived := Some(sessionUpdate)
           | _ => ()
           }
         },
@@ -334,13 +330,8 @@ describe("ACP Client handleResponse", _t => {
       payload,
     )
 
-    let stopReason =
-      resolved.contents
-      ->Option.flatMap(obj => obj->Dict.get("stopReason"))
-      ->Option.flatMap(JSON.Decode.string)
-
-    t->expect(updateReceived.contents)->Expect.toEqual(true)
-    t->expect(stopReason)->Expect.toEqual(Some("end_turn"))
-    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+    t->expect(updateReceived.contents)->Expect.toEqual(Some("agent_turn_complete"))
+    t->expect(resolved.contents)->Expect.toEqual(None)
+    t->expect(state.contents.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toEqual(true)
   })
 })

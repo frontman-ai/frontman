@@ -16,18 +16,27 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   import Ecto.Changeset
   import Ecto.Query
   import FrontmanServer.ChangesetSanitizer
+  import PolymorphicEmbed
 
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.TaskSchema
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
+  @accepted_message_types [:user_message]
   @task_scoped_types Interaction.task_scoped_types()
   @tiebreaker_range 1_000_000
 
   schema "interactions" do
     field(:type, Ecto.Enum, values: Interaction.type_values())
-    field(:data, :map)
+
+    polymorphic_embeds_one(:data,
+      types: Interaction.types(),
+      use_parent_field_for_type: :type,
+      on_type_not_found: :raise,
+      on_replace: :update
+    )
+
     # Monotonic sequence avoids DB insert race conditions.
     field(:sequence, :integer)
     field(:turn_number, :integer)
@@ -45,17 +54,24 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       when is_struct(interaction) and (is_integer(turn_number) or is_nil(turn_number)) do
     type = Interaction.type_for(interaction)
 
+    data =
+      interaction
+      |> Interaction.to_data_map()
+      |> strip_null_bytes_from_value()
+
     task
     |> Ecto.build_assoc(:interaction_rows)
-    |> change(
-      type: type,
-      data: Interaction.to_data_map(interaction),
-      sequence: generate_sequence(),
-      turn_number: turn_number
+    |> cast(
+      %{
+        type: type,
+        data: data,
+        sequence: generate_sequence(),
+        turn_number: turn_number
+      },
+      [:type, :sequence, :turn_number]
     )
-    |> validate_required([:task_id, :type, :data, :sequence])
-    |> strip_null_bytes(:data)
-    |> validate_json_encodable(:data)
+    |> cast_polymorphic_embed(:data, required: true, with: Interaction.polymorphic_changesets())
+    |> validate_required([:task_id, :type, :sequence])
     |> validate_agent_response_metadata()
     |> validate_turn_number()
     |> foreign_key_constraint(:task_id)
@@ -81,9 +97,19 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.turn_number <= ^turn_number)
   end
 
+  def prompt_context_for_turn(query \\ __MODULE__, turn_number)
+      when is_integer(turn_number) and turn_number > 0 do
+    user_message = Interaction.type_for(Interaction.UserMessage)
+
+    from(i in query,
+      where:
+        (not is_nil(i.turn_number) and i.turn_number <= ^turn_number) or
+          (is_nil(i.turn_number) and i.type == ^user_message)
+    )
+  end
+
   def ordered(query \\ __MODULE__) do
-    # FIXME(Danni) - create a data migration to make everything have sequence so we can order just by sequence
-    from(i in query, order_by: [asc: coalesce(i.sequence, 0), asc: i.inserted_at, asc: i.id])
+    from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end
 
   def of_type(query \\ __MODULE__, type) do
@@ -111,10 +137,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @doc """
   Converts a persisted InteractionSchema to its domain struct.
   """
-  def to_struct(%__MODULE__{type: type, data: data}) when is_atom(type) and is_map(data) do
-    module = Interaction.module_for(type)
-    Ecto.embedded_load(module, data, :json)
-  end
+  def to_struct(%__MODULE__{data: data}) when is_struct(data), do: data
 
   defp generate_sequence do
     unix_s = DateTime.utc_now() |> DateTime.to_unix(:second)
@@ -123,27 +146,39 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   end
 
   defp validate_turn_number(changeset) do
-    case {get_field(changeset, :type), get_field(changeset, :turn_number)} do
-      {type, nil} when type in @task_scoped_types ->
+    type = get_field(changeset, :type)
+    turn_number = get_field(changeset, :turn_number)
+
+    cond do
+      empty_turn_number_type?(type) and is_nil(turn_number) ->
         changeset
 
-      {type, turn_number}
-      when type not in @task_scoped_types and is_integer(turn_number) and turn_number > 0 ->
+      execution_turn_number?(type, turn_number) ->
         changeset
 
-      {type, _turn_number} when type in @task_scoped_types ->
+      empty_turn_number_type?(type) ->
         add_error(changeset, :turn_number, "must be empty for #{type}")
 
-      {type, nil} ->
+      is_nil(turn_number) ->
         add_error(changeset, :turn_number, "missing for #{type}")
 
-      {_type, _turn_number} ->
+      true ->
         add_error(changeset, :turn_number, "must be positive")
     end
   end
 
+  defp empty_turn_number_type?(type),
+    do: type in @accepted_message_types or type in @task_scoped_types
+
+  defp execution_turn_number?(type, turn_number) do
+    !empty_turn_number_type?(type) and is_integer(turn_number) and turn_number > 0
+  end
+
   defp validate_agent_response_metadata(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :data)} do
+      {:agent_response, %Interaction.AgentResponse{metadata: metadata}} ->
+        validate_agent_response_metadata(changeset, metadata)
+
       {:agent_response, data} when is_map(data) ->
         metadata = Map.get(data, :metadata)
 

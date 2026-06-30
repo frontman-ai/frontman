@@ -84,7 +84,17 @@ defmodule FrontmanServerWeb.ChannelCase do
           push(
             socket,
             "mcp:message",
-            JsonRpc.success_response(project_rules_request_id, %{"content" => []})
+            JsonRpc.success_response(project_rules_request_id, %{
+              "content" => [
+                %{
+                  "type" => "text",
+                  "text" =>
+                    Jason.encode!([
+                      %{"fullPath" => "/project/AGENTS.md", "content" => "project rules"}
+                    ])
+                }
+              ]
+            })
           )
 
           :sys.get_state(socket.channel_pid)

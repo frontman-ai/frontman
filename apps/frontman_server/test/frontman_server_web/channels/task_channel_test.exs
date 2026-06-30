@@ -7,6 +7,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   alias AgentClientProtocol.Content.{ContentItem, TextBlock}
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Test.Fixtures.LLMProvider
   alias FrontmanServer.Workers.GenerateTitle
   alias FrontmanServerWeb.UserSocket
 
@@ -25,6 +26,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   defp agent_completed do
     {:interaction, Interaction.AgentCompleted.build(), 1}
+  end
+
+  defp turn_started do
+    {:interaction, Interaction.TurnStarted.build([Ecto.UUID.generate()]), 1}
   end
 
   defp agent_failed(message, category \\ "unknown") do
@@ -61,17 +66,55 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  defp assert_agent_turn_complete(task_id) do
+  defp assert_state_update_idle(task_id) do
     assert_push(
       "acp:message",
       %{
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "agent_turn_complete"}
+          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
         }
       },
       1_000
     )
+
+    refute_running_eventually(task_id)
+  end
+
+  defp assert_state_update_running(task_id) do
+    assert_push(
+      "acp:message",
+      %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
+        }
+      },
+      1_000
+    )
+  end
+
+  defp assert_state_update_running_then_idle(task_id) do
+    assert_state_update_running(task_id)
+    assert_state_update_idle(task_id)
+  end
+
+  defp refute_running_eventually(task_id, attempts \\ 50)
+
+  defp refute_running_eventually(task_id, attempts) when attempts > 0 do
+    case SwarmAi.running?(FrontmanServer.AgentRuntime, task_id) do
+      false ->
+        :ok
+
+      true ->
+        Process.sleep(10)
+        refute_running_eventually(task_id, attempts - 1)
+    end
+  end
+
+  defp refute_running_eventually(task_id, 0) do
+    refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
+           "Agent should not be running after completion"
   end
 
   defp register_tool_receiver(tool_call_id) do
@@ -177,19 +220,34 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       complete_mcp_handshake(socket)
 
-      push(
-        socket,
-        "acp:message",
-        build_prompt_request(
-          _meta: %{
-            "openrouterKeyValue" => "sk-or-test",
-            "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
-            "traits" => ["react", "typescript"]
-          }
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(
+            _meta: %{
+              "openrouterKeyValue" => "sk-or-test",
+              "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
+              "traits" => ["react", "typescript"]
+            }
+          )
         )
-      )
 
       :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "user_message",
+            "messageId" => _message_id,
+            "content" => [%{"type" => "text", "text" => "Hello"}]
+          }
+        }
+      })
+
+      assert_reply(ref, :ok, %{"acp:message" => response})
+      assert response["result"] == %{}
 
       assert_enqueued(
         worker: GenerateTitle,
@@ -200,7 +258,19 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       )
 
-      assert_agent_turn_complete(task_id)
+      assert_state_update_running(task_id)
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "agent_message_chunk",
+            "content" => %{"type" => "text", "text" => "Test response"}
+          }
+        }
+      })
+
+      assert_state_update_idle(task_id)
     end
 
     test "returns invalid params for malformed text content block", %{socket: socket} do
@@ -223,6 +293,68 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert response["error"]["message"] ==
                "text content block must include non-empty string text"
+    end
+
+    test "accepts before MCP is ready and drains after initialization", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      ref = push(socket, "acp:message", build_prompt_request())
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "user_message"}
+        }
+      })
+
+      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+      refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
+
+      complete_mcp_handshake(socket)
+
+      assert_state_update_running_then_idle(task_id)
+    end
+
+    test "queued follow-up starts after current turn completes", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      LLMProvider.expect_llm_responses([
+        {:delay, "first response", 200},
+        "second response"
+      ])
+
+      complete_mcp_handshake(socket)
+
+      first_ref = push(socket, "acp:message", build_prompt_request(id: 11, text: "first"))
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "user_message"}
+        }
+      })
+
+      assert_reply(first_ref, :ok, %{"acp:message" => %{"id" => 11, "result" => %{}}})
+      assert_state_update_running(task_id)
+
+      second_ref = push(socket, "acp:message", build_prompt_request(id: 12, text: "second"))
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "user_message",
+            "content" => [%{"type" => "text", "text" => "second"}]
+          }
+        }
+      })
+
+      assert_reply(second_ref, :ok, %{"acp:message" => %{"id" => 12, "result" => %{}}})
+
+      assert_state_update_idle(task_id)
+      assert_state_update_running_then_idle(task_id)
     end
   end
 
@@ -378,24 +510,16 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "sends JSON-RPC error response when prompt is pending", %{
-      socket: socket,
+    test "turn error sends only session/update", %{
+      socket: _socket,
       task_id: task_id
     } do
-      :sys.replace_state(socket.channel_pid, fn state ->
-        put_in(state.assigns[:pending_prompt], %{
-          turn_number: 1,
-          jsonrpc_id: 42
-        })
-      end)
-
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
         agent_failed("No API key available")
       )
 
-      # Assert session/update notification is pushed
       assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
@@ -406,22 +530,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
 
-      # Assert JSON-RPC error response is also pushed
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 42,
-        "error" => %{
-          "code" => -32_000,
-          "message" => "No API key available"
-        }
-      })
+      refute_push("acp:message", %{"error" => %{"code" => -32_000}})
     end
 
-    test "handles error when no pending prompt (only sends session/update)", %{
+    test "handles turn error with session/update only", %{
       socket: _socket,
       task_id: task_id
     } do
-      # No pending prompt - just broadcast error directly
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
@@ -439,40 +554,39 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
 
-      # Should NOT get a JSON-RPC error response (no pending prompt id)
+      # Turn completion no longer resolves session/prompt requests.
       refute_push("acp:message", %{"error" => %{"code" => -32_000}})
     end
   end
 
-  describe "completed event without pending prompt (resume scenario)" do
+  describe "completed event after resumed execution" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
     end
 
-    test "sends agent_turn_complete notification when pending_prompt is nil", %{
+    test "sends idle state update", %{
       socket: socket,
       task_id: task_id
     } do
-      # Simulate: execution was resumed after tool result (no pending prompt),
-      # then the agent completes. There's no JSON-RPC request to respond to.
+      # Simulate: execution was resumed after tool result, then the agent completes.
       Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), agent_completed())
 
       :sys.get_state(socket.channel_pid)
 
-      # Channel should NOT push a JSON-RPC response since there's no pending prompt
+      # Channel should not push a JSON-RPC response for turn completion.
       refute_push("acp:message", %{"id" => _, "result" => _})
 
-      # Channel SHOULD push an agent_turn_complete notification so the client
-      # can finalize the streaming message and reset its agent-running state.
+      # Channel should push a state update so the client can finalize streaming state.
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "method" => "session/update",
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{
-            "sessionUpdate" => "agent_turn_complete",
+            "sessionUpdate" => "state_update",
+            "state" => "idle",
             "stopReason" => "end_turn"
           }
         }
@@ -480,6 +594,35 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       # Channel should still be alive
       assert Process.alive?(socket.channel_pid)
+    end
+  end
+
+  describe "started event after accepted prompt claim" do
+    setup %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
+    end
+
+    test "sends running state update", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), turn_started())
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "state_update",
+            "state" => "running"
+          }
+        }
+      })
     end
   end
 
@@ -708,22 +851,31 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "MCP tools race condition" do
-    test "queued prompt is processed with MCP tools after initialization completes", %{
+    test "prompt before MCP ready is accepted before initialization completes", %{
       scope: scope
     } do
-      # Verifies the prompt queuing mechanism:
-      # 1. Prompt sent before MCP init is queued in socket assigns
-      # 2. MCP init completes, storing tools in socket assigns
-      # 3. Queued prompt is processed with the loaded MCP tools
-
-      {socket, _task_id} = join_task_channel(scope)
+      {socket, task_id} = join_task_channel(scope)
 
       # MCP init has started - we receive the initialize request
       assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
 
-      # Send prompt BEFORE completing MCP handshake
-      push(socket, "acp:message", build_prompt_request())
+      ref = push(socket, "acp:message", build_prompt_request())
       :sys.get_state(socket.channel_pid)
+
+      assert_receive {:interaction, %Tasks.Interaction.UserMessage{}, _turn_number}
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "user_message",
+            "messageId" => _message_id,
+            "content" => [%{"type" => "text", "text" => "Hello"}]
+          }
+        }
+      })
+
+      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
       # NOW complete MCP init with tools
       init_result = %{
@@ -761,7 +913,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "mcp:message",
-        JsonRpc.success_response(project_rules_request_id, %{"content" => []})
+        JsonRpc.success_response(project_rules_request_id, %{
+          "content" => [
+            %{
+              "type" => "text",
+              "text" =>
+                Jason.encode!([
+                  %{"fullPath" => "/project/AGENTS.md", "content" => "project rules"}
+                ])
+            }
+          ]
+        })
       )
 
       :sys.get_state(socket.channel_pid)
@@ -788,10 +950,38 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert length(channel_socket.assigns.mcp_tools) == 1
       assert hd(channel_socket.assigns.mcp_tools).name == "take_screenshot"
 
-      # After MCP init completes, the queued prompt is processed (task_channel.ex:471-479)
-      # This creates a UserMessage interaction broadcast via PubSub
-      assert_receive {:interaction, %Tasks.Interaction.UserMessage{}, _turn_number}
-      assert_agent_turn_complete(socket.assigns.task_id)
+      assert_state_update_running_then_idle(task_id)
+    end
+  end
+
+  describe "session/load wake" do
+    test "drains accepted work created outside the channel prompt flow", %{scope: scope} do
+      task = task_fixture(scope)
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task.id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      {:ok, %Interaction.UserMessage{}, nil} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task.id,
+          message: user_content("queued elsewhere"),
+          model: "openrouter:google/gemini-3-flash-preview"
+        })
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 91, %{"sessionId" => task.id})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      assert_push("acp:message", %{"id" => 91, "result" => %{}})
+      assert_state_update_running_then_idle(task.id)
     end
   end
 
@@ -802,24 +992,20 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id}
     end
 
-    test "cancel resolves pending prompt with stopReason 'cancelled'", %{
-      socket: socket,
+    test "cancelled agent error emits idle state", %{
+      socket: _socket,
       task_id: task_id
     } do
-      :sys.replace_state(socket.channel_pid, fn state ->
-        put_in(state.assigns[:pending_prompt], %{
-          turn_number: 1,
-          jsonrpc_id: 99
-        })
-      end)
-
       Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), agent_cancelled())
 
-      # The pending prompt should resolve with stopReason: "cancelled"
       assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 99,
-        "result" => %{"stopReason" => "cancelled"}
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "state_update",
+            "state" => "idle",
+            "stopReason" => "cancelled"
+          }
+        }
       })
     end
   end
@@ -984,76 +1170,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
                tool_results
 
-      assert_agent_turn_complete(task_id)
-    end
-
-    test "e2e: restart → same-browser stale answer id → tool result persisted", %{
-      scope: scope,
-      task_id: task_id,
-      tool_call_id: tool_call_id
-    } do
-      turn_number = latest_turn_number(task_id)
-
-      Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
-      complete_mcp_handshake(socket)
-
-      push(socket, "mcp:message", question_answer_response(tool_call_id, "A"))
-      :sys.get_state(socket.channel_pid)
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
-
-      assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
-               tool_results
-
-      assert_agent_turn_complete(task_id)
-    end
-
-    test "e2e: restart → stale answer → resumed completion → next prompt accepted", %{
-      scope: scope,
-      task_id: task_id,
-      tool_call_id: tool_call_id
-    } do
-      turn_number = latest_turn_number(task_id)
-
-      Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
-      complete_mcp_handshake(socket)
-
-      push(socket, "mcp:message", question_answer_response(tool_call_id, "A"))
-      :sys.get_state(socket.channel_pid)
-
-      assert_agent_turn_complete(task_id)
-
-      push(socket, "acp:message", build_prompt_request(id: 77, text: "next prompt"))
-      :sys.get_state(socket.channel_pid)
-
-      refute_push(
-        "acp:message",
-        %{"id" => 77, "error" => %{"message" => "Agent already running"}},
-        100
-      )
-
-      assert_push(
-        "acp:message",
-        %{"id" => 77, "result" => %{"stopReason" => "end_turn"}},
-        5_000
-      )
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      assert 2 == Enum.count(task.interactions, &match?(%Interaction.UserMessage{}, &1))
+      assert_state_update_idle(task_id)
     end
 
     test "e2e: reconnect re-dispatches unresolved tool calls from a later turn after a prior turn completed",
@@ -1133,6 +1250,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
+      refute_push("mcp:message", %{"method" => "tools/call"}, 100)
+
       push(
         socket,
         "mcp:message",
@@ -1185,7 +1304,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
                tool_results
 
-      assert_agent_turn_complete(task_id)
+      assert_state_update_idle(task_id)
     end
 
     test "tools/call is pushed AFTER session/load success response (ordering guarantee)", %{
@@ -1382,7 +1501,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                )
              )
 
-      assert_agent_turn_complete(task_id)
+      assert_state_update_idle(task_id)
     end
 
     test "session/retry_turn rejects client-generated error ids", %{
@@ -1451,7 +1570,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_push("acp:message", %{
         "params" => %{
-          "update" => %{"sessionUpdate" => "agent_turn_complete", "stopReason" => "cancelled"}
+          "update" => %{
+            "sessionUpdate" => "state_update",
+            "state" => "idle",
+            "stopReason" => "cancelled"
+          }
         }
       })
 

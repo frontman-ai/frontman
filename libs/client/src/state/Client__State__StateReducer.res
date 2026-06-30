@@ -329,6 +329,10 @@ module Selectors = {
     TaskReducer.Selectors.planEntries(currentTask(state))->Option.getOr([])
   }
 
+  let queuedUserMessages = (state: state): array<Message.t> => {
+    TaskReducer.Selectors.queuedUserMessages(currentTask(state))->Option.getOr([])
+  }
+
   let turnError = (state: state): option<Task.turnErrorInfo> => {
     TaskReducer.Selectors.turnError(currentTask(state))
   }
@@ -515,7 +519,7 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
-  dispatch,
+  _dispatch,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
@@ -553,21 +557,7 @@ let sendMessageToAPIImpl = (
     | None => Some(baseMeta)
     }
 
-    sendPrompt(
-      message,
-      ~additionalBlocks,
-      ~onComplete=_result => {
-        // Flush any buffered text deltas before completing the turn.
-        // Without this, a rAF-buffered delta could fire after TurnCompleted,
-        // reopening a Completed message as Streaming permanently.
-        Client__TextDeltaBuffer.flush()
-        // Always dispatch — the reducer gates TurnCompleted on isAgentRunning,
-        // so duplicates (from notification + RPC) and post-cancel arrivals
-        // are no-ops.
-        dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
-      },
-      ~_meta,
-    )
+    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
   | NoAcpSession => Log.error("Cannot send message: no active ACP session")
   }
 }

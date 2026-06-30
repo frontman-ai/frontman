@@ -47,14 +47,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
-      {:ok, _, _} =
-        Tasks.submit_user_message(
-          scope,
-          Map.merge(execution_request_fixture(), %{
-            task_id: task_id,
-            message: user_content("Take a screenshot")
-          })
-        )
+      {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Take a screenshot"))
 
       # Stream errors are now caught and surfaced as graceful failures.
       assert_receive {:interaction, %Interaction.AgentError{error: reason}, _turn_number}, 5_000
@@ -71,17 +64,34 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
-      {:ok, _, _} =
-        Tasks.submit_user_message(
-          scope,
-          Map.merge(execution_request_fixture(), %{
-            task_id: task_id,
-            message: user_content("Hello")
-          })
-        )
+      {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Hello"))
 
       # Should receive a failed interaction broadcast.
       assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number}, 5_000
+    end
+  end
+
+  defp submit_user_message_and_run(scope, task_id, message, overrides \\ []) do
+    execution_request = execution_request_fixture(overrides)
+
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution_request, %{task_id: task_id, message: message})
+         ) do
+      {:ok, interaction, nil} ->
+        case Tasks.run_next_turn(scope, task_id, execution_request) do
+          :ok ->
+            {:ok, interaction, latest_turn_number(task_id)}
+
+          result when result in [:already_running, :no_accepted_messages] ->
+            {:error, result}
+
+          result ->
+            result
+        end
+
+      result ->
+        result
     end
   end
 end

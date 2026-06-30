@@ -30,27 +30,38 @@ module TestHelpers = {
     TaskReducer.next(unloaded, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
   }
 
+  let acceptUserMessage = (task, ~id="user-1", ~text="Hello", ~annotations=[]) => {
+    TaskReducer.next(
+      task,
+      UserMessageReceived({
+        id,
+        content: [Client__Task__Types.UserContentPart.Text({text: text})],
+        annotations,
+        createdAt: Date.now(),
+      }),
+    )->Pair.first
+  }
+
   // Helper to get messages from loaded tasks (unwraps the option)
   let getMessages = (task: Task.t): array<Message.t> => {
     TaskReducer.Selectors.messages(task)->Option.getOrThrow(
       ~message="Expected task to have messages (not Unloaded)",
     )
   }
+
+  let getQueuedUserMessages = (task: Task.t): array<Message.t> => {
+    TaskReducer.Selectors.queuedUserMessages(task)->Option.getOrThrow(
+      ~message="Expected loaded task with queued user messages",
+    )
+  }
 }
 
 describe("Task - Single Streaming Message Invariant", () => {
-  // Helper: create a loaded task with isAgentRunning=true (as in real app flow)
+  // Helper: create a loaded task with a user message and explicit running update.
   let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
-    let (task1, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-      }),
-    )
-    task1
+    let task1 = TestHelpers.acceptUserMessage(task)
+    TaskReducer.next(task1, ExecutionStateRunning)->Pair.first
   }
 
   test("StreamingStarted creates a streaming message", t => {
@@ -93,14 +104,14 @@ describe("Task - Single Streaming Message Invariant", () => {
     }
   })
 
-  test("TurnCompleted converts streaming to completed", t => {
+  test("ExecutionStateIdle converts streaming to completed", t => {
     let task = _startAgent()
     let (task1, _) = TaskReducer.next(task, StreamingStarted)
     let (task2, _) = TaskReducer.next(
       task1,
       TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
     )
-    let (task3, _) = TaskReducer.next(task2, TurnCompleted)
+    let (task3, _) = TaskReducer.next(task2, ExecutionStateIdle)
 
     let messages = TestHelpers.getMessages(task3)
     // Messages: User + Completed
@@ -115,18 +126,11 @@ describe("Task - Single Streaming Message Invariant", () => {
 })
 
 describe("Task - Tool Call Lifecycle", () => {
-  // Helper: create a loaded task with isAgentRunning=true (as in real app flow)
+  // Helper: create a loaded task with a user message and explicit running update.
   let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
-    let (task1, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-      }),
-    )
-    task1
+    let task1 = TestHelpers.acceptUserMessage(task)
+    TaskReducer.next(task1, ExecutionStateRunning)->Pair.first
   }
 
   test("tool call progresses: ToolCallReceived -> ToolInputReceived -> ToolResultReceived", t => {
@@ -233,10 +237,8 @@ describe("Task - Load State Machine", () => {
 // ============================================================================
 // Session Rehydration Tests
 //
-// The bug: during history replay, agent messages go through TextDeltaBuffer
-// which schedules rAF. LoadComplete fires before rAF, transitioning to
-// Loaded({isAgentRunning: false}), and the stale-streaming guard silently
-// drops late TextDeltaReceived actions. Fix: flush() before LoadComplete.
+// History replay agent messages go through TextDeltaBuffer, which schedules rAF.
+// LoadComplete must preserve already-buffered agent messages when hydration finishes.
 // ============================================================================
 
 describe("Task - Session Rehydration (Loading history → LoadComplete)", () => {
@@ -299,7 +301,7 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
 })
 
 describe("Task - Agent Running State", () => {
-  test("isAgentRunning is true after AddUserMessage", t => {
+  test("AddUserMessage does not set isAgentRunning", t => {
     let task = TestHelpers.makeLoadedTask()
     t->expect(TaskReducer.Selectors.isAgentRunning(task))->Expect.toEqual(Some(false))
 
@@ -312,10 +314,10 @@ describe("Task - Agent Running State", () => {
       }),
     )
 
-    t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
+    t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(false))
   })
 
-  test("isAgentRunning is false after TurnCompleted", t => {
+  test("state updates drive isAgentRunning", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task2, _) = TaskReducer.next(
       task,
@@ -325,10 +327,95 @@ describe("Task - Agent Running State", () => {
         annotations: [],
       }),
     )
-    t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
+    t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(false))
 
-    let (task3, _) = TaskReducer.next(task2, TurnCompleted)
-    t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(false))
+    let (task3, _) = TaskReducer.next(task2, ExecutionStateRunning)
+    t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(true))
+
+    let (task4, _) = TaskReducer.next(task3, ExecutionStateIdle)
+    t->expect(TaskReducer.Selectors.isAgentRunning(task4))->Expect.toEqual(Some(false))
+
+    let (task5, _) = TaskReducer.next(task3, ExecutionStateRequiresAction)
+    t->expect(TaskReducer.Selectors.isAgentRunning(task5))->Expect.toEqual(Some(false))
+  })
+
+  test("live accepted user messages queue on loaded tasks", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let nextTask = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Queued")
+
+    t->expect(TestHelpers.getMessages(nextTask)->Array.length)->Expect.toBe(0)
+    let queued = TestHelpers.getQueuedUserMessages(nextTask)
+    t->expect(queued->Array.length)->Expect.toBe(1)
+    switch queued->Array.get(0) {
+    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("queued-1")
+    | _ => t->expect("Queued user message")->Expect.toBe("missing")
+    }
+  })
+
+  test("history user messages stay in transcript while loading", t => {
+    let task = TestHelpers.makeLoadingTask()
+    let loadedHistory = TestHelpers.acceptUserMessage(task, ~id="history-1", ~text="History")
+
+    let messages = TestHelpers.getMessages(loadedHistory)
+    t->expect(messages->Array.length)->Expect.toBe(1)
+    switch messages->Array.get(0) {
+    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("history-1")
+    | _ => t->expect("History user message")->Expect.toBe("missing")
+    }
+  })
+
+  test("normal running drains queued user messages into transcript", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="One")
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-2", ~text="Two")
+
+    let (runningTask, _) = TaskReducer.next(task, ExecutionStateRunning)
+
+    t->expect(TestHelpers.getQueuedUserMessages(runningTask)->Array.length)->Expect.toBe(0)
+    let messages = TestHelpers.getMessages(runningTask)
+    t->expect(messages->Array.length)->Expect.toBe(2)
+    switch (messages->Array.get(0), messages->Array.get(1)) {
+    | (Some(Message.User({id: firstId, _})), Some(Message.User({id: secondId, _}))) =>
+      t->expect(firstId)->Expect.toBe("queued-1")
+      t->expect(secondId)->Expect.toBe("queued-2")
+    | _ => t->expect("Queued messages in order")->Expect.toBe("missing")
+    }
+  })
+
+  test("retry running leaves queued user messages queued", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Queued")
+    let (retryingTask, _) = TaskReducer.next(task, RetryTurn({retriedErrorId: "err-1"}))
+    let (runningTask, _) = TaskReducer.next(retryingTask, ExecutionStateRunning)
+
+    t->expect(TestHelpers.getMessages(runningTask)->Array.length)->Expect.toBe(0)
+    t->expect(TestHelpers.getQueuedUserMessages(runningTask)->Array.length)->Expect.toBe(1)
+  })
+
+  test("question submit leaves queued user messages queued", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Queued")
+    let questions: array<Client__Question__Types.questionItem> = [
+      {
+        question: "Pick one",
+        header: "Test",
+        options: [{label: "A", description: "Option A"}],
+        multiple: None,
+      },
+    ]
+    let (taskWithQuestion, _) = TaskReducer.next(
+      task,
+      QuestionReceived({questions, toolCallId: "tc_1", resolveOk: _ => (), resolveError: _ => ()}),
+    )
+    let (taskWithAnswer, _) = TaskReducer.next(
+      taskWithQuestion,
+      QuestionOptionToggled({questionIndex: 0, label: "A"}),
+    )
+
+    let (finalTask, _) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
+
+    t->expect(TestHelpers.getMessages(finalTask)->Array.length)->Expect.toBe(0)
+    t->expect(TestHelpers.getQueuedUserMessages(finalTask)->Array.length)->Expect.toBe(1)
   })
 })
 
@@ -414,15 +501,8 @@ describe("Task - Error Handling", () => {
 
   test("AgentError sets isAgentRunning to false", t => {
     let task = TestHelpers.makeLoadedTask()
-    // First start the agent running via AddUserMessage
-    let (task2, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-      }),
-    )
+    // First start the agent running via state update
+    let (task2, _) = TaskReducer.next(task, ExecutionStateRunning)
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
 
     // Agent error should set isAgentRunning to false
@@ -440,16 +520,9 @@ describe("Task - Error Handling", () => {
 
   test("AgentError completes any streaming message", t => {
     let task = TestHelpers.makeLoadedTask()
-    // First start agent via AddUserMessage so isAgentRunning=true
-    let (task0, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-      }),
-    )
-    let (task1, _) = TaskReducer.next(task0, StreamingStarted)
+    let task0 = TestHelpers.acceptUserMessage(task)
+    let (runningTask, _) = TaskReducer.next(task0, ExecutionStateRunning)
+    let (task1, _) = TaskReducer.next(runningTask, StreamingStarted)
     let (task2, _) = TaskReducer.next(
       task1,
       TextDeltaReceived({text: "Partial response", timestamp: "2024-01-15T10:00:00Z"}),
@@ -573,16 +646,9 @@ describe("Task - CancelTurn", () => {
   // Helper: simulate an agent-running task with a streaming message
   let _startAgentWithStreaming = () => {
     let task = TestHelpers.makeLoadedTask()
-    let (task1, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-      }),
-    )
-    // Agent is now running
-    let (task2, _) = TaskReducer.next(task1, StreamingStarted)
+    let task1 = TestHelpers.acceptUserMessage(task)
+    let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning)
+    let (task2, _) = TaskReducer.next(runningTask, StreamingStarted)
     let (task3, _) = TaskReducer.next(
       task2,
       TextDeltaReceived({text: "Partial resp", timestamp: "2024-01-15T10:00:00Z"}),
@@ -641,14 +707,8 @@ describe("Task - CancelTurn", () => {
 
   test("CancelTurn marks in-progress tool calls as cancelled", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task1, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-      }),
-    )
+    let task1 = TestHelpers.acceptUserMessage(task)
+    let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning)
 
     // Insert a tool call in InputAvailable state
     let toolCall: Message.toolCall = {
@@ -663,7 +723,7 @@ describe("Task - CancelTurn", () => {
       parentAgentId: None,
       spawningToolName: None,
     }
-    let (task2, _) = TaskReducer.next(task1, ToolCallReceived({toolCall: toolCall}))
+    let (task2, _) = TaskReducer.next(runningTask, ToolCallReceived({toolCall: toolCall}))
 
     let (cancelled, _) = TaskReducer.next(task2, CancelTurn)
 
@@ -695,15 +755,9 @@ describe("Task - CancelTurn", () => {
         category: "unknown",
       }),
     )
-    let (task2, _) = TaskReducer.next(
-      task1,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "retry"})],
-        annotations: [],
-      }),
-    )
-    let (cancelled, _) = TaskReducer.next(task2, CancelTurn)
+    let task2 = TestHelpers.acceptUserMessage(task1, ~text="retry")
+    let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning)
+    let (cancelled, _) = TaskReducer.next(runningTask, CancelTurn)
     t->expect(TaskReducer.Selectors.turnError(cancelled))->Expect.toEqual(None)
   })
 
@@ -711,18 +765,12 @@ describe("Task - CancelTurn", () => {
     let task = _startAgentWithStreaming()
     let (cancelled, _) = TaskReducer.next(task, CancelTurn)
 
-    // Send a new message after cancel
-    let (task2, _) = TaskReducer.next(
-      cancelled,
-      AddUserMessage({
-        id: "user-2",
-        content: [Client__Task__Types.UserContentPart.Text({text: "New question"})],
-        annotations: [],
-      }),
-    )
+    // Server accepts a new message after cancel
+    let task2 = TestHelpers.acceptUserMessage(cancelled, ~id="user-2", ~text="New question")
 
     // Start new streaming
-    let (task3, _) = TaskReducer.next(task2, StreamingStarted)
+    let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning)
+    let (task3, _) = TaskReducer.next(runningTask, StreamingStarted)
     let (task4, _) = TaskReducer.next(
       task3,
       TextDeltaReceived({text: "New response", timestamp: "2024-01-15T10:00:00Z"}),
@@ -742,49 +790,28 @@ describe("Task - CancelTurn", () => {
 })
 
 // ============================================================================
-// Stale Event Guard (post-cancel)
+// Streaming and tool events do not depend on local running flag
 // ============================================================================
 
-describe("Task - Stale Event Guard", () => {
-  // Helper: task where agent was cancelled (isAgentRunning == false, Loaded)
-  let _cancelledTask = () => {
+describe("Task - Running-independent streamed events", () => {
+  test("TextDeltaReceived creates streaming message even when local running state is false", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task1, _) = TaskReducer.next(
+    let (updated, effects) = TaskReducer.next(
       task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-      }),
-    )
-    let (task2, _) = TaskReducer.next(task1, CancelTurn)
-    task2
-  }
-
-  test("StreamingStarted is silently dropped when agent not running", t => {
-    let task = _cancelledTask()
-    let (unchanged, effects) = TaskReducer.next(task, StreamingStarted)
-
-    t->expect(effects)->Expect.toEqual([])
-    // No new messages added
-    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1) // just the user msg
-  })
-
-  test("TextDeltaReceived is silently dropped when agent not running", t => {
-    let task = _cancelledTask()
-    let (unchanged, effects) = TaskReducer.next(
-      task,
-      TextDeltaReceived({text: "stale text", timestamp: "2024-01-15T10:00:00Z"}),
+      TextDeltaReceived({text: "stream text", timestamp: "2024-01-15T10:00:00Z"}),
     )
 
     t->expect(effects)->Expect.toEqual([])
-    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
+    switch TaskReducer.Selectors.streamingMessage(updated) {
+    | Some(Message.Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("stream text")
+    | _ => t->expect("Streaming message")->Expect.toBe("not found")
+    }
   })
 
-  test("ToolCallReceived is silently dropped when agent not running", t => {
-    let task = _cancelledTask()
+  test("ToolCallReceived creates tool call even when local running state is false", t => {
+    let task = TestHelpers.makeLoadedTask()
     let toolCall: Message.toolCall = {
-      id: "stale-tool",
+      id: "tool-1",
       toolName: "test_tool",
       state: Message.InputAvailable,
       inputBuffer: "",
@@ -795,48 +822,17 @@ describe("Task - Stale Event Guard", () => {
       parentAgentId: None,
       spawningToolName: None,
     }
-    let (unchanged, effects) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
+    let (updated, effects) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
 
     t->expect(effects)->Expect.toEqual([])
-    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
+    let messages = TestHelpers.getMessages(updated)
+    switch messages->Array.get(0) {
+    | Some(Message.ToolCall({id: "tool-1"})) => t->expect(true)->Expect.toBe(true)
+    | _ => t->expect("Tool call")->Expect.toBe("not found")
+    }
   })
 
-  test("ToolInputReceived is silently dropped when agent not running", t => {
-    let task = _cancelledTask()
-    let (unchanged, effects) = TaskReducer.next(
-      task,
-      ToolInputReceived({id: "stale-tool", input: JSON.parseOrThrow(`{}`)}),
-    )
-
-    t->expect(effects)->Expect.toEqual([])
-    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
-  })
-
-  test("ToolResultReceived is silently dropped when agent not running", t => {
-    let task = _cancelledTask()
-    let (unchanged, effects) = TaskReducer.next(
-      task,
-      ToolResultReceived({id: "stale-tool", result: JSON.parseOrThrow(`{}`)}),
-    )
-
-    t->expect(effects)->Expect.toEqual([])
-    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
-  })
-
-  test("ToolErrorReceived is silently dropped when agent not running", t => {
-    let task = _cancelledTask()
-    let (unchanged, effects) = TaskReducer.next(
-      task,
-      ToolErrorReceived({id: "stale-tool", error: "stale error"}),
-    )
-
-    t->expect(effects)->Expect.toEqual([])
-    t->expect(TestHelpers.getMessages(unchanged)->Array.length)->Expect.toBe(1)
-  })
-
-  test("stale events during Loading state still work (no guard)", t => {
-    // The guard only applies to Loaded({isAgentRunning: false})
-    // Loading state should still process streaming events normally
+  test("events during Loading state still work", t => {
     let task = TestHelpers.makeLoadingTask()
     let (task1, _) = TaskReducer.next(task, StreamingStarted)
     let (task2, _) = TaskReducer.next(
@@ -989,16 +985,13 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
   test("Annotations are stored on the message itself", t => {
     let task = TestHelpers.makeLoadedTask()
 
-    let (task2, _) = TaskReducer.next(
+    let task2 = TestHelpers.acceptUserMessage(
       task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Check these"})],
-        annotations: _sampleMessageAnnotations,
-      }),
+      ~text="Check these",
+      ~annotations=_sampleMessageAnnotations,
     )
 
-    let messages = TestHelpers.getMessages(task2)
+    let messages = TestHelpers.getQueuedUserMessages(task2)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0) {

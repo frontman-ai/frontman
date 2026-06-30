@@ -17,9 +17,6 @@ module T: {
   let update: (t, string, Message.t => Message.t) => t
   let insert: (t, Message.t) => t
   let map: (t, Message.t => Message.t) => t
-
-  // Sorting
-  let toSorted: (t, (Message.t, Message.t) => float) => t
 } = {
   type t = {
     list: array<Message.t>,
@@ -67,11 +64,6 @@ module T: {
     // Rebuild index in case IDs changed (defensive)
     fromArray(newList)
   }
-
-  let toSorted = (store, compareFn) => {
-    let sorted = store.list->Array.toSorted(compareFn)
-    fromArray(sorted)
-  }
 }
 
 // Re-export everything at module level for convenience
@@ -82,4 +74,3 @@ let toArray = T.toArray
 let update = T.update
 let insert = T.insert
 let map = T.map
-let toSorted = T.toSorted

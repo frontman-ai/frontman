@@ -229,22 +229,38 @@ module Fixtures = {
     )
   }
 
-  let makeUserMessageChunk = (~text: string, ~timestamp: string): JSON.t => {
+  let makeUserMessage = (~messageId: string, ~text: string): JSON.t => {
     JSON.Encode.object(
       Dict.fromArray([
-        ("sessionUpdate", JSON.Encode.string("user_message_chunk")),
+        ("sessionUpdate", JSON.Encode.string("user_message")),
+        ("messageId", JSON.Encode.string(messageId)),
         (
           "content",
-          JSON.Encode.object(
-            Dict.fromArray([
-              ("type", JSON.Encode.string("text")),
-              ("text", JSON.Encode.string(text)),
-            ]),
-          ),
+          JSON.Encode.array([
+            JSON.Encode.object(
+              Dict.fromArray([
+                ("type", JSON.Encode.string("text")),
+                ("text", JSON.Encode.string(text)),
+              ]),
+            ),
+          ]),
         ),
-        ("timestamp", JSON.Encode.string(timestamp)),
       ]),
     )
+  }
+
+  let makeStateUpdate = (~state: string, ~stopReason: option<string>=?): JSON.t => {
+    let fields = Dict.fromArray([
+      ("sessionUpdate", JSON.Encode.string("state_update")),
+      ("state", JSON.Encode.string(state)),
+    ])
+
+    switch stopReason {
+    | Some(reason) => fields->Dict.set("stopReason", JSON.Encode.string(reason))
+    | None => ()
+    }
+
+    JSON.Encode.object(fields)
   }
 }
 
@@ -264,18 +280,48 @@ describe("sessionUpdate schema parsing", () => {
     }
   })
 
-  test("user_message_chunk with text content and timestamp", t => {
-    let json = Fixtures.makeUserMessageChunk(
-      ~text="Hello from the user",
-      ~timestamp="2024-01-15T10:00:00Z",
-    )
+  test("user_message with canonical message id and content", t => {
+    let json = Fixtures.makeUserMessage(~messageId="msg-123", ~text="Accepted user message")
     let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
 
     switch parsed {
-    | Types.UserMessageChunk({content: Types.TextContent({text}), timestamp}) =>
-      t->expect(text)->Expect.toBe("Hello from the user")
-      t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:00Z")
-    | _ => t->expect("UserMessageChunk")->Expect.toBe("not matched")
+    | Types.UserMessage({messageId, content: [Types.TextContent({text})]}) =>
+      t->expect(messageId)->Expect.toBe("msg-123")
+      t->expect(text)->Expect.toBe("Accepted user message")
+    | _ => t->expect("UserMessage")->Expect.toBe("not matched")
+    }
+  })
+
+  test("state_update running", t => {
+    let json = Fixtures.makeStateUpdate(~state="running")
+    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
+
+    switch parsed {
+    | Types.StateUpdate({state: Types.Running, stopReason: None}) =>
+      t->expect("running")->Expect.toBe("running")
+    | _ => t->expect("StateUpdate running")->Expect.toBe("not matched")
+    }
+  })
+
+  test("state_update idle with stop reason", t => {
+    let json = Fixtures.makeStateUpdate(~state="idle", ~stopReason="end_turn")
+    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
+
+    switch parsed {
+    | Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn)}) =>
+      t->expect("idle")->Expect.toBe("idle")
+    | _ => t->expect("StateUpdate idle")->Expect.toBe("not matched")
+    }
+  })
+
+  test("state_update requires_action", t => {
+    let json = Fixtures.makeStateUpdate(~state="requires_action")
+    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
+
+    switch parsed {
+    | Types.StateUpdate({state: Types.RequiresAction, stopReason: None}) =>
+      t->expect("requires_action")->Expect.toBe("requires_action")
+    | _ => t->expect("StateUpdate requires_action")->Expect.toBe("not matched")
     }
   })
 

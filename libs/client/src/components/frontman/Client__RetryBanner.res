@@ -1,6 +1,5 @@
 // RetryBanner - shown during server-side auto-retry countdown.
 // Displays the error that triggered the retry and a live countdown to the next attempt.
-// The existing stop button (driven by isAgentRunning) handles cancellation.
 
 @react.component
 let make = (~retryStatus: Client__Task__Types.Task.retryStatus) => {

@@ -1,17 +1,4 @@
 {
   "type": "object",
-  "properties": {
-    "stopReason": {
-      "enum": [
-        "end_turn",
-        "max_tokens",
-        "max_turn_requests",
-        "refusal",
-        "cancelled"
-      ]
-    }
-  },
-  "required": [
-    "stopReason"
-  ]
+  "properties": {}
 }

@@ -136,9 +136,18 @@ module Actions = {
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
-  // Turn completion action creators (ForTask)
-  let turnCompleted = (~taskId: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+  let executionStateRunning = (~taskId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
+    )
+
+  let executionStateIdle = (~taskId: string) =>
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
+
+  let executionStateRequiresAction = (~taskId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: ExecutionStateRequiresAction}),
+    )
 
   // Error action creators (ForTask)
   let agentErrorReceived = (
@@ -242,12 +251,11 @@ module Actions = {
     ~id: string,
     ~content: array<Client__Message.UserContentPart.t>,
     ~annotations: array<Client__Message.MessageAnnotation.t>,
-    ~timestamp: string,
   ) =>
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations, timestamp}),
+        action: UserMessageReceived({id, content, annotations, createdAt: Date.now()}),
       }),
     )
 

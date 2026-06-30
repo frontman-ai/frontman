@@ -53,7 +53,6 @@ type state = {
   relay: relayState,
   session: sessionState,
   initialAuthBehavior: Client__FtueState.authBehavior,
-  isSendingPrompt: bool,
   // Relay instance exists before connection completes - needed for MCPServer
   relayInstance: option<Relay.t>,
   // MCPServer created once relay instance exists
@@ -102,7 +101,6 @@ type action =
       > => unit,
       _meta: option<JSON.t>,
     })
-  | PromptSent
   | CancelPrompt
   | RetryTurn({retriedErrorId: string})
   | LoadTask({
@@ -170,7 +168,6 @@ let initialState: state = {
   relay: RelayDisconnected,
   session: NoSession,
   initialAuthBehavior: Client__FtueState.RedirectToLogin,
-  isSendingPrompt: false,
   relayInstance: None,
   mcpServer: None,
   abortController: None,
@@ -246,7 +243,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         relay: RelayConnecting,
         session: NoSession,
         initialAuthBehavior: state.initialAuthBehavior,
-        isSendingPrompt: false,
         relayInstance: Some(relay),
         mcpServer: Some(mcpServer),
         abortController: Some(abortController),
@@ -292,7 +288,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   // === Session lifecycle ===
   | (_, SessionCreateSuccess(sess)) => (
-      {...state, session: SessionActive(sess), isSendingPrompt: false},
+      {...state, session: SessionActive(sess)},
       [LogInfo(`Session activated: ${sess.sessionId}`)],
     )
 
@@ -324,26 +320,13 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (
-      {session: SessionActive(session), isSendingPrompt: false},
+      {session: SessionActive(session)},
       SendPrompt({text, additionalBlocks, onComplete, _meta}),
-    ) => (
-      {...state, isSendingPrompt: true},
-      [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})],
-    )
+    ) => (state, [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})])
 
-  | (_, PromptSent) => ({...state, isSendingPrompt: false}, [])
-
-  // Cancel an in-flight prompt turn
-  // Reset isSendingPrompt immediately so a new prompt can be sent
-  // while the cancelled prompt's server response is still in-flight.
-  | ({isSendingPrompt: true, session: SessionActive(session)}, CancelPrompt) => (
-      {...state, isSendingPrompt: false},
-      [CancelPromptEffect({session: session})],
-    )
-
-  | ({isSendingPrompt: false}, CancelPrompt) => (
+  | ({session: SessionActive(session)}, CancelPrompt) => (
       state,
-      [LogInfo("CancelPrompt ignored: not sending a prompt")],
+      [CancelPromptEffect({session: session})],
     )
 
   | ({session: SessionActive(session)}, RetryTurn({retriedErrorId})) => (
@@ -352,11 +335,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (_, RetryTurn(_)) => (state, [LogError("Cannot retry turn: no active session")])
-
-  | ({isSendingPrompt: true}, SendPrompt(_)) => (
-      state,
-      [LogError("Cannot send prompt: already sending")],
-    )
 
   | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) => (
       state,
@@ -422,11 +400,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (_, SessionCreateError(_)) => (state, [LogInfo("Stale session create result ignored")])
-
-  | (
-      {isSendingPrompt: true, session: NoSession | SessionCreating | SessionError(_)},
-      CancelPrompt,
-    ) => (state, [LogError("CancelPrompt rejected: no active session")])
+  | ({session: NoSession | SessionCreating | SessionError(_)}, CancelPrompt) => (
+      state,
+      [LogError("CancelPrompt rejected: no active session")],
+    )
   }
 }
 
@@ -550,11 +527,9 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     let send = async () => {
       try {
         let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~_meta)
-        dispatch(PromptSent)
         onComplete(result)
       } catch {
       | exn =>
-        dispatch(PromptSent)
         onComplete(Error("sendPrompt exception"))
         throw(exn)
       }
@@ -562,8 +537,6 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     send()->ignore
   | CancelPromptEffect({session}) =>
     // ACP spec: session/cancel is a notification (fire-and-forget).
-    // The pending session/prompt request will resolve with stopReason: "cancelled",
-    // which triggers PromptSent via the existing SendPromptEffect onComplete callback.
     ACP.cancelPrompt(session)
 
   | RetryTurnEffect({session, retriedErrorId}) =>

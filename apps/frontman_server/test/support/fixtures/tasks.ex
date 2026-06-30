@@ -78,10 +78,14 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     task = task_schema!(scope, task_id)
     {:ok, interaction} = Interaction.UserMessage.build(content_blocks, @default_test_model)
 
-    case InteractionSchema.create_changeset(task, interaction, next_turn_number(task_id))
-         |> Repo.insert() do
-      {:ok, _schema} -> {:ok, interaction}
-      error -> error
+    with {:ok, row} <-
+           InteractionSchema.create_changeset(task, interaction, nil)
+           |> Repo.insert(),
+         turn_started = Interaction.TurnStarted.build([row.id]),
+         {:ok, _turn_started} <-
+           InteractionSchema.create_changeset(task, turn_started, next_turn_number(task_id))
+           |> Repo.insert() do
+      {:ok, interaction}
     end
   end
 
