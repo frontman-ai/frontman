@@ -11,6 +11,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
+  alias ReqLLM.Context
+  alias ReqLLM.Providers.Anthropic
 
   setup {Req.Test, :set_req_test_from_context}
   setup {Req.Test, :verify_on_exit!}
@@ -50,6 +52,32 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert llm_opts[:api_key] == "user_key_456"
       assert llm_opts[:anthropic_prompt_cache] == true
       assert llm_opts[:anthropic_cache_messages] == -1
+    end
+
+    test "resolved Anthropic opts mark the last message for prompt caching", %{scope: scope} do
+      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
+
+      {:ok, {model, llm_opts}} =
+        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+
+      context =
+        Context.new([
+          Context.system("system prompt"),
+          Context.user("first user message"),
+          Context.assistant("assistant reply"),
+          Context.user("latest user message")
+        ])
+
+      {:ok, request} = Anthropic.prepare_request(:chat, model, context, llm_opts)
+      encoded_request = Anthropic.encode_body(request)
+      body = encoded_request.options[:json]
+
+      last_message = List.last(body[:messages])
+      [last_block] = last_message[:content]
+
+      assert last_message[:role] == "user"
+      assert last_block[:text] == "latest user message"
+      assert last_block[:cache_control] == %{type: "ephemeral"}
     end
 
     test "returns :no_api_key when no key source is available", %{scope: scope} do
