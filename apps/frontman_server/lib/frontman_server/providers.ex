@@ -66,7 +66,8 @@ defmodule FrontmanServer.Providers do
        auth_mode: :oauth,
        access_token: access_token,
        with_claude_subscription: true,
-       anthropic_prompt_cache: true
+       anthropic_prompt_cache: true,
+       anthropic_cache_messages: -1
      ]}
   end
 
@@ -91,7 +92,9 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  defp api_key_llm_opts("anthropic", key), do: [api_key: key, anthropic_prompt_cache: true]
+  defp api_key_llm_opts("anthropic", key),
+    do: [api_key: key, anthropic_prompt_cache: true, anthropic_cache_messages: -1]
+
   defp api_key_llm_opts(_provider, key), do: [api_key: key]
 
   def model_from_client_params(nil), do: :error

@@ -38,6 +38,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert llm_opts[:auth_mode] == :oauth
       assert llm_opts[:with_claude_subscription] == true
       assert llm_opts[:anthropic_prompt_cache] == true
+      assert llm_opts[:anthropic_cache_messages] == -1
     end
 
     test "falls back to user key when no OAuth token", %{scope: scope} do
@@ -47,6 +48,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
 
       assert llm_opts[:api_key] == "user_key_456"
+      assert llm_opts[:anthropic_prompt_cache] == true
+      assert llm_opts[:anthropic_cache_messages] == -1
     end
 
     test "returns :no_api_key when no key source is available", %{scope: scope} do
