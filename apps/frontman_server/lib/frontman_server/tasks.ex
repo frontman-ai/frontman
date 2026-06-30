@@ -433,6 +433,10 @@ defmodule FrontmanServer.Tasks do
     Logger.warning("Execution failed for task #{task_id}, reason: #{reason_str}")
   end
 
+  defp report_agent_execution_failure(task_id, reason_str, "rate_limit", true) do
+    Logger.warning("Execution failed for task #{task_id}, reason: #{reason_str}")
+  end
+
   defp report_agent_execution_failure(task_id, reason_str, _category, _retryable) do
     Logger.error("Execution failed for task #{task_id}, reason: #{reason_str}")
 

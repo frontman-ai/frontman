@@ -113,6 +113,28 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       assert Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id)) == []
     end
+
+    @tag :capture_log
+    test "persists retryable rate limits without Sentry error", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      reason = %ReqLLM.Error.API.Request{status: 429, reason: "rate limited"}
+
+      Tasks.handle_swarm_event(scope, task_id, latest_turn_number(task_id), {:failed, reason})
+
+      assert_receive {:interaction,
+                      %Interaction.AgentError{
+                        kind: "failed",
+                        retryable: true,
+                        category: "rate_limit"
+                      }, _turn_number},
+                     5_000
+
+      reports = Sentry.Test.pop_sentry_reports()
+
+      assert Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id)) == []
+    end
   end
 
   defp agent_execution_error_for_task?(event, task_id) do
