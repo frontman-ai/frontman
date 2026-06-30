@@ -69,6 +69,14 @@ Completed:
 - Deliverable 13: added runtime drain-entry log; deploy already logs count, completion, and timeout.
 - Deliverable 14: deferred because no deploy data proves connection-level drain is needed.
 
+PR / review status:
+
+- PR opened: https://github.com/frontman-ai/frontman/pull/1213
+- Automated review found two valid P1 deploy-script issues; both fixed and review threads resolved.
+- Changelog CI initially failed because changeset referenced non-workspace package `frontman`; fixed by changing the changeset to empty frontmatter.
+- Current CI after review fix: changelog/build/client-side/Elixir checks passed; E2E was still pending at last local check.
+- Local commits are unsigned because local 1Password SSH signing failed with `failed to fill whole buffer`; hooks still passed.
+
 Deferred by policy:
 
 - None.
@@ -91,6 +99,13 @@ Next likely work:
 - Killing the supervised `Drain` process in tests destabilized later tests. Test-only state reset should use OTP test tools like `:sys.replace_state/2`, not production reset APIs.
 - `build-and-deploy.sh` duplicated too much deploy behavior. Making `deploy.sh` canonical removed the main divergence risk and cut `build-and-deploy.sh` from 211 lines to 89 lines.
 - Rollback should use readiness too. A rollback target that is alive but draining is not eligible for new traffic.
+- Release RPC uses `RELEASE_NODE` and `RELEASE_COOKIE` from the environment. Because blue/green slot env files are slot-specific, deploy scripts must source the env for the slot they are RPCing, not rely on whatever env was sourced last.
+- Migration env sourcing must not leak into later deploy steps. Running migrations inside a subshell prevents inactive-slot `RELEASE_NODE` / `RELEASE_COOKIE` from accidentally targeting later active-slot RPCs at the new slot.
+- First rollout of the drain-capable deploy script runs while the active slot is still an old release that does not define `FrontmanServer.Drain`. Drain RPC and drain-status polling must tolerate that one-time bootstrap case.
+- First-rollout fallback should preserve safety by switching traffic to the ready new slot, skipping active-execution wait only when the old active release cannot report drain status, and stopping the old slot as previous deploys did.
+- Warnings emitted inside command substitution must go to stderr if stdout is parsed as a value. `active_execution_count` prints fallback warnings to stderr so stdout remains numeric.
+- Empty changeset frontmatter is valid for non-workspace infrastructure/app changes when CI only needs evidence that the changelog check was considered; naming a non-workspace package breaks `yarn changeset status`.
+- `gh pr view --json comments,reviews` does not include inline review threads. Use GitHub GraphQL `reviewThreads` to fetch, reply to, and resolve inline review comments.
 
 ## Deliverable 1: Lock Current Execution Terminal Semantics
 
@@ -443,6 +458,7 @@ Implementation notes:
 - `deploy.sh` and `build-and-deploy.sh` call `FrontmanServer.Drain.start_draining()` on the active slot after inactive slot readiness succeeds and before Caddy switches traffic.
 - `/ready` now returns 503 with `{"status":"draining"}` after `start_draining/0`.
 - Did not add `stop_draining/0`; inactive slot restart defaults drain state to ready, and no production caller needs stop-drain yet.
+- Active-slot drain RPC is wrapped by `start_active_draining`, which sources the active slot env in a subshell and tolerates old active releases that do not yet define `FrontmanServer.Drain`.
 
 Verification:
 
@@ -584,6 +600,9 @@ Implementation notes:
 - After Caddy reload routes new traffic to the inactive slot, deploy polls old active slot release RPC for `FrontmanServer.Drain.status().active_executions`.
 - Deploy logs active execution count each poll.
 - Deploy stops old slot after count reaches zero or after drain timeout, logging remaining count on timeout.
+- `active_execution_count` sources the active slot env via `slot_rpc` before calling release RPC, so blue/green node/cookie values are correct.
+- If the old active release cannot answer drain status during the first rollout, `active_execution_count` logs a warning to stderr and returns `0` so deploy continues instead of aborting after starting the inactive slot.
+- Migrations now run in an inactive-slot env subshell so inactive release env does not leak into later active-slot RPCs.
 
 Verification:
 
@@ -595,6 +614,8 @@ Verification:
 - `HEX_HOME="/tmp/opencode/hex" mix test test/frontman_server/drain_test.exs` in `apps/frontman_server`: 3 passed.
 - `bash -n infra/production/deploy.sh`: clean.
 - Grep confirms no hardcoded `sleep 5` remains in production deploy script.
+- `yarn changeset status --since=origin/main`: clean after empty changeset frontmatter fix.
+- Codex review P1s for active-slot env sourcing and old-release RPC compatibility were addressed in commit `b42a90ee`.
 
 ## Deliverable 11: Configure HTTP Server Shutdown Timeout
 
