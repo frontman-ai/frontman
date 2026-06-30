@@ -30,6 +30,8 @@ defmodule FrontmanServer.Application do
     :error_message
   ]
 
+  @reqllm_finch_client_file "lib/req_llm/streaming/finch_client.ex"
+
   @impl true
   def start(_type, _args) do
     # Setup console telemetry logging in dev
@@ -71,19 +73,26 @@ defmodule FrontmanServer.Application do
 
   def sentry_logger_filter(%{msg: msg, meta: meta}, _opts) do
     message = logger_message_to_string(msg)
+    file = logger_file_to_string(Map.get(meta, :file))
 
-    case {Map.get(meta, :file), message} do
-      {"lib/req_llm/streaming/finch_client.ex", "Finch streaming failed: " <> rest} ->
-        if String.contains?(rest, "status: 429") do
-          :stop
-        else
-          :ignore
+    case {reqllm_finch_client_file?(file), message} do
+      {true, "Finch streaming failed: " <> rest} ->
+        case String.contains?(rest, "status: 429") do
+          true -> :stop
+          false -> :ignore
         end
 
       _other ->
         :ignore
     end
   end
+
+  defp logger_file_to_string(file) when is_binary(file), do: file
+  defp logger_file_to_string(file) when is_list(file), do: IO.chardata_to_string(file)
+  defp logger_file_to_string(_file), do: nil
+
+  defp reqllm_finch_client_file?(nil), do: false
+  defp reqllm_finch_client_file?(file), do: String.ends_with?(file, @reqllm_finch_client_file)
 
   defp logger_message_to_string({:string, chardata}), do: IO.chardata_to_string(chardata)
 
