@@ -183,10 +183,19 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
       expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
         assert [thinking] = message.reasoning_details
+        assert %ReqLLM.Message.ReasoningDetails{provider: :anthropic} = thinking
         assert thinking.index == 0
         assert thinking.text == "Let me explore the project structure."
-        refute Map.has_key?(thinking, "index")
-        refute Map.has_key?(thinking, "text")
+
+        request =
+          [message]
+          |> ReqLLM.Context.new()
+          |> ReqLLM.Providers.Anthropic.Context.encode_request(%{model: "claude-sonnet-4-5"})
+
+        assert [%{role: "assistant", content: [%{type: "thinking"} = thinking_block | _]}] =
+                 request.messages
+
+        assert thinking_block.thinking == "Let me explore the project structure."
 
         {:ok, stream_response([])}
       end)

@@ -213,21 +213,32 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     Enum.map(details, &normalize_reasoning_detail/1)
   end
 
-  defp normalize_reasoning_detail(%{format: "anthropic-thinking-v1"} = detail) do
-    detail
-    |> put_fixed_atom_key(:index)
-    |> put_fixed_atom_key(:text)
+  defp normalize_reasoning_detail(%ReqLLM.Message.ReasoningDetails{} = detail), do: detail
+
+  defp normalize_reasoning_detail(detail) when is_map(detail) do
+    case detail_field(detail, :format) do
+      "anthropic-thinking-v1" ->
+        %ReqLLM.Message.ReasoningDetails{
+          text: detail_field(detail, :text),
+          signature: detail_field(detail, :signature),
+          encrypted?: detail_field(detail, :encrypted?) || false,
+          provider: :anthropic,
+          format: "anthropic-thinking-v1",
+          index: detail_field(detail, :index) || 0,
+          provider_data: detail_field(detail, :provider_data) || %{}
+        }
+
+      _other ->
+        detail
+    end
   end
 
   defp normalize_reasoning_detail(detail), do: detail
 
-  defp put_fixed_atom_key(map, key) when is_map(map) and is_atom(key) do
+  defp detail_field(map, key) when is_map(map) and is_atom(key) do
     string_key = Atom.to_string(key)
 
-    case Map.fetch(map, string_key) do
-      {:ok, value} -> map |> Map.put(key, value) |> Map.delete(string_key)
-      :error -> map
-    end
+    Map.get(map, key) || Map.get(map, string_key)
   end
 
   defp to_reqllm_content_part(%ContentPart{type: :text, text: text}) do
