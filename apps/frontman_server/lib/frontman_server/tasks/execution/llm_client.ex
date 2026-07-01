@@ -192,7 +192,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_calls: to_reqllm_tool_calls(msg.tool_calls),
       metadata: msg.metadata,
-      reasoning_details: msg.reasoning_details
+      reasoning_details: normalize_reasoning_details(msg.reasoning_details)
     }
   end
 
@@ -204,6 +204,30 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       name: msg.name,
       metadata: msg.metadata
     }
+  end
+
+  defp normalize_reasoning_details(nil), do: nil
+  defp normalize_reasoning_details([]), do: nil
+
+  defp normalize_reasoning_details(details) when is_list(details) do
+    Enum.map(details, &normalize_reasoning_detail/1)
+  end
+
+  defp normalize_reasoning_detail(%{format: "anthropic-thinking-v1"} = detail) do
+    detail
+    |> put_fixed_atom_key(:index)
+    |> put_fixed_atom_key(:text)
+  end
+
+  defp normalize_reasoning_detail(detail), do: detail
+
+  defp put_fixed_atom_key(map, key) when is_map(map) and is_atom(key) do
+    string_key = Atom.to_string(key)
+
+    case Map.fetch(map, string_key) do
+      {:ok, value} -> map |> Map.put(key, value) |> Map.delete(string_key)
+      :error -> map
+    end
   end
 
   defp to_reqllm_content_part(%ContentPart{type: :text, text: text}) do

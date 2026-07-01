@@ -168,6 +168,44 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
       assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
     end
+
+    test "normalizes Anthropic thinking details before provider requests" do
+      reasoning = [
+        %{
+          :format => "anthropic-thinking-v1",
+          :provider => :anthropic,
+          :provider_data => %{"type" => "thinking"},
+          :encrypted? => false,
+          "index" => 0,
+          "text" => "Let me explore the project structure."
+        }
+      ]
+
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert [thinking] = message.reasoning_details
+        assert thinking.index == 0
+        assert thinking.text == "Let me explore the project structure."
+        refute Map.has_key?(thinking, "index")
+        refute Map.has_key?(thinking, "text")
+
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "anthropic:claude-sonnet-4-5",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.Assistant{
+          content: [ContentPart.text("thinking done")],
+          reasoning_details: reasoning
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
   end
 
   describe "ping keepalive filtering (issue #731)" do
