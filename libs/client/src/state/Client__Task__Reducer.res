@@ -943,22 +943,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (Task.Loaded(data), ExecutionStateRunning) =>
     let task = Task.Loaded({...data, isAgentRunning: true, turnError: None, retryStatus: None})
-    switch data.isRetryRunning {
-    | true => (task, [])
-    | false => (Lens.drainQueuedUserMessages(task), [])
-    }
+    (Lens.drainQueuedUserMessages(task), [])
 
   | (Task.Loaded(_data), ExecutionStateIdle) =>
     let completed = task->Lens.completeStreamingMessage
     switch completed {
-    | Task.Loaded(d) => (
-        Task.Loaded({...d, isAgentRunning: false, isRetryRunning: false, retryStatus: None}),
-        [],
-      )
-    | other => (
-        other->Task.updateLoadedData(d => {...d, isAgentRunning: false, isRetryRunning: false}),
-        [],
-      )
+    | Task.Loaded(d) => (Task.Loaded({...d, isAgentRunning: false, retryStatus: None}), [])
+    | other => (other->Task.updateLoadedData(d => {...d, isAgentRunning: false}), [])
     }
 
   | (Task.Loaded(data), ExecutionStateRequiresAction) => (
@@ -998,7 +989,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           Task.Loaded({
             ...d,
             isAgentRunning: false,
-            isRetryRunning: false,
             turnError: None,
             retryStatus: None,
             pendingQuestion: None,
@@ -1009,7 +999,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           other->Task.updateLoadedData(d => {
             ...d,
             isAgentRunning: false,
-            isRetryRunning: false,
             turnError: None,
             pendingQuestion: None,
           }),
@@ -1031,7 +1020,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           ...completedData,
           turnError: Some({id, message: error, category}),
           isAgentRunning: false,
-          isRetryRunning: false,
           retryStatus: None,
         }),
         [],
@@ -1041,7 +1029,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           ...data,
           turnError: Some({id, message: error, category}),
           isAgentRunning: false,
-          isRetryRunning: false,
           retryStatus: None,
         }),
         [],
@@ -1055,7 +1042,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         ...data,
         retryStatus: Some(retryStatus),
         isAgentRunning: true,
-        isRetryRunning: true,
       }),
       [],
     )
@@ -1063,7 +1049,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) =>
     let errorId = retriedErrorId
     (
-      Task.Loaded({...data, turnError: None, isAgentRunning: true, isRetryRunning: true}),
+      Task.Loaded({...data, turnError: None, isAgentRunning: true}),
       [RetryTurnEffect({retriedErrorId: errorId})],
     )
 
@@ -1118,7 +1104,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           annotations,
           activePopupAnnotationId,
           isAgentRunning: false,
-          isRetryRunning: false,
           planEntries: [],
           queuedUserMessages: [],
           turnError: None,

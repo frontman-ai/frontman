@@ -500,7 +500,7 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Accepts a user prompt into session history.
 
-  Starting execution is handled separately by `start_next_turn/3`.
+  Starting execution is handled separately by `run_next_turn/3`.
   """
   def submit_user_message(
         %Scope{} = scope,
@@ -525,7 +525,7 @@ defmodule FrontmanServer.Tasks do
         |> Oban.insert!()
       end
 
-      {:ok, accepted_message, nil}
+      {:ok, accepted_message}
     end
   end
 
@@ -539,35 +539,20 @@ defmodule FrontmanServer.Tasks do
     |> Enum.count(&(&1.type == :user_message))
   end
 
-  @doc """
-  Starts the next execution turn from accepted user messages.
+  defp start_next_turn(%Scope{} = scope, task_id) when is_binary(task_id) do
+    case claim_next_turn(scope, task_id) do
+      {:ok, {task_schema, turn_started, turn_number, turn_model}} ->
+        broadcast_task(task_id, {:interaction, turn_started, turn_number})
+        {:ok, task_schema, turn_number, turn_started, turn_model}
 
-  This is the database boundary that turns accepted user history into executable
-  agent work. It appends `TurnStarted`; it never mutates `UserMessage` rows.
-  """
-  def start_next_turn(%Scope{} = scope, task_id, execution_context)
-      when is_binary(task_id) do
-    case ensure_live_execution_context(execution_context) do
-      :ok ->
-        scope
-        |> claim_next_turn(task_id)
-        |> case do
-          {:ok, {task_schema, turn_started, turn_number}} ->
-            broadcast_task(task_id, {:interaction, turn_started, turn_number})
-            {:ok, task_schema, turn_started}
+      {:error, :already_running} ->
+        :already_running
 
-          {:error, :already_running} ->
-            :already_running
+      {:error, :no_accepted_messages} ->
+        :no_accepted_messages
 
-          {:error, :no_accepted_messages} ->
-            :no_accepted_messages
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      {:error, :missing_execution_context} ->
-        :missing_execution_context
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -589,10 +574,12 @@ defmodule FrontmanServer.Tasks do
         user_message_ids = Enum.map(accepted_messages, & &1.id)
         turn_started = Interaction.TurnStarted.build(user_message_ids)
 
-        case insert_turn_started(task_schema, turn_started, turn_number) do
-          {:ok, turn_started_row} ->
-            {:ok, {task_schema, InteractionSchema.to_struct(turn_started_row), turn_number}}
-
+        with {:ok, turn_model} <- turn_model_for_accepted_messages(accepted_messages),
+             {:ok, turn_started_row} <-
+               insert_turn_started(task_schema, turn_started, turn_number) do
+          {:ok,
+           {task_schema, InteractionSchema.to_struct(turn_started_row), turn_number, turn_model}}
+        else
           {:error, reason} ->
             {:error, reason}
         end
@@ -608,8 +595,16 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp ensure_live_execution_context(nil), do: {:error, :missing_execution_context}
-  defp ensure_live_execution_context(%{}), do: :ok
+  defp turn_model_for_accepted_messages(accepted_messages) do
+    case List.last(accepted_messages) do
+      %InteractionSchema{data: %Interaction.UserMessage{model: model}}
+      when is_binary(model) and model != "" ->
+        {:ok, model}
+
+      _missing ->
+        {:error, :missing_model}
+    end
+  end
 
   defp accepted_messages_not_in_turn(rows) do
     message_ids_already_in_turns =
@@ -647,16 +642,6 @@ defmodule FrontmanServer.Tasks do
     else
       {:error, reason} -> {:error, reason}
       {0, _} -> {:error, :not_found}
-    end
-  end
-
-  defp turn_number_for_interaction(task_id, interaction_id) do
-    InteractionSchema.for_task(task_id)
-    |> InteractionSchema.of_type(Interaction.TurnStarted)
-    |> InteractionSchema.data_equals("id", interaction_id)
-    |> Repo.one()
-    |> case do
-      %InteractionSchema{turn_number: turn_number} -> turn_number
     end
   end
 
@@ -792,9 +777,9 @@ defmodule FrontmanServer.Tasks do
   def retry_execution(scope, task_id, retried_error_id, execution) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          rows = load_interaction_rows(task_id),
-         {:ok, turn_number} <- retry_turn_number(task_id, retried_error_id),
+         {:ok, turn_number} <- retry_turn_number(rows, retried_error_id),
          :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, rows),
-         {:ok, execution} <- ensure_execution_model(task_id, turn_number, execution),
+         {:ok, execution} <- ensure_execution_model(rows, turn_number, execution),
          retry_interaction = Interaction.AgentRetry.build(retried_error_id),
          {:ok, _retry} <- record_interaction(schema, retry_interaction, turn_number) do
       run_execution(scope, schema, turn_number, execution)
@@ -803,15 +788,13 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Starts and runs the next accepted-message turn when work is available."
   def run_next_turn(%Scope{} = scope, task_id, execution) when is_binary(task_id) do
-    case start_next_turn(scope, task_id, execution) do
-      {:ok, task, turn_started} ->
-        turn_number = turn_number_for_interaction(task_id, turn_started.id)
-
-        with {:ok, execution} <- ensure_execution_model(task_id, turn_number, execution) do
+    case start_next_turn(scope, task_id) do
+      {:ok, task, turn_number, _turn_started, turn_model} ->
+        with {:ok, execution} <- put_missing_execution_model(execution, turn_model) do
           run_execution(scope, task, turn_number, execution)
         end
 
-      stop when stop in [:already_running, :no_accepted_messages, :missing_execution_context] ->
+      stop when stop in [:already_running, :no_accepted_messages] ->
         stop
 
       {:error, reason} ->
@@ -819,14 +802,16 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp retry_turn_number(task_id, retried_error_id) do
-    row =
-      InteractionSchema.for_task(task_id)
-      |> InteractionSchema.of_type(Interaction.AgentError)
-      |> InteractionSchema.data_equals("id", retried_error_id)
-      |> Repo.one()
+  defp retry_turn_number(rows, retried_error_id) do
+    rows
+    |> Enum.find(fn
+      %InteractionSchema{type: :agent_error, data: %Interaction.AgentError{id: ^retried_error_id}} ->
+        true
 
-    case row do
+      _row ->
+        false
+    end)
+    |> case do
       %InteractionSchema{turn_number: turn_number} ->
         {:ok, turn_number}
 
@@ -859,7 +844,7 @@ defmodule FrontmanServer.Tasks do
     with {:ok, task} <- get_task(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, turn_number} when is_integer(turn_number) <- active_agent_run_turn_number(rows),
-         {:ok, execution} <- ensure_execution_model(task_id, turn_number, execution) do
+         {:ok, execution} <- ensure_execution_model(rows, turn_number, execution) do
       run_execution(scope, task, turn_number, execution)
     else
       {:ok, nil} -> {:error, :not_running}
@@ -867,21 +852,29 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp ensure_execution_model(_task_id, _turn_number, %{model: model} = execution)
+  defp ensure_execution_model(_rows, _turn_number, %{model: model} = execution)
        when is_binary(model) and model != "" do
     {:ok, execution}
   end
 
-  defp ensure_execution_model(task_id, turn_number, execution) do
-    case model_for_turn(task_id, turn_number) do
+  defp ensure_execution_model(rows, turn_number, execution) do
+    case turn_model_from_rows(rows, turn_number) do
       {:ok, model} -> {:ok, Map.put(execution, :model, model)}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp model_for_turn(task_id, turn_number) do
-    rows = load_interaction_rows(task_id)
+  defp put_missing_execution_model(%{model: model} = execution, _turn_model)
+       when is_binary(model) and model != "" do
+    {:ok, execution}
+  end
 
+  defp put_missing_execution_model(execution, turn_model)
+       when is_binary(turn_model) and turn_model != "" do
+    {:ok, Map.put(execution, :model, turn_model)}
+  end
+
+  defp turn_model_from_rows(rows, turn_number) do
     rows
     |> Enum.find(fn
       %InteractionSchema{type: :turn_started, turn_number: ^turn_number} -> true
@@ -889,7 +882,14 @@ defmodule FrontmanServer.Tasks do
     end)
     |> case do
       %InteractionSchema{data: %Interaction.TurnStarted{user_message_ids: user_message_ids}} ->
-        case user_message_ids |> user_messages_by_id(rows) |> List.last() do
+        messages_by_id =
+          rows
+          |> Enum.filter(&(&1.type == :user_message))
+          |> Map.new(fn %InteractionSchema{id: id, data: %Interaction.UserMessage{} = message} ->
+            {id, message}
+          end)
+
+        case user_message_ids |> Enum.map(&Map.fetch!(messages_by_id, &1)) |> List.last() do
           %Interaction.UserMessage{model: model} when is_binary(model) and model != "" ->
             {:ok, model}
 
@@ -900,17 +900,6 @@ defmodule FrontmanServer.Tasks do
       _missing ->
         {:error, :missing_model}
     end
-  end
-
-  defp user_messages_by_id(user_message_ids, rows) do
-    messages_by_id =
-      rows
-      |> Enum.filter(&(&1.type == :user_message))
-      |> Map.new(fn %InteractionSchema{id: id, data: %Interaction.UserMessage{} = message} ->
-        {id, message}
-      end)
-
-    Enum.map(user_message_ids, &Map.fetch!(messages_by_id, &1))
   end
 
   @doc """

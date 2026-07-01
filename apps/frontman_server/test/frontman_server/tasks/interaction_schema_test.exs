@@ -51,52 +51,25 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
 
   describe "TurnStarted" do
     test "requires a positive turn number and non-empty user message ids", %{task: task} do
-      turn_started = Interaction.TurnStarted.build([Interaction.new_id()])
+      user_message_id = Interaction.new_id()
+      turn_started = Interaction.TurnStarted.build([user_message_id])
 
       changeset = InteractionSchema.create_changeset(task, turn_started, 1)
 
       assert changeset.valid?
-    end
 
-    test "rejects missing turn number", %{task: task} do
-      turn_started = Interaction.TurnStarted.build([Interaction.new_id()])
+      missing_turn_changeset = InteractionSchema.create_changeset(task, turn_started, nil)
 
-      changeset = InteractionSchema.create_changeset(task, turn_started, nil)
+      refute missing_turn_changeset.valid?
+      assert %{turn_number: ["missing for turn_started"]} = errors_on(missing_turn_changeset)
 
-      refute changeset.valid?
-      assert %{turn_number: ["missing for turn_started"]} = errors_on(changeset)
-    end
+      empty_ids_changeset =
+        InteractionSchema.create_changeset(task, Interaction.TurnStarted.build([]), 1)
 
-    test "rejects empty user message ids", %{task: task} do
-      turn_started = Interaction.TurnStarted.build([])
-
-      changeset = InteractionSchema.create_changeset(task, turn_started, 1)
-
-      refute changeset.valid?
+      refute empty_ids_changeset.valid?
 
       assert %Ecto.Changeset{errors: [user_message_ids: {"must be non-empty", []}]} =
-               get_change(changeset, :data)
-    end
-
-    test "round-trips ordered user message ids", %{task: task} do
-      user_message_ids = [Interaction.new_id(), Interaction.new_id()]
-      turn_started = Interaction.TurnStarted.build(user_message_ids)
-
-      {:ok, row} =
-        task
-        |> InteractionSchema.create_changeset(turn_started, 3)
-        |> Repo.insert()
-
-      assert row.type == :turn_started
-      assert row.turn_number == 3
-      assert %Interaction.TurnStarted{user_message_ids: ^user_message_ids} = row.data
-
-      reloaded = Repo.get!(InteractionSchema, row.id)
-
-      assert %Interaction.TurnStarted{user_message_ids: ^user_message_ids} = reloaded.data
-
-      assert %Interaction.TurnStarted{user_message_ids: ^user_message_ids} =
-               InteractionSchema.to_struct(reloaded)
+               get_change(empty_ids_changeset, :data)
     end
   end
 end

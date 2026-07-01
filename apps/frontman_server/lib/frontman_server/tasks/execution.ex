@@ -28,6 +28,8 @@ defmodule FrontmanServer.Tasks.Execution do
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.Message.Tool
 
+  import Ecto.Query, only: [from: 2]
+
   @doc """
   Runs an agent execution for a task.
 
@@ -106,10 +108,39 @@ defmodule FrontmanServer.Tasks.Execution do
   end
 
   defp interaction_rows(task_id, turn_number) do
+    turn_rows =
+      InteractionSchema.for_task(task_id)
+      |> InteractionSchema.up_to_turn(turn_number)
+      |> InteractionSchema.ordered()
+      |> Repo.all()
+
+    turn_rows ++ referenced_user_message_rows(task_id, turn_rows)
+  end
+
+  defp referenced_user_message_rows(task_id, turn_rows) do
+    user_message_ids =
+      turn_rows
+      |> Enum.flat_map(fn
+        %InteractionSchema{
+          type: :turn_started,
+          data: %Interaction.TurnStarted{user_message_ids: ids}
+        } ->
+          ids
+
+        _row ->
+          []
+      end)
+      |> Enum.uniq()
+
     InteractionSchema.for_task(task_id)
-    |> InteractionSchema.prompt_context_for_turn(turn_number)
+    |> InteractionSchema.of_type(Interaction.UserMessage)
+    |> where_id_in(user_message_ids)
     |> InteractionSchema.ordered()
     |> Repo.all()
+  end
+
+  defp where_id_in(query, ids) do
+    from(i in query, where: i.id in ^ids)
   end
 
   @doc """

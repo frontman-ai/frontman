@@ -17,10 +17,9 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_prompt_result/1" do
+  describe "AgentClientProtocol.build_prompt_accepted_result/0" do
     test "validates against acp/promptResult schema" do
-      payload =
-        AgentClientProtocol.build_prompt_result(AgentClientProtocol.stop_reason_end_turn())
+      payload = AgentClientProtocol.build_prompt_accepted_result()
 
       ProtocolSchema.validate!(payload, "acp/promptResult")
     end

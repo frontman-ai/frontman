@@ -80,7 +80,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
            scope,
            Map.merge(execution, %{task_id: task_id, message: content})
          ) do
-      {:ok, interaction, nil} ->
+      {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution) do
           result when result in [:ok, :already_running] ->
             {:ok, interaction, latest_turn_number_or_nil(task_id)}
@@ -193,7 +193,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     } do
       expect_llm_responses(["Response"])
 
-      {:ok, _, nil} =
+      {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
           message: user_content("Hello"),
@@ -217,7 +217,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       Process.sleep(100)
 
-      assert {:ok, %Interaction.UserMessage{}, nil} =
+      assert {:ok, %Interaction.UserMessage{}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task_id,
                  message: user_content("Queued follow-up"),
@@ -424,10 +424,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       task = task_schema!(task_id)
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
-      insert_accepted_user_message!(task, "included")
-
-      assert {:ok, _task, %Interaction.TurnStarted{}} =
-               Tasks.start_next_turn(scope, task_id, execution_request_fixture())
+      start_turn_fixture(scope, task_id, user_content("included"))
 
       insert_accepted_user_message!(task, "queued for next turn")
 
@@ -455,9 +452,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       insert_accepted_user_message!(task, "first")
       insert_accepted_user_message!(task, "second")
-
-      assert {:ok, _task, %Interaction.TurnStarted{}} =
-               Tasks.start_next_turn(scope, task_id, execution_request_fixture())
+      insert_turn_started_for_messages!(task_id, 1)
 
       expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
         send(parent, {:provider_messages, messages})
@@ -1103,6 +1098,25 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     task
     |> InteractionSchema.create_changeset(interaction, nil)
+    |> Repo.insert!()
+  end
+
+  defp insert_turn_started_for_messages!(task_id, turn_number) do
+    task = task_schema!(task_id)
+
+    user_message_ids =
+      InteractionSchema
+      |> InteractionSchema.for_task(task_id)
+      |> InteractionSchema.of_type(Interaction.UserMessage)
+      |> InteractionSchema.ordered()
+      |> Repo.all()
+      |> Enum.map(& &1.id)
+
+    task
+    |> InteractionSchema.create_changeset(
+      Interaction.TurnStarted.build(user_message_ids),
+      turn_number
+    )
     |> Repo.insert!()
   end
 

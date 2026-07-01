@@ -750,7 +750,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       complete_mcp_handshake(socket)
 
-      {:ok, %Interaction.UserMessage{}, nil} =
+      {:ok, %Interaction.UserMessage{}} =
         Tasks.submit_user_message(scope, %{
           task_id: task.id,
           message: user_content("queued elsewhere"),

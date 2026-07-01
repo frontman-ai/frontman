@@ -69,14 +69,6 @@ defmodule AgentClientProtocol do
   @stop_reason_refusal "refusal"
   @stop_reason_cancelled "cancelled"
 
-  @stop_reasons [
-    @stop_reason_end_turn,
-    @stop_reason_max_tokens,
-    @stop_reason_max_turn_requests,
-    @stop_reason_refusal,
-    @stop_reason_cancelled
-  ]
-
   def tool_call_status_pending, do: @tool_call_status_pending
   def tool_call_status_in_progress, do: @tool_call_status_in_progress
   def tool_call_status_completed, do: @tool_call_status_completed
@@ -314,7 +306,7 @@ defmodule AgentClientProtocol do
   @doc """
   Builds a session/prompt acceptance response.
   """
-  def build_prompt_result(stop_reason) when stop_reason in @stop_reasons do
+  def build_prompt_accepted_result do
     %{}
   end
 

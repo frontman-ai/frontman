@@ -123,7 +123,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
            scope,
            Map.merge(execution_request, %{task_id: task_id, message: message})
          ) do
-      {:ok, interaction, nil} ->
+      {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution_request) do
           :ok ->
             {:ok, interaction, FrontmanServer.Test.Fixtures.Tasks.latest_turn_number(task_id)}

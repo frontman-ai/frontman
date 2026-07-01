@@ -145,8 +145,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info({:run_next_turn, execution}, socket) do
     case Tasks.run_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
-      result
-      when result in [:ok, :already_running, :no_accepted_messages, :missing_execution_context] ->
+      result when result in [:ok, :already_running, :no_accepted_messages] ->
         :ok
 
       {:error, reason} ->
@@ -638,7 +637,7 @@ defmodule FrontmanServerWeb.TaskChannel do
                  model: model
                }
              ) do
-          {:ok, interaction, nil} ->
+          {:ok, interaction} ->
             push(
               socket,
               @acp_message,

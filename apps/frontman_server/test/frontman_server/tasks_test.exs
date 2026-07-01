@@ -98,7 +98,7 @@ defmodule FrontmanServer.TasksTest do
     test "persists an accepted user message without starting a turn", %{scope: scope} do
       task = task_fixture(scope)
 
-      assert {:ok, %Interaction.UserMessage{}, nil} =
+      assert {:ok, %Interaction.UserMessage{}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message: user_content("hello"),
@@ -112,12 +112,9 @@ defmodule FrontmanServer.TasksTest do
 
     test "accepts another user message while a turn is running", %{scope: scope} do
       task = task_fixture(scope)
-      insert_accepted_user_message!(task, "first")
+      start_turn_fixture(scope, task.id, user_content("first"))
 
-      assert {:ok, _task, %Interaction.TurnStarted{}} =
-               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
-
-      assert {:ok, %Interaction.UserMessage{}, nil} =
+      assert {:ok, %Interaction.UserMessage{}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message: user_content("second"),
@@ -128,91 +125,6 @@ defmodule FrontmanServer.TasksTest do
                task.id
                |> db_rows()
                |> Enum.map(& &1.type)
-    end
-  end
-
-  describe "start_next_turn/3" do
-    test "returns no_accepted_messages when there are no accepted user messages", %{scope: scope} do
-      task_id = task_fixture(scope).id
-
-      assert :no_accepted_messages =
-               Tasks.start_next_turn(scope, task_id, execution_request_fixture())
-    end
-
-    test "requires live execution context", %{scope: scope} do
-      task = task_fixture(scope)
-      insert_accepted_user_message!(task, "queued")
-
-      assert :missing_execution_context = Tasks.start_next_turn(scope, task.id, nil)
-    end
-
-    test "starts a turn with all accepted messages not already in a turn", %{scope: scope} do
-      task = task_fixture(scope)
-      first = insert_accepted_user_message!(task, "first")
-      second = insert_accepted_user_message!(task, "second")
-
-      assert {:ok, started_task, %Interaction.TurnStarted{} = turn_started} =
-               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
-
-      assert started_task.id == task.id
-      assert turn_started.user_message_ids == [first.id, second.id]
-
-      rows = db_rows(task.id)
-
-      assert [%InteractionSchema{type: :turn_started, turn_number: 1}] =
-               Enum.filter(rows, &(&1.type == :turn_started))
-    end
-
-    test "returns already_running when a started turn is still active", %{scope: scope} do
-      task = task_fixture(scope)
-      insert_accepted_user_message!(task, "first")
-
-      assert {:ok, _task, %Interaction.TurnStarted{}} =
-               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
-
-      insert_accepted_user_message!(task, "second")
-
-      assert :already_running =
-               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
-    end
-
-    test "started turn without terminal interaction is an active run", %{scope: scope} do
-      task = task_fixture(scope)
-      insert_accepted_user_message!(task, "queued")
-
-      assert {:ok, _task, %Interaction.TurnStarted{}} =
-               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
-
-      assert {:ok, 1, []} = Tasks.get_active_run_unresolved_tool_calls(scope, task.id)
-    end
-
-    test "concurrent starts append one turn for the accepted batch", %{scope: scope} do
-      task = task_fixture(scope)
-      first = insert_accepted_user_message!(task, "first")
-      second = insert_accepted_user_message!(task, "second")
-
-      results =
-        1..2
-        |> Task.async_stream(
-          fn _ -> Tasks.start_next_turn(scope, task.id, execution_request_fixture()) end,
-          max_concurrency: 2,
-          timeout: :infinity
-        )
-        |> Enum.map(fn {:ok, result} -> result end)
-
-      assert 1 == Enum.count(results, &match?({:ok, _task, %Interaction.TurnStarted{}}, &1))
-      assert 1 == Enum.count(results, &(&1 == :already_running))
-
-      assert [turn_started] =
-               task.id
-               |> db_rows()
-               |> Enum.filter(&(&1.type == :turn_started))
-
-      first_id = first.id
-      second_id = second.id
-
-      assert %Interaction.TurnStarted{user_message_ids: [^first_id, ^second_id]} =
-               turn_started.data
     end
   end
 
@@ -398,10 +310,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "fills missing model from started turn user messages", %{scope: scope} do
       task = task_fixture(scope)
-      insert_accepted_user_message!(task, "failed", "missing:test")
-
-      assert {:ok, _task, %Interaction.TurnStarted{}} =
-               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+      start_turn_fixture(scope, task.id, user_content("failed"), "missing:test")
 
       {:ok, error} = Tasks.record_agent_run_result(scope, task.id, 1, {:failed, "boom"})
 
@@ -437,10 +346,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "fills missing model from started turn user messages", %{scope: scope} do
       task = task_fixture(scope)
-      insert_accepted_user_message!(task, "running", "missing:test")
-
-      assert {:ok, _task, %Interaction.TurnStarted{}} =
-               Tasks.start_next_turn(scope, task.id, execution_request_fixture())
+      start_turn_fixture(scope, task.id, user_content("running"), "missing:test")
 
       assert :ok = Tasks.resume_execution(scope, task.id, %{mcp_tools: [], project_traits: []})
     end

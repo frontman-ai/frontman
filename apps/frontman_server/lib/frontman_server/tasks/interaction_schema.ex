@@ -97,17 +97,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.turn_number <= ^turn_number)
   end
 
-  def prompt_context_for_turn(query \\ __MODULE__, turn_number)
-      when is_integer(turn_number) and turn_number > 0 do
-    user_message = Interaction.type_for(Interaction.UserMessage)
-
-    from(i in query,
-      where:
-        (not is_nil(i.turn_number) and i.turn_number <= ^turn_number) or
-          (is_nil(i.turn_number) and i.type == ^user_message)
-    )
-  end
-
   def ordered(query \\ __MODULE__) do
     from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end

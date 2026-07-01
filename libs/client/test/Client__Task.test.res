@@ -350,16 +350,6 @@ describe("Task - Agent Running State", () => {
     }
   })
 
-  test("retry running leaves queued user messages queued", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Queued")
-    let (retryingTask, _) = TaskReducer.next(task, RetryTurn({retriedErrorId: "err-1"}))
-    let (runningTask, _) = TaskReducer.next(retryingTask, ExecutionStateRunning)
-
-    t->expect(TestHelpers.getMessages(runningTask)->Array.length)->Expect.toBe(0)
-    t->expect(TestHelpers.getQueuedUserMessages(runningTask)->Array.length)->Expect.toBe(1)
-  })
-
   test("question submit leaves queued user messages queued", t => {
     let task = TestHelpers.makeLoadedTask()
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Queued")

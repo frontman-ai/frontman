@@ -201,7 +201,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
            scope,
            Map.merge(execution_request, %{task_id: task_id, message: prompt_content(content)})
          ) do
-      {:ok, interaction, nil} ->
+      {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution_request) do
           :ok ->
             {:ok, interaction, latest_turn_number(task_id)}
