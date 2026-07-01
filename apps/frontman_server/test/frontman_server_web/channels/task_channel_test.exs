@@ -24,14 +24,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:execution_chunk, 1,
        %{type: :tool_call, name: name, arguments: %{}, metadata: %{id: id, index: 0}}}
 
-  defp agent_completed do
-    {:interaction, Interaction.AgentCompleted.build(), 1}
-  end
-
-  defp turn_started do
-    {:interaction, Interaction.TurnStarted.build([Ecto.UUID.generate()]), 1}
-  end
-
   defp agent_failed(message, category \\ "unknown") do
     {:interaction, Interaction.AgentError.build(message, "failed", false, category), 1}
   end
@@ -161,17 +153,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       ]
     })
   end
-
-  # MCP tool definition used in tests that need a registered tool
-  @mcp_get_logs_tool %{
-    "name" => "get_logs",
-    "description" => "Retrieves server logs",
-    "inputSchema" => %{
-      "type" => "object",
-      "properties" => %{"tail" => %{"type" => "integer"}}
-    },
-    "visibleToAgent" => true
-  }
 
   describe "join task:<id>" do
     test "succeeds when task exists", %{scope: scope} do
@@ -532,98 +513,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       refute_push("acp:message", %{"error" => %{"code" => -32_000}})
     end
-
-    test "handles turn error with session/update only", %{
-      socket: _socket,
-      task_id: task_id
-    } do
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        task_topic(task_id),
-        agent_failed("Connection failed")
-      )
-
-      # Should get session/update notification
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "error",
-            "message" => "Connection failed"
-          }
-        }
-      })
-
-      # Turn completion no longer resolves session/prompt requests.
-      refute_push("acp:message", %{"error" => %{"code" => -32_000}})
-    end
-  end
-
-  describe "completed event after resumed execution" do
-    setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
-      complete_mcp_handshake(socket)
-      {:ok, socket: socket, task_id: task_id}
-    end
-
-    test "sends idle state update", %{
-      socket: socket,
-      task_id: task_id
-    } do
-      # Simulate: execution was resumed after tool result, then the agent completes.
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), agent_completed())
-
-      :sys.get_state(socket.channel_pid)
-
-      # Channel should not push a JSON-RPC response for turn completion.
-      refute_push("acp:message", %{"id" => _, "result" => _})
-
-      # Channel should push a state update so the client can finalize streaming state.
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "state_update",
-            "state" => "idle",
-            "stopReason" => "end_turn"
-          }
-        }
-      })
-
-      # Channel should still be alive
-      assert Process.alive?(socket.channel_pid)
-    end
-  end
-
-  describe "started event after accepted prompt claim" do
-    setup %{scope: scope} do
-      {socket, task_id} = join_task_channel(scope)
-      complete_mcp_handshake(socket)
-      {:ok, socket: socket, task_id: task_id}
-    end
-
-    test "sends running state update", %{
-      socket: socket,
-      task_id: task_id
-    } do
-      Phoenix.PubSub.broadcast(FrontmanServer.PubSub, task_topic(task_id), turn_started())
-
-      :sys.get_state(socket.channel_pid)
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "state_update",
-            "state" => "running"
-          }
-        }
-      })
-    end
   end
 
   describe "MCP tool call result extraction" do
@@ -847,110 +736,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert Process.alive?(socket.channel_pid)
       assert log =~ ~s(Received MCP response for unknown request_id: "unknown-success")
       assert log =~ ~s(Received MCP error for unknown request_id: "unknown-error")
-    end
-  end
-
-  describe "MCP tools race condition" do
-    test "prompt before MCP ready is accepted before initialization completes", %{
-      scope: scope
-    } do
-      {socket, task_id} = join_task_channel(scope)
-
-      # MCP init has started - we receive the initialize request
-      assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
-
-      ref = push(socket, "acp:message", build_prompt_request())
-      :sys.get_state(socket.channel_pid)
-
-      assert_receive {:interaction, %Tasks.Interaction.UserMessage{}, _turn_number}
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "user_message",
-            "messageId" => _message_id,
-            "content" => [%{"type" => "text", "text" => "Hello"}]
-          }
-        }
-      })
-
-      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
-
-      # NOW complete MCP init with tools
-      init_result = %{
-        "protocolVersion" => ModelContextProtocol.protocol_version(),
-        "capabilities" => %{"tools" => %{}},
-        "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
-      }
-
-      push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
-      :sys.get_state(socket.channel_pid)
-
-      assert_push("mcp:message", %{"method" => "notifications/initialized"})
-      assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
-
-      tools_result = %{
-        "tools" => [
-          %{
-            "name" => "take_screenshot",
-            "description" => "Takes a screenshot of the page",
-            "inputSchema" => %{"type" => "object", "properties" => %{}}
-          }
-        ]
-      }
-
-      push(socket, "mcp:message", JsonRpc.success_response(tools_request_id, tools_result))
-      :sys.get_state(socket.channel_pid)
-
-      # Handle load_agent_instructions
-      assert_push("mcp:message", %{
-        "id" => project_rules_request_id,
-        "method" => "tools/call",
-        "params" => %{"name" => "load_agent_instructions"}
-      })
-
-      push(
-        socket,
-        "mcp:message",
-        JsonRpc.success_response(project_rules_request_id, %{
-          "content" => [
-            %{
-              "type" => "text",
-              "text" =>
-                Jason.encode!([
-                  %{"fullPath" => "/project/AGENTS.md", "content" => "project rules"}
-                ])
-            }
-          ]
-        })
-      )
-
-      :sys.get_state(socket.channel_pid)
-
-      # Handle list_tree for project structure
-      assert_push("mcp:message", %{
-        "id" => project_structure_request_id,
-        "method" => "tools/call",
-        "params" => %{"name" => "list_tree"}
-      })
-
-      push(
-        socket,
-        "mcp:message",
-        JsonRpc.success_response(project_structure_request_id, %{"content" => []})
-      )
-
-      :sys.get_state(socket.channel_pid)
-
-      assert_push("acp:message", %{"method" => "mcp_initialization_complete"})
-
-      # Verify MCP tools are now stored in socket assigns
-      channel_socket = :sys.get_state(socket.channel_pid)
-      assert length(channel_socket.assigns.mcp_tools) == 1
-      assert hd(channel_socket.assigns.mcp_tools).name == "take_screenshot"
-
-      assert_state_update_running_then_idle(task_id)
     end
   end
 

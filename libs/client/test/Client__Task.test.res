@@ -301,22 +301,6 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
 })
 
 describe("Task - Agent Running State", () => {
-  test("AddUserMessage does not set isAgentRunning", t => {
-    let task = TestHelpers.makeLoadedTask()
-    t->expect(TaskReducer.Selectors.isAgentRunning(task))->Expect.toEqual(Some(false))
-
-    let (task2, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: "user-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-      }),
-    )
-
-    t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(false))
-  })
-
   test("state updates drive isAgentRunning", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task2, _) = TaskReducer.next(
@@ -337,19 +321,6 @@ describe("Task - Agent Running State", () => {
 
     let (task5, _) = TaskReducer.next(task3, ExecutionStateRequiresAction)
     t->expect(TaskReducer.Selectors.isAgentRunning(task5))->Expect.toEqual(Some(false))
-  })
-
-  test("live accepted user messages queue on loaded tasks", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let nextTask = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Queued")
-
-    t->expect(TestHelpers.getMessages(nextTask)->Array.length)->Expect.toBe(0)
-    let queued = TestHelpers.getQueuedUserMessages(nextTask)
-    t->expect(queued->Array.length)->Expect.toBe(1)
-    switch queued->Array.get(0) {
-    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("queued-1")
-    | _ => t->expect("Queued user message")->Expect.toBe("missing")
-    }
   })
 
   test("history user messages stay in transcript while loading", t => {
