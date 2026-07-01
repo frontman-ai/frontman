@@ -142,7 +142,6 @@ describe("Concurrent Tasks Event Routing", () => {
       input: Some(JSON.parseOrThrow(`{"path": "file.txt"}`)),
       result: None,
       errorText: None,
-      createdAt: Date.now(),
       parentAgentId: None,
       spawningToolName: None,
     }
@@ -319,7 +318,6 @@ describe("Concurrent Tasks Event Routing", () => {
       input: Some(JSON.parseOrThrow(`{"path": "file.txt"}`)),
       result: None,
       errorText: None,
-      createdAt: Date.now(),
       parentAgentId: None,
       spawningToolName: None,
     }

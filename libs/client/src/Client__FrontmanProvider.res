@@ -288,9 +288,8 @@ module Provider = {
         Client__TextDeltaBuffer.flush()
         let (content, annotations) = parseUserMessageBlocks(content)
         Client__State.Actions.userMessageReceived(~taskId, ~id=messageId, ~content, ~annotations)
-      | ToolCall({toolCallId, title, timestamp, parentAgentId, spawningToolName}) =>
+      | ToolCall({toolCallId, title, parentAgentId, spawningToolName, _}) =>
         Client__TextDeltaBuffer.flush()
-        let createdAt = Date.fromString(timestamp)->Date.getTime
         Client__State.Actions.toolCallReceived(
           ~taskId,
           ~toolCall={
@@ -301,7 +300,6 @@ module Provider = {
             result: None,
             errorText: None,
             state: Client__State__Types.Message.InputStreaming,
-            createdAt,
             parentAgentId,
             spawningToolName,
           },

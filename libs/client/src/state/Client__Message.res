@@ -132,7 +132,6 @@ type toolCall = {
   input: option<JSON.t>,
   result: option<JSON.t>,
   errorText: option<string>,
-  createdAt: float,
   parentAgentId: option<string>,
   spawningToolName: option<string>,
 }
@@ -144,10 +143,11 @@ module ErrorMessage: {
   let error: t => string
   let category: t => string
 } = {
-  type t = {id: string, error: string, createdAt: float, category: string}
+  type t = {id: string, error: string, category: string}
 
   let make = (~id, ~error, ~timestamp, ~category) => {
-    {id, error, createdAt: Date.fromString(timestamp)->Date.getTime, category}
+    ignore(timestamp)
+    {id, error, category}
   }
 
   let id = t => t.id
@@ -156,12 +156,7 @@ module ErrorMessage: {
 }
 
 type t =
-  | User({
-      id: string,
-      content: array<UserContentPart.t>,
-      annotations: array<MessageAnnotation.t>,
-      createdAt: float,
-    })
+  | User({id: string, content: array<UserContentPart.t>, annotations: array<MessageAnnotation.t>})
   | Assistant(assistantMessage)
   | ToolCall(toolCall)
   | Error(ErrorMessage.t)

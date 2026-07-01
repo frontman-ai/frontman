@@ -73,7 +73,7 @@ module TestHelpers = {
       state,
       TaskAction({
         target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations, createdAt: Date.now()}),
+        action: UserMessageReceived({id, content, annotations}),
       }),
     )->Pair.first
   }
@@ -262,7 +262,6 @@ describe("Client State Reducer", () => {
           result: None,
           errorText: None,
           state: Reducer.Message.InputStreaming,
-          createdAt: 0.0,
           parentAgentId: None,
           spawningToolName: None,
         }),
@@ -277,7 +276,6 @@ describe("Client State Reducer", () => {
       result: None,
       errorText: None,
       state: Reducer.Message.InputAvailable,
-      createdAt: 0.0,
       parentAgentId: None,
       spawningToolName: None,
     }
@@ -478,7 +476,6 @@ describe("Client State Reducer - Selectors", () => {
       id: "user-1",
       content: [],
       annotations: [],
-      createdAt: 0.0,
     })
 
     let streamingMsg = Reducer.Message.Assistant(
@@ -505,7 +502,6 @@ describe("Client State Reducer - Selectors", () => {
       input: None,
       result: None,
       errorText: None,
-      createdAt: 0.0,
       parentAgentId: None,
       spawningToolName: None,
     })
@@ -530,7 +526,6 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           result: None,
           errorText: None,
           state: Reducer.Message.InputAvailable,
-          createdAt: 0.0,
           parentAgentId: None,
           spawningToolName: None,
         }),
@@ -568,7 +563,6 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           result: None,
           errorText: None,
           state: Reducer.Message.InputAvailable,
-          createdAt: 0.0,
           parentAgentId: None,
           spawningToolName: None,
         }),
@@ -616,7 +610,6 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           result: None,
           errorText: None,
           state: Reducer.Message.InputStreaming,
-          createdAt: 0.0,
           parentAgentId: None,
           spawningToolName: None,
         }),
@@ -631,7 +624,6 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       result: None,
       errorText: None,
       state: Reducer.Message.InputAvailable,
-      createdAt: 0.0,
       parentAgentId: None,
       spawningToolName: None,
     }
@@ -726,7 +718,6 @@ describe("Client State Reducer - Task Management Actions", () => {
           id: "user-1",
           content: [UserContentPart.Text({text: "Hello from task 1"})],
           annotations: [],
-          createdAt: 1000.0,
         }),
       ],
     )
@@ -741,7 +732,6 @@ describe("Client State Reducer - Task Management Actions", () => {
           id: "user-2",
           content: [UserContentPart.Text({text: "Hello from task 2"})],
           annotations: [],
-          createdAt: 2000.0,
         }),
       ],
     )
@@ -819,7 +809,6 @@ describe("Client State Reducer - Task Management Actions", () => {
           id: "user-1",
           content: [UserContentPart.Text({text: "Old message"})],
           annotations: [],
-          createdAt: 1000.0,
         }),
       ],
     )
@@ -971,7 +960,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
           id: "user-1",
           content: [UserContentPart.Text({text: "Existing message"})],
           annotations: [],
-          createdAt: 1000.0,
         }),
       ],
     )
@@ -1068,7 +1056,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
           id: "msg-1",
           content: [Client__Message.UserContentPart.text("Hello from history")],
           annotations: [],
-          createdAt: 1000.0,
         }),
       }),
     )

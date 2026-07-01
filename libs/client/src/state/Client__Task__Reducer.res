@@ -355,7 +355,6 @@ type action =
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
-      createdAt: float,
     })
   // Question tool actions
   | QuestionReceived({
@@ -895,12 +894,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Accepted user messages from server history replay.
   // Per ACP spec: a new history user message signals the end of the previous agent message.
-  | (Task.Loading(_), UserMessageReceived({id, content, annotations, createdAt})) =>
-    let userMessage = Message.User({id, content, annotations, createdAt})
+  | (Task.Loading(_), UserMessageReceived({id, content, annotations})) =>
+    let userMessage = Message.User({id, content, annotations})
     (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
 
-  | (Task.Loaded(data), UserMessageReceived({id, content, annotations, createdAt})) =>
-    let userMessage = Message.User({id, content, annotations, createdAt})
+  | (Task.Loaded(data), UserMessageReceived({id, content, annotations})) =>
+    let userMessage = Message.User({id, content, annotations})
     (
       Task.Loaded({
         ...data,

@@ -18,12 +18,14 @@ module TaskReducer = Client__Task__Reducer
 module Buffer = Client__TextDeltaBuffer
 
 // Helper: build a text-only UserMessageReceived action
-let _userMsg = (~id, ~text, ~createdAt) => TaskReducer.UserMessageReceived({
-  id,
-  content: [UserContentPart.text(text)],
-  annotations: [],
-  createdAt,
-})
+let _userMsg = (~id, ~text, ~createdAt) => {
+  ignore(createdAt)
+  TaskReducer.UserMessageReceived({
+    id,
+    content: [UserContentPart.text(text)],
+    annotations: [],
+  })
+}
 
 module TestHelpers = {
   let makeLoadingTask = (~id="test-task-1") => {
@@ -351,7 +353,6 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
           result: None,
           errorText: None,
           state: Message.InputStreaming,
-          createdAt: Date.fromString("2026-03-15T14:53:39Z")->Date.getTime,
           parentAgentId: None,
           spawningToolName: None,
         },

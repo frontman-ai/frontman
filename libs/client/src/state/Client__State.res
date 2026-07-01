@@ -255,7 +255,7 @@ module Actions = {
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations, createdAt: Date.now()}),
+        action: UserMessageReceived({id, content, annotations}),
       }),
     )
 

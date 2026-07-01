@@ -37,7 +37,6 @@ module TestHelpers = {
         id,
         content: [Client__Task__Types.UserContentPart.Text({text: text})],
         annotations,
-        createdAt: Date.now(),
       }),
     )->Pair.first
   }
@@ -146,7 +145,6 @@ describe("Task - Tool Call Lifecycle", () => {
       input: Some(JSON.parseOrThrow(`{"key": "value"}`)),
       result: None,
       errorText: None,
-      createdAt: Date.now(),
       parentAgentId: None,
       spawningToolName: None,
     }
@@ -188,7 +186,6 @@ describe("Task - Tool Call Lifecycle", () => {
       input: None,
       result: None,
       errorText: None,
-      createdAt: Date.now(),
       parentAgentId: None,
       spawningToolName: None,
     }
@@ -690,7 +687,6 @@ describe("Task - CancelTurn", () => {
       input: Some(JSON.parseOrThrow(`{"path": "test.ts"}`)),
       result: None,
       errorText: None,
-      createdAt: Date.now(),
       parentAgentId: None,
       spawningToolName: None,
     }
@@ -789,7 +785,6 @@ describe("Task - Running-independent streamed events", () => {
       input: None,
       result: None,
       errorText: None,
-      createdAt: Date.now(),
       parentAgentId: None,
       spawningToolName: None,
     }
