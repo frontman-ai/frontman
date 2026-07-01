@@ -2,4 +2,4 @@
 "frontman": patch
 ---
 
-Load persisted task interactions through typed polymorphic Ecto embeds.
+Saved tasks now restore their interaction history more reliably, including prompts, tool activity, and agent responses.

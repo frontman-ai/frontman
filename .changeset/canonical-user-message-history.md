@@ -2,4 +2,4 @@
 "frontman": patch
 ---
 
-Replay accepted user-message history through canonical ACP `user_message` updates.
+Reopened tasks now show accepted follow-up prompts as normal user messages, preserving the full conversation history.

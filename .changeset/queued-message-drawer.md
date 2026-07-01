@@ -2,4 +2,4 @@
 "@frontman-ai/client": patch
 ---
 
-Show accepted follow-up messages in a queued drawer until their turn starts.
+Follow-up prompts sent while an agent is busy now appear in a queue drawer, making it clear what will run next.
