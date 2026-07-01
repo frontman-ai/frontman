@@ -142,7 +142,6 @@ module ErrorMessage: {
   let make: (~id: string, ~error: string, ~timestamp: string, ~category: string) => t
   let id: t => string
   let error: t => string
-  let createdAt: t => float
   let category: t => string
 } = {
   type t = {id: string, error: string, createdAt: float, category: string}
@@ -153,7 +152,6 @@ module ErrorMessage: {
 
   let id = t => t.id
   let error = t => t.error
-  let createdAt = t => t.createdAt
   let category = t => t.category
 }
 

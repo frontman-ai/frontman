@@ -259,17 +259,6 @@ module Selectors = {
     }
   }
 
-  // Get message created at timestamp
-  let getMessageCreatedAt = (msg: Message.t): float => {
-    switch msg {
-    | Message.User({createdAt, _}) => createdAt
-    | Message.Assistant(Streaming({createdAt, _})) => createdAt
-    | Message.Assistant(Completed({createdAt, _})) => createdAt
-    | Message.ToolCall({createdAt, _}) => createdAt
-    | Message.Error(err) => Message.ErrorMessage.createdAt(err)
-    }
-  }
-
   // Get the streaming message from a task (at most one per task)
   let streamingMessage = (task: Task.t): option<Message.assistantMessage> => {
     Lens.getStreamingMessage(task)

@@ -53,7 +53,6 @@ module TestHelpers = {
   }
 
   let getMessages = Reducer.Selectors.messages
-  let getQueuedUserMessages = Reducer.Selectors.queuedUserMessages
   let getMessage = (state, index) => getMessages(state)->Array.get(index)
   let getTaskCount = (state: Client__State__Types.state) =>
     state.tasks->Dict.valuesToArray->Array.length
