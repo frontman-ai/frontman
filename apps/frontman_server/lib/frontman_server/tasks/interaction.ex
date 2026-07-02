@@ -592,14 +592,18 @@ defmodule FrontmanServer.Tasks.Interaction do
     def attrs(content, metadata \\ %{}, usage \\ nil) do
       {response_fields, metadata} = split_response_metadata(metadata)
 
-      %{
+      attrs = %{
         content: content,
         metadata: metadata,
         response_id: response_fields.response_id,
         phase: response_fields.phase,
-        phase_items: response_fields.phase_items,
-        usage: usage_params(usage)
+        phase_items: response_fields.phase_items
       }
+
+      case usage do
+        nil -> attrs
+        usage -> Map.put(attrs, :usage, usage_params(usage))
+      end
     end
 
     def attrs_from_llm_response(%SwarmAi.LLM.Response{} = response) do
@@ -671,9 +675,9 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    defp usage_params(nil), do: nil
     defp usage_params(%__MODULE__.Usage{} = usage), do: Map.from_struct(usage)
     defp usage_params(usage) when is_map(usage), do: usage
+    defp usage_params(usage), do: usage
 
     defp llm_response_metadata(response) do
       meta = response.metadata || %{}

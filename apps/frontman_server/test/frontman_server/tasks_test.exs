@@ -177,6 +177,8 @@ defmodule FrontmanServer.TasksTest do
       usage = %{
         input_tokens: 100,
         output_tokens: 50,
+        reasoning_tokens: 15,
+        cached_tokens: 25,
         total_tokens: 175,
         cache_creation_tokens: 10
       }
@@ -191,11 +193,27 @@ defmodule FrontmanServer.TasksTest do
                  usage: %Interaction.AgentResponse.Usage{
                    input_tokens: 100,
                    output_tokens: 50,
+                   reasoning_tokens: 15,
+                   cached_tokens: 25,
                    total_tokens: 175,
                    cache_creation_tokens: 10
                  }
                }
              ] =
+               task_id
+               |> db_rows()
+               |> Enum.map(& &1.data)
+               |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
+    end
+
+    test "omits response usage when usage is absent", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+      response = %SwarmAi.LLM.Response{content: "hello", usage: nil}
+
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+
+      assert [%Interaction.AgentResponse{usage: nil}] =
                task_id
                |> db_rows()
                |> Enum.map(& &1.data)
@@ -235,6 +253,30 @@ defmodule FrontmanServer.TasksTest do
 
       assert stored_usage.input_tokens == 100
       refute Map.has_key?(Map.from_struct(stored_usage), :provider_exact_field)
+    end
+
+    test "rejects invalid response usage container types", %{scope: scope} do
+      for usage <- ["not a map", ["not", "a", "map"]] do
+        task_id = task_fixture(scope).id
+        turn_number = start_turn_fixture(scope, task_id)
+        response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
+
+        assert_raise Ecto.InvalidChangesetError, ~r/usage/, fn ->
+          Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+        end
+      end
+    end
+
+    test "rejects invalid known response usage field values", %{scope: scope} do
+      for usage <- [%{input_tokens: -1}, %{output_tokens: "five"}] do
+        task_id = task_fixture(scope).id
+        turn_number = start_turn_fixture(scope, task_id)
+        response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
+
+        assert_raise Ecto.InvalidChangesetError, ~r/usage/, fn ->
+          Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+        end
+      end
     end
   end
 

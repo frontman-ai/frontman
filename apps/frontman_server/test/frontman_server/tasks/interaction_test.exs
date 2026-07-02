@@ -6,7 +6,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias FrontmanServer.Tasks.InteractionSchema
 
   alias FrontmanServer.Tasks.Interaction.{
-    AgentResponse,
     Annotation,
     UserImage,
     UserMessage
@@ -203,70 +202,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         ])
 
       assert msg.current_page == nil
-    end
-  end
-
-  describe "AgentResponse usage validation" do
-    test "accepts missing usage" do
-      changeset = AgentResponse.changeset(%AgentResponse{}, AgentResponse.attrs("hello"))
-
-      assert changeset.valid?
-      assert Ecto.Changeset.apply_action!(changeset, :insert).usage == nil
-    end
-
-    test "accepts known usage fields and drops provider-specific fields" do
-      changeset =
-        AgentResponse.changeset(
-          %AgentResponse{},
-          AgentResponse.attrs("hello", %{}, %{
-            input_tokens: 10,
-            output_tokens: 5,
-            reasoning_tokens: 2,
-            cached_tokens: 3,
-            cache_creation_tokens: 4,
-            total_tokens: 21,
-            tool_usage: %{"web_search" => 1}
-          })
-        )
-
-      assert changeset.valid?
-
-      response = Ecto.Changeset.apply_action!(changeset, :insert)
-      assert response.usage.input_tokens == 10
-      assert response.usage.output_tokens == 5
-      assert response.usage.reasoning_tokens == 2
-      assert response.usage.cached_tokens == 3
-      assert response.usage.cache_creation_tokens == 4
-      assert response.usage.total_tokens == 21
-      refute Map.has_key?(Map.from_struct(response.usage), :tool_usage)
-    end
-
-    test "rejects invalid usage container types" do
-      for usage <- ["not a map", ["not", "a", "map"]] do
-        changeset = AgentResponse.changeset(%AgentResponse{}, %{content: "hello", usage: usage})
-
-        refute changeset.valid?
-        assert Keyword.has_key?(changeset.errors, :usage)
-      end
-    end
-
-    test "rejects invalid known usage field values" do
-      negative_changeset =
-        AgentResponse.changeset(%AgentResponse{}, %{
-          content: "hello",
-          usage: %{input_tokens: -1}
-        })
-
-      non_integer_changeset =
-        AgentResponse.changeset(%AgentResponse{}, %{
-          content: "hello",
-          usage: %{output_tokens: "five"}
-        })
-
-      refute negative_changeset.valid?
-      refute non_integer_changeset.valid?
-      assert Keyword.has_key?(usage_errors(negative_changeset), :input_tokens)
-      assert Keyword.has_key?(usage_errors(non_integer_changeset), :output_tokens)
     end
   end
 
@@ -765,10 +700,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     %UserMessage{}
     |> UserMessage.changeset(attrs)
     |> Ecto.Changeset.apply_action!(:insert)
-  end
-
-  defp usage_errors(changeset) do
-    changeset.changes.usage.errors
   end
 
   defp agent_paused(tool_name, timeout_ms) do
