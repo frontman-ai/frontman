@@ -5,6 +5,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
   use ExUnit.Case, async: false
 
+  import FrontmanServer.InteractionCase.Helpers, only: [assert_receive_interaction: 3]
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
@@ -182,12 +183,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
           })
         end)
 
-      assert_receive {:interaction,
-                      %{
-                        data: %Interaction.ToolCall{tool_call_id: tool_call_id},
-                        turn_number: _turn_number
-                      }},
-                     500
+      assert_receive_interaction(
+        %Interaction.ToolCall{tool_call_id: tool_call_id},
+        _turn_number,
+        500
+      )
 
       assert tool_call_id == tc.id
 

@@ -3,7 +3,9 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   import Mox
 
-  import FrontmanServer.InteractionCase.Helpers, only: [text_block: 1]
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [assert_receive_interaction: 2, text_block: 1]
+
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
@@ -61,12 +63,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     {:ok, _interaction, 1} =
       submit_anthropic_message(scope, task_id, "look at the page", mcp_tools: tool_defs)
 
-    assert_receive {:interaction,
-                    %{
-                      data: %Interaction.ToolCall{tool_call_id: ^screenshot_tool_call_id},
-                      turn_number: 1
-                    }},
-                   5_000
+    assert_receive_interaction(%Interaction.ToolCall{tool_call_id: ^screenshot_tool_call_id}, 1)
 
     {:ok, _interaction, _status} =
       Tasks.resolve_tool_request(
@@ -77,7 +74,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
         false
       )
 
-    assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 1}}, 5_000
+    assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     assert_receive {:provider_messages, :turn1_after_screenshot, turn1_after_messages}, 1_000
 
     turn1_tool_message = tool_message!(turn1_after_messages, screenshot_tool_call_id)
@@ -108,7 +105,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
     {:ok, _interaction, 2} = submit_anthropic_message(scope, task_id, "show old screenshot")
 
-    assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 2}}, 5_000
+    assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
     assert_receive {:provider_messages, :turn2_before_get_tool_result, before_messages}, 1_000
     assert_receive {:provider_messages, :turn2_after_get_tool_result, after_messages}, 1_000
 
@@ -147,12 +144,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     {:ok, _interaction, 1} =
       submit_anthropic_message(scope, task_id, "look at the page", mcp_tools: tool_defs)
 
-    assert_receive {:interaction,
-                    %{
-                      data: %Interaction.ToolCall{tool_call_id: ^tool_call_id},
-                      turn_number: 1
-                    }},
-                   5_000
+    assert_receive_interaction(%Interaction.ToolCall{tool_call_id: ^tool_call_id}, 1)
 
     {:ok, _interaction, _status} =
       Tasks.resolve_tool_request(
@@ -163,7 +155,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
         false
       )
 
-    assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 1}}, 5_000
+    assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     assert_receive {:provider_messages, :live_screenshot, messages}, 1_000
 
     tool_message = tool_message!(messages, tool_call_id)
@@ -194,7 +186,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
     {:ok, _interaction, 1} = submit_anthropic_message(scope, task_id, prompt)
 
-    assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 1}}, 5_000
+    assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     assert_receive {:provider_messages, :many_live_images, messages}, 1_000
 
     refute Enum.any?(image_parts(messages), &over_dimension?(&1, 2000))

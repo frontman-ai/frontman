@@ -93,36 +93,6 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
     )
   end
 
-  defp turn_started(user_message_ids) do
-    %Interaction.TurnStarted{
-      id: Ecto.UUID.generate(),
-      timestamp: Interaction.now(),
-      user_message_ids: user_message_ids
-    }
-  end
-
-  defp agent_completed do
-    %Interaction.AgentCompleted{id: Ecto.UUID.generate(), timestamp: Interaction.now()}
-  end
-
-  defp agent_error(message) do
-    %Interaction.AgentError{
-      id: Ecto.UUID.generate(),
-      timestamp: Interaction.now(),
-      error: message
-    }
-  end
-
-  defp agent_paused(tool_name, timeout_ms) do
-    %Interaction.AgentPaused{
-      id: Ecto.UUID.generate(),
-      timestamp: Interaction.now(),
-      reason: "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)",
-      tool_name: tool_name,
-      timeout_ms: timeout_ms
-    }
-  end
-
   defp agent_retry(retried_error_id) do
     %Interaction.AgentRetry{
       id: Ecto.UUID.generate(),

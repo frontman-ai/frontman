@@ -79,12 +79,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
 
-      assert_receive {:interaction,
-                      %{
-                        data: %Tasks.Interaction.AgentError{kind: "cancelled"},
-                        turn_number: _turn_number
-                      }},
-                     5_000
+      assert_receive_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, _turn_number)
     end
   end
 
@@ -166,12 +161,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         submit_user_message_and_run(scope, task_id, execution_request, user_content("Call tool"))
 
       # Wait for the interaction broadcast
-      assert_receive {:interaction,
-                      %{
-                        data: %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id},
-                        turn_number: _turn_number
-                      }},
-                     5_000
+      assert_receive_interaction(
+        %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id},
+        _turn_number
+      )
 
       # At this point, agent should be registered for the tool call
       registered =
@@ -185,12 +178,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
 
-      assert_receive {:interaction,
-                      %{
-                        data: %Tasks.Interaction.AgentError{kind: "cancelled"},
-                        turn_number: _turn_number
-                      }},
-                     5_000
+      assert_receive_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, _turn_number)
     end
   end
 end

@@ -1,6 +1,8 @@
 defmodule FrontmanServer.Tasks.InteractionAgentRetryTest do
   use ExUnit.Case, async: true
 
+  import FrontmanServer.InteractionCase.Helpers, only: [agent_error: 2, agent_error: 4]
+
   alias FrontmanServer.Tasks.Interaction
 
   describe "AgentError fields" do
@@ -43,17 +45,6 @@ defmodule FrontmanServer.Tasks.InteractionAgentRetryTest do
       refute Map.has_key?(decoded, "type")
       assert decoded["retried_error_id"] == "error-123"
     end
-  end
-
-  defp agent_error(message, kind, retryable \\ false, category \\ "unknown") do
-    %Interaction.AgentError{
-      id: Ecto.UUID.generate(),
-      timestamp: Interaction.now(),
-      error: message,
-      kind: kind,
-      retryable: retryable,
-      category: category
-    }
   end
 
   defp agent_retry(retried_error_id) do

@@ -701,14 +701,4 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     |> UserMessage.changeset(attrs)
     |> Ecto.Changeset.apply_action!(:insert)
   end
-
-  defp agent_paused(tool_name, timeout_ms) do
-    %Interaction.AgentPaused{
-      id: Ecto.UUID.generate(),
-      timestamp: Interaction.now(),
-      reason: "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)",
-      tool_name: tool_name,
-      timeout_ms: timeout_ms
-    }
-  end
 end

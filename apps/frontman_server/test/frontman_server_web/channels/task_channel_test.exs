@@ -12,7 +12,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServerWeb.UserSocket
 
   alias FrontmanServer.Tasks.Interaction
-  alias FrontmanServer.Tasks.InteractionSchema
   alias ModelContextProtocol, as: MCP
 
   # --- Live execution chunk builders ---
@@ -46,26 +45,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   defp agent_cancelled do
     interaction_event(agent_error("Cancelled", "cancelled"), 1)
-  end
-
-  defp agent_error(message, kind, retryable \\ false, category \\ "unknown") do
-    %Interaction.AgentError{
-      id: Ecto.UUID.generate(),
-      timestamp: Interaction.now(),
-      error: message,
-      kind: kind,
-      retryable: retryable,
-      category: category
-    }
-  end
-
-  defp interaction_event(interaction, turn_number) do
-    {:interaction,
-     %InteractionSchema{
-       type: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, interaction),
-       data: interaction,
-       turn_number: turn_number
-     }}
   end
 
   # Collects all pending push messages from the test process mailbox.

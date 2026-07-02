@@ -170,7 +170,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "swarm event persistence" do
-    test "persists response usage", %{scope: scope} do
+    test "persists known response usage fields and drops provider extras", %{scope: scope} do
       task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
@@ -180,7 +180,9 @@ defmodule FrontmanServer.TasksTest do
         reasoning_tokens: 15,
         cached_tokens: 25,
         total_tokens: 175,
-        cache_creation_tokens: 10
+        cache_creation_tokens: 10,
+        provider_exact_field: "preserved",
+        nested_provider_data: %{"anything" => [1, 2, 3]}
       }
 
       response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
@@ -190,20 +192,20 @@ defmodule FrontmanServer.TasksTest do
       assert [
                %Interaction.AgentResponse{
                  metadata: %{},
-                 usage: %Interaction.AgentResponse.Usage{
-                   input_tokens: 100,
-                   output_tokens: 50,
-                   reasoning_tokens: 15,
-                   cached_tokens: 25,
-                   total_tokens: 175,
-                   cache_creation_tokens: 10
-                 }
+                 usage: %Interaction.AgentResponse.Usage{} = stored_usage
                }
-             ] =
-               task_id
-               |> db_rows()
-               |> Enum.map(& &1.data)
-               |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
+             ] = agent_responses(task_id)
+
+      assert %{
+               input_tokens: 100,
+               output_tokens: 50,
+               reasoning_tokens: 15,
+               cached_tokens: 25,
+               total_tokens: 175,
+               cache_creation_tokens: 10
+             } = Map.from_struct(stored_usage)
+
+      refute Map.has_key?(Map.from_struct(stored_usage), :provider_exact_field)
     end
 
     test "omits response usage when usage is absent", %{scope: scope} do
@@ -213,11 +215,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
 
-      assert [%Interaction.AgentResponse{usage: nil}] =
-               task_id
-               |> db_rows()
-               |> Enum.map(& &1.data)
-               |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
+      assert [%Interaction.AgentResponse{usage: nil}] = agent_responses(task_id)
     end
 
     test "rejects invalid response metadata", %{scope: scope} do
@@ -231,44 +229,13 @@ defmodule FrontmanServer.TasksTest do
       end
     end
 
-    test "drops extra response usage provider fields", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-
-      usage = %{
-        input_tokens: 100,
-        provider_exact_field: "preserved",
-        nested_provider_data: %{"anything" => [1, 2, 3]}
-      }
-
-      response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
-
-      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
-
-      assert [%Interaction.AgentResponse{usage: stored_usage}] =
-               task_id
-               |> db_rows()
-               |> Enum.map(& &1.data)
-               |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
-
-      assert stored_usage.input_tokens == 100
-      refute Map.has_key?(Map.from_struct(stored_usage), :provider_exact_field)
-    end
-
-    test "rejects invalid response usage container types", %{scope: scope} do
-      for usage <- ["not a map", ["not", "a", "map"]] do
-        task_id = task_fixture(scope).id
-        turn_number = start_turn_fixture(scope, task_id)
-        response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
-
-        assert_raise Ecto.InvalidChangesetError, ~r/usage/, fn ->
-          Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
-        end
-      end
-    end
-
-    test "rejects invalid known response usage field values", %{scope: scope} do
-      for usage <- [%{input_tokens: -1}, %{output_tokens: "five"}] do
+    test "rejects invalid response usage", %{scope: scope} do
+      for usage <- [
+            "not a map",
+            ["not", "a", "map"],
+            %{input_tokens: -1},
+            %{output_tokens: "five"}
+          ] do
         task_id = task_fixture(scope).id
         turn_number = start_turn_fixture(scope, task_id)
         response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
@@ -709,6 +676,13 @@ defmodule FrontmanServer.TasksTest do
     |> InteractionSchema.for_task(task_id)
     |> InteractionSchema.ordered()
     |> Repo.all()
+  end
+
+  defp agent_responses(task_id) do
+    task_id
+    |> db_rows()
+    |> Enum.map(& &1.data)
+    |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
   end
 
   defp interaction_type(module),

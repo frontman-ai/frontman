@@ -12,6 +12,9 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   use FrontmanServer.ExecutionCase
 
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [assert_receive_interaction: 2]
+
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
@@ -50,9 +53,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Take a screenshot"))
 
       # Stream errors are now caught and surfaced as graceful failures.
-      assert_receive {:interaction,
-                      %{data: %Interaction.AgentError{error: reason}, turn_number: _turn_number}},
-                     5_000
+      assert_receive_interaction(%Interaction.AgentError{error: reason}, _turn_number)
 
       assert reason =~ "image exceeds the maximum allowed size"
     end
@@ -69,9 +70,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Hello"))
 
       # Should receive a failed interaction broadcast.
-      assert_receive {:interaction,
-                      %{data: %Interaction.AgentError{kind: "failed"}, turn_number: _turn_number}},
-                     5_000
+      assert_receive_interaction(%Interaction.AgentError{kind: "failed"}, _turn_number)
     end
   end
 
