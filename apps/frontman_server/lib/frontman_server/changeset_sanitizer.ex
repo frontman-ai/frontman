@@ -34,7 +34,12 @@ defmodule FrontmanServer.ChangesetSanitizer do
     :binary.replace(value, <<0>>, <<>>, [:global])
   end
 
-  defp do_strip(%_{} = value), do: value
+  defp do_strip(%module{} = value) do
+    value
+    |> Map.from_struct()
+    |> Map.new(fn {k, v} -> {k, do_strip(v)} end)
+    |> then(&struct!(module, &1))
+  end
 
   defp do_strip(value) when is_map(value) do
     Map.new(value, fn {k, v} -> {do_strip(k), do_strip(v)} end)

@@ -54,13 +54,13 @@ defmodule Mix.Tasks.DebugTask do
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
 
-  @tool_call_type Interaction.type_for(Interaction.ToolCall)
-  @tool_result_type Interaction.type_for(Interaction.ToolResult)
-  @agent_response_type Interaction.type_for(Interaction.AgentResponse)
-  @user_message_type Interaction.type_for(Interaction.UserMessage)
-  @agent_completed_type Interaction.type_for(Interaction.AgentCompleted)
-  @discovered_project_rule_type Interaction.type_for(Interaction.DiscoveredProjectRule)
-  @discovered_project_structure_type Interaction.type_for(Interaction.DiscoveredProjectStructure)
+  @tool_call_type :tool_call
+  @tool_result_type :tool_result
+  @agent_response_type :agent_response
+  @user_message_type :user_message
+  @agent_completed_type :agent_completed
+  @discovered_project_rule_type :discovered_project_rule
+  @discovered_project_structure_type :discovered_project_structure
 
   # ANSI helpers
   defp cyan(text), do: IO.ANSI.cyan() <> text <> IO.ANSI.reset()
@@ -409,7 +409,13 @@ defmodule Mix.Tasks.DebugTask do
   defp format_type(@discovered_project_structure_type), do: dim("project_struct ")
   defp format_type(other), do: other |> type_name() |> String.pad_trailing(15) |> dim()
 
-  defp data_map(%_{} = data), do: Interaction.to_data_map(data)
+  defp data_map(%_{} = data) do
+    data
+    |> Interaction.to_json_map()
+    |> Jason.encode!()
+    |> Jason.decode!()
+  end
+
   defp data_map(data), do: data
 
   defp interaction_summary(%{type: @tool_call_type, data: raw_data}) do
@@ -580,7 +586,7 @@ defmodule Mix.Tasks.DebugTask do
   end
 
   defp parse_interaction_type(type_name) do
-    Enum.find(Interaction.type_values(), &(Atom.to_string(&1) == type_name)) ||
+    Enum.find(Ecto.Enum.values(InteractionSchema, :type), &(Atom.to_string(&1) == type_name)) ||
       Mix.raise("Unknown interaction type: #{type_name}")
   end
 

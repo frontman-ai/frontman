@@ -81,16 +81,24 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   """
   def user_message_fixture(scope, task_id, content_blocks, model \\ @default_test_model) do
     task = task_schema!(scope, task_id)
-    {:ok, interaction} = Interaction.UserMessage.build(content_blocks, model)
+    {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model)
 
     with {:ok, row} <-
-           InteractionSchema.create_changeset(task, interaction, nil)
+           InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
            |> Repo.insert(),
-         turn_started = Interaction.TurnStarted.build([row.id]),
          {:ok, _turn_started} <-
-           InteractionSchema.create_changeset(task, turn_started, next_turn_number(task_id))
+           InteractionSchema.create_changeset(
+             task.id,
+             :turn_started,
+             %{
+               id: Ecto.UUID.generate(),
+               timestamp: Interaction.now(),
+               user_message_ids: [row.id]
+             },
+             next_turn_number(task_id)
+           )
            |> Repo.insert() do
-      {:ok, interaction}
+      {:ok, row.data}
     end
   end
 

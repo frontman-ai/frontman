@@ -6,6 +6,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias FrontmanServer.Tasks.InteractionSchema
 
   alias FrontmanServer.Tasks.Interaction.{
+    AgentResponse,
     Annotation,
     UserImage,
     UserMessage
@@ -14,10 +15,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias ModelContextProtocol, as: MCP
 
   # ---------------------------------------------------------------------------
-  # UserMessage.build/1
+  # UserMessage.attrs/1
   # ---------------------------------------------------------------------------
 
-  describe "UserMessage.build/1" do
+  describe "UserMessage.attrs/1" do
     test "extracts non-empty text messages" do
       msg = build_user_message([text_block("Hello")])
 
@@ -40,15 +41,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "returns error for text blocks without non-empty string text" do
       assert {:error,
               {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.build([%{"type" => "text"}])
+               UserMessage.attrs([%{"type" => "text"}])
 
       assert {:error,
               {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.build([%{"type" => "text", "text" => ""}])
+               UserMessage.attrs([%{"type" => "text", "text" => ""}])
 
       assert {:error,
               {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.build([%{"type" => "text", "text" => 1}])
+               UserMessage.attrs([%{"type" => "text", "text" => 1}])
     end
 
     test "extracts annotation from resource block" do
@@ -182,8 +183,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         ])
 
       assert msg.current_page.device_pixel_ratio == 1.0
-
-      assert %{current_page: %{device_pixel_ratio: 1.0}} = Interaction.to_data_map(msg)
     end
 
     test "ignores resource url meta without current page marker" do
@@ -204,6 +203,70 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         ])
 
       assert msg.current_page == nil
+    end
+  end
+
+  describe "AgentResponse usage validation" do
+    test "accepts missing usage" do
+      changeset = AgentResponse.changeset(%AgentResponse{}, AgentResponse.attrs("hello"))
+
+      assert changeset.valid?
+      assert Ecto.Changeset.apply_action!(changeset, :insert).usage == nil
+    end
+
+    test "accepts known usage fields and drops provider-specific fields" do
+      changeset =
+        AgentResponse.changeset(
+          %AgentResponse{},
+          AgentResponse.attrs("hello", %{}, %{
+            input_tokens: 10,
+            output_tokens: 5,
+            reasoning_tokens: 2,
+            cached_tokens: 3,
+            cache_creation_tokens: 4,
+            total_tokens: 21,
+            tool_usage: %{"web_search" => 1}
+          })
+        )
+
+      assert changeset.valid?
+
+      response = Ecto.Changeset.apply_action!(changeset, :insert)
+      assert response.usage.input_tokens == 10
+      assert response.usage.output_tokens == 5
+      assert response.usage.reasoning_tokens == 2
+      assert response.usage.cached_tokens == 3
+      assert response.usage.cache_creation_tokens == 4
+      assert response.usage.total_tokens == 21
+      refute Map.has_key?(Map.from_struct(response.usage), :tool_usage)
+    end
+
+    test "rejects invalid usage container types" do
+      for usage <- ["not a map", ["not", "a", "map"]] do
+        changeset = AgentResponse.changeset(%AgentResponse{}, %{content: "hello", usage: usage})
+
+        refute changeset.valid?
+        assert Keyword.has_key?(changeset.errors, :usage)
+      end
+    end
+
+    test "rejects invalid known usage field values" do
+      negative_changeset =
+        AgentResponse.changeset(%AgentResponse{}, %{
+          content: "hello",
+          usage: %{input_tokens: -1}
+        })
+
+      non_integer_changeset =
+        AgentResponse.changeset(%AgentResponse{}, %{
+          content: "hello",
+          usage: %{output_tokens: "five"}
+        })
+
+      refute negative_changeset.valid?
+      refute non_integer_changeset.valid?
+      assert Keyword.has_key?(usage_errors(negative_changeset), :input_tokens)
+      assert Keyword.has_key?(usage_errors(non_integer_changeset), :output_tokens)
     end
   end
 
@@ -586,8 +649,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  describe "InteractionSchema.to_struct/1" do
-    test "returns typed embedded interaction data" do
+  describe "InteractionSchema data" do
+    test "keeps typed embedded interaction data" do
       message =
         build_user_message([
           text_block("hello"),
@@ -603,7 +666,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       }
 
       assert %Interaction.UserMessage{current_page: %Interaction.CurrentPage{}, annotations: [_]} =
-               InteractionSchema.to_struct(row)
+               row.data
     end
   end
 
@@ -632,7 +695,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       decoded = msg |> Jason.encode!() |> Jason.decode!()
 
-      assert decoded["type"] == "user_message"
+      refute Map.has_key?(decoded, "type")
       assert decoded["messages"] == ["Fix this"]
       assert [ann] = decoded["annotations"]
       assert ann["annotation_id"] == "ann-full"
@@ -662,7 +725,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       decoded = tc |> Jason.encode!() |> Jason.decode!()
 
-      assert decoded["type"] == "tool_call"
+      refute Map.has_key?(decoded, "type")
       assert decoded["tool_name"] == "calculator"
       assert decoded["tool_call_id"] == "call_123"
     end
@@ -672,15 +735,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       decoded = tr |> Jason.encode!() |> Jason.decode!()
 
-      assert decoded["type"] == "tool_result"
+      refute Map.has_key?(decoded, "type")
       assert decoded["result"] == MCP.tool_result_text("42")
       assert decoded["is_error"] == false
     end
   end
 
   describe "AgentPaused" do
-    test "build/2 builds struct with correct fields" do
-      interaction = Interaction.AgentPaused.build("question", 120_000)
+    test "struct has correct fields" do
+      interaction = agent_paused("question", 120_000)
 
       assert interaction.tool_name == "question"
       assert interaction.timeout_ms == 120_000
@@ -691,13 +754,30 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert %DateTime{} = interaction.timestamp
     end
 
-    test "AgentPaused is in interaction_modules list" do
-      assert Interaction.AgentPaused in Interaction.interaction_modules()
+    test "AgentPaused is in persisted interaction types" do
+      assert Interaction.AgentPaused in Keyword.values(InteractionSchema.types())
     end
   end
 
   defp build_user_message(content_blocks) do
-    assert {:ok, message} = UserMessage.build(content_blocks)
-    message
+    assert {:ok, attrs} = UserMessage.attrs(content_blocks)
+
+    %UserMessage{}
+    |> UserMessage.changeset(attrs)
+    |> Ecto.Changeset.apply_action!(:insert)
+  end
+
+  defp usage_errors(changeset) do
+    changeset.changes.usage.errors
+  end
+
+  defp agent_paused(tool_name, timeout_ms) do
+    %Interaction.AgentPaused{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      reason: "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)",
+      tool_name: tool_name,
+      timeout_ms: timeout_ms
+    }
   end
 end

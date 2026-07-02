@@ -171,7 +171,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
 
-      assert_receive {:interaction, %Interaction.AgentError{kind: "cancelled"}, _turn_number},
+      assert_receive {:interaction,
+                      %{
+                        data: %Interaction.AgentError{kind: "cancelled"},
+                        turn_number: _turn_number
+                      }},
                      5_000
 
       refute_running_eventually(task_id)
@@ -202,8 +206,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
 
-      assert_receive {:interaction, %Interaction.TurnStarted{}, 1}, 5_000
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      assert_receive {:interaction, %{data: %Interaction.TurnStarted{}, turn_number: 1}}, 5_000
+      assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 1}}, 5_000
       refute_running_eventually(task_id)
     end
 
@@ -224,13 +228,18 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  model: "openrouter:openai/gpt-5.5"
                })
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       refute_running_eventually(task_id)
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
+
       refute_running_eventually(task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
@@ -274,7 +283,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert title_job.args["user_prompt_text"] =~ "https://example.com/app"
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 1}}, 5_000
     end
 
     test "startup failure persists terminal error on the same turn" do
@@ -284,12 +293,16 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _, 1} =
         submit_user_message(scope, task_id, user_content("Hello"), model: "missing:test")
 
-      assert_receive {:interaction, %Interaction.AgentError{category: "auth"}, 1}
+      assert_receive {:interaction,
+                      %InteractionSchema{
+                        turn_number: 1,
+                        data: %Interaction.AgentError{category: "auth"}
+                      }}
 
       assert %InteractionSchema{turn_number: 1, data: %Interaction.AgentError{category: "auth"}} =
                Repo.get_by!(InteractionSchema,
                  task_id: task_id,
-                 type: Interaction.type_for(Interaction.AgentError)
+                 type: :agent_error
                )
 
       assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
@@ -335,12 +348,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [%Interaction.Annotation{parent: %Interaction.ParentLocation{}}] =
                returned.annotations
 
-      assert_receive {:interaction, %Interaction.UserMessage{} = broadcast_message, nil}
+      assert_receive {:interaction,
+                      %{data: %Interaction.UserMessage{} = broadcast_message, turn_number: nil}}
 
       assert [%Interaction.Annotation{screenshot: %Interaction.Screenshot{}}] =
                broadcast_message.annotations
 
-      assert_receive {:interaction, %Interaction.AgentError{category: "auth"}, 1}
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentError{category: "auth"}, turn_number: 1}}
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert [%Interaction.UserMessage{} = persisted_message | _] = task.interactions
@@ -374,11 +389,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Show todos"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Summarize"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
@@ -439,7 +458,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [user_text] = provider_user_texts(messages)
       assert user_text =~ "included"
       refute user_text =~ "queued for next turn"
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 1}}, 5_000
     end
 
     test "includes every user message claimed by the started turn in order", %{
@@ -463,7 +482,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:provider_messages, messages}, 1_000
       assert provider_user_texts(messages) == ["first", "second"]
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 1}}, 5_000
     end
   end
 
@@ -496,7 +515,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           false
         )
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -524,7 +545,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Build me a login page"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
+
       assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
 
@@ -536,11 +560,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Build me a login page"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Now add a signup form"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       enqueued = all_enqueued(worker: GenerateTitle)
 
@@ -568,7 +596,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           mcp_tools: short_timeout_question_mcp_tool_defs()
         )
 
-      assert_receive {:interaction, %Interaction.AgentPaused{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentPaused{}, turn_number: _turn_number}},
+                     5_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -610,7 +640,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           mcp_tools: error_timeout_mcp_tool_defs()
         )
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -647,7 +679,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        {:interaction, Interaction.AgentPaused.build("question", 120_000), 1}
+        {:interaction, interaction_row(agent_paused("question", 120_000), 1)}
       )
 
       :sys.get_state(socket.channel_pid)
@@ -681,7 +713,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Write todos"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       # The telemetry stop event fires only after the backend tool actually runs.
       # The missing tool_defs regression skipped execution before producing this event.
@@ -721,7 +755,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Write todos"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       :sys.get_state(socket.channel_pid)
 
@@ -786,7 +822,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       :sys.get_state(socket.channel_pid)
 
@@ -821,7 +859,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       :sys.get_state(socket.channel_pid)
 
@@ -854,7 +894,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Hello"))
 
-      assert_receive {:interaction, %Interaction.AgentError{kind: "terminated"}, _turn_number},
+      assert_receive {:interaction,
+                      %{
+                        data: %Interaction.AgentError{kind: "terminated"},
+                        turn_number: _turn_number
+                      }},
                      5_000
 
       # Verify DB persistence
@@ -889,7 +933,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Hello"))
 
-      assert_receive {:interaction, %Interaction.AgentError{kind: "crashed"}, _turn_number},
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentError{kind: "crashed"}, turn_number: _turn_number}},
                      5_000
 
       :sys.get_state(socket.channel_pid)
@@ -937,7 +982,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Hello"))
 
-      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentError{kind: "failed"}, turn_number: _turn_number}},
                      5_000
 
       :sys.get_state(socket.channel_pid)
@@ -992,7 +1038,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _, 1} = submit_user_message(scope, task_id, user_content("Hello"))
 
       assert_receive {:interaction,
-                      %Interaction.AgentError{retryable: true, category: "rate_limit"}, 1},
+                      %{
+                        data: %Interaction.AgentError{retryable: true, category: "rate_limit"},
+                        turn_number: 1
+                      }},
                      5_000
 
       :sys.get_state(socket.channel_pid)
@@ -1013,7 +1062,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       %{assigns: %{retry_state: retry_state}} = :sys.get_state(socket.channel_pid)
       send(socket.channel_pid, {:fire_retry, retry_state.timer_token})
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      assert_receive {:interaction, %{data: %Interaction.AgentCompleted{}, turn_number: 1}}, 5_000
       assert :counters.get(attempts, 1) == 2
     end
   end
@@ -1036,7 +1085,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -1072,7 +1123,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, _turn_number}, 5_000
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentCompleted{}, turn_number: _turn_number}},
+                     5_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -1093,28 +1146,29 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   defp task_schema!(task_id), do: Repo.get!(FrontmanServer.Tasks.TaskSchema, task_id)
 
   defp insert_accepted_user_message!(task, text) do
-    {:ok, interaction} =
-      Interaction.UserMessage.build(user_content(text), "openrouter:openai/gpt-5.5")
+    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")
 
-    task
-    |> InteractionSchema.create_changeset(interaction, nil)
+    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
     |> Repo.insert!()
   end
 
   defp insert_turn_started_for_messages!(task_id, turn_number) do
-    task = task_schema!(task_id)
-
     user_message_ids =
       InteractionSchema
       |> InteractionSchema.for_task(task_id)
-      |> InteractionSchema.of_type(Interaction.UserMessage)
+      |> InteractionSchema.of_type(:user_message)
       |> InteractionSchema.ordered()
       |> Repo.all()
       |> Enum.map(& &1.id)
 
-    task
-    |> InteractionSchema.create_changeset(
-      Interaction.TurnStarted.build(user_message_ids),
+    InteractionSchema.create_changeset(
+      task_id,
+      :turn_started,
+      %{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        user_message_ids: user_message_ids
+      },
       turn_number
     )
     |> Repo.insert!()
@@ -1124,5 +1178,23 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     messages
     |> Enum.filter(&match?(%{role: :user}, &1))
     |> Enum.map(&extract_content_text(&1.content))
+  end
+
+  defp interaction_row(interaction, turn_number) do
+    %InteractionSchema{
+      type: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, interaction),
+      data: interaction,
+      turn_number: turn_number
+    }
+  end
+
+  defp agent_paused(tool_name, timeout_ms) do
+    %Interaction.AgentPaused{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      reason: "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)",
+      tool_name: tool_name,
+      timeout_ms: timeout_ms
+    }
   end
 end

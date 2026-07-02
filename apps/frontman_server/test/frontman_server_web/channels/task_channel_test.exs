@@ -12,6 +12,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServerWeb.UserSocket
 
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
   alias ModelContextProtocol, as: MCP
 
   # --- Live execution chunk builders ---
@@ -25,7 +26,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
        %{type: :tool_call, name: name, arguments: %{}, metadata: %{id: id, index: 0}}}
 
   defp agent_failed(message, category \\ "unknown") do
-    {:interaction, Interaction.AgentError.build(message, "failed", false, category), 1}
+    interaction_event(agent_error(message, "failed", false, category), 1)
   end
 
   defp broadcast_retryable_error(scope, task_id) do
@@ -44,7 +45,27 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   defp agent_cancelled do
-    {:interaction, Interaction.AgentError.build("Cancelled", "cancelled"), 1}
+    interaction_event(agent_error("Cancelled", "cancelled"), 1)
+  end
+
+  defp agent_error(message, kind, retryable \\ false, category \\ "unknown") do
+    %Interaction.AgentError{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      error: message,
+      kind: kind,
+      retryable: retryable,
+      category: category
+    }
+  end
+
+  defp interaction_event(interaction, turn_number) do
+    {:interaction,
+     %InteractionSchema{
+       type: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, interaction),
+       data: interaction,
+       turn_number: turn_number
+     }}
   end
 
   # Collects all pending push messages from the test process mailbox.
@@ -363,7 +384,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        {:interaction, tool_call, 1}
+        interaction_event(tool_call, 1)
       )
 
       # If the channel is subscribed to PubSub, it should route this to MCP
@@ -388,7 +409,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         different_topic,
-        {:interaction, tool_call, 1}
+        interaction_event(tool_call, 1)
       )
 
       # Channel should NOT receive this since it's subscribed to task_id's topic
@@ -404,7 +425,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
-        {:interaction, tool_call2, 1}
+        interaction_event(tool_call2, 1)
       )
 
       assert_push("mcp:message", %{
@@ -825,7 +846,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tc =
         tool_call(tool_call_id, "write_file", %{"target_file" => "test.txt", "content" => "hello"})
 
-      send(socket.channel_pid, {:interaction, tc, 1})
+      send(socket.channel_pid, interaction_event(tc, 1))
       :sys.get_state(socket.channel_pid)
 
       # Should get a tool_call_update with args, but NOT a duplicate tool_call create
@@ -860,7 +881,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       tc = tool_call(tool_call_id, "take_screenshot")
 
-      send(socket.channel_pid, {:interaction, tc, 1})
+      send(socket.channel_pid, interaction_event(tc, 1))
       :sys.get_state(socket.channel_pid)
 
       # Should get the standard tool_call create notification

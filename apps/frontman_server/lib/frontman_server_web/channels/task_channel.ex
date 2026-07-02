@@ -163,11 +163,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # --- Interaction events (from Tasks persistence layer via PubSub) ---
 
-  def handle_info({:interaction, interaction}, socket) do
-    handle_interaction(interaction, nil, socket)
-  end
-
-  def handle_info({:interaction, interaction, turn_number}, socket) do
+  def handle_info({:interaction, %{data: interaction, turn_number: turn_number}}, socket) do
     handle_interaction(interaction, turn_number, socket)
   end
 

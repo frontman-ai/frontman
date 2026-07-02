@@ -133,7 +133,7 @@ defmodule FrontmanServer.Tasks.Execution do
       |> Enum.uniq()
 
     InteractionSchema.for_task(task_id)
-    |> InteractionSchema.of_type(Interaction.UserMessage)
+    |> InteractionSchema.of_type(:user_message)
     |> where_id_in(user_message_ids)
     |> InteractionSchema.ordered()
     |> Repo.all()
@@ -227,7 +227,7 @@ defmodule FrontmanServer.Tasks.Execution do
 
   defp row_to_messages(row) do
     row
-    |> InteractionSchema.to_struct()
+    |> Map.fetch!(:data)
     |> List.wrap()
     # FIXME(Danni) - why not get rid of swarm messages? lets it just work with reqllm messages
     |> Interaction.to_swarm_messages()

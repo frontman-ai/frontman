@@ -7,12 +7,13 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
   stream_session_history iterates over task interactions.
 
   The completeness test dynamically checks every module in
-  `Interaction.interaction_modules/0`, so adding a new type to that list
+  `InteractionSchema.types/0`, so adding a new type to that list
   without providing an ACPHistory impl will fail this test.
   """
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServerWeb.ACPHistory
   alias ModelContextProtocol, as: MCP
 
@@ -41,7 +42,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
   }
 
   describe "ACPHistory protocol completeness" do
-    for mod <- Interaction.interaction_modules() do
+    for mod <- Keyword.values(InteractionSchema.types()) do
       type_name = mod |> Module.split() |> List.last()
 
       test "#{type_name} has a working ACPHistory implementation" do

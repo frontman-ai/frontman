@@ -17,13 +17,13 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
 
   describe "create_changeset/3 turn_number validation" do
     test "accepts UserMessage without a turn number", %{task: task} do
-      changeset = InteractionSchema.create_changeset(task, user_msg("queued"), nil)
+      changeset = create_changeset(task, user_msg("queued"), nil)
 
       assert changeset.valid?
     end
 
     test "rejects UserMessage with a turn number", %{task: task} do
-      changeset = InteractionSchema.create_changeset(task, user_msg("queued"), 1)
+      changeset = create_changeset(task, user_msg("queued"), 1)
 
       refute changeset.valid?
       assert %{turn_number: ["must be empty for user_message"]} = errors_on(changeset)
@@ -31,17 +31,17 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
 
     test "requires positive turn numbers for execution-bound interactions", %{task: task} do
       interactions = [
-        Interaction.AgentResponse.build("response"),
+        struct!(Interaction.AgentResponse, Interaction.AgentResponse.attrs("response")),
         tool_call("call_1", "read_file"),
         tool_result("call_1", "read_file", %{"ok" => true}),
-        Interaction.AgentCompleted.build(),
-        Interaction.AgentError.build("failed"),
-        Interaction.AgentPaused.build("read_file", 1_000),
-        Interaction.AgentRetry.build(Interaction.new_id())
+        agent_completed(),
+        agent_error("failed"),
+        agent_paused("read_file", 1_000),
+        agent_retry(Ecto.UUID.generate())
       ]
 
       for interaction <- interactions do
-        changeset = InteractionSchema.create_changeset(task, interaction, nil)
+        changeset = create_changeset(task, interaction, nil)
 
         refute changeset.valid?
         assert %{turn_number: ["missing for " <> _type]} = errors_on(changeset)
@@ -51,25 +51,83 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
 
   describe "TurnStarted" do
     test "requires a positive turn number and non-empty user message ids", %{task: task} do
-      user_message_id = Interaction.new_id()
-      turn_started = Interaction.TurnStarted.build([user_message_id])
+      user_message_id = Ecto.UUID.generate()
+      turn_started = turn_started([user_message_id])
 
-      changeset = InteractionSchema.create_changeset(task, turn_started, 1)
+      changeset = create_changeset(task, turn_started, 1)
 
       assert changeset.valid?
 
-      missing_turn_changeset = InteractionSchema.create_changeset(task, turn_started, nil)
+      missing_turn_changeset = create_changeset(task, turn_started, nil)
 
       refute missing_turn_changeset.valid?
       assert %{turn_number: ["missing for turn_started"]} = errors_on(missing_turn_changeset)
 
-      empty_ids_changeset =
-        InteractionSchema.create_changeset(task, Interaction.TurnStarted.build([]), 1)
+      invalid_changeset = create_changeset(task, turn_started([]), 1)
 
-      refute empty_ids_changeset.valid?
-
-      assert %Ecto.Changeset{errors: [user_message_ids: {"must be non-empty", []}]} =
-               get_change(empty_ids_changeset, :data)
+      refute invalid_changeset.valid?
     end
+  end
+
+  describe "JSON encoding" do
+    test "encodes persisted interaction type from the row", %{task: task} do
+      row =
+        task
+        |> create_changeset(tool_call("call_1", "read_file"), 1)
+        |> Ecto.Changeset.apply_changes()
+
+      decoded = row |> Jason.encode!() |> Jason.decode!()
+
+      assert decoded["type"] == "tool_call"
+      assert decoded["tool_call_id"] == "call_1"
+      assert decoded["tool_name"] == "read_file"
+    end
+  end
+
+  defp create_changeset(task, interaction, turn_number) do
+    InteractionSchema.create_changeset(
+      task.id,
+      PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, interaction),
+      Map.from_struct(interaction),
+      turn_number
+    )
+  end
+
+  defp turn_started(user_message_ids) do
+    %Interaction.TurnStarted{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      user_message_ids: user_message_ids
+    }
+  end
+
+  defp agent_completed do
+    %Interaction.AgentCompleted{id: Ecto.UUID.generate(), timestamp: Interaction.now()}
+  end
+
+  defp agent_error(message) do
+    %Interaction.AgentError{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      error: message
+    }
+  end
+
+  defp agent_paused(tool_name, timeout_ms) do
+    %Interaction.AgentPaused{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      reason: "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)",
+      tool_name: tool_name,
+      timeout_ms: timeout_ms
+    }
+  end
+
+  defp agent_retry(retried_error_id) do
+    %Interaction.AgentRetry{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      retried_error_id: retried_error_id
+    }
   end
 end

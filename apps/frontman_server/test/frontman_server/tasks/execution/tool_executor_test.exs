@@ -182,8 +182,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
           })
         end)
 
-      assert_receive {:interaction, %Interaction.ToolCall{tool_call_id: tool_call_id},
-                      _turn_number},
+      assert_receive {:interaction,
+                      %{
+                        data: %Interaction.ToolCall{tool_call_id: tool_call_id},
+                        turn_number: _turn_number
+                      }},
                      500
 
       assert tool_call_id == tc.id

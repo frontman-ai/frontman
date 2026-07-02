@@ -56,7 +56,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Workers.GenerateTitle
   require Logger
 
-  @task_scoped_interaction_types Interaction.task_scoped_types()
+  @task_scoped_interaction_types InteractionSchema.task_scoped_types()
   @accepted_message_interaction_types [:user_message]
   @agent_run_starter_interaction_types [:turn_started, :agent_retry]
   @agent_run_terminal_interaction_types [:agent_completed, :agent_error, :agent_paused]
@@ -154,7 +154,7 @@ defmodule FrontmanServer.Tasks do
   defp load_interactions(task_id) do
     task_id
     |> load_interaction_rows()
-    |> Enum.map(&InteractionSchema.to_struct/1)
+    |> Enum.map(& &1.data)
   end
 
   defp load_interaction_rows(task_id) do
@@ -177,7 +177,15 @@ defmodule FrontmanServer.Tasks do
       if rule_loaded?(interactions, path) do
         {:ok, :already_loaded}
       else
-        record_interaction(schema, Interaction.DiscoveredProjectRule.build(path, content))
+        record_interaction(
+          schema,
+          :discovered_project_rule,
+          %{
+            path: path,
+            content: content
+          },
+          nil
+        )
       end
     end
   end
@@ -193,7 +201,14 @@ defmodule FrontmanServer.Tasks do
       if Enum.any?(interactions, &match?(%Interaction.DiscoveredProjectStructure{}, &1)) do
         {:ok, :already_loaded}
       else
-        record_interaction(task, Interaction.DiscoveredProjectStructure.build(summary))
+        record_interaction(
+          task,
+          :discovered_project_structure,
+          %{
+            summary: summary
+          },
+          nil
+        )
       end
     end
   end
@@ -207,14 +222,10 @@ defmodule FrontmanServer.Tasks do
 
   # --- Interaction Persistence Helpers ---
 
-  defp record_interaction(%TaskSchema{} = task_schema, interaction) do
-    record_interaction(task_schema, interaction, nil)
-  end
-
-  defp record_interaction(%TaskSchema{} = task_schema, interaction, turn_number) do
+  defp record_interaction(%TaskSchema{} = task_schema, type, attrs, turn_number) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             InteractionSchema.create_changeset(task_schema, interaction, turn_number)
+             InteractionSchema.create_changeset(task_schema.id, type, attrs, turn_number)
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
@@ -228,14 +239,12 @@ defmodule FrontmanServer.Tasks do
     end)
     |> case do
       {:ok, %InteractionSchema{} = interaction_schema} ->
-        interaction = InteractionSchema.to_struct(interaction_schema)
-
         broadcast_task(
           task_schema.id,
-          {:interaction, interaction, interaction_schema.turn_number}
+          {:interaction, interaction_schema}
         )
 
-        {:ok, interaction}
+        {:ok, interaction_schema.data}
 
       {:error, reason} ->
         {:error, reason}
@@ -319,13 +328,13 @@ defmodule FrontmanServer.Tasks do
   defp persist_swarm_event(nil, _task_id, _turn_number, _event), do: :ok
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:response, response}) do
-    with {:ok, _interaction} <-
-           agent_replied(
-             scope,
-             task_id,
-             turn_number,
-             response.content || "",
-             response_metadata(response)
+    with {:ok, task_schema} <- get_task_by_id(scope, task_id),
+         {:ok, _interaction} <-
+           record_interaction(
+             task_schema,
+             :agent_response,
+             Interaction.AgentResponse.attrs_from_llm_response(response),
+             turn_number
            ) do
       :ok
     end
@@ -465,35 +474,11 @@ defmodule FrontmanServer.Tasks do
     |> InteractionSchema.unresolved_tool_calls()
     |> InteractionSchema.ordered()
     |> Repo.all()
-    |> Enum.map(&InteractionSchema.to_struct/1)
+    |> Enum.map(& &1.data)
   end
 
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{tool_name: "question"}), do: true
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{}), do: false
-
-  defp response_metadata(response) do
-    meta = Map.get(response, :metadata) || %{}
-
-    %{
-      "tool_calls" => stored_tool_calls(Map.get(response, :tool_calls)),
-      "reasoning_details" => non_empty(Map.get(response, :reasoning_details)),
-      "response_id" => meta[:response_id],
-      "phase" => meta[:phase],
-      "phase_items" => non_empty(meta[:phase_items])
-    }
-    |> Map.reject(fn {_key, value} -> is_nil(value) end)
-  end
-
-  defp stored_tool_calls(tool_calls) when is_list(tool_calls) and tool_calls != [] do
-    Enum.map(tool_calls, fn %SwarmAi.ToolCall{id: id, name: name, arguments: arguments} ->
-      %{"id" => id, "name" => name, "arguments" => arguments}
-    end)
-  end
-
-  defp stored_tool_calls(_tool_calls), do: nil
-
-  defp non_empty(list) when is_list(list) and list != [], do: list
-  defp non_empty(_list), do: nil
 
   # --- Conversation Lifecycle ---
 
@@ -511,15 +496,16 @@ defmodule FrontmanServer.Tasks do
         }
       )
       when is_binary(task_id) and is_binary(model) and model != "" do
-    with {:ok, user_message_interaction} <- Interaction.UserMessage.build(content_blocks, model),
+    with {:ok, user_message_attrs} <- Interaction.UserMessage.attrs(content_blocks, model),
          {:ok, task_schema} <- get_task_by_id(scope, task_id),
          first_message? <- accepted_user_message_count(task_id) == 0,
-         {:ok, accepted_message} <- record_interaction(task_schema, user_message_interaction) do
+         {:ok, accepted_message} <-
+           record_interaction(task_schema, :user_message, user_message_attrs, nil) do
       if first_message? do
         GenerateTitle.new(%{
           user_id: scope.user.id,
           task_id: task_id,
-          user_prompt_text: Interaction.user_prompt_text(user_message_interaction),
+          user_prompt_text: Interaction.user_prompt_text(accepted_message),
           model: model
         })
         |> Oban.insert!()
@@ -541,9 +527,9 @@ defmodule FrontmanServer.Tasks do
 
   defp start_next_turn(%Scope{} = scope, task_id) when is_binary(task_id) do
     case claim_next_turn(scope, task_id) do
-      {:ok, {task_schema, turn_started, turn_number, turn_model}} ->
-        broadcast_task(task_id, {:interaction, turn_started, turn_number})
-        {:ok, task_schema, turn_number, turn_started, turn_model}
+      {:ok, {task_schema, turn_started_row, turn_number, turn_model}} ->
+        broadcast_task(task_id, {:interaction, turn_started_row})
+        {:ok, task_schema, turn_number, turn_started_row.data, turn_model}
 
       {:error, :already_running} ->
         :already_running
@@ -572,13 +558,13 @@ defmodule FrontmanServer.Tasks do
       {{:ok, nil}, [_ | _] = accepted_messages} ->
         turn_number = next_turn_number(rows)
         user_message_ids = Enum.map(accepted_messages, & &1.id)
-        turn_started = Interaction.TurnStarted.build(user_message_ids)
+
+        turn_started_attrs = %{user_message_ids: user_message_ids}
 
         with {:ok, turn_model} <- turn_model_for_accepted_messages(accepted_messages),
              {:ok, turn_started_row} <-
-               insert_turn_started(task_schema, turn_started, turn_number) do
-          {:ok,
-           {task_schema, InteractionSchema.to_struct(turn_started_row), turn_number, turn_model}}
+               insert_turn_started(task_schema, turn_started_attrs, turn_number) do
+          {:ok, {task_schema, turn_started_row, turn_number, turn_model}}
         else
           {:error, reason} ->
             {:error, reason}
@@ -630,9 +616,14 @@ defmodule FrontmanServer.Tasks do
     end)
   end
 
-  defp insert_turn_started(%TaskSchema{} = task_schema, turn_started, turn_number) do
+  defp insert_turn_started(%TaskSchema{} = task_schema, turn_started_attrs, turn_number) do
     with {:ok, schema} <-
-           InteractionSchema.create_changeset(task_schema, turn_started, turn_number)
+           InteractionSchema.create_changeset(
+             task_schema.id,
+             :turn_started,
+             turn_started_attrs,
+             turn_number
+           )
            |> Repo.insert(),
          {1, _} <-
            TaskSchema
@@ -645,12 +636,13 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  def agent_replied(scope, task_id, turn_number, content, metadata \\ %{})
+  def agent_replied(scope, task_id, turn_number, content, metadata \\ %{}, usage \\ nil)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
       record_interaction(
         task_schema,
-        Interaction.AgentResponse.build(content, metadata),
+        :agent_response,
+        Interaction.AgentResponse.attrs(content, metadata, usage),
         turn_number
       )
     end
@@ -660,24 +652,51 @@ defmodule FrontmanServer.Tasks do
   def record_agent_run_result(scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
-      record_interaction(task_schema, build_agent_run_result(outcome), turn_number)
+      {type, attrs} = build_agent_run_result(outcome)
+
+      record_interaction(task_schema, type, attrs, turn_number)
     end
   end
 
   defp build_agent_run_result(outcome) do
     case outcome do
-      :completed -> Interaction.AgentCompleted.build()
-      :cancelled -> turn_error("Cancelled", "cancelled")
-      :terminated -> turn_error("Terminated by supervisor", "terminated")
-      {:failed, error} -> turn_error(error)
-      {:failed, error, retry, category} -> turn_error(error, "failed", retry, category)
-      {:crashed, error} -> turn_error(error, "crashed")
-      {:paused_for_tool_timeout, tool, timeout} -> Interaction.AgentPaused.build(tool, timeout)
+      :completed ->
+        {:agent_completed, %{result: nil}}
+
+      :cancelled ->
+        turn_error("Cancelled", "cancelled")
+
+      :terminated ->
+        turn_error("Terminated by supervisor", "terminated")
+
+      {:failed, error} ->
+        turn_error(error)
+
+      {:failed, error, retry, category} ->
+        turn_error(error, "failed", retry, category)
+
+      {:crashed, error} ->
+        turn_error(error, "crashed")
+
+      {:paused_for_tool_timeout, tool, timeout} ->
+        {:agent_paused,
+         %{
+           reason: "Tool #{tool} timed out after #{timeout}ms (on_timeout: :pause_agent)",
+           tool_name: tool,
+           timeout_ms: timeout
+         }}
     end
   end
 
-  defp turn_error(error, kind \\ "failed", retryable \\ false, category \\ "unknown"),
-    do: Interaction.AgentError.build(error, kind, retryable, category)
+  defp turn_error(error, kind \\ "failed", retryable \\ false, category \\ "unknown") do
+    {:agent_error,
+     %{
+       error: error,
+       kind: kind,
+       retryable: retryable,
+       category: category
+     }}
+  end
 
   # --- Tool Requests ---
 
@@ -685,8 +704,8 @@ defmodule FrontmanServer.Tasks do
   def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
-         {:ok, interaction} <- Interaction.ToolCall.build(tool_call_data) do
-      record_interaction(schema, interaction, turn_number)
+         {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data) do
+      record_interaction(schema, :tool_call, attrs, turn_number)
     end
   end
 
@@ -713,8 +732,9 @@ defmodule FrontmanServer.Tasks do
 
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          turn_number = tool_result_turn_number(task_id, tool_call_id, opts),
-         interaction = Interaction.ToolResult.build(tool_call_data, result, is_error),
-         {:ok, interaction} <- record_interaction(schema, interaction, turn_number) do
+         attrs = Interaction.ToolResult.attrs(tool_call_data, result, is_error),
+         {:ok, interaction} <-
+           record_interaction(schema, :tool_result, attrs, turn_number) do
       executor_status = Execution.notify_tool_result(interaction)
 
       {:ok, interaction, executor_status}
@@ -728,7 +748,7 @@ defmodule FrontmanServer.Tasks do
 
       :error ->
         InteractionSchema.for_task(task_id)
-        |> InteractionSchema.of_type(Interaction.ToolCall)
+        |> InteractionSchema.of_type(:tool_call)
         |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
         |> Repo.one()
         |> case do
@@ -761,7 +781,7 @@ defmodule FrontmanServer.Tasks do
             |> InteractionSchema.unresolved_tool_calls()
             |> InteractionSchema.ordered()
             |> Repo.all()
-            |> Enum.map(&InteractionSchema.to_struct/1)
+            |> Enum.map(& &1.data)
 
           {:ok, turn_number, tool_calls}
 
@@ -780,8 +800,8 @@ defmodule FrontmanServer.Tasks do
          {:ok, turn_number} <- retry_turn_number(rows, retried_error_id),
          :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, rows),
          {:ok, execution} <- ensure_execution_model(rows, turn_number, execution),
-         retry_interaction = Interaction.AgentRetry.build(retried_error_id),
-         {:ok, _retry} <- record_interaction(schema, retry_interaction, turn_number) do
+         retry_attrs = %{retried_error_id: retried_error_id},
+         {:ok, _retry} <- record_interaction(schema, :agent_retry, retry_attrs, turn_number) do
       run_execution(scope, schema, turn_number, execution)
     end
   end

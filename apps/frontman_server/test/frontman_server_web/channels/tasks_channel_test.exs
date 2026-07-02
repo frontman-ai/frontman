@@ -11,6 +11,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   alias FrontmanServer.Repo
   alias FrontmanServer.Repo.Migrations.BackfillTurnStartedForUserMessages
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServerWeb.UserSocket
 
@@ -688,7 +689,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
     data =
       %{
-        "__type__" => Interaction.type_for(type) |> Atom.to_string(),
+        "__type__" => interaction_type(type) |> Atom.to_string(),
         "id" => Ecto.UUID.generate(),
         "timestamp" => DateTime.to_iso8601(now),
         "images" => []
@@ -703,7 +704,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       [
         Ecto.UUID.dump!(Ecto.UUID.generate()),
         Ecto.UUID.dump!(task_id),
-        Interaction.type_for(type) |> Atom.to_string(),
+        interaction_type(type) |> Atom.to_string(),
         Jason.encode!(data),
         turn_number,
         System.unique_integer([:monotonic, :positive]),
@@ -729,4 +730,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
                log: false
              )
   end
+
+  defp interaction_type(module),
+    do: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, module)
 end

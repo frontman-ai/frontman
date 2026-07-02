@@ -170,16 +170,71 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "swarm event persistence" do
+    test "persists response usage", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+
+      usage = %{
+        input_tokens: 100,
+        output_tokens: 50,
+        total_tokens: 175,
+        cache_creation_tokens: 10
+      }
+
+      response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
+
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+
+      assert [
+               %Interaction.AgentResponse{
+                 metadata: %{},
+                 usage: %Interaction.AgentResponse.Usage{
+                   input_tokens: 100,
+                   output_tokens: 50,
+                   total_tokens: 175,
+                   cache_creation_tokens: 10
+                 }
+               }
+             ] =
+               task_id
+               |> db_rows()
+               |> Enum.map(& &1.data)
+               |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
+    end
+
     test "rejects invalid response metadata", %{scope: scope} do
       task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       response = %SwarmAi.LLM.Response{content: "hello", metadata: %{response_id: 123}}
 
-      assert {:error, changeset} =
-               Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+      assert_raise Ecto.InvalidChangesetError, ~r/response_id/, fn ->
+        Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+      end
+    end
 
-      assert %{data: ["metadata.response_id must be a string"]} = errors_on(changeset)
+    test "drops extra response usage provider fields", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+
+      usage = %{
+        input_tokens: 100,
+        provider_exact_field: "preserved",
+        nested_provider_data: %{"anything" => [1, 2, 3]}
+      }
+
+      response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
+
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+
+      assert [%Interaction.AgentResponse{usage: stored_usage}] =
+               task_id
+               |> db_rows()
+               |> Enum.map(& &1.data)
+               |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
+
+      assert stored_usage.input_tokens == 100
+      refute Map.has_key?(Map.from_struct(stored_usage), :provider_exact_field)
     end
   end
 
@@ -231,7 +286,7 @@ defmodule FrontmanServer.TasksTest do
                }
              ] =
                InteractionSchema.for_task(task_id)
-               |> InteractionSchema.of_type(Interaction.UserMessage)
+               |> InteractionSchema.of_type(:user_message)
                |> Repo.all()
     end
 
@@ -246,7 +301,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert [%{data: %Interaction.UserMessage{model: "anthropic:claude-sonnet-4-6"}}] =
                InteractionSchema.for_task(task_id)
-               |> InteractionSchema.of_type(Interaction.UserMessage)
+               |> InteractionSchema.of_type(:user_message)
                |> Repo.all()
     end
   end
@@ -604,7 +659,7 @@ defmodule FrontmanServer.TasksTest do
   defp db_type_turns(task_id) do
     task_id
     |> db_rows()
-    |> Enum.map(&{Interaction.module_for(&1.type), &1.turn_number})
+    |> Enum.map(&{&1.data.__struct__, &1.turn_number})
   end
 
   defp db_rows(task_id) do
@@ -614,68 +669,87 @@ defmodule FrontmanServer.TasksTest do
     |> Repo.all()
   end
 
-  defp insert_started_user_message_row(task_id, turn_number) do
-    task = Repo.get!(TaskSchema, task_id)
+  defp interaction_type(module),
+    do: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, module)
 
-    {:ok, interaction} =
-      Interaction.UserMessage.build(user_content("test turn"), "openrouter:openai/gpt-5.5")
+  defp insert_started_user_message_row(task_id, turn_number) do
+    {:ok, attrs} =
+      Interaction.UserMessage.attrs(user_content("test turn"), "openrouter:openai/gpt-5.5")
 
     row =
-      task
-      |> InteractionSchema.create_changeset(interaction, nil)
+      InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
       |> Repo.insert!()
 
-    turn_started = Interaction.TurnStarted.build([row.id])
-
-    task
-    |> InteractionSchema.create_changeset(turn_started, turn_number)
+    InteractionSchema.create_changeset(
+      task_id,
+      :turn_started,
+      %{id: Ecto.UUID.generate(), timestamp: Interaction.now(), user_message_ids: [row.id]},
+      turn_number
+    )
     |> Repo.insert!()
   end
 
   defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
-    task = Repo.get!(TaskSchema, task_id)
+    {interaction_type, attrs} = test_interaction_attrs(type, data)
 
-    task
-    |> InteractionSchema.create_changeset(test_interaction(type, data), turn_number)
+    InteractionSchema.create_changeset(task_id, interaction_type, attrs, turn_number)
     |> Repo.insert!()
   end
 
-  defp test_interaction(Interaction.DiscoveredProjectRule, _data),
-    do: Interaction.DiscoveredProjectRule.build("/project/AGENTS.md", "rules")
+  defp test_interaction_attrs(Interaction.DiscoveredProjectRule, _data),
+    do:
+      {:discovered_project_rule,
+       %{path: "/project/AGENTS.md", content: "rules", timestamp: Interaction.now()}}
 
-  defp test_interaction(Interaction.ToolCall, data) do
-    {:ok, tool_call} =
-      Interaction.ToolCall.build(%SwarmAi.ToolCall{
+  defp test_interaction_attrs(Interaction.ToolCall, data) do
+    {:ok, attrs} =
+      Interaction.ToolCall.attrs(%SwarmAi.ToolCall{
         id: Map.get(data, "tool_call_id", Ecto.UUID.generate()),
         name: Map.get(data, "tool_name", "question"),
         arguments: Jason.encode!(Map.get(data, "arguments", %{}))
       })
 
-    tool_call
+    {:tool_call, attrs}
   end
 
-  defp test_interaction(Interaction.ToolResult, data) do
-    Interaction.ToolResult.build(
-      %{id: Map.get(data, "tool_call_id", Ecto.UUID.generate()), name: "question"},
-      MCP.tool_result_text("ok")
-    )
+  defp test_interaction_attrs(Interaction.ToolResult, data) do
+    {:tool_result,
+     Interaction.ToolResult.attrs(
+       %{id: Map.get(data, "tool_call_id", Ecto.UUID.generate()), name: "question"},
+       MCP.tool_result_text("ok")
+     )}
   end
 
-  defp test_interaction(Interaction.AgentError, data),
-    do: %{Interaction.AgentError.build("error") | id: Map.fetch!(data, "id")}
+  defp test_interaction_attrs(Interaction.AgentError, data),
+    do:
+      {:agent_error,
+       %{
+         id: Map.fetch!(data, "id"),
+         timestamp: Interaction.now(),
+         error: "error",
+         kind: "failed",
+         retryable: false,
+         category: "unknown"
+       }}
 
-  defp test_interaction(Interaction.AgentRetry, data),
-    do: Interaction.AgentRetry.build(Map.fetch!(data, "retried_error_id"))
+  defp test_interaction_attrs(Interaction.AgentRetry, data),
+    do:
+      {:agent_retry,
+       %{
+         id: Ecto.UUID.generate(),
+         timestamp: Interaction.now(),
+         retried_error_id: Map.fetch!(data, "retried_error_id")
+       }}
 
-  defp test_interaction(Interaction.AgentCompleted, _data),
-    do: Interaction.AgentCompleted.build()
+  defp test_interaction_attrs(Interaction.AgentCompleted, _data),
+    do: {:agent_completed, %{id: Ecto.UUID.generate(), timestamp: Interaction.now(), result: nil}}
 
   defp insert_legacy_interaction_row(task_id, type, turn_number, data) do
     now = DateTime.utc_now(:second)
 
     data =
       %{
-        "__type__" => Interaction.type_for(type) |> Atom.to_string(),
+        "__type__" => interaction_type(type) |> Atom.to_string(),
         "id" => Ecto.UUID.generate(),
         "timestamp" => DateTime.to_iso8601(now),
         "tool_name" => "question",
@@ -692,7 +766,7 @@ defmodule FrontmanServer.TasksTest do
       [
         Ecto.UUID.dump!(Ecto.UUID.generate()),
         Ecto.UUID.dump!(task_id),
-        Interaction.type_for(type) |> Atom.to_string(),
+        interaction_type(type) |> Atom.to_string(),
         Jason.encode!(data),
         turn_number,
         System.unique_integer([:monotonic, :positive]),
@@ -706,11 +780,9 @@ defmodule FrontmanServer.TasksTest do
          text,
          model \\ "openrouter:openai/gpt-5.5"
        ) do
-    {:ok, interaction} =
-      Interaction.UserMessage.build(user_content(text), model)
+    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
 
-    task
-    |> InteractionSchema.create_changeset(interaction, nil)
+    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
     |> Repo.insert!()
   end
 
@@ -780,7 +852,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert Repo.get_by!(InteractionSchema,
                task_id: task_id,
-               type: Interaction.type_for(Interaction.DiscoveredProjectRule)
+               type: :discovered_project_rule
              ).turn_number ==
                nil
     end
@@ -865,7 +937,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert Repo.get_by!(InteractionSchema,
                task_id: task_id,
-               type: Interaction.type_for(Interaction.DiscoveredProjectStructure)
+               type: :discovered_project_structure
              ).turn_number == nil
     end
 

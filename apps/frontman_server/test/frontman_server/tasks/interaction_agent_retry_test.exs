@@ -3,45 +3,64 @@ defmodule FrontmanServer.Tasks.InteractionAgentRetryTest do
 
   alias FrontmanServer.Tasks.Interaction
 
-  describe "AgentError build fields" do
-    test "build/4 sets retryable and category" do
-      err = Interaction.AgentError.build("Rate limited", "failed", true, "rate_limit")
+  describe "AgentError fields" do
+    test "struct sets retryable and category" do
+      err = agent_error("Rate limited", "failed", true, "rate_limit")
 
       assert err.retryable == true
       assert err.category == "rate_limit"
       assert err.error == "Rate limited"
     end
 
-    test "build/2 defaults retryable=false, category=unknown" do
-      err = Interaction.AgentError.build("Something went wrong", "failed")
+    test "schema defaults retryable=false, category=unknown" do
+      err = agent_error("Something went wrong", "failed")
       assert err.retryable == false
       assert err.category == "unknown"
     end
 
     test "Jason.Encoder includes retryable and category" do
-      err = Interaction.AgentError.build("Rate limited", "failed", true, "rate_limit")
+      err = agent_error("Rate limited", "failed", true, "rate_limit")
 
       encoded = Jason.encode!(err)
       decoded = Jason.decode!(encoded)
       assert decoded["retryable"] == true
       assert decoded["category"] == "rate_limit"
-      assert decoded["type"] == "agent_error"
+      refute Map.has_key?(decoded, "type")
     end
   end
 
   describe "AgentRetry" do
-    test "build/1 creates with retried_error_id" do
-      retry = Interaction.AgentRetry.build("error-123")
+    test "struct creates with retried_error_id" do
+      retry = agent_retry("error-123")
       assert retry.retried_error_id == "error-123"
       assert is_binary(retry.id)
       assert %DateTime{} = retry.timestamp
     end
 
-    test "Jason.Encoder includes type and retried_error_id" do
-      retry = Interaction.AgentRetry.build("error-123")
+    test "Jason.Encoder includes retried_error_id" do
+      retry = agent_retry("error-123")
       decoded = Jason.decode!(Jason.encode!(retry))
-      assert decoded["type"] == "agent_retry"
+      refute Map.has_key?(decoded, "type")
       assert decoded["retried_error_id"] == "error-123"
     end
+  end
+
+  defp agent_error(message, kind, retryable \\ false, category \\ "unknown") do
+    %Interaction.AgentError{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      error: message,
+      kind: kind,
+      retryable: retryable,
+      category: category
+    }
+  end
+
+  defp agent_retry(retried_error_id) do
+    %Interaction.AgentRetry{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      retried_error_id: retried_error_id
+    }
   end
 end

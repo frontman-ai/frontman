@@ -52,7 +52,6 @@ defmodule SwarmAi.Testing do
 
   defimpl SwarmAi.LLM, for: SwarmAi.Testing.MockLLM do
     alias ReqLLM.StreamChunk
-    alias SwarmAi.LLM.Usage
 
     def stream(%{response: response, delay_ms: delay}, _messages, _opts) do
       if delay > 0, do: Process.sleep(delay)
@@ -91,7 +90,7 @@ defmodule SwarmAi.Testing do
 
       chunks =
         if response.usage,
-          do: [StreamChunk.meta(%{usage: to_usage_map(response.usage)}) | chunks],
+          do: [StreamChunk.meta(%{usage: response.usage}) | chunks],
           else: chunks
 
       chunks = [StreamChunk.meta(%{finish_reason: response.finish_reason || :stop}) | chunks]
@@ -106,19 +105,6 @@ defmodule SwarmAi.Testing do
         end
 
       StreamChunk.tool_call(tc.name, args, %{id: tc.id, index: index})
-    end
-
-    defp to_usage_map(%Usage{} = usage) do
-      %{
-        input_tokens: usage.input_tokens,
-        output_tokens: usage.output_tokens,
-        reasoning_tokens: usage.reasoning_tokens,
-        cached_tokens: usage.cached_tokens
-      }
-    end
-
-    defp to_usage_map(%{input_tokens: i, output_tokens: o}) do
-      %{input_tokens: i, output_tokens: o, reasoning_tokens: 0, cached_tokens: 0}
     end
 
     defp default_usage, do: %{input_tokens: 10, output_tokens: 5}

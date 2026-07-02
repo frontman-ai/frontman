@@ -45,7 +45,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         {:failed, :llm_api_failure}
       )
 
-      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentError{kind: "failed"}, turn_number: _turn_number}},
                      5_000
 
       reports = Sentry.Test.pop_sentry_reports()
@@ -74,7 +75,8 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       Tasks.handle_swarm_event(scope, task_id, latest_turn_number(task_id), {:failed, reason})
 
-      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
+      assert_receive {:interaction,
+                      %{data: %Interaction.AgentError{kind: "failed"}, turn_number: _turn_number}},
                      5_000
 
       reports = Sentry.Test.pop_sentry_reports()
@@ -102,11 +104,14 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       Tasks.handle_swarm_event(scope, task_id, latest_turn_number(task_id), {:failed, reason})
 
       assert_receive {:interaction,
-                      %Interaction.AgentError{
-                        kind: "failed",
-                        retryable: true,
-                        category: "overload"
-                      }, _turn_number},
+                      %{
+                        data: %Interaction.AgentError{
+                          kind: "failed",
+                          retryable: true,
+                          category: "overload"
+                        },
+                        turn_number: _turn_number
+                      }},
                      5_000
 
       reports = Sentry.Test.pop_sentry_reports()
@@ -124,11 +129,14 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       Tasks.handle_swarm_event(scope, task_id, latest_turn_number(task_id), {:failed, reason})
 
       assert_receive {:interaction,
-                      %Interaction.AgentError{
-                        kind: "failed",
-                        retryable: true,
-                        category: "rate_limit"
-                      }, _turn_number},
+                      %{
+                        data: %Interaction.AgentError{
+                          kind: "failed",
+                          retryable: true,
+                          category: "rate_limit"
+                        },
+                        turn_number: _turn_number
+                      }},
                      5_000
 
       reports = Sentry.Test.pop_sentry_reports()

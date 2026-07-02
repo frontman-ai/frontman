@@ -54,8 +54,11 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         2_000
       )
 
-      assert_receive {:interaction, %Interaction.ToolCall{tool_name: "take_screenshot"},
-                      _turn_number},
+      assert_receive {:interaction,
+                      %{
+                        data: %Interaction.ToolCall{tool_name: "take_screenshot"},
+                        turn_number: _turn_number
+                      }},
                      500
     end
 
@@ -113,7 +116,8 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_response))
 
-      assert_receive {:interaction, %Tasks.Interaction.AgentCompleted{}, _turn_number},
+      assert_receive {:interaction,
+                      %{data: %Tasks.Interaction.AgentCompleted{}, turn_number: _turn_number}},
                      10_000
     end
   end
