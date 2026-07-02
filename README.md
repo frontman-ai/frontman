@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<h3 align="center">Ship frontend changes from your browser — no code editor needed</h3>
+<h3 align="center">Let product and design ship frontend fixes without opening an IDE</h3>
 
 <p align="center">
   <a href="https://github.com/frontman-ai/frontman/actions"><img src="https://github.com/frontman-ai/frontman/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
@@ -15,7 +15,16 @@
 
 ---
 
-[Frontman](https://frontman.sh) is an open-source AI coding agent that lives in your browser. It hooks into your dev server as middleware and sees the live DOM, component tree, CSS styles, routes, and server logs. Click any element in your running app, describe what you want changed in plain English, and Frontman edits the actual source files with instant hot reload. It supports Next.js, Astro, and Vite (React, Vue, Svelte). Free and open-source — Apache 2.0 (client libraries) / AGPL-3.0 (server). Bring your own provider account (Claude, OpenAI, or OpenRouter).
+[Frontman](https://frontman.sh) is an open-source AI coding agent that lives in your browser. Click any element in your running app, describe the change in plain English, and Frontman edits the actual source files with instant hot reload. It sees the live DOM, component tree, computed CSS, routes, source maps, and server logs, so non-technical teammates can make precise frontend fixes without guessing which file owns the UI.
+
+<p align="center">
+  <a href="https://frontman.sh/docs/"><strong>Docs</strong></a> ·
+  <a href="https://frontman.sh/integrations/nextjs/">Next.js</a> ·
+  <a href="https://frontman.sh/integrations/astro/">Astro</a> ·
+  <a href="https://frontman.sh/integrations/vite/">Vite</a> ·
+  <a href="https://discord.gg/xk8uXJSvhC">Discord</a> ·
+  <a href="https://www.youtube.com/watch?v=-4GD1GYwH8Y">Demo</a>
+</p>
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=-4GD1GYwH8Y">
@@ -23,13 +32,22 @@
   </a>
 </p>
 
+## What You Can Ask Frontman
+
+Frontman is built for small frontend changes that usually get stuck in design QA, product review, or internal tooling backlogs:
+
+- **"Fix this element across all browsers and devices"** — select the broken UI, explain the issue, and Frontman uses browser context plus source maps to update the right component or styles.
+- **"Fix this button on an internal sub-page"** — navigate to the exact route, click the button, and Frontman edits the source behind that rendered element.
+- **"Change the empty-state copy across the app"** — describe the messaging change once and review the generated diff before it lands.
+- **"Make the mobile cards match desktop spacing"** — Frontman reads computed CSS and layout context instead of relying only on static source files.
+
 ## Who Is This For?
 
-**Frontend developers** who want richer context than terminal-based AI tools provide. Frontman reads the rendered page, not just the source files, so it knows what your CSS actually computes to and which component renders which DOM node.
+**Product managers and designers** who need to fix copy, spacing, colors, layout issues, and internal UI polish without waiting for a developer to open an IDE.
 
-**Designers and product managers** who want to change copy, adjust spacing, fix colors, or explore layout ideas without opening an IDE. They click the element they want to change, describe the edit, and the source code updates. The diff goes through your team's normal review process.
+**Frontend developers** who want richer context than terminal-based AI tools provide. Frontman reads the rendered page, not just source files, so it knows what your CSS computes to and which component renders each DOM node.
 
-**Teams** where the back-and-forth between design and engineering costs more time than the actual change. Frontman lets anyone on the team iterate on the frontend directly.
+**Teams** where the handoff costs more than the actual change. Frontman lets teammates make the edit in-browser, then send the diff through your normal review process.
 
 ## How Frontman Compares to Other AI Coding Tools
 
@@ -42,7 +60,6 @@ Most AI coding tools work from source files and never see the running applicatio
 | **What it edits** | Your existing codebase | Your existing codebase | Your existing codebase | Generates new code |
 | **Sees rendered output** | Yes (framework middleware) | No | No | Own sandbox only |
 | **Open source** | Yes (Apache 2.0 / AGPL-3.0) | No | No | No |
-| **Pricing** | Free self-hosting (BYOK); hosted service moving to paid plans | $20/mo Pro | $10/mo Pro | $20/mo Premium |
 | **Best for** | Visual frontend editing, designer/PM collaboration | Full-stack IDE replacement | Autocomplete, code review | Generating new UI from scratch |
 
 Frontman and these tools are complementary. Many developers use Cursor or Copilot for backend work and general refactoring, then switch to Frontman when they need to see what they're editing in the browser.
@@ -64,8 +81,6 @@ Use OpenClaw for general-purpose automation (shell, messaging, files). Use Front
 3. **Click any element and describe the change** — Frontman sees the element's position in the component tree, its computed styles, and the server-side context. It edits the right source file and hot-reloads.
 
 The framework integration turns your local dev server into an [MCP server](https://modelcontextprotocol.io/) that the AI agent queries for both client-side context (DOM tree, computed CSS, screenshots, element selection) and server-side context (routes, server logs, query timing, compiled modules).
-
-Frontman only runs in development mode. Production builds strip it out. Your deployment bundle is identical whether Frontman is installed or not.
 
 ## Quickstart
 
@@ -105,15 +120,38 @@ Auto-detects your framework from `vite.config`. Works with React, Vue, and Svelt
 
 See the [Vite integration guide](https://frontman.sh/integrations/vite/) for details.
 
+Need setup help? Join the [Discord](https://discord.gg/xk8uXJSvhC) or open a [GitHub issue](https://github.com/frontman-ai/frontman/issues).
+
+## Supported Stacks
+
+| Status | Frameworks |
+|---|---|
+| **Supported now** | Next.js App Router, Next.js Pages Router, Astro, Vite, React, Vue, Svelte, SvelteKit |
+| **Coming soon** | Remix, Nuxt, SolidStart, Qwik, Phoenix LiveView |
+
+Framework integrations run in development mode only. Production builds strip Frontman out, so your deployed bundle is identical whether Frontman is installed or not.
+
 ## AI Model Support
 
 Frontman uses BYOK (bring your own key). Connect any LLM provider:
 
-- **Anthropic** (Claude) — direct API key or OAuth with your Claude subscription
-- **OpenAI** — OAuth with your OpenAI account
-- **OpenRouter** — access to Claude, GPT, Llama, Mistral, and hundreds of other models
+- **OpenAI** — GPT and Codex models
+- **Anthropic** — Claude Pro/Max models
+- **OpenRouter** — Claude, GPT, Gemini, Kimi, MiniMax, and hundreds of other models
+- **Fireworks AI**, **NVIDIA**, **Google**, and **xAI**
 
 You pay your LLM provider directly at their standard rates. Self-hosting remains free under the project's open-source licenses; hosted Frontman service plans are moving to paid subscriptions.
+
+## Self-Hosting and License
+
+Frontman is open source and can be self-hosted from source. Official hosted and self-hosting packaging is still evolving.
+
+The project uses a split license model:
+
+- **Framework integrations and client libraries** (`libs/`) — [Apache License 2.0](./LICENSE)
+- **Server** (`apps/frontman_server/`) — [GNU Affero General Public License v3](./apps/frontman_server/LICENSE)
+
+You can use Frontman in commercial apps. The AGPL applies to the server so hosted services built on top of Frontman stay open.
 
 ## Architecture
 
@@ -158,12 +196,7 @@ Contributions are welcome! Please read the [Contributing Guide](./CONTRIBUTING.m
 
 ## License
 
-This project uses a split license model:
-
-- **Client libraries and framework integrations** (`libs/`) — [Apache License 2.0](./LICENSE)
-- **Server** (`apps/frontman_server/`) — [GNU Affero General Public License v3](./apps/frontman_server/LICENSE)
-
-See the respective `LICENSE` files for details.
+See [Self-Hosting and License](#self-hosting-and-license) above, plus the respective `LICENSE` files for details.
 
 ## Star History
 
