@@ -11,7 +11,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   use SwarmAi.Testing, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
-  import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.InteractionCase.Helpers, only: [swarm_tool_call: 2]
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox

@@ -8,7 +8,8 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
   use FrontmanServer.ExecutionCase
 
-  import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [assert_receive_interaction: 2, swarm_tool_call: 1, swarm_tool_call: 2]
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks

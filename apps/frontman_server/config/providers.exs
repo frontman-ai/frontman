@@ -53,8 +53,10 @@ providers = [
        {"Claude Opus 4.8 Fast", "anthropic/claude-opus-4.8-fast", :packaged},
        {"Claude Opus 4.7", "anthropic/claude-opus-4.7", :packaged},
        {"Claude Opus 4.7 Fast", "anthropic/claude-opus-4.7-fast", :packaged},
-       {"Claude Sonnet Latest", "anthropic/claude-sonnet-latest", :packaged},
-       {"Claude Haiku Latest", "anthropic/claude-haiku-latest", :packaged},
+       {"Claude Sonnet Latest", "~anthropic/claude-sonnet-latest", :packaged},
+       {"Claude Haiku Latest", "~anthropic/claude-haiku-latest", :packaged},
+       {"Claude Sonnet 4.6", "anthropic/claude-sonnet-4.6", :packaged},
+       {"Claude Haiku 4.5", "anthropic/claude-haiku-4.5", :packaged},
        # --------------
        {"Gemini 3.1 Pro Preview", "google/gemini-3.1-pro-preview", :packaged},
        {"Gemini Flash Latest", "~google/gemini-flash-latest", :packaged},
