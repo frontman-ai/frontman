@@ -85,8 +85,8 @@
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.7.0",
 		"@changesets/cli": "^2.30.0",
-		"@vitest/coverage-v8": "4.1.7",
-		"vitest": "4.1.7"
+		"@vitest/coverage-v8": "4.1.8",
+		"vitest": "4.1.8"
 	},
 	"dependenciesMeta": {
 		"@sentry/cli": {
