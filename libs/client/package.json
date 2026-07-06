@@ -56,7 +56,7 @@
 		"@rescript/webapi": "*",
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/babel__core": "^7",
-		"@types/react": "^19.2.15",
+		"@types/react": "^19.2.17",
 		"@zumer/snapdom": "^2.12.2",
 		"babel-plugin-react-compiler": "^1.0.0",
 		"class-variance-authority": "^0.7.1",
@@ -64,7 +64,7 @@
 		"dom-accessibility-api": "^0.7.1",
 		"dom-element-to-component-source": "^0.5.0",
 		"lucide-react": "^1.17.0",
-		"react": "^19.2.5",
+		"react": "^19.2.7",
 		"react-dom": "^19.2.5",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
@@ -82,7 +82,7 @@
 		"canvas-confetti": "^1.9.4"
 	},
 	"peerDependencies": {
-		"react": "^19.2.5",
+		"react": "^19.2.7",
 		"react-dom": "^19.2.5"
 	}
 }
