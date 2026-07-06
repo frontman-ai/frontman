@@ -92,9 +92,8 @@ function isActivePath(currentPath: string): boolean {
 
 			<!-- Navigation action buttons -->
 			<div class="header__actions">
-				<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="header__github-link" data-ga-event="click_star_github" data-ga-category="conversion" data-ga-label="nav">
+				<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="header__github-link" aria-label="GitHub" data-ga-event="click_star_github" data-ga-category="conversion" data-ga-label="nav">
 					<Icon name="github-icon" class="header__github-icon" aria-hidden="true" />
-					<span>Star on GitHub</span>
 				</a>
 				<a href="/#install" class="header__cta">Try it now</a>
 			</div>
@@ -311,11 +310,9 @@ function isActivePath(currentPath: string): boolean {
 		}
 	}
 	.header__github-link {
-		@apply hidden items-center gap-1.5 whitespace-nowrap text-white/60 transition-colors duration-200 hover:text-white lg:flex;
-		font-size: 13px;
-		font-weight: 450;
+		@apply hidden items-center justify-center text-white/60 transition-colors duration-200 hover:text-white lg:flex;
 		text-decoration: none;
-		padding: 6px 10px;
+		padding: 7px;
 		border-radius: 8px;
 	}
 	.header__github-link:hover {

@@ -61,7 +61,10 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 	</div>
 	<div class="hero-section__container">
 		<div class="hero-section__top">
-			<span class="hero-section__badge">AI website editor for existing sites</span>
+			<div class="hero-section__traction" aria-label="Frontman usage across website stacks">
+				<span class="hero-section__traction-number">1,000+</span>
+				<span class="hero-section__traction-copy">tasks run across Vite, WordPress, Next.js, and Astro projects</span>
+			</div>
 			<h1 class="hero-section__title">Click your website. Tell AI what to change.</h1>
 			<p class="hero-section__subtitle">Frontman helps WordPress site owners, marketers, and designers update real websites without rebuilding, digging through admin screens, or waiting on developer tickets.</p>
 			<div class="hero-section__cta">
@@ -476,6 +479,48 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 	@media (min-width: 640px) {
 		.hero-section__proof-separator {
 			display: inline;
+		}
+	}
+	.hero-section__traction {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		max-width: 100%;
+		margin: 0 0 8px;
+		padding: 8px 14px;
+		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
+		color: white;
+		text-align: center;
+		background: rgba(35, 18, 61, 0.38);
+		border-radius: 10px;
+	}
+	.hero-section__traction-number {
+		font-size: 18px;
+		line-height: 1;
+		font-weight: 800;
+		letter-spacing: -0.03em;
+		color: white;
+	}
+	.hero-section__traction-copy {
+		font-size: 14px;
+		line-height: 20px;
+		font-weight: 600;
+		letter-spacing: 0.005em;
+		color: rgba(243, 232, 255, 0.94);
+	}
+	@media (min-width: 640px) {
+		.hero-section__traction {
+			gap: 11px;
+			margin-bottom: 10px;
+			padding: 9px 16px;
+		}
+		.hero-section__traction-number {
+			font-size: 21px;
+		}
+		.hero-section__traction-copy {
+			font-size: 15px;
+			line-height: 22px;
 		}
 	}
 
