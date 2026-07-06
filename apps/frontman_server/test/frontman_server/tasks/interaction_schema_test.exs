@@ -1,7 +1,17 @@
 defmodule FrontmanServer.Tasks.InteractionSchemaTest do
   use FrontmanServer.DataCase, async: true
 
-  import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [
+      agent_completed: 0,
+      agent_error: 1,
+      agent_paused: 2,
+      tool_call: 2,
+      tool_result: 3,
+      turn_started: 1,
+      user_msg: 1
+    ]
+
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 

@@ -2,7 +2,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
 
-  import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [agent_error: 2, agent_error: 4, interaction_event: 2, tool_call: 2, tool_call: 3]
+
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias AgentClientProtocol.Content.{ContentItem, TextBlock}

@@ -9,10 +9,11 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
   use FrontmanServerWeb.ChannelCase, async: false
 
-  import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [interaction_event: 2, tool_call: 2, tool_call: 3, tool_result: 3, tool_result: 4]
+
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias FrontmanServer.Tasks.InteractionSchema
   alias ModelContextProtocol, as: MCP
 
   setup %{scope: scope} do
@@ -185,14 +186,5 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       assert [report] = mcp_error_reports
       assert report.extra[:logger_metadata][:error_message] == "Unknown MCP error"
     end
-  end
-
-  defp interaction_event(interaction, turn_number) do
-    {:interaction,
-     %InteractionSchema{
-       type: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, interaction),
-       data: interaction,
-       turn_number: turn_number
-     }}
   end
 end

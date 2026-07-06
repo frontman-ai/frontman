@@ -4,7 +4,9 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   use FrontmanServer.ExecutionCase
   use FrontmanServerWeb.ChannelCase
 
-  import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [assert_receive_interaction: 3, swarm_tool_call: 2]
+
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Providers
