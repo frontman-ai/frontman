@@ -2198,7 +2198,7 @@ __metadata:
     dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "npm:^0.5.0"
     lucide-react: "npm:^1.17.0"
-    react: "npm:^19.2.5"
+    react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -2211,7 +2211,7 @@ __metadata:
     vite: "npm:^8.0.16"
     vitest: "catalog:"
   peerDependencies:
-    react: ^19.2.5
+    react: ^19.2.7
     react-dom: ^19.2.7
   languageName: unknown
   linkType: soft
@@ -2316,7 +2316,7 @@ __metadata:
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/react": "npm:^16.3.2"
     jsdom: "npm:^29.1.1"
-    react: "npm:^19.2.5"
+    react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -2324,7 +2324,7 @@ __metadata:
     vite: "catalog:"
     vitest: "catalog:"
   peerDependencies:
-    react: ^19.2.5
+    react: ^19.2.7
     react-dom: ^19.2.7
   languageName: unknown
   linkType: soft
@@ -2381,7 +2381,7 @@ __metadata:
     "@frontman-ai/nextjs": "workspace:*"
     "@opentelemetry/sdk-node": "npm:^0.218.0"
     next: "npm:~16.2.4"
-    react: "npm:^19.2.5"
+    react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
   languageName: unknown
   linkType: soft
@@ -2392,7 +2392,7 @@ __metadata:
   dependencies:
     "@frontman-ai/vite": "workspace:*"
     "@vitejs/plugin-react": "npm:^6.0.2"
-    react: "npm:^19.2.5"
+    react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
     vite: "npm:^8.0.16"
   languageName: unknown
@@ -2445,7 +2445,7 @@ __metadata:
     "@frontman-ai/vite": "workspace:*"
     "@tailwindcss/vite": "npm:^4.3.0"
     "@vitejs/plugin-react": "npm:^6.0.2"
-    react: "npm:^19.2.5"
+    react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
     tailwindcss: "npm:^4.3.0"
     vite: "npm:^8.0.16"
@@ -14897,10 +14897,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react@npm:^19.2.5":
-  version: 19.2.6
-  resolution: "react@npm:19.2.6"
-  checksum: 10c0/66afde33b9a9ee87b1e1cae39d8e7e040d1262e719524fd70660c4d4ce79929c532ac19fc3df5a911edaf02768fdf2c49de4ede1ba99bc6aad72796e0e26e798
+"react@npm:^19.2.7":
+  version: 19.2.7
+  resolution: "react@npm:19.2.7"
+  checksum: 10c0/0bd0e2f1bbd4ba97561c6597bf8a5fec05e6476fe61e165c1065598d16668efc6715205599c94d3ddd49d36cb0f21cbf1b9bcc18ee840b805ce222c3e8d558ac
   languageName: node
   linkType: hard
 
