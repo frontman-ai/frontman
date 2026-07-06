@@ -80,7 +80,7 @@
 		"@rescript/runtime": "12.3.0",
 		"@rescript/webapi": "*",
 		"dom-element-to-component-source": "0.5.0",
-		"next": "^16.2.4",
+		"next": "^16.2.7",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7",
 		"rescript": "catalog:",
