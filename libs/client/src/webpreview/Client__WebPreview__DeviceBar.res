@@ -1,8 +1,8 @@
 // Device bar - secondary toolbar showing device mode controls
 // Only visible when device mode is active (not Responsive)
 
-module RadixUI__Icons = FrontmanBindings.Bindings__RadixUI__Icons
-module DropdownMenu = FrontmanBindings.Bindings__UI__DropdownMenu
+module Icons = Client__UI__Icons
+module DropdownMenu = Client__UI__DropdownMenu
 
 module DimensionInput = {
   @react.component
@@ -62,69 +62,64 @@ let make = (
       className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs"
     >
       // Device preset dropdown
-      <DropdownMenu.DropdownMenu>
-        <DropdownMenu.DropdownMenuTrigger asChild=true>
-          <button
+      <DropdownMenu>
+        <DropdownMenu.Trigger
+          render={<button
             type_="button"
             className="flex items-center gap-1 h-6 px-2 rounded text-xs font-medium
                        text-gray-600 hover:text-gray-800 hover:bg-gray-200 transition-colors"
-          >
-            {React.string(deviceName)}
-            <RadixUI__Icons.ChevronDownIcon className="size-3" />
-          </button>
-        </DropdownMenu.DropdownMenuTrigger>
-        <DropdownMenu.DropdownMenuContent align="start" sideOffset=4 className="min-w-[180px]">
+          />}
+        >
+          {React.string(deviceName)}
+          <Icons.ChevronDownIcon className="size-3" />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content
+          align=BaseUi.Types.Align.Start sideOffset=4. className="min-w-[180px]"
+        >
           // Responsive option
-          <DropdownMenu.DropdownMenuItem
-            onSelect={_ =>
+          <DropdownMenu.Item
+            onClick={_ =>
               Client__State.Actions.setDeviceMode(~deviceMode=Client__DeviceMode.Responsive)}
           >
-            <div className="flex items-center gap-2">
-              <RadixUI__Icons.DesktopIcon className="size-3.5 text-gray-500" />
-              {React.string("Responsive")}
-            </div>
-          </DropdownMenu.DropdownMenuItem>
-          <DropdownMenu.DropdownMenuSeparator />
+            <Icons.DesktopIcon className="size-3.5 text-gray-500" />
+            {React.string("Responsive")}
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator />
           // Device presets by category
           {categories
           ->Array.mapWithIndex(((category, devices), idx) => {
             <React.Fragment key={category}>
-              <DropdownMenu.DropdownMenuLabel>
-                {React.string(category)}
-              </DropdownMenu.DropdownMenuLabel>
+              <DropdownMenu.Label> {React.string(category)} </DropdownMenu.Label>
               {devices
               ->Array.map(preset => {
                 let isSelected = switch deviceMode {
                 | Client__DeviceMode.DevicePreset(p) => p.name == preset.name
                 | _ => false
                 }
-                <DropdownMenu.DropdownMenuItem
+                <DropdownMenu.Item
                   key={preset.name}
-                  onSelect={_ =>
+                  className="justify-between"
+                  onClick={_ =>
                     Client__State.Actions.setDeviceMode(
                       ~deviceMode=Client__DeviceMode.DevicePreset(preset),
                     )}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span> {React.string(preset.name)} </span>
-                    <span className="text-gray-400 ml-2">
-                      {React.string(`${Int.toString(preset.width)}x${Int.toString(preset.height)}`)}
-                    </span>
-                    {isSelected
-                      ? <RadixUI__Icons.CheckIcon className="size-3.5 ml-1 text-violet-600" />
-                      : React.null}
-                  </div>
-                </DropdownMenu.DropdownMenuItem>
+                  <span> {React.string(preset.name)} </span>
+                  <span className="ml-auto text-gray-400">
+                    {React.string(`${Int.toString(preset.width)}x${Int.toString(preset.height)}`)}
+                  </span>
+                  {isSelected
+                    ? <Icons.CheckIcon className="size-3.5 text-violet-600" />
+                    : React.null}
+                </DropdownMenu.Item>
               })
               ->React.array}
-              {idx < Array.length(categories) - 1
-                ? <DropdownMenu.DropdownMenuSeparator />
-                : React.null}
+              {idx < Array.length(categories) - 1 ? <DropdownMenu.Separator /> : React.null}
             </React.Fragment>
           })
           ->React.array}
-        </DropdownMenu.DropdownMenuContent>
-      </DropdownMenu.DropdownMenu>
+        </DropdownMenu.Content>
+      </DropdownMenu>
       // Separator
       <div className="w-px h-4 bg-gray-300" />
       // Width x Height inputs
@@ -182,7 +177,7 @@ let make = (
         | Landscape => "Rotate to portrait"
         }}
       >
-        <RadixUI__Icons.UpdateIcon className="size-3.5" />
+        <Icons.UpdateIcon className="size-3.5" />
       </button>
       // DPR indicator (if preset with DPR)
       {switch Client__DeviceMode.getDeviceDpr(deviceMode) {

@@ -1,7 +1,7 @@
-module Dialog = FrontmanBindings.Bindings__UI__Dialog
-module Input = FrontmanBindings.Bindings__UI__Input
-module Button = FrontmanBindings.Bindings__UI__Button
-module Icons = FrontmanBindings.Bindings__RadixUI__Icons
+module Dialog = Client__UI__Dialog
+module Input = Client__UI__Input
+module Button = Client__UI__Button
+module Icons = Client__UI__Icons
 module State = Client__State
 module Types = Client__State__Types
 module RuntimeConfig = Client__RuntimeConfig
@@ -72,9 +72,9 @@ let renderConnectedToken = (~expiresAt, ~onDisconnect) => {
   let expiryStr = Intl.DateTimeFormat.make()->Intl.DateTimeFormat.format(expiryDate)
   <div className="space-y-2">
     <div className="text-xs text-zinc-500"> {React.string(`Token expires: ${expiryStr}`)} </div>
-    <Button.Button variant=#secondary onClick={_ => onDisconnect()}>
+    <Button variant=Button.Variant.Secondary onClick={_ => onDisconnect()}>
       {React.string("Disconnect")}
-    </Button.Button>
+    </Button>
   </div>
 }
 
@@ -111,24 +111,23 @@ module APIKeyCard = {
       | None => React.null
       }}
       <div className="mt-3 flex items-center gap-3">
-        <Input.Input
-          type_=#password
+        <Input
+          type_="password"
           placeholder={apiKeyPlaceholder(settings.source, emptyPlaceholder)}
           value={apiKey}
-          onChange={e => {
-            let target = ReactEvent.Form.target(e)
-            setApiKey(_ => target["value"])
+          onValueChange={(value, _) => {
+            setApiKey(_ => value)
             reset()
           }}
           className="flex-1 min-w-0"
         />
-        <Button.Button
-          variant=#secondary
+        <Button
+          variant=Button.Variant.Secondary
           onClick={_ => saveApiKey(~key=apiKey, ~save, ~clear=() => setApiKey(_ => ""))}
           disabled={settings.saveStatus == Types.Saving}
         >
           {React.string(saveButtonLabel(settings.saveStatus))}
-        </Button.Button>
+        </Button>
       </div>
       {renderSaveStatus(settings.saveStatus)}
     </div>
@@ -188,15 +187,15 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     "Enter Anthropic API key",
   )
 
-  <Dialog.Dialog open_={open_} onOpenChange={onOpenChange}>
-    <Dialog.DialogContent
+  <Dialog open_ onOpenChange={(open_, _) => onOpenChange(open_)}>
+    <Dialog.Content
       className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={false}
     >
       <div className="flex h-full overflow-hidden">
-        <Dialog.DialogTitle className="sr-only"> {React.string("Settings")} </Dialog.DialogTitle>
-        <Dialog.DialogDescription className="sr-only">
+        <Dialog.Title className="sr-only"> {React.string("Settings")} </Dialog.Title>
+        <Dialog.Description className="sr-only">
           {React.string("Manage account, environment, provider connections, and API keys.")}
-        </Dialog.DialogDescription>
+        </Dialog.Description>
         <div className="w-56 border-r border-zinc-800 bg-zinc-950/60 px-4 py-5">
           <div className="text-lg font-semibold text-zinc-100"> {React.string("Settings")} </div>
           <div className="mt-1 text-xs text-zinc-500">
@@ -226,11 +225,11 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
 
         <div className="flex flex-1 flex-col min-h-0">
           <div className="flex justify-end px-4 pt-4 pb-2">
-            <Dialog.DialogClose
+            <Dialog.Close
               className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
             >
               <Icons.Cross2Icon />
-            </Dialog.DialogClose>
+            </Dialog.Close>
           </div>
           <div className="flex-1 overflow-y-auto px-6 pb-6 pr-6">
             {activeTab == "general"
@@ -270,9 +269,9 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                         </div>
                         {switch acpSession {
                         | Types.AcpSessionActive({apiBaseUrl}) =>
-                          <Button.Button
-                            variant=#outline
-                            size=#sm
+                          <Button
+                            variant=Button.Variant.Outline
+                            size=Button.Size.Sm
                             onClick={_ => {
                               // Navigate to server-side logout with return_to so user is redirected
                               // back here after re-authenticating
@@ -285,7 +284,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             }}
                           >
                             {React.string("Sign out")}
-                          </Button.Button>
+                          </Button>
                         | _ => React.null
                         }}
                       </div>
@@ -337,15 +336,16 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     <div className="mt-3">
                       {switch anthropicOAuthStatus {
                       | Types.NotConnected =>
-                        <Button.Button
-                          variant=#secondary onClick={_ => State.Actions.initiateAnthropicOAuth()}
+                        <Button
+                          variant=Button.Variant.Secondary
+                          onClick={_ => State.Actions.initiateAnthropicOAuth()}
                         >
                           {React.string("Connect with Anthropic")}
-                        </Button.Button>
+                        </Button>
                       | Types.FetchingStatus =>
-                        <Button.Button variant=#secondary disabled={true}>
+                        <Button variant=Button.Variant.Secondary disabled={true}>
                           {React.string("Checking status...")}
-                        </Button.Button>
+                        </Button>
                       | Types.Authorizing({authorizeUrl, verifier}) =>
                         <div className="space-y-3">
                           <div className="text-xs text-zinc-400">
@@ -364,18 +364,15 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             {React.string("2. After authorizing, copy the code and paste it below")}
                           </div>
                           <div className="flex items-center gap-3">
-                            <Input.Input
-                              type_=#text
+                            <Input
+                              type_="text"
                               placeholder="Paste authorization code here"
                               value={oauthCode}
-                              onChange={e => {
-                                let target = ReactEvent.Form.target(e)
-                                setOauthCode(_ => target["value"])
-                              }}
+                              onValueChange={(value, _) => setOauthCode(_ => value)}
                               className="flex-1 min-w-0 font-mono text-xs"
                             />
-                            <Button.Button
-                              variant=#secondary
+                            <Button
+                              variant=Button.Variant.Secondary
                               disabled={String.trim(oauthCode) == ""}
                               onClick={_ => {
                                 State.Actions.exchangeAnthropicOAuthCode(
@@ -386,7 +383,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                               }}
                             >
                               {React.string("Submit")}
-                            </Button.Button>
+                            </Button>
                           </div>
                           <button
                             type_="button"
@@ -410,15 +407,15 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       | Types.Error(msg) =>
                         <div className="space-y-2">
                           <div className="text-xs text-red-400"> {React.string(msg)} </div>
-                          <Button.Button
-                            variant=#secondary
+                          <Button
+                            variant=Button.Variant.Secondary
                             onClick={_ => {
                               State.Actions.resetAnthropicOAuthError()
                               State.Actions.initiateAnthropicOAuth()
                             }}
                           >
                             {React.string("Try again")}
-                          </Button.Button>
+                          </Button>
                         </div>
                       }}
                     </div>
@@ -451,19 +448,18 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           </a>
                         </div>
                         <div className="mt-2 flex items-center gap-3">
-                          <Input.Input
-                            type_=#password
+                          <Input
+                            type_="password"
                             placeholder={anthropicPlaceholder}
                             value={anthropicKey}
-                            onChange={e => {
-                              let target = ReactEvent.Form.target(e)
-                              setAnthropicKey(_ => target["value"])
+                            onValueChange={(value, _) => {
+                              setAnthropicKey(_ => value)
                               State.Actions.resetAnthropicKeySaveStatus()
                             }}
                             className="flex-1 min-w-0"
                           />
-                          <Button.Button
-                            variant=#secondary
+                          <Button
+                            variant=Button.Variant.Secondary
                             onClick={_ =>
                               saveApiKey(
                                 ~key=anthropicKey,
@@ -473,7 +469,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             disabled={anthropicKeySettings.saveStatus == Types.Saving}
                           >
                             {React.string(saveButtonLabel(anthropicKeySettings.saveStatus))}
-                          </Button.Button>
+                          </Button>
                         </div>
                         {renderSaveStatus(anthropicKeySettings.saveStatus)}
                       </div>
@@ -508,15 +504,16 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     <div className="mt-3">
                       {switch openaiOAuthStatus {
                       | Types.OpenAINotConnected =>
-                        <Button.Button
-                          variant=#secondary onClick={_ => State.Actions.initiateOpenAIOAuth()}
+                        <Button
+                          variant=Button.Variant.Secondary
+                          onClick={_ => State.Actions.initiateOpenAIOAuth()}
                         >
                           {React.string("Connect with OpenAI")}
-                        </Button.Button>
+                        </Button>
                       | Types.OpenAIFetchingStatus | Types.OpenAIWaitingForCode =>
-                        <Button.Button variant=#secondary disabled={true}>
+                        <Button variant=Button.Variant.Secondary disabled={true}>
                           {React.string("Checking...")}
-                        </Button.Button>
+                        </Button>
                       | Types.OpenAIShowingCode({userCode, verificationUrl}) =>
                         <div className="space-y-3">
                           <div className="text-xs text-zinc-400">
@@ -551,15 +548,15 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                       | Types.OpenAIError(msg) =>
                         <div className="space-y-2">
                           <div className="text-xs text-red-400"> {React.string(msg)} </div>
-                          <Button.Button
-                            variant=#secondary
+                          <Button
+                            variant=Button.Variant.Secondary
                             onClick={_ => {
                               State.Actions.resetOpenAIOAuthError()
                               State.Actions.initiateOpenAIOAuth()
                             }}
                           >
                             {React.string("Try again")}
-                          </Button.Button>
+                          </Button>
                         </div>
                       }}
                     </div>
@@ -604,6 +601,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
           </div>
         </div>
       </div>
-    </Dialog.DialogContent>
-  </Dialog.Dialog>
+    </Dialog.Content>
+  </Dialog>
 }

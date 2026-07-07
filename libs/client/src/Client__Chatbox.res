@@ -11,7 +11,6 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #Chatbox
 })
 
-module Icons = FrontmanBindings.Bindings__RadixUI__Icons
 module Message = Client__State__Types.Message
 
 // Import Frontman UI components
