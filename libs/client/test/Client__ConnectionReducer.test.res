@@ -153,6 +153,32 @@ describe("Connection Reducer", () => {
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
       },
     )
+
+    test(
+      "billing SessionCreateError returns to NoSession",
+      t => {
+        let err = FrontmanAiFrontmanClient.FrontmanClient__ACP.requestErrorWithCode(
+          ~code=FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc.ErrorCode.billingInactive,
+          ~message="Alternate billing copy",
+        )
+        let state = {...Reducer.initialState, session: SessionCreating}
+        let (nextState, effects) = Reducer.reduce(state, SessionCreateError(err))
+
+        t->expect(nextState.session)->Expect.toBe(Reducer.NoSession)
+        t
+        ->expect(
+          hasEffect(
+            effects,
+            e =>
+              switch e {
+              | Reducer.LogError(_) => true
+              | _ => false
+              },
+          ),
+        )
+        ->Expect.toBe(true)
+      },
+    )
   })
 
   describe("Prompt Sending", () => {

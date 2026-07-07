@@ -52,6 +52,11 @@ document.querySelectorAll("form[data-auto-submit]").forEach(form => {
   form.requestSubmit()
 })
 
+// Best-effort close for disposable tabs returned from Stripe.
+if (document.querySelector("[data-auto-close-window]")) {
+  window.close()
+}
+
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session

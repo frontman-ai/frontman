@@ -6,4 +6,4 @@ let dsn = "https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.
 
 // Detect Frontman team internal development (set via mprocs.yml / .dev.env)
 let isInternalDev = () =>
-  %raw(`typeof process !== 'undefined' && process.env?.FRONTMAN_INTERNAL_DEV === 'true'`)
+  %raw(`globalThis.__FRONTMAN_INTERNAL_DEV__ === true || (typeof process !== 'undefined' && process.env?.FRONTMAN_INTERNAL_DEV === 'true')`)

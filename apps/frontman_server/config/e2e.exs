@@ -36,10 +36,15 @@ config :logger, level: :info
 # Keep dev routes available in E2E to match local development behavior.
 config :frontman_server, dev_routes: true
 
+config :frontman_server, :stripe,
+  monthly_price_id: "price_1TUYBtPPoSdrJYfmJ26XlUS4",
+  yearly_price_id: "price_1TUYAiPPoSdrJYfmwhmJyMCw",
+  trial_days: 14
+
 # Include metadata and timestamps in logs.
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :task_id, :pid, :reason]
+  metadata: [:request_id, :task_id, :pid, :reason, :user_id, :user_name]
 
 # Keep a higher stacktrace depth for easier local debugging.
 config :phoenix, :stacktrace_depth, 20

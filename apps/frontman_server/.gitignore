@@ -41,6 +41,8 @@ npm-debug.log
 
 !lib/
 
-# DevPod networking overrides (machine-specific, created by post-create.sh)
+# Local/generated env files
 /envs/.dev.overrides.env
-
+/envs/*.overrides.env
+/envs/.dev.stripe-webhook.env
+/envs/.stripe-webhook-secret.ready

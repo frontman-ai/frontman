@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_DIR="$ROOT_DIR/apps/frontman_server/envs"
+GENERATED_ENV_FILE="$ENV_DIR/.dev.stripe-webhook.env"
+
+FORWARD_URL="${STRIPE_WEBHOOK_FORWARD_URL:-https://localhost:4000/api/stripe/webhook}"
+EVENTS="${STRIPE_WEBHOOK_EVENTS:-checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,customer.subscription.paused,customer.subscription.resumed}"
+
+stripe_listen_args=(listen --forward-to "$FORWARD_URL" --events "$EVENTS")
+
+if [[ "$FORWARD_URL" == https://* ]]; then
+  stripe_listen_args+=(--skip-verify)
+fi
+
+for env_file in "$ENV_DIR/.dev.env" "$ENV_DIR/.dev.overrides.env"; do
+  if [[ -f "$env_file" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$env_file"
+    set +a
+  fi
+done
+
+if [[ -z "${STRIPE_API_KEY:-}" && -n "${STRIPE_SECRET_KEY:-}" ]]; then
+  export STRIPE_API_KEY="$STRIPE_SECRET_KEY"
+fi
+
+mkdir -p "$ENV_DIR"
+rm -f "$GENERATED_ENV_FILE"
+
+printf 'Listening for Stripe webhooks and forwarding to %s\n' "$FORWARD_URL"
+
+stored_secret=""
+
+mise exec -- stripe "${stripe_listen_args[@]}" 2>&1 |
+  while IFS= read -r line; do
+    if [[ "$line" =~ (whsec_[[:alnum:]_]+) ]]; then
+      secret="${BASH_REMATCH[1]}"
+
+      if [[ "$secret" != "$stored_secret" ]]; then
+        printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$secret" > "$GENERATED_ENV_FILE"
+        chmod 600 "$GENERATED_ENV_FILE"
+        printf 'Stored STRIPE_WEBHOOK_SECRET in apps/frontman_server/envs/.dev.stripe-webhook.env\n'
+        stored_secret="$secret"
+      fi
+
+      printf '%s\n' "${line//$secret/whsec_...}"
+    else
+      printf '%s\n' "$line"
+    fi
+  done

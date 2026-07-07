@@ -6,6 +6,7 @@ module AssistantContentPart = Client__Task__Types.AssistantContentPart
 module Message = Client__Task__Types.Message
 module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
+module ACPClient = FrontmanAiFrontmanClient.FrontmanClient__ACP
 
 // Re-export content block builders
 let annotationToContentBlocks = Client__Task__Types.annotationToContentBlocks
@@ -15,7 +16,7 @@ let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsTo
 type sendPromptFn = (
   string,
   ~additionalBlocks: array<ACPTypes.contentBlock>,
-  ~onComplete: result<ACPTypes.promptResult, string> => unit,
+  ~onComplete: result<ACPTypes.promptResult, ACPClient.requestError> => unit,
   ~_meta: option<JSON.t>,
 ) => unit
 
@@ -87,6 +88,11 @@ type apiKeySettings = {
   saveStatus: apiKeySaveStatus,
 }
 
+type settingsTab =
+  | General
+  | Providers
+  | Billing
+
 // Re-export ACP session config types used by the client state layer.
 module ACPConfig = {
   type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
@@ -148,6 +154,8 @@ type state = {
   acpSession: acpSession,
   sessionInitialized: bool,
   userProfile: option<userProfile>,
+  settingsModalTab: option<settingsTab>,
+  billingStatus: Client__Billing.state,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,

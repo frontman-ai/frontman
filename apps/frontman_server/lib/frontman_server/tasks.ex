@@ -41,6 +41,7 @@ defmodule FrontmanServer.Tasks do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Billing
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Repo
 
@@ -496,7 +497,8 @@ defmodule FrontmanServer.Tasks do
         }
       )
       when is_binary(task_id) and is_binary(model) and model != "" do
-    with {:ok, user_message_attrs} <- Interaction.UserMessage.attrs(content_blocks, model),
+    with :ok <- guard_billing_access(scope),
+         {:ok, user_message_attrs} <- Interaction.UserMessage.attrs(content_blocks, model),
          {:ok, task_schema} <- get_task_by_id(scope, task_id),
          first_message? <- accepted_user_message_count(task_id) == 0,
          {:ok, accepted_message} <-
@@ -517,6 +519,14 @@ defmodule FrontmanServer.Tasks do
 
   def submit_user_message(%Scope{}, %{model: _model}) do
     {:error, :missing_model}
+  end
+
+  defp guard_billing_access(scope) do
+    if Billing.allow_access?(scope), do: :ok, else: {:error, :billing_inactive}
+  end
+
+  def billing_inactive_message(%Scope{} = scope) do
+    Execution.error_message(scope, :billing_inactive)
   end
 
   defp accepted_user_message_count(task_id) do
@@ -795,7 +805,8 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
+    with :ok <- guard_billing_access(scope),
+         {:ok, schema} <- get_task_by_id(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, turn_number} <- retry_turn_number(rows, retried_error_id),
          :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, rows),
@@ -861,7 +872,8 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Resumes execution for the active agent run."
   def resume_execution(scope, task_id, execution) do
-    with {:ok, task} <- get_task(scope, task_id),
+    with :ok <- guard_billing_access(scope),
+         {:ok, task} <- get_task(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, turn_number} when is_integer(turn_number) <- active_agent_run_turn_number(rows),
          {:ok, execution} <- ensure_execution_model(rows, turn_number, execution) do

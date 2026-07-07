@@ -9,9 +9,12 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
   use ExUnit.Case, async: false
 
+  @moduletag :capture_log
+
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2]
 
+  import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
@@ -29,6 +32,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
+    subscription_for_scope_fixture(scope)
     task_id = task_with_active_run_fixture(scope, framework: "nextjs").id
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 

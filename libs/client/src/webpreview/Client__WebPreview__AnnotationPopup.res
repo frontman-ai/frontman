@@ -9,7 +9,7 @@
  * - Clicking another element auto-closes this popup (handled by parent)
  */
 module Annotation = Client__Annotation__Types
-module RadixUI__Icons = FrontmanBindings.Bindings__RadixUI__Icons
+module Icons = Client__UI__Icons
 
 @react.component
 let make = (
@@ -104,7 +104,7 @@ let make = (
                          text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
               title="Close (Enter or Escape)"
             >
-              <RadixUI__Icons.Cross2Icon className="size-3" />
+              <Icons.Cross2Icon className="size-3" />
             </button>
           </div>
         </div>

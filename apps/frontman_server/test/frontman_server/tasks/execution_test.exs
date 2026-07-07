@@ -9,6 +9,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   use FrontmanServer.ExecutionCase
   use Oban.Testing, repo: FrontmanServer.Repo
 
+  @moduletag :capture_log
+
   import Mox
   import Phoenix.ChannelTest
 
@@ -24,6 +26,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       text_block: 1
     ]
 
+  import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
@@ -113,6 +116,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp setup_user(_context) do
     scope = user_scope_fixture()
+    subscription_for_scope_fixture(scope)
     {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
     {:ok, scope: scope}
   end
@@ -282,6 +286,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "startup failure persists terminal error on the same turn" do
       scope = user_scope_fixture()
+      subscription_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope).id
 
       {:ok, _, 1} =
@@ -300,6 +305,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "submits browser context prompt through production recording path" do
       scope = user_scope_fixture()
+      subscription_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope).id
 
       content_blocks = [

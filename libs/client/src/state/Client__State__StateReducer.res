@@ -2,6 +2,7 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #StateReducer
 })
 module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
+module ACPClient = FrontmanAiFrontmanClient.FrontmanClient__ACP
 
 let name = "Client::StateReducer"
 
@@ -52,6 +53,10 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
+  // Settings modal actions
+  | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
+  | BillingStatusReceived(Client__Billing.status)
+  | BillingStatusError({error: string})
   // API key settings actions
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
@@ -236,6 +241,8 @@ let defaultState: state = {
   acpSession: NoAcpSession,
   sessionInitialized: false,
   userProfile: None,
+  settingsModalTab: None,
+  billingStatus: Client__Billing.NotLoaded,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -399,6 +406,18 @@ module Selectors = {
     state.userProfile
   }
 
+  let settingsModalTab = (state: state): option<Client__State__Types.settingsTab> => {
+    state.settingsModalTab
+  }
+
+  let billingStatus = (state: state): Client__Billing.state => {
+    state.billingStatus
+  }
+
+  let billingAccessAllowed = (state: state): bool => {
+    Client__Billing.accessAllowed(state.billingStatus)
+  }
+
   // Get OpenRouter API key settings
   let openrouterKeySettings = (state: state): Client__State__Types.apiKeySettings => {
     state.openrouterKeySettings
@@ -519,7 +538,7 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
-  _dispatch,
+  dispatch,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
@@ -557,7 +576,38 @@ let sendMessageToAPIImpl = (
     | None => Some(baseMeta)
     }
 
-    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
+    sendPrompt(
+      message,
+      ~additionalBlocks,
+      ~onComplete=result => {
+        // Flush any buffered text deltas before completing the turn.
+        // Without this, a rAF-buffered delta could fire after TurnCompleted,
+        // reopening a Completed message as Streaming permanently.
+        Client__TextDeltaBuffer.flush()
+
+        switch result {
+        | Error(err) if ACPClient.requestErrorIsBillingInactive(err) =>
+          dispatch(
+            TaskAction({
+              target: ForTask(taskId),
+              action: AgentError({
+                id: `billing_inactive:${Date.make()->Date.toISOString}`,
+                error: ACPClient.requestErrorMessage(err),
+                timestamp: Date.make()->Date.toISOString,
+                category: "billing",
+              }),
+            }),
+          )
+          dispatch(SetSettingsModalTab({tab: Some(Client__State__Types.Billing)}))
+        | _ =>
+          // Always dispatch — the reducer gates idle transitions on isAgentRunning,
+          // so duplicates (from notification + RPC) and post-cancel arrivals
+          // are no-ops.
+          dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
+        }
+      },
+      ~_meta,
+    )
   | NoAcpSession => Log.error("Cannot send message: no active ACP session")
   }
 }
@@ -1284,6 +1334,21 @@ let next = (state: state, action) => {
     {...state, userProfile: Some(userProfile)}->StateReducer.update(
       ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
     )
+
+  | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+
+  | BillingStatusReceived(billingStatus) =>
+    {
+      ...state,
+      billingStatus: Client__Billing.Loaded(billingStatus),
+    }->StateReducer.update
+
+  | BillingStatusError({error}) =>
+    {
+      ...state,
+      billingStatus: Client__Billing.Error(error),
+    }->StateReducer.update
+
   // API key settings actions
   | FetchApiKeySettings =>
     switch state.acpSession {

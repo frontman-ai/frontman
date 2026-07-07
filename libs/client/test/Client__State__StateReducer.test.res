@@ -901,6 +901,217 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 })
 
+describe("Client State Reducer - Billing Settings", () => {
+  let parseBillingStatus = json =>
+    JSON.parseOrThrow(json)->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
+
+  let noopSessionCallbacks = (~sendPrompt) => Client__State__Types.AcpSessionActive({
+    sendPrompt,
+    cancelPrompt: () => (),
+    retryTurn: _ => (),
+    loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+    deleteSession: (_, ~onComplete as _) => (),
+    apiBaseUrl: "http://localhost:4000",
+  })
+
+  let setRuntime: JSON.t => unit = %raw(`
+    function(value) {
+      globalThis.window = globalThis.window || {};
+      window.__frontmanRuntime = value;
+    }
+  `)
+  let clearRuntime: unit => unit = %raw(`
+    function() {
+      if (typeof window !== 'undefined') delete window.__frontmanRuntime;
+    }
+  `)
+
+  test("SetSettingsModalTab(Billing) only opens the tab", t => {
+    let state: Reducer.state = {
+      ...Reducer.defaultState,
+      billingStatus: Client__Billing.NotLoaded,
+    }
+
+    let (nextState, effects) = Reducer.next(
+      state,
+      SetSettingsModalTab({tab: Some(Client__State__Types.Billing)}),
+    )
+
+    t->expect(nextState.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Billing))
+    t->expect(nextState.billingStatus)->Expect.toEqual(Client__Billing.NotLoaded)
+    t->expect(effects->Array.length)->Expect.toBe(0)
+  })
+
+  test("BillingStatusReceived stores global billing status", t => {
+    let billingStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": "monthly",
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    let (nextState, effects) = Reducer.next(
+      Reducer.defaultState,
+      BillingStatusReceived(billingStatus),
+    )
+
+    t
+    ->expect(nextState.billingStatus)
+    ->Expect.toEqual(Client__Billing.Loaded(billingStatus))
+    t->expect(effects->Array.length)->Expect.toBe(0)
+  })
+
+  test("BillingStatusReceived updates inactive billing to active", t => {
+    let inactiveStatus = parseBillingStatus(`{
+      "status": "none",
+      "access_allowed": false,
+      "has_billing_customer": false,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+    let activeStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": "monthly",
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    let (inactiveState, inactiveEffects) = Reducer.next(
+      Reducer.defaultState,
+      BillingStatusReceived(inactiveStatus),
+    )
+    let (activeState, activeEffects) = Reducer.next(
+      inactiveState,
+      BillingStatusReceived(activeStatus),
+    )
+
+    t->expect(Reducer.Selectors.billingAccessAllowed(inactiveState))->Expect.toBe(false)
+    t->expect(Reducer.Selectors.billingAccessAllowed(activeState))->Expect.toBe(true)
+    t->expect(inactiveEffects->Array.length)->Expect.toBe(0)
+    t->expect(activeEffects->Array.length)->Expect.toBe(0)
+  })
+
+  test("billingAccessAllowed selector returns derived billing access", t => {
+    let activeStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+    let inactiveStatus = parseBillingStatus(`{
+      "status": "none",
+      "access_allowed": false,
+      "has_billing_customer": false,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Loaded(activeStatus),
+      }),
+    )
+    ->Expect.toBe(true)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Loaded(inactiveStatus),
+      }),
+    )
+    ->Expect.toBe(false)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.NotLoaded,
+      }),
+    )
+    ->Expect.toBe(false)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Error("boom"),
+      }),
+    )
+    ->Expect.toBe(false)
+  })
+
+  test("billing prompt failure stores billing turn error and opens Billing settings", t => {
+    let taskId = "billing-task"
+    let billingError = FrontmanAiFrontmanClient.FrontmanClient__ACP.requestErrorWithCode(
+      ~code=FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc.ErrorCode.billingInactive,
+      ~message="Alternate billing copy",
+    )
+    let sendPrompt: Client__State__Types.sendPromptFn = (
+      _,
+      ~additionalBlocks as _,
+      ~onComplete,
+      ~_meta as _,
+    ) => onComplete(Error(billingError))
+    let state = {
+      ...TestHelpers.makeStateWithTask(~taskId, ~isAgentRunning=true),
+      acpSession: noopSessionCallbacks(~sendPrompt),
+    }
+    let dispatched = ref([])
+    setRuntime(JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("nextjs"))])))
+
+    Reducer.handleEffect(
+      TaskEffect({
+        target: ForTask(taskId),
+        effect: SendMessage({text: "Hello", attachments: [], annotations: []}),
+      }),
+      state,
+      action => dispatched.contents = Array.concat(dispatched.contents, [action]),
+    )
+    clearRuntime()
+
+    let finalState = dispatched.contents->Array.reduce(
+      state,
+      (state, action) => {
+        let (nextState, _) = Reducer.next(state, action)
+        nextState
+      },
+    )
+
+    t
+    ->expect(finalState.settingsModalTab)
+    ->Expect.toEqual(Some(Client__State__Types.Billing))
+
+    switch Reducer.Selectors.turnError(finalState) {
+    | Some({message, category, _}) => {
+        t->expect(message)->Expect.toBe("Alternate billing copy")
+        t->expect(category)->Expect.toBe("billing")
+      }
+    | None => JsExn.throw("Expected billing turn error")
+    }
+  })
+})
+
 describe("Client State Reducer - Session Loading Actions", () => {
   test("SessionsLoadStarted transitions to Loading state", t => {
     let state = Reducer.defaultState

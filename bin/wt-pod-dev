@@ -69,5 +69,8 @@ podman exec -w /workspaces/frontman "$CONTAINER" \
 
 # ── Launch mprocs ───────────────────────────────────────
 printf "${CYAN}Starting mprocs in %s...${RESET}\n" "$CONTAINER"
+podman exec -w /workspaces/frontman "$CONTAINER" \
+  bash -c 'rm -f apps/frontman_server/envs/.stripe-webhook-secret.ready'
+
 podman exec -it -w /workspaces/frontman "$CONTAINER" \
   bash -l -c 'eval "$(mise activate bash)" && exec mprocs --config mprocs.container.yml'

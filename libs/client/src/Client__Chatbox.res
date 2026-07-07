@@ -11,8 +11,8 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #Chatbox
 })
 
-module Icons = FrontmanBindings.Bindings__RadixUI__Icons
 module Message = Client__State__Types.Message
+module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 
 // Import Frontman UI components
 module UserMessage = Client__UserMessage
@@ -28,6 +28,33 @@ module UseThinkingState = Client__UseThinkingState
 module ScrollContainer = Client__ScrollContainer
 module PromptInput = Client__PromptInput
 module ErrorBanner = Client__ErrorBanner
+module Alert = Client__UI__Alert
+module Button = Client__UI__Button
+
+let renderBillingRequiredAlert = (billingStatus: Client__Billing.state) =>
+  switch billingStatus {
+  | Client__Billing.Loaded(status) =>
+    switch Client__Billing.isAccessAllowed(status) {
+    | true => React.null
+    | false =>
+      <Alert className="mx-4 mb-2 w-auto border-amber-500/30 bg-amber-500/10 text-amber-100">
+        <Alert.Title className="text-xs"> {React.string("Billing required")} </Alert.Title>
+        <Alert.Description className="text-xs text-amber-100/80">
+          {React.string(Client__Billing.activationMessage(status))}
+        </Alert.Description>
+        <Alert.Action>
+          <Button
+            variant=Button.Variant.Secondary
+            size=Button.Size.Sm
+            onClick={_ => Client__State.Actions.openSettingsModalOnBilling()}
+          >
+            {React.string("Open")}
+          </Button>
+        </Alert.Action>
+      </Alert>
+    }
+  | Client__Billing.NotLoaded | Client__Billing.Error(_) => React.null
+  }
 
 // Display item for grouped rendering
 type displayItem =
@@ -109,6 +136,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
+  let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let webPreviewIsSelecting = Client__State.useSelector(
@@ -159,7 +187,12 @@ let make = (~onConfigureProvider: unit => unit) => {
           createSession(~onComplete=result => {
             switch result {
             | Ok(sessionId) => sendMessage(sessionId)
-            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
+            | Error(err) => {
+                if ACP.requestErrorIsBillingInactive(err) {
+                  Client__State.Actions.openSettingsModalOnBilling()
+                }
+                Log.error(~ctx={"error": ACP.requestErrorMessage(err)}, "Session creation failed")
+              }
             }
           })
         }
@@ -416,6 +449,7 @@ let make = (~onConfigureProvider: unit => unit) => {
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
     <Client__QueuedMessagesDrawer messages=queuedUserMessages />
+    {renderBillingRequiredAlert(billingStatus)}
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {

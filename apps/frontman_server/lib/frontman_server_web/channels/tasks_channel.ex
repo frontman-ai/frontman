@@ -17,6 +17,8 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Billing
+  alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
@@ -27,6 +29,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   @acp_config_updated ACP.event_config_options_updated()
   @acp_list_sessions ACP.event_list_sessions()
   @acp_delete_session ACP.event_delete_session()
+  @billing_status_updated "billing_status_updated"
   @acp_method_initialize ACP.method_initialize()
   @acp_method_session_new ACP.method_session_new()
   @acp_method_session_load ACP.method_session_load()
@@ -44,6 +47,11 @@ defmodule FrontmanServerWeb.TasksChannel do
       Phoenix.PubSub.subscribe(
         FrontmanServer.PubSub,
         Providers.config_pubsub_topic(user_id)
+      )
+
+      Phoenix.PubSub.subscribe(
+        FrontmanServer.PubSub,
+        Billing.status_topic(user_id)
       )
 
       socket = assign(socket, :acp_initialized, false)
@@ -106,6 +114,8 @@ defmodule FrontmanServerWeb.TasksChannel do
       ACP.build_config_options_updated_payload(current_config_options(socket))
     )
 
+    push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
+
     push_response(socket, id, ACP.build_initialize_result())
   end
 
@@ -133,6 +143,8 @@ defmodule FrontmanServerWeb.TasksChannel do
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
+         _fw = Frameworks.from_string(raw_framework),
+         :ok <- guard_billing_access(socket.assigns.scope),
          {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
            Tasks.create_task(
              socket.assigns.scope,
@@ -155,6 +167,14 @@ defmodule FrontmanServerWeb.TasksChannel do
 
       nil ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
+
+      {:error, :billing_inactive} ->
+        push_error(
+          socket,
+          id,
+          JsonRpc.error_billing_inactive(),
+          Tasks.billing_inactive_message(socket.assigns.scope)
+        )
 
       {:error, _changeset} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
@@ -211,6 +231,12 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
+  def handle_info(:billing_status_changed, socket) do
+    push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
+
+    {:noreply, socket}
+  end
+
   defp current_config_options(socket) do
     socket.assigns.scope
     |> Providers.model_config_data()
@@ -227,6 +253,10 @@ defmodule FrontmanServerWeb.TasksChannel do
     do: framework
 
   defp extract_framework(_), do: nil
+
+  defp guard_billing_access(scope) do
+    if Billing.allow_access?(scope), do: :ok, else: {:error, :billing_inactive}
+  end
 
   # Parse errors
   defp handle_parse_error(reason, %{"id" => id}, socket) do

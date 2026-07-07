@@ -7,6 +7,7 @@ source!([
   Path.absname(".env", env_dir_prefix),
   Path.absname(".#{config_env()}.env", env_dir_prefix),
   Path.absname(".#{config_env()}.overrides.env", env_dir_prefix),
+  Path.absname(".#{config_env()}.stripe-webhook.env", env_dir_prefix),
   System.get_env()
 ])
 
@@ -56,6 +57,60 @@ config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 config :workos, WorkOS.Client,
   api_key: env!("WORKOS_API_KEY", :string, nil),
   client_id: env!("WORKOS_CLIENT_ID", :string, nil)
+
+if config_env() != :test do
+  stripe_config = Application.get_env(:frontman_server, :stripe, [])
+
+  config :frontman_server,
+    stripe:
+      Keyword.merge(stripe_config,
+        secret_key: env!("STRIPE_SECRET_KEY", :string!),
+        webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string!)
+      )
+end
+
+# OpenTelemetry configuration
+# Arize export enabled if both ARIZE_API_KEY and ARIZE_SPACE_ID are set
+# Optional in all environments - when not set, tracing export is disabled
+{arize_api_key, arize_space_id} =
+  {env!("ARIZE_API_KEY", :string, nil), env!("ARIZE_SPACE_ID", :string, nil)}
+
+if arize_api_key && arize_space_id do
+  arize_endpoint =
+    env!("ARIZE_COLLECTOR_ENDPOINT", :string, "https://otlp.eu-west-1a.arize.com")
+
+  arize_project = env!("ARIZE_PROJECT_NAME", :string, "frontman")
+
+  config :opentelemetry,
+    span_processor: :batch,
+    traces_exporter: :otlp
+
+  config :opentelemetry, :resource, [
+    {"service.name", "frontman-server"},
+    {"service.version", "0.0.1"},
+    {"deployment.environment", to_string(config_env())},
+    {"project.name", arize_project},
+    {"model_id", "frontman"},
+    {"model_version", "0.0.1"}
+  ]
+
+  config :opentelemetry_exporter,
+    otlp_protocol: :http_protobuf,
+    otlp_endpoint: arize_endpoint,
+    otlp_headers: [
+      {"space_id", arize_space_id},
+      {"api_key", arize_api_key}
+    ]
+else
+  # No Arize - disable export, basic resource only
+  config :opentelemetry, traces_exporter: :none
+
+  config :opentelemetry, :resource, [
+    {"service.name", "frontman-server"},
+    {"service.version", "0.0.1"},
+    {"deployment.environment", to_string(config_env())}
+  ]
+end
 
 # Dev/Test/E2E: Allow DB_HOST override for container development (e.g., DevPod)
 # The docker bridge gateway IP (172.17.0.1) is used to connect from container to host PostgreSQL

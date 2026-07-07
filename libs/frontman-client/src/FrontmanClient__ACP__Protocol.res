@@ -26,7 +26,7 @@ let sendRequest = (
   ~params: option<JSON.t>,
   ~parseResult: JSON.t => result<'a, string>,
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): promise<result<'a, string>> => {
+): promise<result<'a, Client.requestError>> => {
   Promise.make((resolve, _) => {
     let id = state.contents.currentId + 1
     let request = JsonRpc.Request.make(~id, ~method, ~params)
@@ -37,7 +37,7 @@ let sendRequest = (
       resolve: json => {
         switch parseResult(json) {
         | Ok(result) => resolve(Ok(result))
-        | Error(e) => resolve(Error(e))
+        | Error(e) => resolve(Error(Client.requestErrorFromMessage(e)))
         }
       },
       reject: e => resolve(Error(e)),
@@ -58,7 +58,7 @@ let sendInitialize = (
   ~state: ref<Client.state>,
   ~clientConfig: Client.config,
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): promise<result<Types.initializeResult, string>> => {
+): promise<result<Types.initializeResult, Client.requestError>> => {
   let params = Client.buildInitializeParams(clientConfig)
   sendRequest(
     ~channel,
@@ -75,7 +75,7 @@ let sendSessionNew = (
   ~state: ref<Client.state>,
   ~sessionId: string,
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): promise<result<Types.sessionNewResult, string>> => {
+): promise<result<Types.sessionNewResult, Client.requestError>> => {
   let params = Dict.make()
   params->Dict.set("sessionId", JSON.Encode.string(sessionId))
   sendRequest(
@@ -95,7 +95,7 @@ let sendPrompt = (
   ~prompt: array<JSON.t>,
   ~_meta: option<JSON.t>,
   ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): promise<result<Types.promptResult, string>> => {
+): promise<result<Types.promptResult, Client.requestError>> => {
   let entries = [
     ("sessionId", JSON.Encode.string(sessionId)),
     ("prompt", JSON.Encode.array(prompt)),

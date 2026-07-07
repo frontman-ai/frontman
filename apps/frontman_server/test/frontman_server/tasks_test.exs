@@ -2,6 +2,7 @@ defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Migration.Runner
@@ -44,6 +45,41 @@ defmodule FrontmanServer.TasksTest do
       :ok = Tasks.apply_title_suggestion(scope, task_id, "Second Title")
 
       assert {:ok, %{short_desc: "First Title"}} = Tasks.get_task(scope, task_id)
+    end
+  end
+
+  describe "submit_user_message/2 billing access" do
+    test "blocks prompt persistence when billing setup is not complete", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      :ok = Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      assert {:error, :billing_inactive} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task_id,
+                 message: user_content("Hello"),
+                 model: "openrouter:openai/gpt-5.5"
+               })
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      refute Enum.any?(task.interactions, &match?(%Interaction.UserMessage{}, &1))
+      refute_receive {:interaction, %Interaction.UserMessage{}, _turn_number}
+    end
+
+    test "blocks prompt persistence when subscription has ended", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      block_access_for_scope_fixture(scope)
+      :ok = Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      assert {:error, :billing_inactive} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task_id,
+                 message: user_content("Hello"),
+                 model: "openrouter:openai/gpt-5.5"
+               })
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      refute Enum.any?(task.interactions, &match?(%Interaction.UserMessage{}, &1))
+      refute_receive {:interaction, %Interaction.UserMessage{}, _turn_number}
     end
   end
 
@@ -96,6 +132,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "submit_user_message/2" do
     test "persists an accepted user message without starting a turn", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
 
       assert {:ok, %Interaction.UserMessage{}} =
@@ -111,6 +148,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "accepts another user message while a turn is running", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("first"))
 
@@ -350,6 +388,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "retry_execution/4" do
     test "only retries agent errors", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
       {:ok, user_message} = user_message_fixture(scope, task_id, user_content("not an error"))
 
@@ -358,6 +397,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "rejects an older error after later interactions in the same turn", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
       insert_started_user_message_row(task_id, 1)
       insert_interaction_row(task_id, Interaction.AgentError, 1, %{"id" => "error-1"})
@@ -373,6 +413,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "fills missing model from started turn user messages", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("failed"), "missing:test")
 
@@ -402,6 +443,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "resume_execution/3" do
     test "returns not_running when no active agent run exists", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
 
       assert {:error, :not_running} =
@@ -409,6 +451,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "fills missing model from started turn user messages", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("running"), "missing:test")
 

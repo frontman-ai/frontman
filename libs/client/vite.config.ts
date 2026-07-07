@@ -26,10 +26,10 @@ function reactCompilerPlugin(): vite.Plugin {
 
 export default vite.defineConfig({
 	plugins: [reactCompilerPlugin(), tailwindcss()],
-	resolve: {
-		alias: {
-			"@": path.resolve(__dirname, "./src"),
-		},
+	define: {
+		"globalThis.__FRONTMAN_INTERNAL_DEV__": JSON.stringify(
+			process.env.FRONTMAN_INTERNAL_DEV === "true",
+		),
 	},
 	server: {
 		// Listen on all interfaces for container access

@@ -33,10 +33,6 @@ let make = (~apiBaseUrl: string) => {
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
-  // Settings modal state
-  let (settingsOpen, setSettingsOpen) = React.useState(() => false)
-  let (settingsInitialTab, setSettingsInitialTab) = React.useState(() => None)
-
   // FTUE state
   let (ftueState, setFtueState) = React.useState(() => Client__FtueState.get())
   let (showCelebration, setShowCelebration) = React.useState(() => false)
@@ -45,24 +41,32 @@ let make = (~apiBaseUrl: string) => {
   let hasProviderConfigured = Client__State.useSelector(
     Client__State.Selectors.hasAnyProviderConfigured,
   )
+  let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
+  let appAccessAllowed = Client__State.useSelector(Client__State.Selectors.billingAccessAllowed)
 
-  // Trigger post-signup celebration when session becomes active for first time after signup
-  React.useEffect(() => {
-    switch (connectionState, ftueState) {
-    | (Connected | SessionActive(_), Client__FtueState.WelcomeShown) =>
+  React.useEffect1(() => {
+    switch billingStatus {
+    | Client__Billing.Loaded(status) =>
+      switch Client__Billing.isAccessAllowed(status) {
+      | true => ()
+      | false => Client__State.Actions.openSettingsModalOnBilling()
+      }
+    | Client__Billing.NotLoaded | Client__Billing.Error(_) => ()
+    }
+    None
+  }, [billingStatus])
+
+  // Trigger post-signup celebration only after billing allows app access.
+  React.useEffect3(() => {
+    switch (connectionState, ftueState, appAccessAllowed) {
+    | (Connected | SessionActive(_), Client__FtueState.WelcomeShown, true) =>
       setShowCelebration(_ => true)
       Client__FtueState.setCompleted()
       setFtueState(_ => Client__FtueState.Completed)
     | _ => ()
     }
     None
-  }, (connectionState, ftueState))
-
-  // Open settings on providers tab (used by FTUE CTAs)
-  let openSettingsProviders = () => {
-    setSettingsInitialTab(_ => Some("providers"))
-    setSettingsOpen(_ => true)
-  }
+  }, (connectionState, ftueState, appAccessAllowed))
 
   let handleCelebrationDismiss = () => {
     setShowCelebration(_ => false)
@@ -70,11 +74,19 @@ let make = (~apiBaseUrl: string) => {
 
   let handleCelebrationConnectProvider = () => {
     setShowCelebration(_ => false)
-    openSettingsProviders()
+    Client__State.Actions.openSettingsModalOnProviders()
   }
 
-  let showNudge = switch (ftueState, hasProviderConfigured, providerNudgeDismissed) {
-  | (Client__FtueState.Completed, false, false) => true
+  let openSettingsProviders = () => Client__State.Actions.openSettingsModalOnProviders()
+
+  // Provider nudge: show when FTUE is completed, no provider configured, and not dismissed this session.
+  let showNudge = switch (
+    ftueState,
+    hasProviderConfigured,
+    providerNudgeDismissed,
+    appAccessAllowed,
+  ) {
+  | (Client__FtueState.Completed, false, false, true) => true
   | _ => false
   }
   let showProviderNudgeBubble = showNudge && !nudgeBubbleDismissed
@@ -86,22 +98,11 @@ let make = (~apiBaseUrl: string) => {
 
   let handleProviderNudgeCta = () => {
     setProviderNudgeDismissed(_ => true)
-    openSettingsProviders()
-  }
-
-  // Reset initialTab after settings modal closes so it doesn't stick
-  let handleSettingsOpenChange = (value: bool) => {
-    setSettingsOpen(_ => value)
-    switch value {
-    | false => setSettingsInitialTab(_ => None)
-    | true => ()
-    }
+    Client__State.Actions.openSettingsModalOnProviders()
   }
 
   <div className="flex flex-col h-screen w-screen bg-background text-foreground">
-    <SettingsModal
-      open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
-    />
+    <SettingsModal />
     // FTUE: Welcome modal for first-time unauthenticated users
     {switch (authRedirectUrl, ftueState) {
     | (Some(loginUrl), Client__FtueState.New) => <Client__WelcomeModal loginUrl />
@@ -118,13 +119,13 @@ let make = (~apiBaseUrl: string) => {
     // Top bar (sits above the panel split)
     <Client__TopBar
       chatboxWidth
-      onSettingsClick={() => setSettingsOpen(_ => true)}
+      onSettingsClick={() => Client__State.Actions.openSettingsModal()}
       showProviderNudgeBubble
       showProviderNudgeBadge
       onProviderNudgeDismiss=handleProviderNudgeDismiss
       onProviderNudgeCta=handleProviderNudgeCta
     />
-    // Main content area — flex row of chat + preview panels
+    // Main content area: flex row of chat + preview panels.
     <div className="flex flex-1 min-h-0 w-full">
       // Transparent overlay during resize to prevent iframe from stealing mouse events
       {switch isResizing {

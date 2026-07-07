@@ -58,6 +58,7 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUserTest do
       assert :ok = perform_job(NotifyDiscordNewUser, %{user_id: user.id})
     end
 
+    @tag :capture_log
     test "returns error tuple on non-2xx response" do
       user = Accounts.user_fixture()
 

@@ -8,7 +8,7 @@
  * Tree nav control top-right: ↑/↓ to walk to parent/first-child.
  */
 module Annotation = Client__Annotation__Types
-module RadixUI__Icons = FrontmanBindings.Bindings__RadixUI__Icons
+module Icons = Client__UI__Icons
 
 // Walk to parent element, stopping at body/html
 let getParentEl = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element> =>
@@ -100,11 +100,11 @@ module Marker = {
                 onNavigate(parent)
               }}
             >
-              <RadixUI__Icons.ChevronUpIcon className="size-2.5" />
+              <Icons.ChevronUpIcon className="size-2.5" />
             </button>
           | None =>
             <div className="flex items-center justify-center w-5 h-3 opacity-25 cursor-default">
-              <RadixUI__Icons.ChevronUpIcon className="size-2.5" />
+              <Icons.ChevronUpIcon className="size-2.5" />
             </div>
           }}
           // Down — navigate to first child
@@ -120,11 +120,11 @@ module Marker = {
                 onNavigate(child)
               }}
             >
-              <RadixUI__Icons.ChevronDownIcon className="size-2.5" />
+              <Icons.ChevronDownIcon className="size-2.5" />
             </button>
           | None =>
             <div className="flex items-center justify-center w-5 h-3 opacity-25 cursor-default">
-              <RadixUI__Icons.ChevronDownIcon className="size-2.5" />
+              <Icons.ChevronDownIcon className="size-2.5" />
             </div>
           }}
         </div>

@@ -167,6 +167,19 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_interaction(interaction, turn_number, socket)
   end
 
+  def handle_info({:execution_start_error, msg, turn_number}, socket)
+      when is_binary(msg) and is_integer(turn_number) do
+    finalize_turn(socket, {:error, execution_start_error_id(), msg, "unknown"}, turn_number)
+  end
+
+  def handle_info({:execution_start_error, reason, msg}, socket) when is_binary(msg) do
+    finalize_turn(
+      socket,
+      {:error, execution_start_error_id(), msg, execution_start_error_category(reason)},
+      nil
+    )
+  end
+
   def handle_info({:fire_retry, token}, socket) do
     case socket.assigns[:retry_state] do
       %{timer_token: ^token, retried_error_id: retried_error_id} ->
@@ -649,6 +662,10 @@ defmodule FrontmanServerWeb.TaskChannel do
             Logger.error("Failed to add user message: #{message}")
             reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
 
+          {:error, :billing_inactive} ->
+            Logger.info("Rejected prompt: billing inactive for task #{task_id}")
+            reply_acp_error(socket, id, -32_000, Tasks.billing_inactive_message(scope))
+
           {:error, reason} ->
             Logger.error("Failed to add user message: #{inspect(reason)}")
             reply_acp_error(socket, id, -32_000, inspect(reason))
@@ -666,6 +683,13 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp push_acp_error(socket, id, code, message) do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
     {:noreply, socket}
+  end
+
+  defp execution_start_error_category(:billing_inactive), do: "billing"
+  defp execution_start_error_category(_reason), do: "unknown"
+
+  defp execution_start_error_id do
+    "execution_start_error:#{System.unique_integer([:positive])}"
   end
 
   defp handle_execution_chunk(socket, %{type: :content, text: text})

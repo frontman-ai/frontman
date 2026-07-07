@@ -41,6 +41,9 @@ export default vite.defineConfig({
 	// this automatically (unlike app mode). Without it, CJS-style React bundles
 	// crash with "process is not defined" when loaded in the browser.
 	define: {
+		"globalThis.__FRONTMAN_INTERNAL_DEV__": JSON.stringify(
+			process.env.FRONTMAN_INTERNAL_DEV === "true",
+		),
 		"process.env.NODE_ENV": JSON.stringify("production"),
 	},
 	resolve: {

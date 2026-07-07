@@ -19,6 +19,13 @@ let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(~taskId, ~text, ~ti
 })
 let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
+let openBillingSettingsForErrorCategory = category => {
+  switch category {
+  | Some("billing") => Client__State.Actions.openSettingsModalOnBilling()
+  | Some(_) | None => ()
+  }
+}
+
 // Extract text from a contentBlock (returns Some for TextContent, None for other variants)
 let getContentBlockText = (block: Types.contentBlock): option<string> =>
   switch block {
@@ -119,12 +126,12 @@ type contextValue = {
   session: option<ACP.session>,
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
-  createSession: (~onComplete: result<string, string> => unit) => unit,
+  createSession: (~onComplete: result<string, ACP.requestError> => unit) => unit,
   clearSession: unit => unit,
   sendPrompt: (
     string,
     ~additionalBlocks: array<Types.contentBlock>,
-    ~onComplete: result<Types.promptResult, string> => unit,
+    ~onComplete: result<Types.promptResult, ACP.requestError> => unit,
     ~_meta: option<JSON.t>,
   ) => unit,
   cancelPrompt: unit => unit,
@@ -353,6 +360,8 @@ module Provider = {
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
       | Error({_meta, message, timestamp, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
+        openBillingSettingsForErrorCategory(category)
+        let category = category->Option.getOr("unknown")
         switch retryAt {
         | Some(retryAtStr) =>
           let retryAtMs = Date.fromString(retryAtStr)->Date.getTime
@@ -369,23 +378,26 @@ module Provider = {
             ~id=agentErrorId(_meta),
             ~error=message,
             ~timestamp,
-            ~category=category->Option.getOr("unknown"),
+            ~category,
           )
         }
       | Unknown(_) => ()
       }
     })
 
-    let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
-      dispatch(
-        CreateSession({
-          onUpdate: handleSessionUpdate,
-          onTitleUpdated: handleTitleUpdated,
-          onMcpMessage: logMCPMessage,
-          onComplete,
-        }),
-      )
-    }, [dispatch])
+    let createSession = React.useCallback1(
+      (~onComplete: result<string, ACP.requestError> => unit) => {
+        dispatch(
+          CreateSession({
+            onUpdate: handleSessionUpdate,
+            onTitleUpdated: handleTitleUpdated,
+            onMcpMessage: logMCPMessage,
+            onComplete,
+          }),
+        )
+      },
+      [dispatch],
+    )
 
     let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
 

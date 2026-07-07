@@ -26,6 +26,7 @@ defmodule FrontmanServer.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import FrontmanServer.DataCase
+      import FrontmanServer.StripeIntegrationCase
     end
   end
 
