@@ -286,6 +286,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "startup failure persists terminal error on the same turn" do
       scope = user_scope_fixture()
+      subscription_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope).id
 
       {:ok, _, 1} =
@@ -304,6 +305,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     test "submits browser context prompt through production recording path" do
       scope = user_scope_fixture()
+      subscription_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope).id
 
       content_blocks = [

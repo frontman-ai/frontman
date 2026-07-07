@@ -1,6 +1,7 @@
 open Vitest
 
-let parseStatus = json => S.parseJsonOrThrow(JSON.parseOrThrow(json), Client__Billing.statusSchema)
+let parseStatus = json =>
+  JSON.parseOrThrow(json)->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
 
 let activeStatus = parseStatus(`{
   "status": "active",

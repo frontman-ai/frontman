@@ -903,7 +903,7 @@ describe("Client State Reducer - Task Management Actions", () => {
 
 describe("Client State Reducer - Billing Settings", () => {
   let parseBillingStatus = json =>
-    S.parseJsonOrThrow(JSON.parseOrThrow(json), Client__Billing.statusSchema)
+    JSON.parseOrThrow(json)->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
 
   let noopSessionCallbacks = (~sendPrompt) => Client__State__Types.AcpSessionActive({
     sendPrompt,

@@ -9,8 +9,6 @@
  * - Answered: per-question summary with check/skip icons
  * - Cancelled/error: red-tinted card
  */
-S.enableJson()
-
 module Icons = Client__UI__Icons
 
 @schema

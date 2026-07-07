@@ -367,7 +367,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      assert task.interactions == []
+      refute Enum.any?(task.interactions, &match?(%Interaction.UserMessage{}, &1))
       refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
   end
@@ -774,6 +774,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "session/load wake" do
     test "drains accepted work created outside the channel prompt flow", %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
 
       {:ok, _reply, socket} =
@@ -1203,8 +1204,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "retry flow" do
+  describe "retry command flow" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}

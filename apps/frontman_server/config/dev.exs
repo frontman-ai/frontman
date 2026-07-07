@@ -70,7 +70,7 @@ config :frontman_server, :stripe,
 # Include metadata and timestamps in development logs for verbose debugging
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :task_id, :pid, :reason]
+  metadata: [:request_id, :task_id, :pid, :reason, :user_id, :user_name]
 
 # Set a higher stacktrace during development. Avoid configuring such
 # in production as building large stacktraces may be expensive.

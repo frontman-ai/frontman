@@ -234,6 +234,8 @@ describe("ACP Client handleResponse", _t => {
   test("error response preserves code and message", t => {
     let rejected = ref(None)
     let pending: Client.pendingRequest = {
+      method: "test",
+      sessionId: None,
       resolve: _ => (),
       reject: err => rejected := Some(err),
     }

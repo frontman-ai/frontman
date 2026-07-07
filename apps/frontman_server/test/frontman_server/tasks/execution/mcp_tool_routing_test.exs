@@ -7,6 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 3, swarm_tool_call: 2]
 
+  import FrontmanServer.BillingFixtures, only: [allow_access_for_scope_fixture: 1]
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Providers
@@ -19,6 +20,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
   describe "ToolExecutor MCP tool routing" do
     setup %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope, framework: "nextjs").id
 
       # Join TaskChannel to intercept MCP requests

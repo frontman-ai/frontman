@@ -548,7 +548,6 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         onComplete(result)
       } catch {
       | exn =>
-        dispatch(PromptSent)
         onComplete(Error(ACP.requestErrorFromMessage("sendPrompt exception")))
         throw(exn)
       }

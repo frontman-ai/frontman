@@ -13,6 +13,7 @@ module Types = Client__State__Types
 
 let apiKeyPlaceholder = (source, emptyText) =>
   switch source {
+  | Types.Loading => "Loading key status..."
   | Types.UserOverride => "Key saved - enter new key to replace"
   | Types.FromEnv => "Using environment key - enter key to override"
   | Types.None => emptyText
@@ -47,6 +48,7 @@ let renderBadge = (~variant, ~label) => <Badge variant> {React.string(label)} </
 
 let renderApiKeySourceBadge = source =>
   switch source {
+  | Types.Loading => renderBadge(~variant=Badge.Variant.Amber, ~label="Loading")
   | Types.UserOverride => renderBadge(~variant=Badge.Variant.Blue, ~label="User key")
   | Types.FromEnv => renderBadge(~variant=Badge.Variant.Emerald, ~label="From environment")
   | Types.None => renderBadge(~variant=Badge.Variant.Zinc, ~label="Not configured")
@@ -205,9 +207,6 @@ let make = () => {
       switch tab {
       | Types.Providers =>
         State.Actions.fetchApiKeySettings()
-        State.Actions.fetchAnthropicApiKeySettings()
-        State.Actions.fetchFireworksApiKeySettings()
-        State.Actions.fetchNvidiaApiKeySettings()
         State.Actions.fetchAnthropicOAuthStatus()
         State.Actions.fetchOpenAIOAuthStatus()
         State.Actions.resetOpenRouterKeySaveStatus()

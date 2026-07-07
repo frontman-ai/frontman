@@ -2,7 +2,7 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #StateReducer
 })
 module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
-module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
+module ACPClient = FrontmanAiFrontmanClient.FrontmanClient__ACP
 
 let name = "Client::StateReducer"
 
@@ -587,13 +587,13 @@ let sendMessageToAPIImpl = (
         Client__TextDeltaBuffer.flush()
 
         switch result {
-        | Error(err) if ACP.requestErrorIsBillingInactive(err) =>
+        | Error(err) if ACPClient.requestErrorIsBillingInactive(err) =>
           dispatch(
             TaskAction({
               target: ForTask(taskId),
               action: AgentError({
                 id: `billing_inactive:${Date.make()->Date.toISOString}`,
-                error: ACP.requestErrorMessage(err),
+                error: ACPClient.requestErrorMessage(err),
                 timestamp: Date.make()->Date.toISOString,
                 category: "billing",
               }),
@@ -601,10 +601,10 @@ let sendMessageToAPIImpl = (
           )
           dispatch(SetSettingsModalTab({tab: Some(Client__State__Types.Billing)}))
         | _ =>
-          // Always dispatch — the reducer gates TurnCompleted on isAgentRunning,
+          // Always dispatch — the reducer gates idle transitions on isAgentRunning,
           // so duplicates (from notification + RPC) and post-cancel arrivals
           // are no-ops.
-          dispatch(TaskAction({target: ForTask(taskId), action: TurnCompleted}))
+          dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
         }
       },
       ~_meta,
@@ -640,10 +640,8 @@ let fetchBillingStatusImpl = (dispatch, ~apiBaseUrl) => {
       let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
-        let billingStatus: Client__Billing.status = S.parseJsonOrThrow(
-          json,
-          Client__Billing.statusSchema,
-        )
+        let billingStatus: Client__Billing.status =
+          json->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
         dispatch(BillingStatusReceived(billingStatus))
       } else {
         dispatch(

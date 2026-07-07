@@ -1,5 +1,3 @@
-S.enableJson()
-
 type subscriptionStatus =
   | @as("none") NoSubscription
   | @as("trialing") Trialing

@@ -8,6 +8,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.BillingFixtures, only: [allow_access_for_scope_fixture: 1]
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
   alias Ecto.Adapters.SQL.Sandbox
@@ -27,6 +28,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
+    allow_access_for_scope_fixture(scope)
     {:ok, _api_key} = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
     {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 

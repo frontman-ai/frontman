@@ -22,7 +22,6 @@ defmodule FrontmanServerWeb.TasksChannel do
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution
   alias FrontmanServerWeb.ACPHistory
 
   @acp_protocol_version ACP.protocol_version()
@@ -170,8 +169,12 @@ defmodule FrontmanServerWeb.TasksChannel do
         push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
       {:error, :billing_inactive} ->
-        message = Execution.error_message(socket.assigns.scope, :billing_inactive)
-        push_error(socket, id, JsonRpc.error_billing_inactive(), message)
+        push_error(
+          socket,
+          id,
+          JsonRpc.error_billing_inactive(),
+          Tasks.billing_inactive_message(socket.assigns.scope)
+        )
 
       {:error, _changeset} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")

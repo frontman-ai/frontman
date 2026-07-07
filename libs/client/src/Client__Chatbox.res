@@ -53,7 +53,7 @@ let renderBillingRequiredAlert = (billingStatus: Client__Billing.state) =>
         </Alert.Action>
       </Alert>
     }
-  | Client__Billing.NotLoaded | Client__Billing.Loading | Client__Billing.Error(_) => React.null
+  | Client__Billing.NotLoaded | Client__Billing.Error(_) => React.null
   }
 
 // Display item for grouped rendering

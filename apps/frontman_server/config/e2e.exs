@@ -44,7 +44,7 @@ config :frontman_server, :stripe,
 # Include metadata and timestamps in logs.
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :task_id, :pid, :reason]
+  metadata: [:request_id, :task_id, :pid, :reason, :user_id, :user_name]
 
 # Keep a higher stacktrace depth for easier local debugging.
 config :phoenix, :stacktrace_depth, 20

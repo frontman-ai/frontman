@@ -51,7 +51,7 @@ let make = (~apiBaseUrl: string) => {
       | true => ()
       | false => Client__State.Actions.openSettingsModalOnBilling()
       }
-    | Client__Billing.NotLoaded | Client__Billing.Loading | Client__Billing.Error(_) => ()
+    | Client__Billing.NotLoaded | Client__Billing.Error(_) => ()
     }
     None
   }, [billingStatus])
