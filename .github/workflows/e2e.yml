@@ -39,8 +39,22 @@ concurrency:
 jobs:
   e2e:
     name: E2E (${{ github.event.inputs.test_suite || 'all' }})
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     env:
       # E2E uses a dedicated Mix environment with HTTPS on port 4002.
@@ -64,29 +78,10 @@ jobs:
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
 
     steps:
-      - name: Resolve Docker host gateway IP for PostgreSQL
-        run: |
-          if command -v ip &>/dev/null; then
-            DB_HOST=$(ip route | awk '/default/ { print $3 }')
-          fi
-          if [ -z "$DB_HOST" ] && [ -f /proc/net/route ]; then
-            HEX=$(awk '$2 == "00000000" { print $3; exit }' /proc/net/route)
-            if [ -n "$HEX" ]; then
-              DB_HOST=$(printf '%d.%d.%d.%d' 0x${HEX:6:2} 0x${HEX:4:2} 0x${HEX:2:2} 0x${HEX:0:2})
-            fi
-          fi
-          if [ -z "$DB_HOST" ]; then
-            DB_HOST="172.17.0.1"
-          fi
-          echo "DB_HOST=${DB_HOST}" >> "$GITHUB_ENV"
-          echo "Resolved DB_HOST=${DB_HOST}"
-
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          # Preserve node_modules/_build between runs on this self-hosted runner.
-          # Yarn's link step (extracting zips → node_modules) takes ~50s from scratch;
-          # with a warm node_modules it's near-instant.
+          # Keep generated fixture edits visible until cleanup runs.
           clean: false
 
       - name: Install system dependencies
@@ -252,7 +247,7 @@ jobs:
           lsof -ti:3011 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3012 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3013 2>/dev/null | xargs kill -9 2>/dev/null || true
-          # Drop the per-run E2E database on the shared Postgres host.
+          # Drop the per-run E2E database.
           bash scripts/ci/postgres-test-db-cleanup.sh current-e2e || true
           bash scripts/ci/postgres-test-db-cleanup.sh stale || true
           # Restore fixture files modified by AI + installer during tests
