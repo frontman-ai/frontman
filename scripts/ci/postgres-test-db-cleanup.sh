@@ -15,6 +15,27 @@ run_psql() {
   psql --no-psqlrc --quiet --set ON_ERROR_STOP=1 "$@"
 }
 
+shell_quote() {
+  local value="${1//\'/\'\\\'\'}"
+  printf "'%s'" "${value}"
+}
+
+print_server_command() {
+  local label="$1"
+  local command="$2"
+
+  echo "${label}:"
+  if ! run_psql --set command="${command}" <<'SQL'
+CREATE TEMP TABLE ci_shell_output(line text);
+COPY ci_shell_output FROM PROGRAM :'command';
+SELECT line FROM ci_shell_output;
+DROP TABLE ci_shell_output;
+SQL
+  then
+    echo "Skipped ${label}; PostgreSQL server cannot run COPY FROM PROGRAM"
+  fi
+}
+
 drop_database() {
   local database_name="$1"
 
@@ -48,10 +69,13 @@ case "${mode}" in
     ;;
 
   stale)
-    echo "PostgreSQL data directory:"
-    run_psql <<'SQL'
-SHOW data_directory;
-SQL
+    data_directory="$(run_psql --tuples-only --no-align -c "SHOW data_directory")"
+    quoted_data_directory="$(shell_quote "${data_directory}")"
+
+    echo "PostgreSQL data directory: ${data_directory}"
+    print_server_command "PostgreSQL data filesystem usage" "df -h ${quoted_data_directory}"
+    print_server_command "PostgreSQL data inode usage" "df -ih ${quoted_data_directory}"
+    print_server_command "PostgreSQL data directory usage" "du -xhd1 ${quoted_data_directory} 2>/dev/null | sort -h | tr '\t' ' '"
 
     echo "PostgreSQL database usage before stale cleanup:"
     run_psql <<'SQL'
