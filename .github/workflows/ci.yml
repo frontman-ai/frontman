@@ -429,8 +429,8 @@ jobs:
         run: cd apps/marketing && yarn build
 
   # ============================================================================
-  # Elixir jobs — stay on self-hosted runners (need PostgreSQL on Docker host,
-  # cached mise/Erlang/Elixir toolchain)
+  # Elixir jobs — use self-hosted runners where cached toolchains matter.
+  # frontman-server uses GitHub-hosted Postgres service to avoid shared DB state.
   #
   # lint no longer depends on test-frontman-server — jobs run in parallel for
   # faster feedback.
@@ -503,34 +503,26 @@ jobs:
 
   test-frontman-server:
     name: Test frontman-server
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       checks: write
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
-      - name: Resolve Docker host gateway IP for PostgreSQL
-        # The self-hosted runner runs inside a Docker container.
-        # PostgreSQL runs on the Docker host, so we need the gateway IP.
-        run: |
-          # Try multiple methods to find the Docker host gateway
-          if command -v ip &>/dev/null; then
-            DB_HOST=$(ip route | awk '/default/ { print $3 }')
-          fi
-          if [ -z "$DB_HOST" ] && [ -f /proc/net/route ]; then
-            # Parse gateway from /proc/net/route (hex-encoded, little-endian)
-            HEX=$(awk '$2 == "00000000" { print $3; exit }' /proc/net/route)
-            if [ -n "$HEX" ]; then
-              DB_HOST=$(printf '%d.%d.%d.%d' 0x${HEX:6:2} 0x${HEX:4:2} 0x${HEX:2:2} 0x${HEX:0:2})
-            fi
-          fi
-          if [ -z "$DB_HOST" ]; then
-            # Last resort: typical Docker bridge gateway
-            DB_HOST="172.17.0.1"
-          fi
-          echo "DB_HOST=${DB_HOST}" >> "$GITHUB_ENV"
-          echo "Resolved DB_HOST=${DB_HOST}"
-
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
