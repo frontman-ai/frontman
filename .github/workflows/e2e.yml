@@ -92,7 +92,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq > /dev/null
-          sudo apt-get install -y -qq libssl-dev libncurses5-dev libnss3-tools > /dev/null
+          sudo apt-get install -y -qq libssl-dev libncurses5-dev libnss3-tools postgresql-client > /dev/null
 
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
@@ -150,6 +150,9 @@ jobs:
         run: |
           mix deps.clean --unlock --unused
           mix deps.get
+
+      - name: Clean stale test databases
+        run: bash scripts/ci/postgres-test-db-cleanup.sh stale
 
       - name: Compile e2e with warnings as errors
         working-directory: apps/frontman_server
@@ -250,7 +253,8 @@ jobs:
           lsof -ti:3012 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3013 2>/dev/null | xargs kill -9 2>/dev/null || true
           # Drop the per-run E2E database on the shared Postgres host.
-          (cd apps/frontman_server && mix ecto.drop --quiet) >/dev/null 2>&1 || true
+          bash scripts/ci/postgres-test-db-cleanup.sh current-e2e || true
+          bash scripts/ci/postgres-test-db-cleanup.sh stale || true
           # Restore fixture files modified by AI + installer during tests
           git checkout -- test/e2e/fixtures/ 2>/dev/null || true
           # Remove untracked files created by installer (middleware.ts, instrumentation.ts)

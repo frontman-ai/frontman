@@ -537,7 +537,7 @@ jobs:
       - name: Install native build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake libssl-dev libncurses5-dev
+          sudo apt-get install -y -qq cmake libssl-dev libncurses5-dev postgresql-client
 
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
@@ -581,6 +581,9 @@ jobs:
           mix deps.clean --unlock --unused
           mix deps.get
 
+      - name: Clean stale test databases
+        run: bash scripts/ci/postgres-test-db-cleanup.sh stale
+
       - name: Compile test with warnings as errors
         working-directory: apps/frontman_server
         env:
@@ -603,10 +606,11 @@ jobs:
 
       - name: Drop per-run test database
         if: always()
-        working-directory: apps/frontman_server
         env:
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
-        run: MIX_ENV=test mix ecto.drop --quiet 2>/dev/null || true
+        run: |
+          bash scripts/ci/postgres-test-db-cleanup.sh current-test || true
+          bash scripts/ci/postgres-test-db-cleanup.sh stale || true
 
       - name: Cleanup workspace
         if: always()
