@@ -1,6 +1,7 @@
 open Vitest
 
 module ToolRegistry = FrontmanCore__ToolRegistry
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 describe("ToolRegistry", _t => {
   test("make creates empty registry", t => {
@@ -49,7 +50,17 @@ describe("ToolRegistry", _t => {
     | Some(tool) =>
       t->expect(tool.name)->Expect.toBe("read_file")
       t->expect(tool.description->String.length > 0)->Expect.toBe(true)
+      t->expect(tool.access)->Expect.toEqual(Some(Tool.Read))
     | None => ()
     }
+  })
+
+  test("serializes write and read-write access", t => {
+    let definitions = ToolRegistry.coreTools()->ToolRegistry.getToolDefinitions
+    let writeFile = definitions->Array.find(d => d.name == "write_file")->Option.getOrThrow
+    let editFile = definitions->Array.find(d => d.name == "edit_file")->Option.getOrThrow
+
+    t->expect(writeFile.access)->Expect.toEqual(Some(Tool.Write))
+    t->expect(editFile.access)->Expect.toEqual(Some(Tool.ReadWrite))
   })
 })

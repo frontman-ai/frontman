@@ -13,6 +13,7 @@
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = Tool.ToolNames.getAstroAudit
+let access = Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 
@@ -194,6 +195,7 @@ let make = (~getPreviewDoc: unit => option<Tool.previewContext>): module(Tool.Br
   module(
     {
       let name = name
+      let access = access
       let visibleToAgent = visibleToAgent
       let executionMode = executionMode
       let description = description

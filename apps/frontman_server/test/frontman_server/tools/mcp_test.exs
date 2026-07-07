@@ -14,6 +14,26 @@ defmodule FrontmanServer.Tools.MCPTest do
 
       assert tool.name == "navigate"
       assert tool.description == "Navigate to a URL"
+      assert tool.access == :read_write
+    end
+
+    test "parses access from wire format" do
+      for {wire, expected} <- [
+            {"read", :read},
+            {"write", :write},
+            {"read-write", :read_write},
+            {"bogus", :read_write}
+          ] do
+        tool =
+          MCP.from_map(%{
+            "name" => "test_tool",
+            "description" => "Test tool",
+            "inputSchema" => %{},
+            "access" => wire
+          })
+
+        assert tool.access == expected
+      end
     end
 
     test "applies server-side timeout defaults" do
@@ -92,6 +112,20 @@ defmodule FrontmanServer.Tools.MCPTest do
 
       assert swarm_tool.timeout_ms == 600_000
       assert swarm_tool.on_timeout == :error
+    end
+
+    test "passes access through to swarm tool" do
+      mcp_tool =
+        MCP.from_map(%{
+          "name" => "read_file",
+          "description" => "Read file",
+          "inputSchema" => %{},
+          "access" => "read"
+        })
+
+      [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
+
+      assert swarm_tool.access == :read
     end
 
     test "passes pause_agent policy through to swarm tool for interactive tools" do

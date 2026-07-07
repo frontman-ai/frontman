@@ -5,6 +5,7 @@
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.interactWithElement
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Interact with an element in the web preview. Supports click, hover, and focus actions.

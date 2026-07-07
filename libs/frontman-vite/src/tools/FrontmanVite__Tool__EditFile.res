@@ -4,6 +4,7 @@ module CoreEditFile = Core.FrontmanCore__Tool__EditFile
 module EditFileWithLogCheck = Core.FrontmanCore__Tool__EditFileWithLogCheck
 
 let name = "edit_file"
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
 let visibleToAgent = true
 let description = CoreEditFile.description
 

@@ -366,31 +366,32 @@ The agent uses this for tasks with 3+ distinct steps. The todo list appears in t
 
 This table shows which tools are available for each framework integration.
 
-| Tool | Astro | Next.js | Vite | Where |
-|------|:-----:|:-------:|:----:|-------|
-| `take_screenshot` | ✓ | ✓ | ✓ | Browser |
-| `execute_js` | ✓ | ✓ | ✓ | Browser |
-| `get_dom` | ✓ | ✓ | ✓ | Browser |
-| `get_interactive_elements` | ✓ | ✓ | ✓ | Browser |
-| `interact_with_element` | ✓ | ✓ | ✓ | Browser |
-| `search_text` | ✓ | ✓ | ✓ | Browser |
-| `set_device_mode` | ✓ | ✓ | ✓ | Browser |
-| `question` | ✓ | ✓ | ✓ | Browser |
-| `get_astro_audit` | ✓ | — | — | Browser |
-| `read_file` | ✓ | ✓ | ✓ | Dev server |
-| `write_file` | ✓ | ✓ | ✓ | Dev server |
-| `edit_file` | ✓ | ✓ | ✓ | Dev server |
-| `list_files` | ✓ | ✓ | ✓ | Dev server |
-| `list_tree` | ✓ | ✓ | ✓ | Dev server |
-| `file_exists` | ✓ | ✓ | ✓ | Dev server |
-| `grep` | ✓ | ✓ | ✓ | Dev server |
-| `search_files` | ✓ | ✓ | ✓ | Dev server |
-| `lighthouse` | ✓ | ✓ | ✓ | Dev server |
-| `get_client_pages` | ✓ | — | — | Dev server |
-| `get_routes` | — | ✓ | — | Dev server |
-| `get_logs` | ✓ | ✓ | ✓ | Dev server |
-| `web_fetch` | ✓ | ✓ | ✓ | Backend |
-| `todo_write` | ✓ | ✓ | ✓ | Backend |
+| Tool | Astro | Next.js | Vite | Where | Access |
+|------|:-----:|:-------:|:----:|-------|--------|
+| `take_screenshot` | ✓ | ✓ | ✓ | Browser | read |
+| `execute_js` | ✓ | ✓ | ✓ | Browser | read-write |
+| `get_dom` | ✓ | ✓ | ✓ | Browser | read |
+| `get_interactive_elements` | ✓ | ✓ | ✓ | Browser | read |
+| `interact_with_element` | ✓ | ✓ | ✓ | Browser | read-write |
+| `search_text` | ✓ | ✓ | ✓ | Browser | read |
+| `set_device_mode` | ✓ | ✓ | ✓ | Browser | write |
+| `question` | ✓ | ✓ | ✓ | Browser | write |
+| `get_astro_audit` | ✓ | — | — | Browser | read |
+| `read_file` | ✓ | ✓ | ✓ | Dev server | read |
+| `write_file` | ✓ | ✓ | ✓ | Dev server | write |
+| `edit_file` | ✓ | ✓ | ✓ | Dev server | read-write |
+| `list_files` | ✓ | ✓ | ✓ | Dev server | read |
+| `list_tree` | ✓ | ✓ | ✓ | Dev server | read |
+| `file_exists` | ✓ | ✓ | ✓ | Dev server | read |
+| `grep` | ✓ | ✓ | ✓ | Dev server | read |
+| `search_files` | ✓ | ✓ | ✓ | Dev server | read |
+| `lighthouse` | ✓ | ✓ | ✓ | Dev server | read |
+| `get_client_pages` | ✓ | — | — | Dev server | read |
+| `get_routes` | — | ✓ | — | Dev server | read |
+| `get_logs` | ✓ | ✓ | ✓ | Dev server | read |
+| `web_fetch` | ✓ | ✓ | ✓ | Backend | read |
+| `get_tool_result` | ✓ | ✓ | ✓ | Backend | read |
+| `todo_write` | ✓ | ✓ | ✓ | Backend | write |
 
 ---
 

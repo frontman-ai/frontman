@@ -9,6 +9,7 @@ module ToolPathHints = FrontmanCore__ToolPathHints
 module FilenamePattern = FrontmanCore__FilenamePattern
 
 let name = Tool.ToolNames.searchFiles
+let access = Tool.Read
 let visibleToAgent = true
 let description = `Searches **file names** across the project. Returns file paths whose name matches a pattern.
 

@@ -6,6 +6,7 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module SafePath = FrontmanCore__SafePath
 
 let name = Tool.ToolNames.loadAgentInstructions
+let access = Tool.Read
 let visibleToAgent = false
 let description = `Discovers and loads agent instruction files (Agents.md or CLAUDE.md) following Claude Code's discovery algorithm.
 

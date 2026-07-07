@@ -26,6 +26,13 @@ type serverExecutionContext = {
 //   (e.g. question tool waits for user to answer before resolving).
 type executionMode = Synchronous | Interactive
 
+type access =
+  | @as("read") Read
+  | @as("write") Write
+  | @as("read-write") ReadWrite
+
+let accessSchema = S.union([S.literal(Read), S.literal(Write), S.literal(ReadWrite)])
+
 // Context for browser tools that access the preview iframe
 type previewContext = {
   doc: WebAPI.DOMAPI.document,
@@ -62,6 +69,7 @@ module ToolNames = {
 module type BrowserTool = {
   let name: string
   let description: string
+  let access: access
   type input
   type output
   let inputSchema: S.t<input>
@@ -76,6 +84,7 @@ module type BrowserTool = {
 module type ServerTool = {
   let name: string
   let description: string
+  let access: access
   type input
   type output
   let inputSchema: S.t<input>

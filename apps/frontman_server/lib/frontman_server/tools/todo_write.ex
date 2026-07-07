@@ -56,6 +56,9 @@ defmodule FrontmanServer.Tools.TodoWrite do
   end
 
   @impl true
+  def access, do: :write
+
+  @impl true
   def parameter_schema do
     %{
       "type" => "object",

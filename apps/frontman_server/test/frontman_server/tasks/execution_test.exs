@@ -753,6 +753,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     @behaviour FrontmanServer.Tools.Backend
     def name, do: "crash_tool"
     def description, do: "always crashes"
+    def access, do: :write
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 5_000
     def on_timeout, do: :error
@@ -764,6 +765,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     @behaviour FrontmanServer.Tools.Backend
     def name, do: "hang_tool"
     def description, do: "hangs forever"
+    def access, do: :write
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 100
     def on_timeout, do: :error

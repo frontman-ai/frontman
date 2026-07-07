@@ -11,6 +11,7 @@ module PathRecovery = FrontmanCore__PathRecovery
 module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.readFile
+let access = Tool.Read
 let visibleToAgent = true
 let description = `Reads a file from the filesystem.
 

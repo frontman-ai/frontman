@@ -26,6 +26,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
     def name, do: "pause_on_timeout_tool"
     def description, do: "Declares on_timeout: :pause_agent"
+    def access, do: :read
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 30_000
     def on_timeout, do: :pause_agent

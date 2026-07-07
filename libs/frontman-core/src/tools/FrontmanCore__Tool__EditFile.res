@@ -16,6 +16,7 @@ module ExnUtils = FrontmanCore__ExnUtils
 module Matcher = FrontmanCore__Tool__EditFile__Matcher
 
 let name = "edit_file"
+let access = Tool.ReadWrite
 let visibleToAgent = true
 let description = `Edits a file by replacing text using fuzzy matching.
 

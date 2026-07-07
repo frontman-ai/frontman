@@ -28,8 +28,17 @@ defmodule FrontmanServer.ToolsTest do
         assert %SwarmAi.Tool{} = tool
         assert is_binary(tool.name)
         assert is_binary(tool.description)
+        assert tool.access in [:read, :write, :read_write]
         assert is_map(tool.parameter_schema)
       end)
+    end
+
+    test "tools expose expected access levels" do
+      by_name = Map.new(Tools.backend_tools(), &{&1.name, &1.access})
+
+      assert by_name["get_tool_result"] == :read
+      assert by_name["web_fetch"] == :read
+      assert by_name["todo_write"] == :write
     end
   end
 

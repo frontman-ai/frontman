@@ -102,6 +102,12 @@ let getToolsJson = (relay: t): array<JSON.t> => {
         dict{
           "name": JSON.Encode.string(tool.name),
           "description": JSON.Encode.string(tool.description),
+          "access": tool.access
+          ->Option.getOr(FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite)
+          ->S.decodeOrThrow(
+            ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.accessSchema,
+            ~to=S.json->S.noValidation(true),
+          ),
           "inputSchema": tool.inputSchema,
           "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
         },

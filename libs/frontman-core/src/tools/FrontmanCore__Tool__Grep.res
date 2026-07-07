@@ -6,6 +6,7 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 
 let name = Tool.ToolNames.grep
+let access = Tool.Read
 let visibleToAgent = true
 let description = `Searches **file contents** for text or regex patterns. Returns matching lines with file paths and line numbers.
 

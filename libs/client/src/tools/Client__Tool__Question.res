@@ -5,6 +5,7 @@
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.question
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Write
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Interactive
 

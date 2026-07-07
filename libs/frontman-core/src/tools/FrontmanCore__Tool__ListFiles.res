@@ -8,6 +8,7 @@ module PathContext = FrontmanCore__PathContext
 module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.listFiles
+let access = Tool.Read
 let visibleToAgent = true
 let description = `Lists the **immediate contents** of a single directory — names, paths, and whether each entry is a file or directory.
 

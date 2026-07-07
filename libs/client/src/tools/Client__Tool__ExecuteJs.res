@@ -4,6 +4,7 @@
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.executeJs
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Execute a JavaScript expression or statement(s) inside the web preview iframe and return the result.

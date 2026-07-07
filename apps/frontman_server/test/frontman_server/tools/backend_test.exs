@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tools.BackendTest do
 
     def name, do: "fake_tool"
     def description, do: "A fake tool for testing"
+    def access, do: :read
     def parameter_schema, do: %{}
     def timeout_ms, do: 45_000
     def on_timeout, do: :error
@@ -25,6 +26,7 @@ defmodule FrontmanServer.Tools.BackendTest do
 
       assert tool.name == "fake_tool"
       assert tool.description == "A fake tool for testing"
+      assert tool.access == :read
       assert tool.parameter_schema == %{}
       assert tool.timeout_ms == 45_000
       assert tool.on_timeout == :error

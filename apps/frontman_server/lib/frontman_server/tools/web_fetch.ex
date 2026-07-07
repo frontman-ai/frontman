@@ -58,6 +58,9 @@ defmodule FrontmanServer.Tools.WebFetch do
   end
 
   @impl true
+  def access, do: :read
+
+  @impl true
   def parameter_schema do
     %{
       "type" => "object",

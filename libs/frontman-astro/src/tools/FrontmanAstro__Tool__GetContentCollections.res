@@ -5,6 +5,7 @@ module Path = FrontmanBindings.Path
 module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext
 
 let name = "get_content_collections"
+let access = Tool.Read
 let visibleToAgent = true
 
 let description = `Queries Astro content collections through astro:content.
@@ -154,6 +155,7 @@ let make = (~loadContentApi: unit => promise<contentApi>): module(Tool.ServerToo
   module(
     {
       let name = name
+      let access = access
       let visibleToAgent = visibleToAgent
       let description = description
       type input = input

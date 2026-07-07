@@ -8,6 +8,7 @@ module FileTracker = FrontmanCore__FileTracker
 module ExnUtils = FrontmanCore__ExnUtils
 
 let name = Tool.ToolNames.writeFile
+let access = Tool.Write
 let visibleToAgent = true
 let description = `Writes content to a file.
 

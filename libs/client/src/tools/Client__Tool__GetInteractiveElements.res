@@ -5,6 +5,7 @@
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.getInteractiveElements
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Discover interactive elements on the current web preview page. Returns a list of clickable/interactive elements with their ARIA roles, accessible names, CSS selectors, and visible text.

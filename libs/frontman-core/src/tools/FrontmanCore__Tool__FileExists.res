@@ -5,6 +5,7 @@ module SafePath = FrontmanCore__SafePath
 module FsUtils = FrontmanCore__FsUtils
 
 let name = Tool.ToolNames.fileExists
+let access = Tool.Read
 let visibleToAgent = true
 let description = `Checks if a file or directory exists.
 

@@ -28,6 +28,7 @@ class Frontman_Tool_Error extends \RuntimeException {}
 class Frontman_Tool_Definition {
 	public string $name;
 	public string $description;
+	public string $access;
 	public array  $input_schema;
 	public bool   $visible_to_agent;
 	public bool   $preserve_input_strings;
@@ -39,6 +40,7 @@ class Frontman_Tool_Definition {
 	 * @param string   $description      Human-readable description.
 	 * @param array    $input_schema     JSON Schema for input (as PHP array).
 	 * @param callable $handler          fn(array $input): array — returns plain data (JSON-serializable).
+	 * @param string|null $access              Tool access level: read, write, or read-write. Inferred from name when omitted.
 	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
 	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
 	 */
@@ -47,11 +49,13 @@ class Frontman_Tool_Definition {
 		string $description,
 		array $input_schema,
 		callable $handler,
+		?string $access = null,
 		bool $visible_to_agent = true,
 		bool $preserve_input_strings = false
 	) {
 		$this->name                   = $name;
 		$this->description            = $description;
+		$this->access                 = $this->normalize_access( $access ?? self::infer_access( $name ) );
 		$this->input_schema           = $input_schema;
 		$this->handler                = $handler;
 		$this->visible_to_agent       = $visible_to_agent;
@@ -65,9 +69,34 @@ class Frontman_Tool_Definition {
 		return [
 			'name'           => $this->name,
 			'description'    => $this->description,
+			'access'         => $this->access,
 			'inputSchema'    => $this->input_schema,
 			'visibleToAgent' => $this->visible_to_agent,
 		];
+	}
+
+	private function normalize_access( string $access ): string {
+		if ( in_array( $access, [ 'read', 'write', 'read-write' ], true ) ) {
+			return $access;
+		}
+
+		return 'read-write';
+	}
+
+	private static function infer_access( string $name ): string {
+		foreach ( [ 'wp_list_', 'wp_read_', 'wp_get_', 'wc_get_', 'wc_list_' ] as $prefix ) {
+			if ( 0 === strpos( $name, $prefix ) ) {
+				return 'read';
+			}
+		}
+
+		foreach ( [ 'wp_create_', 'wp_duplicate_', 'wp_insert_', 'wp_upload_', 'wc_create_' ] as $prefix ) {
+			if ( 0 === strpos( $name, $prefix ) ) {
+				return 'write';
+			}
+		}
+
+		return 'read-write';
 	}
 }
 

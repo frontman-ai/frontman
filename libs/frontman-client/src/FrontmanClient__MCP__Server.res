@@ -82,6 +82,7 @@ let toolWireSchema = S.object(s => {
   {
     "name": s.field("name", S.string),
     "description": s.field("description", S.string),
+    "access": s.field("access", ToolTypes.accessSchema),
     "inputSchema": s.field("inputSchema", S.json),
     "visibleToAgent": s.field("visibleToAgent", S.bool),
     "executionMode": s.field("executionMode", executionModeSchema),
@@ -94,6 +95,7 @@ let serializeTool = (m: module(Tool.Tool)): JSON.t => {
   {
     "name": T.name,
     "description": T.description,
+    "access": T.access,
     "inputSchema": T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
     "visibleToAgent": T.visibleToAgent,
     "executionMode": T.executionMode,

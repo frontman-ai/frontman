@@ -5,6 +5,7 @@
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.searchText
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Search for visible text on the current web preview page. Works like Ctrl+F — finds elements whose visible text contains the query string (case-insensitive).

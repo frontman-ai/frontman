@@ -10,6 +10,7 @@ let protocolVersion = "1.0"
 type remoteTool = {
   name: string,
   description: string,
+  access: option<FrontmanProtocol__Tool.access>,
   inputSchema: JSON.t,
   visibleToAgent: bool,
 }

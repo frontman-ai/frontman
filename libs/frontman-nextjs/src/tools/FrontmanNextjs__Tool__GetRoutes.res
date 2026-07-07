@@ -6,6 +6,7 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathStringUtils = FrontmanAiFrontmanCore.FrontmanCore__PathStringUtils
 
 let name = "get_routes"
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let description = `Lists Next.js routes from the app or pages directory.
 

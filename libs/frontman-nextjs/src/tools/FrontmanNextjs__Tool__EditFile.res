@@ -5,6 +5,7 @@ module EditFileWithLogCheck = Core.FrontmanCore__Tool__EditFileWithLogCheck
 module LogCapture = FrontmanNextjs__LogCapture
 
 let name = "edit_file"
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
 let visibleToAgent = true
 let description = CoreEditFile.description
 

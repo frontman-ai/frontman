@@ -13,6 +13,7 @@ module PathRecovery = FrontmanCore__PathRecovery
 module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.listTree
+let access = Tool.Read
 let visibleToAgent = true
 let description = `Returns a **recursive directory tree** of the project structure, with monorepo workspace detection.
 

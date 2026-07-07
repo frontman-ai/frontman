@@ -8,6 +8,7 @@ module LighthouseRunner = FrontmanCore__Lighthouse
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = Tool.ToolNames.lighthouse
+let access = Tool.Read
 let visibleToAgent = true
 let description = `Runs a Lighthouse audit on a URL to analyze performance, accessibility, best practices, and SEO.
 

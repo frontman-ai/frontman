@@ -258,6 +258,7 @@ class Frontman_Tool_WooCommerce {
 			$description . ' Mirrors woocommerce-mcp-server method `' . $source_method . '` using local WordPress authentication; no WooCommerce REST API keys are required.',
 			$schema,
 			$handler,
+			null,
 			true,
 			true
 		) );

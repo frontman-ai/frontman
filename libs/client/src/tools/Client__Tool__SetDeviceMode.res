@@ -4,6 +4,7 @@
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.setDeviceMode
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Write
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Set the device emulation mode in the web preview for responsive design testing.

@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tools.MCP do
   defstruct name: nil,
             description: nil,
             input_schema: nil,
+            access: :read_write,
             visible_to_agent: true,
             timeout_ms: nil,
             on_timeout: nil
@@ -30,6 +31,7 @@ defmodule FrontmanServer.Tools.MCP do
       name: tool["name"],
       description: tool["description"] || "",
       input_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
+      access: parse_access(tool["access"]),
       visible_to_agent: Map.get(tool, "visibleToAgent", true),
       timeout_ms: timeout_ms,
       on_timeout: on_timeout
@@ -41,6 +43,11 @@ defmodule FrontmanServer.Tools.MCP do
   # user never responds. All other tools use the default long timeout.
   defp timeout_policy("interactive"), do: {120_000, :pause_agent}
   defp timeout_policy(_), do: {@default_timeout_ms, @default_on_timeout}
+
+  defp parse_access("read"), do: :read
+  defp parse_access("write"), do: :write
+  defp parse_access("read-write"), do: :read_write
+  defp parse_access(_), do: :read_write
 
   def from_maps(tools) when is_list(tools) do
     Enum.map(tools, &from_map/1)
@@ -56,6 +63,7 @@ defmodule FrontmanServer.Tools.MCP do
     SwarmAi.Tool.new(
       name: tool.name,
       description: tool.description,
+      access: tool.access,
       parameter_schema: tool.input_schema,
       timeout_ms: tool.timeout_ms,
       on_timeout: tool.on_timeout

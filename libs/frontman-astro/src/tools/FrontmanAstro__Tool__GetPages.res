@@ -8,6 +8,7 @@ module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext
 module PathStringUtils = FrontmanAiFrontmanCore.FrontmanCore__PathStringUtils
 
 let name = "get_client_pages"
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 
 let description = `Lists Astro client pages from the pages directory.

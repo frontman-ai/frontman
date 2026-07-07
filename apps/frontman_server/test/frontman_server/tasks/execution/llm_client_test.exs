@@ -33,6 +33,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       tool = %SwarmAi.Tool{
         name: "read_file",
         description: "Reads a file",
+        access: :read,
         parameter_schema: %{
           "type" => "object",
           "properties" => %{

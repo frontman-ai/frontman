@@ -62,7 +62,8 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 		( new Frontman_Tool_Widgets() )->register( $tools );
 		( new Frontman_Tool_Cache() )->register( $tools );
 
-		$tool_names = array_column( $tools->all_definitions(), 'name' );
+		$definitions = $tools->all_definitions();
+		$tool_names = array_column( $definitions, 'name' );
 		$blocked = [
 			'load_agent_instructions',
 			'read_file',
@@ -84,6 +85,18 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 			$this->assert_false( in_array( $tool_name, $tool_names, true ), $tool_name . ' must not be exposed by the WordPress plugin' );
 		}
 
+		$access_by_name = [];
+		foreach ( $definitions as $definition ) {
+			$this->assert_true( isset( $definition['access'] ), $definition['name'] . ' declares access' );
+			$this->assert_true( in_array( $definition['access'], [ 'read', 'write', 'read-write' ], true ), $definition['name'] . ' has valid access' );
+			$access_by_name[ $definition['name'] ] = $definition['access'];
+		}
+
+		$this->assert_same( 'read', $access_by_name['wp_list_posts'], 'wp_list_posts access' );
+		$this->assert_same( 'write', $access_by_name['wp_create_post'], 'wp_create_post access' );
+		$this->assert_same( 'read-write', $access_by_name['wp_update_post'], 'wp_update_post access' );
+		$this->assert_same( 'read-write', $access_by_name['wp_clear_cache'], 'wp_clear_cache access' );
+
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
 	}
 
@@ -91,6 +104,20 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 		$this->assertions++;
 		if ( $condition ) {
 			throw new RuntimeException( $message );
+		}
+	}
+
+	private function assert_true( bool $condition, string $message ): void {
+		$this->assertions++;
+		if ( ! $condition ) {
+			throw new RuntimeException( $message );
+		}
+	}
+
+	private function assert_same( $expected, $actual, string $message ): void {
+		$this->assertions++;
+		if ( $expected !== $actual ) {
+			throw new RuntimeException( $message . ': expected ' . var_export( $expected, true ) . ', got ' . var_export( $actual, true ) );
 		}
 	}
 }
