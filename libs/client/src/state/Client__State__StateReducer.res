@@ -107,7 +107,6 @@ type action =
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
-  | FetchBillingStatusEffect({apiBaseUrl: string})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   // Anthropic OAuth effects
@@ -632,33 +631,6 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   fetch()->ignore
 }
 
-let fetchBillingStatusImpl = (dispatch, ~apiBaseUrl) => {
-  let fetch = async () => {
-    let url = `${apiBaseUrl}/api/billing/status`
-
-    try {
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let billingStatus: Client__Billing.status =
-          json->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
-        dispatch(BillingStatusReceived(billingStatus))
-      } else {
-        dispatch(
-          BillingStatusError({
-            error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
-          }),
-        )
-      }
-    } catch {
-    | exn =>
-      Log.error(~error=JsExn.fromException(exn), "FetchBillingStatus failed")
-      dispatch(BillingStatusError({error: "Failed to fetch billing status"}))
-    }
-  }
-  fetch()->ignore
-}
-
 let deriveApiKeySource = (~hasUserKey, ~hasEnvKey): Client__State__Types.apiKeySource => {
   switch hasUserKey {
   | true => UserOverride
@@ -752,7 +724,6 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
-  | FetchBillingStatusEffect({apiBaseUrl}) => fetchBillingStatusImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       // Resolve taskId for dispatching task actions back
       let taskDispatch = (taskAction: TaskReducer.action) => {
