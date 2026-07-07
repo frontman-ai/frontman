@@ -48,11 +48,44 @@ case "${mode}" in
     ;;
 
   stale)
+    echo "PostgreSQL data directory:"
+    run_psql <<'SQL'
+SHOW data_directory;
+SQL
+
+    echo "PostgreSQL database usage before stale cleanup:"
+    run_psql <<'SQL'
+SELECT datname, pg_size_pretty(pg_database_size(datname)) AS size
+FROM pg_database
+WHERE NOT datistemplate
+ORDER BY pg_database_size(datname) DESC, datname;
+SQL
+
+    echo "PostgreSQL tablespace usage before stale cleanup:"
+    run_psql <<'SQL'
+SELECT spcname, nullif(pg_tablespace_location(oid), '') AS location, pg_size_pretty(pg_tablespace_size(oid)) AS size
+FROM pg_tablespace
+ORDER BY pg_tablespace_size(oid) DESC, spcname;
+SQL
+
+    echo "PostgreSQL WAL usage before stale cleanup:"
+    run_psql <<'SQL'
+SELECT pg_size_pretty(coalesce(sum(size), 0)) AS wal_size
+FROM pg_ls_waldir();
+SQL
+
+    echo "PostgreSQL temp file usage before stale cleanup:"
+    run_psql <<'SQL'
+SELECT coalesce(pg_size_pretty(sum(size)), '0 bytes') AS temp_size
+FROM pg_ls_tmpdir();
+SQL
+
     echo "PostgreSQL test DB usage before stale cleanup:"
     run_psql <<'SQL'
 SELECT datname, pg_size_pretty(pg_database_size(datname)) AS size
 FROM pg_database
-WHERE datname LIKE 'frontman_server_e2e_%'
+WHERE datname IN ('frontman_server_e2e', 'frontman_server_test')
+   OR datname LIKE 'frontman_server_e2e_%'
    OR datname LIKE 'frontman_server_test%_run_%'
 ORDER BY pg_database_size(datname) DESC, datname;
 SQL
@@ -62,7 +95,8 @@ SQL
 SELECT format('DROP DATABASE IF EXISTS %I;', datname)
 FROM pg_database db
 WHERE (
-    datname LIKE 'frontman_server_e2e_%'
+    datname IN ('frontman_server_e2e', 'frontman_server_test')
+    OR datname LIKE 'frontman_server_e2e_%'
     OR datname LIKE 'frontman_server_test%_run_%'
   )
   AND NOT EXISTS (
@@ -79,9 +113,37 @@ SQL
     run_psql <<'SQL'
 SELECT datname, pg_size_pretty(pg_database_size(datname)) AS size
 FROM pg_database
-WHERE datname LIKE 'frontman_server_e2e_%'
+WHERE datname IN ('frontman_server_e2e', 'frontman_server_test')
+   OR datname LIKE 'frontman_server_e2e_%'
    OR datname LIKE 'frontman_server_test%_run_%'
 ORDER BY pg_database_size(datname) DESC, datname;
+SQL
+
+    echo "PostgreSQL database usage after stale cleanup:"
+    run_psql <<'SQL'
+SELECT datname, pg_size_pretty(pg_database_size(datname)) AS size
+FROM pg_database
+WHERE NOT datistemplate
+ORDER BY pg_database_size(datname) DESC, datname;
+SQL
+
+    echo "PostgreSQL tablespace usage after stale cleanup:"
+    run_psql <<'SQL'
+SELECT spcname, nullif(pg_tablespace_location(oid), '') AS location, pg_size_pretty(pg_tablespace_size(oid)) AS size
+FROM pg_tablespace
+ORDER BY pg_tablespace_size(oid) DESC, spcname;
+SQL
+
+    echo "PostgreSQL WAL usage after stale cleanup:"
+    run_psql <<'SQL'
+SELECT pg_size_pretty(coalesce(sum(size), 0)) AS wal_size
+FROM pg_ls_waldir();
+SQL
+
+    echo "PostgreSQL temp file usage after stale cleanup:"
+    run_psql <<'SQL'
+SELECT coalesce(pg_size_pretty(sum(size)), '0 bytes') AS temp_size
+FROM pg_ls_tmpdir();
 SQL
     ;;
 
