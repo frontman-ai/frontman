@@ -44,7 +44,11 @@ const breadcrumbJsonLd = {
 		"@type": "ListItem",
 		"position": index + 1,
 		"name": item.name,
-		"item": item.url
+		"item": {
+			"@type": "WebPage",
+			"@id": item.url,
+			"name": item.name
+		}
 	}))
 }
 ---
@@ -89,12 +93,7 @@ const breadcrumbJsonLd = {
 			"applicationCategory": "BusinessApplication",
 			"operatingSystem": "Web, macOS, Windows, Linux",
 			"softwareRequirements": "Node.js or WordPress development environment",
-			"publisher": { "@id": "https://frontman.sh/#organization" },
-			"aggregateRating": {
-				"@type": "AggregateRating",
-				"ratingValue": "4.8",
-				"ratingCount": "12"
-			}
+			"publisher": { "@id": "https://frontman.sh/#organization" }
 		},
 		{
 			"@type": "Service",

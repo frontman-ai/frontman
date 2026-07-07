@@ -38,6 +38,7 @@
 	},
 	"dependencies": {
 		"@rescript/react": "^0.15.0",
+		"@rescript/runtime": "12.3.0",
 		"use-sync-external-store": "^1.6.0"
 	},
 	"peerDependencies": {

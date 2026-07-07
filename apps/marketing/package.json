@@ -27,13 +27,15 @@
     "astro-icon": "^1.1.5",
     "hc-starlight": "^0.0.8",
     "marked": "^18.0.4",
+    "preact": "^10.27.2",
     "prettier": "^3.8.2",
     "prettier-plugin-astro": "^0.14.0",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "satori": "^0.26.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.3.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vite": "catalog:"
   },
   "devDependencies": {
     "@frontman-ai/astro": "workspace:*"

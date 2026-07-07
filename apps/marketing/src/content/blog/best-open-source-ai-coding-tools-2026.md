@@ -1,8 +1,8 @@
 ---
-title: 'Best Open-Source AI Coding Tools in 2026: Cline, Roo Code, OpenHands, Kilo Code Compared'
-seoTitle: 'Best Open-Source AI Coding Tools 2026: Cline, Roo Code, OpenHands, Kilo Code Compared'
+title: 'Best Open-Source AI Coding Tools in 2026: Cline, Roo Code, OpenHands, Kilo Code, BYOK Agents'
+seoTitle: 'Best Open-Source AI Coding Tools 2026: Cline, Roo Code, OpenHands, Kilo Code, BYOK Agents'
 pubDate: 2026-03-03T10:00:00Z
-description: 'Compare the best open-source AI coding tools in 2026, including Cline, Roo Code, OpenHands, Kilo Code, Aider, Goose, Continue, Tabby, Stagewise, and Frontman.'
+description: 'Compare the best open-source AI coding tools, coding agents, BYOK assistants, and CLI tools in 2026: Cline, Roo Code, OpenHands, Kilo Code, Aider, Goose, Continue, Tabby, Stagewise, and Frontman.'
 author: 'Danni Friedland'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
@@ -53,7 +53,7 @@ Last updated: June 2026. Star counts are approximate. Update: Roo Code was shut 
 
 Apache-2.0 is the dominant license. AGPL-3.0 appears on Stagewise and Frontman's server component. MIT on OpenHands and bolt.diy.
 
-## Cline vs Roo Code vs Kilo Code vs OpenHands
+## Roo Code vs Cline in 2026: Cline vs Kilo Code vs OpenHands
 
 If you're choosing between the highest-intent 2026 AI coding agents, the short version is this:
 

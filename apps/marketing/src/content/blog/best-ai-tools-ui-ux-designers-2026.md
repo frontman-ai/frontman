@@ -1,8 +1,8 @@
 ---
-title: 'Best AI Tools for UI/UX Designers in 2026'
-seoTitle: '9 Best AI Tools for UI/UX Designers (2026)'
+title: 'Best AI Tools for UI/UX Designers in 2026: Figma Make, UX Pilot, Uizard, Stitch, Frontman'
+seoTitle: 'Best AI Tools for UI/UX Designers 2026: Figma Make, UX Pilot, Uizard, Stitch, Frontman'
 pubDate: 2026-04-15T10:00:00Z
-description: 'Compare 9 AI tools for UI/UX designers in 2026: prototyping, wireframes, image generation, frontend code, and live app edits.'
+description: 'Compare AI tools for UI/UX designers in 2026, including Figma Make, UX Pilot, Uizard, Google Stitch, Relume, v0, and Frontman for live app edits.'
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
 image: '/blog/best-ai-tools-ui-ux-designers-2026-cover.png'

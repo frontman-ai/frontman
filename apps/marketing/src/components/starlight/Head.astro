@@ -20,7 +20,11 @@ breadcrumbItems.push({
   "@type": "ListItem",
   "position": 1,
   "name": "Home",
-  "item": new URL('/', Astro.site).href
+  "item": {
+    "@type": "WebPage",
+    "@id": new URL('/', Astro.site).href,
+    "name": "Home"
+  }
 });
 
 // Add Docs root
@@ -28,7 +32,11 @@ breadcrumbItems.push({
   "@type": "ListItem",
   "position": 2,
   "name": "Docs",
-  "item": new URL('/docs/', Astro.site).href
+  "item": {
+    "@type": "WebPage",
+    "@id": new URL('/docs/', Astro.site).href,
+    "name": "Docs"
+  }
 });
 
 // Add current page if it's a docs subpage (not the docs index itself)
@@ -46,7 +54,11 @@ if (!isDocsIndex) {
     "@type": "ListItem",
     "position": 3,
     "name": pageTitle,
-    "item": new URL(Astro.url.pathname, Astro.site).href
+    "item": {
+      "@type": "WebPage",
+      "@id": new URL(Astro.url.pathname, Astro.site).href,
+      "name": pageTitle
+    }
   });
 }
 

@@ -29,6 +29,7 @@ function buildDateMap(dir) {
 
 const blogDateMap = buildDateMap(path.resolve(appRoot, "src/content/blog"));
 const releasesDateMap = buildDateMap(path.resolve(appRoot, "src/content/releases"));
+const staticContentLastmod = new Date("2026-07-07T00:00:00Z");
 const monorepoRoot = path.resolve(appRoot, "../..");
 
 // Validate that all docs pages have a description in their frontmatter.
@@ -242,8 +243,8 @@ export default defineConfig({
       // Exclude explicit noindex pages from sitemap output.
       if (/\/(404|pricing)\/?$/.test(item.url)) return undefined;
 
-      // Use real publication dates where available. Omit lastmod for
-      // pages without a durable source date instead of emitting build time.
+      // Use real publication dates where available. Static pages share a
+      // manual source date so child sitemap indexes do not appear undated.
       const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
       const releasesMatch = item.url.match(/\/open-source-ai-releases\/([^/]+)\/?$/);
       if (blogMatch && blogDateMap.has(blogMatch[1])) {
@@ -251,7 +252,7 @@ export default defineConfig({
       } else if (releasesMatch && releasesDateMap.has(releasesMatch[1])) {
         item.lastmod = releasesDateMap.get(releasesMatch[1]);
       } else {
-        delete item.lastmod;
+        item.lastmod = staticContentLastmod;
       }
 
       // Assign priority and changefreq by page type.
