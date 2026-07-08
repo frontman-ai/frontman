@@ -5,12 +5,10 @@
   },
   "deploy": {
     "preDeployCommand": [
-      "/app/bin/frontman_server",
-      "eval",
-      "FrontmanServer.Release.migrate()"
+      "/app/bin/frontman_server eval \"FrontmanServer.Release.migrate()\""
     ],
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30,
-    "restartPolicyType": "on_failure"
+    "restartPolicyType": "ON_FAILURE"
   }
 }
