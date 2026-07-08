@@ -1,0 +1,117 @@
+---
+// Used In Wild Section
+// ------------
+// Description: A social proof section showing aggregate user email domains without implying company endorsements.
+
+type Domain = {
+	domain: string
+	logo: string
+}
+
+const domains: Domain[] = [
+	{ domain: 'sap.com', logo: 'https://www.google.com/s2/favicons?domain=sap.com&sz=128' },
+	{ domain: 'ashbyhq.com', logo: 'https://www.google.com/s2/favicons?domain=ashbyhq.com&sz=128' },
+	{ domain: 'circle.co', logo: 'https://www.google.com/s2/favicons?domain=circle.co&sz=128' },
+	{ domain: 'siteground.com', logo: 'https://www.google.com/s2/favicons?domain=siteground.com&sz=128' },
+	{ domain: 'aisingapore.org', logo: 'https://www.google.com/s2/favicons?domain=aisingapore.org&sz=128' },
+	{ domain: 'autonomyai.io', logo: 'https://www.google.com/s2/favicons?domain=autonomyai.io&sz=128' },
+	{ domain: 'healthee.co', logo: 'https://www.google.com/s2/favicons?domain=healthee.co&sz=128' },
+	{ domain: 'terrascope.com', logo: 'https://www.google.com/s2/favicons?domain=terrascope.com&sz=128' },
+	{ domain: 'versemedical.com', logo: 'https://www.google.com/s2/favicons?domain=versemedical.com&sz=128' },
+	{ domain: 'postech.ac.kr', logo: 'https://www.google.com/s2/favicons?domain=postech.ac.kr&sz=128' },
+	{ domain: 'sp.edu.sg', logo: 'https://www.google.com/s2/favicons?domain=sp.edu.sg&sz=128' },
+	{ domain: 'redaccess.io', logo: 'https://www.google.com/s2/favicons?domain=redaccess.io&sz=128' },
+	{ domain: 'tunemymusic.com', logo: 'https://www.google.com/s2/favicons?domain=tunemymusic.com&sz=128' }
+]
+---
+
+<section class="used-in-wild-section" aria-labelledby="used-in-wild-title">
+	<div class="used-in-wild-container">
+		<div class="used-in-wild-copy">
+			<h3 id="used-in-wild-title" class="used-in-wild-subtitle">Popular with engineers from</h3>
+			<p class="used-in-wild-note">Individual engineers, not company endorsements.</p>
+
+			<div class="used-in-wild-domains-strip">
+				<ul class="used-in-wild-domains" aria-label="User email domains">
+					{domains.map(({ domain, logo }) => (
+						<li class="used-in-wild-domain">
+							<img src={logo} alt={`${domain} logo`} loading="lazy" decoding="async" />
+						</li>
+					))}
+					{domains.map(({ domain, logo }) => (
+						<li class="used-in-wild-domain" aria-hidden="true">
+							<img src={logo} alt="" loading="lazy" decoding="async" />
+						</li>
+					))}
+				</ul>
+			</div>
+		</div>
+	</div>
+</section>
+
+<style>
+	@reference "../../../styles/global.css";
+
+	.used-in-wild-section {
+		@apply relative mt-8 w-full overflow-hidden px-5 py-6 text-neutral-100 lg:mt-10 lg:px-6 lg:py-7;
+	}
+
+	.used-in-wild-container {
+		@apply mx-auto max-w-7xl;
+	}
+
+	.used-in-wild-copy {
+		@apply mx-auto max-w-4xl text-center;
+	}
+
+	.used-in-wild-subtitle {
+		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
+		@apply mx-auto mb-3 max-w-3xl text-xl font-semibold leading-tight tracking-tight text-white lg:text-2xl;
+	}
+
+	.used-in-wild-note {
+		@apply text-sm leading-6 text-neutral-400;
+	}
+
+	.used-in-wild-domains-strip {
+		@apply mt-4 overflow-hidden px-1 py-2;
+	}
+
+	.used-in-wild-domains {
+		@apply flex w-max list-none gap-6 p-0;
+		animation: used-in-wild-scroll 45s linear infinite;
+		margin: 0;
+	}
+
+	.used-in-wild-domains-strip:hover .used-in-wild-domains {
+		animation-play-state: paused;
+	}
+
+	.used-in-wild-domain {
+		@apply flex h-14 min-w-20 shrink-0 items-center justify-center rounded-xl bg-white px-4 py-3 shadow-sm shadow-black/20;
+	}
+
+	.used-in-wild-domain img {
+		@apply block max-h-8 w-auto max-w-24 object-contain transition duration-200;
+	}
+
+	.used-in-wild-domain:hover img {
+		@apply scale-105;
+	}
+
+	@keyframes used-in-wild-scroll {
+		from {
+			transform: translateX(0);
+		}
+
+		to {
+			transform: translateX(calc(-50% - 0.25rem));
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.used-in-wild-domains {
+			animation: none;
+		}
+	}
+</style>
