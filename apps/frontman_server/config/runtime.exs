@@ -86,12 +86,22 @@ if config_env() in [:dev, :test, :e2e] do
 end
 
 if config_env() == :prod do
-  config :frontman_server,
-    discord_new_users_webhook_url: env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string!)
+  discord_new_users_webhook_url = env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string, nil)
+  resend_api_key = env!("RESEND_API_KEY", :string, nil)
 
-  config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
-  config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
-  config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser, enabled: true
+  discord_notifications_enabled =
+    is_binary(discord_new_users_webhook_url) and String.trim(discord_new_users_webhook_url) != ""
+
+  resend_enabled = is_binary(resend_api_key) and String.trim(resend_api_key) != ""
+
+  config :frontman_server,
+    discord_new_users_webhook_url: discord_new_users_webhook_url
+
+  config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: resend_enabled
+  config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: resend_enabled
+
+  config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
+    enabled: discord_notifications_enabled
 
   config :sentry,
     dsn:
@@ -193,8 +203,10 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
-  # Mailer: Resend adapter for production email delivery
-  config :frontman_server, FrontmanServer.Mailer,
-    adapter: Swoosh.Adapters.Resend,
-    api_key: env!("RESEND_API_KEY", :string!)
+  if resend_enabled do
+    # Mailer: Resend adapter for production email delivery
+    config :frontman_server, FrontmanServer.Mailer,
+      adapter: Swoosh.Adapters.Resend,
+      api_key: resend_api_key
+  end
 end

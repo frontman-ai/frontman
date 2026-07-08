@@ -139,7 +139,57 @@ ssh root@<server> 'bash -s' < infra/production/monitoring/setup-monitoring.sh
 
 ---
 
-### Option 2: Docker
+### Option 2: Railway
+
+Use Railway when you want the fastest managed self-hosted Frontman server: one Phoenix service, one PostgreSQL service, automatic HTTPS, and migrations before each deploy.
+
+Railway does not replace the Docker path. Use Railway for managed hosting, or use Docker directly when you want to run the same server image on your own infrastructure.
+
+**Deploy from GitHub:**
+1. Create a new Railway project from `https://github.com/frontman-ai/frontman`.
+2. Add a PostgreSQL service.
+3. Set the Frontman service build config to use `apps/frontman_server/Dockerfile`. The repository includes `railway.json` with this setting.
+4. Add the required Frontman service variables below.
+5. Deploy. Railway runs `/app/bin/frontman_server eval "FrontmanServer.Release.migrate()"` before starting the server and checks `/health` after deploy.
+
+**Required Frontman service variables:**
+```dotenv
+PHX_SERVER=true
+PHX_HOST=${{Frontman.RAILWAY_PUBLIC_DOMAIN}}
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+DATABASE_SSL=true
+SECRET_KEY_BASE=<generate a 64+ character secret>
+CLOAK_KEY=<generate with: openssl rand -base64 32>
+WORKOS_API_KEY=<your WorkOS API key>
+WORKOS_CLIENT_ID=<your WorkOS client ID>
+```
+
+Use the exact Railway service names from your project when referencing variables. If your app service is named `Frontman Server`, use `${{Frontman Server.RAILWAY_PUBLIC_DOMAIN}}`. If your database service is named `Postgres`, `${{Postgres.DATABASE_URL}}` works as shown.
+
+**Optional Frontman service variables:**
+```dotenv
+RESEND_API_KEY=<enables welcome emails and contact sync>
+DISCORD_NEW_USERS_WEBHOOK_URL=<enables new-user signup notifications>
+POOL_SIZE=10
+```
+
+`RESEND_API_KEY` and `DISCORD_NEW_USERS_WEBHOOK_URL` are optional. Frontman disables those background workers when the values are not present.
+
+**Publishing a one-click Railway template:**
+1. Create the Railway project above and confirm deploy succeeds.
+2. In Railway, publish the project as a template.
+3. Mark `SECRET_KEY_BASE` and `CLOAK_KEY` as generated secret variables.
+4. Mark `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` as required user-provided variables with descriptions.
+5. Set category to developer tools or productivity.
+6. Use this template description:
+
+   `Self-host Frontman, the browser-native AI frontend agent. Includes the Phoenix orchestration server, PostgreSQL, automatic migrations, OAuth via WorkOS, and optional Resend/Discord integrations.`
+
+After publishing, Railway generates a page like `https://railway.com/deploy/frontman` and a deploy URL like `https://railway.com/new/template/<template-id>`.
+
+---
+
+### Option 3: Docker
 
 **Build the image:**
 ```bash
@@ -187,7 +237,7 @@ docker exec frontman-server /app/bin/frontman_server eval "FrontmanServer.Releas
 
 ---
 
-### Option 3: From Source (Development)
+### Option 4: From Source (Development)
 
 **Prerequisites:**
 - Elixir 1.19+, Erlang 28+, Node.js 24+, PostgreSQL 17+
