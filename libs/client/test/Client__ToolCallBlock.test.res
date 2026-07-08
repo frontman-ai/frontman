@@ -32,19 +32,6 @@ describe("isInlineTool", _t => {
   })
 })
 
-describe("isFileTool", _t => {
-  test("returns true for file tools only", t => {
-    t->expect(ToolCallBlock.isFileTool("read_file"))->Expect.toBe(true)
-    t->expect(ToolCallBlock.isFileTool("write_file"))->Expect.toBe(true)
-    t->expect(ToolCallBlock.isFileTool("list_files"))->Expect.toBe(true)
-    t->expect(ToolCallBlock.isFileTool("list_dir"))->Expect.toBe(true)
-  })
-
-  test("returns false for execute_js", t => {
-    t->expect(ToolCallBlock.isFileTool("execute_js"))->Expect.toBe(false)
-  })
-})
-
 describe("getTarget", _t => {
   test("returns file path from tool input", t => {
     let input = Some(JSON.parseOrThrow(`{"target_file": "src/app.tsx"}`))

@@ -311,7 +311,6 @@ let make = (~onConfigureProvider: unit => unit) => {
               result=None
               errorText=None
               defaultExpanded=false
-              messageId={partKey}
             />
           }
         })
@@ -330,7 +329,6 @@ let make = (~onConfigureProvider: unit => unit) => {
           result={tc.result}
           errorText={tc.errorText}
           defaultExpanded=false
-          messageId
         />
       </div>
 
@@ -339,7 +337,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       // Pass both isLastToolGroup and isLastItem - group is "open" only if both are true
       // This ensures groups close when items (like assistant messages) appear after them
       <div key={group.id} className="frontman-content-auto">
-        <ToolGroupBlock group messageId={group.id} isLastToolGroup isLastItem isAgentRunning />
+        <ToolGroupBlock group isLastToolGroup isLastItem isAgentRunning />
       </div>
 
     | TodoToolCall(tc) =>

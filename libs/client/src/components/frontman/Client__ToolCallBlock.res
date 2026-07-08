@@ -23,14 +23,6 @@ let isInlineTool = (toolName: string): bool => {
   }
 }
 
-let isFileTool = (toolName: string): bool => {
-  let name = cleanToolName(toolName)
-  switch name {
-  | "read_file" | "write_file" | "list_files" | "list_dir" => true
-  | _ => false
-  }
-}
-
 // Screenshot tool detection and image extraction
 let isScreenshotTool = (toolName: string): bool => {
   cleanToolName(toolName) == ToolNames.takeScreenshot
@@ -49,7 +41,7 @@ let getTarget = (toolName: string, input: option<JSON.t>): option<string> => {
   switch ToolLabels.extractTargetFromInput(input) {
   | Some(".") => Some("./")
   | Some(t) => Some(t)
-  | None if isFileTool(toolName) => Some("./")
+  | None if isInlineTool(toolName) => Some("./")
   | None => None
   }
 }
@@ -64,12 +56,10 @@ let make = (
   ~errorText: option<string>,
   ~defaultExpanded: bool=false,
   ~compact: bool=false,
-  ~messageId as _: string,
 ) => {
   // Question tools get their own compact summary card
-  let isQuestionTool = cleanToolName(toolName) == ToolNames.question
-  switch isQuestionTool {
-  | true => <Client__QuestionToolBlock state input result errorText compact />
+  switch cleanToolName(toolName) == ToolNames.question {
+  | true => <Client__QuestionToolBlock state input result errorText />
   | false =>
     let isLink = isInlineTool(toolName)
     let (isExpanded, setIsExpanded) = React.useState(() => defaultExpanded)

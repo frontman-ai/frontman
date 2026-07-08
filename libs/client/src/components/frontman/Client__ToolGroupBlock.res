@@ -18,7 +18,7 @@ module Types = Client__ToolGroupTypes
 module Utils = Client__ToolGroupUtils
 module ToolCallBlock = Client__ToolCallBlock
 
-let renderCompactToolCall = (~tc: Client__State__Types.Message.toolCall, ~messageId: string) => {
+let renderCompactToolCall = (~tc: Client__State__Types.Message.toolCall) => {
   <ToolCallBlock
     key={tc.id}
     toolName={tc.toolName}
@@ -29,7 +29,6 @@ let renderCompactToolCall = (~tc: Client__State__Types.Message.toolCall, ~messag
     errorText={tc.errorText}
     defaultExpanded=false
     compact=true
-    messageId
   />
 }
 
@@ -40,7 +39,6 @@ let make = (
   ~isLastToolGroup: bool=false,
   ~isLastItem: bool=false,
   ~isAgentRunning: bool=false,
-  ~messageId: string,
 ) => {
   // Check if any tool in the group is still loading
   let isLoading = group.toolCalls->Array.some(tc => {
@@ -218,7 +216,7 @@ let make = (
       let renderContent =
         group.toolCalls
         ->Array.mapWithIndex((tc, i) => {
-          renderCompactToolCall(~tc, ~messageId=`${messageId}-${Int.toString(i)}`)
+          renderCompactToolCall(~tc)
         })
         ->React.array
 

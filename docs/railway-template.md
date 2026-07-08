@@ -14,6 +14,8 @@ Use this content when publishing the Frontman Railway template.
 
 **Repository:** `https://github.com/frontman-ai/frontman`
 
+**Website:** https://frontman.sh
+
 **Dockerfile path:** `apps/frontman_server/Dockerfile`
 
 **Pre-deploy command:**
@@ -60,6 +62,8 @@ POOL_SIZE=10
 
 Frontman is an open-source AI coding agent that lives in your browser. Click any element in your running app, describe the change in plain English, and Frontman edits the actual source files with instant hot reload.
 
+Learn more at https://frontman.sh or view the source at https://github.com/frontman-ai/frontman.
+
 Self-hosting Frontman on Railway gives your team its own orchestration server with managed PostgreSQL, automatic HTTPS, release health checks, and database migrations before each deploy.
 
 ## About Hosting Frontman on Railway
@@ -96,6 +100,14 @@ Required external setup:
 - WorkOS application for OAuth login
 - GitHub or Google OAuth provider configured in WorkOS
 - Optional Resend API key for email delivery
+- Optional Discord webhook for signup notifications
+
+### Deployment Dependencies
+
+- Railway PostgreSQL service for persistent application data
+- Railway public networking for HTTPS and WebSocket traffic
+- WorkOS application credentials for OAuth login
+- Optional Resend API key for transactional email
 - Optional Discord webhook for signup notifications
 
 ## Implementation Details

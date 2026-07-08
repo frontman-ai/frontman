@@ -105,11 +105,10 @@ let make = (
   ~input: option<JSON.t>,
   ~result: option<JSON.t>,
   ~errorText: option<string>,
-  ~compact: bool=false,
 ) => {
   switch (state, result) {
   | (InputStreaming, _) | (InputAvailable, _) =>
-    <Card compact>
+    <Card compact=true>
       <HeaderRow color=Purple text="Asking a question..." />
       <QuestionList input />
     </Card>
@@ -125,7 +124,7 @@ let make = (
       | None => (false, false)
       }
 
-      <Card compact variant={cancelled ? Error : Normal}>
+      <Card compact=true variant={cancelled ? Error : Normal}>
         <HeaderRow
           color={cancelled ? Red : Purple}
           text={switch (cancelled, skippedAll) {
@@ -189,13 +188,13 @@ let make = (
     }
 
   | (OutputError, _) =>
-    <Card compact variant=Error>
+    <Card compact=true variant=Error>
       <HeaderRow color=Red text={errorText->Option.getOr("Question failed")} />
     </Card>
 
   | (OutputAvailable, None) =>
     // Defensive: shouldn't happen but handle gracefully
-    <Card compact>
+    <Card compact=true>
       <HeaderRow color=Purple text="Question completed" />
     </Card>
   }
