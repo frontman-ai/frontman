@@ -13,7 +13,7 @@
     "vite": "catalog:"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.0",
-    "tailwindcss": "^4.3.0"
+    "@tailwindcss/vite": "^4.3.2",
+    "tailwindcss": "^4.3.2"
   }
 }

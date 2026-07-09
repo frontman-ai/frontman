@@ -50,7 +50,7 @@
 		"@rescript/react": "^0.15.0",
 		"@rescript/runtime": "12.3.0",
 		"@rescript/webapi": "*",
-		"@tailwindcss/vite": "^4.3.0",
+		"@tailwindcss/vite": "^4.3.2",
 		"@types/babel__core": "^7",
 		"@types/react": "^19.2.15",
 		"@zumer/snapdom": "^2.12.2",
@@ -68,7 +68,7 @@
 		"sury": "catalog:",
 		"sury-ppx": "catalog:",
 		"tailwind-merge": "^3.6.0",
-		"tailwindcss": "^4.3.0",
+		"tailwindcss": "^4.3.2",
 		"tw-animate-css": "^1.4.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"

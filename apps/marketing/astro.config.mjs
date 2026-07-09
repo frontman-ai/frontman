@@ -1,5 +1,4 @@
 import { defineConfig } from "astro/config";
-import tailwindcss from "@tailwindcss/vite";
 import icon from "astro-icon";
 import sitemap from "@astrojs/sitemap";
 import frontman from "@frontman-ai/astro";
@@ -110,7 +109,6 @@ export default defineConfig({
   site: "https://frontman.sh",
   trailingSlash: "always",
   vite: {
-    plugins: [tailwindcss()],
     server: {
       allowedHosts: [".frontman.local"],
     },
