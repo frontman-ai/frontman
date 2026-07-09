@@ -651,6 +651,30 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
 
+    test "uses default agent when resuming a legacy turn without agent id", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      insert_accepted_user_message!(task, "legacy turn")
+      insert_turn_started_for_messages!(task_id, 1, nil)
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+
+      assert_receive {:provider_messages, messages}, 1_000
+      assert [system_text] = provider_system_texts(messages)
+      assert system_text =~ "Test planner system."
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
     test "adds task runtime context to the selected agent system prompt", %{
       task_id: task_id,
       scope: scope
@@ -1021,6 +1045,34 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
              "todo_write returned an error — " <>
                "backend tool was rejected as unavailable. " <>
                "Got: #{inspect(meta.output)}"
+    end
+
+    test "read-only agent cannot execute hidden backend write tools", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      task = task_schema!(task_id)
+
+      ref =
+        :telemetry_test.attach_event_handlers(self(), [[:swarm_ai, :tool, :execute, :stop]])
+
+      on_exit(fn -> :telemetry.detach(ref) end)
+
+      insert_accepted_user_message!(task, "Do not write todos")
+      insert_turn_started_for_messages!(task_id, 1, "test-planner")
+
+      tc_id = "tc_todo_read_only_#{System.unique_integer([:positive])}"
+      todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
+
+      expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
+        ReqLLMResponses.response({:tool_calls, [todo_tc], "Writing todos"})
+      end)
+
+      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+
+      refute_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements,
+                      %{tool_name: "todo_write"}},
+                     500
     end
   end
 

@@ -60,8 +60,9 @@ defmodule FrontmanServer.Tasks.Execution do
 
     case Providers.prepare_llm_args(scope, requested_model, max_tokens: max_tokens) do
       {:ok, {model_spec, llm_opts}} ->
-        backend_tool_modules = Tools.backend_tool_modules()
-        tools = Tools.prepare_for_task(mcp_tools, tool_policy)
+        backend_tool_modules = Tools.backend_tool_modules(tool_policy)
+        mcp_tools = Tools.mcp_tools(mcp_tools, tool_policy)
+        tools = Tools.to_swarm_tools(backend_tool_modules, mcp_tools)
 
         messages = [
           Message.system(system_prompt)

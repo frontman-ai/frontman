@@ -909,12 +909,16 @@ defmodule FrontmanServer.Tasks do
 
   defp turn_agent(%Scope{} = scope, rows, turn_number) do
     %InteractionSchema{data: %Interaction.TurnStarted{agent_id: agent_id}} =
-      Enum.find(rows, fn
-        %InteractionSchema{type: :turn_started, turn_number: ^turn_number} -> true
-        _row -> false
-      end)
+      turn_started_for_turn(rows, turn_number)
 
-    Agents.get_agent(scope, agent_id)
+    Agents.get_agent(scope, agent_id || Agents.default_agent_id(scope))
+  end
+
+  defp turn_started_for_turn(rows, turn_number) do
+    Enum.find(rows, fn
+      %InteractionSchema{type: :turn_started, turn_number: ^turn_number} -> true
+      _row -> false
+    end)
   end
 
   defp ensure_execution_model(_rows, _turn_number, %{model: model} = execution)
@@ -940,11 +944,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp turn_model_from_rows(rows, turn_number) do
-    rows
-    |> Enum.find(fn
-      %InteractionSchema{type: :turn_started, turn_number: ^turn_number} -> true
-      _row -> false
-    end)
+    turn_started_for_turn(rows, turn_number)
     |> case do
       %InteractionSchema{data: %Interaction.TurnStarted{user_message_ids: user_message_ids}} ->
         messages_by_id =
