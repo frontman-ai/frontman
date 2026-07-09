@@ -162,7 +162,19 @@ defmodule FrontmanServer.Accounts.UserToken do
     end
   end
 
+  def by_user_and_context(query \\ __MODULE__, user_id, context) do
+    from(t in query, where: t.user_id == ^user_id and t.context == ^context)
+  end
+
+  def by_ids(query \\ __MODULE__, ids) when is_list(ids) do
+    from(t in query, where: t.id in ^ids)
+  end
+
+  def by_token_and_context(query \\ __MODULE__, token, context) do
+    from(t in query, where: t.token == ^token and t.context == ^context)
+  end
+
   defp by_token_and_context_query(token, context) do
-    from UserToken, where: [token: ^token, context: ^context]
+    by_token_and_context(token, context)
   end
 end

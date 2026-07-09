@@ -110,6 +110,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.type == ^type)
   end
 
+  def by_ids(query \\ __MODULE__, ids) when is_list(ids) do
+    from(i in query, where: i.id in ^ids)
+  end
+
   def data_equals(query \\ __MODULE__, field, value) do
     from(i in query, where: fragment("?->>?", i.data, ^field) == ^value)
   end

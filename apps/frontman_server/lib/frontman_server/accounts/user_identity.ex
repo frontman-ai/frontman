@@ -14,6 +14,7 @@ defmodule FrontmanServer.Accounts.UserIdentity do
 
   use Ecto.Schema
   import Ecto.Changeset
+  import Ecto.Query
 
   @providers ~w(github google)
 
@@ -60,5 +61,17 @@ defmodule FrontmanServer.Accounts.UserIdentity do
   """
   def touch_changeset(identity) do
     change(identity, last_signed_in_at: DateTime.utc_now(:second))
+  end
+
+  def for_user(query \\ __MODULE__, user_id) do
+    from(i in query, where: i.user_id == ^user_id)
+  end
+
+  def for_user_and_provider(query \\ __MODULE__, user_id, provider) do
+    from(i in query, where: i.user_id == ^user_id and i.provider == ^provider)
+  end
+
+  def for_provider_identity(query \\ __MODULE__, provider, provider_id) do
+    from(i in query, where: i.provider == ^provider and i.provider_id == ^provider_id)
   end
 end

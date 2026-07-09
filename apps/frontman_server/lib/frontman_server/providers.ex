@@ -10,7 +10,6 @@ defmodule FrontmanServer.Providers do
   use Boundary,
     deps: [FrontmanServer, FrontmanServer.Accounts]
 
-  import Ecto.Query, warn: false
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Accounts
@@ -260,10 +259,8 @@ defmodule FrontmanServer.Providers do
   Lists providers with saved API keys for the user.
   """
   def list_api_key_providers(%Scope{user: %User{} = user}) do
-    ApiKey
-    |> ApiKey.for_user(user.id)
-    |> order_by([key], asc: key.provider)
-    |> select([key], key.provider)
+    user.id
+    |> ApiKey.provider_names_for_user()
     |> Repo.all()
   end
 

@@ -28,8 +28,6 @@ defmodule FrontmanServer.Tasks.Execution do
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.Message.Tool
 
-  import Ecto.Query, only: [from: 2]
-
   @doc """
   Runs an agent execution for a task.
 
@@ -134,13 +132,9 @@ defmodule FrontmanServer.Tasks.Execution do
 
     InteractionSchema.for_task(task_id)
     |> InteractionSchema.of_type(:user_message)
-    |> where_id_in(user_message_ids)
+    |> InteractionSchema.by_ids(user_message_ids)
     |> InteractionSchema.ordered()
     |> Repo.all()
-  end
-
-  defp where_id_in(query, ids) do
-    from(i in query, where: i.id in ^ids)
   end
 
   @doc """

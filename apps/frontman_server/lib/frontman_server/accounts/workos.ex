@@ -25,7 +25,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   alias FrontmanServer.Workers.SyncResendContact
 
   import Ecto.Changeset
-  import Ecto.Query
 
   @supported_providers ~w(github google)
   @workos_api_base "https://api.workos.com"
@@ -209,7 +208,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   """
   def list_identities(%User{} = user) do
     UserIdentity
-    |> where([i], i.user_id == ^user.id)
+    |> UserIdentity.for_user(user.id)
     |> Repo.all()
   end
 
@@ -218,7 +217,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   """
   def get_identity_by_provider(%User{} = user, provider) when is_binary(provider) do
     UserIdentity
-    |> where([i], i.user_id == ^user.id and i.provider == ^provider)
+    |> UserIdentity.for_user_and_provider(user.id, provider)
     |> Repo.one()
   end
 
@@ -348,16 +347,14 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   defp get_identity_by_provider_id(provider, provider_id) do
     UserIdentity
-    |> where([i], i.provider == ^provider and i.provider_id == ^provider_id)
+    |> UserIdentity.for_provider_identity(provider, provider_id)
     |> Repo.one()
   end
 
   defp get_user_by_email(email) when email in [nil, ""], do: nil
 
   defp get_user_by_email(email) when is_binary(email) do
-    User
-    |> where([u], u.email == ^email)
-    |> Repo.one()
+    Repo.get_by(User, email: email)
   end
 
   defp create_identity(user, profile) do

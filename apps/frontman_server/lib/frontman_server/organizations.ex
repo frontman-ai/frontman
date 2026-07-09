@@ -26,8 +26,6 @@ defmodule FrontmanServer.Organizations do
     deps: [FrontmanServer],
     exports: [Organization]
 
-  import Ecto.Query, warn: false
-
   alias FrontmanServer.Organizations.{Membership, Organization}
   alias FrontmanServer.Repo
 
