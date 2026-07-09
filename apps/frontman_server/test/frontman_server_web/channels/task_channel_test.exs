@@ -211,6 +211,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             _meta: %{
               "openrouterKeyValue" => "sk-or-test",
               "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
+              "agent" => "test-frontman",
               "traits" => ["react", "typescript"]
             }
           )
@@ -256,6 +257,75 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_state_update_idle(task_id)
     end
 
+    test "persists selected agent on accepted prompt", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      ref = push(socket, "acp:message", build_prompt_request())
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "user_message"}}
+      })
+
+      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert [%Interaction.UserMessage{agent_id: "test-frontman"}] = task.interactions
+    end
+
+    test "uses configured default agent when agent is missing", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_acp_request("session/prompt", 45, %{
+            "prompt" => [%{"type" => "text", "text" => "Hello"}],
+            "_meta" => %{
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}
+            }
+          })
+        )
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "user_message"}}
+      })
+
+      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert [%Interaction.UserMessage{agent_id: "test-planner"}] = task.interactions
+    end
+
+    test "returns invalid params when agent is unknown", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(
+            _meta: %{
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+              "agent" => "missing"
+            }
+          )
+        )
+
+      assert_reply(ref, :ok, %{"acp:message" => response})
+      assert response["error"]["code"] == JsonRpc.error_invalid_params()
+      assert response["error"]["message"] == "Unknown agent"
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert task.interactions == []
+    end
+
     test "returns invalid params for malformed text content block", %{socket: socket} do
       complete_mcp_handshake(socket)
 
@@ -266,7 +336,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           build_acp_request("session/prompt", 44, %{
             "prompt" => [%{"type" => "text", "text" => ""}],
             "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+              "agent" => "test-frontman"
             }
           })
         )
@@ -756,7 +827,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         Tasks.submit_user_message(scope, %{
           task_id: task.id,
           message: user_content("queued elsewhere"),
-          model: "openrouter:google/gemini-3-flash-preview"
+          model: "openrouter:google/gemini-3-flash-preview",
+          agent_id: "test-frontman"
         })
 
       push(

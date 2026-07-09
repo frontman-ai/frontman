@@ -52,9 +52,25 @@ defmodule FrontmanServer.Tools do
   ## Example
       Tools.prepare_for_task(mcp_tools)
   """
-  def prepare_for_task(mcp_tools) do
-    mcp_formatted = MCP.to_swarm_tools(mcp_tools)
+  def prepare_for_task(mcp_tools), do: prepare_for_task(mcp_tools, :all)
+
+  def prepare_for_task(mcp_tools, :all) do
     backend = backend_tools()
+    mcp_formatted = MCP.to_swarm_tools(mcp_tools)
+
+    backend ++ mcp_formatted
+  end
+
+  def prepare_for_task(mcp_tools, %{access: access}) when is_list(access) do
+    backend =
+      backend_tool_modules()
+      |> Enum.filter(&(&1.access() in access))
+      |> Enum.map(&Backend.to_swarm_tool/1)
+
+    mcp_formatted =
+      mcp_tools
+      |> Enum.filter(&(&1.access in access))
+      |> MCP.to_swarm_tools()
 
     backend ++ mcp_formatted
   end

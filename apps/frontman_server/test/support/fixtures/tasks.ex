@@ -48,6 +48,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   def execution_request_fixture(overrides \\ []) do
     %{
       model: @default_test_model,
+      agent_id: "test-frontman",
       project_traits: [],
       mcp_tools: []
     }
@@ -93,6 +94,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
              %{
                id: Ecto.UUID.generate(),
                timestamp: Interaction.now(),
+               agent_id: "test-frontman",
                user_message_ids: [row.id]
              },
              next_turn_number(task_id)

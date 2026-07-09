@@ -357,6 +357,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     Represents a message sent by the user.
 
     All fields are extracted from content blocks at creation time:
+    - `agent_id` - selected product agent id
     - `messages` - array of text messages from the user
     - `annotations` - list of annotated elements (replaces selected_component)
     - `current_page` - page context (URL, viewport, DPR, title, color scheme, scroll)
@@ -366,6 +367,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     import Ecto.Changeset
 
     embedded_schema do
+      field :agent_id, :string
       field :model, :string
       field :messages, {:array, :string}, default: []
       embeds_many :annotations, Annotation
@@ -377,17 +379,18 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     def changeset(%__MODULE__{} = user_message, attrs) do
       user_message
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :model, :messages])
+      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :agent_id, :model, :messages])
       |> cast_embed(:annotations, with: &Annotation.changeset/2)
       |> cast_embed(:selected_figma_node, with: &FigmaNode.changeset/2)
       |> cast_embed(:images, with: &UserImage.changeset/2)
       |> cast_embed(:current_page, with: &CurrentPage.changeset/2)
     end
 
-    def attrs(content_blocks, model \\ nil) do
+    def attrs(content_blocks, model \\ nil, agent_id \\ nil) do
       with {:ok, messages} <- extract_messages(content_blocks) do
         {:ok,
          %{
+           agent_id: agent_id,
            model: model,
            messages: messages,
            annotations: extract_annotations(content_blocks),
@@ -716,13 +719,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     import Ecto.Changeset
 
     embedded_schema do
+      field :agent_id, :string
       field :user_message_ids, {:array, :string}
       field :timestamp, :utc_datetime_usec
     end
 
     def changeset(%__MODULE__{} = turn_started, attrs) do
       turn_started
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :user_message_ids])
+      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :agent_id, :user_message_ids])
       |> validate_required([:user_message_ids])
       |> validate_length(:user_message_ids, min: 1)
     end

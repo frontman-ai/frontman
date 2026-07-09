@@ -76,6 +76,35 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     ]
   end
 
+  defp mixed_access_mcp_tool_defs do
+    MCP.from_maps([
+      %{
+        "name" => "read_mcp",
+        "description" => "Read MCP tool",
+        "inputSchema" => %{"type" => "object", "properties" => %{}},
+        "access" => "read"
+      },
+      %{
+        "name" => "write_mcp",
+        "description" => "Write MCP tool",
+        "inputSchema" => %{"type" => "object", "properties" => %{}},
+        "access" => "write"
+      },
+      %{
+        "name" => "read_write_mcp",
+        "description" => "Read-write MCP tool",
+        "inputSchema" => %{"type" => "object", "properties" => %{}}
+      },
+      %{
+        "name" => "hidden_read_mcp",
+        "description" => "Hidden read MCP tool",
+        "inputSchema" => %{"type" => "object", "properties" => %{}},
+        "access" => "read",
+        "visibleToAgent" => false
+      }
+    ])
+  end
+
   defp submit_user_message(scope, task_id, content, overrides \\ []) do
     execution = execution_request_fixture(overrides)
 
@@ -102,6 +131,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       nil -> nil
       turn_number -> turn_number
     end
+  end
+
+  defp turn_started_rows(task_id) do
+    task_id
+    |> InteractionSchema.for_task()
+    |> InteractionSchema.of_type(:turn_started)
+    |> InteractionSchema.ordered()
+    |> Repo.all()
   end
 
   defp setup_sandbox(_context) do
@@ -199,14 +236,133 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
           message: user_content("Hello"),
-          model: "openrouter:openai/gpt-5.5"
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
         })
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
 
-      assert_receive_interaction(%Interaction.TurnStarted{}, 1)
+      assert_receive_interaction(%Interaction.TurnStarted{agent_id: "test-frontman"}, 1)
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       refute_running_eventually(task_id)
+    end
+
+    test "claims only same-agent pending message prefix", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      expect_llm_responses(["First response", "Second response"])
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message: user_content("frontman one"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message: user_content("frontman two"),
+          model: "openrouter:anthropic/claude-sonnet-4-6",
+          agent_id: "test-frontman"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message: user_content("planner"),
+          model: "openrouter:google/gemini-3-flash-preview",
+          agent_id: "test-planner"
+        })
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [first_turn] = turn_started_rows(task_id)
+      assert first_turn.data.agent_id == "test-frontman"
+      assert length(first_turn.data.user_message_ids) == 2
+
+      refute_running_eventually(task_id)
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [_first_turn, second_turn] = turn_started_rows(task_id)
+      assert second_turn.data.agent_id == "test-planner"
+      assert length(second_turn.data.user_message_ids) == 1
+    end
+
+    test "groups only contiguous messages from the same agent", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      expect_llm_responses(["First response", "Second response", "Third response"])
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message: user_content("frontman one"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message: user_content("planner"),
+          model: "openrouter:google/gemini-3-flash-preview",
+          agent_id: "test-planner"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message: user_content("frontman two"),
+          model: "openrouter:anthropic/claude-sonnet-4-6",
+          agent_id: "test-frontman"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message: user_content("frontman three"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      refute_running_eventually(task_id)
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      refute_running_eventually(task_id)
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [first_turn, second_turn, third_turn] = turn_started_rows(task_id)
+      assert first_turn.data.agent_id == "test-frontman"
+      assert length(first_turn.data.user_message_ids) == 1
+      assert second_turn.data.agent_id == "test-planner"
+      assert length(second_turn.data.user_message_ids) == 1
+      assert third_turn.data.agent_id == "test-frontman"
+      assert length(third_turn.data.user_message_ids) == 2
+    end
+
+    test "uses default agent for historical user messages without agent id", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      expect_llm_responses(["Response"])
+
+      {:ok, attrs} =
+        Interaction.UserMessage.attrs(user_content("historical"), "openrouter:openai/gpt-5.5")
+
+      InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
+      |> Repo.insert!()
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [turn_started] = turn_started_rows(task_id)
+      assert turn_started.data.agent_id == "test-planner"
     end
 
     test "accepts follow-up while running and drains it next", %{
@@ -223,7 +379,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                Tasks.submit_user_message(scope, %{
                  task_id: task_id,
                  message: user_content("Queued follow-up"),
-                 model: "openrouter:openai/gpt-5.5"
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
                })
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
@@ -466,6 +623,174 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive {:provider_messages, messages}, 1_000
       assert provider_user_texts(messages) == ["first", "second"]
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
+    test "uses persisted turn agent as the base system prompt", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      insert_accepted_user_message!(task, "inspect only")
+      insert_turn_started_for_messages!(task_id, 1, "test-planner")
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+
+      assert_receive {:provider_messages, messages}, 1_000
+      assert [system_text] = provider_system_texts(messages)
+      assert system_text =~ "Test planner system."
+      assert system_text =~ "## Next.js"
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
+    test "adds task runtime context to the selected agent system prompt", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      {:ok, _rule} =
+        Tasks.add_discovered_project_rule(scope, task_id, "AGENTS.md", "Use project rules.")
+
+      {:ok, _structure} =
+        Tasks.add_discovered_project_structure(scope, task_id, "Project type: single project")
+
+      insert_accepted_user_message!(task, "build it")
+      insert_turn_started_for_messages!(task_id, 1, "test-frontman")
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok =
+               Tasks.resume_execution(
+                 scope,
+                 task_id,
+                 execution_request_fixture(project_traits: [:typescript, :react])
+               )
+
+      assert_receive {:provider_messages, messages}, 1_000
+      assert [system_text] = provider_system_texts(messages)
+      assert system_text =~ "Test executor system."
+      assert system_text =~ "## Project Structure"
+      assert system_text =~ "Project type: single project"
+      assert system_text =~ "Instructions from: AGENTS.md"
+      assert system_text =~ "Use project rules."
+      assert system_text =~ "## Next.js"
+      assert system_text =~ "## TypeScript / React"
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
+    test "uses persisted turn agent to filter available tools", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      insert_accepted_user_message!(task, "inspect tools")
+      insert_turn_started_for_messages!(task_id, 1, "test-planner")
+
+      expect(LLMProviderMock, :stream_text, fn _model, _messages, opts ->
+        send(parent, {:provider_tool_names, Enum.map(opts[:tools], & &1.name)})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok =
+               Tasks.resume_execution(
+                 scope,
+                 task_id,
+                 execution_request_fixture(mcp_tools: mixed_access_mcp_tool_defs())
+               )
+
+      assert_receive {:provider_tool_names, tool_names}, 1_000
+      assert "web_fetch" in tool_names
+      assert "read_mcp" in tool_names
+      refute "todo_write" in tool_names
+      refute "write_mcp" in tool_names
+      refute "read_write_mcp" in tool_names
+      refute "hidden_read_mcp" in tool_names
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
+    test "full-access agent sees all visible tools", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      insert_accepted_user_message!(task, "use tools")
+      insert_turn_started_for_messages!(task_id, 1, "test-frontman")
+
+      expect(LLMProviderMock, :stream_text, fn _model, _messages, opts ->
+        send(parent, {:provider_tool_names, Enum.map(opts[:tools], & &1.name)})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok =
+               Tasks.resume_execution(
+                 scope,
+                 task_id,
+                 execution_request_fixture(mcp_tools: mixed_access_mcp_tool_defs())
+               )
+
+      assert_receive {:provider_tool_names, tool_names}, 1_000
+      assert "get_tool_result" in tool_names
+      assert "todo_write" in tool_names
+      assert "web_fetch" in tool_names
+      assert "read_mcp" in tool_names
+      assert "write_mcp" in tool_names
+      assert "read_write_mcp" in tool_names
+      refute "hidden_read_mcp" in tool_names
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
+    test "retry uses persisted turn agent to filter available tools", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      insert_accepted_user_message!(task, "retry tools")
+      insert_turn_started_for_messages!(task_id, 1, "test-planner")
+      {:ok, error} = Tasks.record_agent_run_result(scope, task_id, 1, {:failed, "try again"})
+
+      expect(LLMProviderMock, :stream_text, fn _model, _messages, opts ->
+        send(parent, {:provider_tool_names, Enum.map(opts[:tools], & &1.name)})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok =
+               Tasks.retry_execution(
+                 scope,
+                 task_id,
+                 error.id,
+                 execution_request_fixture(mcp_tools: mixed_access_mcp_tool_defs())
+               )
+
+      assert_receive {:provider_tool_names, tool_names}, 1_000
+      assert "web_fetch" in tool_names
+      assert "read_mcp" in tool_names
+      refute "todo_write" in tool_names
+      refute "write_mcp" in tool_names
+      refute "read_write_mcp" in tool_names
+      refute "hidden_read_mcp" in tool_names
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
   end
@@ -1103,7 +1428,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     |> Repo.insert!()
   end
 
-  defp insert_turn_started_for_messages!(task_id, turn_number) do
+  defp insert_turn_started_for_messages!(task_id, turn_number, agent_id \\ "test-frontman") do
     user_message_ids =
       InteractionSchema
       |> InteractionSchema.for_task(task_id)
@@ -1118,6 +1443,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       %{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
+        agent_id: agent_id,
         user_message_ids: user_message_ids
       },
       turn_number
@@ -1128,6 +1454,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   defp provider_user_texts(messages) do
     messages
     |> Enum.filter(&match?(%{role: :user}, &1))
+    |> Enum.map(&extract_content_text(&1.content))
+  end
+
+  defp provider_system_texts(messages) do
+    messages
+    |> Enum.filter(&match?(%{role: :system}, &1))
     |> Enum.map(&extract_content_text(&1.content))
   end
 end
