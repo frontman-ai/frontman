@@ -10,7 +10,7 @@
 	},
 	"dependencies": {
 		"@frontman-ai/vite": "../../../libs/frontman-vite",
-		"@vitejs/plugin-vue": "^6.0.5",
+		"@vitejs/plugin-vue": "^6.0.7",
 		"axios": "^1.13.5",
 		"pinia": "^3.0.4",
 		"vue": "^3.5.28",
@@ -18,7 +18,7 @@
 	},
 	"devDependencies": {
 		"typescript": "^6.0.2",
-		"vite": "^8.0.5",
+		"vite": "^8.1.4",
 		"vue-tsc": "^3.2.6"
 	}
 }

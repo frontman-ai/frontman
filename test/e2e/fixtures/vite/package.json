@@ -7,7 +7,7 @@
 	},
 	"dependencies": {
 		"@frontman-ai/vite": "workspace:*",
-		"@vitejs/plugin-react": "^5.2.0",
+		"@vitejs/plugin-react": "^6.0.3",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7",
 		"vite": "catalog:"
