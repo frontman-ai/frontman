@@ -141,6 +141,25 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
       items = ACPHistory.to_history_items(interaction, @session_id)
       assert items != []
     end
+
+    test "AgentError includes retry availability metadata" do
+      interaction = %Interaction.AgentError{
+        id: "err-1",
+        error: "Quota reached",
+        category: "quota",
+        retryable: false,
+        retry_available_at: ~U[2030-10-21 07:28:00Z],
+        timestamp: ~U[2030-10-21 06:28:00Z]
+      }
+
+      [item] = ACPHistory.to_history_items(interaction, @session_id)
+      update = item["params"]["update"]
+
+      assert update["sessionUpdate"] == "error"
+      assert update["category"] == "quota"
+      assert update["retryAvailableAt"] == "2030-10-21T07:28:00Z"
+      refute Map.has_key?(update, "retryAt")
+    end
   end
 
   describe "non-conversation types return empty list" do

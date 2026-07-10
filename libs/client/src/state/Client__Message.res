@@ -138,12 +138,17 @@ type toolCall = {
 
 module ErrorMessage: {
   type t
-  let make: (~id: string, ~error: string, ~timestamp: string, ~category: string) => t
+  let make: (
+    ~id: string,
+    ~error: string,
+    ~timestamp: string,
+    ~category: Client__ErrorCategory.t,
+  ) => t
   let id: t => string
   let error: t => string
-  let category: t => string
+  let category: t => Client__ErrorCategory.t
 } = {
-  type t = {id: string, error: string, category: string}
+  type t = {id: string, error: string, category: Client__ErrorCategory.t}
 
   let make = (~id, ~error, ~timestamp, ~category) => {
     ignore(timestamp)

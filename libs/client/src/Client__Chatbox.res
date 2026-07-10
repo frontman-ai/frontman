@@ -393,10 +393,11 @@ let make = (~onConfigureProvider: unit => unit) => {
         // Error banner (shows when there's a turn error, or retry banner during countdown)
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category}), Some(taskId)) =>
+        | (None, Some({id, message, category, retryAvailableAt}), Some(taskId)) =>
           <ErrorBanner
             error=message
             category
+            retryAvailableAt=?retryAvailableAt
             onConfigureProvider
             onRetry={() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=id)}
           />

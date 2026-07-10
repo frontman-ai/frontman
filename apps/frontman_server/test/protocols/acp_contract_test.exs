@@ -121,15 +121,15 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_error_notification/4" do
+  describe "AgentClientProtocol.build_error_notification/6" do
     test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
       payload =
         AgentClientProtocol.build_error_notification(
           "session-123",
           "Rate limit exceeded",
           DateTime.utc_now(),
-          category: "rate_limit",
-          agent_error_id: "agent-error-123"
+          "rate_limit",
+          "agent-error-123"
         )
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
@@ -140,6 +140,54 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
                  "update" => %{"_meta" => %{"frontman.dev/agentErrorId" => "agent-error-123"}}
                }
              } = payload
+    end
+
+    test "includes retry availability fields separate from retryAt" do
+      payload =
+        AgentClientProtocol.build_error_notification(
+          "session-123",
+          "Quota reached",
+          ~U[2030-10-21 06:28:00Z],
+          "quota",
+          "agent-error-123",
+          retry_available_at: ~U[2030-10-21 07:28:00Z]
+        )
+
+      ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
+
+      assert %{
+               "params" => %{
+                 "update" => %{
+                   "sessionUpdate" => "error",
+                   "category" => "quota",
+                   "retryAvailableAt" => "2030-10-21T07:28:00Z"
+                 }
+               }
+             } = payload
+
+      refute Map.has_key?(payload["params"]["update"], "retryAt")
+    end
+
+    test "keeps automatic retry fields on retryAt only" do
+      payload =
+        AgentClientProtocol.build_error_notification(
+          "session-123",
+          "Rate limited",
+          ~U[2030-10-21 06:28:00Z],
+          "rate_limit",
+          "agent-error-123",
+          retry_at: ~U[2030-10-21 06:28:10Z],
+          attempt: 1,
+          max_attempts: 5
+        )
+
+      update = payload["params"]["update"]
+
+      assert update["retryAt"] == "2030-10-21T06:28:10Z"
+      assert update["attempt"] == 1
+      assert update["maxAttempts"] == 5
+      refute Map.has_key?(update, "retryAvailableAt")
     end
   end
 

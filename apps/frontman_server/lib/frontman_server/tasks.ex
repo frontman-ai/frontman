@@ -350,16 +350,15 @@ defmodule FrontmanServer.Tasks do
          turn_number,
          {:failed, reason}
        ) do
-    {reason_str, category, retryable} = ErrorClassifier.classify_error(reason)
+    error_info = ErrorClassifier.classify_error(reason)
 
-    with :ok <-
-           persist_agent_run_result(
-             scope,
-             task_id,
-             turn_number,
-             {:failed, reason_str, retryable, category}
-           ) do
-      report_agent_execution_failure(task_id, reason_str, category, retryable)
+    with :ok <- persist_agent_run_result(scope, task_id, turn_number, {:failed, error_info}) do
+      report_agent_execution_failure(
+        task_id,
+        error_info.message,
+        error_info.category,
+        error_info.retryable
+      )
     end
   end
 
@@ -669,11 +668,17 @@ defmodule FrontmanServer.Tasks do
       :terminated ->
         turn_error("Terminated by supervisor", "terminated")
 
+      {:failed,
+       %{
+         message: error,
+         retryable: retryable,
+         category: category,
+         retry_available_at: retry_available_at
+       }} ->
+        turn_error(error, "failed", retryable, category, retry_available_at)
+
       {:failed, error} ->
         turn_error(error)
-
-      {:failed, error, retry, category} ->
-        turn_error(error, "failed", retry, category)
 
       {:crashed, error} ->
         turn_error(error, "crashed")
@@ -688,13 +693,20 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp turn_error(error, kind \\ "failed", retryable \\ false, category \\ "unknown") do
+  defp turn_error(
+         error,
+         kind \\ "failed",
+         retryable \\ false,
+         category \\ "unknown",
+         retry_available_at \\ nil
+       ) do
     {:agent_error,
      %{
        error: error,
        kind: kind,
        retryable: retryable,
-       category: category
+       category: category,
+       retry_available_at: retry_available_at
      }}
   end
 
@@ -951,15 +963,9 @@ defmodule FrontmanServer.Tasks do
        when is_integer(turn_number) and turn_number > 0 do
     Logger.error("Execution failed to start for task #{task_id}: #{inspect(reason)}")
 
-    {message, category, retryable} = ErrorClassifier.classify_error(reason)
+    error_info = ErrorClassifier.classify_error(reason)
 
-    {:ok, _error} =
-      record_agent_run_result(
-        scope,
-        task_id,
-        turn_number,
-        {:failed, message, retryable, category}
-      )
+    {:ok, _error} = record_agent_run_result(scope, task_id, turn_number, {:failed, error_info})
 
     :ok
   end

@@ -277,15 +277,26 @@ defmodule AgentClientProtocol do
   Pass `retry_opts` when the server is scheduling an automatic retry. The client
   uses `retryAt` to show a countdown and infers retry state from its presence.
 
-    retry_opts: [category: "rate_limit", agent_error_id: "err_...", retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
+  Pass `retry_available_at` for terminal errors where a user/manual retry may work
+  after a provider reset. This is separate from `retryAt` and does not imply an
+  automatic server retry.
+
+    retry_opts: [retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
   """
-  def build_error_notification(session_id, message, timestamp, retry_opts \\ []) do
+  def build_error_notification(
+        session_id,
+        message,
+        timestamp,
+        category,
+        agent_error_id,
+        retry_opts \\ []
+      ) do
     update = %{
       "sessionUpdate" => "error",
       "message" => message,
       "timestamp" => DateTime.to_iso8601(timestamp),
-      "category" => Keyword.fetch!(retry_opts, :category),
-      "_meta" => %{"frontman.dev/agentErrorId" => Keyword.fetch!(retry_opts, :agent_error_id)}
+      "category" => category,
+      "_meta" => %{"frontman.dev/agentErrorId" => agent_error_id}
     }
 
     update =
@@ -298,6 +309,15 @@ defmodule AgentClientProtocol do
           |> Map.put("retryAt", DateTime.to_iso8601(retry_at))
           |> Map.put("attempt", Keyword.fetch!(retry_opts, :attempt))
           |> Map.put("maxAttempts", Keyword.fetch!(retry_opts, :max_attempts))
+      end
+
+    update =
+      case Keyword.get(retry_opts, :retry_available_at) do
+        nil ->
+          update
+
+        %DateTime{} = retry_available_at ->
+          Map.put(update, "retryAvailableAt", DateTime.to_iso8601(retry_available_at))
       end
 
     JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})

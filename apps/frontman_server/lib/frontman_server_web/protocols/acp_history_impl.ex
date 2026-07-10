@@ -189,15 +189,20 @@ end
 
 defimpl ACPHistory, for: Interaction.AgentError do
   def to_history_items(
-        %Interaction.AgentError{id: id, error: error, category: category, timestamp: timestamp},
+        %Interaction.AgentError{
+          id: id,
+          error: error,
+          category: category,
+          timestamp: timestamp,
+          retry_available_at: retry_available_at
+        },
         session_id
       ) do
     # Replay errors as sessionUpdate: "error" notifications so the client
     # renders them the same as live agent errors.
     [
-      ACP.build_error_notification(session_id, error, timestamp,
-        category: category,
-        agent_error_id: id
+      ACP.build_error_notification(session_id, error, timestamp, category, id,
+        retry_available_at: retry_available_at
       )
     ]
   end

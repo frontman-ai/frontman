@@ -969,6 +969,52 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     @tag :capture_log
+    test "failed event persists classifier quota retry availability metadata",
+         %{
+           task_id: task_id,
+           scope: scope,
+           socket: socket
+         } do
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      expect_llm_responses([
+        {:error,
+         Request.exception(
+           status: 429,
+           reason: "The usage limit has been reached",
+           response_body: %{
+             "error" => %{
+               "message" => "The usage limit has been reached",
+               "type" => "usage_limit_reached",
+               "resets_in_seconds" => 120
+             }
+           }
+         )}
+      ])
+
+      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Hello"))
+
+      assert_receive_interaction(
+        %Interaction.AgentError{kind: "failed", retryable: false, category: "quota"} = error,
+        _turn_number
+      )
+
+      assert_retry_available_in(error, 120)
+
+      :sys.get_state(socket.channel_pid)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      agent_error =
+        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+
+      assert agent_error != nil
+      assert agent_error.retryable == false
+      assert agent_error.category == "quota"
+      assert_retry_available_in(agent_error, 120)
+    end
+
+    @tag :capture_log
     test "retryable provider failures retry only after channel timer fires", %{
       task_id: task_id,
       scope: scope,
@@ -1095,6 +1141,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp task_schema!(task_id), do: Repo.get!(FrontmanServer.Tasks.TaskSchema, task_id)
+
+  defp assert_retry_available_in(%{retry_available_at: retry_available_at}, expected_seconds) do
+    seconds_left = DateTime.diff(retry_available_at, DateTime.utc_now(), :second)
+
+    assert seconds_left >= expected_seconds - 2
+    assert seconds_left <= expected_seconds + 2
+  end
 
   defp insert_accepted_user_message!(task, text) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")

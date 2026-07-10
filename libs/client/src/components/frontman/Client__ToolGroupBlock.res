@@ -215,7 +215,7 @@ let make = (
     {
       let renderContent =
         group.toolCalls
-        ->Array.mapWithIndex((tc, i) => {
+        ->Array.map(tc => {
           renderCompactToolCall(~tc)
         })
         ->React.array

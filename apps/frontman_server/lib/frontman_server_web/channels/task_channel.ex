@@ -285,14 +285,19 @@ defmodule FrontmanServerWeb.TaskChannel do
         message: error.error,
         category: error.category,
         retryable: true,
-        retried_error_id: error.id
+        retried_error_id: error.id,
+        retry_available_at: error.retry_available_at
       },
       turn_number
     )
   end
 
   defp handle_interaction(%Tasks.Interaction.AgentError{} = error, turn_number, socket) do
-    finalize_turn(socket, {:error, error.id, error.error, error.category}, turn_number)
+    finalize_turn(
+      socket,
+      {:error, error.id, error.error, error.category, error.retry_available_at},
+      turn_number
+    )
   end
 
   defp handle_interaction(_interaction, _turn_number, socket) do
@@ -760,7 +765,13 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:exhausted, error_info} ->
         finalize_turn(
           socket,
-          {:error, error_info.retried_error_id, error_info.message, error_info.category},
+          {
+            :error,
+            error_info.retried_error_id,
+            error_info.message,
+            error_info.category,
+            error_info.retry_available_at
+          },
           turn_number
         )
 
@@ -802,6 +813,14 @@ defmodule FrontmanServerWeb.TaskChannel do
         push_agent_error(socket, agent_error_id, message, category)
         wake_runner(socket, nil)
         {:noreply, socket}
+
+      {:error, agent_error_id, message, category, retry_available_at} ->
+        push_agent_error(socket, agent_error_id, message, category,
+          retry_available_at: retry_available_at
+        )
+
+        wake_runner(socket, nil)
+        {:noreply, socket}
     end
   end
 
@@ -811,7 +830,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         socket.assigns.task_id,
         message,
         DateTime.utc_now(),
-        Keyword.merge(opts, category: category, agent_error_id: agent_error_id)
+        category,
+        agent_error_id,
+        opts
       )
 
     push(socket, @acp_message, notification)
