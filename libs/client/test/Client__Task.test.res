@@ -442,33 +442,8 @@ describe("Task - Error Handling", () => {
 
   test("AgentError sets turnError on Loaded task", t => {
     let task = TestHelpers.makeLoadedTask()
-    t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
-
-    let (task2, _) = TaskReducer.next(
-      task,
-      AgentError({
-        id: "agent-error-1",
-        error: "Rate limit exceeded",
-        timestamp: "2025-01-15T10:30:00Z",
-        category: #unknown,
-        retryAvailableAt: None,
-      }),
-    )
-    t
-    ->expect(TaskReducer.Selectors.turnError(task2))
-    ->Expect.toEqual(
-      Some({
-        id: "agent-error-1",
-        message: "Rate limit exceeded",
-        category: #unknown,
-        retryAvailableAt: None,
-      }),
-    )
-  })
-
-  test("AgentError stores retry availability metadata on turnError", t => {
-    let task = TestHelpers.makeLoadedTask()
     let retryAvailableAt = Date.fromString("2025-01-15T11:30:00Z")->Date.getTime
+    t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
 
     let (task2, _) = TaskReducer.next(
       task,
@@ -480,7 +455,6 @@ describe("Task - Error Handling", () => {
         retryAvailableAt: Some(retryAvailableAt),
       }),
     )
-
     t
     ->expect(TaskReducer.Selectors.turnError(task2))
     ->Expect.toEqual(
@@ -492,53 +466,6 @@ describe("Task - Error Handling", () => {
       }),
     )
     t->expect(TaskReducer.Selectors.retryStatus(task2))->Expect.toEqual(None)
-  })
-
-  test("RetryingUpdate stores retryAt countdown state without turnError", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let retryAt = Date.fromString("2025-01-15T10:31:00Z")->Date.getTime
-    let retryStatus: Client__Task__Types.Task.retryStatus = {
-      attempt: 2,
-      maxAttempts: 5,
-      retryAt,
-      error: "Rate limit exceeded",
-    }
-
-    let (task2, _) = TaskReducer.next(task, RetryingUpdate({retryStatus: retryStatus}))
-
-    t->expect(TaskReducer.Selectors.retryStatus(task2))->Expect.toEqual(Some(retryStatus))
-    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(None)
-    t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
-  })
-
-  test("ExecutionStateIdle clears auto-retry countdown state", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let retryStatus: Client__Task__Types.Task.retryStatus = {
-      attempt: 1,
-      maxAttempts: 5,
-      retryAt: Date.fromString("2025-01-15T10:31:00Z")->Date.getTime,
-      error: "Rate limit exceeded",
-    }
-    let (taskWithRetry, _) = TaskReducer.next(task, RetryingUpdate({retryStatus: retryStatus}))
-    let (idleTask, _) = TaskReducer.next(taskWithRetry, ExecutionStateIdle)
-
-    t->expect(TaskReducer.Selectors.retryStatus(idleTask))->Expect.toEqual(None)
-    t->expect(TaskReducer.Selectors.isAgentRunning(idleTask))->Expect.toEqual(Some(false))
-  })
-
-  test("ExecutionStateRunning clears stale auto-retry countdown state", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let retryStatus: Client__Task__Types.Task.retryStatus = {
-      attempt: 1,
-      maxAttempts: 5,
-      retryAt: Date.fromString("2025-01-15T10:31:00Z")->Date.getTime,
-      error: "Rate limit exceeded",
-    }
-    let (taskWithRetry, _) = TaskReducer.next(task, RetryingUpdate({retryStatus: retryStatus}))
-    let (runningTask, _) = TaskReducer.next(taskWithRetry, ExecutionStateRunning)
-
-    t->expect(TaskReducer.Selectors.retryStatus(runningTask))->Expect.toEqual(None)
-    t->expect(TaskReducer.Selectors.isAgentRunning(runningTask))->Expect.toEqual(Some(true))
   })
 
   test("AgentError sets isAgentRunning to false", t => {

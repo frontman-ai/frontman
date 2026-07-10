@@ -142,8 +142,8 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
              } = payload
     end
 
-    test "includes retry availability fields separate from retryAt" do
-      payload =
+    test "keeps manual retry availability separate from automatic retry fields" do
+      manual_payload =
         AgentClientProtocol.build_error_notification(
           "session-123",
           "Quota reached",
@@ -153,8 +153,8 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
           retry_available_at: ~U[2030-10-21 07:28:00Z]
         )
 
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
-      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
+      ProtocolSchema.validate!(manual_payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(manual_payload, "acp/sessionUpdateNotification")
 
       assert %{
                "params" => %{
@@ -164,13 +164,9 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
                    "retryAvailableAt" => "2030-10-21T07:28:00Z"
                  }
                }
-             } = payload
+             } = manual_payload
 
-      refute Map.has_key?(payload["params"]["update"], "retryAt")
-    end
-
-    test "keeps automatic retry fields on retryAt only" do
-      payload =
+      auto_payload =
         AgentClientProtocol.build_error_notification(
           "session-123",
           "Rate limited",
@@ -182,8 +178,9 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
           max_attempts: 5
         )
 
-      update = payload["params"]["update"]
+      update = auto_payload["params"]["update"]
 
+      refute Map.has_key?(manual_payload["params"]["update"], "retryAt")
       assert update["retryAt"] == "2030-10-21T06:28:10Z"
       assert update["attempt"] == 1
       assert update["maxAttempts"] == 5

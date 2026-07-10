@@ -45,54 +45,6 @@ let quotaGuidance = (~retryAvailableAt: option<float>, ~nowMs: float) =>
   | None => Some("Quota limit reached. Try again later or configure a different provider.")
   }
 
-type presentationPolicy = {
-  guidance: option<string>,
-  retryLabel: string,
-  configureProviderFirst: bool,
-}
-
-let defaultPresentation = {guidance: None, retryLabel: "Retry", configureProviderFirst: false}
-
-let presentation = (~category, ~retryAvailableAt: option<float>, ~nowMs: float) =>
-  switch category {
-  | #auth | #billing => {
-      ...defaultPresentation,
-      guidance: Some("Check Settings"),
-      configureProviderFirst: true,
-    }
-  | #quota => {
-      guidance: quotaGuidance(~retryAvailableAt, ~nowMs),
-      retryLabel: "Retry anyway",
-      configureProviderFirst: true,
-    }
-  | #rate_limit => {...defaultPresentation, guidance: Some("Wait a moment before retrying")}
-  | #payload_too_large => {
-      ...defaultPresentation,
-      guidance: Some("Try with a shorter message or smaller files"),
-    }
-  | #output_truncated => {
-      ...defaultPresentation,
-      guidance: Some("Try asking for a shorter response"),
-    }
-  | _ => defaultPresentation
-  }
-
-let renderRetryButton = (~label, ~onRetry) =>
-  <button
-    onClick={_ => onRetry()}
-    className="text-xs text-red-300 border border-red-700/60 hover:border-red-500 hover:text-red-200 px-3 py-1 rounded transition-colors"
-  >
-    {React.string(label)}
-  </button>
-
-let renderConfigureProviderButton = (~onConfigureProvider) =>
-  <button
-    onClick={_ => onConfigureProvider()}
-    className="text-xs text-red-100 border border-red-500/70 bg-red-500/10 hover:bg-red-500/20 hover:border-red-400 px-3 py-1 rounded transition-colors"
-  >
-    {React.string("Configure provider")}
-  </button>
-
 @react.component
 let make = (
   ~error: string,
@@ -101,23 +53,48 @@ let make = (
   ~onRetry: unit => unit,
   ~onConfigureProvider: option<unit => unit>=?,
 ) => {
-  let policy = presentation(~category, ~retryAvailableAt, ~nowMs=Date.now())
+  let guidance = switch category {
+  | #auth | #billing => Some("Check Settings")
+  | #quota => quotaGuidance(~retryAvailableAt, ~nowMs=Date.now())
+  | #rate_limit => Some("Wait a moment before retrying")
+  | #payload_too_large => Some("Try with a shorter message or smaller files")
+  | #output_truncated => Some("Try asking for a shorter response")
+  | _ => None
+  }
+
+  let configureProviderFirst = switch category {
+  | #auth | #billing | #quota => true
+  | _ => false
+  }
+
+  let retryLabel = switch category {
+  | #quota => "Retry anyway"
+  | _ => "Retry"
+  }
 
   <div className="mx-4 my-3 animate-in fade-in slide-in-from-top-2 duration-200">
     <p className="text-sm font-medium text-red-400 break-words"> {React.string(error)} </p>
-    {switch policy.guidance {
+    {switch guidance {
     | Some(text) => <p className="text-xs text-red-400/60 mt-1"> {React.string(text)} </p>
     | None => React.null
     }}
     <div className="flex flex-wrap items-center gap-2 mt-2">
-      {switch (policy.configureProviderFirst, onConfigureProvider) {
+      {switch (configureProviderFirst, onConfigureProvider) {
       | (true, Some(onConfigureProvider)) =>
-        React.array([
-          renderConfigureProviderButton(~onConfigureProvider),
-          renderRetryButton(~label=policy.retryLabel, ~onRetry),
-        ])
-      | _ => renderRetryButton(~label=policy.retryLabel, ~onRetry)
+        <button
+          onClick={_ => onConfigureProvider()}
+          className="text-xs text-red-100 border border-red-500/70 bg-red-500/10 hover:bg-red-500/20 hover:border-red-400 px-3 py-1 rounded transition-colors"
+        >
+          {React.string("Configure provider")}
+        </button>
+      | _ => React.null
       }}
+      <button
+        onClick={_ => onRetry()}
+        className="text-xs text-red-300 border border-red-700/60 hover:border-red-500 hover:text-red-200 px-3 py-1 rounded transition-colors"
+      >
+        {React.string(retryLabel)}
+      </button>
       <a
         href="https://frontman.sh/docs"
         target="_blank"

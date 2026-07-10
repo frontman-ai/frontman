@@ -26,20 +26,3 @@ describe("ErrorBanner quota guidance", () => {
     )
   })
 })
-
-describe("ErrorBanner action policy", () => {
-  let policy = category =>
-    Client__ErrorBanner.presentation(~category, ~retryAvailableAt=None, ~nowMs=0.0)
-
-  test("sets retry copy and provider configuration priority by category", t => {
-    let quotaPolicy = policy(#quota)
-    let rateLimitPolicy = policy(#rate_limit)
-
-    t->expect(quotaPolicy.retryLabel)->Expect.toBe("Retry anyway")
-    t->expect(quotaPolicy.configureProviderFirst)->Expect.toBe(true)
-    t->expect(policy(#auth).configureProviderFirst)->Expect.toBe(true)
-    t->expect(policy(#billing).configureProviderFirst)->Expect.toBe(true)
-    t->expect(rateLimitPolicy.retryLabel)->Expect.toBe("Retry")
-    t->expect(rateLimitPolicy.configureProviderFirst)->Expect.toBe(false)
-  })
-})

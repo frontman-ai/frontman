@@ -809,11 +809,6 @@ defmodule FrontmanServerWeb.TaskChannel do
         push(socket, @acp_message, notification)
         {:noreply, socket}
 
-      {:error, agent_error_id, message, category} ->
-        push_agent_error(socket, agent_error_id, message, category)
-        wake_runner(socket, nil)
-        {:noreply, socket}
-
       {:error, agent_error_id, message, category, retry_available_at} ->
         push_agent_error(socket, agent_error_id, message, category,
           retry_available_at: retry_available_at

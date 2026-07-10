@@ -148,14 +148,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
     )
   end
 
-  defp classify_reqllm_request(429, _reason) do
-    error_info(
-      "Rate limited — the provider is throttling requests. Please try again shortly.",
-      "rate_limit",
-      true
-    )
-  end
-
   defp classify_reqllm_request(status, _reason) when is_integer(status) and status >= 500 do
     error_info(
       "Provider error — the LLM service returned an internal error (HTTP #{status}). Please try again.",
@@ -328,8 +320,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
         "usage limit",
         "session limit",
         "weekly limit",
-        "opus limit",
-        "quota"
+        "opus limit"
       ],
       &String.contains?(normalized, &1)
     )
@@ -338,11 +329,11 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   defp quota_message?(_message), do: false
 
   defp quota_headers?(headers) when is_list(headers) do
-    headers
-    |> Enum.any?(fn {name, value} ->
-      String.ends_with?(String.downcase(to_string(name)), "-used-percent") and
-        to_string(value) == "100"
-    end)
+    reset_header_at(headers) != nil &&
+      Enum.any?(headers, fn {name, value} ->
+        String.ends_with?(String.downcase(to_string(name)), "-used-percent") and
+          to_string(value) == "100"
+      end)
   end
 
   defp quota_headers?(_headers), do: false
