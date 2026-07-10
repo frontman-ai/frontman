@@ -206,21 +206,14 @@ defmodule FrontmanServer.InteractionCase do
     end
 
     @doc "Build an `%AgentError{}` struct."
-    def agent_error(
-          message,
-          kind \\ "failed",
-          retryable \\ false,
-          category \\ "unknown",
-          retry_available_at \\ nil
-        ) do
+    def agent_error(message, kind \\ "failed", retryable \\ false, category \\ "unknown") do
       %Interaction.AgentError{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         error: message,
         kind: kind,
         retryable: retryable,
-        category: category,
-        retry_available_at: retry_available_at
+        category: category
       }
     end
 

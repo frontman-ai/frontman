@@ -285,19 +285,14 @@ defmodule FrontmanServerWeb.TaskChannel do
         message: error.error,
         category: error.category,
         retryable: true,
-        retried_error_id: error.id,
-        retry_available_at: error.retry_available_at
+        retried_error_id: error.id
       },
       turn_number
     )
   end
 
   defp handle_interaction(%Tasks.Interaction.AgentError{} = error, turn_number, socket) do
-    finalize_turn(
-      socket,
-      {:error, error.id, error.error, error.category, error.retry_available_at},
-      turn_number
-    )
+    finalize_turn(socket, {:error, error.id, error.error, error.category}, turn_number)
   end
 
   defp handle_interaction(_interaction, _turn_number, socket) do
@@ -765,13 +760,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:exhausted, error_info} ->
         finalize_turn(
           socket,
-          {
-            :error,
-            error_info.retried_error_id,
-            error_info.message,
-            error_info.category,
-            error_info.retry_available_at
-          },
+          {:error, error_info.retried_error_id, error_info.message, error_info.category},
           turn_number
         )
 
@@ -809,11 +798,8 @@ defmodule FrontmanServerWeb.TaskChannel do
         push(socket, @acp_message, notification)
         {:noreply, socket}
 
-      {:error, agent_error_id, message, category, retry_available_at} ->
-        push_agent_error(socket, agent_error_id, message, category,
-          retry_available_at: retry_available_at
-        )
-
+      {:error, agent_error_id, message, category} ->
+        push_agent_error(socket, agent_error_id, message, category)
         wake_runner(socket, nil)
         {:noreply, socket}
     end
@@ -825,9 +811,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         socket.assigns.task_id,
         message,
         DateTime.utc_now(),
-        category,
-        agent_error_id,
-        opts
+        Keyword.merge(opts, category: category, agent_error_id: agent_error_id)
       )
 
     push(socket, @acp_message, notification)

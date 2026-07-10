@@ -6,7 +6,6 @@ type t = [
   | #payload_too_large
   | #output_truncated
   | #unknown
-  | #other(string)
 ]
 
 let fromAcpCategory = (category: option<string>): t =>
@@ -17,6 +16,5 @@ let fromAcpCategory = (category: option<string>): t =>
   | Some("rate_limit") => #rate_limit
   | Some("payload_too_large") => #payload_too_large
   | Some("output_truncated") => #output_truncated
-  | Some("unknown") | None => #unknown
-  | Some(category) => #other(category)
+  | Some("unknown") | None | Some(_) => #unknown
   }

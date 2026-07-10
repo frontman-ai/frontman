@@ -342,13 +342,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   // Error actions
-  | AgentError({
-      id: string,
-      error: string,
-      timestamp: string,
-      category: Client__ErrorCategory.t,
-      retryAvailableAt: option<float>,
-    })
+  | AgentError({id: string, error: string, timestamp: string, category: Client__ErrorCategory.t})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
@@ -1017,17 +1011,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~timestamp, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (
-      Task.Loaded(data),
-      AgentError({id, error, category, timestamp: _timestamp, retryAvailableAt}),
-    ) =>
+  | (Task.Loaded(data), AgentError({id, error, category, timestamp: _timestamp})) =>
     // Set turn error and stop agent running - user can still send messages
     let completed = task->Lens.completeStreamingMessage
     switch completed {
     | Task.Loaded(completedData) => (
         Task.Loaded({
           ...completedData,
-          turnError: Some({id, message: error, category, retryAvailableAt}),
+          turnError: Some({id, message: error, category}),
           isAgentRunning: false,
           retryStatus: None,
         }),
@@ -1036,7 +1027,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | _ => (
         Task.Loaded({
           ...data,
-          turnError: Some({id, message: error, category, retryAvailableAt}),
+          turnError: Some({id, message: error, category}),
           isAgentRunning: false,
           retryStatus: None,
         }),

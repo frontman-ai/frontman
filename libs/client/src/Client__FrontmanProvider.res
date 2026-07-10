@@ -351,16 +351,7 @@ module Provider = {
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
-      | Error({
-          _meta,
-          message,
-          timestamp,
-          retryAt,
-          retryAvailableAt,
-          attempt,
-          maxAttempts,
-          category,
-        }) =>
+      | Error({_meta, message, timestamp, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>
@@ -373,15 +364,12 @@ module Provider = {
           }
           Client__State.Actions.retryingStatusReceived(~taskId, ~retryStatus)
         | None =>
-          let retryAvailableAtMs =
-            retryAvailableAt->Option.map(retryAtStr => Date.fromString(retryAtStr)->Date.getTime)
           Client__State.Actions.agentErrorReceived(
             ~taskId,
             ~id=agentErrorId(_meta),
             ~error=message,
             ~timestamp,
             ~category=Client__ErrorCategory.fromAcpCategory(category),
-            ~retryAvailableAt=?retryAvailableAtMs,
           )
         }
       | Unknown(_) => ()

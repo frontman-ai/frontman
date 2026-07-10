@@ -2,25 +2,22 @@ defmodule FrontmanServer.Tasks.InteractionAgentRetryTest do
   use ExUnit.Case, async: true
 
   import FrontmanServer.InteractionCase.Helpers,
-    only: [agent_error: 2, agent_error: 5]
+    only: [agent_error: 2, agent_error: 4]
 
   alias FrontmanServer.Tasks.Interaction
 
   describe "AgentError fields" do
     test "struct and JSON include retry metadata" do
-      retry_available_at = ~U[2030-10-21 07:28:00Z]
-      err = agent_error("Rate limited", "failed", true, "rate_limit", retry_available_at)
+      err = agent_error("Rate limited", "failed", true, "rate_limit")
 
       assert err.retryable == true
       assert err.category == "rate_limit"
       assert err.error == "Rate limited"
-      assert err.retry_available_at == retry_available_at
 
       encoded = Jason.encode!(err)
       decoded = Jason.decode!(encoded)
       assert decoded["retryable"] == true
       assert decoded["category"] == "rate_limit"
-      assert decoded["retry_available_at"] == "2030-10-21T07:28:00Z"
       refute Map.has_key?(decoded, "type")
     end
 

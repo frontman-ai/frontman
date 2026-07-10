@@ -487,7 +487,6 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
         error: "Rate limit exceeded",
         timestamp: "2025-01-10T10:00:10Z",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
     task := updated

@@ -156,12 +156,11 @@ module Actions = {
     ~error: string,
     ~timestamp: string,
     ~category: Client__ErrorCategory.t,
-    ~retryAvailableAt: option<float>=?,
   ) =>
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: AgentError({id, error, timestamp, category, retryAvailableAt}),
+        action: AgentError({id, error, timestamp, category}),
       }),
     )
 

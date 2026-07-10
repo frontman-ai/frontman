@@ -39,13 +39,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         scope,
         task_id,
         turn_number,
-        {:failed,
-         %{
-           message: "Rate limited",
-           retryable: true,
-           category: "rate_limit",
-           retry_available_at: nil
-         }}
+        {:failed, "Rate limited", true, "rate_limit"}
       )
 
     error_interaction
@@ -1256,48 +1250,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{"sessionUpdate" => "error", "message" => "Auth failed"}
         }
       })
-    end
-
-    test "quota error pushes retryAvailableAt without retryAt or retry timer", %{
-      socket: socket,
-      task_id: task_id
-    } do
-      retry_available_at = ~U[2030-10-21 07:28:00Z]
-
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        task_topic(task_id),
-        interaction_event(
-          %Interaction.AgentError{
-            id: "agent-error-123",
-            error: "Quota reached",
-            kind: "failed",
-            retryable: false,
-            category: "quota",
-            retry_available_at: retry_available_at,
-            timestamp: ~U[2030-10-21 06:28:00Z]
-          },
-          1
-        )
-      )
-
-      assert_push("acp:message", payload)
-
-      assert %{
-               "params" => %{
-                 "update" => %{
-                   "sessionUpdate" => "error",
-                   "message" => "Quota reached",
-                   "category" => "quota",
-                   "retryAvailableAt" => "2030-10-21T07:28:00Z"
-                 }
-               }
-             } = payload
-
-      refute Map.has_key?(payload["params"]["update"], "retryAt")
-
-      %{assigns: assigns} = :sys.get_state(socket.channel_pid)
-      assert assigns[:retry_state] == nil
     end
 
     test "session/retry_turn notification creates AgentRetry interaction", %{

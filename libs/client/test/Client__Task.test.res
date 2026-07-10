@@ -433,16 +433,8 @@ describe("Task - Plan Entries", () => {
 })
 
 describe("Task - Error Handling", () => {
-  test("ACP quota category maps to known quota category", t => {
-    t->expect(Client__ErrorCategory.fromAcpCategory(Some("quota")))->Expect.toEqual(#quota)
-    t
-    ->expect(Client__ErrorCategory.fromAcpCategory(Some("something_else")))
-    ->Expect.toEqual(#other("something_else"))
-  })
-
   test("AgentError sets turnError on Loaded task", t => {
     let task = TestHelpers.makeLoadedTask()
-    let retryAvailableAt = Date.fromString("2025-01-15T11:30:00Z")->Date.getTime
     t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
 
     let (task2, _) = TaskReducer.next(
@@ -452,7 +444,6 @@ describe("Task - Error Handling", () => {
         error: "Quota exhausted",
         timestamp: "2025-01-15T10:30:00Z",
         category: #quota,
-        retryAvailableAt: Some(retryAvailableAt),
       }),
     )
     t
@@ -462,10 +453,8 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         message: "Quota exhausted",
         category: #quota,
-        retryAvailableAt: Some(retryAvailableAt),
       }),
     )
-    t->expect(TaskReducer.Selectors.retryStatus(task2))->Expect.toEqual(None)
   })
 
   test("AgentError sets isAgentRunning to false", t => {
@@ -482,7 +471,6 @@ describe("Task - Error Handling", () => {
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(false))
@@ -512,7 +500,6 @@ describe("Task - Error Handling", () => {
         error: "Error occurred",
         timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
     t->expect(TaskReducer.Selectors.streamingMessage(task3))->Expect.toEqual(None)
@@ -535,7 +522,6 @@ describe("Task - Error Handling", () => {
         error: "Error",
         timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
 
@@ -551,7 +537,6 @@ describe("Task - Error Handling", () => {
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
     t
@@ -561,7 +546,6 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         message: "Some error",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
 
@@ -587,7 +571,6 @@ describe("Task - Error Handling", () => {
         error: "Previous error",
         timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
     t
@@ -597,7 +580,6 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         message: "Previous error",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
 
@@ -728,7 +710,6 @@ describe("Task - CancelTurn", () => {
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
-        retryAvailableAt: None,
       }),
     )
     let task2 = TestHelpers.acceptUserMessage(task1, ~text="retry")

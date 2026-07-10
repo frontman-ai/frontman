@@ -325,28 +325,6 @@ describe("sessionUpdate schema parsing", () => {
     }
   })
 
-  test("error update parses retry availability fields", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("sessionUpdate", JSON.Encode.string("error")),
-        ("message", JSON.Encode.string("Quota reached")),
-        ("timestamp", JSON.Encode.string("2030-10-21T06:28:00Z")),
-        ("category", JSON.Encode.string("quota")),
-        ("retryAvailableAt", JSON.Encode.string("2030-10-21T07:28:00Z")),
-      ]),
-    )
-
-    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
-
-    switch parsed {
-    | Types.Error({retryAvailableAt, retryAt, category}) =>
-      t->expect(category)->Expect.toEqual(Some("quota"))
-      t->expect(retryAvailableAt)->Expect.toEqual(Some("2030-10-21T07:28:00Z"))
-      t->expect(retryAt)->Expect.toEqual(None)
-    | _ => t->expect("Error")->Expect.toBe("not matched")
-    }
-  })
-
   test("agent_message_chunk without timestamp falls through to Unknown", t => {
     let json = JSON.Encode.object(
       Dict.fromArray([

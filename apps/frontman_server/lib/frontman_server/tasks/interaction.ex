@@ -760,7 +760,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :kind, :string, default: "failed"
       field :retryable, :boolean, default: false
       field :category, :string, default: "unknown"
-      field :retry_available_at, :utc_datetime_usec
       field :timestamp, :utc_datetime_usec
     end
 
@@ -771,8 +770,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         :error,
         :kind,
         :retryable,
-        :category,
-        :retry_available_at
+        :category
       ])
     end
   end
@@ -970,13 +968,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     }
   end
 
-  def to_json_map(%AgentError{} = value) do
-    value
-    |> Map.from_struct()
-    |> stringify_timestamp()
-    |> stringify_retry_available_at()
-  end
-
   def to_json_map(value) when is_struct(value) do
     value
     |> Map.from_struct()
@@ -1037,14 +1028,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defp stringify_timestamp(data), do: data
-
-  defp stringify_retry_available_at(
-         %{retry_available_at: %DateTime{} = retry_available_at} = data
-       ) do
-    %{data | retry_available_at: DateTime.to_iso8601(retry_available_at)}
-  end
-
-  defp stringify_retry_available_at(data), do: data
 
   def now do
     DateTime.utc_now()
