@@ -102,12 +102,24 @@ defmodule FrontmanServer.TasksTest do
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message: user_content("hello"),
-                 model: "openrouter:openai/gpt-5.5"
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
                })
 
       assert [row] = db_rows(task.id)
       assert row.type == :user_message
       assert row.turn_number == nil
+      assert row.data.agent_id == "test-frontman"
+    end
+
+    test "requires agent id", %{scope: scope} do
+      task = task_fixture(scope)
+
+      assert Tasks.submit_user_message(scope, %{
+               task_id: task.id,
+               message: user_content("hello"),
+               model: "openrouter:openai/gpt-5.5"
+             }) == {:error, :missing_agent}
     end
 
     test "accepts another user message while a turn is running", %{scope: scope} do
@@ -118,7 +130,8 @@ defmodule FrontmanServer.TasksTest do
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message: user_content("second"),
-                 model: "openrouter:openai/gpt-5.5"
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
                })
 
       assert [:user_message, :turn_started, :user_message] =

@@ -181,7 +181,7 @@ defmodule FrontmanServerWeb.ChannelCase do
 
     * `:id` - JSON-RPC request id (default: `1`)
     * `:text` - prompt text (default: `"Hello"`)
-    * `:_meta` - _meta map with selected model
+    * `:_meta` - _meta map with selected model and agent
 
   ## Examples
 
@@ -195,7 +195,8 @@ defmodule FrontmanServerWeb.ChannelCase do
 
     meta =
       Keyword.get(opts, :_meta, %{
-        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}
+        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+        "agent" => "test-frontman"
       })
 
     params = %{"prompt" => [%{"type" => "text", "text" => text}], "_meta" => meta}

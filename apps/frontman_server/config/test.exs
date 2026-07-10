@@ -59,6 +59,27 @@ config :frontman_server,
   # Test key for Cloak encryption (generated with :crypto.strong_rand_bytes(32) |> Base.encode64())
   cloak_key: "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleTEyMzQ="
 
+config :frontman_server, FrontmanServer.Agents,
+  default_agent_id: "test-planner",
+  agents: [
+    %{
+      id: "test-frontman",
+      name: "executor",
+      display_name: "Executor",
+      description: "Software engineering execution agent with full tool access.",
+      system: "Test executor system."
+    },
+    %{
+      id: "test-planner",
+      name: "planner",
+      display_name: "Planner",
+      description:
+        "Read-only planning agent that prepares implementation plans for later execution.",
+      system: "Test planner system.",
+      tools: %{access: [:read]}
+    }
+  ]
+
 config :frontman_server, :web_fetch_req_options,
   plug: {Req.Test, :web_fetch},
   retry_delay: fn _ -> 0 end,

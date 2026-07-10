@@ -17,9 +17,8 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
-  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution.{LLMClient, Prompts, ToolExecutor}
+  alias FrontmanServer.Tasks.Execution.{LLMClient, ToolExecutor}
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
@@ -37,7 +36,6 @@ defmodule FrontmanServer.Tasks.Execution do
   ## Params
   - `:model` - LLM model spec
   - `:mcp_tools` - client MCP tool definitions for this turn
-  - `:project_traits` - client/framework traits used for system prompt guidance
 
   ## Returns
   - `{:ok, pid}` - Execution started successfully
@@ -48,24 +46,26 @@ defmodule FrontmanServer.Tasks.Execution do
         %Scope{} = scope,
         %TaskSchema{} = task,
         turn_number,
+        system_prompt,
+        interaction_rows,
+        tool_policy,
         %{
           model: requested_model,
-          mcp_tools: mcp_tools,
-          project_traits: project_traits
+          mcp_tools: mcp_tools
         }
       )
-      when is_integer(turn_number) and turn_number > 0 and is_list(mcp_tools) and
-             is_list(project_traits) do
+      when is_integer(turn_number) and turn_number > 0 and is_binary(system_prompt) and
+             is_list(interaction_rows) and is_list(mcp_tools) do
     max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
 
     case Providers.prepare_llm_args(scope, requested_model, max_tokens: max_tokens) do
       {:ok, {model_spec, llm_opts}} ->
-        interaction_rows = interaction_rows(task.id, turn_number)
-        backend_tool_modules = Tools.backend_tool_modules()
-        tools = Tools.prepare_for_task(mcp_tools)
+        backend_tool_modules = Tools.backend_tool_modules(tool_policy)
+        mcp_tools = Tools.mcp_tools(mcp_tools, tool_policy)
+        tools = Tools.to_swarm_tools(backend_tool_modules, mcp_tools)
 
         messages = [
-          Message.system(system_prompt(task, project_traits))
+          Message.system(system_prompt)
           | prompt_messages(interaction_rows, turn_number)
         ]
 
@@ -103,38 +103,6 @@ defmodule FrontmanServer.Tasks.Execution do
       {:error, reason} ->
         {:error, reason}
     end
-  end
-
-  defp interaction_rows(task_id, turn_number) do
-    turn_rows =
-      InteractionSchema.for_task(task_id)
-      |> InteractionSchema.up_to_turn(turn_number)
-      |> InteractionSchema.ordered()
-      |> Repo.all()
-
-    turn_rows ++ referenced_user_message_rows(task_id, turn_rows)
-  end
-
-  defp referenced_user_message_rows(task_id, turn_rows) do
-    user_message_ids =
-      turn_rows
-      |> Enum.flat_map(fn
-        %InteractionSchema{
-          type: :turn_started,
-          data: %Interaction.TurnStarted{user_message_ids: ids}
-        } ->
-          ids
-
-        _row ->
-          []
-      end)
-      |> Enum.uniq()
-
-    InteractionSchema.for_task(task_id)
-    |> InteractionSchema.of_type(:user_message)
-    |> InteractionSchema.by_ids(user_message_ids)
-    |> InteractionSchema.ordered()
-    |> Repo.all()
   end
 
   @doc """
@@ -179,7 +147,9 @@ defmodule FrontmanServer.Tasks.Execution do
        when is_list(rows) and is_integer(turn_number) and turn_number > 0 do
     user_messages_by_row_id = user_messages_by_row_id(rows)
 
-    Enum.flat_map(rows, fn row ->
+    rows
+    |> Enum.filter(&(is_nil(&1.turn_number) or &1.turn_number <= turn_number))
+    |> Enum.flat_map(fn row ->
       row
       |> row_to_messages(user_messages_by_row_id)
       |> decay_historical_images(row.turn_number, turn_number)
@@ -240,29 +210,6 @@ defmodule FrontmanServer.Tasks.Execution do
   end
 
   defp decay_image_part(part, _tool_call_id), do: part
-
-  defp system_prompt(%TaskSchema{} = task, project_traits) do
-    # QUESTION(Danni) - this is weird, in the caller-apps/frontman_server/lib/frontman_server/tasks/execution.ex:L47
-    # we pass interaction_rows, but here we get task.interactions, weird
-    interactions = task.interactions
-
-    Prompts.build(
-      # FIXME(Danni) - has_annotations will be true even if the last message doesnt have annotations
-      has_annotations:
-        Enum.any?(interactions, &match?(%Interaction.UserMessage{annotations: [_ | _]}, &1)),
-      project_traits: project_traits,
-      framework: task.framework,
-      project_rules: Enum.filter(interactions, &match?(%Interaction.DiscoveredProjectRule{}, &1)),
-      project_structure: project_structure(interactions)
-    )
-  end
-
-  defp project_structure(interactions) do
-    case Enum.find(interactions, &match?(%Interaction.DiscoveredProjectStructure{}, &1)) do
-      nil -> nil
-      struct -> struct.summary
-    end
-  end
 
   defp to_swarm_content_part(%{"type" => "text", "text" => text}), do: ContentPart.text(text)
 

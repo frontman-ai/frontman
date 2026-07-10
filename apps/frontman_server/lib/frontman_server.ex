@@ -15,6 +15,7 @@ defmodule FrontmanServer do
 
   @base_exports [
     {Accounts, []},
+    {Agents, []},
     {Organizations, []},
     {Providers, []},
     {Tasks, []},

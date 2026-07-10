@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Agents
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
@@ -625,25 +626,34 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, model} ->
         Logger.info("process_prompt", %{task_id: task_id, model: model})
 
-        case Tasks.submit_user_message(
-               scope,
-               %{
-                 task_id: task_id,
-                 message: content_blocks,
-                 model: model
-               }
-             ) do
-          {:ok, interaction} ->
-            push(
-              socket,
-              @acp_message,
-              ACP.build_user_message_notification(task_id, interaction.id, content_blocks)
-            )
+        with {:ok, agent_id} <-
+               Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
+             {:ok, interaction} <-
+               Tasks.submit_user_message(
+                 scope,
+                 %{
+                   task_id: task_id,
+                   message: content_blocks,
+                   model: model,
+                   agent_id: agent_id
+                 }
+               ) do
+          push(
+            socket,
+            @acp_message,
+            ACP.build_user_message_notification(task_id, interaction.id, content_blocks)
+          )
 
-            wake_runner(socket, meta)
+          wake_runner(socket, meta)
 
-            Logger.info("User message accepted for task #{task_id}")
-            {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
+          Logger.info("User message accepted for task #{task_id}")
+          {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
+        else
+          {:error, :missing_agent} ->
+            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Agent is required")
+
+          {:error, :unknown_agent} ->
+            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Unknown agent")
 
           {:error, {:invalid_content_block, message}} ->
             Logger.error("Failed to add user message: #{message}")
