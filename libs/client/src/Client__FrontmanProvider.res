@@ -369,7 +369,7 @@ module Provider = {
             ~id=agentErrorId(_meta),
             ~error=message,
             ~timestamp,
-            ~category=category->Option.getOr("unknown"),
+            ~category=Client__ErrorCategory.fromAcpCategory(category),
           )
         }
       | Unknown(_) => ()

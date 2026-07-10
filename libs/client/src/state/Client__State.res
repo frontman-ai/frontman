@@ -155,7 +155,7 @@ module Actions = {
     ~id: string,
     ~error: string,
     ~timestamp: string,
-    ~category: string,
+    ~category: Client__ErrorCategory.t,
   ) =>
     Client__State__Store.dispatch(
       TaskAction({

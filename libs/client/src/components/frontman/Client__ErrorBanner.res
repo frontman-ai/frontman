@@ -4,15 +4,16 @@
 @react.component
 let make = (
   ~error: string,
-  ~category: string,
+  ~category: Client__ErrorCategory.t,
   ~onRetry: unit => unit,
   ~onConfigureProvider: option<unit => unit>=?,
 ) => {
   let guidance = switch category {
-  | "auth" | "billing" => Some("Check Settings")
-  | "rate_limit" => Some("Wait a moment before retrying")
-  | "payload_too_large" => Some("Try with a shorter message or smaller files")
-  | "output_truncated" => Some("Try asking for a shorter response")
+  | #auth | #billing => Some("Check Settings")
+  | #quota => Some("Quota limit reached. Try again later or configure a different provider.")
+  | #rate_limit => Some("Wait a moment before retrying")
+  | #payload_too_large => Some("Try with a shorter message or smaller files")
+  | #output_truncated => Some("Try asking for a shorter response")
   | _ => None
   }
 
@@ -30,7 +31,9 @@ let make = (
         {React.string("Retry")}
       </button>
       {switch (category, onConfigureProvider) {
-      | ("auth", Some(onConfigureProvider)) | ("billing", Some(onConfigureProvider)) =>
+      | (#auth, Some(onConfigureProvider))
+      | (#billing, Some(onConfigureProvider))
+      | (#quota, Some(onConfigureProvider)) =>
         <button
           onClick={_ => onConfigureProvider()}
           className="text-xs text-red-100 border border-red-500/70 bg-red-500/10 hover:bg-red-500/20 hover:border-red-400 px-3 py-1 rounded transition-colors"

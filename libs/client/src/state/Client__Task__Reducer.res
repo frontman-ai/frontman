@@ -342,7 +342,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   // Error actions
-  | AgentError({id: string, error: string, timestamp: string, category: string})
+  | AgentError({id: string, error: string, timestamp: string, category: Client__ErrorCategory.t})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError

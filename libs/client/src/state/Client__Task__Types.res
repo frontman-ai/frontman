@@ -21,7 +21,7 @@ module Task = {
   type turnErrorInfo = {
     id: string,
     message: string,
-    category: string,
+    category: Client__ErrorCategory.t,
   }
 
   type retryStatus = {

@@ -486,7 +486,7 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
         id: "agent-error-1",
         error: "Rate limit exceeded",
         timestamp: "2025-01-10T10:00:10Z",
-        category: "unknown",
+        category: #unknown,
       }),
     )
     task := updated

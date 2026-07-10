@@ -441,9 +441,9 @@ describe("Task - Error Handling", () => {
       task,
       AgentError({
         id: "agent-error-1",
-        error: "Rate limit exceeded",
+        error: "Quota exhausted",
         timestamp: "2025-01-15T10:30:00Z",
-        category: "unknown",
+        category: #quota,
       }),
     )
     t
@@ -451,8 +451,8 @@ describe("Task - Error Handling", () => {
     ->Expect.toEqual(
       Some({
         id: "agent-error-1",
-        message: "Rate limit exceeded",
-        category: "unknown",
+        message: "Quota exhausted",
+        category: #quota,
       }),
     )
   })
@@ -470,7 +470,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
-        category: "unknown",
+        category: #unknown,
       }),
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(false))
@@ -499,7 +499,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         error: "Error occurred",
         timestamp: "2025-01-15T10:30:00Z",
-        category: "unknown",
+        category: #unknown,
       }),
     )
     t->expect(TaskReducer.Selectors.streamingMessage(task3))->Expect.toEqual(None)
@@ -521,7 +521,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         error: "Error",
         timestamp: "2025-01-15T10:30:00Z",
-        category: "unknown",
+        category: #unknown,
       }),
     )
 
@@ -536,7 +536,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
-        category: "unknown",
+        category: #unknown,
       }),
     )
     t
@@ -545,7 +545,7 @@ describe("Task - Error Handling", () => {
       Some({
         id: "agent-error-1",
         message: "Some error",
-        category: "unknown",
+        category: #unknown,
       }),
     )
 
@@ -570,7 +570,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         error: "Previous error",
         timestamp: "2025-01-15T10:30:00Z",
-        category: "unknown",
+        category: #unknown,
       }),
     )
     t
@@ -579,7 +579,7 @@ describe("Task - Error Handling", () => {
       Some({
         id: "agent-error-1",
         message: "Previous error",
-        category: "unknown",
+        category: #unknown,
       }),
     )
 
@@ -709,7 +709,7 @@ describe("Task - CancelTurn", () => {
         id: "agent-error-1",
         error: "Some error",
         timestamp: "2025-01-15T10:30:00Z",
-        category: "unknown",
+        category: #unknown,
       }),
     )
     let task2 = TestHelpers.acceptUserMessage(task1, ~text="retry")
