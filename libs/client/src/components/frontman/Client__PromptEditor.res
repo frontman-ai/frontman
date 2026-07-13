@@ -21,6 +21,7 @@ type serializedPromptEditorContent = {
 
 type jsonAttrs = Dict.t<JSON.t>
 type rec jsonContentNode = {
+  @as("type")
   type_?: string,
   text?: string,
   attrs?: jsonAttrs,
