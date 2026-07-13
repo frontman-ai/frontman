@@ -322,7 +322,7 @@ Get these from [WorkOS Dashboard](https://dashboard.workos.com/).
 - `ECTO_IPV6` — Set to `true` or `1` to use IPv6
 
 #### Clustering (Distributed Elixir)
-- `RELEASE_NODE` — Node name (e.g., `frontman@127.0.0.1`)
+- `RELEASE_NODE` — Node name (e.g., `frontman@localhost`)
 - `RELEASE_COOKIE` — Erlang distribution cookie (shared secret for clustering)
 - `RELEASE_DISTRIBUTION=name` — Enable distributed mode
 - `DNS_CLUSTER_QUERY` — DNS SRV query for node discovery (e.g., `_frontman._tcp.internal.local`)
@@ -438,13 +438,13 @@ Frontman is stateless except for PostgreSQL. To scale horizontally:
 Example (3 nodes):
 ```bash
 # Node 1
-RELEASE_NODE=frontman1@10.0.1.10 RELEASE_COOKIE=secret /app/bin/server
+RELEASE_NODE=frontman1@node-a RELEASE_COOKIE=<cookie> /app/bin/server
 
 # Node 2
-RELEASE_NODE=frontman2@10.0.1.11 RELEASE_COOKIE=secret /app/bin/server
+RELEASE_NODE=frontman2@node-b RELEASE_COOKIE=<cookie> /app/bin/server
 
 # Node 3
-RELEASE_NODE=frontman3@10.0.1.12 RELEASE_COOKIE=secret /app/bin/server
+RELEASE_NODE=frontman3@node-c RELEASE_COOKIE=<cookie> /app/bin/server
 ```
 
 Nodes will form a cluster. Phoenix PubSub messages (task updates, hot reload triggers) are distributed across all nodes.

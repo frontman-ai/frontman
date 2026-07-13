@@ -1,6 +1,6 @@
 ---
 title: 'Best Open-Source AI Coding Tools in 2026: Cline, Roo Code, OpenHands, Kilo Code, BYOK Agents'
-seoTitle: 'Best Open-Source AI Coding Tools 2026: Cline, Roo Code, OpenHands, Kilo Code, BYOK Agents'
+seoTitle: 'Open-Source AI Coding Tools 2026'
 pubDate: 2026-03-03T10:00:00Z
 description: 'Compare the best open-source AI coding tools, coding agents, BYOK assistants, and CLI tools in 2026: Cline, Roo Code, OpenHands, Kilo Code, Aider, Goose, Continue, Tabby, Stagewise, and Frontman.'
 author: 'Danni Friedland'

@@ -34,6 +34,13 @@ function enhanceLinkAccessibility(html: string): string {
   return html
 }
 
+function preventCloudflareEmailObfuscation(html: string): string {
+  return html.replace(
+    /((?:@[\w-]+\/)?[\w.-]+)@(\d+(?:\.\d+){1,3}(?:-[\w.-]+)?)/g,
+    '$1&#64;$2'
+  )
+}
+
 /**
  * Adjust heading levels for proper hierarchy.
  * Since feed item header is h2, markdown h3 becomes h3, h4 becomes h4, etc.
@@ -80,6 +87,7 @@ export function parseChangelog(): ChangelogEntry[] {
     let html = marked.parse(body, { async: false }) as string
     html = normalizeHeadingLevels(html)
     html = enhanceLinkAccessibility(html)
+    html = preventCloudflareEmailObfuscation(html)
 
     entries.push({
       title: `v${version}`,

@@ -1,6 +1,6 @@
 ---
 title: 'Vertically Integrated Agents Are Better at Token Optimization'
-seoTitle: 'Token Optimization for AI Agents: Why Vertical Integration Wins'
+seoTitle: 'AI Agent Token Optimization'
 pubDate: 2026-06-29T13:00:00Z
 description: 'Why vertically integrated agents use fewer requests and fewer tokens by starting with runtime context, source mapping, and verification built into the workflow.'
 author: 'Danni Friedland'

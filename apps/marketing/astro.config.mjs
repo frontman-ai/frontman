@@ -230,16 +230,11 @@ export default defineConfig({
     serverName: "marketing",
   }), icon(), brokenLinksChecker({ throwError: true, checkExternalLinks: false }), sitemap({
     serialize: (item) => {
-      // Exclude tag pages — thin filtered lists that add sitemap bloat
-      // without meaningful indexable content.
-      if (/\/blog\/tags\//.test(item.url)) return undefined;
       // Exclude integration redirect pages — they 301 to /docs/integrations/*,
       // which are already in the sitemap.
       if (/(?<!\/docs)\/integrations\/(astro|nextjs|vite)\/?$/.test(item.url)) return undefined;
-      // Exclude noindexed stub pages that exist only for sidebar navigation.
-      if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
       // Exclude explicit noindex pages from sitemap output.
-      if (/\/(404|pricing)\/?$/.test(item.url)) return undefined;
+      if (/\/404\/?$/.test(item.url)) return undefined;
 
       // Use real publication dates where available. Static pages share a
       // manual source date so child sitemap indexes do not appear undated.
