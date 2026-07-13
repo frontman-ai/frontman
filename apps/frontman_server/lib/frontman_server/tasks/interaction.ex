@@ -605,7 +605,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       case usage do
         nil -> attrs
-        usage -> Map.put(attrs, :usage, usage_params(usage))
+        usage -> Map.put(attrs, :usage, usage)
       end
     end
 
@@ -644,7 +644,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     defp usage_changeset(%__MODULE__.Usage{} = usage, attrs) do
-      changeset = cast(usage, attrs, @usage_fields)
+      changeset = cast(usage, usage_params(attrs), @usage_fields)
 
       Enum.reduce(@usage_fields, changeset, fn field, acc ->
         validate_number(acc, field, greater_than_or_equal_to: 0)
@@ -678,9 +678,26 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    defp usage_params(%__MODULE__.Usage{} = usage), do: Map.from_struct(usage)
-    defp usage_params(usage) when is_map(usage), do: usage
+    defp usage_params(%__MODULE__.Usage{} = usage),
+      do: usage |> Map.from_struct() |> usage_params()
+
+    defp usage_params(usage) when is_map(usage) do
+      Enum.reduce(@usage_fields, %{}, fn field, acc ->
+        case usage_value(usage, field) do
+          {:ok, value} -> Map.put(acc, field, value)
+          :error -> acc
+        end
+      end)
+    end
+
     defp usage_params(usage), do: usage
+
+    defp usage_value(usage, field) do
+      case Map.fetch(usage, field) do
+        {:ok, value} -> {:ok, value}
+        :error -> Map.fetch(usage, Atom.to_string(field))
+      end
+    end
 
     defp llm_response_metadata(response) do
       meta = response.metadata || %{}

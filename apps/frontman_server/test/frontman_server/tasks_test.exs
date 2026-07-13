@@ -183,17 +183,19 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "swarm event persistence" do
-    test "persists known response usage fields and drops provider extras", %{scope: scope} do
+    test "persists mixed-key provider usage with known fields only", %{scope: scope} do
       task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       usage = %{
+        "cost" => 0.21366,
+        "cost_details" => %{"upstream_inference_cost" => 0.21366},
+        "cache_creation_tokens" => 10,
         input_tokens: 100,
         output_tokens: 50,
         reasoning_tokens: 15,
         cached_tokens: 25,
         total_tokens: 175,
-        cache_creation_tokens: 10,
         provider_exact_field: "preserved",
         nested_provider_data: %{"anything" => [1, 2, 3]}
       }
@@ -209,16 +211,16 @@ defmodule FrontmanServer.TasksTest do
                }
              ] = agent_responses(task_id)
 
-      assert %{
+      usage_attrs = Map.from_struct(stored_usage)
+
+      assert usage_attrs == %{
                input_tokens: 100,
                output_tokens: 50,
                reasoning_tokens: 15,
                cached_tokens: 25,
                total_tokens: 175,
                cache_creation_tokens: 10
-             } = Map.from_struct(stored_usage)
-
-      refute Map.has_key?(Map.from_struct(stored_usage), :provider_exact_field)
+             }
     end
 
     test "omits response usage when usage is absent", %{scope: scope} do
