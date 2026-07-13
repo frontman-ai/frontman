@@ -60,7 +60,7 @@ let make = (
         | false => ()
         | true =>
           previewFrame.contentWindow->Option.forEach(contentWindow => {
-            contentWindow.location->locationAssign(resolvedUrl)
+            contentWindow->WebAPI.Window.location->locationAssign(resolvedUrl)
           })
           Client__State.Actions.setPreviewUrl(~url=resolvedUrl)
           Client__State.Actions.clearAnnotations()
@@ -87,7 +87,7 @@ let make = (
 
   let handleReload = () => {
     previewFrame.contentWindow->Option.forEach(contentWindow => {
-      WebAPI.Location.reload(contentWindow.location)
+      contentWindow->WebAPI.Window.location->WebAPI.Location.reload
     })
     Client__State.Actions.clearAnnotations()
   }

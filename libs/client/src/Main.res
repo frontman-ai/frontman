@@ -27,7 +27,7 @@ let getConfig = (): clientConfig => {
   let params = url.searchParams
   let get = name =>
     if params->WebAPI.URLSearchParams.has(~name) {
-      Some(params->WebAPI.URLSearchParams.get(name))
+      params->WebAPI.URLSearchParams.get(name)->Null.toOption
     } else {
       None
     }

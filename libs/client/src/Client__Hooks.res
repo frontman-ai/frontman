@@ -52,7 +52,7 @@ module EventHelpers = {
 
     React.useEffect(() => {
       document->Option.map(doc => {
-        let eventType = WebAPI.EventAPI.Custom(event)
+        let eventType = WebAPI.EventTypes.Custom(event)
 
         // Stable wrapper: delegates to the ref so the DOM listener never changes
         let stableHandler = (ev: WebAPI.EventAPI.event) => handlerRef.current(ev)
@@ -279,7 +279,7 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
           }
 
           WebAPI.Navigation.addEventListener(
-            iframeWindow.navigation,
+            iframeWindow->WebAPI.Window.navigation,
             Custom("navigate"),
             onNavigation,
             ~options={capture: false},
@@ -289,7 +289,7 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
             () => {
               try {
                 WebAPI.Navigation.removeEventListener(
-                  iframeWindow.navigation,
+                  iframeWindow->WebAPI.Window.navigation,
                   Custom("navigate"),
                   onNavigation,
                   ~options={capture: false},

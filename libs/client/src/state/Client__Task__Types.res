@@ -829,10 +829,10 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   | Some(win) =>
     try {
       (
-        Some(win.innerWidth),
-        Some(win.innerHeight),
-        Some(win.devicePixelRatio),
-        Some(win.scrollY->Float.toInt),
+        Some(win->WebAPI.Window.innerWidth),
+        Some(win->WebAPI.Window.innerHeight),
+        Some(win->WebAPI.Window.devicePixelRatio),
+        Some(win->WebAPI.Window.scrollY->Float.toInt),
       )
     } catch {
     | exn =>

@@ -199,7 +199,7 @@ let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t):
         let originalPrefix = originalSuffixPrefix->Option.getOrThrow
         let enableReactScan =
           url.searchParams->WebAPI.URLSearchParams.has(~name="debug") &&
-            url.searchParams->WebAPI.URLSearchParams.get("debug") == "1"
+            url.searchParams->WebAPI.URLSearchParams.get("debug")->Null.toOption == Some("1")
         let entrypointUrl = buildEntrypointUrl(
           ~config,
           ~requestUrl=req.url,

@@ -1,4 +1,4 @@
-external myElement: DOMAPI.element = "myElement"
+external myElement: DomTypes.element = "myElement"
 
 switch myElement->Element.getAttribute("foo") {
 | Null.Value(value) => value->Console.log

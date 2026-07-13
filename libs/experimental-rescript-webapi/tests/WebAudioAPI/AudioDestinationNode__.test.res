@@ -1,5 +1,3 @@
-open WebAudioAPI
-
 let ctx = AudioContext.make()
 
 let destinationNode = ctx.destination->AudioDestinationNode.asAudioNode
@@ -8,7 +6,7 @@ let context = AudioContext.asBaseAudioContext(ctx)
 let osc = OscillatorNode.make(
   ~context,
   ~options={
-    type_: Sine,
+    type_: WebAudioTypes.Sine,
     frequency: 440.0,
   },
 )
