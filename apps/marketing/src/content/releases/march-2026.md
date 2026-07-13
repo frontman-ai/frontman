@@ -51,4 +51,4 @@ Kilo Code reported crossing 1.5 million users and becoming the highest-volume co
 
 ---
 
-For a detailed comparison of all major open-source AI coding tools, see our [full comparison guide](/blog/best-open-source-ai-coding-tools-2026/).
+For a detailed comparison of all major open-source AI coding agents, see our [open-source AI coding agents comparison guide](/blog/best-open-source-ai-coding-tools-2026/).
