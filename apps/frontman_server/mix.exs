@@ -70,7 +70,7 @@ defmodule FrontmanServer.MixProject do
       {:polymorphic_embed, "~> 5.0"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.1"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:req_llm, github: "agentjido/req_llm", branch: "main", override: true},
       {:heroicons,
