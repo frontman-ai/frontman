@@ -1,10 +1,10 @@
 /**
  * ToolCallBlock - Main tool call display component
- * 
+ *
  * Displays tool calls with human-readable names in purple-themed style:
  *   Get Routes
  *   target_path (as purple link)
- * 
+ *
  * Supports compact mode for grouped display and expand/collapse for details.
  */
 module Message = Client__State__Types.Message
@@ -102,7 +102,7 @@ let make = (
         compact ? "rounded-lg" : "rounded-xl",
         compact ? "bg-[#8051CD]/15" : "bg-[#8051CD]/20",
         compact ? "border border-[#8051CD]/30" : "border border-[#8051CD]/40",
-        compact ? "my-1 mx-2" : "my-2 mx-3",
+        // compact ? "my-1" : "my-2",
         compact ? "px-3 py-2" : "px-4 py-3",
         hasBody ? "cursor-pointer" : "",
       ]
@@ -137,9 +137,10 @@ let make = (
             </div>
           }
         | (Some(t), _, _) =>
-          <div className={`mt-1 ${compact ? "text-[11px]" : "text-[12px]"}`}>
+          <div className={`mt-1 min-w-0 ${compact ? "text-[11px]" : "text-[12px]"}`}>
             <span
-              className={`font-mono ${hasError
+              title=t
+              className={`block max-w-full truncate font-mono ${hasError
                   ? "text-red-400"
                   : "text-[#8051CD] hover:text-[#9d7be0]"}`}
             >
@@ -152,7 +153,12 @@ let make = (
         // Error message if present (inline)
         {switch errorText {
         | Some(err) =>
-          <div className="mt-2 text-[11px] text-red-400 font-mono"> {React.string(err)} </div>
+          <div
+            title=err
+            className="mt-2 min-w-0 whitespace-pre-wrap break-words text-[11px] text-red-400 font-mono"
+          >
+            {React.string(err)}
+          </div>
         | None => React.null
         }}
       </div>

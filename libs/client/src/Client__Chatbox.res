@@ -30,12 +30,16 @@ module ErrorBanner = Client__ErrorBanner
 
 // Display item for grouped rendering
 type displayItem =
-  | UserMsg(Message.t)
-  | AssistantMsg(Message.t)
+  | UserMsg({
+      id: string,
+      content: array<Client__State__Types.UserContentPart.t>,
+      annotations: array<Message.MessageAnnotation.t>,
+    })
+  | AssistantMsg(Message.assistantMessage)
   | SingleToolCall(Message.toolCall)
   | ToolGroup(ToolGroupTypes.toolGroup)
   | TodoToolCall(Message.toolCall)
-  | ErrorMsg(Message.t)
+  | ErrorMsg(Message.ErrorMessage.t)
 
 /**
  * Transform messages into display items, grouping consecutive tool calls
@@ -76,15 +80,15 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   messages->Array.forEach(msg => {
     switch msg {
     | Message.ToolCall(tc) => pendingToolCalls.contents->Array.push(tc)
-    | Message.User(_) =>
+    | Message.User({id, content, annotations}) =>
       flushToolCalls()
-      result->Array.push(UserMsg(msg))
-    | Message.Assistant(_) =>
+      result->Array.push(UserMsg({id, content, annotations}))
+    | Message.Assistant(message) =>
       flushToolCalls()
-      result->Array.push(AssistantMsg(msg))
-    | Message.Error(_) =>
+      result->Array.push(AssistantMsg(message))
+    | Message.Error(err) =>
       flushToolCalls()
-      result->Array.push(ErrorMsg(msg))
+      result->Array.push(ErrorMsg(err))
     }
   })
 
@@ -170,37 +174,32 @@ let make = (~onConfigureProvider: unit => unit) => {
     | false => []
     }
 
-    let fileData = inputItems->Array.filterMap(item =>
-      switch item {
-      | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
-        Some((id, name, mediaType, dataUrl))
-      | Client__PromptInput.PastedText(_) => None
-      }
-    )
-
-    switch Array.length(fileData) > 0 {
-    | false => sendWithContent(textParts)
-    | true =>
+    switch Array.length(inputItems) {
+    | 0 => sendWithContent(textParts)
+    | _ =>
       let _ =
-        fileData
-        ->Array.map(((id, name, mediaType, dataUrl)) => {
-          Client__ImageLimits.constrainDataUrl(
-            dataUrl,
-            Client__ImageLimits.conservative,
-          )->Promise.then(constrained => {
-            let actualMediaType = switch constrained->String.startsWith("data:image/jpeg") {
-            | true => "image/jpeg"
-            | false => mediaType
-            }
-            Promise.resolve(
-              Client__State.UserContentPart.Image({
-                id: Some(id),
-                image: constrained,
-                mediaType: Some(actualMediaType),
-                name: Some(name),
-              }),
-            )
-          })
+        inputItems
+        ->Array.map(item => {
+          switch item {
+          | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
+            Client__ImageLimits.constrainDataUrl(
+              dataUrl,
+              Client__ImageLimits.conservative,
+            )->Promise.then(constrained => {
+              let actualMediaType = switch constrained->String.startsWith("data:image/jpeg") {
+              | true => "image/jpeg"
+              | false => mediaType
+              }
+              Promise.resolve(
+                Client__State.UserContentPart.Image({
+                  id: Some(id),
+                  image: constrained,
+                  mediaType: Some(actualMediaType),
+                  name: Some(name),
+                }),
+              )
+            })
+          }
         })
         ->Promise.all
         ->Promise.then(fileParts => {
@@ -265,15 +264,12 @@ let make = (~onConfigureProvider: unit => unit) => {
     let isLastToolGroup = itemIndex == lastToolGroupIndex
 
     switch item {
-    | UserMsg(Message.User({id, content, annotations, _})) =>
+    | UserMsg({id, content, annotations}) =>
       // Use stable message ID for key
-      // frontman-content-auto: browser skips layout/paint for off-screen messages
       let messageId = `user-${id}`
-      <div key={messageId} className="frontman-content-auto">
-        <UserMessage content annotations messageId isNew={isLastItem} />
-      </div>
+      <UserMessage key={messageId} content annotations messageId isNew={isLastItem} />
 
-    | AssistantMsg(Message.Assistant(Streaming({id, textBuffer, _}))) =>
+    | AssistantMsg(Streaming({id, textBuffer, _})) =>
       // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
@@ -282,7 +278,7 @@ let make = (~onConfigureProvider: unit => unit) => {
         />
       </div>
 
-    | AssistantMsg(Message.Assistant(Completed({id, content, _}))) =>
+    | AssistantMsg(Completed({id, content, _})) =>
       // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
@@ -344,16 +340,13 @@ let make = (~onConfigureProvider: unit => unit) => {
       // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
       let todos = TodoUtils.extractTodos(~input=tc.input, ~result=tc.result)
-      let isLoading = switch tc.state {
-      | InputStreaming | InputAvailable => true
-      | OutputAvailable | OutputError => false
-      }
+      let isLoading = tc.state == InputStreaming || tc.state == InputAvailable
 
       <div key={messageId} className="frontman-content-auto">
         <TodoListBlock todos isLoading messageId />
       </div>
 
-    | ErrorMsg(Message.Error(err)) =>
+    | ErrorMsg(err) =>
       <div key={`error-${Message.ErrorMessage.id(err)}`} className="frontman-content-auto">
         <ErrorBanner
           error={Message.ErrorMessage.error(err)}
@@ -367,9 +360,6 @@ let make = (~onConfigureProvider: unit => unit) => {
           }}
         />
       </div>
-
-    // Handle any unexpected message types
-    | UserMsg(_) | AssistantMsg(_) | ErrorMsg(_) => React.null
     }
   }
 
