@@ -233,6 +233,8 @@ export default defineConfig({
       // Exclude integration redirect pages — they 301 to /docs/integrations/*,
       // which are already in the sitemap.
       if (/(?<!\/docs)\/integrations\/(astro|nextjs|vite)\/?$/.test(item.url)) return undefined;
+      // Exclude noindexed stub pages that exist only for sidebar navigation.
+      if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
       // Exclude explicit noindex pages from sitemap output.
       if (/\/404\/?$/.test(item.url)) return undefined;
 
