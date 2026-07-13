@@ -5,6 +5,13 @@
 external item: (UiEventsTypes.dataTransferItemList, int) => UiEventsTypes.dataTransferItem = "item"
 
 /**
+Returns the indexed item. Some browser clipboard item lists are array-like
+without an `item()` method.
+*/
+@get_index
+external get: (UiEventsTypes.dataTransferItemList, int) => UiEventsTypes.dataTransferItem = ""
+
+/**
 Adds a new entry for the given data to the drag data store. If the data is plain text then a type string has to be provided also.
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/DataTransferItemList/add)
 */

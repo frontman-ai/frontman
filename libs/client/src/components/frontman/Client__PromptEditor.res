@@ -226,7 +226,7 @@ let getClipboardFiles = (dataTransfer: option<WebAPI.UiEventsTypes.dataTransfer>
     let itemFiles = []
     let items = dataTransfer.items
     for i in 0 to items.length - 1 {
-      let item = items->WebAPI.DataTransferItemList.item(i)
+      let item = items->WebAPI.DataTransferItemList.get(i)
       switch item.kind {
       | "file" =>
         item
