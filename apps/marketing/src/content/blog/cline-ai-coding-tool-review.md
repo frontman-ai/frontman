@@ -1,6 +1,6 @@
 ---
 title: 'Cline AI Coding Tool Review 2026: BYOK, Pricing, Pros, Cons, and Alternatives'
-seoTitle: 'Cline AI Coding Tool Review 2026: BYOK, Pricing, Pros, Cons, Alternatives'
+seoTitle: 'Cline AI Coding Tool Review 2026'
 pubDate: 2026-06-28T14:00:00Z
 description: 'A practical Cline AI coding tool review for 2026: BYOK setup, pricing model, model costs, VS Code and JetBrains support, MCP, CLI, pros, cons, Roo Code comparison, and alternatives.'
 author: 'Danni Friedland'

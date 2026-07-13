@@ -1,6 +1,6 @@
 ---
 title: 'Best WordPress AI Plugins in 2026'
-seoTitle: 'Best WordPress AI Agents 2026: Frontman, AI Engine, Elementor AI Compared'
+seoTitle: 'WordPress AI Plugins 2026'
 pubDate: 2026-06-24T05:00:00Z
 updatedDate: 2026-06-24T00:00:00Z
 description: 'Compare the best WordPress AI plugins in 2026 for agents, chatbots, builders, SEO, forms, content, and site editing workflows.'

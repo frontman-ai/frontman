@@ -40,7 +40,7 @@ const domains: Domain[] = [
 					))}
 					{domains.map(({ domain, logo }) => (
 						<li class="used-in-wild-domain" aria-hidden="true">
-							<img src={logo} alt="" loading="lazy" decoding="async" />
+							<img src={logo} alt={`${domain} logo`} loading="lazy" decoding="async" />
 						</li>
 					))}
 				</ul>
