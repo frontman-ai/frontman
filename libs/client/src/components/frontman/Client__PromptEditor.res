@@ -14,8 +14,6 @@ type acceptedMediaType =
   | Webp
   | Pdf
 
-type acceptedFile = {file: browserFile, mediaType: acceptedMediaType}
-
 type serializedPromptEditorContent = {
   text: string,
   fileAttachments: array<editorFileAttachment>,
@@ -43,9 +41,6 @@ type pastedTextAttrs = {id: string, text: string, label: string}
 type insertTarget =
   | Cursor(int)
   | Range(TiptapCore.insertRange)
-
-type insertAttrs<'attrs> = {@as("type") type_: string, attrs: 'attrs}
-type pasteAttrs = {id: string, text: string, label: string}
 
 let acceptedPromptFileTypesString = "image/png,image/jpeg,image/gif,image/webp,application/pdf"
 let maxFileSizeBytes = 10 * 1024 * 1024
@@ -79,7 +74,7 @@ let isAcceptedPromptFile = file => file->fileMediaType->parseAcceptedMediaType->
 
 let validatePromptFile = file => {
   switch file->fileMediaType->parseAcceptedMediaType {
-  | Some(mediaType) => Some({file, mediaType})
+  | Some(mediaType) => Some(mediaType)
   | None => None
   }
 }
@@ -263,7 +258,27 @@ let readFileAsDataUrl = (file: browserFile): promise<string> => {
   })
 }
 
-let nodeSpec = (spec: insertAttrs<'attrs>): TiptapCore.nodeSpec => spec->Obj.magic
+let stringAttrs = pairs => {
+  let attrs = Dict.make()
+  pairs->Array.forEach(((name, value)) => attrs->Dict.set(name, JSON.Encode.string(value)))
+  attrs
+}
+
+let nodeSpec = (~type_, ~attrs): TiptapCore.nodeSpec => {
+  let spec = Dict.make()
+  spec->Dict.set("type", JSON.Encode.string(type_))
+  spec->Dict.set("attrs", JSON.Encode.object(attrs))
+  spec->Obj.magic
+}
+
+let fileAttachmentToAttrs = (fileAttachment: editorFileAttachment) => {
+  stringAttrs([
+    ("id", fileAttachment.id),
+    ("name", fileAttachment.name),
+    ("mediaType", fileAttachment.mediaType),
+    ("dataUrl", fileAttachment.dataUrl),
+  ])
+}
 
 let requiredStringAttr = (attrs: option<jsonAttrs>, name: string) => {
   attrs
@@ -321,7 +336,7 @@ let getInsertedAtomEnd = target => {
 let insertFileAttachment = (editor, fileAttachment, insertTarget) => {
   let insertedAtomEnd = getInsertedAtomEnd(insertTarget)
   let chain = editor->TiptapCore.chain->TiptapCore.focus
-  let content = nodeSpec({type_: "fileAttachment", attrs: fileAttachment})
+  let content = nodeSpec(~type_="fileAttachment", ~attrs=fileAttachment->fileAttachmentToAttrs)
 
   switch insertTarget {
   | Cursor(position) => chain->TiptapCore.insertContentAtPos(position, content)
@@ -337,8 +352,12 @@ let insertFileAttachment = (editor, fileAttachment, insertTarget) => {
 let insertPastedText = (editor, text) => {
   let insertTarget = getSelectionInsertTarget(editor)
   let insertedAtomEnd = getInsertedAtomEnd(insertTarget)
-  let attrs: pasteAttrs = {id: generateId(), text, label: getPastedTextLabel(text)}
-  let content = nodeSpec({type_: "pastedText", attrs})
+  let attrs = stringAttrs([
+    ("id", generateId()),
+    ("text", text),
+    ("label", getPastedTextLabel(text)),
+  ])
+  let content = nodeSpec(~type_="pastedText", ~attrs)
   let chain = editor->TiptapCore.chain->TiptapCore.focus
 
   switch insertTarget {
@@ -462,7 +481,7 @@ let make = (
       let file = files->Array.get(i)->Option.getOrThrow(~message="file index inside loop bounds")
       switch validatePromptFile(file) {
       | None => ()
-      | Some({mediaType}) =>
+      | Some(mediaType) =>
         switch getPromptFileSizeError(file) {
         | Some(error) => onFileSizeErrorRef.current(error)
         | None =>
