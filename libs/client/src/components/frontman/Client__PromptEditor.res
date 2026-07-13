@@ -588,7 +588,7 @@ let make = (
     onUpdate: ({editor}) => onHasContentChangeRef.current(!(editor->TiptapCore.isEmpty)),
   })
 
-  React.useEffect0(() => {
+  React.useEffect(() => {
     editorRef.current = editor
     Some(
       () => {
@@ -598,18 +598,18 @@ let make = (
         }
       },
     )
-  })
+  }, editor)
 
-  React.useEffect0(() => {
+  React.useEffect(() => {
     editor
     ->Null.toOption
     ->Option.forEach(editor =>
       editor->TiptapCore.setEditable(!(disabled || isEnrichingAnnotations))
     )
     None
-  })
+  }, (editor, disabled, isEnrichingAnnotations))
 
-  React.useEffect0(() => {
+  React.useEffect(() => {
     switch (editor->Null.toOption, submitSignal == lastSubmitSignalRef.current) {
     | (Some(editor), false) =>
       lastSubmitSignalRef.current = submitSignal
@@ -617,9 +617,9 @@ let make = (
     | _ => ()
     }
     None
-  })
+  }, (editor, submitSignal))
 
-  React.useEffect0(() => {
+  React.useEffect(() => {
     switch attachSignal == lastAttachSignalRef.current {
     | true => ()
     | false =>
@@ -630,9 +630,9 @@ let make = (
       }
     }
     None
-  })
+  }, (attachSignal, disabled, isEnrichingAnnotations))
 
-  React.useEffect0(() => {
+  React.useEffect(() => {
     switch dropFilesSignal == lastDropFilesSignalRef.current {
     | true => ()
     | false =>
@@ -647,7 +647,7 @@ let make = (
       }
     }
     None
-  })
+  }, (dropFilesSignal, editor, droppedFiles, disabled, isEnrichingAnnotations))
 
   let handleFileInputChange = _ => {
     switch (editorRef.current->Null.toOption, fileInputRef.current->Nullable.toOption) {
