@@ -281,6 +281,10 @@ let make = (
   let (hasContent, setHasContent) = React.useState(() => false)
   let (submitSignal, setSubmitSignal) = React.useState(() => 0)
   let (attachSignal, setAttachSignal) = React.useState(() => 0)
+  let (dropFilesSignal, setDropFilesSignal) = React.useState(() => 0)
+  let (droppedFiles, setDroppedFiles) = React.useState((): array<
+    Client__PromptEditor.browserFile,
+  > => [])
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
   let (fileSizeError, setFileSizeError) = React.useState((): option<string> => None)
   // showToolbarLabels: true when toolbar is wide enough to show compact button labels
@@ -292,6 +296,18 @@ let make = (
     | Some(configOption) => !modelConfigOptionHasModels(configOption)
     | None => false
     }
+
+  let getDroppedFiles: ReactEvent.Mouse.t => array<Client__PromptEditor.browserFile> = %raw(`
+    function(event) {
+      var files = event.dataTransfer && event.dataTransfer.files;
+      return files ? Array.from(files) : [];
+    }
+  `)
+
+  let preventDefaultDropNavigation = (event: ReactEvent.Mouse.t) => {
+    ReactEvent.Mouse.preventDefault(event)
+    ReactEvent.Mouse.stopPropagation(event)
+  }
 
   // ResizeObserver: hide "Select" label when toolbar is too narrow
   let _setupResizeObserver: (Dom.element, bool => unit) => unit => unit = %raw(`
@@ -325,6 +341,16 @@ let make = (
   // Submit button asks the editor to serialize and clear itself.
   let doSubmit = () => setSubmitSignal(prev => prev + 1)
   let openAttachPicker = () => setAttachSignal(prev => prev + 1)
+  let handleDrop = (event: ReactEvent.Mouse.t) => {
+    preventDefaultDropNavigation(event)
+    let files = getDroppedFiles(event)
+    switch files->Array.length {
+    | 0 => ()
+    | _ =>
+      setDroppedFiles(_ => files)
+      setDropFilesSignal(prev => prev + 1)
+    }
+  }
 
   let handleEditorSubmit = (
     text,
@@ -354,7 +380,12 @@ let make = (
     placeholder
   }
 
-  <div ref={ReactDOM.Ref.domRef(formRef)} className="bg-[#130d20] relative shrink-0">
+  <div
+    ref={ReactDOM.Ref.domRef(formRef)}
+    className="bg-[#130d20] relative shrink-0"
+    onDragOver={preventDefaultDropNavigation}
+    onDrop={handleDrop}
+  >
     // File size error toast
     {switch fileSizeError {
     | Some(error) =>
@@ -377,6 +408,8 @@ let make = (
         hasAnnotations
         submitSignal
         attachSignal
+        dropFilesSignal
+        droppedFiles
         onHasContentChange={value => setHasContent(_ => value)}
         onSubmit={handleEditorSubmit}
         onPreviewImage={src => setPreviewSrc(_ => Some(src))}

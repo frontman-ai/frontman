@@ -8,6 +8,7 @@ import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
 import Placeholder from "@tiptap/extension-placeholder";
 import Text from "@tiptap/extension-text";
+import { UndoRedo } from "@tiptap/extensions";
 import {
 	EditorContent,
 	type NodeViewProps,
@@ -308,6 +309,8 @@ export type ClientPromptEditorProps = {
 	hasAnnotations: boolean;
 	submitSignal: number;
 	attachSignal: number;
+	dropFilesSignal: number;
+	droppedFiles: Array<File>;
 	onHasContentChange: (hasContent: boolean) => void;
 	onSubmit: (
 		text: string,
@@ -324,6 +327,8 @@ export function ClientPromptEditor({
 	hasAnnotations,
 	submitSignal,
 	attachSignal,
+	dropFilesSignal,
+	droppedFiles,
 	onHasContentChange,
 	onSubmit,
 	onPreviewImage,
@@ -341,6 +346,7 @@ export function ClientPromptEditor({
 	const onFileSizeErrorRef = useRef(onFileSizeError);
 	const lastSubmitSignalRef = useRef(submitSignal);
 	const lastAttachSignalRef = useRef(attachSignal);
+	const lastDropFilesSignalRef = useRef(dropFilesSignal);
 	const submitEditorRef = useRef<(editor: Editor) => boolean>(() => false);
 
 	placeholderRef.current = placeholder;
@@ -372,31 +378,45 @@ export function ClientPromptEditor({
 		return disabledRef.current || isEnrichingAnnotationsRef.current;
 	};
 
+	const getSelectionInsertTarget = (currentEditor: Editor) => {
+		const { from, to } = currentEditor.state.selection;
+		return from === to ? to : { from, to };
+	};
+
+	type InsertTarget = number | { from: number; to: number };
+
+	const getInsertedAtomEnd = (target: InsertTarget) => {
+		return typeof target === "number" ? target + 1 : target.from + 1;
+	};
+
 	const insertFileAttachment = (
 		currentEditor: Editor,
 		fileAttachment: EditorFileAttachment,
-		insertPos = currentEditor.state.selection.to,
+		insertTarget: InsertTarget = getSelectionInsertTarget(currentEditor),
 	) => {
+		const insertedAtomEnd = getInsertedAtomEnd(insertTarget);
+
 		currentEditor
 			.chain()
 			.focus()
-			.insertContentAt(insertPos, {
+			.insertContentAt(insertTarget, {
 				type: "fileAttachment",
 				attrs: fileAttachment,
 			})
-			.setTextSelection(insertPos + 1)
+			.setTextSelection(insertedAtomEnd)
 			.run();
 
-		return insertPos + 1;
+		return insertedAtomEnd;
 	};
 
 	const insertPastedText = (currentEditor: Editor, text: string) => {
-		const insertPos = currentEditor.state.selection.to;
+		const insertTarget = getSelectionInsertTarget(currentEditor);
+		const insertedAtomEnd = getInsertedAtomEnd(insertTarget);
 
 		currentEditor
 			.chain()
 			.focus()
-			.insertContentAt(insertPos, {
+			.insertContentAt(insertTarget, {
 				type: "pastedText",
 				attrs: {
 					id: generateId(),
@@ -404,7 +424,7 @@ export function ClientPromptEditor({
 					label: getPastedTextLabel(text),
 				},
 			})
-			.setTextSelection(insertPos + 1)
+			.setTextSelection(insertedAtomEnd)
 			.run();
 	};
 
@@ -437,12 +457,15 @@ export function ClientPromptEditor({
 			);
 		}
 	};
+	const addFilesRef = useRef(addFiles);
+	addFilesRef.current = addFiles;
 
 	const editor = useEditor({
 		extensions: [
 			Document,
 			Paragraph,
 			Text,
+			UndoRedo,
 			FileAttachmentNode.configure({
 				onPreviewImage: (src: string) => onPreviewImageRef.current(src),
 			}),
@@ -544,6 +567,23 @@ export function ClientPromptEditor({
 
 		fileInputRef.current?.click();
 	}, [attachSignal]);
+
+	useEffect(() => {
+		if (dropFilesSignal === lastDropFilesSignalRef.current) return;
+
+		lastDropFilesSignalRef.current = dropFilesSignal;
+		const currentEditor = editorRef.current;
+		if (
+			!currentEditor ||
+			droppedFiles.length === 0 ||
+			disabledRef.current ||
+			isEnrichingAnnotationsRef.current
+		) {
+			return;
+		}
+
+		void addFilesRef.current(currentEditor, droppedFiles);
+	}, [dropFilesSignal, droppedFiles]);
 
 	const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
 		const currentEditor = editorRef.current;

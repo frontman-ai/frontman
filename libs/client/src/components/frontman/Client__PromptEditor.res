@@ -5,6 +5,8 @@ type editorFileAttachment = {
   dataUrl: string,
 }
 
+type browserFile
+
 @module("./ClientPromptEditor.tsx") @react.component
 external make: (
   ~disabled: bool,
@@ -13,6 +15,8 @@ external make: (
   ~hasAnnotations: bool,
   ~submitSignal: int,
   ~attachSignal: int,
+  ~dropFilesSignal: int,
+  ~droppedFiles: array<browserFile>,
   ~onHasContentChange: bool => unit,
   ~onSubmit: (string, array<editorFileAttachment>) => unit,
   ~onPreviewImage: string => unit,
