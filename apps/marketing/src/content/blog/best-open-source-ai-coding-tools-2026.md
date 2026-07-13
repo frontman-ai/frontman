@@ -1,57 +1,106 @@
 ---
-title: 'Best Open-Source AI Coding Tools in 2026: Cline, Roo Code, OpenHands, Kilo Code, BYOK Agents'
-seoTitle: 'Open-Source AI Coding Tools 2026'
+title: 'Best Open-Source AI Coding Agents in 2026: Cline, OpenHands, OpenCode, Aider, Kilo Code'
+seoTitle: 'Best Open-Source AI Coding Agents 2026: Cline, OpenHands, OpenCode'
 pubDate: 2026-03-03T10:00:00Z
-description: 'Compare the best open-source AI coding tools, coding agents, BYOK assistants, and CLI tools in 2026: Cline, Roo Code, OpenHands, Kilo Code, Aider, Goose, Continue, Tabby, Stagewise, and Frontman.'
+description: 'Compare the best open-source AI coding agents in 2026 by GitHub stars, license, BYOK support, local models, and workflow: Cline, OpenHands, OpenCode, Aider, Goose, Kilo Code, Continue, Tabby, Stagewise, and Frontman.'
 author: 'Danni Friedland'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
-updatedDate: 2026-06-22T00:00:00Z
+updatedDate: 2026-07-13T00:00:00Z
 faq:
   - question: 'What are the best open-source AI coding tools in 2026?'
-    answer: 'The most popular open-source AI coding tools by GitHub stars are OpenHands (68k stars, MIT), Cline (58k, Apache 2.0), Aider (41k, Apache 2.0), Tabby (33k, Apache 2.0), Goose (32k, Apache 2.0), Continue (31k, Apache 2.0), archived Roo Code (22k, Apache 2.0), and bolt.diy (19k, MIT). Each targets a different workflow: Aider and Goose are CLI-based, Cline and Roo-style forks are VS Code agents, Tabby is self-hosted autocomplete, and OpenHands is a full agent platform.'
+    answer: 'The most popular open-source AI coding agents by GitHub stars are OpenCode (170k+ stars, MIT), OpenHands (70k+ stars, MIT core), Cline (60k+ stars, Apache 2.0), Aider (45k+ stars, Apache 2.0), Goose (45k+ stars, Apache 2.0), Tabby (33k+ stars, Apache 2.0), Continue (31k+ stars, Apache 2.0), and Kilo Code (19k+ stars, MIT). Each targets a different workflow: OpenCode and Aider are terminal-first, Cline and Kilo Code are IDE agents, Tabby is self-hosted autocomplete, and OpenHands is a full autonomous agent platform.'
   - question: 'What is the best open-source alternative to Cursor?'
-    answer: 'Void (28k stars) was the most direct open-source Cursor alternative as a VS Code fork, but the project paused development in 2025. Active alternatives include Cline (58k stars) as a VS Code agent with BYOK, Continue (31k stars) for IDE integration, and Aider (41k stars) for terminal-based pair programming. Roo Code was archived in May 2026, so evaluate maintained Roo-style forks instead. For visual frontend editing specifically, Frontman and Stagewise take a browser-based approach instead of the IDE approach.'
+    answer: 'Void (28k stars) was the most direct open-source Cursor alternative as a VS Code fork, but the project paused development in 2025. Active alternatives include Cline (60k+ stars) as an IDE-native agent with BYOK, Continue (31k+ stars) for configurable IDE integration, OpenCode (170k+ stars) for terminal workflows, and Aider (45k+ stars) for git-native terminal pair programming. Roo Code was archived in May 2026, so evaluate maintained Roo-style forks instead. For visual frontend editing specifically, Frontman and Stagewise take a browser-based approach instead of the IDE approach.'
   - question: 'What is the best open-source alternative to GitHub Copilot?'
     answer: 'Tabby (33k stars) is the closest open-source alternative to GitHub Copilot. It provides self-hosted code completion for VS Code and JetBrains with support for local models. Continue (31k stars) also offers autocomplete and chat as a VS Code/JetBrains extension. Both are Apache 2.0 licensed and support BYOK.'
   - question: 'Which open-source AI coding tools support BYOK (bring your own key)?'
-    answer: 'Most major open-source AI coding tools support BYOK: Aider, Cline, Kilo Code, Goose, Continue, Frontman, and bolt.diy all let you connect your own API keys to Claude, OpenAI, OpenRouter, or other providers. Roo Code supported BYOK before it was archived in May 2026. Tabby supports local models. Stagewise requires its own account for the built-in agent but can bridge to IDE agents.'
+    answer: 'Most major open-source AI coding tools support BYOK: OpenCode, Aider, Cline, Kilo Code, Goose, Continue, Frontman, and bolt.diy all let you connect your own API keys to Claude, OpenAI, OpenRouter, Ollama, or other providers. Roo Code supported BYOK before it was archived in May 2026. Tabby supports local models. Stagewise requires its own account for the built-in agent but can bridge to IDE agents.'
   - question: 'Are there open-source AI coding tools that work in the browser?'
     answer: 'Yes. Frontman (frontman.sh) and Stagewise (stagewise.io) both let you click elements in your running web app and describe changes in natural language. Frontman installs as framework middleware for Next.js, Astro, and Vite. Stagewise is a CLI overlay that injects a toolbar. bolt.diy runs a full cloud IDE in the browser for generating new apps from scratch.'
   - question: 'What are the best open-source AI CLI coding tools in 2026?'
-    answer: 'The two leading open-source CLI coding tools are Aider (41k stars, Apache 2.0) and Goose (32k stars, Apache 2.0). Aider is a terminal-based pair programmer with deep git integration — it auto-commits changes and supports any LLM via BYOK. Goose, built by Block, combines a CLI with a desktop app and supports MCP for extensibility. Both run locally and work with any editor. Claude Code is another popular terminal agent but is proprietary, not open-source.'
+    answer: 'The leading open-source CLI coding tools are OpenCode (170k+ stars, MIT), Aider (45k+ stars, Apache 2.0), and Goose (45k+ stars, Apache 2.0). OpenCode is the most visible open-source Claude Code-style terminal agent, Aider is a git-native pair programmer, and Goose combines a CLI with a desktop app and MCP-based automation. Claude Code is another popular terminal agent but is proprietary, not open-source.'
   - question: 'How do Aider, Cline, and Roo Code compare in 2026?'
-    answer: 'Aider (41k stars) is a CLI tool — you run it in the terminal and it edits files with git integration. Cline (58k stars) is a VS Code extension that acts as an autonomous coding agent with human-in-the-loop approval. Roo Code (22k stars) forked from Cline and added a multi-mode system (Code, Architect, Ask, Debug) for structured workflows, but it was archived in May 2026. The choice depends on your workflow: terminal (Aider), VS Code with approval gates (Cline), or a maintained Roo-style fork if you specifically want structured modes.'
+    answer: 'Aider (45k+ stars) is a CLI tool — you run it in the terminal and it edits files with git integration. Cline (60k+ stars) is an IDE extension and CLI that acts as an autonomous coding agent with human-in-the-loop approval. Roo Code (22k stars) forked from Cline and added a multi-mode system (Code, Architect, Ask, Debug) for structured workflows, but it was archived in May 2026. The choice depends on your workflow: terminal (Aider or OpenCode), IDE with approval gates (Cline), or a maintained Roo-style fork if you specifically want structured modes.'
   - question: 'What are the best BYOK AI coding tools in 2026?'
-    answer: 'BYOK (bring your own key) tools let you connect your own API keys to Claude, OpenAI, OpenRouter, or other providers instead of paying a tool subscription. The best active BYOK options are: Aider (CLI, 41k stars), Cline (VS Code, 58k stars), Kilo Code (VS Code + JetBrains, 16k stars), Goose (CLI + desktop, 32k stars), Continue (IDE + CLI, 31k stars), Frontman (browser-based, Apache 2.0), and bolt.diy (cloud IDE, 19k stars). Tabby supports local models instead of API keys. Roo Code supported BYOK before it was archived.'
+    answer: 'BYOK (bring your own key) tools let you connect your own API keys to Claude, OpenAI, OpenRouter, local Ollama models, or other providers instead of paying a fixed tool subscription. The best active BYOK options are OpenCode, Cline, Aider, Goose, Kilo Code, Continue, Frontman, and bolt.diy. Tabby supports local models instead of API keys. Roo Code supported BYOK before it was archived.'
 ---
 
-The best open-source AI coding tool in 2026 depends on your workflow: use Aider or Goose for terminal agents, Cline or Kilo Code for IDE-based agents, Tabby for self-hosted autocomplete, OpenHands for autonomous agent platforms, and Frontman or Stagewise for browser-based visual editing.
+The best open-source AI coding agent in 2026 depends on your workflow: use OpenCode or Aider for terminal agents, Cline or Kilo Code for IDE-based agents, OpenHands for autonomous feature work, Tabby for self-hosted autocomplete, and Frontman or Stagewise for browser-based visual editing.
 
 There are over a dozen open-source AI coding tools that have gained serious traction in 2026. They range from terminal pair programmers to full agent platforms to browser-based visual editors that bridge the [runtime context gap](/blog/runtime-context-gap/). This is a factual comparison of every major one, organized by architecture category. We built Frontman (one of the tools listed), so we'll note that where relevant and call out where other tools are stronger.
 
 > **Looking for the latest releases?** See our [monthly open source AI releases roundup](/open-source-ai-releases/) for what shipped recently.
 
-Last updated: June 2026. Star counts are approximate. Update: Roo Code was shut down and archived in May 2026; see the dedicated [Roo Code vs Cline comparison](/blog/roo-code-vs-cline/) for current adoption guidance. If you are evaluating Cline specifically, start with the full [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/).
+Last updated: July 2026. Star counts are approximate and move quickly. Update: Roo Code was shut down and archived in May 2026; see the dedicated [Roo Code vs Cline comparison](/blog/roo-code-vs-cline/) for current adoption guidance. If you are evaluating Cline specifically, start with the full [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/). Claude Code is popular but proprietary, so it is not included as an open-source agent.
+
+## Quick answer: best open-source AI coding agents in July 2026
+
+| If you need... | Pick | Why |
+|----------------|------|-----|
+| Open-source Claude Code alternative | OpenCode | Terminal-native, MIT licensed, broad provider support |
+| VS Code AI coding agent | Cline | Largest Cline-family community, Plan/Act oversight, MCP support |
+| Autonomous feature delegation | OpenHands | Full agent platform with CLI, web UI, cloud, and local/self-hosted paths |
+| Git-native terminal edits | Aider | Mature CLI workflow with repo maps and git commits |
+| No-Docker autonomous agent | Goose | CLI + desktop app, MCP-first, Linux Foundation governance |
+| JetBrains support | Kilo Code or Continue | Kilo Code for agentic work, Continue for assistant/completion workflows |
+| Air-gapped team autocomplete | Tabby | Self-hosted code completion server with local models |
+| Visual frontend edits | Frontman or Stagewise | Browser-aware workflows for clicking UI and editing code |
+
+## GitHub stars, license, and local-model support
+
+Searchers often use GitHub stars as a quick trust signal. Stars do not prove production quality, but they help show which projects have active community gravity.
+
+| Tool | Approx. stars | License | Interface | Local models / BYOK | Best fit |
+|------|--------------:|---------|-----------|---------------------|----------|
+| [OpenCode](https://opencode.ai/) | 170k+ | MIT | Terminal, desktop, IDE | BYOK, Ollama, many providers | Claude Code-style terminal agent |
+| [OpenHands](https://github.com/OpenHands/OpenHands) | 70k+ | MIT core | Web UI, CLI, cloud | BYOK, self-hosted runtimes | Autonomous software tasks |
+| [Cline](https://github.com/cline/cline) | 60k+ | Apache-2.0 | VS Code, JetBrains, CLI | BYOK, Ollama, LM Studio | IDE-native coding agent |
+| [Goose](https://github.com/aaif-goose/goose) | 45k+ | Apache-2.0 | CLI, desktop, API | BYOK, Ollama, MCP | Editor-agnostic automation |
+| [Aider](https://github.com/Aider-AI/aider) | 45k+ | Apache-2.0 | Terminal | BYOK, Ollama | Git-native pair programming |
+| [Tabby](https://github.com/TabbyML/tabby) | 33k+ | Apache-2.0 core | Server + IDE plugins | Local models | Air-gapped completions |
+| [Continue](https://github.com/continuedev/continue) | 31k+ | Apache-2.0 | VS Code, JetBrains, CLI | BYOK, Ollama | Configurable assistant workflows |
+| [Kilo Code](https://github.com/Kilo-Org/kilocode) | 19k+ | MIT | VS Code, JetBrains, CLI | BYOK, local models | Cline-family agent with JetBrains |
+| [Stagewise](https://github.com/stagewise-io/stagewise) | 6k+ | AGPL-3.0 | Browser overlay | Partial BYOK | Visual edits through browser overlay |
+| [Frontman](https://github.com/frontman-ai/frontman) | Early | Apache-2.0 / AGPL-3.0 | Browser + framework middleware | BYOK | Framework-aware visual frontend edits |
 
 ## Best open-source AI coding tools: quick ranking
 
 | Tool | Stars | License | Category | BYOK | Status |
 |------|------:|---------|----------|------|--------|
-| [OpenHands](https://github.com/OpenHands/OpenHands) | 68,500 | MIT | Agent platform | Yes | Active |
-| [Cline](https://github.com/cline/cline) | 58,600 | Apache-2.0 | VS Code extension | Yes | Active |
-| [Aider](https://github.com/Aider-AI/aider) | 41,200 | Apache-2.0 | CLI | Yes | Active |
-| [Tabby](https://github.com/TabbyML/tabby) | 33,000 | Apache-2.0 | Self-hosted | Local models | Active |
-| [Goose](https://github.com/block/goose) | 32,300 | Apache-2.0 | CLI + Desktop | Yes | Active |
+| [OpenCode](https://opencode.ai/) | 170,000+ | MIT | Terminal + desktop + IDE | Yes | Active |
+| [OpenHands](https://github.com/OpenHands/OpenHands) | 70,000+ | MIT core | Agent platform | Yes | Active |
+| [Cline](https://github.com/cline/cline) | 60,000+ | Apache-2.0 | VS Code + JetBrains + CLI | Yes | Active |
+| [Aider](https://github.com/Aider-AI/aider) | 45,000+ | Apache-2.0 | CLI | Yes | Active |
+| [Goose](https://github.com/aaif-goose/goose) | 45,000+ | Apache-2.0 | CLI + Desktop | Yes | Active |
+| [Tabby](https://github.com/TabbyML/tabby) | 33,000+ | Apache-2.0 | Self-hosted | Local models | Active |
 | [Continue](https://github.com/continuedev/continue) | 31,600 | Apache-2.0 | CLI + IDE | Yes | Pivoting |
 | [Void](https://github.com/voideditor/void) | 28,300 | Apache-2.0 | IDE (VS Code fork) | Yes | Paused |
 | [Roo Code](https://github.com/RooCodeInc/Roo-Code) | 22,500 | Apache-2.0 | VS Code extension | Yes | Archived |
 | [bolt.diy](https://github.com/stackblitz-labs/bolt.diy) | 19,100 | MIT | Cloud IDE | Yes | Active |
-| [Kilo Code](https://github.com/Kilo-Org/kilocode) | 16,200 | Apache-2.0 | VS Code + JetBrains | Yes | Active |
+| [Kilo Code](https://github.com/Kilo-Org/kilocode) | 19,000+ | MIT | VS Code + JetBrains | Yes | Active |
 | [Stagewise](https://github.com/stagewise-io/stagewise) | 6,500 | AGPL-3.0 | Browser-based | Partial | Active |
 | [Frontman](https://github.com/frontman-ai/frontman) | ~131 | Apache-2.0 / AGPL-3.0 | Browser-based | Yes | Active |
 
-Apache-2.0 is the dominant license. AGPL-3.0 appears on Stagewise and Frontman's server component. MIT on OpenHands and bolt.diy.
+Apache-2.0 is common across Cline-family and assistant tools. MIT appears on OpenCode, OpenHands core, Kilo Code, and bolt.diy. AGPL-3.0 appears on Stagewise and Frontman's server component.
+
+## Cline AI coding agent official status in 2026
+
+Cline is the safest default if you want an open-source AI coding agent inside VS Code. The official project is `cline/cline` on GitHub, licensed Apache-2.0, with Plan/Act workflows, MCP support, terminal access, browser use, and human approval before actions.
+
+Use Cline when you want an IDE-native agent that can edit files, run commands, inspect browser output, and still ask before each significant step. Skip it if you want a terminal-first workflow or fully autonomous task delegation; OpenCode, Aider, Goose, or OpenHands fit those cases better.
+
+## OpenHands AI coding agent official status in 2026
+
+OpenHands, formerly OpenDevin, is the strongest open-source option when you want a full autonomous software agent platform rather than an editor extension. The official repo is `OpenHands/OpenHands`, and the product offers local, cloud, CLI, and web-based workflows.
+
+Use OpenHands for issue-to-PR work, autonomous feature attempts, sandboxed execution, and teams evaluating an open-source Devin-style agent. Skip it if you need lightweight inline completion or cannot run the runtime requirements in your environment.
+
+## OpenCode and other open-source Claude Code alternatives
+
+OpenCode is now a major category signal because developers search for an open-source Claude Code alternative, not just a Copilot alternative. It is terminal-native, MIT licensed, and model-provider agnostic. It belongs near the top of any 2026 open-source AI coding agent comparison even though it serves a different workflow from Cline.
+
+Other alternatives in this lane include Aider for git-native terminal pair programming, Goose for editor-agnostic automation with desktop and CLI surfaces, and Codex CLI or Gemini CLI when Apache-licensed terminal agents fit the requirement. Claude Code itself is excluded here because it is proprietary.
 
 ## Roo Code vs Cline in 2026: Cline vs Kilo Code vs OpenHands
 
@@ -68,9 +117,17 @@ Cline is the safest default for an open-source VS Code AI coding agent in 2026. 
 
 ## CLI-Based Open-Source AI Coding Tools
 
+### OpenCode
+
+[opencode.ai](https://opencode.ai/) | 170,000+ stars | MIT
+
+OpenCode is a terminal-native open-source coding agent for developers who want a Claude Code-style workflow without being locked to a single model provider. It works across editors, supports many model providers, and can run local models through Ollama or OpenAI-compatible endpoints.
+
+The main advantage is portability: run the same agent workflow from the terminal while switching between Claude, OpenAI, Gemini, local models, or other providers. The tradeoff is that it is not as deeply IDE-native as Cline and does not replace autocomplete-focused tools like Continue or Tabby.
+
 ### Aider
 
-[aider.chat](https://aider.chat) | 41,200 stars | Apache-2.0
+[aider.chat](https://aider.chat) | 45,000+ stars | Apache-2.0
 
 Terminal-based AI pair programmer. You run `aider` in your project directory and chat with it. It maps your repo structure, edits files directly, and auto-commits changes to git. Written in Python. Works with any LLM via BYOK.
 
@@ -80,7 +137,7 @@ It works with any editor and has excellent git integration (auto-commits with se
 
 ### Goose
 
-[block.github.io/goose](https://block.github.io/goose) | 32,300 stars | Apache-2.0
+[block.github.io/goose](https://block.github.io/goose) | 45,000+ stars | Apache-2.0
 
 Built by Block (the company behind Square and Cash App). Goose is a local AI agent with both a CLI and a desktop app. It goes beyond code suggestions: install dependencies, run commands, execute tests, edit files. MCP integration for extensibility.
 
@@ -90,7 +147,7 @@ Corporate backing from Block means long-term maintenance is likely. The desktop 
 
 ### Cline
 
-[github.com/cline/cline](https://github.com/cline/cline) | 58,600 stars | Apache-2.0
+[github.com/cline/cline](https://github.com/cline/cline) | 60,000+ stars | Apache-2.0
 
 Autonomous coding agent that runs as a VS Code extension. Cline can create and edit files, run terminal commands, use a headless browser, and work with MCP tools. Every action requires human approval before execution, keeping you in the loop.
 
@@ -108,7 +165,7 @@ The mode system gives more structured control over the agent's behavior than Cli
 
 ### Kilo Code
 
-[github.com/Kilo-Org/kilocode](https://github.com/Kilo-Org/kilocode) | 16,200 stars | Apache-2.0
+[github.com/Kilo-Org/kilocode](https://github.com/Kilo-Org/kilocode) | 19,000+ stars | MIT
 
 Another descendant of the Cline family, Kilo Code targets both VS Code and JetBrains. Claims over 1.5 million users and reports being the highest-volume consumer on OpenRouter. Positions itself as an "all-in-one agentic engineering platform."
 
@@ -150,7 +207,7 @@ Void is worth mentioning because of its star count and because it validated dema
 
 ### OpenHands
 
-[openhands.dev](https://openhands.dev) | 68,500 stars | MIT (open-core)
+[openhands.dev](https://openhands.dev) | 70,000+ stars | MIT (open-core)
 
 Formerly OpenDevin. OpenHands is a full AI-powered development platform with an SDK, CLI, local web GUI, and hosted cloud version. Agents can browse the web, write and execute code, manage files, and handle end-to-end development workflows.
 

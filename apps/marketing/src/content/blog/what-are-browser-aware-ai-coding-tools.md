@@ -153,4 +153,4 @@ If you're a designer or PM evaluating these tools, the honest answer depends on 
 
 **You're already on Cursor.** The Visual Editor is right there. No evaluation needed for the engineering side—but it doesn't solve the designer-to-code gap since it lives inside a code editor.
 
-None of these tools is a finished product yet. The broader [open-source AI coding tools](/blog/best-open-source-ai-coding-tools-2026/) category is early. But the gap they're filling—the week-long cycle between "I see a spacing issue" and "it's fixed in production"—is real, and it's worth understanding your options.
+None of these tools is a finished product yet. The broader [open-source AI coding agents](/blog/best-open-source-ai-coding-tools-2026/) category is early. But the gap they're filling—the week-long cycle between "I see a spacing issue" and "it's fixed in production"—is real, and it's worth understanding your options.
