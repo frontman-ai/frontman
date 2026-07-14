@@ -155,6 +155,30 @@ defmodule AgentClientProtocol do
     ]
   end
 
+  @doc "Builds ACP mode config options from the backend-owned agent catalog."
+  def build_agent_config_options(agents) when is_list(agents) do
+    [
+      %{
+        "type" => "select",
+        "id" => "agent",
+        "name" => "Agent",
+        "category" => "mode",
+        "options" =>
+          Enum.map(agents, fn agent ->
+            %{
+              "value" => agent.id,
+              "name" => agent.display_name,
+              "description" => agent.description,
+              "_meta" => %{
+                "frontman.dev/agentColor" => agent.color,
+                "frontman.dev/agentName" => agent.name
+              }
+            }
+          end)
+      }
+    ]
+  end
+
   @doc """
   Builds session/new result payload with optional config options.
   """
@@ -231,18 +255,32 @@ defmodule AgentClientProtocol do
     JsonRpc.notification(@method_session_update, params)
   end
 
+  @doc "Builds an ACP current_mode_update identifying the agent selected for a turn."
+  def build_current_mode_update_notification(session_id, agent_id)
+      when is_binary(agent_id) and agent_id != "" do
+    JsonRpc.notification(@method_session_update, %{
+      "sessionId" => session_id,
+      "update" => %{
+        "sessionUpdate" => "current_mode_update",
+        "currentModeId" => agent_id
+      }
+    })
+  end
+
   @doc """
   Builds a canonical accepted user_message session/update notification.
 
   Used when a user message is persisted as accepted session history. `message_id` is server-owned.
   """
-  def build_user_message_notification(session_id, message_id, content) do
+  def build_user_message_notification(session_id, message_id, content, agent_id)
+      when is_binary(agent_id) and agent_id != "" do
     JsonRpc.notification(@method_session_update, %{
       "sessionId" => session_id,
       "update" => %{
         "sessionUpdate" => "user_message",
         "messageId" => message_id,
-        "content" => content
+        "content" => content,
+        "_meta" => %{"frontman.dev/agentId" => agent_id}
       }
     })
   end

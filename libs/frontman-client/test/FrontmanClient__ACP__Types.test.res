@@ -235,6 +235,12 @@ module Fixtures = {
         ("sessionUpdate", JSON.Encode.string("user_message")),
         ("messageId", JSON.Encode.string(messageId)),
         (
+          "_meta",
+          JSON.Encode.object(
+            Dict.fromArray([("frontman.dev/agentId", JSON.Encode.string("executor-id"))]),
+          ),
+        ),
+        (
           "content",
           JSON.Encode.array([
             JSON.Encode.object(
@@ -285,9 +291,18 @@ describe("sessionUpdate schema parsing", () => {
     let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
 
     switch parsed {
-    | Types.UserMessage({messageId, content: [Types.TextContent({text})]}) =>
-      t->expect(messageId)->Expect.toBe("msg-123")
-      t->expect(text)->Expect.toBe("Accepted user message")
+    | Types.UserMessage({messageId, content: [Types.TextContent({text})], _meta: Some(meta)}) => {
+        t->expect(messageId)->Expect.toBe("msg-123")
+        t->expect(text)->Expect.toBe("Accepted user message")
+        t
+        ->expect(
+          meta
+          ->JSON.Decode.object
+          ->Option.flatMap(dict => dict->Dict.get("frontman.dev/agentId"))
+          ->Option.flatMap(JSON.Decode.string),
+        )
+        ->Expect.toBe(Some("executor-id"))
+      }
     | _ => t->expect("UserMessage")->Expect.toBe("not matched")
     }
   })

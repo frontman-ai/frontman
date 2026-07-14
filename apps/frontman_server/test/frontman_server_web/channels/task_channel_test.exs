@@ -242,6 +242,16 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       )
 
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "current_mode_update",
+            "currentModeId" => "test-frontman"
+          }
+        }
+      })
+
       assert_state_update_running(task_id)
 
       assert_push("acp:message", %{
@@ -265,7 +275,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       ref = push(socket, "acp:message", build_prompt_request())
 
       assert_push("acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "user_message"}}
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "user_message",
+            "_meta" => %{"frontman.dev/agentId" => "test-frontman"}
+          }
+        }
       })
 
       assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
@@ -292,7 +307,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         )
 
       assert_push("acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "user_message"}}
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "user_message",
+            "_meta" => %{"frontman.dev/agentId" => "test-planner"}
+          }
+        }
       })
 
       assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})

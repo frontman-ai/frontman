@@ -44,6 +44,21 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
+      assert_push("config_options_updated", %{"configOptions" => config_options})
+
+      assert %{
+               "options" => [
+                 %{
+                   "value" => "test-frontman",
+                   "_meta" => %{"frontman.dev/agentColor" => "#985DF7"}
+                 },
+                 %{
+                   "value" => "test-planner",
+                   "_meta" => %{"frontman.dev/agentColor" => "#F59E0B"}
+                 }
+               ]
+             } = Enum.find(config_options, &(&1["id"] == "agent"))
+
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -570,7 +585,19 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "user_message",
-            "content" => [%{"text" => "Prompt"}]
+            "content" => [%{"text" => "Prompt"}],
+            "_meta" => %{"frontman.dev/agentId" => "test-frontman"}
+          }
+        }
+      })
+
+      assert_push("acp:message", %{
+        "method" => "session/update",
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "current_mode_update",
+            "currentModeId" => "test-frontman"
           }
         }
       })

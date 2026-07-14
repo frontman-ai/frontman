@@ -34,6 +34,7 @@ type displayItem =
       id: string,
       content: array<Client__State__Types.UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
     })
   | AssistantMsg(Message.assistantMessage)
   | SingleToolCall(Message.toolCall)
@@ -80,9 +81,9 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   messages->Array.forEach(msg => {
     switch msg {
     | Message.ToolCall(tc) => pendingToolCalls.contents->Array.push(tc)
-    | Message.User({id, content, annotations}) =>
+    | Message.User({id, content, annotations, agentId}) =>
       flushToolCalls()
-      result->Array.push(UserMsg({id, content, annotations}))
+      result->Array.push(UserMsg({id, content, annotations, agentId}))
     | Message.Assistant(message) =>
       flushToolCalls()
       result->Array.push(AssistantMsg(message))
@@ -126,6 +127,11 @@ let make = (~onConfigureProvider: unit => unit) => {
       FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.findConfigOptionByCategory(opts, Model)
     )
   let isModelsConfigLoading = configOptions->Option.isNone
+  let agentForId = agentId =>
+    Client__Agent.findOrThrow(
+      configOptions->Option.getOrThrow(~message="Agent config options are required"),
+      agentId,
+    )
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
@@ -264,21 +270,27 @@ let make = (~onConfigureProvider: unit => unit) => {
     let isLastToolGroup = itemIndex == lastToolGroupIndex
 
     switch item {
-    | UserMsg({id, content, annotations}) =>
+    | UserMsg({id, content, annotations, agentId}) =>
       // Use stable message ID for key
       let messageId = `user-${id}`
-      <UserMessage key={messageId} content annotations messageId isNew={isLastItem} />
+      <UserMessage
+        key={messageId} content annotations messageId agent={agentForId(agentId)} isNew={isLastItem}
+      />
 
-    | AssistantMsg(Streaming({id, textBuffer, _})) =>
+    | AssistantMsg(Streaming({id, textBuffer, agentId, _})) =>
       // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
         <AssistantMessage
-          variant=AssistantMessage.Streaming content={textBuffer} messageId isNew={isLastItem}
+          variant=AssistantMessage.Streaming
+          content={textBuffer}
+          messageId
+          agent={agentForId(agentId)}
+          isNew={isLastItem}
         />
       </div>
 
-    | AssistantMsg(Completed({id, content, _})) =>
+    | AssistantMsg(Completed({id, content, agentId, _})) =>
       // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
@@ -293,6 +305,7 @@ let make = (~onConfigureProvider: unit => unit) => {
               variant=AssistantMessage.Completed
               content={text}
               messageId={partKey}
+              agent={agentForId(agentId)}
               isNew={isLastItem && i == 0}
             />
 

@@ -24,6 +24,7 @@ let _userMsg = (~id, ~text, ~createdAt) => {
     id,
     content: [UserContentPart.text(text)],
     annotations: [],
+    agentId: "executor-id",
   })
 }
 
@@ -104,7 +105,11 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     )
     let (task, _) = TaskReducer.next(
       task,
-      TextDeltaReceived({text: "I'm Claude Code", timestamp: "2026-03-12T09:01:28Z"}),
+      TextDeltaReceived({
+        text: "I'm Claude Code",
+        timestamp: "2026-03-12T09:01:28Z",
+        agentId: "test-agent",
+      }),
     )
 
     // Turn 2: UserMessageReceived should finalize the previous agent message
@@ -118,7 +123,11 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     )
     let (task, _) = TaskReducer.next(
       task,
-      TextDeltaReceived({text: "BlueHotDog", timestamp: "2026-03-15T08:54:52Z"}),
+      TextDeltaReceived({
+        text: "BlueHotDog",
+        timestamp: "2026-03-15T08:54:52Z",
+        agentId: "test-agent",
+      }),
     )
 
     // Turn 3
@@ -132,7 +141,11 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     )
     let (task, _) = TaskReducer.next(
       task,
-      TextDeltaReceived({text: "Still BlueHotDog", timestamp: "2026-03-15T10:25:24Z"}),
+      TextDeltaReceived({
+        text: "Still BlueHotDog",
+        timestamp: "2026-03-15T10:25:24Z",
+        agentId: "test-agent",
+      }),
     )
 
     // LoadComplete finalizes everything
@@ -183,7 +196,11 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     )
     let (task, _) = TaskReducer.next(
       task,
-      TextDeltaReceived({text: "hello", timestamp: "2026-01-01T10:00:01Z"}),
+      TextDeltaReceived({
+        text: "hello",
+        timestamp: "2026-01-01T10:00:01Z",
+        agentId: "test-agent",
+      }),
     )
     let (task, _) = TaskReducer.next(
       task,
@@ -195,7 +212,11 @@ describe("History Replay - Reducer level (direct dispatch)", () => {
     )
     let (task, _) = TaskReducer.next(
       task,
-      TextDeltaReceived({text: "goodbye", timestamp: "2026-01-01T10:01:01Z"}),
+      TextDeltaReceived({
+        text: "goodbye",
+        timestamp: "2026-01-01T10:01:01Z",
+        agentId: "test-agent",
+      }),
     )
     let (loaded, _) = TaskReducer.next(task, LoadComplete)
 
@@ -232,11 +253,15 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
 
     // Create a buffer that dispatches TextDeltaReceived to our task
     let buffer = Buffer.make(
-      ~onFlush=(~taskId as _, ~text, ~timestamp) => {
-        let (updated, _) = TaskReducer.next(task.contents, TextDeltaReceived({text, timestamp}))
+      ~onFlush=(~taskId as _, ~text, ~timestamp, ~agentId) => {
+        let (updated, _) = TaskReducer.next(
+          task.contents,
+          TextDeltaReceived({text, timestamp, agentId}),
+        )
         task := updated
       },
     )
+    buffer.selectAgent(~taskId, ~agentId="test-agent")
 
     // Simulate server pushing notifications in order.
     // This mirrors the actual handleSessionUpdate flow:
@@ -319,11 +344,15 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     let task = ref(TestHelpers.makeLoadingTask(~id=taskId))
 
     let buffer = Buffer.make(
-      ~onFlush=(~taskId as _, ~text, ~timestamp) => {
-        let (updated, _) = TaskReducer.next(task.contents, TextDeltaReceived({text, timestamp}))
+      ~onFlush=(~taskId as _, ~text, ~timestamp, ~agentId) => {
+        let (updated, _) = TaskReducer.next(
+          task.contents,
+          TextDeltaReceived({text, timestamp, agentId}),
+        )
         task := updated
       },
     )
+    buffer.selectAgent(~taskId, ~agentId="test-agent")
 
     // 1. User message
     buffer.flush()
@@ -415,11 +444,15 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     let task = ref(TestHelpers.makeLoadingTask(~id=taskId))
 
     let buffer = Buffer.make(
-      ~onFlush=(~taskId as _, ~text, ~timestamp) => {
-        let (updated, _) = TaskReducer.next(task.contents, TextDeltaReceived({text, timestamp}))
+      ~onFlush=(~taskId as _, ~text, ~timestamp, ~agentId) => {
+        let (updated, _) = TaskReducer.next(
+          task.contents,
+          TextDeltaReceived({text, timestamp, agentId}),
+        )
         task := updated
       },
     )
+    buffer.selectAgent(~taskId, ~agentId="test-agent")
 
     // User sends a message
     let (updated, _) = TaskReducer.next(
@@ -459,11 +492,15 @@ describe("History Replay - Integration (Buffer + Reducer)", () => {
     let task = ref(TestHelpers.makeLoadingTask(~id=taskId))
 
     let buffer = Buffer.make(
-      ~onFlush=(~taskId as _, ~text, ~timestamp) => {
-        let (updated, _) = TaskReducer.next(task.contents, TextDeltaReceived({text, timestamp}))
+      ~onFlush=(~taskId as _, ~text, ~timestamp, ~agentId) => {
+        let (updated, _) = TaskReducer.next(
+          task.contents,
+          TextDeltaReceived({text, timestamp, agentId}),
+        )
         task := updated
       },
     )
+    buffer.selectAgent(~taskId, ~agentId="test-agent")
 
     // Turn 1: user message, then agent response
     buffer.flush()

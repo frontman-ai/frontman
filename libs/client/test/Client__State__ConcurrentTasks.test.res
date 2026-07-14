@@ -67,7 +67,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Act: Receive StreamingStarted event for Task A (not current task)
     let (finalState, _) = StateReducer.next(
       stateWithB,
-      TaskAction({target: ForTask(taskAId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskAId), action: StreamingStarted({agentId: "test-agent"})}),
     )
 
     // Assert: Message should be in Task A, not Task B
@@ -93,7 +93,7 @@ describe("Concurrent Tasks Event Routing", () => {
     // Add streaming message to Task A
     let (stateWithMessage, _) = StateReducer.next(
       stateWithB,
-      TaskAction({target: ForTask(taskAId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskAId), action: StreamingStarted({agentId: "test-agent"})}),
     )
 
     // Current task is still B
@@ -104,7 +104,11 @@ describe("Concurrent Tasks Event Routing", () => {
       stateWithMessage,
       TaskAction({
         target: ForTask(taskAId),
-        action: TextDeltaReceived({text: "Hello from Task A", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "Hello from Task A",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
 
@@ -183,15 +187,15 @@ describe("Concurrent Tasks Event Routing", () => {
     // Act: Start streaming in all three tasks
     let (state1, _) = StateReducer.next(
       state,
-      TaskAction({target: ForTask(taskAId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskAId), action: StreamingStarted({agentId: "test-agent"})}),
     )
     let (state2, _) = StateReducer.next(
       state1,
-      TaskAction({target: ForTask(taskBId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskBId), action: StreamingStarted({agentId: "test-agent"})}),
     )
     let (state3, _) = StateReducer.next(
       state2,
-      TaskAction({target: ForTask(taskCId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskCId), action: StreamingStarted({agentId: "test-agent"})}),
     )
 
     // Send text deltas to each task
@@ -199,21 +203,33 @@ describe("Concurrent Tasks Event Routing", () => {
       state3,
       TaskAction({
         target: ForTask(taskAId),
-        action: TextDeltaReceived({text: "A", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "A",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
     let (state5, _) = StateReducer.next(
       state4,
       TaskAction({
         target: ForTask(taskBId),
-        action: TextDeltaReceived({text: "B", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "B",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
     let (finalState, _) = StateReducer.next(
       state5,
       TaskAction({
         target: ForTask(taskCId),
-        action: TextDeltaReceived({text: "C", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "C",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
 
@@ -253,13 +269,17 @@ describe("Concurrent Tasks Event Routing", () => {
     // Start streaming in Task A
     let (stateWithStream, _) = StateReducer.next(
       stateWithB,
-      TaskAction({target: ForTask(taskAId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskAId), action: StreamingStarted({agentId: "test-agent"})}),
     )
     let (stateWithText, _) = StateReducer.next(
       stateWithStream,
       TaskAction({
         target: ForTask(taskAId),
-        action: TextDeltaReceived({text: "Complete message", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "Complete message",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
 
@@ -362,13 +382,17 @@ describe("Concurrent Tasks Event Routing", () => {
     // Start streaming in Task A
     let (stateWithStream, _) = StateReducer.next(
       state,
-      TaskAction({target: ForTask(taskAId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskAId), action: StreamingStarted({agentId: "test-agent"})}),
     )
     let (stateWithText1, _) = StateReducer.next(
       stateWithStream,
       TaskAction({
         target: ForTask(taskAId),
-        action: TextDeltaReceived({text: "Part 1. ", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "Part 1. ",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
 
@@ -381,7 +405,11 @@ describe("Concurrent Tasks Event Routing", () => {
       stateWithB,
       TaskAction({
         target: ForTask(taskAId),
-        action: TextDeltaReceived({text: "Part 2.", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "Part 2.",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
 

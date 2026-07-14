@@ -565,7 +565,7 @@ let planEntrySchema = S.object(s => {
 // Session update variants - discriminated by sessionUpdate field
 type sessionUpdate =
   | AgentMessageChunk({content: contentBlock, timestamp: string})
-  | UserMessage({messageId: string, content: array<contentBlock>})
+  | UserMessage({messageId: string, content: array<contentBlock>, _meta: option<JSON.t>})
   | ToolCall({
       toolCallId: string,
       title: string,
@@ -609,6 +609,7 @@ let sessionUpdateSchema = S.union([
     UserMessage({
       messageId: s.field("messageId", S.string),
       content: s.field("content", S.array(contentBlockSchema)),
+      _meta: s.field("_meta", S.option(S.json)),
     })
   }),
   S.object(s => {

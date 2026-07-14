@@ -4,15 +4,25 @@
 module MessageContainer = Client__MessageContainer
 module Markdown = Client__Markdown
 module Icons = Client__ToolIcons
+module AgentChip = Client__AgentChip
 
 type variant = Streaming | Completed
 
 @react.component
-let make = (~variant: variant, ~content: string, ~messageId as _: string, ~isNew: bool=false) => {
+let make = (
+  ~variant: variant,
+  ~content: string,
+  ~messageId as _: string,
+  ~agent: Client__Agent.t,
+  ~isNew: bool=false,
+) => {
   let isStreaming = variant == Streaming
 
   <MessageContainer isNew isStreaming className="group relative">
-    <div className="text-[13px] leading-relaxed text-zinc-300 font-ibm-plex-mono">
+    <div className="absolute left-1 z-10">
+      <AgentChip agent />
+    </div>
+    <div className="text-[13px] leading-relaxed pt-8 text-zinc-300 font-ibm-plex-mono">
       <Markdown className="size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
         {content}
       </Markdown>

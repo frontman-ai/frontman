@@ -20,7 +20,7 @@ defmodule FrontmanServer.Agents do
   def list_agents(%Scope{}) do
     config()
     |> Keyword.fetch!(:agents)
-    |> Enum.map(&struct!(Agent, &1))
+    |> Enum.map(&Agent.new!/1)
   end
 
   def get_agent(%Scope{} = scope, agent_id) when is_binary(agent_id) do

@@ -21,6 +21,7 @@ defmodule FrontmanServer.AgentsTest do
       assert executor.id == @executor_id
       assert executor.name == "executor"
       assert executor.display_name == "Executor"
+      assert executor.color == "#985DF7"
       assert executor.tools == :all
       assert executor.source == :static
 
@@ -28,8 +29,32 @@ defmodule FrontmanServer.AgentsTest do
       assert planner.id == @planner_id
       assert planner.name == "planner"
       assert planner.display_name == "Planner"
+      assert planner.color == "#F59E0B"
       assert planner.tools == %{access: [:read]}
       assert planner.source == :static
+    end
+  end
+
+  describe "Agent.new!/1" do
+    @valid_agent %{
+      id: "agent-id",
+      name: "agent",
+      display_name: "Agent",
+      description: "Agent description",
+      color: "#985DF7",
+      system: "Agent system"
+    }
+
+    test "rejects missing or malformed explicit colors" do
+      assert_raise ArgumentError, fn -> Agent.new!(Map.delete(@valid_agent, :color)) end
+
+      for attrs <- [
+            Map.put(@valid_agent, :color, "#FFF"),
+            Map.put(@valid_agent, :color, "violet"),
+            Map.put(@valid_agent, :color, 123)
+          ] do
+        assert_raise ArgumentError, fn -> Agent.new!(attrs) end
+      end
     end
   end
 

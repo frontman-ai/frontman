@@ -68,12 +68,13 @@ module TestHelpers = {
     ~id="user-accepted-1",
     ~content=[UserContentPart.text("Hello")],
     ~annotations=[],
+    ~agentId="executor-id",
   ) => {
     Reducer.next(
       state,
       TaskAction({
         target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations}),
+        action: UserMessageReceived({id, content, annotations, agentId}),
       }),
     )->Pair.first
   }
@@ -109,7 +110,12 @@ describe("Client State Reducer", () => {
       ~isAgentRunning=true,
       ~messages=[
         Reducer.Message.Assistant(
-          Streaming({id: "assistant-1", textBuffer: "Hello", createdAt: 0.0}),
+          Streaming({
+            id: "assistant-1",
+            textBuffer: "Hello",
+            createdAt: 0.0,
+            agentId: "test-agent",
+          }),
         ),
       ],
     )
@@ -117,7 +123,11 @@ describe("Client State Reducer", () => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let action = Reducer.TaskAction({
       target: ForTask(taskId),
-      action: TextDeltaReceived({text: " world", timestamp: "2024-01-15T10:00:00Z"}),
+      action: TextDeltaReceived({
+        text: " world",
+        timestamp: "2024-01-15T10:00:00Z",
+        agentId: "test-agent",
+      }),
     })
     let (nextState, _effects) = Reducer.next(state, action)
 
@@ -134,7 +144,12 @@ describe("Client State Reducer", () => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[
         Reducer.Message.Assistant(
-          Streaming({id: "assistant-1", textBuffer: "Hello world", createdAt: 0.0}),
+          Streaming({
+            id: "assistant-1",
+            textBuffer: "Hello world",
+            createdAt: 0.0,
+            agentId: "test-agent",
+          }),
         ),
       ],
     )
@@ -186,13 +201,17 @@ describe("Client State Reducer", () => {
     )
     let (state, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskId), action: StreamingStarted({agentId: "test-agent"})}),
     )
     let (state, _) = Reducer.next(
       state,
       TaskAction({
         target: ForTask(taskId),
-        action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "Hello",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
     let (state, _) = Reducer.next(
@@ -219,6 +238,7 @@ describe("Client State Reducer", () => {
             id: "assistant-1",
             textBuffer: "",
             createdAt: 0.0,
+            agentId: "test-agent",
           }),
         ),
       ],
@@ -235,6 +255,7 @@ describe("Client State Reducer", () => {
             id: "assistant-1",
             content: [AssistantContentPart.text("Done")],
             createdAt: 0.0,
+            agentId: "test-agent",
           }),
         ),
       ],
@@ -252,6 +273,7 @@ describe("Client State Reducer", () => {
             id: "assistant-1",
             textBuffer: "Calling tool...",
             createdAt: 0.0,
+            agentId: "test-agent",
           }),
         ),
         Reducer.Message.ToolCall({
@@ -310,6 +332,7 @@ describe("Client State Reducer - Idle Content Conversion", () => {
             id: "msg-2",
             textBuffer: "",
             createdAt: 0.0,
+            agentId: "test-agent",
           }),
         ),
       ],
@@ -341,6 +364,7 @@ describe("Client State Reducer - Idle Content Conversion", () => {
             id: "msg-3",
             textBuffer: "Listing files",
             createdAt: 0.0,
+            agentId: "test-agent",
           }),
         ),
       ],
@@ -375,6 +399,7 @@ describe("Client State Reducer - Idle Content Conversion", () => {
             id: "stable-id-123",
             textBuffer: "Test",
             createdAt: 0.0,
+            agentId: "test-agent",
           }),
         ),
       ],
@@ -423,7 +448,7 @@ describe("Client State Reducer - Streaming Flow", () => {
     // 1. Start streaming (ID is now generated internally)
     let (state, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: StreamingStarted}),
+      TaskAction({target: ForTask(taskId), action: StreamingStarted({agentId: "test-agent"})}),
     )
 
     // Get the generated message ID
@@ -438,14 +463,22 @@ describe("Client State Reducer - Streaming Flow", () => {
       state,
       TaskAction({
         target: ForTask(taskId),
-        action: TextDeltaReceived({text: "Hello", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: "Hello",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
     let (state, _) = Reducer.next(
       state,
       TaskAction({
         target: ForTask(taskId),
-        action: TextDeltaReceived({text: " world", timestamp: "2024-01-15T10:00:00Z"}),
+        action: TextDeltaReceived({
+          text: " world",
+          timestamp: "2024-01-15T10:00:00Z",
+          agentId: "test-agent",
+        }),
       }),
     )
 
@@ -476,6 +509,7 @@ describe("Client State Reducer - Selectors", () => {
       id: "user-1",
       content: [],
       annotations: [],
+      agentId: "executor-id",
     })
 
     let streamingMsg = Reducer.Message.Assistant(
@@ -483,6 +517,7 @@ describe("Client State Reducer - Selectors", () => {
         id: "streaming-1",
         textBuffer: "",
         createdAt: 0.0,
+        agentId: "test-agent",
       }),
     )
 
@@ -491,6 +526,7 @@ describe("Client State Reducer - Selectors", () => {
         id: "completed-1",
         content: [],
         createdAt: 0.0,
+        agentId: "test-agent",
       }),
     )
 
@@ -600,6 +636,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
             id: "assistant-1",
             textBuffer: "",
             createdAt: 0.0,
+            agentId: "test-agent",
           }),
         ),
         Reducer.Message.ToolCall({
@@ -718,6 +755,7 @@ describe("Client State Reducer - Task Management Actions", () => {
           id: "user-1",
           content: [UserContentPart.Text({text: "Hello from task 1"})],
           annotations: [],
+          agentId: "executor-id",
         }),
       ],
     )
@@ -732,6 +770,7 @@ describe("Client State Reducer - Task Management Actions", () => {
           id: "user-2",
           content: [UserContentPart.Text({text: "Hello from task 2"})],
           annotations: [],
+          agentId: "executor-id",
         }),
       ],
     )
@@ -809,6 +848,7 @@ describe("Client State Reducer - Task Management Actions", () => {
           id: "user-1",
           content: [UserContentPart.Text({text: "Old message"})],
           annotations: [],
+          agentId: "executor-id",
         }),
       ],
     )
@@ -960,6 +1000,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
           id: "user-1",
           content: [UserContentPart.Text({text: "Existing message"})],
           annotations: [],
+          agentId: "executor-id",
         }),
       ],
     )
@@ -1056,6 +1097,7 @@ describe("Client State Reducer - Session Loading Actions", () => {
           id: "msg-1",
           content: [Client__Message.UserContentPart.text("Hello from history")],
           annotations: [],
+          agentId: "executor-id",
         }),
       }),
     )

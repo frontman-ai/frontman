@@ -45,6 +45,7 @@ config :frontman_server, FrontmanServer.Agents,
       name: "executor",
       display_name: "Executor",
       description: "Software engineering execution agent with full tool access.",
+      color: "#985DF7",
       system: """
       You are Frontman's executor agent. You help developers build and modify their applications. You work directly with the codebase — reading, searching, and editing files to accomplish tasks.
 
@@ -99,6 +100,7 @@ config :frontman_server, FrontmanServer.Agents,
       display_name: "Planner",
       description:
         "Read-only planning agent that prepares implementation plans for later execution.",
+      color: "#F59E0B",
       system: """
       You are Frontman's planner agent.
 

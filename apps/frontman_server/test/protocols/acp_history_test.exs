@@ -22,8 +22,17 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
   # Minimal required fields per interaction type. Every type needs at least
   # :timestamp; types with additional enforced fields are listed explicitly.
   @minimal_fields %{
-    Interaction.UserMessage => %{id: "t", messages: ["hi"], images: []},
-    Interaction.TurnStarted => %{id: "t", user_message_ids: ["um-1"]},
+    Interaction.UserMessage => %{
+      id: "t",
+      agent_id: "executor-id",
+      messages: ["hi"],
+      images: []
+    },
+    Interaction.TurnStarted => %{
+      id: "t",
+      agent_id: "executor-id",
+      user_message_ids: ["um-1"]
+    },
     Interaction.AgentResponse => %{id: "t", content: "c"},
     Interaction.AgentCompleted => %{id: "t"},
     Interaction.ToolCall => %{id: "t", tool_call_id: "tc", tool_name: "t", arguments: %{}},
@@ -59,9 +68,30 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
   end
 
   describe "conversation types return non-empty history items" do
+    test "TurnStarted restores selected agent" do
+      interaction = %Interaction.TurnStarted{
+        id: "turn-1",
+        agent_id: "executor-id",
+        user_message_ids: ["um-1"],
+        timestamp: DateTime.utc_now()
+      }
+
+      assert [
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "current_mode_update",
+                     "currentModeId" => "executor-id"
+                   }
+                 }
+               }
+             ] = ACPHistory.to_history_items(interaction, @session_id)
+    end
+
     test "UserMessage" do
       interaction = %Interaction.UserMessage{
         id: "um-1",
+        agent_id: "executor-id",
         timestamp: DateTime.utc_now(),
         messages: ["Hello"],
         images: []
@@ -69,7 +99,17 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
 
       items = ACPHistory.to_history_items(interaction, @session_id)
       assert items != []
-      assert [%{"params" => %{"update" => %{"sessionUpdate" => "user_message"}}}] = items
+
+      assert [
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "user_message",
+                     "_meta" => %{"frontman.dev/agentId" => "executor-id"}
+                   }
+                 }
+               }
+             ] = items
     end
 
     test "UserMessage annotation keeps generic metadata" do
@@ -82,6 +122,7 @@ defmodule FrontmanServer.Protocols.AcpHistoryTest do
 
       interaction = %Interaction.UserMessage{
         id: "um-elementor",
+        agent_id: "planner-id",
         timestamp: DateTime.utc_now(),
         messages: [],
         images: [],

@@ -11,16 +11,21 @@
 type entry = {
   text: string,
   timestamp: string,
+  agentId: string,
 }
 
 type t = {
+  selectAgent: (~taskId: string, ~agentId: string) => unit,
   add: (~taskId: string, ~text: string, ~timestamp: string) => unit,
   flush: unit => unit,
   reset: unit => unit,
 }
 
-let make = (~onFlush: (~taskId: string, ~text: string, ~timestamp: string) => unit): t => {
+let make = (
+  ~onFlush: (~taskId: string, ~text: string, ~timestamp: string, ~agentId: string) => unit,
+): t => {
   let buffer: ref<Dict.t<entry>> = ref(Dict.make())
+  let selectedAgents: ref<Dict.t<string>> = ref(Dict.make())
   let rafId: ref<option<int>> = ref(None)
 
   let flush = () => {
@@ -32,19 +37,30 @@ let make = (~onFlush: (~taskId: string, ~text: string, ~timestamp: string) => un
     }
     rafId := None
     pending->Dict.forEachWithKey((entry, taskId) => {
-      onFlush(~taskId, ~text=entry.text, ~timestamp=entry.timestamp)
+      onFlush(~taskId, ~text=entry.text, ~timestamp=entry.timestamp, ~agentId=entry.agentId)
     })
   }
 
+  let selectAgent = (~taskId: string, ~agentId: string) => {
+    flush()
+    selectedAgents.contents->Dict.set(taskId, agentId)
+  }
+
   let add = (~taskId: string, ~text: string, ~timestamp: string) => {
+    let agentId =
+      selectedAgents.contents
+      ->Dict.get(taskId)
+      ->Option.getOrThrow(~message=`Missing selected agent for task ${taskId}`)
     let current = buffer.contents->Dict.get(taskId)
     let updatedEntry = switch current {
-    | Some(existing) => {
+    | Some(existing) if existing.agentId == agentId => {
         // Keep the first timestamp (subsequent chunks for the same task don't override)
         text: existing.text ++ text,
         timestamp: existing.timestamp,
+        agentId,
       }
-    | None => {text, timestamp}
+    | Some(_) => failwith(`Agent changed while text remained buffered for task ${taskId}`)
+    | None => {text, timestamp, agentId}
     }
     buffer.contents->Dict.set(taskId, updatedEntry)
     switch rafId.contents {
@@ -60,9 +76,10 @@ let make = (~onFlush: (~taskId: string, ~text: string, ~timestamp: string) => un
     }
     rafId := None
     buffer := Dict.make()
+    selectedAgents := Dict.make()
   }
 
-  {add, flush, reset}
+  {selectAgent, add, flush, reset}
 }
 
 // Active instance — set by FrontmanProvider, read by StateReducer.

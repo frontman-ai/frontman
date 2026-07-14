@@ -16,9 +16,9 @@ module Actions = {
   }
 
   // ForTask(taskId) actions - streaming/tool events from ACP
-  let textDeltaReceived = (~taskId: string, ~text: string, ~timestamp: string) =>
+  let textDeltaReceived = (~taskId: string, ~text: string, ~timestamp: string, ~agentId: string) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text, timestamp})}),
+      TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text, timestamp, agentId})}),
     )
 
   // TOOLS
@@ -251,11 +251,12 @@ module Actions = {
     ~id: string,
     ~content: array<Client__Message.UserContentPart.t>,
     ~annotations: array<Client__Message.MessageAnnotation.t>,
+    ~agentId: string,
   ) =>
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations}),
+        action: UserMessageReceived({id, content, annotations, agentId}),
       }),
     )
 

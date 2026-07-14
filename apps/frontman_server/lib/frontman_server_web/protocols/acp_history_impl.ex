@@ -25,7 +25,7 @@ defimpl ACPHistory, for: Interaction.UserMessage do
         image_blocks(msg.images) ++
         CurrentPageContext.to_content_blocks(msg.current_page)
 
-    [ACP.build_user_message_notification(session_id, msg.id, content)]
+    [ACP.build_user_message_notification(session_id, msg.id, content, msg.agent_id)]
   end
 
   defp text_blocks(messages), do: Enum.map(messages, &%{"type" => "text", "text" => &1})
@@ -136,7 +136,9 @@ defimpl ACPHistory, for: Interaction.UserMessage do
 end
 
 defimpl ACPHistory, for: Interaction.TurnStarted do
-  def to_history_items(_turn_started, _session_id), do: []
+  def to_history_items(%Interaction.TurnStarted{agent_id: agent_id}, session_id) do
+    [ACP.build_current_mode_update_notification(session_id, agent_id)]
+  end
 end
 
 defimpl ACPHistory, for: Interaction.AgentResponse do

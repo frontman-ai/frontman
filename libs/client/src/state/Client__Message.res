@@ -121,8 +121,13 @@ type toolCallState =
   | OutputError
 
 type assistantMessage =
-  | Streaming({id: string, textBuffer: string, createdAt: float})
-  | Completed({id: string, content: array<AssistantContentPart.t>, createdAt: float})
+  | Streaming({id: string, textBuffer: string, createdAt: float, agentId: string})
+  | Completed({
+      id: string,
+      content: array<AssistantContentPart.t>,
+      createdAt: float,
+      agentId: string,
+    })
 
 type toolCall = {
   id: string,
@@ -161,7 +166,12 @@ module ErrorMessage: {
 }
 
 type t =
-  | User({id: string, content: array<UserContentPart.t>, annotations: array<MessageAnnotation.t>})
+  | User({
+      id: string,
+      content: array<UserContentPart.t>,
+      annotations: array<MessageAnnotation.t>,
+      agentId: string,
+    })
   | Assistant(assistantMessage)
   | ToolCall(toolCall)
   | Error(ErrorMessage.t)

@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Agents
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
@@ -212,9 +213,12 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   defp current_config_options(socket) do
-    socket.assigns.scope
-    |> Providers.model_config_data()
-    |> ACP.build_model_config_options()
+    scope = socket.assigns.scope
+
+    model_options = scope |> Providers.model_config_data() |> ACP.build_model_config_options()
+    agent_options = scope |> Agents.list_agents() |> ACP.build_agent_config_options()
+
+    model_options ++ agent_options
   end
 
   # UUID v4 format: 8-4-4-4-12 hex digits with dashes
@@ -252,9 +256,26 @@ defmodule FrontmanServerWeb.TasksChannel do
   # Streams session history as ACP session/update notifications
   defp stream_session_history(socket, task) do
     task.interactions
-    |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.id))
+    |> Enum.flat_map(&history_items(&1, task.id, socket.assigns.scope))
     |> Enum.each(fn notification ->
       push(socket, @acp_message, notification)
     end)
   end
+
+  defp history_items(%Tasks.Interaction.TurnStarted{agent_id: nil} = interaction, task_id, scope) do
+    ACPHistory.to_history_items(
+      %{interaction | agent_id: Agents.default_agent_id(scope)},
+      task_id
+    )
+  end
+
+  defp history_items(%Tasks.Interaction.UserMessage{agent_id: nil} = interaction, task_id, scope) do
+    ACPHistory.to_history_items(
+      %{interaction | agent_id: Agents.default_agent_id(scope)},
+      task_id
+    )
+  end
+
+  defp history_items(interaction, task_id, _scope),
+    do: ACPHistory.to_history_items(interaction, task_id)
 end

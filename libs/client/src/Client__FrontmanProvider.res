@@ -14,8 +14,13 @@ module RuntimeConfig = Client__RuntimeConfig
 
 // Create the text delta buffer instance and register it as active.
 // The onFlush callback breaks the circular dep: TextDeltaBuffer doesn't import Client__State.
-let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(~taskId, ~text, ~timestamp) => {
-  Client__State.Actions.textDeltaReceived(~taskId, ~text, ~timestamp)
+let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(
+  ~taskId,
+  ~text,
+  ~timestamp,
+  ~agentId,
+) => {
+  Client__State.Actions.textDeltaReceived(~taskId, ~text, ~timestamp, ~agentId)
 })
 let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
@@ -284,10 +289,16 @@ module Provider = {
         getContentBlockText(content)->Option.forEach(text => {
           textDeltaBuffer.add(~taskId, ~text, ~timestamp)
         })
-      | UserMessage({messageId, content}) =>
+      | UserMessage({messageId, content, _meta}) =>
         Client__TextDeltaBuffer.flush()
         let (content, annotations) = parseUserMessageBlocks(content)
-        Client__State.Actions.userMessageReceived(~taskId, ~id=messageId, ~content, ~annotations)
+        Client__State.Actions.userMessageReceived(
+          ~taskId,
+          ~id=messageId,
+          ~content,
+          ~annotations,
+          ~agentId=Client__Agent.messageAgentId(_meta),
+        )
       | ToolCall({toolCallId, title, parentAgentId, spawningToolName, _}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.toolCallReceived(
@@ -350,7 +361,8 @@ module Provider = {
         }
       | ConfigOptionUpdate({configOptions}) =>
         Client__State.Actions.configOptionsReceived(~configOptions)
-      | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
+      | CurrentModeUpdate({currentModeId}) =>
+        textDeltaBuffer.selectAgent(~taskId, ~agentId=currentModeId)
       | Error({_meta, message, timestamp, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
         switch retryAt {

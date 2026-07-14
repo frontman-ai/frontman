@@ -17,6 +17,61 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
+  describe "AgentClientProtocol.build_agent_config_options/1" do
+    test "preserves explicitly configured agent colors" do
+      agents = [
+        %FrontmanServer.Agents.Agent{
+          id: "executor-id",
+          name: "executor",
+          display_name: "Executor",
+          description: "Can modify projects.",
+          color: "#985DF7",
+          system: "Execute."
+        }
+      ]
+
+      assert [
+               %{
+                 "category" => "mode",
+                 "id" => "agent",
+                 "options" => [
+                   %{
+                     "value" => "executor-id",
+                     "name" => "Executor",
+                     "description" => "Can modify projects.",
+                     "_meta" => %{
+                       "frontman.dev/agentColor" => "#985DF7",
+                       "frontman.dev/agentName" => "executor"
+                     }
+                   }
+                 ]
+               }
+             ] = AgentClientProtocol.build_agent_config_options(agents)
+    end
+  end
+
+  describe "AgentClientProtocol.build_current_mode_update_notification/2" do
+    test "identifies selected agent using ACP current mode update" do
+      payload =
+        AgentClientProtocol.build_current_mode_update_notification(
+          "session-123",
+          "executor-id"
+        )
+
+      ProtocolSchema.validate!(payload, "jsonrpc/notification")
+      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
+
+      assert %{
+               "params" => %{
+                 "update" => %{
+                   "sessionUpdate" => "current_mode_update",
+                   "currentModeId" => "executor-id"
+                 }
+               }
+             } = payload
+    end
+  end
+
   describe "AgentClientProtocol.build_prompt_accepted_result/0" do
     test "validates against acp/promptResult schema" do
       payload = AgentClientProtocol.build_prompt_accepted_result()
@@ -39,13 +94,14 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_user_message_notification/3" do
+  describe "AgentClientProtocol.build_user_message_notification/4" do
     test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
       payload =
         AgentClientProtocol.build_user_message_notification(
           "session-123",
           "msg-123",
-          [%{"type" => "text", "text" => "Hello from user"}]
+          [%{"type" => "text", "text" => "Hello from user"}],
+          "executor-id"
         )
 
       ProtocolSchema.validate!(payload, "jsonrpc/notification")
@@ -56,7 +112,8 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
                  "update" => %{
                    "sessionUpdate" => "user_message",
                    "messageId" => "msg-123",
-                   "content" => [%{"type" => "text", "text" => "Hello from user"}]
+                   "content" => [%{"type" => "text", "text" => "Hello from user"}],
+                   "_meta" => %{"frontman.dev/agentId" => "executor-id"}
                  }
                }
              } = payload

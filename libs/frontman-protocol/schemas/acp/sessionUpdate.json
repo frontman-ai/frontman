@@ -395,7 +395,8 @@
             ]
           },
           "type": "array"
-        }
+        },
+        "_meta": {}
       },
       "required": [
         "sessionUpdate",

@@ -260,8 +260,13 @@ defmodule FrontmanServerWeb.TaskChannel do
     finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
   end
 
-  defp handle_interaction(%Tasks.Interaction.TurnStarted{}, _turn_number, socket) do
+  defp handle_interaction(
+         %Tasks.Interaction.TurnStarted{agent_id: agent_id},
+         _turn_number,
+         socket
+       ) do
     task_id = socket.assigns.task_id
+    push(socket, @acp_message, ACP.build_current_mode_update_notification(task_id, agent_id))
     notification = ACP.build_state_update_notification(task_id, "running")
     push(socket, @acp_message, notification)
     {:noreply, socket}
@@ -584,10 +589,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         stream_session_history(socket, task)
 
         # Return ACP-compliant LoadSessionResponse with config options.
-        config_options =
-          scope
-          |> Providers.model_config_data()
-          |> ACP.build_model_config_options()
+        model_options = scope |> Providers.model_config_data() |> ACP.build_model_config_options()
+        agent_options = scope |> Agents.list_agents() |> ACP.build_agent_config_options()
+        config_options = model_options ++ agent_options
 
         push(
           socket,
@@ -611,11 +615,28 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp stream_session_history(socket, task) do
     task.interactions
-    |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.id))
+    |> Enum.flat_map(&history_items(&1, task.id, socket.assigns.scope))
     |> Enum.each(fn notification ->
       push(socket, @acp_message, notification)
     end)
   end
+
+  defp history_items(%Tasks.Interaction.TurnStarted{agent_id: nil} = interaction, task_id, scope) do
+    ACPHistory.to_history_items(
+      %{interaction | agent_id: Agents.default_agent_id(scope)},
+      task_id
+    )
+  end
+
+  defp history_items(%Tasks.Interaction.UserMessage{agent_id: nil} = interaction, task_id, scope) do
+    ACPHistory.to_history_items(
+      %{interaction | agent_id: Agents.default_agent_id(scope)},
+      task_id
+    )
+  end
+
+  defp history_items(interaction, task_id, _scope),
+    do: ACPHistory.to_history_items(interaction, task_id)
 
   defp process_prompt(id, %{"prompt" => content_blocks, "_meta" => meta}, socket)
        when is_map(meta) do
@@ -641,7 +662,12 @@ defmodule FrontmanServerWeb.TaskChannel do
           push(
             socket,
             @acp_message,
-            ACP.build_user_message_notification(task_id, interaction.id, content_blocks)
+            ACP.build_user_message_notification(
+              task_id,
+              interaction.id,
+              content_blocks,
+              interaction.agent_id
+            )
           )
 
           wake_runner(socket, meta)

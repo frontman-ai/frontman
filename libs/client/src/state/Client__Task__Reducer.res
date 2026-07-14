@@ -19,6 +19,12 @@ module ACPTypes = Types.ACPTypes
 
 module MessageStore = Client__MessageStore
 
+let requireSameAgent = (~existingAgentId, ~agentId, ~message) =>
+  switch existingAgentId == agentId {
+  | true => ()
+  | false => failwith(message)
+  }
+
 module Lens = {
   // ---- Generic helpers to eliminate repetitive 4-way switches ----
 
@@ -87,14 +93,14 @@ module Lens = {
     updateMessages(task, store =>
       MessageStore.map(store, msg =>
         switch msg {
-        | Message.Assistant(Streaming({id, textBuffer, createdAt})) =>
+        | Message.Assistant(Streaming({id, textBuffer, createdAt, agentId})) =>
           // Empty buffer = empty content array (not a Text part with empty string)
           let content = if String.length(textBuffer) > 0 {
             [AssistantContentPart.Text({text: textBuffer})]
           } else {
             []
           }
-          Message.Assistant(Completed({id, content, createdAt}))
+          Message.Assistant(Completed({id, content, createdAt, agentId}))
         | other => other
         }
       )
@@ -292,8 +298,8 @@ type annotationElement = {
 
 type action =
   // Streaming actions
-  | StreamingStarted
-  | TextDeltaReceived({text: string, timestamp: string})
+  | StreamingStarted({agentId: string})
+  | TextDeltaReceived({text: string, timestamp: string, agentId: string})
   // Tool call actions
   | ToolInputReceived({id: string, input: JSON.t})
   | ToolResultReceived({id: string, result: JSON.t})
@@ -355,6 +361,7 @@ type action =
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
     })
   // Question tool actions
   | QuestionReceived({
@@ -407,7 +414,7 @@ type delegated =
 let actionToString = (action: action): string =>
   switch action {
   | AddUserMessage(_) => "AddUserMessage"
-  | StreamingStarted => "StreamingStarted"
+  | StreamingStarted(_) => "StreamingStarted"
   | TextDeltaReceived(_) => "TextDeltaReceived"
   | ToolCallReceived(_) => "ToolCallReceived"
   | ToolInputReceived(_) => "ToolInputReceived"
@@ -777,7 +784,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Message Actions - work on Loading or Loaded (via Lens)
   // ============================================================================
 
-  | (Task.Loading(_) | Task.Loaded(_), StreamingStarted) =>
+  | (Task.Loading(_) | Task.Loaded(_), StreamingStarted({agentId})) =>
     switch Lens.getStreamingMessage(task) {
     | Some(_) =>
       failwith(
@@ -788,17 +795,22 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | None =>
       let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
       let newMessage = Message.Assistant(
-        Streaming({id: msgId, textBuffer: "", createdAt: Date.now()}),
+        Streaming({id: msgId, textBuffer: "", createdAt: Date.now(), agentId}),
       )
       (Lens.insertMessage(task, newMessage), [])
     }
 
-  | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({text, timestamp})) =>
+  | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({text, timestamp, agentId})) =>
     let resolvedCreatedAt = Date.fromString(timestamp)->Date.getTime
     switch Lens.getStreamingMessage(task) {
-    | Some(Message.Streaming({id: msgId, textBuffer, createdAt})) =>
+    | Some(Message.Streaming({id: msgId, textBuffer, createdAt, agentId: existingAgentId})) =>
+      requireSameAgent(
+        ~existingAgentId,
+        ~agentId,
+        ~message=`[TaskReducer] Agent changed within streaming message ${msgId}`,
+      )
       let updatedMsg = Message.Assistant(
-        Streaming({id: msgId, textBuffer: textBuffer ++ text, createdAt}),
+        Streaming({id: msgId, textBuffer: textBuffer ++ text, createdAt, agentId}),
       )
       (Lens.updateMessage(task, msgId, _ => updatedMsg), [])
     | Some(Message.Completed(_)) =>
@@ -813,7 +825,17 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       let messages = Task.getMessages(task)
       let lastMsg = messages->Array.get(Array.length(messages) - 1)
       switch lastMsg {
-      | Some(Message.Assistant(Completed({id: msgId, content, createdAt}))) =>
+      | Some(Message.Assistant(Completed({
+          id: msgId,
+          content,
+          createdAt,
+          agentId: existingAgentId,
+        }))) =>
+        requireSameAgent(
+          ~existingAgentId,
+          ~agentId,
+          ~message=`[TaskReducer] Agent changed while reopening message ${msgId}`,
+        )
         // Extract existing text from all Text content parts
         let existingText =
           content
@@ -826,14 +848,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           ->Array.join("")
         // Convert back to Streaming with appended text
         let updatedMsg = Message.Assistant(
-          Streaming({id: msgId, textBuffer: existingText ++ text, createdAt}),
+          Streaming({id: msgId, textBuffer: existingText ++ text, createdAt, agentId}),
         )
         (Lens.updateMessage(task, msgId, _ => updatedMsg), [])
       | _ =>
         // Last message is User/ToolCall/None - create new streaming message
         let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
         let newMessage = Message.Assistant(
-          Streaming({id: msgId, textBuffer: text, createdAt: resolvedCreatedAt}),
+          Streaming({id: msgId, textBuffer: text, createdAt: resolvedCreatedAt, agentId}),
         )
         (Lens.insertMessage(task, newMessage), [])
       }
@@ -894,12 +916,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Accepted user messages from server history replay.
   // Per ACP spec: a new history user message signals the end of the previous agent message.
-  | (Task.Loading(_), UserMessageReceived({id, content, annotations})) =>
-    let userMessage = Message.User({id, content, annotations})
+  | (Task.Loading(_), UserMessageReceived({id, content, annotations, agentId})) =>
+    let userMessage = Message.User({id, content, annotations, agentId})
     (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
 
-  | (Task.Loaded(data), UserMessageReceived({id, content, annotations})) =>
-    let userMessage = Message.User({id, content, annotations})
+  | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId})) =>
+    let userMessage = Message.User({id, content, annotations, agentId})
     (
       Task.Loaded({
         ...data,
@@ -1228,7 +1250,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Streaming/message actions require Loading or Loaded (with agent running)
   | (
       Task.New(_) | Task.Unloaded(_),
-      StreamingStarted
+      StreamingStarted(_)
       | TextDeltaReceived(_)
       | ToolCallReceived(_)
       | ToolInputReceived(_)
