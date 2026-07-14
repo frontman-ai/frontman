@@ -53,6 +53,7 @@
 		"@tailwindcss/vite": "^4.3.2",
 		"@types/babel__core": "^7",
 		"@types/react": "^19.2.15",
+		"@types/react-dom": "^19.2.3",
 		"@zumer/snapdom": "^2.12.2",
 		"babel-plugin-react-compiler": "^1.0.0",
 		"dom-accessibility-api": "^0.7.1",
@@ -74,6 +75,7 @@
 		"vitest": "catalog:"
 	},
 	"dependencies": {
+		"@floating-ui/dom": "^1.8.0",
 		"@tiptap/core": "^3.27.3",
 		"@tiptap/extension-document": "^3.27.3",
 		"@tiptap/extension-paragraph": "^3.27.3",
