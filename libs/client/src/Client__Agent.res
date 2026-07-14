@@ -1,7 +1,6 @@
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 type t = {
-  id: string,
   name: string,
   displayName: string,
   description: string,
@@ -66,7 +65,6 @@ let findOrThrow = (configOptions: array<ACP.sessionConfigOption>, agentId: strin
   }
 
   {
-    id: agentId,
     name: metadata.name,
     displayName: option.name,
     description: option.description->Option.getOrThrow(

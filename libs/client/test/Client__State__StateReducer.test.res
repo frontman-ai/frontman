@@ -68,13 +68,12 @@ module TestHelpers = {
     ~id="user-accepted-1",
     ~content=[UserContentPart.text("Hello")],
     ~annotations=[],
-    ~agentId="executor-id",
   ) => {
     Reducer.next(
       state,
       TaskAction({
         target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations, agentId}),
+        action: UserMessageReceived({id, content, annotations, agentId: "executor-id"}),
       }),
     )->Pair.first
   }

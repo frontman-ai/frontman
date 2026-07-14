@@ -30,20 +30,14 @@ module TestHelpers = {
     TaskReducer.next(unloaded, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
   }
 
-  let acceptUserMessage = (
-    task,
-    ~id="user-1",
-    ~text="Hello",
-    ~annotations=[],
-    ~agentId="executor-id",
-  ) => {
+  let acceptUserMessage = (task, ~id="user-1", ~text="Hello", ~annotations=[]) => {
     TaskReducer.next(
       task,
       UserMessageReceived({
         id,
         content: [Client__Task__Types.UserContentPart.Text({text: text})],
         annotations,
-        agentId,
+        agentId: "executor-id",
       }),
     )->Pair.first
   }
