@@ -1,13 +1,13 @@
 let params1 = URLSearchParams.fromString("foo=1&bar=2")
-params1->URLSearchParams.keys->Iterator.toArray->Array.forEach(Console.log)
+params1->URLSearchParams.keys->Array.fromIterator->Array.forEach(Console.log)
 
 let params2 = URLSearchParams.fromKeyValueArray([("foo", "1"), ("bar", "b")])
-params2->URLSearchParams.values->Iterator.toArray->Array.forEach(Console.log)
+params2->URLSearchParams.values->Array.fromIterator->Array.forEach(Console.log)
 
 let params3 = URLSearchParams.fromDict(dict{"foo": "1", "bar": "b"})
 params3
 ->URLSearchParams.entries
-->Iterator.toArray
+->Array.fromIterator
 ->Array.forEach(((key, value)) => Console.log2(key, value))
 
-params3->URLSearchParams.toString->ignore
+let paramStr = params3->URLSearchParams.toString

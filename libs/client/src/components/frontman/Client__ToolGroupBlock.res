@@ -1,12 +1,12 @@
 /**
  * ToolGroupBlock - Grouped tool calls with "Explored" summary
- * 
+ *
  * Displays a collapsible group of tool calls with a summary header.
  * When collapsed, shows "Explored 3 files · 2 searches".
  * When expanded, shows individual tool call blocks.
- * 
+ *
  * Subagent groups show with "Processed" prefix and distinct styling.
- * 
+ *
  * Auto-expand/collapse behavior:
  * - If isLastToolGroup=true, the group auto-expands
  * - When a group is no longer the last (new group created), it auto-collapses
@@ -151,10 +151,10 @@ let make = (
     "text-zinc-400"
   }
 
-  <div className="my-1.5 mx-3 animate-in fade-in duration-100">
+  <div className="my-1.5 animate-in fade-in duration-100">
     // Collapsed Summary Header - purple themed
     <div
-      className={`group flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer 
+      className={`group flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer
                   transition-colors duration-150 ${headerBgClass}`}
       onClick={handleToggle}
     >

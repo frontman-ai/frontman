@@ -1,8 +1,7 @@
 /**
  * UserMessage - Renders user messages (text, images, files, annotations)
- * 
+ *
  * Displays user messages in a purple/violet bubble style.
- * Sticky at top when scrolling for context.
  * Images render as thumbnails with lightbox preview.
  * Annotations render as compact chips with numbered badges.
  */
@@ -43,7 +42,9 @@ let make = (
   ~messageId: string,
   ~isNew: bool=false,
 ) => {
-  let animationClass = isNew ? "animate-in fade-in duration-100" : ""
+  let rootClass = isNew
+    ? "frontman-content-auto animate-in fade-in duration-100"
+    : "frontman-content-auto"
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
 
   // Separate image parts from text parts for layout
@@ -68,14 +69,13 @@ let make = (
 
   let hasAnnotations = Array.length(annotations) > 0
 
-  // Sticky container with dark background for proper stacking
-  <div className={`sticky top-0 z-10 bg-[#130d20] py-2 px-3 ${animationClass}`}>
+  <div className=rootClass>
     <div
-      className="inline-block max-w-[85%] min-w-0 overflow-hidden bg-violet-600/80 rounded-2xl px-4 py-3"
+      className="w-full min-w-0 overflow-hidden bg-violet-600/80 rounded-2xl px-3 py-2 text-[14px] leading-relaxed text-white font-semibold"
     >
       // Annotation chips (above images/text)
       {hasAnnotations
-        ? <div className="flex flex-wrap gap-1.5 mb-2 min-w-0">
+        ? <div className="flex flex-wrap gap-1.5 mb-2 min-w-0 w-full">
             {annotations
             ->Array.mapWithIndex((annotation, i) => {
               let badge = _getBadge(i)
@@ -89,20 +89,18 @@ let make = (
               }
               <div
                 key={`${messageId}-ann-${Int.toString(i)}`}
-                className="flex flex-col gap-0.5 min-w-0"
+                className="flex flex-col gap-0.5 min-w-0 w-full"
               >
                 <div
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0 w-full
                              bg-violet-500/60 text-violet-100 text-xs font-mono"
                 >
                   <span className="text-violet-200 shrink-0"> {React.string(badge)} </span>
-                  <span className="truncate min-w-0 max-w-[160px]"> {React.string(label)} </span>
+                  <span className="truncate min-w-0 flex-1"> {React.string(label)} </span>
                 </div>
                 {switch annotation.comment {
                 | Some(comment) =>
-                  <div
-                    className="text-[11px] text-violet-200/80 italic pl-1 max-w-[200px] truncate"
-                  >
+                  <div className="text-[11px] text-violet-200/80 italic pl-1 w-full truncate">
                     {React.string(comment)}
                   </div>
                 | None => React.null
@@ -167,17 +165,15 @@ let make = (
         : React.null}
 
       // Text content
-      <div className="text-[14px] leading-relaxed text-white font-semibold">
-        {textParts
-        ->Array.mapWithIndex((text, i) => {
-          <div
-            key={`${messageId}-text-${Int.toString(i)}`} className="whitespace-pre-wrap break-words"
-          >
-            {React.string(text)}
-          </div>
-        })
-        ->React.array}
-      </div>
+      {textParts
+      ->Array.mapWithIndex((text, i) => {
+        <div
+          key={`${messageId}-text-${Int.toString(i)}`} className="whitespace-pre-wrap break-words"
+        >
+          {React.string(text)}
+        </div>
+      })
+      ->React.array}
     </div>
 
     // Lightbox preview

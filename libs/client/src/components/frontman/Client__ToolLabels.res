@@ -24,7 +24,8 @@ let toTitleCase = (str: string): string => {
 }
 
 /**
- * Extract a display-friendly target from tool input
+ * Extract target from tool input. Renderers handle display truncation so
+ * tooltips and grouping still have the full value.
  * Attempts to find common fields like "path", "file", "query", "command"
  */
 let extractTargetFromInput = (input: option<JSON.t>): option<string> => {
@@ -58,14 +59,7 @@ let extractTargetFromInput = (input: option<JSON.t>): option<string> => {
           ->Dict.get(field)
           ->Option.flatMap(value => {
             switch JSON.Decode.string(value) {
-            | Some(str) if String.length(str) > 0 =>
-              // Truncate long strings
-              let truncated = if String.length(str) > 40 {
-                String.slice(str, ~start=0, ~end=37) ++ "..."
-              } else {
-                str
-              }
-              Some(truncated)
+            | Some(str) if String.length(str) > 0 => Some(str)
             | _ => None
             }
           })

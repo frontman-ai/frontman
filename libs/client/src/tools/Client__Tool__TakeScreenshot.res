@@ -126,12 +126,20 @@ let execute = async (
         doc
         ->WebAPI.Document.body
         ->Null.toOption
-        ->Option.mapOr(Error("Document body not available"), el => Ok(el))
+        ->Option.mapOr(Error("Document body not available"), el => Ok(
+          el->WebAPI.HTMLElement.asElement,
+        ))
       }
 
       // For viewport-only capture (no selector, not fullPage), gather scroll + dimensions
       let viewportCrop = switch (fullPage, input.selector) {
-      | (false, None) => Some((win.innerWidth, win.innerHeight, win.scrollX, win.scrollY))
+      | (false, None) =>
+        Some((
+          win->WebAPI.Window.innerWidth,
+          win->WebAPI.Window.innerHeight,
+          win->WebAPI.Window.scrollX,
+          win->WebAPI.Window.scrollY,
+        ))
       | _ => None
       }
 

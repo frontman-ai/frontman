@@ -1,10 +1,12 @@
-open Global
-
-// Note that this only works when you added the `-open Global` bsc flag.
-let location = window.location
+let location = DomGlobal.document.location
 
 // Access properties using `.`
-location.href->ignore
+let href = location.href
 
 // Invoke methods using the `->TypeModule`
 location->Location.reload
+
+let a = 0
+
+// testing out editor autocomplete
+let fn = (l: DOM.location) => l->Location.reload

@@ -505,7 +505,7 @@ kill-all-processes: ## Kill all running make dev processes
 	@ps aux | grep "[m]ake dev" | awk '{print $$2}' | xargs -r kill 2>/dev/null || true
 
 pull-webapi: ## Pull latest experimental-rescript-webapi subtree
-	git subtree pull --prefix libs/experimental-rescript-webapi git@github.com:itayadler/experimental-rescript-webapi.git main --squash
+	git subtree pull --prefix libs/experimental-rescript-webapi https://github.com/rescript-lang/experimental-rescript-webapi.git main --squash
 
 debug-task: ## Debug task interactions (ARGS="list" or ARGS="show ...")
 	cd apps/frontman_server && $(MAKE) debug-task ARGS="$(ARGS)"

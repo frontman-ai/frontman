@@ -1,38 +1,40 @@
-let observer = IntersectionObserver.make(~callback=(entry, observer) => {
+module IObserver = IntersectionObserver
+module IRoot = IntersectionObserverRoot
+
+let observer = IObserver.make(~callback=(entry, observer) => {
   Console.log2(entry, observer)
 })
-observer->ignore
 
-let root = Global.document->Document.querySelector("#root")->Null.getUnsafe
+let root = DomGlobal.document->Document.querySelector("#root")->Null.getUnsafe
 
-let observer2 = IntersectionObserver.make(
+let observer2 = IObserver.make(
   ~callback=(entry, observer) => {
     Console.log2(entry, observer)
   },
   ~options={
-    root: root->IntersectionObserverRoot.fromElement,
+    root: root->IRoot.fromElement,
     rootMargin: "10px",
     threshold: [0.1],
   },
 )
 
-switch observer2.root->IntersectionObserverRoot.decode {
+switch observer2.root->IRoot.decode {
 | Element(_) => Console.log("Element")
 | Document(_) => Console.log("Document")
 | Null => Console.log("Null")
 }
-observer2.rootMargin->ignore
+let rootMargin2 = observer2.rootMargin
 
-let targetElement = Global.document->Document.querySelector("#targetElement")->Null.toOption
+let targetElement = DomGlobal.document->Document.querySelector("#targetElement")->Null.toOption
 switch targetElement {
 | Some(e) => {
-    observer2->IntersectionObserver.observe(e)
-    observer2->IntersectionObserver.unobserve(e)
+    observer2->IObserver.observe(e)
+    observer2->IObserver.unobserve(e)
   }
 | _ => Console.log("Target element not found.")
 }
 
-let entries2 = observer2->IntersectionObserver.takeRecords
+let entries2 = observer2->IObserver.takeRecords
 Console.log(entries2->Array.length)
 
-observer2->IntersectionObserver.disconnect
+observer2->IObserver.disconnect
