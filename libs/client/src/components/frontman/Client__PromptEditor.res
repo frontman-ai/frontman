@@ -520,7 +520,7 @@ let make = (
     content: "",
     editable: !(disabled || isEnrichingAnnotations),
     editorProps: {
-      attributes: Dict.fromArray([("aria-label", placeholder)]),
+      attributes: Dict.fromArray([("aria-label", placeholder), ("role", "textbox")]),
       handleKeyDown: (_view, event) => {
         switch event.key {
         | "Enter" =>
