@@ -40,7 +40,7 @@
 		"@frontman/bindings": "0.3.1",
 		"@rescript/runtime": "12.3.0",
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.3.0",
+		"lighthouse": "^13.4.0",
 		"sury": "11.0.0-alpha.8"
 	},
 	"optionalDependencies": {

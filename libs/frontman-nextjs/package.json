@@ -50,7 +50,7 @@
 	"dependencies": {
 		"@sentry/nextjs": "^10.57.0",
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.3.0"
+		"lighthouse": "^13.4.0"
 	},
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",
