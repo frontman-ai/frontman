@@ -20,7 +20,7 @@ describe("Load Session Then Stream", () => {
       acp: Conn.ACPConnected(Mock.conn()),
       relay: Conn.RelayConnected,
       mcpServer: Some(Mock.server()),
-      session: Conn.NoSession,
+      session: Conn.SessionCreating(Some(taskId)),
     }
     let (connAfterLoad, _) = Conn.reduce(connState, SessionCreateSuccess(Mock.session(taskId)))
 
@@ -43,15 +43,12 @@ describe("Load Session Then Stream", () => {
     }
 
     // 3. Streaming arrives and routes to task
-    let (stateAfterStream, _) = State.next(
-      appState,
-      TaskAction({target: ForTask(taskId), action: StreamingStarted({agentId: "test-agent"})}),
-    )
     let (finalState, _) = State.next(
-      stateAfterStream,
+      appState,
       TaskAction({
         target: ForTask(taskId),
         action: TextDeltaReceived({
+          messageId: "assistant-1",
           text: "Hello",
           timestamp: "2024-01-15T10:00:00Z",
           agentId: "test-agent",

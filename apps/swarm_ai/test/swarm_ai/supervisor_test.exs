@@ -9,6 +9,19 @@ defmodule SwarmAi.SupervisorTest do
     end
   end
 
+  describe "response event identity" do
+    test "shares response ordinal and timestamp across chunks and closing response" do
+      runtime = start_runtime!()
+      {:ok, pid} = run_agent(runtime, "task-events", mock_llm("hello"))
+      await_exit(pid)
+
+      assert_receive {:test_event, "task-events", {:chunk, metadata, _chunk}}
+      assert %{ordinal: 0, timestamp: %DateTime{}} = metadata
+
+      assert_receive {:test_event, "task-events", {:response, ^metadata, _response}}
+    end
+  end
+
   describe "registry crash recovery" do
     test "running tasks are terminated when registry crashes" do
       runtime = start_runtime!()

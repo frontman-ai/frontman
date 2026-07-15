@@ -32,9 +32,11 @@ defmodule SwarmAi.Loop do
           | {:failed, term()}
           | {:paused, term()}
 
+  @type response_event_metadata :: %{ordinal: non_neg_integer(), timestamp: DateTime.t()}
+
   @type event ::
-          {:chunk, term()}
-          | {:response, LLM.Response.t()}
+          {:chunk, response_event_metadata(), term()}
+          | {:response, response_event_metadata(), LLM.Response.t()}
           | {:tool_call, ToolCall.t()}
           | :completed
           | {:failed, term()}

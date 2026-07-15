@@ -21,7 +21,6 @@ defmodule FrontmanServerWeb.TasksChannel do
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
-  alias FrontmanServerWeb.ACPHistory
 
   @acp_protocol_version ACP.protocol_version()
   @acp_message ACP.event_acp_message()
@@ -30,7 +29,6 @@ defmodule FrontmanServerWeb.TasksChannel do
   @acp_delete_session ACP.event_delete_session()
   @acp_method_initialize ACP.method_initialize()
   @acp_method_session_new ACP.method_session_new()
-  @acp_method_session_load ACP.method_session_load()
 
   @impl true
   def join("tasks", _params, socket) do
@@ -47,7 +45,6 @@ defmodule FrontmanServerWeb.TasksChannel do
         Providers.config_pubsub_topic(user_id)
       )
 
-      socket = assign(socket, :acp_initialized, false)
       {:ok, %{status: "connected"}, socket}
     else
       Logger.info("Client joining tasks channel (unauthenticated)")
@@ -93,21 +90,23 @@ defmodule FrontmanServerWeb.TasksChannel do
        ) do
     Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
 
-    socket =
-      socket
-      |> assign(:acp_initialized, true)
-      |> assign(:acp_client_info, params["clientInfo"])
-      |> assign(:acp_client_capabilities, params["clientCapabilities"])
+    case ACP.negotiate_agent_attribution_version(params["clientCapabilities"]) do
+      {:ok, _version} ->
+        socket = assign(socket, :acp_client_info, params["clientInfo"])
 
-    # Push config options immediately so the model selector is populated
-    # before any session is created.
-    push(
-      socket,
-      @acp_config_updated,
-      ACP.build_config_options_updated_payload(current_config_options(socket))
-    )
+        # Push config options immediately so the model selector is populated
+        # before any session is created.
+        push(
+          socket,
+          @acp_config_updated,
+          ACP.build_config_options_updated_payload(current_config_options(socket))
+        )
 
-    push_response(socket, id, ACP.build_initialize_result())
+        push_response(socket, id, ACP.build_initialize_result())
+
+      {:error, message} ->
+        push_error(socket, id, JsonRpc.error_invalid_params(), message)
+    end
   end
 
   defp handle_message({:request, id, @acp_method_initialize, %{"protocolVersion" => _}}, socket) do
@@ -134,6 +133,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
+         {:ok, agents} <- Agents.resolve_catalog(Agents.list_agents(socket.assigns.scope), []),
          {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
            Tasks.create_task(
              socket.assigns.scope,
@@ -143,7 +143,11 @@ defmodule FrontmanServerWeb.TasksChannel do
       push_response(
         socket,
         id,
-        ACP.build_session_new_result(session_id, current_config_options(socket))
+        ACP.build_session_new_result(
+          session_id,
+          current_config_options(socket),
+          ACP.build_agent_catalog(agents)
+        )
       )
     else
       :error ->
@@ -157,6 +161,10 @@ defmodule FrontmanServerWeb.TasksChannel do
       nil ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
+      {:error, reason} when is_tuple(reason) ->
+        Logger.error("Invalid server agent catalog: #{inspect(reason)}")
+        push_error(socket, id, JsonRpc.error_internal(), "Invalid server agent catalog")
+
       {:error, _changeset} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
     end
@@ -164,30 +172,6 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp handle_message({:request, id, @acp_method_session_new, _params}, socket) do
     push_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
-  end
-
-  # ACP session/load - streams history via session/update notifications
-  defp handle_message(
-         {:request, id, @acp_method_session_load, %{"sessionId" => session_id} = _params},
-         socket
-       ) do
-    Logger.info("ACP session/load request received for session: #{session_id}")
-    scope = socket.assigns.scope
-
-    case Tasks.get_task(scope, session_id) do
-      {:ok, task} ->
-        # Stream history via session/update notifications
-        stream_session_history(socket, task)
-
-        push_response(socket, id, ACP.build_session_load_result(current_config_options(socket)))
-
-      {:error, :not_found} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
-    end
-  end
-
-  defp handle_message({:request, id, @acp_method_session_load, _params}, socket) do
-    push_error(socket, id, JsonRpc.error_invalid_params(), "Missing sessionId parameter")
   end
 
   # Unknown method
@@ -216,9 +200,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     scope = socket.assigns.scope
 
     model_options = scope |> Providers.model_config_data() |> ACP.build_model_config_options()
-    agent_options = scope |> Agents.list_agents() |> ACP.build_agent_config_options()
-
-    model_options ++ agent_options
+    model_options
   end
 
   # UUID v4 format: 8-4-4-4-12 hex digits with dashes
@@ -252,30 +234,4 @@ defmodule FrontmanServerWeb.TasksChannel do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
     {:noreply, socket}
   end
-
-  # Streams session history as ACP session/update notifications
-  defp stream_session_history(socket, task) do
-    task.interactions
-    |> Enum.flat_map(&history_items(&1, task.id, socket.assigns.scope))
-    |> Enum.each(fn notification ->
-      push(socket, @acp_message, notification)
-    end)
-  end
-
-  defp history_items(%Tasks.Interaction.TurnStarted{agent_id: nil} = interaction, task_id, scope) do
-    ACPHistory.to_history_items(
-      %{interaction | agent_id: Agents.default_agent_id(scope)},
-      task_id
-    )
-  end
-
-  defp history_items(%Tasks.Interaction.UserMessage{agent_id: nil} = interaction, task_id, scope) do
-    ACPHistory.to_history_items(
-      %{interaction | agent_id: Agents.default_agent_id(scope)},
-      task_id
-    )
-  end
-
-  defp history_items(interaction, task_id, _scope),
-    do: ACPHistory.to_history_items(interaction, task_id)
 end

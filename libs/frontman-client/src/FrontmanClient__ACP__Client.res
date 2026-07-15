@@ -14,6 +14,8 @@ type acpState =
   | Connecting
   | Initialized(Types.initializeResult)
 
+type agentAttributionVersion = V1
+
 type pendingRequest = {
   method: string,
   sessionId: option<string>,
@@ -24,6 +26,7 @@ type pendingRequest = {
 type state = {
   currentId: int,
   acpState: acpState,
+  agentAttributionVersion: option<agentAttributionVersion>,
   pendingRequests: Dict.t<pendingRequest>,
 }
 
@@ -42,7 +45,22 @@ type action =
 let initialState: state = {
   currentId: 0,
   acpState: Disconnected,
+  agentAttributionVersion: None,
   pendingRequests: Dict.make(),
+}
+
+let negotiateAgentAttributionVersion = (result: Types.initializeResult) => {
+  let advertisedVersion =
+    result.agentCapabilities
+    ->Option.flatMap(capabilities => capabilities._meta)
+    ->Option.flatMap(metadata => metadata.frontmanDev)
+    ->Option.flatMap(frontman => frontman.agentAttribution)
+    ->Option.map(attribution => attribution.version)
+
+  switch (result.protocolVersion, advertisedVersion) {
+  | (1, Some(1)) => Some(V1)
+  | _ => None
+  }
 }
 
 // Pure reducer function
@@ -60,7 +78,12 @@ let reduce = (state: state, action: action): state => {
     let newPending = state.pendingRequests->Dict.copy
     newPending->Dict.delete(Int.toString(id))
     {...state, pendingRequests: newPending}
-  | ACPStateChanged(acpState) => {...state, acpState}
+  | ACPStateChanged(Initialized(result) as acpState) => {
+      ...state,
+      acpState,
+      agentAttributionVersion: negotiateAgentAttributionVersion(result),
+    }
+  | ACPStateChanged(acpState) => {...state, acpState, agentAttributionVersion: None}
   }
 }
 
@@ -124,14 +147,27 @@ let resolvePendingSessionRequest = (
 let buildInitializeParams = (config: config): JSON.t => {
   let params: Types.initializeParams = {
     protocolVersion: Types.currentProtocolVersion,
-    clientCapabilities: Some(config.clientCapabilities),
+    clientCapabilities: Some({
+      ...config.clientCapabilities,
+      _meta: Some(Types.agentAttributionV1CapabilityMetadata),
+    }),
     clientInfo: Some(config.clientInfo),
   }
   params->Types.initializeParamsToJson
 }
 
-// Parse initialize result
-let parseInitializeResult = json => json->Decoders.parseSchema(Types.initializeResultSchema)
+let ensureSupportedProtocolVersion = ({protocolVersion} as result: Types.initializeResult) => {
+  switch protocolVersion == Types.currentProtocolVersion {
+  | true => Ok(result)
+  | false => Error(`Unsupported ACP protocol version: ${protocolVersion->Int.toString}`)
+  }
+}
+
+// Parse initialize result and enforce ACP base-version agreement before extension negotiation.
+let parseInitializeResult = json =>
+  json
+  ->Decoders.parseSchema(Types.initializeResultSchema)
+  ->Result.flatMap(ensureSupportedProtocolVersion)
 
 // Parse session/new result
 let parseSessionNewResult = json => json->Decoders.parseSchema(Types.sessionNewResultSchema)
@@ -142,9 +178,40 @@ let parseSessionLoadResult = json => json->Decoders.parseSchema(Types.sessionLoa
 // Parse session/prompt result
 let parsePromptResult = json => json->Decoders.parseSchema(Types.promptResultSchema)
 
-// Parse session/update notification
-let parseSessionUpdateNotification = json =>
-  json->Decoders.parseSchema(Types.sessionUpdateNotificationSchema)
+// Parse session/update notification under the negotiated extension contract.
+let sessionUpdateName = json =>
+  json
+  ->JSON.Decode.object
+  ->Option.flatMap(message => message->Dict.get("params"))
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.flatMap(params => params->Dict.get("update"))
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.flatMap(update => update->Dict.get("sessionUpdate"))
+  ->Option.flatMap(JSON.Decode.string)
+
+let knownSessionUpdate = name =>
+  switch name {
+  | "agent_message_chunk"
+  | "user_message_chunk"
+  | "tool_call"
+  | "tool_call_update"
+  | "plan"
+  | "config_option_update"
+  | "current_mode_update"
+  | "state_update"
+  | "error" => true
+  | _ => false
+  }
+
+let parseSessionUpdateNotification = (state, json) => {
+  let schema = switch (state.agentAttributionVersion, sessionUpdateName(json)) {
+  | (Some(V1), Some(name)) if knownSessionUpdate(name) => Types.sessionUpdateNotificationSchema
+  | (None, Some(name)) if knownSessionUpdate(name) => Types.genericSessionUpdateNotificationSchema
+  | (_, Some(_unknown)) => Types.unknownSessionUpdateNotificationSchema
+  | (_, None) => Types.genericSessionUpdateNotificationSchema
+  }
+  json->Decoders.parseSchema(schema)
+}
 
 // Check if initialized
 let isInitialized = (state: state): bool => {
@@ -156,3 +223,46 @@ let isInitialized = (state: state): bool => {
 
 // Get connection state
 let getACPState = (state: state): acpState => state.acpState
+
+let getAgentAttributionVersion = (state: state): option<agentAttributionVersion> =>
+  state.agentAttributionVersion
+
+let validateSessionMetadata = (state: state, metadata: option<Types.sessionMetadata>, method) => {
+  let catalog = metadata->Option.flatMap(metadata => metadata.agents)
+
+  switch (state.agentAttributionVersion, catalog) {
+  | (Some(V1), None) => Error(`${method} missing frontman.dev/agents metadata`)
+  | _ => Ok()
+  }
+}
+
+let validateSessionReplay = (
+  state: state,
+  metadata: option<Types.sessionMetadata>,
+  updates: array<(string, Types.sessionUpdate)>,
+) => {
+  switch state.agentAttributionVersion {
+  | None => Ok()
+  | Some(V1) => {
+      let catalog =
+        metadata
+        ->Option.flatMap(metadata => metadata.agents)
+        ->Option.getOrThrow(~message="Validated v1 session metadata is required")
+      let agentIds = catalog->Array.map(agent => agent.id)->Set.fromArray
+      let unknownAgentId = updates->Array.findMap(((_, update)) => {
+        let agentId = switch update {
+        | Types.AgentMessageChunk({_meta: {agentId}})
+        | Types.UserMessageChunk({_meta: {agentId}}) =>
+          Some(agentId)
+        | _ => None
+        }
+        agentId->Option.flatMap(agentId => agentIds->Set.has(agentId) ? None : Some(agentId))
+      })
+
+      switch unknownAgentId {
+      | Some(agentId) => Error(`session/load replay references unknown agent: ${agentId}`)
+      | None => Ok()
+      }
+    }
+  }
+}

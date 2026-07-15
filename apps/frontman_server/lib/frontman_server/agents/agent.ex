@@ -23,23 +23,34 @@ defmodule FrontmanServer.Agents.Agent do
 
   @hex_color ~r/\A#[0-9A-Fa-f]{6}\z/
 
+  @type t :: %__MODULE__{
+          id: String.t(),
+          name: String.t(),
+          display_name: String.t(),
+          description: String.t(),
+          color: String.t(),
+          system: String.t() | nil,
+          tools: :all | [String.t()],
+          source: atom()
+        }
+
   def new!(attrs) do
     agent = struct!(__MODULE__, attrs)
 
-    case agent.color do
-      color when is_binary(color) ->
-        case Regex.match?(@hex_color, color) do
-          true -> agent
-          false -> raise_invalid_color!(agent)
-        end
-
-      _invalid ->
-        raise_invalid_color!(agent)
+    with true <- non_empty_string?(agent.id),
+         true <- non_empty_string?(agent.name),
+         true <- non_empty_string?(agent.display_name),
+         true <- non_empty_string?(agent.description),
+         true <- valid_color?(agent.color) do
+      agent
+    else
+      false -> raise ArgumentError, "invalid agent definition: #{inspect(agent)}"
     end
   end
 
-  defp raise_invalid_color!(agent) do
-    raise ArgumentError,
-          "agent #{inspect(agent.name)} color must use #RRGGBB format, got: #{inspect(agent.color)}"
-  end
+  defp non_empty_string?(value) when is_binary(value), do: value != ""
+  defp non_empty_string?(_value), do: false
+
+  defp valid_color?(color) when is_binary(color), do: Regex.match?(@hex_color, color)
+  defp valid_color?(_color), do: false
 end

@@ -53,6 +53,7 @@ let makeConfig = (
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
     terminal: Some(false),
     elicitation: None,
+    _meta: None,
   },
   onMessage,
 }
@@ -274,8 +275,14 @@ let isInitialized = (conn: connection): bool => {
   Client.isInitialized(conn.state.contents)
 }
 
+@@live
+let getAgentAttributionVersion = (conn: connection): option<Client.agentAttributionVersion> =>
+  Client.getAgentAttributionVersion(conn.state.contents)
+
 module MCP = FrontmanClient__MCP
 module MCPTypes = FrontmanClient__MCP__Types
+
+exception SessionMessageParseError(string)
 
 // Join a session channel (internal helper)
 // mcpServerInterface is used to create MCP handler BEFORE joining to avoid race with server MCP init
@@ -285,10 +292,24 @@ let joinSession = async (
   sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
+  ~onParseError: option<string => unit>=?,
+  ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
+  let handleParseError = err => {
+    switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
+    | true =>
+      sessionChannel->Channel.off(~event=#"acp:message")
+      Channel.leave(sessionChannel)->ignore
+    | false => ()
+    }
+    switch onParseError {
+    | Some(callback) => callback(err)
+    | None => throw(SessionMessageParseError(err))
+    }
+  }
 
   // Attach ACP handler before joining
   Protocol.attachMessageHandler(
@@ -296,7 +317,7 @@ let joinSession = async (
     ~state=conn.state,
     ~onUpdate=Some(onUpdate),
     ~onMessage=conn.onMessage,
-    ~onParseError=Some(err => Log.warning(`Session message parse error: ${err}`)),
+    ~onParseError=Some(handleParseError),
   )
 
   // Attach MCP handler before joining - server sends mcp:message immediately on join
@@ -352,9 +373,10 @@ let createSession = async (
   ~sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
+  ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
-): result<(session, option<array<Types.sessionConfigOption>>), string> => {
+): result<(session, Types.sessionNewResult), string> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
   let sessionNewResult = await Protocol.sendSessionNew(
@@ -366,17 +388,22 @@ let createSession = async (
 
   switch sessionNewResult {
   | Ok(result) =>
-    let joinResult = await joinSession(
-      conn,
-      result.sessionId,
-      ~onUpdate,
-      ~onTitleUpdated,
-      ~mcpServerInterface?,
-      ~onMcpMessage?,
-    )
-    switch joinResult {
-    | Ok(session) => Ok((session, result.configOptions))
+    switch Client.validateSessionMetadata(conn.state.contents, result._meta, "session/new") {
     | Error(e) => Error(e)
+    | Ok() =>
+      let joinResult = await joinSession(
+        conn,
+        result.sessionId,
+        ~onUpdate,
+        ~onTitleUpdated,
+        ~onParseError?,
+        ~mcpServerInterface?,
+        ~onMcpMessage?,
+      )
+      switch joinResult {
+      | Ok(session) => Ok((session, result))
+      | Error(e) => Error(e)
+      }
     }
   | Error(err) =>
     Log.error(`Session creation failed: ${err}`)
@@ -467,24 +494,49 @@ let deleteSession = (conn: connection, sessionId: string): promise<result<unit, 
   })
 }
 
-// Load an existing session (ACP compliant)
-// History is streamed via session/update notifications to onUpdate callback
-// onUpdate receives (sessionId, update) per ACP session/update notification params
+// Load an existing session while preserving ACP history-before-response wire ordering.
+// History callbacks are buffered until onLoadResult installs validated response metadata.
 @@live
 let loadSession = async (
   conn: connection,
   sessionId: string,
+  ~onLoadResult: Types.sessionLoadResult => unit,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
+  ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<(session, Types.sessionLoadResult), string> => {
+  let buffering = ref(true)
+  let bufferedUpdates = ref([])
+  let parseError = ref(None)
+  let cleanupOnParseError = ref(false)
+  let handleUpdate = (sessionId, update) =>
+    switch buffering.contents {
+    | true => bufferedUpdates := bufferedUpdates.contents->Array.concat([(sessionId, update)])
+    | false => onUpdate(sessionId, update)
+    }
+
   // First join the session channel to receive history updates
   let joinResult = await joinSession(
     conn,
     sessionId,
-    ~onUpdate,
+    ~onUpdate=handleUpdate,
     ~onTitleUpdated,
+    ~onParseError=err =>
+      switch buffering.contents {
+      | false =>
+        switch onParseError {
+        | Some(callback) => callback(err)
+        | None => throw(SessionMessageParseError(err))
+        }
+      | true =>
+        switch parseError.contents {
+        | None => parseError := Some(err)
+        | Some(_) => ()
+        }
+      },
+    ~cleanupOnParseError,
     ~mcpServerInterface?,
     ~onMcpMessage?,
   )
@@ -517,10 +569,65 @@ let loadSession = async (
       ~parseResult=Client.parseSessionLoadResult,
       ~onMessage=conn.onMessage,
     )
+    cleanupOnParseError := true
 
     switch loadResult {
-    | Ok(result) => Ok((session, result))
-    | Error(e) => Error(e)
+    | Ok(result) => {
+        let validation = switch parseError.contents {
+        | Some(e) => Error(e)
+        | None =>
+          Client.validateSessionMetadata(
+            conn.state.contents,
+            result._meta,
+            "session/load",
+          )->Result.flatMap(() =>
+            Client.validateSessionReplay(
+              conn.state.contents,
+              result._meta,
+              bufferedUpdates.contents,
+            )
+          )
+        }
+
+        switch validation {
+        | Error(e) => {
+            cleanupSessionChannel(session)
+            Error(e)
+          }
+        | Ok() => {
+            onLoadResult(result)
+            buffering := false
+            let replayError = try {
+              bufferedUpdates.contents->Array.forEach(((sessionId, update)) =>
+                onUpdate(sessionId, update)
+              )
+              None
+            } catch {
+            | Failure(error) => Some(error)
+            | exn =>
+              Some(
+                exn
+                ->JsExn.fromException
+                ->Option.flatMap(JsExn.message)
+                ->Option.getOr("Session update handler failed"),
+              )
+            }
+            switch replayError {
+            | Some(error) =>
+              cleanupSessionChannel(session)
+              onParseError->Option.forEach(callback => callback(error))
+              Error(error)
+            | None =>
+              bufferedUpdates := []
+              Ok((session, result))
+            }
+          }
+        }
+      }
+    | Error(e) => {
+        cleanupSessionChannel(session)
+        Error(e)
+      }
     }
   }
 }

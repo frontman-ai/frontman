@@ -2,4 +2,5 @@
 "@frontman-ai/client": patch
 ---
 
-Show each user and assistant message's selected agent using its explicitly configured color.
+Add negotiated ACP agent attribution with validated session catalogs, stable message IDs,
+and explicit agent colors.

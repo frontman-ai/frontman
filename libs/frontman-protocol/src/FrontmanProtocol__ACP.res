@@ -1,9 +1,177 @@
 // ACP (Agent Client Protocol) Types
-// Based on: https://github.com/agentclientprotocol/agent-client-protocol/schema/schema.json
+// Based on ACP schema-v1.19.0 at commit a213df5240048f96d2b23f644984bb20c188a234.
+// Source: libs/frontman-protocol/schemas/acp/upstream/README.md
 
 // Protocol version is an integer (uint16 in spec)
 type protocolVersion = int
 let currentProtocolVersion = 1
+
+// ---------------------------------------------------------------------------
+// Frontman agent attribution extension metadata
+// Contract: docs/acp-agent-attribution.md
+// ---------------------------------------------------------------------------
+
+module ExtensionKey: {
+  type t
+
+  type kind =
+    | Namespace
+    | Agents
+    | AgentId
+    | Timestamp
+
+  let make: kind => t
+  let toString: t => string
+} = {
+  type t = string
+
+  type kind =
+    | Namespace
+    | Agents
+    | AgentId
+    | Timestamp
+
+  let namespace = "frontman.dev"
+
+  let make = kind =>
+    switch kind {
+    | Namespace => namespace
+    | Agents => `${namespace}/agents`
+    | AgentId => `${namespace}/agentId`
+    | Timestamp => `${namespace}/timestamp`
+    }
+
+  let toString = key => key
+}
+
+let nonEmptyStringSchema = S.string->S.min(1, ~message="Must not be empty")
+
+type agentAttributionCapability = {version: int}
+
+let agentAttributionCapabilitySchema = S.object(s => {
+  version: s.field(
+    "version",
+    S.int
+    ->S.min(1, ~message="Version must be a positive integer")
+    ->S.max(65535, ~message="Version must fit an unsigned 16-bit integer"),
+  ),
+})
+
+type frontmanCapabilityNamespace = {
+  agentAttribution: option<agentAttributionCapability>,
+}
+
+let frontmanCapabilityNamespaceSchema = S.object(s => {
+  agentAttribution: s.field("agentAttribution", S.option(agentAttributionCapabilitySchema)),
+})
+
+type capabilityMetadata = {
+  frontmanDev: option<frontmanCapabilityNamespace>,
+}
+
+let capabilityMetadataSchema = S.object(s => {
+  frontmanDev: s.field(
+    ExtensionKey.make(ExtensionKey.Namespace)->ExtensionKey.toString,
+    S.option(frontmanCapabilityNamespaceSchema),
+  ),
+})
+
+let agentAttributionV1CapabilityMetadata: capabilityMetadata = {
+  frontmanDev: Some({agentAttribution: Some({version: 1})}),
+}
+
+type agentCatalogEntry = {
+  id: string,
+  name: string,
+  displayName: string,
+  description: string,
+  color: string,
+}
+
+let agentCatalogEntrySchema = S.object(s => {
+  id: s.field("id", nonEmptyStringSchema),
+  name: s.field("name", nonEmptyStringSchema),
+  displayName: s.field("displayName", nonEmptyStringSchema),
+  description: s.field("description", nonEmptyStringSchema),
+  color: s.field(
+    "color",
+    S.string->S.pattern(/^#[0-9A-Fa-f]{6}$/, ~message="Expected #RRGGBB color"),
+  ),
+})
+
+let catalogIdsUnique = agents => {
+  let ids = Set.make()
+  agents->Array.every(agent => {
+    switch ids->Set.has(agent.id) {
+    | true => false
+    | false => {
+        ids->Set.add(agent.id)
+        true
+      }
+    }
+  })
+}
+
+let agentCatalogSchema =
+  S.array(agentCatalogEntrySchema)
+  ->S.refine(catalogIdsUnique, ~error="Agent catalog IDs must be unique")
+  ->S.extendJSONSchema({
+    uniqueItems: true,
+    description: "Frontman runtime validation also requires unique id fields",
+  })
+
+type sessionMetadata = {
+  agents: option<array<agentCatalogEntry>>,
+}
+
+let sessionMetadataSchema = S.object(s => {
+  agents: s.field(
+    ExtensionKey.make(ExtensionKey.Agents)->ExtensionKey.toString,
+    S.option(agentCatalogSchema),
+  ),
+})
+
+let rfc3339TimestampSchema =
+  S.string
+  ->S.pattern(
+    /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])[Tt]([01]\d|2[0-3]):[0-5]\d:([0-5]\d|60)(\.\d+)?([Zz]|[+-]([01]\d|2[0-3]):[0-5]\d)$/,
+    ~message="Expected RFC 3339 timestamp",
+  )
+  ->S.refine(timestamp => {
+    let year = timestamp->String.slice(~start=0, ~end=4)->Int.fromString
+    let month = timestamp->String.slice(~start=5, ~end=7)->Int.fromString
+    let day = timestamp->String.slice(~start=8, ~end=10)->Int.fromString
+
+    switch (year, month, day) {
+    | (Some(year), Some(month), Some(day)) => {
+        let leapYear = mod(year, 4) == 0 && (mod(year, 100) != 0 || mod(year, 400) == 0)
+        let daysInMonth = switch month {
+        | 2 => leapYear ? 29 : 28
+        | 4 | 6 | 9 | 11 => 30
+        | _ => 31
+        }
+        day <= daysInMonth
+      }
+    | _ => false
+    }
+  }, ~error="Timestamp contains an invalid calendar date")
+  ->S.extendJSONSchema({format: "date-time"})
+
+type messageMetadata = {
+  agentId: string,
+  timestamp: string,
+}
+
+let messageMetadataSchema = S.object(s => {
+  agentId: s.field(
+    ExtensionKey.make(ExtensionKey.AgentId)->ExtensionKey.toString,
+    nonEmptyStringSchema,
+  ),
+  timestamp: s.field(
+    ExtensionKey.make(ExtensionKey.Timestamp)->ExtensionKey.toString,
+    rfc3339TimestampSchema,
+  ),
+})
 
 // Implementation info (used for clientInfo and agentInfo)
 @schema
@@ -38,6 +206,8 @@ type clientCapabilities = {
   fs: option<fileSystemCapability>,
   terminal: option<bool>,
   elicitation: option<elicitationCapability>,
+  @as("_meta")
+  _meta: option<capabilityMetadata>,
 }
 
 // Prompt capabilities (what content types agent supports)
@@ -66,6 +236,8 @@ type agentCapabilities = {
   mcpCapabilities: option<mcpCapabilities>,
   @as("promptCapabilities")
   promptCapabilities: option<promptCapabilities>,
+  @as("_meta")
+  _meta: option<capabilityMetadata>,
 }
 
 // Auth method
@@ -87,9 +259,46 @@ type initializeParams = {
   clientInfo: option<implementation>,
 }
 
+let clientCapabilitiesToJson = (capabilities: clientCapabilities): JSON.t => {
+  let object =
+    capabilities
+    ->JSON.stringifyAny
+    ->Option.getOrThrow
+    ->JSON.parseOrThrow
+    ->JSON.Decode.object
+    ->Option.getOrThrow
+
+  switch capabilities._meta {
+  | Some(metadata) =>
+    object->Dict.set(
+      "_meta",
+      metadata->S.decodeOrThrow(~from=capabilityMetadataSchema, ~to=S.json->S.noValidation(true)),
+    )
+  | None => ()
+  }
+
+  JSON.Encode.object(object)
+}
+
 let initializeParamsToJson = (params: initializeParams): JSON.t => {
-  params->S.assertOrThrow(~to=initializeParamsSchema)
-  params->JSON.stringifyAny->Option.getOrThrow->JSON.parseOrThrow
+  let object = Dict.fromArray([("protocolVersion", JSON.Encode.int(params.protocolVersion))])
+
+  switch params.clientCapabilities {
+  | Some(capabilities) =>
+    object->Dict.set("clientCapabilities", capabilities->clientCapabilitiesToJson)
+  | None => ()
+  }
+
+  switch params.clientInfo {
+  | Some(clientInfo) =>
+    object->Dict.set(
+      "clientInfo",
+      clientInfo->JSON.stringifyAny->Option.getOrThrow->JSON.parseOrThrow,
+    )
+  | None => ()
+  }
+
+  JSON.Encode.object(object)
 }
 
 // Initialize response result
@@ -275,13 +484,13 @@ let sessionConfigOptionSchema = S.union([
 type sessionLoadResult = {
   modes: option<sessionModeState>,
   configOptions: option<array<sessionConfigOption>>,
-  _meta: option<JSON.t>,
+  _meta: option<sessionMetadata>,
 }
 
 let sessionLoadResultSchema = S.object(s => {
   modes: s.field("modes", S.option(sessionModeStateSchema)),
   configOptions: s.field("configOptions", S.option(S.array(sessionConfigOptionSchema))),
-  _meta: s.field("_meta", S.option(S.json)),
+  _meta: s.field("_meta", S.option(sessionMetadataSchema)),
 })
 
 // ---------------------------------------------------------------------------
@@ -308,14 +517,14 @@ type sessionNewResult = {
   sessionId: string,
   modes: option<sessionModeState>,
   configOptions: option<array<sessionConfigOption>>,
-  _meta: option<JSON.t>,
+  _meta: option<sessionMetadata>,
 }
 
 let sessionNewResultSchema = S.object(s => {
   sessionId: s.field("sessionId", S.string),
   modes: s.field("modes", S.option(sessionModeStateSchema)),
   configOptions: s.field("configOptions", S.option(S.array(sessionConfigOptionSchema))),
-  _meta: s.field("_meta", S.option(S.json)),
+  _meta: s.field("_meta", S.option(sessionMetadataSchema)),
 })
 
 // delete_session request params (non-ACP channel event)
@@ -562,10 +771,20 @@ let planEntrySchema = S.object(s => {
 })
 
 // Session update variants - discriminated by sessionUpdate field
-// Session update variants - discriminated by sessionUpdate field
 type sessionUpdate =
-  | AgentMessageChunk({content: contentBlock, timestamp: string})
-  | UserMessage({messageId: string, content: array<contentBlock>, _meta: option<JSON.t>})
+  | AgentMessageChunk({messageId: string, content: contentBlock, _meta: messageMetadata})
+  | UserMessageChunk({messageId: string, content: contentBlock, _meta: messageMetadata})
+  | GenericAgentMessageChunk({
+      messageId: option<string>,
+      content: contentBlock,
+      _meta: option<JSON.t>,
+    })
+  | GenericUserMessageChunk({
+      messageId: option<string>,
+      content: contentBlock,
+      _meta: option<JSON.t>,
+    })
+  | Unknown({sessionUpdate: string})
   | ToolCall({
       toolCallId: string,
       title: string,
@@ -593,23 +812,23 @@ type sessionUpdate =
       maxAttempts: option<int>,
       category: option<string>,
     })
-  | Unknown({sessionUpdate: string})
 
 // Session update schema using S.union with s.tag for proper discrimination
 let sessionUpdateSchema = S.union([
   S.object(s => {
     s.tag("sessionUpdate", "agent_message_chunk")
     AgentMessageChunk({
+      messageId: s.field("messageId", nonEmptyStringSchema),
       content: s.field("content", contentBlockSchema),
-      timestamp: s.field("timestamp", S.string),
+      _meta: s.field("_meta", messageMetadataSchema),
     })
   }),
   S.object(s => {
-    s.tag("sessionUpdate", "user_message")
-    UserMessage({
-      messageId: s.field("messageId", S.string),
-      content: s.field("content", S.array(contentBlockSchema)),
-      _meta: s.field("_meta", S.option(S.json)),
+    s.tag("sessionUpdate", "user_message_chunk")
+    UserMessageChunk({
+      messageId: s.field("messageId", nonEmptyStringSchema),
+      content: s.field("content", contentBlockSchema),
+      _meta: s.field("_meta", messageMetadataSchema),
     })
   }),
   S.object(s => {
@@ -669,13 +888,31 @@ let sessionUpdateSchema = S.union([
       category: s.field("category", S.option(S.string)),
     })
   }),
-  // Fallback for unknown session update types
+])
+
+let genericSessionUpdateSchema = S.union([
   S.object(s => {
-    Unknown({
-      sessionUpdate: s.field("sessionUpdate", S.string),
+    s.tag("sessionUpdate", "agent_message_chunk")
+    GenericAgentMessageChunk({
+      messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
+      content: s.field("content", contentBlockSchema),
+      _meta: s.field("_meta", S.option(S.json)),
     })
   }),
+  S.object(s => {
+    s.tag("sessionUpdate", "user_message_chunk")
+    GenericUserMessageChunk({
+      messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
+      content: s.field("content", contentBlockSchema),
+      _meta: s.field("_meta", S.option(S.json)),
+    })
+  }),
+  sessionUpdateSchema,
 ])
+
+let unknownSessionUpdateSchema = S.object(s => Unknown({
+  sessionUpdate: s.field("sessionUpdate", S.string),
+}))
 
 // session/update params
 type sessionUpdateParams = {
@@ -699,6 +936,30 @@ let sessionUpdateNotificationSchema = S.object(s => {
   jsonrpc: s.field("jsonrpc", S.string),
   method: s.field("method", S.string),
   params: s.field("params", sessionUpdateParamsSchema),
+})
+
+let genericSessionUpdateNotificationSchema = S.object(s => {
+  jsonrpc: s.field("jsonrpc", S.string),
+  method: s.field("method", S.string),
+  params: s.field(
+    "params",
+    S.object(s => {
+      sessionId: s.field("sessionId", S.string),
+      update: s.field("update", genericSessionUpdateSchema),
+    }),
+  ),
+})
+
+let unknownSessionUpdateNotificationSchema = S.object(s => {
+  jsonrpc: s.field("jsonrpc", S.string),
+  method: s.field("method", S.string),
+  params: s.field(
+    "params",
+    S.object(s => {
+      sessionId: s.field("sessionId", S.string),
+      update: s.field("update", unknownSessionUpdateSchema),
+    }),
+  ),
 })
 
 // Session summary for list_sessions response

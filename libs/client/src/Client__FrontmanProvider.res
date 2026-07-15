@@ -12,18 +12,6 @@ module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
 module RuntimeConfig = Client__RuntimeConfig
 
-// Create the text delta buffer instance and register it as active.
-// The onFlush callback breaks the circular dep: TextDeltaBuffer doesn't import Client__State.
-let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(
-  ~taskId,
-  ~text,
-  ~timestamp,
-  ~agentId,
-) => {
-  Client__State.Actions.textDeltaReceived(~taskId, ~text, ~timestamp, ~agentId)
-})
-let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
-
 // Extract text from a contentBlock (returns Some for TextContent, None for other variants)
 let getContentBlockText = (block: Types.contentBlock): option<string> =>
   switch block {
@@ -113,6 +101,32 @@ let parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
   )
   (content, annotations)
 }
+
+let validateAttributedAgentInState = (state: Client__State__Types.state, ~taskId, ~agentId) => {
+  let task = state.tasks->Dict.get(taskId)->Option.getOrThrow(~message=`Unknown task: ${taskId}`)
+  let catalog = Client__Task__Types.Task.getAgentCatalog(task)
+  Client__Agent.findOrThrow(catalog, agentId)->ignore
+}
+
+let validateAttributedAgent = (~taskId, ~agentId) =>
+  validateAttributedAgentInState(StateStore.getState(Client__State__Store.store), ~taskId, ~agentId)
+
+// Coalesce protocol message chunks before dispatching complete logical updates.
+let textDeltaBuffer = Client__TextDeltaBuffer.make(
+  ~onFlush=(~taskId, ~messageId, ~text, ~timestamp, ~agentId) =>
+    Client__State.Actions.textDeltaReceived(~taskId, ~messageId, ~text, ~timestamp, ~agentId),
+  ~onUserFlush=(~taskId, ~messageId, ~blocks, ~timestamp as _, ~agentId) => {
+    let (content, annotations) = parseUserMessageBlocks(blocks)
+    Client__State.Actions.userMessageReceived(
+      ~taskId,
+      ~id=messageId,
+      ~content,
+      ~annotations,
+      ~agentId,
+    )
+  },
+)
+let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
@@ -262,7 +276,7 @@ module Provider = {
           state.relayInstance->Option.forEach(relay => Relay.disconnect(relay))
           let activeSession = switch state.session {
           | SessionActive(session) => Some(session)
-          | NoSession | SessionCreating | SessionError(_) => None
+          | NoSession | SessionCreating(_) | SessionError(_) => None
           }
           switch state.acp {
           | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
@@ -282,23 +296,26 @@ module Provider = {
     ) => {
       let taskId = sessionId
       switch update {
-      | AgentMessageChunk({content, timestamp}) =>
+      | AgentMessageChunk({messageId, content, _meta: {agentId, timestamp}}) =>
+        validateAttributedAgent(~taskId, ~agentId)
         // Per ACP spec: first agent_message_chunk implicitly signals message start.
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
         getContentBlockText(content)->Option.forEach(text => {
-          textDeltaBuffer.add(~taskId, ~text, ~timestamp)
+          textDeltaBuffer.add(~taskId, ~messageId, ~text, ~timestamp, ~agentId)
         })
-      | UserMessage({messageId, content, _meta}) =>
-        Client__TextDeltaBuffer.flush()
-        let (content, annotations) = parseUserMessageBlocks(content)
-        Client__State.Actions.userMessageReceived(
+      | UserMessageChunk({messageId, content, _meta}) =>
+        validateAttributedAgent(~taskId, ~agentId=_meta.agentId)
+        textDeltaBuffer.addUserBlock(
           ~taskId,
-          ~id=messageId,
-          ~content,
-          ~annotations,
-          ~agentId=Client__Agent.messageAgentId(_meta),
+          ~messageId,
+          ~block=content,
+          ~timestamp=_meta.timestamp,
+          ~agentId=_meta.agentId,
         )
+      | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
+        failwith("Frontman UI requires negotiated agent attribution")
+      | Unknown(_) => ()
       | ToolCall({toolCallId, title, parentAgentId, spawningToolName, _}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.toolCallReceived(
@@ -316,6 +333,7 @@ module Provider = {
           },
         )
       | ToolCallUpdate({toolCallId, status, content}) =>
+        Client__TextDeltaBuffer.flush()
         let text =
           content
           ->Option.flatMap(c => c->Array.get(0))
@@ -348,21 +366,20 @@ module Provider = {
         | Some(InProgress) => () // Normal transitional status for MCP tools
         | None => ()
         }
-      | Plan({entries}) => Client__State.Actions.planReceived(~taskId, ~entries)
+      | Plan({entries}) =>
+        Client__TextDeltaBuffer.flush()
+        Client__State.Actions.planReceived(~taskId, ~entries)
       | StateUpdate({state, stopReason: _}) =>
+        Client__TextDeltaBuffer.flush()
         switch state {
         | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle =>
-          Client__TextDeltaBuffer.flush()
-          Client__State.Actions.executionStateIdle(~taskId)
-        | RequiresAction =>
-          Client__TextDeltaBuffer.flush()
-          Client__State.Actions.executionStateRequiresAction(~taskId)
+        | Idle => Client__State.Actions.executionStateIdle(~taskId)
+        | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
       | ConfigOptionUpdate({configOptions}) =>
+        Client__TextDeltaBuffer.flush()
         Client__State.Actions.configOptionsReceived(~configOptions)
-      | CurrentModeUpdate({currentModeId}) =>
-        textDeltaBuffer.selectAgent(~taskId, ~agentId=currentModeId)
+      | CurrentModeUpdate(_) => Client__TextDeltaBuffer.flush()
       | Error({_meta, message, timestamp, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
         switch retryAt {
@@ -384,7 +401,6 @@ module Provider = {
             ~category=Client__ErrorCategory.fromAcpCategory(category),
           )
         }
-      | Unknown(_) => ()
       }
     })
 

@@ -2,6 +2,220 @@ open Vitest
 
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
+let parsesWith = (json, schema) => {
+  try {
+    json->S.parseOrThrow(~to=schema)->ignore
+    true
+  } catch {
+  | _ => false
+  }
+}
+
+let schemaToJson = (value, schema) =>
+  value->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
+
+describe("Frontman agent attribution metadata", () => {
+  test("capability metadata preserves the Frontman key location", t => {
+    let json = JSON.Encode.object(
+      Dict.fromArray([
+        ("unrelated.dev/value", JSON.Encode.bool(true)),
+        (
+          "frontman.dev",
+          JSON.Encode.object(
+            Dict.fromArray([
+              (
+                "agentAttribution",
+                JSON.Encode.object(Dict.fromArray([("version", JSON.Encode.int(1))])),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    )
+
+    let parsed = json->S.parseOrThrow(~to=Types.capabilityMetadataSchema)
+    let serialized = parsed->schemaToJson(Types.capabilityMetadataSchema)
+    let serializedObject = serialized->JSON.Decode.object->Option.getOrThrow
+
+    t
+    ->expect(
+      parsed.frontmanDev
+      ->Option.flatMap(value => value.agentAttribution)
+      ->Option.map(a => a.version),
+    )
+    ->Expect.toEqual(Some(1))
+    t->expect(serializedObject->Dict.has("frontman.dev"))->Expect.toBe(true)
+    t->expect(serializedObject->Dict.has("agentAttribution"))->Expect.toBe(false)
+  })
+
+  test("capability metadata accepts unrelated keys", t => {
+    let json = JSON.Encode.object(
+      Dict.fromArray([("unrelated.dev/value", JSON.Encode.string("accepted"))]),
+    )
+
+    t->expect(json->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(true)
+  })
+
+  test("capability metadata rejects malformed advertisements", t => {
+    let wrongShape = JSON.Encode.object(
+      Dict.fromArray([("frontman.dev", JSON.Encode.string("invalid"))]),
+    )
+    let wrongAttributionShape = JSON.Encode.object(
+      Dict.fromArray([
+        (
+          "frontman.dev",
+          JSON.Encode.object(Dict.fromArray([("agentAttribution", JSON.Encode.string("invalid"))])),
+        ),
+      ]),
+    )
+    let invalidVersion = JSON.Encode.object(
+      Dict.fromArray([
+        (
+          "frontman.dev",
+          JSON.Encode.object(
+            Dict.fromArray([
+              (
+                "agentAttribution",
+                JSON.Encode.object(Dict.fromArray([("version", JSON.Encode.int(0))])),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    )
+    let oversizedVersion = JSON.Encode.object(
+      Dict.fromArray([
+        (
+          "frontman.dev",
+          JSON.Encode.object(
+            Dict.fromArray([
+              (
+                "agentAttribution",
+                JSON.Encode.object(Dict.fromArray([("version", JSON.Encode.int(65536))])),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    )
+
+    t->expect(wrongShape->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false)
+    t->expect(wrongAttributionShape->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false)
+    t->expect(invalidVersion->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false)
+    t->expect(oversizedVersion->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false)
+  })
+
+  test("session metadata parses and serializes a catalog without relocating its key", t => {
+    let json = JSON.Encode.object(
+      Dict.fromArray([
+        ("unrelated.dev/value", JSON.Encode.bool(true)),
+        (
+          "frontman.dev/agents",
+          JSON.Encode.array([
+            JSON.Encode.object(
+              Dict.fromArray([
+                ("id", JSON.Encode.string("executor")),
+                ("name", JSON.Encode.string("executor")),
+                ("displayName", JSON.Encode.string("Executor")),
+                ("description", JSON.Encode.string("Implements approved work")),
+                ("color", JSON.Encode.string("#16A085")),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    )
+
+    let parsed = json->S.parseOrThrow(~to=Types.sessionMetadataSchema)
+    let serialized = parsed->schemaToJson(Types.sessionMetadataSchema)
+    let serializedObject = serialized->JSON.Decode.object->Option.getOrThrow
+
+    t
+    ->expect(
+      parsed.agents->Option.flatMap(agents => agents->Array.get(0))->Option.map(a => a.displayName),
+    )
+    ->Expect.toEqual(Some("Executor"))
+    t->expect(serializedObject->Dict.has("frontman.dev/agents"))->Expect.toBe(true)
+    t->expect(serializedObject->Dict.has("agents"))->Expect.toBe(false)
+  })
+
+  test("session metadata rejects empty identities, duplicate ids, and malformed colors", t => {
+    let makeAgent = (~id="executor", ~name="executor", ~displayName="Executor", ~color="#16A085") =>
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("id", JSON.Encode.string(id)),
+          ("name", JSON.Encode.string(name)),
+          ("displayName", JSON.Encode.string(displayName)),
+          ("description", JSON.Encode.string("Implements approved work")),
+          ("color", JSON.Encode.string(color)),
+        ]),
+      )
+    let metadata = agents =>
+      JSON.Encode.object(Dict.fromArray([("frontman.dev/agents", JSON.Encode.array(agents))]))
+
+    t
+    ->expect(metadata([makeAgent(~id="")])->parsesWith(Types.sessionMetadataSchema))
+    ->Expect.toBe(false)
+    t
+    ->expect(metadata([makeAgent(~name="")])->parsesWith(Types.sessionMetadataSchema))
+    ->Expect.toBe(false)
+    t
+    ->expect(metadata([makeAgent(~displayName="")])->parsesWith(Types.sessionMetadataSchema))
+    ->Expect.toBe(false)
+    t
+    ->expect(metadata([makeAgent(~color="blue")])->parsesWith(Types.sessionMetadataSchema))
+    ->Expect.toBe(false)
+    t
+    ->expect(
+      metadata([makeAgent(), makeAgent(~name="other")])->parsesWith(Types.sessionMetadataSchema),
+    )
+    ->Expect.toBe(false)
+    t
+    ->expect(metadata([makeAgent(~id="constructor")])->parsesWith(Types.sessionMetadataSchema))
+    ->Expect.toBe(true)
+  })
+
+  test("message metadata validates identity and RFC 3339 timestamp", t => {
+    let valid = JSON.Encode.object(
+      Dict.fromArray([
+        ("frontman.dev/agentId", JSON.Encode.string("executor")),
+        ("frontman.dev/timestamp", JSON.Encode.string("2026-07-14T12:30:01.123456Z")),
+        ("unrelated.dev/value", JSON.Encode.bool(true)),
+      ]),
+    )
+    let offset = JSON.Encode.object(
+      Dict.fromArray([
+        ("frontman.dev/agentId", JSON.Encode.string("executor")),
+        ("frontman.dev/timestamp", JSON.Encode.string("2026-07-14T14:30:01+02:00")),
+      ]),
+    )
+    let emptyId = JSON.Encode.object(
+      Dict.fromArray([
+        ("frontman.dev/agentId", JSON.Encode.string("")),
+        ("frontman.dev/timestamp", JSON.Encode.string("2026-07-14T12:30:01Z")),
+      ]),
+    )
+    let invalidTimestamp = JSON.Encode.object(
+      Dict.fromArray([
+        ("frontman.dev/agentId", JSON.Encode.string("executor")),
+        ("frontman.dev/timestamp", JSON.Encode.string("July 14, 2026")),
+      ]),
+    )
+    let invalidCalendarDate = JSON.Encode.object(
+      Dict.fromArray([
+        ("frontman.dev/agentId", JSON.Encode.string("executor")),
+        ("frontman.dev/timestamp", JSON.Encode.string("2026-02-30T12:30:01Z")),
+      ]),
+    )
+
+    t->expect(valid->parsesWith(Types.messageMetadataSchema))->Expect.toBe(true)
+    t->expect(offset->parsesWith(Types.messageMetadataSchema))->Expect.toBe(true)
+    t->expect(emptyId->parsesWith(Types.messageMetadataSchema))->Expect.toBe(false)
+    t->expect(invalidTimestamp->parsesWith(Types.messageMetadataSchema))->Expect.toBe(false)
+    t->expect(invalidCalendarDate->parsesWith(Types.messageMetadataSchema))->Expect.toBe(false)
+  })
+})
+
 describe("ACP Types encoding/decoding", _t => {
   test("initializeParams should encode without throwing", _t => {
     let params: Types.initializeParams = {
@@ -10,6 +224,7 @@ describe("ACP Types encoding/decoding", _t => {
         fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
         terminal: Some(false),
         elicitation: None,
+        _meta: None,
       }),
       clientInfo: Some({name: "test-client", version: "1.0.0", title: None, _meta: None}),
     }
@@ -211,10 +426,24 @@ describe("ACP Types encoding/decoding", _t => {
 // ============================================================================
 
 module Fixtures = {
-  let makeAgentMessageChunk = (~text: string, ~timestamp: string): JSON.t => {
+  let messageMetadata = (~agentId: string, ~timestamp: string): JSON.t =>
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("frontman.dev/agentId", JSON.Encode.string(agentId)),
+        ("frontman.dev/timestamp", JSON.Encode.string(timestamp)),
+      ]),
+    )
+
+  let makeAgentMessageChunk = (
+    ~messageId: string,
+    ~agentId: string,
+    ~text: string,
+    ~timestamp: string,
+  ): JSON.t => {
     JSON.Encode.object(
       Dict.fromArray([
         ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
+        ("messageId", JSON.Encode.string(messageId)),
         (
           "content",
           JSON.Encode.object(
@@ -224,32 +453,30 @@ module Fixtures = {
             ]),
           ),
         ),
-        ("timestamp", JSON.Encode.string(timestamp)),
+        ("_meta", messageMetadata(~agentId, ~timestamp)),
       ]),
     )
   }
 
-  let makeUserMessage = (~messageId: string, ~text: string): JSON.t => {
+  let makeUserMessageChunk = (
+    ~messageId: string,
+    ~agentId: string,
+    ~text: string,
+    ~timestamp: string,
+  ): JSON.t => {
     JSON.Encode.object(
       Dict.fromArray([
-        ("sessionUpdate", JSON.Encode.string("user_message")),
+        ("sessionUpdate", JSON.Encode.string("user_message_chunk")),
         ("messageId", JSON.Encode.string(messageId)),
-        (
-          "_meta",
-          JSON.Encode.object(
-            Dict.fromArray([("frontman.dev/agentId", JSON.Encode.string("executor-id"))]),
-          ),
-        ),
+        ("_meta", messageMetadata(~agentId, ~timestamp)),
         (
           "content",
-          JSON.Encode.array([
-            JSON.Encode.object(
-              Dict.fromArray([
-                ("type", JSON.Encode.string("text")),
-                ("text", JSON.Encode.string(text)),
-              ]),
-            ),
-          ]),
+          JSON.Encode.object(
+            Dict.fromArray([
+              ("type", JSON.Encode.string("text")),
+              ("text", JSON.Encode.string(text)),
+            ]),
+          ),
         ),
       ]),
     )
@@ -271,39 +498,49 @@ module Fixtures = {
 }
 
 describe("sessionUpdate schema parsing", () => {
-  test("agent_message_chunk with text content and timestamp", t => {
+  test("agent_message_chunk with identity metadata", t => {
     let json = Fixtures.makeAgentMessageChunk(
+      ~messageId="turn-123:0",
+      ~agentId="executor-id",
       ~text="Hello from the agent",
       ~timestamp="2024-01-15T10:00:30Z",
     )
     let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
 
     switch parsed {
-    | Types.AgentMessageChunk({content: Types.TextContent({text}), timestamp}) =>
+    | Types.AgentMessageChunk({
+        messageId,
+        content: Types.TextContent({text}),
+        _meta: {agentId, timestamp},
+      }) =>
+      t->expect(messageId)->Expect.toBe("turn-123:0")
       t->expect(text)->Expect.toBe("Hello from the agent")
+      t->expect(agentId)->Expect.toBe("executor-id")
       t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:30Z")
     | _ => t->expect("AgentMessageChunk")->Expect.toBe("not matched")
     }
   })
 
-  test("user_message with canonical message id and content", t => {
-    let json = Fixtures.makeUserMessage(~messageId="msg-123", ~text="Accepted user message")
+  test("user_message_chunk with canonical identity metadata", t => {
+    let json = Fixtures.makeUserMessageChunk(
+      ~messageId="msg-123",
+      ~agentId="executor-id",
+      ~text="Accepted user message",
+      ~timestamp="2024-01-15T10:00:00Z",
+    )
     let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
 
     switch parsed {
-    | Types.UserMessage({messageId, content: [Types.TextContent({text})], _meta: Some(meta)}) => {
-        t->expect(messageId)->Expect.toBe("msg-123")
-        t->expect(text)->Expect.toBe("Accepted user message")
-        t
-        ->expect(
-          meta
-          ->JSON.Decode.object
-          ->Option.flatMap(dict => dict->Dict.get("frontman.dev/agentId"))
-          ->Option.flatMap(JSON.Decode.string),
-        )
-        ->Expect.toBe(Some("executor-id"))
-      }
-    | _ => t->expect("UserMessage")->Expect.toBe("not matched")
+    | Types.UserMessageChunk({
+        messageId,
+        content: Types.TextContent({text}),
+        _meta: {agentId, timestamp},
+      }) =>
+      t->expect(messageId)->Expect.toBe("msg-123")
+      t->expect(text)->Expect.toBe("Accepted user message")
+      t->expect(agentId)->Expect.toBe("executor-id")
+      t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:00Z")
+    | _ => t->expect("UserMessageChunk")->Expect.toBe("not matched")
     }
   })
 
@@ -340,7 +577,7 @@ describe("sessionUpdate schema parsing", () => {
     }
   })
 
-  test("agent_message_chunk without timestamp falls through to Unknown", t => {
+  test("malformed known agent_message_chunk is rejected", t => {
     let json = JSON.Encode.object(
       Dict.fromArray([
         ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
@@ -356,21 +593,55 @@ describe("sessionUpdate schema parsing", () => {
       ]),
     )
 
-    let result = try {
-      Ok(json->S.parseOrThrow(~to=Types.sessionUpdateSchema))
+    let rejected = try {
+      json->S.parseOrThrow(~to=Types.sessionUpdateSchema)->ignore
+      false
     } catch {
-    | _ => Error("parse threw")
+    | _ => true
     }
 
-    switch result {
-    | Ok(Types.AgentMessageChunk(_)) =>
-      t->expect("AgentMessageChunk without timestamp")->Expect.toBe("should not parse")
-    | Ok(Types.Unknown({sessionUpdate})) =>
-      // Falls to Unknown — message silently dropped by handleSessionUpdate
-      t->expect(sessionUpdate)->Expect.toBe("agent_message_chunk")
-    | Ok(_) => t->expect("unexpected variant")->Expect.toBe("should not happen")
-    | Error(_) => // Sury fully rejected — also acceptable
-      ()
+    t->expect(rejected)->Expect.toBe(true)
+  })
+
+  test("generic chunk accepts Frontman metadata that negotiated v1 rejects", t => {
+    let json = JSON.parseOrThrow(`{
+      "sessionUpdate":"agent_message_chunk",
+      "messageId":"message-1",
+      "content":{"type":"text","text":"hello"},
+      "_meta":{"frontman.dev/agentId":42,"frontman.dev/timestamp":"invalid"}
+    }`)
+
+    t->expect(json->parsesWith(Types.sessionUpdateSchema))->Expect.toBe(false)
+    t->expect(json->parsesWith(Types.genericSessionUpdateSchema))->Expect.toBe(true)
+  })
+
+  test("generic known chunk still requires standard ACP content", t => {
+    let json = JSON.parseOrThrow(`{
+      "sessionUpdate":"agent_message_chunk",
+      "messageId":"message-1",
+      "_meta":{"frontman.dev/agentId":42}
+    }`)
+
+    t->expect(json->parsesWith(Types.genericSessionUpdateSchema))->Expect.toBe(false)
+  })
+
+  test("unknown session update is rejected", t => {
+    let json = JSON.Encode.object(
+      Dict.fromArray([("sessionUpdate", JSON.Encode.string("future_update"))]),
+    )
+
+    let rejected = try {
+      json->S.parseOrThrow(~to=Types.sessionUpdateSchema)->ignore
+      false
+    } catch {
+    | _ => true
+    }
+
+    t->expect(rejected)->Expect.toBe(true)
+
+    switch json->S.parseOrThrow(~to=Types.unknownSessionUpdateSchema) {
+    | Types.Unknown({sessionUpdate: "future_update"}) => ()
+    | _ => t->expect("Unknown future_update")->Expect.toBe("not matched")
     }
   })
 })

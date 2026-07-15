@@ -57,7 +57,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   end
 
   defp tool_results(task, tool_call_id) do
-    Enum.filter(task.interactions, fn
+    Enum.filter(Tasks.interactions(task), fn
       %Interaction.ToolResult{tool_call_id: ^tool_call_id} -> true
       _ -> false
     end)
@@ -83,7 +83,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
                tool_call_id: tool_call_id,
                tool_name: "take_screenshot",
                arguments: %{"selector" => "#main"}
-             } = Enum.find(task.interactions, &match?(%Interaction.ToolCall{}, &1))
+             } = Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
 
       assert tool_call_id == tool_call.id
     end

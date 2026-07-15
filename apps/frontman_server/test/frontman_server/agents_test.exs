@@ -56,6 +56,12 @@ defmodule FrontmanServer.AgentsTest do
         assert_raise ArgumentError, fn -> Agent.new!(attrs) end
       end
     end
+
+    test "rejects incomplete identity" do
+      for field <- [:id, :name, :display_name, :description] do
+        assert_raise ArgumentError, fn -> Agent.new!(Map.put(@valid_agent, field, nil)) end
+      end
+    end
   end
 
   describe "get_agent/2" do

@@ -114,6 +114,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
+  let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
@@ -127,11 +128,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.findConfigOptionByCategory(opts, Model)
     )
   let isModelsConfigLoading = configOptions->Option.isNone
-  let agentForId = agentId =>
-    Client__Agent.findOrThrow(
-      configOptions->Option.getOrThrow(~message="Agent config options are required"),
-      agentId,
-    )
+  let agentForId = agentId => Client__Agent.findOrThrow(agentCatalog, agentId)
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,

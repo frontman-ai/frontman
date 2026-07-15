@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tools.GetToolResult do
   @behaviour FrontmanServer.Tools.Backend
 
   alias FrontmanServer.Tasks.Interaction.ToolResult
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools.Backend.Context
   alias ModelContextProtocol, as: MCP
 
@@ -52,29 +53,33 @@ defmodule FrontmanServer.Tools.GetToolResult do
   def on_timeout, do: :error
 
   @impl true
-  def execute(args, %Context{task: %{interactions: interactions}}) do
+  def execute(args, %Context{task: %{interaction_rows: rows}}) do
     case Map.get(args, "tool_call_id") do
       tool_call_id when is_binary(tool_call_id) ->
-        find_tool_result(interactions, tool_call_id)
+        find_tool_result(rows, tool_call_id)
 
       _ ->
         MCP.tool_result_error("tool_call_id must be a string")
     end
   end
 
-  defp find_tool_result(interactions, tool_call_id) do
-    case Enum.find(interactions, &match?(%ToolResult{tool_call_id: ^tool_call_id}, &1)) do
+  defp find_tool_result(rows, tool_call_id) do
+    case Enum.find(rows, fn
+           %InteractionSchema{data: %ToolResult{tool_call_id: ^tool_call_id}} -> true
+           _row -> false
+         end) do
       nil ->
         MCP.tool_result_error("Tool result not found: #{tool_call_id}")
 
-      %ToolResult{result: %{"content" => content} = result} when is_list(content) ->
+      %InteractionSchema{data: %ToolResult{result: %{"content" => content} = result}}
+      when is_list(content) ->
         if Enum.all?(content, &is_map/1) do
           result
         else
           MCP.tool_result_error("Stored tool result is invalid: content must be list of objects")
         end
 
-      %ToolResult{} ->
+      %InteractionSchema{data: %ToolResult{}} ->
         MCP.tool_result_error(
           "Stored tool result for #{tool_call_id} is not a valid MCP tool result"
         )

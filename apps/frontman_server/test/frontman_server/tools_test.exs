@@ -6,6 +6,7 @@ defmodule FrontmanServer.ToolsTest do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction.ToolResult
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.GetToolResult
@@ -239,7 +240,8 @@ defmodule FrontmanServer.ToolsTest do
           timestamp: DateTime.utc_now()
         }
 
-      context = build_context(%{task | interactions: [malformed_result | task.interactions]})
+      row = %InteractionSchema{id: Ecto.UUID.generate(), data: malformed_result}
+      context = build_context(%{task | interaction_rows: [row | task.interaction_rows]})
 
       result = GetToolResult.execute(%{"tool_call_id" => "tc-malformed"}, context)
 
@@ -260,7 +262,8 @@ defmodule FrontmanServer.ToolsTest do
           timestamp: DateTime.utc_now()
         }
 
-      context = build_context(%{task | interactions: [malformed_result | task.interactions]})
+      row = %InteractionSchema{id: Ecto.UUID.generate(), data: malformed_result}
+      context = build_context(%{task | interaction_rows: [row | task.interaction_rows]})
 
       result = GetToolResult.execute(%{"tool_call_id" => "tc-invalid-content"}, context)
 

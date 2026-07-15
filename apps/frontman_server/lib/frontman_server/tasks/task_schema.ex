@@ -22,11 +22,12 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   @framework_values Frameworks.ids()
   @primary_key {:id, :binary_id, autogenerate: false}
   @foreign_key_type :binary_id
+
+  @type t :: %__MODULE__{}
+
   schema "tasks" do
     field(:short_desc, :string)
     field(:framework, Ecto.Enum, values: @framework_values)
-    field(:interactions, :any, virtual: true, default: [])
-
     belongs_to(:user, User)
     has_many(:interaction_rows, InteractionSchema, foreign_key: :task_id)
 

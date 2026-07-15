@@ -63,6 +63,8 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
+        agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
+        isAgentRunning: bool,
       })
     // Loaded: fully interactive
     // clientId is preserved from New state during promotion to maintain iframe identity
@@ -77,6 +79,7 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
+        agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
         isAgentRunning: bool,
         planEntries: array<ACPTypes.planEntry>,
         queuedUserMessages: array<Message.t>,
@@ -143,6 +146,12 @@ module Task = {
     switch task {
     | New(_) | Unloaded(_) => []
     | Loading({messages}) | Loaded({messages}) => Client__MessageStore.toArray(messages)
+    }
+
+  let getAgentCatalog = (task: t): option<array<ACPTypes.agentCatalogEntry>> =>
+    switch task {
+    | Loading({agentCatalog}) | Loaded({agentCatalog}) => agentCatalog
+    | New(_) | Unloaded(_) => None
     }
 
   let getPreviewFrame = (task: t, ~defaultUrl: string): previewFrame =>
@@ -281,6 +290,7 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
+        agentCatalog: None,
         isAgentRunning: false,
         planEntries: [],
         queuedUserMessages: [],
@@ -330,6 +340,7 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
+        agentCatalog,
         isAgentRunning,
         planEntries,
         queuedUserMessages,
@@ -361,6 +372,7 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
+          agentCatalog,
           isAgentRunning: updated.isAgentRunning,
           planEntries: updated.planEntries,
           queuedUserMessages: updated.queuedUserMessages,
@@ -380,13 +392,15 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
+        agentCatalog,
+        isAgentRunning,
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAgentRunning: false,
+          isAgentRunning,
           planEntries: [],
           queuedUserMessages: [],
           turnError: None,
@@ -403,6 +417,8 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
+          agentCatalog,
+          isAgentRunning: updated.isAgentRunning,
         })
       }
     | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) => {

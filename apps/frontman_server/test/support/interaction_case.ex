@@ -201,6 +201,11 @@ defmodule FrontmanServer.InteractionCase do
       %Interaction.TurnStarted{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
+        agent_id: "test-frontman",
+        agent_name: "executor",
+        agent_display_name: "Executor",
+        agent_description: "Software engineering execution agent with full tool access.",
+        agent_color: "#985DF7",
         user_message_ids: user_message_ids
       }
     end
@@ -279,6 +284,7 @@ defmodule FrontmanServer.InteractionCase do
       schema = Module.concat([FrontmanServer, Tasks, InteractionSchema])
 
       struct!(schema, %{
+        id: interaction.id,
         type:
           PolymorphicEmbed.get_polymorphic_type(
             schema,

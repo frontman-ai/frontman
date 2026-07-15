@@ -98,7 +98,7 @@ defmodule FrontmanServer.TasksTest do
     test "persists an accepted user message without starting a turn", %{scope: scope} do
       task = task_fixture(scope)
 
-      assert {:ok, %Interaction.UserMessage{}} =
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message: user_content("hello"),
@@ -126,7 +126,7 @@ defmodule FrontmanServer.TasksTest do
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("first"))
 
-      assert {:ok, %Interaction.UserMessage{}} =
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message: user_content("second"),
@@ -138,6 +138,75 @@ defmodule FrontmanServer.TasksTest do
                task.id
                |> db_rows()
                |> Enum.map(& &1.type)
+    end
+  end
+
+  describe "run_next_turn/3 agent identity" do
+    test "persists configured identity and keeps it after config changes", %{scope: scope} do
+      task = task_fixture(scope)
+
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message: user_content("hello"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert :ok =
+               Tasks.run_next_turn(
+                 scope,
+                 task.id,
+                 execution_request_fixture(model: "missing:test")
+               )
+
+      original_config = Application.fetch_env!(:frontman_server, FrontmanServer.Agents)
+
+      on_exit(fn ->
+        Application.put_env(:frontman_server, FrontmanServer.Agents, original_config)
+      end)
+
+      renamed_config =
+        Keyword.update!(original_config, :agents, fn [executor | agents] ->
+          [%{executor | name: "builder", display_name: "Builder", color: "#123456"} | agents]
+        end)
+
+      Application.put_env(
+        :frontman_server,
+        FrontmanServer.Agents,
+        renamed_config
+      )
+
+      assert {:ok, loaded_task} = Tasks.get_task(scope, task.id)
+
+      assert %Interaction.TurnStarted{
+               agent_id: "test-frontman",
+               agent_name: "executor",
+               agent_display_name: "Executor",
+               agent_description: "Software engineering execution agent with full tool access.",
+               agent_color: "#985DF7"
+             } =
+               Enum.find(
+                 Tasks.interactions(loaded_task),
+                 &match?(%Interaction.TurnStarted{}, &1)
+               )
+    end
+
+    test "rejects unknown agents before persisting TurnStarted", %{scope: scope} do
+      task = task_fixture(scope)
+
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message: user_content("hello"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "unknown-agent"
+               })
+
+      assert {:error, :unknown_agent} =
+               Tasks.run_next_turn(scope, task.id, execution_request_fixture())
+
+      refute Enum.any?(db_rows(task.id), &(&1.type == :turn_started))
     end
   end
 
@@ -165,7 +234,7 @@ defmodule FrontmanServer.TasksTest do
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      refute Enum.any?(task.interactions, &match?(%Interaction.AgentError{}, &1))
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert [
                %Interaction.ToolResult{
@@ -173,7 +242,7 @@ defmodule FrontmanServer.TasksTest do
                  result: result,
                  is_error: true
                }
-             ] = Enum.filter(task.interactions, &match?(%Interaction.ToolResult{}, &1))
+             ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 
       assert result == MCP.tool_result_error("Interrupted by restart")
 
@@ -202,11 +271,12 @@ defmodule FrontmanServer.TasksTest do
 
       response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
 
-      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, response_event(response))
 
       assert [
                %Interaction.AgentResponse{
                  metadata: %{},
+                 timestamp: ~U[2026-07-14 12:30:01.000000Z],
                  usage: %Interaction.AgentResponse.Usage{} = stored_usage
                }
              ] = agent_responses(task_id)
@@ -228,7 +298,7 @@ defmodule FrontmanServer.TasksTest do
       turn_number = start_turn_fixture(scope, task_id)
       response = %SwarmAi.LLM.Response{content: "hello", usage: nil}
 
-      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, response_event(response))
 
       assert [%Interaction.AgentResponse{usage: nil}] = agent_responses(task_id)
     end
@@ -240,7 +310,7 @@ defmodule FrontmanServer.TasksTest do
       response = %SwarmAi.LLM.Response{content: "hello", metadata: %{response_id: 123}}
 
       assert_raise Ecto.InvalidChangesetError, ~r/response_id/, fn ->
-        Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+        Tasks.handle_swarm_event(scope, task_id, turn_number, response_event(response))
       end
     end
 
@@ -256,7 +326,7 @@ defmodule FrontmanServer.TasksTest do
         response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
 
         assert_raise Ecto.InvalidChangesetError, ~r/usage/, fn ->
-          Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+          Tasks.handle_swarm_event(scope, task_id, turn_number, response_event(response))
         end
       end
     end
@@ -355,7 +425,14 @@ defmodule FrontmanServer.TasksTest do
       assert %InteractionSchema{
                type: :turn_started,
                turn_number: 1,
-               data: %Interaction.TurnStarted{user_message_ids: [user_message_id]}
+               data: %Interaction.TurnStarted{
+                 agent_id: nil,
+                 agent_name: nil,
+                 agent_display_name: nil,
+                 agent_description: nil,
+                 agent_color: nil,
+                 user_message_ids: [user_message_id]
+               }
              } = Enum.find(rows, &(&1.type == :turn_started))
 
       assert user_message_id == user_message.id
@@ -492,7 +569,7 @@ defmodule FrontmanServer.TasksTest do
              ] = db_type_turns(task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
+      messages = Tasks.Interaction.to_swarm_messages(Tasks.interactions(task))
 
       assert length(messages) == 4,
              "expected 4 Swarm messages, got #{length(messages)}: #{inspect(Enum.map(messages, &SwarmAi.Message.role/1))}"
@@ -613,7 +690,10 @@ defmodule FrontmanServer.TasksTest do
                )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
+
+      tool_results =
+        Enum.filter(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
+
       assert [%Tasks.Interaction.ToolResult{result: result}] = tool_results
       assert result == MCP.tool_result_text("result1")
     end
@@ -700,6 +780,10 @@ defmodule FrontmanServer.TasksTest do
     |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
   end
 
+  defp response_event(response) do
+    {:response, %{timestamp: ~U[2026-07-14 12:30:01.000000Z]}, response}
+  end
+
   defp interaction_type(module),
     do: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, module)
 
@@ -714,7 +798,16 @@ defmodule FrontmanServer.TasksTest do
     InteractionSchema.create_changeset(
       task_id,
       :turn_started,
-      %{id: Ecto.UUID.generate(), timestamp: Interaction.now(), user_message_ids: [row.id]},
+      %{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        agent_id: "test-frontman",
+        agent_name: "executor",
+        agent_display_name: "Executor",
+        agent_description: "Software engineering execution agent with full tool access.",
+        agent_color: "#985DF7",
+        user_message_ids: [row.id]
+      },
       turn_number
     )
     |> Repo.insert!()
@@ -900,7 +993,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       rules =
-        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+        Enum.filter(
+          Tasks.interactions(task),
+          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
+        )
 
       assert length(rules) == 1
       assert hd(rules).content == "# Rules v1"
@@ -929,7 +1025,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       [db_rule] =
-        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+        Enum.filter(
+          Tasks.interactions(task),
+          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
+        )
 
       assert db_rule.path == "/project/AGENTS.md"
       refute String.contains?(db_rule.content, <<0>>)
@@ -947,7 +1046,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       [db_rule] =
-        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+        Enum.filter(
+          Tasks.interactions(task),
+          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
+        )
 
       refute String.contains?(db_rule.path, <<0>>)
       assert db_rule.path == "/project/AGENTS.md"
@@ -1088,7 +1190,7 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
-      paused = Enum.find(task.interactions, &match?(%Interaction.AgentPaused{}, &1))
+      paused = Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentPaused{}, &1))
       assert paused != nil
       assert paused.tool_name == "question"
       assert paused.timeout_ms == 120_000
@@ -1113,7 +1215,7 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
-      messages = Interaction.to_swarm_messages(task.interactions)
+      messages = Interaction.to_swarm_messages(Tasks.interactions(task))
 
       assert length(messages) == 1
       assert SwarmAi.Message.role(hd(messages)) == :user

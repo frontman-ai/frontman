@@ -174,9 +174,22 @@ let handleIncomingMessage = (
   switch getMethod(payload) {
   | Some("session/update") =>
     // Session update notification - parse and dispatch with sessionId
-    switch Client.parseSessionUpdateNotification(payload) {
+    switch Client.parseSessionUpdateNotification(state.contents, payload) {
     | Ok(notification) =>
-      onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
+      onUpdate->Option.forEach(cb => {
+        try {
+          cb(notification.params.sessionId, notification.params.update)
+        } catch {
+        | Failure(error) => onParseError->Option.forEach(cb => cb(error))
+        | exn =>
+          let error =
+            exn
+            ->JsExn.fromException
+            ->Option.flatMap(JsExn.message)
+            ->Option.getOr("Session update handler failed")
+          onParseError->Option.forEach(cb => cb(error))
+        }
+      })
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake

@@ -95,6 +95,10 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
                id: Ecto.UUID.generate(),
                timestamp: Interaction.now(),
                agent_id: "test-frontman",
+               agent_name: "executor",
+               agent_display_name: "Executor",
+               agent_description: "Software engineering execution agent with full tool access.",
+               agent_color: "#985DF7",
                user_message_ids: [row.id]
              },
              next_turn_number(task_id)

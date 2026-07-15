@@ -49,6 +49,7 @@ defmodule FrontmanServer.Tasks.Execution do
         system_prompt,
         interaction_rows,
         tool_policy,
+        response_context,
         %{
           model: requested_model,
           mcp_tools: mcp_tools
@@ -84,8 +85,25 @@ defmodule FrontmanServer.Tasks.Execution do
           })
         end
 
-        dispatch_event = fn event ->
-          Tasks.handle_swarm_event(scope, task.id, turn_number, event)
+        dispatch_event = fn
+          {:chunk, metadata, chunk} ->
+            Tasks.handle_swarm_event(
+              scope,
+              task.id,
+              turn_number,
+              {:chunk, response_metadata(response_context, metadata), chunk}
+            )
+
+          {:response, metadata, response} ->
+            Tasks.handle_swarm_event(
+              scope,
+              task.id,
+              turn_number,
+              {:response, response_metadata(response_context, metadata), response}
+            )
+
+          event ->
+            Tasks.handle_swarm_event(scope, task.id, turn_number, event)
         end
 
         loop =
@@ -103,6 +121,15 @@ defmodule FrontmanServer.Tasks.Execution do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp response_metadata(response_context, metadata) do
+    %{
+      turn_started_id: response_context.turn_started_id,
+      agent_id: response_context.agent_id,
+      ordinal: response_context.ordinal_offset + metadata.ordinal,
+      timestamp: metadata.timestamp
+    }
   end
 
   @doc """

@@ -56,7 +56,7 @@ module TestHelpers = {
   }
 }
 
-describe("Task - Single Streaming Message Invariant", () => {
+describe("Task - Protocol Message Identity", () => {
   // Helper: create a loaded task with a user message and explicit running update.
   let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
@@ -64,36 +64,12 @@ describe("Task - Single Streaming Message Invariant", () => {
     TaskReducer.next(task1, ExecutionStateRunning)->Pair.first
   }
 
-  test("StreamingStarted creates a streaming message", t => {
-    let task = _startAgent()
-    let (updatedTask, _effects) = TaskReducer.next(task, StreamingStarted({agentId: "test-agent"}))
-
-    let messages = TestHelpers.getMessages(updatedTask)
-    // Messages: User + Streaming
-    t->expect(Array.length(messages))->Expect.toBe(2)
-
-    switch messages->Array.get(1) {
-    | Some(Message.Assistant(Streaming({textBuffer}))) => t->expect(textBuffer)->Expect.toBe("")
-    | _ => t->expect(false)->Expect.toBe(true)
-    }
-  })
-
-  test("StreamingStarted fails fast if streaming message already exists", t => {
-    let task = _startAgent()
-    let (task1, _) = TaskReducer.next(task, StreamingStarted({agentId: "test-agent"}))
-
-    // Invariant enforced: calling StreamingStarted again should crash
-    Expect.toThrow(
-      t->expect(() => TaskReducer.next(task1, StreamingStarted({agentId: "test-agent"}))),
-    )
-  })
-
   test("TextDeltaReceived appends to streaming message", t => {
     let task = _startAgent()
-    let (task1, _) = TaskReducer.next(task, StreamingStarted({agentId: "executor-id"}))
     let (task2, _) = TaskReducer.next(
-      task1,
+      task,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "Hello",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "executor-id",
@@ -102,6 +78,7 @@ describe("Task - Single Streaming Message Invariant", () => {
     let (task3, _) = TaskReducer.next(
       task2,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: " world",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "executor-id",
@@ -119,10 +96,10 @@ describe("Task - Single Streaming Message Invariant", () => {
 
   test("ExecutionStateIdle converts streaming to completed", t => {
     let task = _startAgent()
-    let (task1, _) = TaskReducer.next(task, StreamingStarted({agentId: "test-agent"}))
     let (task2, _) = TaskReducer.next(
-      task1,
+      task,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "Hello",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -263,6 +240,7 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
     let (task, _) = TaskReducer.next(
       task,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "Hi there!",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -289,10 +267,10 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
   test("in-flight streaming message is finalized to Completed by LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
 
-    let (task, _) = TaskReducer.next(task, StreamingStarted({agentId: "test-agent"}))
     let (task, _) = TaskReducer.next(
       task,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "partial ",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -301,6 +279,7 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
     let (task, _) = TaskReducer.next(
       task,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "response",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -328,6 +307,28 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
 })
 
 describe("Task - Agent Running State", () => {
+  test("second prompt preserves task agent catalog", t => {
+    let agent: FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.agentCatalogEntry = {
+      id: "executor-id",
+      name: "executor",
+      displayName: "Executor",
+      description: "Executes",
+      color: "#22C55E",
+    }
+    let task = TestHelpers.makeLoadedTask()
+    let (task, _) = TaskReducer.next(task, AgentCatalogInstalled([agent]))
+    let (task, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: "user-2",
+        content: [Client__Task__Types.UserContentPart.text("Again")],
+        annotations: [],
+      }),
+    )
+
+    t->expect(Task.getAgentCatalog(task))->Expect.toEqual(Some([agent]))
+  })
+
   test("state updates drive isAgentRunning", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task2, _) = TaskReducer.next(
@@ -488,6 +489,12 @@ describe("Task - Error Handling", () => {
         category: #quota,
       }),
     )
+
+    switch TestHelpers.getMessages(task2)->Array.get(0) {
+    | Some(Message.Error(error)) =>
+      t->expect(Message.ErrorMessage.error(error))->Expect.toBe("Quota exhausted")
+    | _ => t->expect("persistent error message")->Expect.toBe("missing")
+    }
   })
 
   test("AgentError sets isAgentRunning to false", t => {
@@ -513,10 +520,10 @@ describe("Task - Error Handling", () => {
     let task = TestHelpers.makeLoadedTask()
     let task0 = TestHelpers.acceptUserMessage(task)
     let (runningTask, _) = TaskReducer.next(task0, ExecutionStateRunning)
-    let (task1, _) = TaskReducer.next(runningTask, StreamingStarted({agentId: "test-agent"}))
     let (task2, _) = TaskReducer.next(
-      task1,
+      runningTask,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "Partial response",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -643,10 +650,10 @@ describe("Task - CancelTurn", () => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TestHelpers.acceptUserMessage(task)
     let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning)
-    let (task2, _) = TaskReducer.next(runningTask, StreamingStarted({agentId: "test-agent"}))
     let (task3, _) = TaskReducer.next(
-      task2,
+      runningTask,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "Partial resp",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -768,10 +775,10 @@ describe("Task - CancelTurn", () => {
 
     // Start new streaming
     let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning)
-    let (task3, _) = TaskReducer.next(runningTask, StreamingStarted({agentId: "test-agent"}))
     let (task4, _) = TaskReducer.next(
-      task3,
+      runningTask,
       TextDeltaReceived({
+        messageId: "assistant-2",
         text: "New response",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -801,6 +808,7 @@ describe("Task - Running-independent streamed events", () => {
     let (updated, effects) = TaskReducer.next(
       task,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "stream text",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -839,10 +847,10 @@ describe("Task - Running-independent streamed events", () => {
 
   test("events during Loading state still work", t => {
     let task = TestHelpers.makeLoadingTask()
-    let (task1, _) = TaskReducer.next(task, StreamingStarted({agentId: "test-agent"}))
     let (task2, _) = TaskReducer.next(
-      task1,
+      task,
       TextDeltaReceived({
+        messageId: "assistant-1",
         text: "loading text",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",

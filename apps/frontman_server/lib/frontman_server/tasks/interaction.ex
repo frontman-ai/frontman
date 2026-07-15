@@ -735,16 +735,29 @@ defmodule FrontmanServer.Tasks.Interaction do
     use Ecto.Schema
     import Ecto.Changeset
 
+    @fields [
+      :agent_id,
+      :agent_name,
+      :agent_display_name,
+      :agent_description,
+      :agent_color,
+      :user_message_ids
+    ]
+
     embedded_schema do
       field :agent_id, :string
+      field :agent_name, :string
+      field :agent_display_name, :string
+      field :agent_description, :string
+      field :agent_color, :string
       field :user_message_ids, {:array, :string}
       field :timestamp, :utc_datetime_usec
     end
 
     def changeset(%__MODULE__{} = turn_started, attrs) do
       turn_started
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :agent_id, :user_message_ids])
-      |> validate_required([:user_message_ids])
+      |> Interaction.cast_timestamped(attrs, [:id, :timestamp | @fields])
+      |> validate_required(@fields)
       |> validate_length(:user_message_ids, min: 1)
     end
   end

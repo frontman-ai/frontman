@@ -425,6 +425,8 @@ module Selectors = {
     state.configOptions
   }
 
+  let agentCatalog = state => currentTask(state)->TaskReducer.Selectors.agentCatalog
+
   // Get selected model value (sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
   let selectedModelValue = (state: state): option<
     Client__State__Types.ACPConfig.sessionConfigValueId,
@@ -1273,7 +1275,11 @@ let next = (state: state, action) => {
       | None => ()
       }
     })
-    {...state, tasks: updatedTasks, acpSession: NoAcpSession}->StateReducer.update
+    {
+      ...state,
+      tasks: updatedTasks,
+      acpSession: NoAcpSession,
+    }->StateReducer.update
 
   // ============================================================================
   // Global state actions

@@ -122,12 +122,7 @@ type toolCallState =
 
 type assistantMessage =
   | Streaming({id: string, textBuffer: string, createdAt: float, agentId: string})
-  | Completed({
-      id: string,
-      content: array<AssistantContentPart.t>,
-      createdAt: float,
-      agentId: string,
-    })
+  | Completed({id: string, content: array<AssistantContentPart.t>, agentId: string})
 
 type toolCall = {
   id: string,

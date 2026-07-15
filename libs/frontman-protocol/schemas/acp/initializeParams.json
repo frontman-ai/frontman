@@ -29,6 +29,29 @@
             "form": {},
             "url": {}
           }
+        },
+        "_meta": {
+          "type": "object",
+          "properties": {
+            "frontman.dev": {
+              "type": "object",
+              "properties": {
+                "agentAttribution": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 65535
+                    }
+                  },
+                  "required": [
+                    "version"
+                  ]
+                }
+              }
+            }
+          }
         }
       }
     },

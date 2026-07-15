@@ -5,6 +5,7 @@ module TaskReducer = Client__Task__Reducer
 module Task = Client__State__Types.Task
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
+module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 module TestHelpers = {
   let makeLoadedTask = (
@@ -123,6 +124,7 @@ describe("Client State Reducer", () => {
     let action = Reducer.TaskAction({
       target: ForTask(taskId),
       action: TextDeltaReceived({
+        messageId: "assistant-1",
         text: " world",
         timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
@@ -200,13 +202,10 @@ describe("Client State Reducer", () => {
     )
     let (state, _) = Reducer.next(
       state,
-      TaskAction({target: ForTask(taskId), action: StreamingStarted({agentId: "test-agent"})}),
-    )
-    let (state, _) = Reducer.next(
-      state,
       TaskAction({
         target: ForTask(taskId),
         action: TextDeltaReceived({
+          messageId: "assistant-1",
           text: "Hello",
           timestamp: "2024-01-15T10:00:00Z",
           agentId: "test-agent",
@@ -253,7 +252,6 @@ describe("Client State Reducer", () => {
           Completed({
             id: "assistant-1",
             content: [AssistantContentPart.text("Done")],
-            createdAt: 0.0,
             agentId: "test-agent",
           }),
         ),
@@ -444,18 +442,7 @@ describe("Client State Reducer - Streaming Flow", () => {
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
     )
 
-    // 1. Start streaming (ID is now generated internally)
-    let (state, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: StreamingStarted({agentId: "test-agent"})}),
-    )
-
-    // Get the generated message ID
-    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-    let generatedId = switch Client__Task__Reducer.Selectors.streamingMessage(task) {
-    | Some(Reducer.Message.Streaming({id})) => id
-    | _ => JsExn.throw("Expected streaming message")
-    }
+    let messageId = "assistant-1"
 
     // 2. Receive text deltas
     let (state, _) = Reducer.next(
@@ -463,6 +450,7 @@ describe("Client State Reducer - Streaming Flow", () => {
       TaskAction({
         target: ForTask(taskId),
         action: TextDeltaReceived({
+          messageId,
           text: "Hello",
           timestamp: "2024-01-15T10:00:00Z",
           agentId: "test-agent",
@@ -474,6 +462,7 @@ describe("Client State Reducer - Streaming Flow", () => {
       TaskAction({
         target: ForTask(taskId),
         action: TextDeltaReceived({
+          messageId,
           text: " world",
           timestamp: "2024-01-15T10:00:00Z",
           agentId: "test-agent",
@@ -491,7 +480,7 @@ describe("Client State Reducer - Streaming Flow", () => {
     let messages = TestHelpers.getMessages(state)
     switch messages->Array.get(1) {
     | Some(Reducer.Message.Assistant(Completed({id, content, _}))) => {
-        t->expect(id)->Expect.toBe(generatedId)
+        t->expect(id)->Expect.toBe(messageId)
         switch content->Array.get(0) {
         | Some(AssistantContentPart.Text({text})) => t->expect(text)->Expect.toBe("Hello world")
         | _ => t->expect("Got text content")->Expect.toBe("Expected text content")
@@ -524,7 +513,6 @@ describe("Client State Reducer - Selectors", () => {
       Reducer.Message.Completed({
         id: "completed-1",
         content: [],
-        createdAt: 0.0,
         agentId: "test-agent",
       }),
     )

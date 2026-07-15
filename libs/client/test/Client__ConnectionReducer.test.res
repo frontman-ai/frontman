@@ -13,6 +13,13 @@ let hasLogInfo = effects =>
     | _ => false
     }
   )
+let hasLogError = effects =>
+  hasEffect(effects, e =>
+    switch e {
+    | Reducer.LogError(_) => true
+    | _ => false
+    }
+  )
 let hasConnectACP = effects =>
   hasEffect(effects, e =>
     switch e {
@@ -143,7 +150,7 @@ describe("Connection Reducer", () => {
       "SessionCreateSuccess transitions to SessionActive",
       t => {
         let mockSession = Obj.magic({"sessionId": "sess-1", "channel": null})
-        let state = {...Reducer.initialState, session: SessionCreating}
+        let state = {...Reducer.initialState, session: SessionCreating(None)}
         let (nextState, effects) = Reducer.reduce(state, SessionCreateSuccess(mockSession))
 
         switch nextState.session {
@@ -151,6 +158,137 @@ describe("Connection Reducer", () => {
         | _ => t->expect(false)->Expect.toBe(true)
         }
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "live parse failure transitions active session to SessionError",
+      t => {
+        let mockSession = Obj.magic({"sessionId": "sess-1", "channel": null})
+        let state = {...Reducer.initialState, session: SessionActive(mockSession)}
+        let (nextState, effects) = Reducer.reduce(
+          state,
+          SessionFailed({sessionId: "sess-1", error: "malformed update"}),
+        )
+
+        switch nextState.session {
+        | Reducer.SessionError("malformed update") => ()
+        | _ => t->expect("SessionError")->Expect.toBe("wrong state")
+        }
+        t->expect(hasLogError(effects))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "fresh session parse failure transitions identified creation to SessionError",
+      t => {
+        let creating = {...Reducer.initialState, session: SessionCreating(None)}
+        let (identified, _) = Reducer.reduce(creating, SessionCreationIdentified("sess-1"))
+        let (failed, effects) = Reducer.reduce(
+          identified,
+          SessionFailed({sessionId: "sess-1", error: "invalid attribution"}),
+        )
+
+        t->expect(failed.session)->Expect.toEqual(SessionError("invalid attribution"))
+        t->expect(hasLogError(effects))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "stale parse failure does not fail current session",
+      t => {
+        let mockSession = Obj.magic({"sessionId": "sess-2", "channel": null})
+        let state = {...Reducer.initialState, session: SessionActive(mockSession)}
+        let (nextState, effects) = Reducer.reduce(
+          state,
+          SessionFailed({sessionId: "sess-1", error: "stale update"}),
+        )
+
+        switch nextState.session {
+        | Reducer.SessionActive({sessionId: "sess-2"}) => ()
+        | _ => t->expect("current session active")->Expect.toBe("wrong state")
+        }
+        t->expect(hasLogInfo(effects))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "stale load completion cannot replace the latest requested task",
+      t => {
+        let loadTask = taskId => Reducer.LoadTask({
+          taskId,
+          needsHistory: true,
+          onUpdate: (_, _) => (),
+          onTitleUpdated: (_, _) => (),
+          onMcpMessage: (_, _) => (),
+          onComplete: _ => (),
+        })
+        let initial = {
+          ...Reducer.initialState,
+          acp: ACPConnected(Obj.magic(null)),
+          mcpServer: Some(Obj.magic(null)),
+        }
+        let (loadingFirst, _) = Reducer.reduce(initial, loadTask("sess-1"))
+        let (loadingSecond, _) = Reducer.reduce(loadingFirst, loadTask("sess-2"))
+        let staleSession = Obj.magic({"sessionId": "sess-1", "channel": null})
+        let (afterStaleSuccess, effects) = Reducer.reduce(
+          loadingSecond,
+          Reducer.SessionCreateSuccess(staleSession),
+        )
+
+        switch afterStaleSuccess.session {
+        | Reducer.SessionCreating(Some("sess-2")) => ()
+        | _ => t->expect("latest load pending")->Expect.toBe("wrong state")
+        }
+        t
+        ->expect(
+          effects->Array.some(
+            effect =>
+              switch effect {
+              | Reducer.CleanupSessionEffect({session: {sessionId: "sess-1"}}) => true
+              | _ => false
+              },
+          ),
+        )
+        ->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "switching tasks enters SessionCreating before cleanup and load",
+      t => {
+        let oldSession = Obj.magic({"sessionId": "sess-1", "channel": null})
+        let state = {
+          ...Reducer.initialState,
+          acp: ACPConnected(Obj.magic(null)),
+          mcpServer: Some(Obj.magic(null)),
+          session: SessionActive(oldSession),
+        }
+        let (nextState, effects) = Reducer.reduce(
+          state,
+          LoadTask({
+            taskId: "sess-2",
+            needsHistory: true,
+            onUpdate: (_, _) => (),
+            onTitleUpdated: (_, _) => (),
+            onMcpMessage: (_, _) => (),
+            onComplete: _ => (),
+          }),
+        )
+
+        t->expect(nextState.session)->Expect.toEqual(SessionCreating(Some("sess-2")))
+        t
+        ->expect(
+          effects->Array.map(
+            effect =>
+              switch effect {
+              | Reducer.CleanupSessionEffect(_) => #cleanup
+              | Reducer.LoadTaskEffect(_) => #load
+              | _ => #other
+              },
+          ),
+        )
+        ->Expect.toEqual([#cleanup, #load])
       },
     )
   })
@@ -297,7 +435,7 @@ describe("Connection Reducer", () => {
           }),
         )
 
-        t->expect(nextState.session)->Expect.toBe(Reducer.SessionCreating)
+        t->expect(nextState.session)->Expect.toEqual(Reducer.SessionCreating(None))
         t
         ->expect(
           hasEffect(
