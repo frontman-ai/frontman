@@ -79,7 +79,7 @@ help: ## Display available commands
 # Development
 # ============================================================================
 ## DEV_START
-.PHONY: dev dev-client dev-server dev-nextjs dev-marketing
+.PHONY: dev dev-client dev-server dev-nextjs dev-nextjs-prebuilt dev-marketing
 
 dev: ## Start all core services (client + server + nextjs)
 	@printf "$(YELLOW)Starting all services via mprocs...$(RESET)\n"
@@ -96,6 +96,10 @@ dev-server: ## Start development server for server app
 dev-nextjs: ## Start development server for Next.js test site
 	@printf "$(YELLOW)Starting Next.js dev server...$(RESET)\n"
 	cd test/sites/blog-starter && $(MAKE) dev
+
+dev-nextjs-prebuilt: ## Start Next.js test site with prebuilt integration
+	@printf "$(YELLOW)Starting Next.js dev server...$(RESET)\n"
+	cd test/sites/blog-starter && $(MAKE) dev-prebuilt
 
 dev-marketing: ## Start development server for marketing site
 	@printf "$(YELLOW)Waiting for server on localhost:4000...$(RESET)\n"
