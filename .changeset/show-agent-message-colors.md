@@ -3,4 +3,4 @@
 ---
 
 Add negotiated ACP agent attribution with validated session catalogs, stable message IDs,
-and explicit agent colors.
+explicit agent colors, and migration of persisted session history.
