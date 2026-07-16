@@ -23,6 +23,7 @@ type Props = {
 	ogImageWidth?: number
 	ogImageHeight?: number
 	ogImageAlt?: string
+	canonical?: boolean
 	noindex?: boolean
 	classes?: string
 	article?: {
@@ -43,6 +44,7 @@ const {
 	ogImageWidth,
 	ogImageHeight,
 	ogImageAlt,
+	canonical,
 	noindex,
 	classes,
 	article,
@@ -52,7 +54,7 @@ const {
 
 <!doctype html>
 <html lang="en" class="relative">
-	<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} noindex={noindex} article={article} breadcrumbs={breadcrumbs} />
+	<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} canonical={canonical} noindex={noindex} article={article} breadcrumbs={breadcrumbs} />
 	<body class:list={[{ [`${classes}`]: classes }]}>
 		<a href="#main-content" class="skip-link">Skip to main content</a>
 		<NavigationBar />
