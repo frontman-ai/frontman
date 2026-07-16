@@ -18,6 +18,7 @@ const blog = defineCollection({
 			imageAlt: z.string().optional(),
 			author: z.string(),
 			authorRole: z.string().optional(),
+			authorUrl: z.string().optional(),
 			tags: z.array(z.string()),
 			updatedDate: z.date().optional(),
 			faq: z
