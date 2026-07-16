@@ -1,0 +1,86 @@
+---
+import Layout from '../../layouts/Layout.astro'
+
+const SEO = {
+	title: 'Danni Friedland: Frontman Co-founder and Author',
+	description:
+		'Danni Friedland writes about browser-aware AI agents, frontend engineering, developer tools, and runtime context at Frontman.'
+}
+
+const personJsonLd = {
+	'@context': 'https://schema.org',
+	'@type': 'Person',
+	'@id': 'https://frontman.sh/authors/danni-friedland/#person',
+	name: 'Danni Friedland',
+	jobTitle: 'Co-founder',
+	url: 'https://frontman.sh/authors/danni-friedland/',
+	worksFor: {
+		'@type': 'Organization',
+		'@id': 'https://frontman.sh/#organization',
+		name: 'Frontman',
+		url: 'https://frontman.sh/'
+	},
+	knowsAbout: [
+		'Browser-aware AI agents',
+		'Frontend engineering',
+		'Developer tools',
+		'Model Context Protocol',
+		'Web application analytics'
+	],
+	sameAs: [
+		'https://github.com/BlueHotDog',
+		'https://www.linkedin.com/in/dannifriedland/',
+		'https://twitter.com/dannifriedland'
+	]
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(personJsonLd)} />
+	<main class="flex min-h-screen justify-center bg-zinc-950 px-5 py-12 text-zinc-50 sm:px-6 sm:py-20 md:pb-30">
+		<article class="w-full max-w-[720px]">
+			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-zinc-500">Author</p>
+			<h1 class="mb-3 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 sm:text-[42px]">Danni Friedland</h1>
+			<p class="mb-12 text-[20px] font-medium leading-[1.4] text-zinc-400">Co-founder of Frontman</p>
+
+			<div class="space-y-10 text-[17px] leading-[1.75] text-zinc-300">
+				<section>
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Background</h2>
+					<p>
+						Danni builds developer tools at the intersection of AI and frontend engineering. Before Frontman, he co-founded Walnut and served as CTO; <a href="https://techcrunch.com/2021/08/31/sales-experience-platform-walnut-raises-15m-to-improve-product-demonstrations/" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">TechCrunch documented the company's founding and product</a>. Earlier, he co-founded and led Jaco, a visual analytics startup <a href="https://www.walkme.com/blog/walkme-acquires-jaco/" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">acquired by WalkMe in 2017</a>.
+					</p>
+				</section>
+
+				<section>
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Current work</h2>
+					<p>
+						At Frontman, Danni works on browser-to-source context, framework integrations, agent tooling, and the evidence required to evaluate coding agents honestly. Frontman's <a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">source, issues, releases, and contribution history are public on GitHub</a>.
+					</p>
+				</section>
+
+				<section>
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Selected research and writing</h2>
+					<ul class="list-disc space-y-2 pl-6">
+						<li><a href="/blog/puppeteer-mcp-alternatives-claude-code/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">Puppeteer MCP alternatives for Claude Code browser debugging</a></li>
+						<li><a href="/blog/frontman-vs-opencode-claude-code-case-study/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">Frontman versus OpenCode versus Claude Code case study</a></li>
+						<li><a href="/blog/runtime-context-gap/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">The runtime context gap in AI coding tools</a></li>
+					</ul>
+				</section>
+
+				<section>
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Independent coverage</h2>
+					<p>
+						Gerald Chen published an independent <a href="https://chenguangliang.com/en/posts/blog159_frontman-frontend-ai-agent/" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">technical analysis of Frontman's architecture and limitations</a>. This is external analysis, not a Frontman-sponsored article.
+					</p>
+				</section>
+
+				<section class="border-t border-zinc-800 pt-8">
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Profiles and contact</h2>
+					<p>
+						Find Danni on <a href="https://github.com/BlueHotDog" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">GitHub</a>, <a href="https://www.linkedin.com/in/dannifriedland/" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">LinkedIn</a>, and <a href="https://twitter.com/dannifriedland" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">X</a>. Report article errors through Frontman's <a href="/editorial-policy/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">editorial and corrections policy</a>.
+					</p>
+				</section>
+			</div>
+		</article>
+	</main>
+</Layout>

@@ -24,10 +24,11 @@ type Props = {
 	title: string
 	author?: string
 	authorRole?: string
+	authorUrl?: string
 	pubDate?: Date
 	updatedDate?: Date
 }
-const { tags, title, author, authorRole, pubDate, updatedDate } = Astro.props
+const { tags, title, author, authorRole, authorUrl = '/about/', pubDate, updatedDate } = Astro.props
 
 const formatDate = (date: Date) =>
 	date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -49,7 +50,7 @@ const updatedDateISO = updatedDate ? updatedDate.toISOString() : undefined
 			{
 				author ? (
 					<p class="page-header__text">
-						Written by <a href="/about/" class="author-link">{author}</a>{authorRole && (
+						Written by <a href={authorUrl} class="author-link">{author}</a>{authorRole && (
 							<>, {authorRole}</>
 						)}{publishDateISO && (
 							<> on <time datetime={publishDateISO}>{publishDateFormatted}</time></>

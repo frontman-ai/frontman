@@ -1,0 +1,18 @@
+---
+import editorialPolicyContent from '../data/markdown-files/editorial-policy.md?raw'
+import LegalDocument from '../components/legal/LegalDocument.astro'
+
+const SEO = {
+	title: 'Editorial and Corrections Policy | Frontman',
+	description:
+		'How Frontman researches, reviews, discloses conflicts, updates articles, and corrects errors in editorial content.'
+}
+---
+
+<LegalDocument
+	title={SEO.title}
+	description={SEO.description}
+	heading="Editorial and Corrections Policy"
+	eyebrow="Editorial"
+	content={editorialPolicyContent}
+/>

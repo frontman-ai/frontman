@@ -3,6 +3,8 @@
 // ------------
 // Description: Injects Organization and BreadcrumbList schema markup for SEO.
 
+import { legalInfo } from '../../../../data/legalInfo'
+
 type BreadcrumbItem = {
 	name: string
 	url: string
@@ -66,13 +68,16 @@ const breadcrumbJsonLd = {
 			"logo": "https://frontman.sh/logo.svg",
 			"contactPoint": {
 				"@type": "ContactPoint",
-				"email": "hello@frontman.sh",
+				"email": legalInfo.supportEmail,
 				"contactType": "customer support",
 				"url": "https://frontman.sh/contact/"
 			},
 			"address": {
 				"@type": "PostalAddress",
-				"addressCountry": "US"
+				"streetAddress": legalInfo.streetAddress,
+				"postalCode": legalInfo.postalCode,
+				"addressLocality": legalInfo.city,
+				"addressCountry": legalInfo.country
 			},
 			"sameAs": [
 				"https://github.com/frontman-ai/frontman",

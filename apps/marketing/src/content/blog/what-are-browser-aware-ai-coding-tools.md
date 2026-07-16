@@ -90,7 +90,7 @@ An MCP bridge connects to an AI coding agent your engineering team already uses 
 
 **The tradeoff:** Great composability for engineering teams, but currently no path for non-developers to use them directly.
 
-Chrome DevTools MCP (Google) and Tidewave (Phoenix/Rails) use this approach.
+Chrome DevTools MCP (Google) and Tidewave (Phoenix/Rails) use this approach. Developers choosing a browser bridge can use the focused [Claude Code DOM access and Puppeteer MCP alternatives guide](/blog/puppeteer-mcp-alternatives-claude-code/) instead of the broader category comparison here.
 
 ## The Tools
 

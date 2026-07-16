@@ -97,7 +97,7 @@ const faqs: FAQ[] = [
   {
     question: 'Can Claude Code see what my app looks like in the browser?',
     answer:
-      'Partially. Claude Code has a Chrome extension (beta) that can open tabs, take screenshots, read console errors, and click elements. But this is AI-driven automation — Claude decides what to look at and interact with. It is not a developer-directed "click this element, change it" workflow. The Chrome extension also does not access the framework component tree, computed CSS values, or server-side context. Frontman provides all of this by default because it runs inside your dev server as middleware.',
+      'Partially. Claude Code can connect to Claude in Chrome to open tabs, inspect DOM state, take screenshots, read console and network evidence, and interact with elements. But this is AI-driven automation — Claude decides what to look at and interact with. It is not a developer-directed "click this element, change it" workflow. The integration does not document access to the framework component tree, source mapping, or server-side context. Frontman provides that project-specific context because it runs inside your dev server as middleware.',
   },
   {
     question: 'Can I use Frontman and Claude Code together?',
@@ -112,7 +112,7 @@ const faqs: FAQ[] = [
   {
     question: 'What does Frontman see that Claude Code cannot?',
     answer:
-      'Frontman hooks into your framework as middleware. It sees the React/Vue/Svelte component tree with props and state, computed CSS (actual pixel values, not class names), server-side routes and logs, the full DOM as rendered at the current viewport, and uses source maps to trace any clicked element back to its exact file and line. Claude Code reads source files and can take screenshots via the Chrome extension, but it does not have access to the framework runtime, component hierarchy, or computed styles.',
+      'Frontman hooks into your framework as middleware. It sees the React/Vue/Svelte component tree with props and state, computed CSS (actual pixel values, not class names), server-side routes and logs, the full DOM as rendered at the current viewport, and uses source maps to trace clicked elements back to source. Claude Code can inspect browser and DOM state through Claude in Chrome, but that integration does not document access to framework runtime state, component hierarchy, or component-to-source mapping.',
   },
 ]
 ---
@@ -131,7 +131,7 @@ const faqs: FAQ[] = [
       <a href="https://frontman.sh" class="text-link">Frontman</a> is open-source browser middleware for AI-assisted frontend editing. It hooks into Next.js, Astro, or Vite as a framework plugin, runs a browser-side MCP server that inspects the live DOM and computed CSS, and lets you click any element to edit its source code with hot reload. Apache 2.0 client libraries, AGPL-3.0 server, BYOK.
     </p>
     <p>
-      <a href="https://claude.ai/code" class="text-link" rel="nofollow">Claude Code</a> is Anthropic\'s agentic coding tool. It runs in your terminal, VS Code, JetBrains, a desktop app, or on the web at claude.ai/code. Claude Code reads your entire codebase, edits files, runs shell commands, handles git operations, and can spawn sub-agents for parallel work. It works with any language and any project type. A Chrome extension (beta) provides limited browser interaction.
+      <a href="https://claude.ai/code" class="text-link" rel="nofollow">Claude Code</a> is Anthropic\'s agentic coding tool. It runs in your terminal, VS Code, JetBrains, a desktop app, or on the web at claude.ai/code. Claude Code reads your entire codebase, edits files, runs shell commands, handles git operations, and can spawn sub-agents for parallel work. It works with any language and any project type. Claude in Chrome adds DOM, console, network, screenshot, and browser interaction tools; our <a href="/blog/puppeteer-mcp-alternatives-claude-code/" class="text-link">Claude Code browser debugging guide</a> compares that path with external MCP servers.
     </p>
     <p class="summary-emphasis">
       These tools start from opposite ends. Claude Code starts at the terminal and works outward. Frontman starts at the browser and works inward. Both edit source files, but they see different things when doing it.
@@ -150,9 +150,9 @@ const faqs: FAQ[] = [
 
   <Fragment slot="frontman-differentiators">
     <p>Claude Code is a general-purpose coding agent. It edits files across your codebase through terminal commands and file operations. What it does not do is see what your frontend actually looks like when it renders. That is where Frontman comes in.</p>
-    <p>The biggest difference is architectural. Frontman installs as a plugin for Next.js, Astro, or Vite and runs inside your dev server. When you click a button in the browser, Frontman knows which React/Vue/Svelte component rendered it, the exact file and line number (via source maps), the component\'s props and state, and every computed CSS property. Claude Code reads your source files and can take screenshots through the Chrome extension, but it does not have access to the framework\'s runtime state or component hierarchy.</p>
+    <p>The biggest difference is architectural. Frontman installs as a plugin for Next.js, Astro, or Vite and runs inside your dev server. When you click a button in the browser, Frontman can use framework metadata to identify its component and source location, inspect component context and computed CSS, and read framework logs. Claude Code can inspect browser state through Claude in Chrome or an MCP server, but browser DOM access does not automatically provide framework runtime state or component-to-source mapping.</p>
     <p>The editing model is different too. With Frontman, you click the element you want to change. The AI already has the context: the component, its styles, its position on the page. With Claude Code, you describe the change in text. The Chrome extension lets Claude interact with browsers, but that interaction is AI-driven (Claude decides what to look at), not developer-directed (you point at the thing you want changed).</p>
-    <p>Frontman also keeps hot reload in the loop. It edits source files, and the framework\'s HMR immediately shows the result in the browser. Edit, see, edit again. Claude Code edits files too, but there is no built-in visual verification step. You have to switch to the browser yourself or explicitly ask Claude to take a screenshot via the Chrome extension.</p>
+    <p>Frontman also keeps hot reload in the primary interface. It edits source files, and the framework\'s HMR immediately shows the result in the embedded preview. Claude Code can now verify changes through Claude in Chrome, but you must explicitly direct that browser workflow and correlate its browser evidence with the source edit.</p>
     <p>On licensing and pricing: Frontman\'s client libraries are Apache 2.0. The server is AGPL-3.0. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Claude Code is proprietary, requires a paid Anthropic subscription (minimum $20/month), and only works with Claude models.</p>
     <p>Finally, Frontman requires no terminal. Designers and PMs can open the app in a browser, click elements, and describe changes. Changes produce real code diffs for developer review. Claude Code requires terminal literacy at minimum, or IDE proficiency for the extension.</p>
   </Fragment>

@@ -52,11 +52,11 @@ Not a coding agent itself — an MCP enhancement layer that gives your existing 
 
 ### Chrome DevTools MCP (Google)
 
-Google's experimental MCP server exposing DevTools state to AI agents. Your agent can query the DOM, read console output, inspect network requests.
+Google's MCP server exposes DevTools state to AI agents. Your agent can query the DOM, read console output, inspect network requests, and run performance diagnostics. Our guide to [Chrome DevTools MCP browser debugging](/blog/puppeteer-mcp-alternatives-claude-code/) compares it with Playwright MCP, Claude in Chrome, and the archived Puppeteer reference server.
 
 **Strengths:** Official Google project. Framework-agnostic. Free and open.
 
-**Weaknesses:** Raw — no agent included. Browser-only (no server-side context). Experimental. Requires manual setup.
+**Weaknesses:** Raw — no agent included. Browser-only (no server-side context). Requires manual setup.
 
 ### Onlook (Honorable Mention)
 

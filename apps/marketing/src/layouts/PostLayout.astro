@@ -18,6 +18,8 @@ const SEO = {
 // Dates
 const pubDateISO = frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate
 const updatedDateISO = frontmatter.updatedDate instanceof Date ? frontmatter.updatedDate.toISOString() : frontmatter.updatedDate
+const authorUrl = frontmatter.authorUrl ?? '/about/'
+const absoluteAuthorUrl = new URL(authorUrl, Astro.site).href
 
 // Word count from markdown body (strip markdown syntax, count words)
 const wordCount = body
@@ -34,9 +36,10 @@ const blogPostJsonLd = {
 	...(updatedDateISO ? { "dateModified": updatedDateISO } : { "dateModified": pubDateISO }),
 	"author": {
 		"@type": "Person",
+		...(frontmatter.authorUrl ? { "@id": `${absoluteAuthorUrl}#person` } : {}),
 		"name": frontmatter.author,
 		...(frontmatter.authorRole ? { "jobTitle": frontmatter.authorRole } : {}),
-		"url": "https://frontman.sh/about/"
+		"url": absoluteAuthorUrl
 	},
 	...(frontmatter.image ? { "image": `https://frontman.sh${frontmatter.image}` } : {}),
 	...(wordCount ? { "wordCount": wordCount } : {}),
@@ -137,6 +140,7 @@ const videoJsonLd = frontmatter.video
 		title={frontmatter.title}
 		author={frontmatter.author}
 		authorRole={frontmatter.authorRole}
+		authorUrl={authorUrl}
 		pubDate={frontmatter.pubDate}
 		updatedDate={frontmatter.updatedDate}
 	/>
