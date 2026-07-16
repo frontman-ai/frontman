@@ -23,13 +23,8 @@ let addAssistant = (
   ~agentId="executor-id",
 ) => buffer.add(~taskId, ~messageId, ~text, ~agentId)
 
-let addUserBlock = (
-  buffer: Buffer.t,
-  ~block,
-  ~taskId="task-1",
-  ~messageId="message-1",
-  ~agentId="executor-id",
-) => buffer.addUserBlock(~taskId, ~messageId, ~block, ~agentId)
+let addUserBlock = (buffer: Buffer.t, ~block, ~messageId) =>
+  buffer.addUserBlock(~taskId="task-1", ~messageId, ~block, ~agentId="executor-id")
 
 describe("TextDeltaBuffer", () => {
   test("discardTask removes only failed task buffers", t => {
