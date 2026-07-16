@@ -151,47 +151,6 @@
       },
       "type": "array"
     },
-    "_meta": {
-      "type": "object",
-      "properties": {
-        "frontman.dev/agents": {
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1
-              },
-              "name": {
-                "type": "string",
-                "minLength": 1
-              },
-              "displayName": {
-                "type": "string",
-                "minLength": 1
-              },
-              "description": {
-                "type": "string",
-                "minLength": 1
-              },
-              "color": {
-                "type": "string",
-                "pattern": "^#[0-9A-Fa-f]{6}$"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "displayName",
-              "description",
-              "color"
-            ]
-          },
-          "type": "array",
-          "uniqueItems": true,
-          "description": "Frontman runtime validation also requires unique id fields"
-        }
-      }
-    }
+    "_meta": {}
   }
 }

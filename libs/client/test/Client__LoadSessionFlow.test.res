@@ -50,7 +50,6 @@ describe("Load Session Then Stream", () => {
         action: TextDeltaReceived({
           messageId: "assistant-1",
           text: "Hello",
-          timestamp: "2024-01-15T10:00:00Z",
           agentId: "test-agent",
         }),
       }),

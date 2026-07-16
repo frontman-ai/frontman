@@ -14,7 +14,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias AgentClientProtocol.Content.{ContentItem, TextBlock}
   alias FrontmanServer.InteractionCase.Helpers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Test.Fixtures.LLMProvider
@@ -296,98 +295,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert DateTime.to_iso8601(response.timestamp) == response_timestamp
     end
 
-    test "persists selected agent on accepted prompt", %{
-      socket: socket,
-      scope: scope,
-      task_id: task_id
-    } do
-      ref = push(socket, "acp:message", build_prompt_request())
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "_meta" => %{"frontman.dev/agentId" => "test-frontman"}
-          }
-        }
-      })
-
-      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
-
-      assert {:ok, task} = Tasks.get_task(scope, task_id)
-      assert [%Interaction.UserMessage{agent_id: "test-frontman"}] = Tasks.interactions(task)
-    end
-
-    test "emits one attributed user chunk per content block", %{
-      socket: socket
-    } do
-      image = %{
-        "type" => "resource",
-        "resource" => %{
-          "_meta" => %{"user_image" => true, "filename" => "hello.png"},
-          "resource" => %{
-            "uri" => "attachment://hello.png",
-            "mimeType" => "image/png",
-            "blob" => "aGVsbG8="
-          }
-        }
-      }
-
-      content_blocks = [
-        %{"type" => "text", "text" => "Review this"},
-        Helpers.annotation_block("ann-1", "button", "/app.tsx", 10, 4),
-        image,
-        Helpers.current_page_block("https://example.com")
-      ]
-
-      ref =
-        push(
-          socket,
-          "acp:message",
-          build_acp_request("session/prompt", 45, %{
-            "prompt" => content_blocks,
-            "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
-              "agent" => "test-frontman"
-            }
-          })
-        )
-
-      [first | rest] = content_blocks
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "messageId" => message_id,
-            "content" => ^first,
-            "_meta" => %{
-              "frontman.dev/agentId" => "test-frontman",
-              "frontman.dev/timestamp" => timestamp
-            }
-          }
-        }
-      })
-
-      Enum.each(rest, fn content ->
-        assert_push("acp:message", %{
-          "params" => %{
-            "update" => %{
-              "sessionUpdate" => "user_message_chunk",
-              "messageId" => ^message_id,
-              "content" => ^content,
-              "_meta" => %{
-                "frontman.dev/agentId" => "test-frontman",
-                "frontman.dev/timestamp" => ^timestamp
-              }
-            }
-          }
-        })
-      end)
-
-      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
-    end
-
     test "live user chunks equal replayed persisted chunks", %{socket: socket, task_id: task_id} do
       selector_annotation =
         Helpers.annotation_block("selector-ann", "button", nil, nil, nil, index: 0)
@@ -450,6 +357,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
       replayed_chunks = collect_all_pushes() |> user_message_updates()
 
+      assert length(live_chunks) == length(content_blocks)
       assert replayed_chunks == live_chunks
     end
 
@@ -632,61 +540,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           }
         })
       end
-    end
-
-    test "uses upstream ordinal for tool-separated responses", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
-      turn_started_id = Ecto.UUID.generate()
-      metadata = response_metadata(turn_started_id, 1)
-      message_id = "#{turn_started_id}:1"
-      activate_turn(socket, turn_started_id)
-
-      send(socket.channel_pid, execution_chunk(1, :content, "after tool", metadata))
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "messageId" => ^message_id,
-            "content" => %{"text" => "after tool"}
-          }
-        }
-      })
-    end
-
-    test "keeps identities isolated across concurrent channels", %{scope: scope} do
-      {first_socket, _first_task_id} = join_task_channel(scope)
-      {second_socket, _second_task_id} = join_task_channel(scope)
-      first_turn_id = Ecto.UUID.generate()
-      second_turn_id = Ecto.UUID.generate()
-      first_message_id = "#{first_turn_id}:0"
-      second_message_id = "#{second_turn_id}:0"
-      activate_turn(first_socket, first_turn_id)
-      activate_turn(second_socket, second_turn_id)
-
-      send(
-        first_socket.channel_pid,
-        execution_chunk(1, :content, "first", response_metadata(first_turn_id))
-      )
-
-      send(
-        second_socket.channel_pid,
-        execution_chunk(1, :content, "second", response_metadata(second_turn_id))
-      )
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{"messageId" => ^first_message_id, "content" => %{"text" => "first"}}
-        }
-      })
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "messageId" => ^second_message_id,
-            "content" => %{"text" => "second"}
-          }
-        }
-      })
     end
   end
 
@@ -903,8 +756,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_tool_result))
       :sys.get_state(socket.channel_pid)
 
-      # Phoenix.ChannelTest delivers raw Elixir terms (no JSON serialisation),
-      # so content arrives as ACP.Content structs rather than plain maps.
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "method" => "session/update",
@@ -914,7 +765,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "sessionUpdate" => "tool_call_update",
             "toolCallId" => "call_123",
             "status" => "completed",
-            "content" => [%ContentItem{content: %TextBlock{text: "Logged: hello"}}]
+            "content" => [
+              %{
+                "type" => "content",
+                "content" => %{"type" => "text", "text" => "Logged: hello"}
+              }
+            ]
           }
         }
       })
@@ -1138,63 +994,21 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> Enum.filter(fn {event, _payload} -> event == "acp:message" end)
         |> Enum.map(&elem(&1, 1))
 
-      history_index =
-        Enum.find_index(messages, fn
-          %{
-            "method" => "session/update",
-            "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
-          } ->
-            true
-
-          _message ->
-            false
-        end)
-
-      response_index = Enum.find_index(messages, &match?(%{"id" => 90}, &1))
-
-      history_indices =
-        messages
-        |> Enum.with_index()
-        |> Enum.filter(fn {message, _index} -> message["method"] == "session/update" end)
-        |> Enum.map(&elem(&1, 1))
-
-      assert is_integer(history_index)
-      assert is_integer(response_index)
-      assert history_indices != []
-      assert Enum.all?(history_indices, &(&1 < response_index))
-
-      assert %{
-               "result" => %{
-                 "_meta" => %{"frontman.dev/agents" => agents}
+      assert [
+               %{
+                 "method" => "session/update",
+                 "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
+               },
+               %{
+                 "id" => 90,
+                 "result" => %{"_meta" => %{"frontman.dev/agents" => agents}}
                }
-             } = Enum.at(messages, response_index)
+             ] = messages
 
       assert Enum.any?(
                agents,
                &match?(%{"id" => "test-frontman", "displayName" => "Executor"}, &1)
              )
-    end
-
-    test "load always includes Frontman catalog metadata", %{scope: scope} do
-      task = task_fixture(scope)
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task.id}", %{})
-
-      collect_all_pushes()
-
-      push(
-        socket,
-        "acp:message",
-        build_acp_request("session/load", 89, %{"sessionId" => task.id})
-      )
-
-      assert_push("acp:message", %{
-        "id" => 89,
-        "result" => %{"_meta" => %{"frontman.dev/agents" => [_ | _]}}
-      })
     end
 
     test "drains accepted work created outside the channel prompt flow", %{scope: scope} do

@@ -19,7 +19,6 @@ defmodule FrontmanServer.Agents do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
-  @spec list_agents(Scope.t()) :: [Agent.t()]
   def list_agents(%Scope{}) do
     config()
     |> Keyword.fetch!(:agents)
@@ -27,8 +26,6 @@ defmodule FrontmanServer.Agents do
   end
 
   @doc "Returns stable active-first union of current and historical agent definitions."
-  @spec resolve_catalog([Agent.t()], [InteractionSchema.t()], [String.t()]) ::
-          {:ok, [Agent.t()]} | {:error, term()}
   def resolve_catalog(active_agents, turn_rows, referenced_agent_ids \\ [])
       when is_list(active_agents) and is_list(turn_rows) and is_list(referenced_agent_ids) do
     with {:ok, active} <- append_agents(active_agents, %{ordered: [], by_id: %{}}),

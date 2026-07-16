@@ -88,20 +88,25 @@ let negotiateV1 = (connection: ACP.connection): ACP.connection => {
   state: ref({...Client.initialState, agentAttributionVersion: Some(Client.V1)}),
 }
 
-let userUpdate = messageId =>
+let userUpdate = (
+  messageId,
+  ~sessionId="task-1",
+  ~agentId="agent-1",
+  ~timestamp="2026-07-14T12:30:01Z",
+) =>
   JSON.parseOrThrow(
     `{
     "jsonrpc":"2.0",
     "method":"session/update",
     "params":{
-      "sessionId":"task-1",
+      "sessionId":"${sessionId}",
       "update":{
         "sessionUpdate":"user_message_chunk",
         "messageId":"${messageId}",
         "content":{"type":"text","text":"history"},
         "_meta":{
-          "frontman.dev/agentId":"agent-1",
-          "frontman.dev/timestamp":"2026-07-14T12:30:01Z"
+          "frontman.dev/agentId":"${agentId}",
+          "frontman.dev/timestamp":"${timestamp}"
         }
       }
     }
@@ -120,21 +125,48 @@ let genericUserUpdate = JSON.parseOrThrow(`{
   }
 }`)
 
+let catalogResult = (
+  ~id="agent-1",
+  ~name="executor",
+  ~displayName="Executor",
+  ~description="Executes work",
+  ~color="#985DF7",
+) =>
+  JSON.parseOrThrow(
+    `{
+    "_meta":{
+      "frontman.dev/agents":[{
+        "id":"${id}",
+        "name":"${name}",
+        "displayName":"${displayName}",
+        "description":"${description}",
+        "color":"${color}"
+      }]
+    }
+  }`,
+  )
+
+let loadCleanupEvents = [
+  "load-response",
+  "off:acp:message",
+  "off:mcp:message",
+  "off:title_updated",
+  "leave",
+]
+
 describe("ACP Client State Reducer", _t => {
   test("initialState has correct defaults", t => {
     let state = Client.initialState
 
     t->expect(state.currentId)->Expect.toEqual(0)
     t->expect(state.acpState)->Expect.toEqual(Client.Disconnected)
-    t->expect(Client.getAgentAttributionVersion(state))->Expect.toEqual(None)
+    t->expect(state.agentAttributionVersion)->Expect.toEqual(None)
     t->expect(state.pendingRequests->Dict.keysToArray->Array.length)->Expect.toEqual(0)
   })
 
   test("RequestSent action updates currentId and pendingRequests", t => {
     let state = Client.initialState
     let pending: Client.pendingRequest = {
-      method: "test",
-      sessionId: None,
       resolve: _ => (),
       reject: _ => (),
     }
@@ -147,8 +179,6 @@ describe("ACP Client State Reducer", _t => {
 
   test("ResponseReceived action removes from pendingRequests", t => {
     let pending: Client.pendingRequest = {
-      method: "test",
-      sessionId: None,
       resolve: _ => (),
       reject: _ => (),
     }
@@ -173,7 +203,7 @@ describe("ACP Client State Reducer", _t => {
     let newState = state->Client.reduce(Client.ACPStateChanged(Client.Initialized(initResult)))
 
     t->expect(Client.isInitialized(newState))->Expect.toEqual(true)
-    t->expect(Client.getAgentAttributionVersion(newState))->Expect.toEqual(None)
+    t->expect(newState.agentAttributionVersion)->Expect.toEqual(None)
   })
 
   test("ACPStateChanged records negotiated agent attribution v1", t => {
@@ -183,7 +213,7 @@ describe("ACP Client State Reducer", _t => {
         loadSession: None,
         mcpCapabilities: None,
         promptCapabilities: None,
-        _meta: Some(Types.agentAttributionV1CapabilityMetadata),
+        _meta: Some(JSON.parseOrThrow(`{"frontman.dev":{"agentAttribution":{"version":1}}}`)),
       }),
       agentInfo: None,
       authMethods: None,
@@ -192,19 +222,15 @@ describe("ACP Client State Reducer", _t => {
     let newState =
       Client.initialState->Client.reduce(Client.ACPStateChanged(Client.Initialized(initResult)))
 
-    t->expect(Client.getAgentAttributionVersion(newState))->Expect.toEqual(Some(Client.V1))
+    t->expect(newState.agentAttributionVersion)->Expect.toEqual(Some(Client.V1))
   })
 
   test("multiple RequestSent actions accumulate", t => {
     let pending1: Client.pendingRequest = {
-      method: "one",
-      sessionId: None,
       resolve: _ => (),
       reject: _ => (),
     }
     let pending2: Client.pendingRequest = {
-      method: "two",
-      sessionId: None,
       resolve: _ => (),
       reject: _ => (),
     }
@@ -250,6 +276,10 @@ describe("ACP Client Connection State", _t => {
 describe("ACP Client buildInitializeParams", _t => {
   test("builds correct JSON structure", t => {
     let mockChannel = %raw(`{push: () => {}, on: () => {}}`)
+    let metadata = JSON.parseOrThrow(`{
+      "other.vendor":{"enabled":true},
+      "frontman.dev":{"futureFeature":{"version":3}}
+    }`)
 
     let config: Client.config = {
       channel: mockChannel,
@@ -258,7 +288,7 @@ describe("ACP Client buildInitializeParams", _t => {
         fs: Some({readTextFile: Some(true), writeTextFile: Some(false)}),
         terminal: Some(true),
         elicitation: None,
-        _meta: None,
+        _meta: Some(Obj.magic(metadata)),
       },
     }
 
@@ -273,12 +303,7 @@ describe("ACP Client buildInitializeParams", _t => {
       ->Option.flatMap(JSON.Decode.object)
       ->Option.flatMap(capabilities => capabilities->Dict.get("_meta"))
       ->Option.flatMap(JSON.Decode.object)
-      ->Option.flatMap(
-        metadata =>
-          metadata->Dict.get(
-            Types.ExtensionKey.make(Types.ExtensionKey.Namespace)->Types.ExtensionKey.toString,
-          ),
-      )
+      ->Option.flatMap(metadata => metadata->Dict.get("frontman.dev"))
       ->Option.flatMap(JSON.Decode.object)
       ->Option.flatMap(frontman => frontman->Dict.get("agentAttribution"))
       ->Option.flatMap(JSON.Decode.object)
@@ -287,6 +312,22 @@ describe("ACP Client buildInitializeParams", _t => {
       ->Option.map(Float.toInt)
 
     t->expect(advertisedVersion)->Expect.toEqual(Some(1))
+    let serializedMetadata =
+      obj
+      ->Dict.get("clientCapabilities")
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.flatMap(capabilities => capabilities->Dict.get("_meta"))
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.getOrThrow
+    t->expect(serializedMetadata->Dict.has("other.vendor"))->Expect.toBe(true)
+    t
+    ->expect(
+      serializedMetadata
+      ->Dict.get("frontman.dev")
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.map(frontman => frontman->Dict.has("futureFeature")),
+    )
+    ->Expect.toEqual(Some(true))
 
     let clientInfoJson = obj->Dict.get("clientInfo")->Option.flatMap(JSON.Decode.object)
     t
@@ -296,18 +337,6 @@ describe("ACP Client buildInitializeParams", _t => {
 })
 
 describe("ACP Client parseInitializeResult", _t => {
-  test("parses valid result", t => {
-    let json = Dict.make()
-    json->Dict.set("protocolVersion", JSON.Encode.int(1))
-
-    let result = Client.parseInitializeResult(JSON.Encode.object(json))
-
-    switch result {
-    | Ok(parsed) => t->expect(parsed.protocolVersion)->Expect.toEqual(1)
-    | Error(_) => failwith("Expected Ok result")
-    }
-  })
-
   test("returns error for invalid JSON", t => {
     let result = Client.parseInitializeResult(JSON.Encode.string("invalid"))
 
@@ -327,42 +356,19 @@ describe("ACP Client parseInitializeResult", _t => {
     let result = Client.parseInitializeResult(json)
 
     switch result {
-    | Ok(parsed) => t->expect(Client.negotiateAgentAttributionVersion(parsed))->Expect.toEqual(None)
+    | Ok(parsed) => {
+        t->expect(parsed.protocolVersion)->Expect.toEqual(1)
+        t->expect(Client.negotiateAgentAttributionVersion(parsed))->Expect.toEqual(None)
+      }
     | Error(_) => failwith("Expected generic initialize result to parse")
     }
   })
 
   test("records no extension when server advertises unsupported version", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("protocolVersion", JSON.Encode.int(1)),
-        (
-          "agentCapabilities",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "_meta",
-                JSON.Encode.object(
-                  Dict.fromArray([
-                    (
-                      "frontman.dev",
-                      JSON.Encode.object(
-                        Dict.fromArray([
-                          (
-                            "agentAttribution",
-                            JSON.Encode.object(Dict.fromArray([("version", JSON.Encode.int(2))])),
-                          ),
-                        ]),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
+    let json = JSON.parseOrThrow(`{
+      "protocolVersion":1,
+      "agentCapabilities":{"_meta":{"frontman.dev":{"agentAttribution":{"version":2}}}}
+    }`)
     let result = Client.parseInitializeResult(json)
 
     switch result {
@@ -371,68 +377,26 @@ describe("ACP Client parseInitializeResult", _t => {
     }
   })
 
-  test("rejects malformed server agent attribution advertisement", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("protocolVersion", JSON.Encode.int(1)),
-        (
-          "agentCapabilities",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "_meta",
-                JSON.Encode.object(
-                  Dict.fromArray([
-                    (
-                      "frontman.dev",
-                      JSON.Encode.object(
-                        Dict.fromArray([("agentAttribution", JSON.Encode.string("invalid"))]),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
+  test("ignores malformed server agent attribution advertisement", t => {
+    let json = JSON.parseOrThrow(`{
+      "protocolVersion":1,
+      "agentCapabilities":{"_meta":{"frontman.dev":{"agentAttribution":"invalid"}}}
+    }`)
 
-    t->expect(Client.parseInitializeResult(json)->Result.isError)->Expect.toBe(true)
+    switch Client.parseInitializeResult(json) {
+    | Ok(parsed) => t->expect(Client.negotiateAgentAttributionVersion(parsed))->Expect.toEqual(None)
+    | Error(_) => failwith("Expected malformed unnegotiated metadata to remain generic")
+    }
   })
 
   test("does not mislabel unrelated initialize validation errors", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("protocolVersion", JSON.Encode.int(1)),
-        (
-          "agentCapabilities",
-          JSON.Encode.object(
-            Dict.fromArray([
-              ("loadSession", JSON.Encode.string("invalid")),
-              (
-                "_meta",
-                JSON.Encode.object(
-                  Dict.fromArray([
-                    (
-                      "frontman.dev",
-                      JSON.Encode.object(
-                        Dict.fromArray([
-                          (
-                            "agentAttribution",
-                            JSON.Encode.object(Dict.fromArray([("version", JSON.Encode.int(1))])),
-                          ),
-                        ]),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
+    let json = JSON.parseOrThrow(`{
+      "protocolVersion":1,
+      "agentCapabilities":{
+        "loadSession":"invalid",
+        "_meta":{"frontman.dev":{"agentAttribution":{"version":1}}}
+      }
+    }`)
 
     t->expect(Client.parseInitializeResult(json)->Result.isError)->Expect.toBe(true)
   })
@@ -442,8 +406,6 @@ describe("ACP Client handleResponse", _t => {
   test("resolves pending request on success", t => {
     let resolved = ref(false)
     let pending: Client.pendingRequest = {
-      method: "test",
-      sessionId: None,
       resolve: _ => resolved := true,
       reject: _ => (),
     }
@@ -463,8 +425,6 @@ describe("ACP Client handleResponse", _t => {
   test("rejects pending request on error", t => {
     let rejected = ref(false)
     let pending: Client.pendingRequest = {
-      method: "test",
-      sessionId: None,
       resolve: _ => (),
       reject: _ => rejected := true,
     }
@@ -487,8 +447,6 @@ describe("ACP Client handleResponse", _t => {
 
   test("removes request from pending after handling", t => {
     let pending: Client.pendingRequest = {
-      method: "test",
-      sessionId: None,
       resolve: _ => (),
       reject: _ => (),
     }
@@ -505,69 +463,11 @@ describe("ACP Client handleResponse", _t => {
     t->expect(newState.pendingRequests->Dict.get("3"))->Expect.toEqual(None)
   })
 
-  test("resolves pending request by method from notification", t => {
-    let resolved = ref(None)
-    let promptPending: Client.pendingRequest = {
-      method: "session/prompt",
-      sessionId: Some("task-1"),
-      resolve: json => resolved := json->JSON.Decode.object,
-      reject: _ => (),
-    }
-    let loadPending: Client.pendingRequest = {
-      method: "session/load",
-      sessionId: Some("task-1"),
-      resolve: _ => (),
-      reject: _ => (),
-    }
-
-    let state =
-      Client.initialState
-      ->Client.reduce(Client.RequestSent(1, promptPending))
-      ->Client.reduce(Client.RequestSent(2, loadPending))
-
-    let result = JSON.Encode.object(Dict.make())
-
-    let newState =
-      state->Client.resolvePendingSessionRequest(
-        ~method="session/prompt",
-        ~sessionId="task-1",
-        ~result,
-      )
-
-    t->expect(resolved.contents->Option.isSome)->Expect.toEqual(true)
-    t->expect(newState.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
-    t->expect(newState.pendingRequests->Dict.get("2")->Option.isSome)->Expect.toEqual(true)
-  })
-
-  test("does not resolve pending prompt for another session", t => {
-    let resolved = ref(false)
-    let pending: Client.pendingRequest = {
-      method: "session/prompt",
-      sessionId: Some("task-1"),
-      resolve: _ => resolved := true,
-      reject: _ => (),
-    }
-    let state = Client.initialState->Client.reduce(Client.RequestSent(1, pending))
-    let result = JSON.Encode.object(Dict.make())
-
-    let newState =
-      state->Client.resolvePendingSessionRequest(
-        ~method="session/prompt",
-        ~sessionId="task-2",
-        ~result,
-      )
-
-    t->expect(resolved.contents)->Expect.toEqual(false)
-    t->expect(newState.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toEqual(true)
-  })
-
   test("unknown agent_turn_complete notification is ignored without resolving prompt", t => {
     let resolved = ref(None)
     let parseError = ref(None)
     let updateReceived = ref(false)
     let pending: Client.pendingRequest = {
-      method: "session/prompt",
-      sessionId: Some("task-1"),
       resolve: json => resolved := json->JSON.Decode.object,
       reject: _ => (),
     }
@@ -616,21 +516,6 @@ describe("ACP Client handleResponse", _t => {
     t->expect(resolved.contents)->Expect.toEqual(None)
     t->expect(state.contents.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toEqual(true)
   })
-
-  test("update callback exceptions are reported as parse failures", t => {
-    let parseError = ref(None)
-    let state = ref({...Client.initialState, agentAttributionVersion: Some(Client.V1)})
-
-    Protocol.handleIncomingMessage(
-      ~state,
-      ~onUpdate=Some((_sessionId, _update) => failwith("unknown attributed agent")),
-      ~onMessage=None,
-      ~onParseError=Some(error => parseError := Some(error)),
-      userUpdate("user-1"),
-    )
-
-    t->expect(parseError.contents)->Expect.toEqual(Some("unknown attributed agent"))
-  })
 })
 
 describe("ACP session/load ordering", () => {
@@ -651,47 +536,27 @@ describe("ACP session/load ordering", () => {
     )
 
     switch result {
-    | Ok({_meta: Some({agents: Some([agent])})}) => t->expect(agent.id)->Expect.toBe("agent-1")
+    | Ok({_meta: Some(metadata)}) =>
+      t
+      ->expect(
+        metadata
+        ->JSON.Decode.object
+        ->Option.map(metadata => metadata->Dict.has("frontman.dev/agents")),
+      )
+      ->Expect.toEqual(Some(true))
     | _ => failwith("Expected session/new catalog metadata")
     }
   })
 
-  testAsync("fresh load without history installs result without replay callbacks", async t => {
-    let events = ref([])
-    let connection = loadConnection([], JSON.parseOrThrow(`{}`))
-
-    let result = await ACP.loadSession(
-      connection,
-      "task-1",
-      ~onLoadResult=_ => events := events.contents->Array.concat(["load"]),
-      ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
-      ~onTitleUpdated=(_, _) => (),
-    )
-
-    t->expect(result->Result.isOk)->Expect.toBe(true)
-    t->expect(events.contents)->Expect.toEqual(["load"])
-  })
-
   testAsync("installs load metadata before delivering replay in wire order", async t => {
     let events = ref([])
-    let loadResult = JSON.parseOrThrow(`{
-      "_meta":{
-        "frontman.dev/agents":[{
-          "id":"agent-1",
-          "name":"executor",
-          "displayName":"Executor",
-          "description":"Executes work",
-          "color":"#985DF7"
-        }]
-      }
-    }`)
     let connection =
-      loadConnection([userUpdate("user-1"), userUpdate("user-2")], loadResult)->negotiateV1
+      loadConnection([userUpdate("user-1"), userUpdate("user-2")], catalogResult())->negotiateV1
 
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=_ => events := events.contents->Array.concat(["catalog"]),
+      ~onLoadResult=(_, _) => events := events.contents->Array.concat(["catalog"]),
       ~onUpdate=(_, update) =>
         switch update {
         | UserMessageChunk({messageId}) =>
@@ -707,13 +572,17 @@ describe("ACP session/load ordering", () => {
 
   testAsync("generic load without extension metadata still releases replay", async t => {
     let events = ref([])
-    let connection = loadConnection([userUpdate("user-1")], JSON.parseOrThrow(`{}`))
+    let connection = loadConnection(
+      [userUpdate("user-1")],
+      JSON.parseOrThrow(`{"_meta":{"frontman.dev/agents":"future-catalog"}}`),
+    )
 
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=result => {
-        t->expect(result._meta)->Expect.toEqual(None)
+      ~onLoadResult=(result, catalog) => {
+        t->expect(result._meta->Option.isSome)->Expect.toBe(true)
+        t->expect(catalog)->Expect.toEqual(None)
         events := events.contents->Array.concat(["load"])
       },
       ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
@@ -731,7 +600,7 @@ describe("ACP session/load ordering", () => {
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=_ => events := events.contents->Array.concat(["load"]),
+      ~onLoadResult=(_, _) => events := events.contents->Array.concat(["load"]),
       ~onUpdate=(_, update) =>
         switch update {
         | GenericUserMessageChunk({messageId: None}) =>
@@ -767,12 +636,12 @@ describe("ACP session/load ordering", () => {
         ]
       }
     }`)
-    let connection = loadConnection([userUpdate("user-1")], invalidLoadResult)
+    let connection = loadConnection([userUpdate("user-1")], invalidLoadResult)->negotiateV1
 
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=_ => events := events.contents->Array.concat(["load"]),
+      ~onLoadResult=(_, _) => events := events.contents->Array.concat(["load"]),
       ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
       ~onTitleUpdated=(_, _) => (),
     )
@@ -788,7 +657,7 @@ describe("ACP session/load ordering", () => {
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=_ => events := events.contents->Array.concat(["load"]),
+      ~onLoadResult=(_, _) => events := events.contents->Array.concat(["load"]),
       ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
       ~onTitleUpdated=(_, _) => (),
     )
@@ -814,94 +683,56 @@ describe("ACP session/load ordering", () => {
         }
       }
     }`)
-    let loadResult = JSON.parseOrThrow(`{
-      "_meta":{
-        "frontman.dev/agents":[{
-          "id":"agent-1",
-          "name":"executor",
-          "displayName":"Executor",
-          "description":"Executes work",
-          "color":"#985DF7"
-        }]
-      }
-    }`)
-    let (connection, transport) = loadConnectionWithTransport([malformedUpdate], loadResult)
+    let (connection, transport) = loadConnectionWithTransport([malformedUpdate], catalogResult())
     let connection = connection->negotiateV1
 
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=_ => events := events.contents->Array.concat(["load"]),
+      ~onLoadResult=(_, _) => events := events.contents->Array.concat(["load"]),
       ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
       ~onTitleUpdated=(_, _) => (),
     )
 
     t->expect(result->Result.isError)->Expect.toBe(true)
     t->expect(events.contents)->Expect.toEqual([])
-    t
-    ->expect(transport.events)
-    ->Expect.toEqual([
-      "load-response",
-      "off:acp:message",
-      "off:mcp:message",
-      "off:title_updated",
-      "leave",
-    ])
+    t->expect(transport.events)->Expect.toEqual(loadCleanupEvents)
   })
 
   testAsync("negotiated v1 closes a loaded session after a live update callback fails", async t => {
+    let loaded = ref(false)
     let parseError = ref(None)
-    let loadResult = JSON.parseOrThrow(`{
-      "_meta":{
-        "frontman.dev/agents":[{
-          "id":"agent-1",
-          "name":"executor",
-          "displayName":"Executor",
-          "description":"Executes work",
-          "color":"#985DF7"
-        }]
-      }
-    }`)
-    let (connection, transport) = loadConnectionWithTransport([], loadResult)
+    let (connection, transport) = loadConnectionWithTransport([], catalogResult())
     let connection = connection->negotiateV1
 
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=_ => (),
+      ~onLoadResult=(_, _) => loaded := true,
       ~onUpdate=(_, _) => failwith("unknown attributed agent"),
       ~onTitleUpdated=(_, _) => (),
       ~onParseError=error => parseError := Some(error),
     )
+    t->expect(loaded.contents)->Expect.toBe(true)
     transport.emit(userUpdate("user-1"))
 
     t->expect(result->Result.isOk)->Expect.toBe(true)
     t->expect(parseError.contents)->Expect.toEqual(Some("unknown attributed agent"))
-    t
-    ->expect(transport.events)
-    ->Expect.toEqual(["load-response", "off:acp:message", "leave"])
+    t->expect(transport.events)->Expect.toEqual(loadCleanupEvents)
   })
 
   testAsync("negotiated v1 closes the session when buffered replay delivery fails", async t => {
     let parseError = ref(None)
-    let loadResult = JSON.parseOrThrow(`{
-      "_meta":{
-        "frontman.dev/agents":[{
-          "id":"agent-1",
-          "name":"executor",
-          "displayName":"Executor",
-          "description":"Executes work",
-          "color":"#985DF7"
-        }]
-      }
-    }`)
-    let (connection, transport) = loadConnectionWithTransport([userUpdate("user-1")], loadResult)
+    let (connection, transport) = loadConnectionWithTransport(
+      [userUpdate("user-1")],
+      catalogResult(),
+    )
     let connection = connection->negotiateV1
 
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=_ => (),
+      ~onLoadResult=(_, _) => (),
       ~onUpdate=(_, _) => failwith("replay delivery failed"),
       ~onTitleUpdated=(_, _) => (),
       ~onParseError=error => parseError := Some(error),
@@ -909,43 +740,98 @@ describe("ACP session/load ordering", () => {
 
     t->expect(result)->Expect.toEqual(Error("replay delivery failed"))
     t->expect(parseError.contents)->Expect.toEqual(Some("replay delivery failed"))
-    t
-    ->expect(transport.events)
-    ->Expect.toEqual([
-      "load-response",
-      "off:acp:message",
-      "off:mcp:message",
-      "off:title_updated",
-      "leave",
-    ])
+    t->expect(transport.events)->Expect.toEqual(loadCleanupEvents)
   })
 
   testAsync("negotiated v1 rejects replay attribution absent from catalog", async t => {
     let events = ref([])
-    let loadResult = JSON.parseOrThrow(`{
-      "_meta":{
-        "frontman.dev/agents":[{
-          "id":"agent-2",
-          "name":"planner",
-          "displayName":"Planner",
-          "description":"Plans work",
-          "color":"#F59E0B"
-        }]
-      }
-    }`)
-    let connection = loadConnection([userUpdate("user-1")], loadResult)->negotiateV1
+    let connection =
+      loadConnection(
+        [userUpdate("user-1")],
+        catalogResult(
+          ~id="agent-2",
+          ~name="planner",
+          ~displayName="Planner",
+          ~description="Plans work",
+          ~color="#F59E0B",
+        ),
+      )->negotiateV1
 
     let result = await ACP.loadSession(
       connection,
       "task-1",
-      ~onLoadResult=_ => events := events.contents->Array.concat(["load"]),
+      ~onLoadResult=(_, _) => events := events.contents->Array.concat(["load"]),
       ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
       ~onTitleUpdated=(_, _) => (),
     )
 
     t
     ->expect(result)
-    ->Expect.toEqual(Error("session/load replay references unknown agent: agent-1"))
+    ->Expect.toEqual(Error("Session update references unknown agent: agent-1"))
     t->expect(events.contents)->Expect.toEqual([])
+  })
+
+  testAsync("rejects replay for another session before delivery", async t => {
+    let events = ref([])
+    let connection =
+      loadConnection([userUpdate("user-1", ~sessionId="task-2")], catalogResult())->negotiateV1
+
+    let result = await ACP.loadSession(
+      connection,
+      "task-1",
+      ~onLoadResult=(_, _) => events := events.contents->Array.concat(["load"]),
+      ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
+      ~onTitleUpdated=(_, _) => (),
+    )
+
+    t->expect(result)->Expect.toEqual(Error("Session update task-2 received on task-1"))
+    t->expect(events.contents)->Expect.toEqual([])
+  })
+
+  testAsync("rejects unknown live attribution before delivery", async t => {
+    let events = ref([])
+    let parseError = ref(None)
+    let (connection, transport) = loadConnectionWithTransport([], catalogResult())
+    let connection = connection->negotiateV1
+
+    let result = await ACP.loadSession(
+      connection,
+      "task-1",
+      ~onLoadResult=(_, _) => events := events.contents->Array.concat(["load"]),
+      ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
+      ~onTitleUpdated=(_, _) => (),
+      ~onParseError=error => parseError := Some(error),
+    )
+    transport.emit(userUpdate("user-1", ~agentId="agent-2"))
+
+    t->expect(result->Result.isOk)->Expect.toBe(true)
+    t
+    ->expect(parseError.contents)
+    ->Expect.toEqual(Some("Session update references unknown agent: agent-2"))
+    t->expect(events.contents)->Expect.toEqual(["load"])
+  })
+
+  testAsync("rejects live message identity changes before delivery", async t => {
+    let events = ref([])
+    let parseError = ref(None)
+    let (connection, transport) = loadConnectionWithTransport(
+      [userUpdate("user-1")],
+      catalogResult(),
+    )
+    let connection = connection->negotiateV1
+
+    let result = await ACP.loadSession(
+      connection,
+      "task-1",
+      ~onLoadResult=(_, _) => (),
+      ~onUpdate=(_, _) => events := events.contents->Array.concat(["update"]),
+      ~onTitleUpdated=(_, _) => (),
+      ~onParseError=error => parseError := Some(error),
+    )
+    transport.emit(userUpdate("user-1", ~timestamp="2026-07-14T12:30:02Z"))
+
+    t->expect(result->Result.isOk)->Expect.toBe(true)
+    t->expect(parseError.contents)->Expect.toEqual(Some("Message user-1 changed timestamps"))
+    t->expect(events.contents)->Expect.toEqual(["update"])
   })
 })

@@ -41,9 +41,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Tasks.get_task(scope, task_id) do
       {:ok, task} ->
         {:ok, history} = TaskHistory.new(task.interaction_rows)
-        {:ok, active_turn_number} = TaskHistory.active_run_turn_number(history)
-        active_turn = TaskHistory.turn_context(history, active_turn_number)
-        turn_context = TaskHistory.turn_context(history, TaskHistory.latest_turn_number(history))
+        active_turn = TaskHistory.active_turn_context(history)
+        turn_context = TaskHistory.latest_turn_context(history)
 
         SentryContext.set_task_scope_context(scope, task_id)
 
@@ -628,8 +627,9 @@ defmodule FrontmanServerWeb.TaskChannel do
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
 
     with {:ok, task} <- Tasks.get_task(scope, task_id),
+         {:ok, history} <- TaskHistory.new(task.interaction_rows),
          {:ok, replay} <-
-           ACPHistory.build(task.interaction_rows, task.id, Agents.list_agents(scope)) do
+           ACPHistory.build(history, task.id, Agents.list_agents(scope)) do
       Enum.each(replay.notifications, &push(socket, @acp_message, &1))
 
       # Return ACP-compliant LoadSessionResponse with config options.
@@ -648,8 +648,8 @@ defmodule FrontmanServerWeb.TaskChannel do
       socket =
         socket
         |> assign(:session_loaded, true)
-        |> assign(:active_turn, replay.active_turn)
-        |> assign(:turn_context, replay.latest_turn)
+        |> assign(:active_turn, TaskHistory.active_turn_context(history))
+        |> assign(:turn_context, TaskHistory.latest_turn_context(history))
         |> redispatch_unresolved_tool_calls()
 
       wake_runner(socket, nil)
@@ -718,19 +718,9 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp push_user_message_chunks(socket, task_id, row) do
-    Enum.each(ACP.Content.from_user_message(row.data), fn content ->
-      push(
-        socket,
-        @acp_message,
-        ACP.build_user_message_chunk_notification(
-          task_id,
-          row.id,
-          content,
-          row.data.agent_id,
-          row.data.timestamp
-        )
-      )
-    end)
+    %{row: row, agent_id: row.data.agent_id}
+    |> ACPHistory.encode_row(task_id)
+    |> Enum.each(&push(socket, @acp_message, &1))
   end
 
   defp reply_acp_error(socket, id, code, message) do

@@ -25,6 +25,27 @@ let requireSameAgent = (~existingAgentId, ~agentId, ~message) =>
   | false => failwith(message)
   }
 
+let mergeUserMessage = (message, ~id, ~content, ~annotations, ~agentId) =>
+  switch message {
+  | Message.User({
+      content: existingContent,
+      annotations: existingAnnotations,
+      agentId: existingAgentId,
+    }) =>
+    requireSameAgent(
+      ~existingAgentId,
+      ~agentId,
+      ~message=`[TaskReducer] Agent changed within message ${id}`,
+    )
+    Message.User({
+      id,
+      content: Array.concat(existingContent, content),
+      annotations: Array.concat(existingAnnotations, annotations),
+      agentId,
+    })
+  | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
+  }
+
 module Lens = {
   // ---- Generic helpers to eliminate repetitive 4-way switches ----
 
@@ -282,9 +303,6 @@ module Selectors = {
     | Task.Loaded({retryStatus}) => retryStatus
     | _ => None
     }
-
-  let agentCatalog = (task: Task.t): option<array<ACPTypes.agentCatalogEntry>> =>
-    Task.getAgentCatalog(task)
 }
 
 // ============================================================================
@@ -299,7 +317,7 @@ type annotationElement = {
 
 type action =
   // Streaming actions
-  | TextDeltaReceived({messageId: string, text: string, timestamp: string, agentId: string})
+  | TextDeltaReceived({messageId: string, text: string, agentId: string})
   | AgentCatalogInstalled(array<ACPTypes.agentCatalogEntry>)
   // Tool call actions
   | ToolInputReceived({id: string, input: JSON.t})
@@ -349,7 +367,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   // Error actions
-  | AgentError({id: string, error: string, timestamp: string, category: Client__ErrorCategory.t})
+  | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
@@ -785,26 +803,23 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Message Actions - work on Loading or Loaded (via Lens)
   // ============================================================================
 
-  | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({messageId, text, timestamp, agentId})) =>
-    let resolvedCreatedAt = Date.fromString(timestamp)->Date.getTime
+  | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({messageId, text, agentId})) =>
     switch Task.getMessages(task)->Array.find(message => Message.getId(message) == messageId) {
-    | Some(Message.Assistant(Streaming({textBuffer, createdAt, agentId: existingAgentId}))) =>
+    | Some(Message.Assistant(Streaming({textBuffer, agentId: existingAgentId}))) =>
       requireSameAgent(
         ~existingAgentId,
         ~agentId,
         ~message=`[TaskReducer] Agent changed within message ${messageId}`,
       )
       let updatedMsg = Message.Assistant(
-        Streaming({id: messageId, textBuffer: textBuffer ++ text, createdAt, agentId}),
+        Streaming({id: messageId, textBuffer: textBuffer ++ text, agentId}),
       )
       (Lens.updateMessage(task, messageId, _ => updatedMsg), [])
     | Some(Message.Assistant(Completed(_))) =>
       failwith(`[TaskReducer] Message ${messageId} is already completed`)
     | Some(_) => failwith(`[TaskReducer] Message ${messageId} changed roles`)
     | None =>
-      let newMessage = Message.Assistant(
-        Streaming({id: messageId, textBuffer: text, createdAt: resolvedCreatedAt, agentId}),
-      )
+      let newMessage = Message.Assistant(Streaming({id: messageId, textBuffer: text, agentId}))
       (Lens.insertMessage(task, newMessage), [])
     }
 
@@ -865,24 +880,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Per ACP spec: a new history user message signals the end of the previous agent message.
   | (Task.Loading(_), UserMessageReceived({id, content, annotations, agentId})) =>
     switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
-    | Some(Message.User({
-        content: existingContent,
-        annotations: existingAnnotations,
-        agentId: existingAgentId,
-      })) =>
-      requireSameAgent(
-        ~existingAgentId,
-        ~agentId,
-        ~message=`[TaskReducer] Agent changed within message ${id}`,
-      )
-      let updated = Message.User({
-        id,
-        content: Array.concat(existingContent, content),
-        annotations: Array.concat(existingAnnotations, annotations),
-        agentId,
-      })
+    | Some(message) =>
+      let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
       (Lens.updateMessage(task, id, _ => updated), [])
-    | Some(_) => failwith(`[TaskReducer] Message ${id} changed roles`)
     | None =>
       let userMessage = Message.User({id, content, annotations, agentId})
       (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
@@ -892,47 +892,20 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
     | index if index >= 0 =>
       let queuedUserMessages = data.queuedUserMessages->Array.copy
-      let updated = switch queuedUserMessages->Array.getUnsafe(index) {
-      | Message.User({
-          content: existingContent,
-          annotations: existingAnnotations,
-          agentId: existingAgentId,
-        }) =>
-        requireSameAgent(
-          ~existingAgentId,
-          ~agentId,
-          ~message=`[TaskReducer] Agent changed within message ${id}`,
-        )
-        Message.User({
-          id,
-          content: Array.concat(existingContent, content),
-          annotations: Array.concat(existingAnnotations, annotations),
-          agentId,
-        })
-      | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
-      }
+      let updated = mergeUserMessage(
+        queuedUserMessages->Array.getUnsafe(index),
+        ~id,
+        ~content,
+        ~annotations,
+        ~agentId,
+      )
       queuedUserMessages->Array.setUnsafe(index, updated)
       (Task.Loaded({...data, queuedUserMessages}), [])
     | _ =>
       switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
-      | Some(Message.User({
-          content: existingContent,
-          annotations: existingAnnotations,
-          agentId: existingAgentId,
-        })) =>
-        requireSameAgent(
-          ~existingAgentId,
-          ~agentId,
-          ~message=`[TaskReducer] Agent changed within message ${id}`,
-        )
-        let updated = Message.User({
-          id,
-          content: Array.concat(existingContent, content),
-          annotations: Array.concat(existingAnnotations, annotations),
-          agentId,
-        })
+      | Some(message) =>
+        let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
         (Lens.updateMessage(task, id, _ => updated), [])
-      | Some(_) => failwith(`[TaskReducer] Message ${id} changed roles`)
       | None =>
         let userMessage = Message.User({id, content, annotations, agentId})
         (
@@ -1061,12 +1034,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(_), AgentError({id, error, timestamp, category})) =>
-    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~timestamp, ~category))
+  | (Task.Loading(_), AgentError({id, error, category})) =>
+    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(_), AgentError({id, error, category, timestamp})) =>
-    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~timestamp, ~category))
+  | (Task.Loaded(_), AgentError({id, error, category})) =>
+    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
     let completed = task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg)
     switch completed {
     | Task.Loaded(data) => (
@@ -1092,11 +1065,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(data), RetryTurn({retriedErrorId})) =>
-    let errorId = retriedErrorId
-    (
+  | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
       Task.Loaded({...data, turnError: None, isAgentRunning: true}),
-      [RetryTurnEffect({retriedErrorId: errorId})],
+      [RetryTurnEffect({retriedErrorId: retriedErrorId})],
     )
 
   // ============================================================================
@@ -1593,9 +1564,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   | SendMessage({text, attachments, annotations}) =>
     delegate(NeedSendMessage({text, attachments, annotations}))
   | CancelPrompt => delegate(NeedCancelPrompt)
-  | RetryTurnEffect({retriedErrorId}) =>
-    let errorId = retriedErrorId
-    delegate(NeedRetryTurn({retriedErrorId: errorId}))
+  | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   // Question tool resolution — call the resolve/reject callback directly.
   // No delegation needed since the callback is self-contained (captured in the pending question).
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)

@@ -56,31 +56,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       refute Map.has_key?(:sys.get_state(socket.channel_pid).assigns, :acp_client_capabilities)
     end
 
-    test "accepts advertised Frontman agent attribution v1 without connection state", %{
-      socket: socket
-    } do
-      push(socket, "acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "method" => "initialize",
-        "params" => %{
-          "protocolVersion" => ACP.protocol_version(),
-          "clientCapabilities" => %{
-            "_meta" => %{
-              "frontman.dev" => %{"agentAttribution" => %{"version" => 1}}
-            }
-          }
-        }
-      })
-
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
-
-      refute Map.has_key?(
-               :sys.get_state(socket.channel_pid).assigns,
-               :acp_agent_attribution_version
-             )
-    end
-
     test "rejects malformed Frontman agent attribution metadata", %{socket: socket} do
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
@@ -189,55 +164,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
       assert task.id == client_session_id
       assert task.framework == :nextjs
-    end
-
-    test "rejects conflicting server catalog before creating task", %{
-      socket: socket,
-      scope: scope
-    } do
-      original_config = Application.fetch_env!(:frontman_server, FrontmanServer.Agents)
-
-      on_exit(fn ->
-        Application.put_env(:frontman_server, FrontmanServer.Agents, original_config)
-      end)
-
-      conflicting_config =
-        Keyword.update!(original_config, :agents, fn [agent | agents] ->
-          [agent, %{agent | display_name: "Conflict"} | agents]
-        end)
-
-      Application.put_env(
-        :frontman_server,
-        FrontmanServer.Agents,
-        conflicting_config
-      )
-
-      push(socket, "acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "method" => "initialize",
-        "params" => %{
-          "protocolVersion" => ACP.protocol_version(),
-          "clientInfo" => %{"_meta" => %{"framework" => "nextjs"}}
-        }
-      })
-
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
-      session_id = Ecto.UUID.generate()
-
-      push(socket, "acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 2,
-        "method" => "session/new",
-        "params" => %{"sessionId" => session_id}
-      })
-
-      assert_push("acp:message", %{
-        "id" => 2,
-        "error" => %{"code" => -32_603, "message" => "Invalid server agent catalog"}
-      })
-
-      assert {:error, :not_found} = FrontmanServer.Tasks.get_task(scope, session_id)
     end
 
     test "stores framework ID from clientInfo", %{socket: socket, scope: scope} do

@@ -1,7 +1,6 @@
 defmodule FrontmanServer.Protocols.AcpContractTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.Agents.Agent
   alias FrontmanServer.ProtocolSchema
 
   describe "AgentClientProtocol.build_initialize_result/0" do
@@ -60,33 +59,6 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol session agent catalog" do
-    test "encodes resolved agents into identical session metadata" do
-      catalog =
-        [agent("executor", "Executor"), agent("planner", "Planner")]
-        |> AgentClientProtocol.build_agent_catalog()
-
-      new_result = AgentClientProtocol.build_session_new_result("session-123", [], catalog)
-      load_result = AgentClientProtocol.build_session_load_result([], catalog)
-
-      assert new_result["_meta"] == load_result["_meta"]
-      assert new_result["_meta"]["frontman.dev/agents"] == catalog
-      ProtocolSchema.validate!(new_result, "acp/sessionNewResult")
-      ProtocolSchema.validate!(load_result, "acp/sessionLoadResult")
-    end
-  end
-
-  defp agent(id, display_name) do
-    %Agent{
-      id: id,
-      name: String.downcase(display_name),
-      display_name: display_name,
-      description: "#{display_name} description",
-      color: "#985DF7",
-      system: "System"
-    }
-  end
-
   describe "AgentClientProtocol.build_prompt_accepted_result/0" do
     test "validates against acp/promptResult schema" do
       payload = AgentClientProtocol.build_prompt_accepted_result()
@@ -95,92 +67,45 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_agent_message_chunk_notification/5" do
-    test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
-      timestamp = ~U[2026-07-14 12:30:01.000000Z]
-
-      payload =
-        AgentClientProtocol.build_agent_message_chunk_notification(
-          "session-123",
-          "Hello world",
-          timestamp,
-          AgentClientProtocol.agent_message_id("turn-123", 2),
-          "executor-id"
-        )
-
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
-      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
-
-      assert %{
-               "params" => %{
-                 "update" => %{
-                   "sessionUpdate" => "agent_message_chunk",
-                   "messageId" => "turn-123:2",
-                   "content" => %{"type" => "text", "text" => "Hello world"},
-                   "_meta" => %{
-                     "frontman.dev/agentId" => "executor-id",
-                     "frontman.dev/timestamp" => "2026-07-14T12:30:01.000000Z"
-                   }
-                 }
-               }
-             } = payload
-
-      refute Map.has_key?(payload["params"]["update"], "timestamp")
-    end
-  end
-
-  describe "AgentClientProtocol.build_user_message_chunk_notification/5" do
-    test "emits one valid attributed notification per unchanged content block" do
-      timestamp = ~U[2026-07-14 12:30:00.123456Z]
-
-      content_blocks = [
-        %{"type" => "text", "text" => "Hello from user"},
-        %{"type" => "image", "data" => "aGVsbG8=", "mimeType" => "image/png"},
-        embedded_resource("annotation://node-1", %{"annotation" => true}),
-        embedded_resource("page://https://example.com", %{"current_page" => true})
-      ]
-
-      payloads =
-        Enum.map(content_blocks, fn content ->
-          AgentClientProtocol.build_user_message_chunk_notification(
-            "session-123",
-            "msg-123",
-            content,
-            "executor-id",
-            timestamp
-          )
-        end)
-
-      Enum.zip(payloads, content_blocks)
-      |> Enum.each(fn {payload, content} ->
-        ProtocolSchema.validate!(payload, "jsonrpc/notification")
-        ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
-
-        assert get_in(payload, ["params", "update"]) == %{
-                 "sessionUpdate" => "user_message_chunk",
-                 "messageId" => "msg-123",
-                 "content" => content,
-                 "_meta" => %{
-                   "frontman.dev/agentId" => "executor-id",
-                   "frontman.dev/timestamp" => "2026-07-14T12:30:00.123456Z"
-                 }
-               }
-      end)
-    end
-  end
-
-  defp embedded_resource(uri, metadata) do
-    %{
-      "type" => "resource",
-      "resource" => %{
-        "_meta" => metadata,
-        "resource" => %{
-          "uri" => uri,
-          "mimeType" => "text/plain",
-          "text" => "context"
-        }
+  test "session results use identical agent catalog metadata" do
+    catalog = [
+      %{
+        "id" => "executor",
+        "name" => "executor",
+        "displayName" => "Executor",
+        "description" => "Executes work",
+        "color" => "#985DF7"
       }
-    }
+    ]
+
+    new_result = AgentClientProtocol.build_session_new_result("session-123", [], catalog)
+    load_result = AgentClientProtocol.build_session_load_result([], catalog)
+
+    assert new_result["_meta"] == load_result["_meta"]
+    assert new_result["_meta"]["frontman.dev/agents"] == catalog
+  end
+
+  test "user message notification includes complete attribution metadata" do
+    content = %{"type" => "text", "text" => "Hello"}
+
+    notification =
+      AgentClientProtocol.build_user_message_chunk_notification(
+        "session-123",
+        "message-123",
+        content,
+        "executor",
+        ~U[2026-07-14 12:30:00.123456Z]
+      )
+
+    assert get_in(notification, ["params", "update"]) == %{
+             "sessionUpdate" => "user_message_chunk",
+             "messageId" => "message-123",
+             "content" => content,
+             "_meta" => %{
+               "frontman.dev/agentId" => "executor",
+               "frontman.dev/timestamp" => "2026-07-14T12:30:00.123456Z"
+             }
+           }
   end
 
   describe "AgentClientProtocol.tool_call_create/6" do

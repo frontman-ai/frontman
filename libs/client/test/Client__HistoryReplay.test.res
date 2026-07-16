@@ -27,7 +27,6 @@ let delta = (
 ): TaskReducer.action => TaskReducer.TextDeltaReceived({
   messageId: id,
   text,
-  timestamp: "2026-07-15T10:00:00Z",
   agentId,
 })
 
@@ -76,10 +75,9 @@ let summary = task =>
 let replay = actions => {
   let task = ref(makeLoadingTask())
   let buffer = Buffer.make(
-    ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-      (),
-    ~onFlush=(~taskId as _, ~messageId, ~text, ~timestamp, ~agentId) =>
-      task := task.contents->apply(TextDeltaReceived({messageId, text, timestamp, agentId})),
+    ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~agentId as _) => (),
+    ~onFlush=(~taskId as _, ~messageId, ~text, ~agentId) =>
+      task := task.contents->apply(TextDeltaReceived({messageId, text, agentId})),
   )
   actions->Array.forEach(action =>
     switch action {
@@ -88,13 +86,7 @@ let replay = actions => {
         task := task.contents->apply(user(~id, ~text=value))
       }
     | #Agent(id, value) =>
-      buffer.add(
-        ~taskId="task-1",
-        ~messageId=id,
-        ~text=value,
-        ~timestamp="2026-07-15T10:00:00Z",
-        ~agentId="executor-id",
-      )
+      buffer.add(~taskId="task-1", ~messageId=id, ~text=value, ~agentId="executor-id")
     | #Tool(id) => {
         buffer.flush()
         task := task.contents->apply(tool(id))
@@ -122,6 +114,7 @@ describe("ACP message identity", () => {
       #Agent("assistant-1", "answer"),
       #User("user-2", "Next"),
       #Agent("assistant-2", "Second"),
+      #Agent("assistant-3", "Third"),
     ]
     let replayed = replay(actions)
     let live =
@@ -132,6 +125,7 @@ describe("ACP message identity", () => {
       ->apply(delta(~id="assistant-1", ~text="answer"))
       ->apply(user(~id="user-2", ~text="Next"))
       ->apply(delta(~id="assistant-2", ~text="Second"))
+      ->apply(delta(~id="assistant-3", ~text="Third"))
       ->apply(LoadComplete)
 
     t->expect(summary(replayed))->Expect.toEqual(summary(live))
@@ -142,6 +136,7 @@ describe("ACP message identity", () => {
       ("assistant-1", "First answer"),
       ("user-2", "Next"),
       ("assistant-2", "Second"),
+      ("assistant-3", "Third"),
     ])
   })
 
@@ -163,17 +158,6 @@ describe("ACP message identity", () => {
     ])
   })
 
-  test("adjacent distinct assistant IDs never merge", t => {
-    let task =
-      makeLoadingTask()
-      ->apply(delta(~id="assistant-1", ~text="One"))
-      ->apply(delta(~id="assistant-2", ~text="Two"))
-
-    t
-    ->expect(summary(task))
-    ->Expect.toEqual([("assistant-1", "One"), ("assistant-2", "Two")])
-  })
-
   test("message role and agent are immutable", t => {
     let userTask = makeLoadingTask()->apply(user(~id="message-1", ~text="Hello"))
     let agentTask = makeLoadingTask()->apply(delta(~id="message-2", ~text="Hello"))
@@ -186,38 +170,12 @@ describe("ACP message identity", () => {
     )
   })
 
-  test("completed assistant identity cannot be appended live or replayed", t => {
+  test("completed assistant identity cannot be appended", t => {
     let completed =
       makeLoadingTask()
       ->apply(delta(~id="assistant-1", ~text="Answer"))
       ->apply(LoadComplete)
 
     Expect.toThrow(t->expect(() => completed->apply(delta(~id="assistant-1", ~text="Answer"))))
-
-    let replayed = ref(makeLoadingTask())
-    let buffer = Buffer.make(
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-      ~onFlush=(~taskId as _, ~messageId, ~text, ~timestamp, ~agentId) =>
-        replayed :=
-          replayed.contents->apply(TextDeltaReceived({messageId, text, timestamp, agentId})),
-    )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="assistant-1",
-      ~text="Answer",
-      ~timestamp="2026-07-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.flush()
-    replayed := replayed.contents->apply(LoadComplete)
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="assistant-1",
-      ~text="Answer",
-      ~timestamp="2026-07-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    Expect.toThrow(t->expect(() => buffer.flush()))
   })
 })

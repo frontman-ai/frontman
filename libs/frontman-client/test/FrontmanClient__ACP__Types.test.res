@@ -11,238 +11,103 @@ let parsesWith = (json, schema) => {
   }
 }
 
-let schemaToJson = (value, schema) =>
-  value->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
+let object = fields => JSON.Encode.object(Dict.fromArray(fields))
+let capabilityMetadata = frontmanDev => object([("frontman.dev", frontmanDev)])
+let attributionMetadata = version =>
+  capabilityMetadata(
+    object([("agentAttribution", object([("version", JSON.Encode.int(version))]))]),
+  )
+let agent = (~id="executor", ~name="executor", ~displayName="Executor", ~color="#16A085") =>
+  object([
+    ("id", JSON.Encode.string(id)),
+    ("name", JSON.Encode.string(name)),
+    ("displayName", JSON.Encode.string(displayName)),
+    ("description", JSON.Encode.string("Implements approved work")),
+    ("color", JSON.Encode.string(color)),
+  ])
+let sessionMetadata = agents => object([("frontman.dev/agents", JSON.Encode.array(agents))])
+let messageMetadata = (~agentId="executor", ~timestamp) =>
+  object([
+    ("frontman.dev/agentId", JSON.Encode.string(agentId)),
+    ("frontman.dev/timestamp", JSON.Encode.string(timestamp)),
+  ])
 
 describe("Frontman agent attribution metadata", () => {
-  test("capability metadata preserves the Frontman key location", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("unrelated.dev/value", JSON.Encode.bool(true)),
-        (
-          "frontman.dev",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "agentAttribution",
-                JSON.Encode.object(Dict.fromArray([("version", JSON.Encode.int(1))])),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
-
-    let parsed = json->S.parseOrThrow(~to=Types.capabilityMetadataSchema)
-    let serialized = parsed->schemaToJson(Types.capabilityMetadataSchema)
-    let serializedObject = serialized->JSON.Decode.object->Option.getOrThrow
-
-    t
-    ->expect(
-      parsed.frontmanDev
-      ->Option.flatMap(value => value.agentAttribution)
-      ->Option.map(a => a.version),
-    )
-    ->Expect.toEqual(Some(1))
-    t->expect(serializedObject->Dict.has("frontman.dev"))->Expect.toBe(true)
-    t->expect(serializedObject->Dict.has("agentAttribution"))->Expect.toBe(false)
-  })
-
-  test("capability metadata accepts unrelated keys", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([("unrelated.dev/value", JSON.Encode.string("accepted"))]),
-    )
-
-    t->expect(json->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(true)
-  })
-
   test("capability metadata rejects malformed advertisements", t => {
-    let wrongShape = JSON.Encode.object(
-      Dict.fromArray([("frontman.dev", JSON.Encode.string("invalid"))]),
+    [
+      capabilityMetadata(JSON.Encode.string("invalid")),
+      capabilityMetadata(object([("agentAttribution", JSON.Encode.string("invalid"))])),
+      attributionMetadata(0),
+      attributionMetadata(65536),
+    ]->Array.forEach(
+      json => t->expect(json->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false),
     )
-    let wrongAttributionShape = JSON.Encode.object(
-      Dict.fromArray([
-        (
-          "frontman.dev",
-          JSON.Encode.object(Dict.fromArray([("agentAttribution", JSON.Encode.string("invalid"))])),
-        ),
-      ]),
-    )
-    let invalidVersion = JSON.Encode.object(
-      Dict.fromArray([
-        (
-          "frontman.dev",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "agentAttribution",
-                JSON.Encode.object(Dict.fromArray([("version", JSON.Encode.int(0))])),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
-    let oversizedVersion = JSON.Encode.object(
-      Dict.fromArray([
-        (
-          "frontman.dev",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "agentAttribution",
-                JSON.Encode.object(Dict.fromArray([("version", JSON.Encode.int(65536))])),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
-
-    t->expect(wrongShape->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false)
-    t->expect(wrongAttributionShape->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false)
-    t->expect(invalidVersion->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false)
-    t->expect(oversizedVersion->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false)
-  })
-
-  test("session metadata parses and serializes a catalog without relocating its key", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("unrelated.dev/value", JSON.Encode.bool(true)),
-        (
-          "frontman.dev/agents",
-          JSON.Encode.array([
-            JSON.Encode.object(
-              Dict.fromArray([
-                ("id", JSON.Encode.string("executor")),
-                ("name", JSON.Encode.string("executor")),
-                ("displayName", JSON.Encode.string("Executor")),
-                ("description", JSON.Encode.string("Implements approved work")),
-                ("color", JSON.Encode.string("#16A085")),
-              ]),
-            ),
-          ]),
-        ),
-      ]),
-    )
-
-    let parsed = json->S.parseOrThrow(~to=Types.sessionMetadataSchema)
-    let serialized = parsed->schemaToJson(Types.sessionMetadataSchema)
-    let serializedObject = serialized->JSON.Decode.object->Option.getOrThrow
-
-    t
-    ->expect(
-      parsed.agents->Option.flatMap(agents => agents->Array.get(0))->Option.map(a => a.displayName),
-    )
-    ->Expect.toEqual(Some("Executor"))
-    t->expect(serializedObject->Dict.has("frontman.dev/agents"))->Expect.toBe(true)
-    t->expect(serializedObject->Dict.has("agents"))->Expect.toBe(false)
   })
 
   test("session metadata rejects empty identities, duplicate ids, and malformed colors", t => {
-    let makeAgent = (~id="executor", ~name="executor", ~displayName="Executor", ~color="#16A085") =>
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("id", JSON.Encode.string(id)),
-          ("name", JSON.Encode.string(name)),
-          ("displayName", JSON.Encode.string(displayName)),
-          ("description", JSON.Encode.string("Implements approved work")),
-          ("color", JSON.Encode.string(color)),
-        ]),
-      )
-    let metadata = agents =>
-      JSON.Encode.object(Dict.fromArray([("frontman.dev/agents", JSON.Encode.array(agents))]))
-
-    t
-    ->expect(metadata([makeAgent(~id="")])->parsesWith(Types.sessionMetadataSchema))
-    ->Expect.toBe(false)
-    t
-    ->expect(metadata([makeAgent(~name="")])->parsesWith(Types.sessionMetadataSchema))
-    ->Expect.toBe(false)
-    t
-    ->expect(metadata([makeAgent(~displayName="")])->parsesWith(Types.sessionMetadataSchema))
-    ->Expect.toBe(false)
-    t
-    ->expect(metadata([makeAgent(~color="blue")])->parsesWith(Types.sessionMetadataSchema))
-    ->Expect.toBe(false)
-    t
-    ->expect(
-      metadata([makeAgent(), makeAgent(~name="other")])->parsesWith(Types.sessionMetadataSchema),
+    [
+      sessionMetadata([agent(~id="")]),
+      sessionMetadata([agent(~name="")]),
+      sessionMetadata([agent(~displayName="")]),
+      sessionMetadata([agent(~color="blue")]),
+      sessionMetadata([agent(), agent(~name="other")]),
+    ]->Array.forEach(
+      json => t->expect(json->parsesWith(Types.sessionMetadataSchema))->Expect.toBe(false),
     )
-    ->Expect.toBe(false)
     t
-    ->expect(metadata([makeAgent(~id="constructor")])->parsesWith(Types.sessionMetadataSchema))
+    ->expect(sessionMetadata([agent(~id="constructor")])->parsesWith(Types.sessionMetadataSchema))
     ->Expect.toBe(true)
   })
 
   test("message metadata validates identity and RFC 3339 timestamp", t => {
-    let valid = JSON.Encode.object(
-      Dict.fromArray([
-        ("frontman.dev/agentId", JSON.Encode.string("executor")),
-        ("frontman.dev/timestamp", JSON.Encode.string("2026-07-14T12:30:01.123456Z")),
-        ("unrelated.dev/value", JSON.Encode.bool(true)),
-      ]),
-    )
-    let offset = JSON.Encode.object(
-      Dict.fromArray([
-        ("frontman.dev/agentId", JSON.Encode.string("executor")),
-        ("frontman.dev/timestamp", JSON.Encode.string("2026-07-14T14:30:01+02:00")),
-      ]),
-    )
-    let emptyId = JSON.Encode.object(
-      Dict.fromArray([
-        ("frontman.dev/agentId", JSON.Encode.string("")),
-        ("frontman.dev/timestamp", JSON.Encode.string("2026-07-14T12:30:01Z")),
-      ]),
-    )
-    let invalidTimestamp = JSON.Encode.object(
-      Dict.fromArray([
-        ("frontman.dev/agentId", JSON.Encode.string("executor")),
-        ("frontman.dev/timestamp", JSON.Encode.string("July 14, 2026")),
-      ]),
-    )
-    let invalidCalendarDate = JSON.Encode.object(
-      Dict.fromArray([
-        ("frontman.dev/agentId", JSON.Encode.string("executor")),
-        ("frontman.dev/timestamp", JSON.Encode.string("2026-02-30T12:30:01Z")),
-      ]),
-    )
+    let valid = object([
+      ("frontman.dev/agentId", JSON.Encode.string("executor")),
+      ("frontman.dev/timestamp", JSON.Encode.string("2026-07-14T12:30:01.123456Z")),
+      ("unrelated.dev/value", JSON.Encode.bool(true)),
+    ])
 
     t->expect(valid->parsesWith(Types.messageMetadataSchema))->Expect.toBe(true)
-    t->expect(offset->parsesWith(Types.messageMetadataSchema))->Expect.toBe(true)
-    t->expect(emptyId->parsesWith(Types.messageMetadataSchema))->Expect.toBe(false)
-    t->expect(invalidTimestamp->parsesWith(Types.messageMetadataSchema))->Expect.toBe(false)
-    t->expect(invalidCalendarDate->parsesWith(Types.messageMetadataSchema))->Expect.toBe(false)
+    t
+    ->expect(
+      messageMetadata(~timestamp="2026-07-14T14:30:01+02:00")->parsesWith(
+        Types.messageMetadataSchema,
+      ),
+    )
+    ->Expect.toBe(true)
+    [
+      messageMetadata(~agentId="", ~timestamp="2026-07-14T12:30:01Z"),
+      messageMetadata(~timestamp="July 14, 2026"),
+      messageMetadata(~timestamp="2026-02-30T12:30:01Z"),
+    ]->Array.forEach(
+      json => t->expect(json->parsesWith(Types.messageMetadataSchema))->Expect.toBe(false),
+    )
   })
 })
 
 describe("ACP Types encoding/decoding", _t => {
-  test("initializeParams should encode without throwing", _t => {
-    let params: Types.initializeParams = {
-      protocolVersion: Types.currentProtocolVersion,
-      clientCapabilities: Some({
-        fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
-        terminal: Some(false),
-        elicitation: None,
-        _meta: None,
-      }),
-      clientInfo: Some({name: "test-client", version: "1.0.0", title: None, _meta: None}),
-    }
+  test("base result schemas preserve raw extension metadata", t => {
+    let metadata = object([
+      ("other.vendor", JSON.Encode.bool(true)),
+      ("frontman.dev", JSON.Encode.string("future-shape")),
+      ("frontman.dev/agents", JSON.Encode.string("future-catalog")),
+    ])
+    let initialize = JSON.parseOrThrow(`{"protocolVersion":1,"agentCapabilities":{}}`)
+    initialize
+    ->JSON.Decode.object
+    ->Option.getOrThrow
+    ->Dict.get("agentCapabilities")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.getOrThrow
+    ->Dict.set("_meta", metadata)
+    let session = object([("sessionId", JSON.Encode.string("task-1")), ("_meta", metadata)])
 
-    params->Types.initializeParamsToJson->ignore
-  })
+    let initializeResult = initialize->S.parseOrThrow(~to=Types.initializeResultSchema)
+    let sessionResult = session->S.parseOrThrow(~to=Types.sessionNewResultSchema)
 
-  test("initializeParams should encode correct JSON structure", t => {
-    let params: Types.initializeParams = {
-      protocolVersion: 1,
-      clientCapabilities: None,
-      clientInfo: Some({name: "test", version: "1.0", title: Some("Test Client"), _meta: None}),
-    }
-
-    let json = params->Types.initializeParamsToJson
-    let obj = json->JSON.Decode.object->Option.getOrThrow
-
-    t->expect(obj->Dict.get("protocolVersion"))->Expect.toEqual(Some(JSON.Encode.int(1)))
+    t
+    ->expect(initializeResult.agentCapabilities->Option.flatMap(c => c._meta))
+    ->Expect.toEqual(Some(metadata))
+    t->expect(sessionResult._meta)->Expect.toEqual(Some(metadata))
   })
 
   test("initializeResult should decode without throwing", t => {
@@ -643,5 +508,17 @@ describe("sessionUpdate schema parsing", () => {
     | Types.Unknown({sessionUpdate: "future_update"}) => ()
     | _ => t->expect("Unknown future_update")->Expect.toBe("not matched")
     }
+  })
+
+  test("notification requires literal JSON-RPC version and method", t => {
+    [
+      `{"jsonrpc":"1.0","method":"session/update","params":{"sessionId":"task-1","update":{"sessionUpdate":"state_update","state":"running"}}}`,
+      `{"jsonrpc":"2.0","method":"session/prompt","params":{"sessionId":"task-1","update":{"sessionUpdate":"state_update","state":"running"}}}`,
+    ]->Array.forEach(
+      json =>
+        t
+        ->expect(JSON.parseOrThrow(json)->parsesWith(Types.sessionUpdateNotificationSchema))
+        ->Expect.toBe(false),
+    )
   })
 })

@@ -425,7 +425,7 @@ module Selectors = {
     state.configOptions
   }
 
-  let agentCatalog = state => currentTask(state)->TaskReducer.Selectors.agentCatalog
+  let agentCatalog = state => currentTask(state)->Task.getAgentCatalog
 
   // Get selected model value (sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
   let selectedModelValue = (state: state): option<

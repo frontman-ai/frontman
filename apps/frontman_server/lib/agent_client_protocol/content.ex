@@ -10,51 +10,22 @@ defmodule AgentClientProtocol.Content do
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
 
-  defmodule TextBlock do
-    @moduledoc false
-    @enforce_keys [:text]
-    defstruct [:text]
-
-    defimpl Jason.Encoder do
-      def encode(%{text: text}, opts) do
-        Jason.Encode.map(%{"type" => "text", "text" => text}, opts)
-      end
-    end
-  end
-
-  defmodule ContentItem do
-    @moduledoc false
-    @enforce_keys [:content]
-    defstruct [:content]
-
-    defimpl Jason.Encoder do
-      def encode(%{content: block}, opts) do
-        Jason.Encode.map(%{"type" => "content", "content" => block}, opts)
-      end
-    end
-  end
-
-  def text(text) when is_binary(text), do: %TextBlock{text: text}
-
-  def wrap(%TextBlock{} = block), do: %ContentItem{content: block}
-
   def from_tool_result(%{"content" => content}) when is_list(content) do
     Enum.map(content, fn
       %{"type" => "text", "text" => text} when is_binary(text) ->
-        text |> text() |> wrap()
+        tool_content(text)
 
       part ->
-        part |> Jason.encode!() |> text() |> wrap()
+        part |> Jason.encode!() |> tool_content()
     end)
   end
 
   def from_tool_result(result) when is_map(result),
-    do: [result |> Jason.encode!() |> text() |> wrap()]
+    do: [result |> Jason.encode!() |> tool_content()]
 
-  def from_tool_result(result) when is_binary(result), do: [result |> text() |> wrap()]
-  def from_tool_result(result), do: [result |> inspect() |> text() |> wrap()]
+  def from_tool_result(result) when is_binary(result), do: [tool_content(result)]
+  def from_tool_result(result), do: [result |> inspect() |> tool_content()]
 
-  @spec from_user_message(struct()) :: [map()]
   def from_user_message(%Interaction.UserMessage{} = message) do
     Enum.map(message.messages, &%{"type" => "text", "text" => &1}) ++
       annotation_blocks(message.annotations) ++
@@ -171,6 +142,10 @@ defmodule AgentClientProtocol.Content do
 
   defp resource(metadata, content) do
     %{"type" => "resource", "resource" => %{"_meta" => metadata, "resource" => content}}
+  end
+
+  defp tool_content(text) do
+    %{"type" => "content", "content" => %{"type" => "text", "text" => text}}
   end
 
   defp reject_nils(map), do: Map.reject(map, fn {_key, value} -> is_nil(value) end)

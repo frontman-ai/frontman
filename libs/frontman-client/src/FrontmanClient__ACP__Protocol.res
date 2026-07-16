@@ -12,12 +12,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 type messageDirection = Send | Receive
 
-let sessionIdFromParams = (params: option<JSON.t>): option<string> =>
-  params
-  ->Option.flatMap(JSON.Decode.object)
-  ->Option.flatMap(obj => obj->Dict.get("sessionId"))
-  ->Option.flatMap(JSON.Decode.string)
-
 // Generic request sender - eliminates duplication across sendInitialize, createSession, sendPrompt
 let sendRequest = (
   ~channel: Channel.t,
@@ -32,8 +26,6 @@ let sendRequest = (
     let request = JsonRpc.Request.make(~id, ~method, ~params)
 
     let pending: Client.pendingRequest = {
-      method,
-      sessionId: sessionIdFromParams(params),
       resolve: json => {
         switch parseResult(json) {
         | Ok(result) => resolve(Ok(result))

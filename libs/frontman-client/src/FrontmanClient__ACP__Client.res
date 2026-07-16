@@ -17,8 +17,6 @@ type acpState =
 type agentAttributionVersion = V1
 
 type pendingRequest = {
-  method: string,
-  sessionId: option<string>,
   resolve: JSON.t => unit,
   reject: string => unit,
 }
@@ -50,16 +48,21 @@ let initialState: state = {
 }
 
 let negotiateAgentAttributionVersion = (result: Types.initializeResult) => {
-  let advertisedVersion =
-    result.agentCapabilities
-    ->Option.flatMap(capabilities => capabilities._meta)
-    ->Option.flatMap(metadata => metadata.frontmanDev)
-    ->Option.flatMap(frontman => frontman.agentAttribution)
-    ->Option.map(attribution => attribution.version)
-
-  switch (result.protocolVersion, advertisedVersion) {
-  | (1, Some(1)) => Some(V1)
-  | _ => None
+  switch result.agentCapabilities->Option.flatMap(capabilities => capabilities._meta) {
+  | None => None
+  | Some(metadata) =>
+    switch metadata->Decoders.parseSchema(Types.capabilityMetadataSchema) {
+    | Error(_) => None
+    | Ok(metadata) =>
+      let advertisedVersion =
+        metadata.frontmanDev
+        ->Option.flatMap(frontman => frontman.agentAttribution)
+        ->Option.map(attribution => attribution.version)
+      switch (result.protocolVersion, advertisedVersion) {
+      | (1, Some(1)) => Some(V1)
+      | _ => None
+      }
+    }
   }
 }
 
@@ -117,39 +120,32 @@ let handleResponse = (state: state, payload: JSON.t): state => {
   }
 }
 
-let resolvePendingSessionRequest = (
-  state: state,
-  ~method: string,
-  ~sessionId: string,
-  ~result: JSON.t,
-): state => {
-  let matchRef = ref(None)
-
-  state.pendingRequests->Dict.forEachWithKey((pending, id) => {
-    switch matchRef.contents {
-    | None if pending.method == method && pending.sessionId == Some(sessionId) =>
-      matchRef := Some((id, pending))
-    | _ => ()
-    }
-  })
-
-  switch matchRef.contents {
-  | Some((id, pending)) =>
-    pending.resolve(result)
-    let newPending = state.pendingRequests->Dict.copy
-    newPending->Dict.delete(id)
-    {...state, pendingRequests: newPending}
-  | None => state
-  }
+// Build initialize params JSON
+let advertiseAgentAttribution = metadata => {
+  let merged =
+    metadata->Option.mapOr(Dict.make(), metadata =>
+      metadata->JSON.Decode.object->Option.getOrThrow->Dict.copy
+    )
+  let frontman =
+    merged
+    ->Dict.get("frontman.dev")
+    ->Option.mapOr(Dict.make(), value => value->JSON.Decode.object->Option.getOrThrow->Dict.copy)
+  let advertisement =
+    ({version: 1}: Types.agentAttributionCapability)->S.decodeOrThrow(
+      ~from=Types.agentAttributionCapabilitySchema,
+      ~to=S.json->S.noValidation(true),
+    )
+  frontman->Dict.set("agentAttribution", advertisement)
+  merged->Dict.set("frontman.dev", JSON.Encode.object(frontman))
+  JSON.Encode.object(merged)
 }
 
-// Build initialize params JSON
 let buildInitializeParams = (config: config): JSON.t => {
   let params: Types.initializeParams = {
     protocolVersion: Types.currentProtocolVersion,
     clientCapabilities: Some({
       ...config.clientCapabilities,
-      _meta: Some(Types.agentAttributionV1CapabilityMetadata),
+      _meta: Some(advertiseAgentAttribution(config.clientCapabilities._meta)),
     }),
     clientInfo: Some(config.clientInfo),
   }
@@ -224,43 +220,75 @@ let isInitialized = (state: state): bool => {
 // Get connection state
 let getACPState = (state: state): acpState => state.acpState
 
-let getAgentAttributionVersion = (state: state): option<agentAttributionVersion> =>
-  state.agentAttributionVersion
-
-let validateSessionMetadata = (state: state, metadata: option<Types.sessionMetadata>, method) => {
-  let catalog = metadata->Option.flatMap(metadata => metadata.agents)
-
-  switch (state.agentAttributionVersion, catalog) {
-  | (Some(V1), None) => Error(`${method} missing frontman.dev/agents metadata`)
-  | _ => Ok()
+let validateSessionMetadata = (state: state, metadata: option<JSON.t>, method) => {
+  switch state.agentAttributionVersion {
+  | None => Ok(None)
+  | Some(V1) =>
+    switch metadata {
+    | None => Error(`${method} missing frontman.dev/agents metadata`)
+    | Some(metadata) =>
+      metadata
+      ->Decoders.parseSchema(Types.sessionMetadataSchema)
+      ->Result.flatMap(metadata =>
+        switch metadata.agents {
+        | Some(catalog) => Ok(Some(catalog))
+        | None => Error(`${method} missing frontman.dev/agents metadata`)
+        }
+      )
+    }
   }
 }
 
-let validateSessionReplay = (
-  state: state,
-  metadata: option<Types.sessionMetadata>,
-  updates: array<(string, Types.sessionUpdate)>,
-) => {
-  switch state.agentAttributionVersion {
-  | None => Ok()
-  | Some(V1) => {
-      let catalog =
-        metadata
-        ->Option.flatMap(metadata => metadata.agents)
-        ->Option.getOrThrow(~message="Validated v1 session metadata is required")
-      let agentIds = catalog->Array.map(agent => agent.id)->Set.fromArray
-      let unknownAgentId = updates->Array.findMap(((_, update)) => {
-        let agentId = switch update {
-        | Types.AgentMessageChunk({_meta: {agentId}})
-        | Types.UserMessageChunk({_meta: {agentId}}) =>
-          Some(agentId)
-        | _ => None
-        }
-        agentId->Option.flatMap(agentId => agentIds->Set.has(agentId) ? None : Some(agentId))
-      })
+type messageRole = Assistant | User
 
-      switch unknownAgentId {
-      | Some(agentId) => Error(`session/load replay references unknown agent: ${agentId}`)
+type messageIdentity = {
+  role: messageRole,
+  agentId: string,
+  timestamp: string,
+}
+
+let makeSessionUpdateValidator = (
+  state: state,
+  ~sessionId: string,
+  catalog: option<array<Types.agentCatalogEntry>>,
+) => {
+  let identities: Dict.t<messageIdentity> = Dict.make()
+  let agentIds =
+    catalog->Option.map(catalog => catalog->Array.map(agent => agent.id)->Set.fromArray)
+
+  (notificationSessionId, update) => {
+    switch notificationSessionId == sessionId {
+    | false => Error(`Session update ${notificationSessionId} received on ${sessionId}`)
+    | true =>
+      let identity = switch (state.agentAttributionVersion, update) {
+      | (Some(V1), Types.AgentMessageChunk({messageId, _meta: {agentId, timestamp}})) =>
+        Some((messageId, {role: Assistant, agentId, timestamp}))
+      | (Some(V1), Types.UserMessageChunk({messageId, _meta: {agentId, timestamp}})) =>
+        Some((messageId, {role: User, agentId, timestamp}))
+      | _ => None
+      }
+
+      switch identity {
+      | Some((_, {agentId}))
+        if !(
+          agentIds
+          ->Option.getOrThrow(~message="Validated v1 session metadata is required")
+          ->Set.has(agentId)
+        ) =>
+        Error(`Session update references unknown agent: ${agentId}`)
+      | Some((messageId, identity)) =>
+        switch identities->Dict.get(messageId) {
+        | Some(existing) if existing.role != identity.role =>
+          Error(`Message ${messageId} changed roles`)
+        | Some(existing) if existing.agentId != identity.agentId =>
+          Error(`Message ${messageId} changed agents`)
+        | Some(existing) if existing.timestamp != identity.timestamp =>
+          Error(`Message ${messageId} changed timestamps`)
+        | Some(_) => Ok()
+        | None =>
+          identities->Dict.set(messageId, identity)
+          Ok()
+        }
       | None => Ok()
       }
     }

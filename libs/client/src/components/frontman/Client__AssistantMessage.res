@@ -9,13 +9,7 @@ module AgentChip = Client__AgentChip
 type variant = Streaming | Completed
 
 @react.component
-let make = (
-  ~variant: variant,
-  ~content: string,
-  ~messageId as _: string,
-  ~agent: Client__Agent.t,
-  ~isNew: bool=false,
-) => {
+let make = (~variant: variant, ~content: string, ~agent: Client__Agent.t, ~isNew: bool=false) => {
   let isStreaming = variant == Streaming
 
   <MessageContainer isNew isStreaming className="group relative">

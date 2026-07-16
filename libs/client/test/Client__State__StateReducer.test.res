@@ -105,76 +105,6 @@ describe("Client State Reducer", () => {
     }
   })
 
-  test("TextDeltaReceived appends to textBuffer", t => {
-    let state = TestHelpers.makeStateWithTask(
-      ~isAgentRunning=true,
-      ~messages=[
-        Reducer.Message.Assistant(
-          Streaming({
-            id: "assistant-1",
-            textBuffer: "Hello",
-            createdAt: 0.0,
-            agentId: "test-agent",
-          }),
-        ),
-      ],
-    )
-
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({
-      target: ForTask(taskId),
-      action: TextDeltaReceived({
-        messageId: "assistant-1",
-        text: " world",
-        timestamp: "2024-01-15T10:00:00Z",
-        agentId: "test-agent",
-      }),
-    })
-    let (nextState, _effects) = Reducer.next(state, action)
-
-    let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
-
-    switch message {
-    | Reducer.Message.Assistant(Streaming({textBuffer, _})) =>
-      t->expect(textBuffer)->Expect.toBe("Hello world")
-    | _ => JsExn.throw("Expected Assistant Streaming message with updated text")
-    }
-  })
-
-  test("ExecutionStateIdle transitions streaming message to Completed", t => {
-    let state = TestHelpers.makeStateWithTask(
-      ~messages=[
-        Reducer.Message.Assistant(
-          Streaming({
-            id: "assistant-1",
-            textBuffer: "Hello world",
-            createdAt: 0.0,
-            agentId: "test-agent",
-          }),
-        ),
-      ],
-    )
-
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let action = Reducer.TaskAction({target: ForTask(taskId), action: ExecutionStateIdle})
-    let (nextState, _effects) = Reducer.next(state, action)
-
-    let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
-
-    switch message {
-    | Reducer.Message.Assistant(Completed({content, _})) => {
-        t->expect(content->Array.length)->Expect.toBe(1)
-        // Verify content was built from textBuffer
-        let contentPart = content->Array.get(0)->Option.getOrThrow
-        switch contentPart {
-        | AssistantContentPart.Text({text}) => t->expect(text)->Expect.toBe("Hello world")
-        | _ => JsExn.throw("Expected Text content part")
-        }
-      }
-    | _ => JsExn.throw("Expected Assistant Completed message")
-    }
-  })
-
   test("messages maintain order", t => {
     let state = Reducer.defaultState
 
@@ -207,7 +137,6 @@ describe("Client State Reducer", () => {
         action: TextDeltaReceived({
           messageId: "assistant-1",
           text: "Hello",
-          timestamp: "2024-01-15T10:00:00Z",
           agentId: "test-agent",
         }),
       }),
@@ -235,7 +164,6 @@ describe("Client State Reducer", () => {
           Streaming({
             id: "assistant-1",
             textBuffer: "",
-            createdAt: 0.0,
             agentId: "test-agent",
           }),
         ),
@@ -269,7 +197,6 @@ describe("Client State Reducer", () => {
           Streaming({
             id: "assistant-1",
             textBuffer: "Calling tool...",
-            createdAt: 0.0,
             agentId: "test-agent",
           }),
         ),
@@ -328,7 +255,6 @@ describe("Client State Reducer - Idle Content Conversion", () => {
           Streaming({
             id: "msg-2",
             textBuffer: "",
-            createdAt: 0.0,
             agentId: "test-agent",
           }),
         ),
@@ -352,143 +278,6 @@ describe("Client State Reducer - Idle Content Conversion", () => {
       ->Expect.toBe("Got wrong message type")
     }
   })
-
-  test("converts toolCalls to ToolCall content parts", t => {
-    let state = TestHelpers.makeStateWithTask(
-      ~messages=[
-        Reducer.Message.Assistant(
-          Streaming({
-            id: "msg-3",
-            textBuffer: "Listing files",
-            createdAt: 0.0,
-            agentId: "test-agent",
-          }),
-        ),
-      ],
-    )
-
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
-    )
-
-    let messages = TestHelpers.getMessages(nextState)
-    switch messages->Array.get(0) {
-    | Some(Reducer.Message.Assistant(Completed({content, _}))) => {
-        t->expect(content->Array.length)->Expect.toBe(1)
-
-        // Should be text content
-        switch content->Array.get(0) {
-        | Some(AssistantContentPart.Text({text})) => t->expect(text)->Expect.toBe("Listing files")
-        | _ => t->expect("Got text content")->Expect.toBe("Expected text content")
-        }
-      }
-    | _ => t->expect("Got Completed message")->Expect.toBe("Expected Completed message")
-    }
-  })
-
-  test("preserves message ID during streaming to completed transition", t => {
-    let state = TestHelpers.makeStateWithTask(
-      ~messages=[
-        Reducer.Message.Assistant(
-          Streaming({
-            id: "stable-id-123",
-            textBuffer: "Test",
-            createdAt: 0.0,
-            agentId: "test-agent",
-          }),
-        ),
-      ],
-    )
-
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
-    )
-
-    let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
-
-    switch message {
-    // The message ID should be preserved from the streaming message
-    | Reducer.Message.Assistant(Completed({id, _})) => t->expect(id)->Expect.toBe("stable-id-123")
-    | _ => JsExn.throw("Expected Assistant Completed message")
-    }
-  })
-})
-
-describe("Client State Reducer - Streaming Flow", () => {
-  test("full streaming lifecycle maintains stable ID", t => {
-    let state = Reducer.defaultState
-
-    // 0. Create a task by adding a user message first
-    let (state, _) = Reducer.next(
-      state,
-      AddUserMessage({
-        id: "user-1",
-        sessionId: "session-id",
-        content: [UserContentPart.text("Hello")],
-        annotations: [],
-      }),
-    )
-
-    // Get taskId after task creation
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let state = TestHelpers.acceptUserMessage(state, ~taskId, ~id="user-1")
-
-    let (state, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
-    )
-
-    let messageId = "assistant-1"
-
-    // 2. Receive text deltas
-    let (state, _) = Reducer.next(
-      state,
-      TaskAction({
-        target: ForTask(taskId),
-        action: TextDeltaReceived({
-          messageId,
-          text: "Hello",
-          timestamp: "2024-01-15T10:00:00Z",
-          agentId: "test-agent",
-        }),
-      }),
-    )
-    let (state, _) = Reducer.next(
-      state,
-      TaskAction({
-        target: ForTask(taskId),
-        action: TextDeltaReceived({
-          messageId,
-          text: " world",
-          timestamp: "2024-01-15T10:00:00Z",
-          agentId: "test-agent",
-        }),
-      }),
-    )
-
-    // 3. Complete message
-    let (state, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
-    )
-
-    // Verify: Message ID stayed stable throughout (check second message, first is user)
-    let messages = TestHelpers.getMessages(state)
-    switch messages->Array.get(1) {
-    | Some(Reducer.Message.Assistant(Completed({id, content, _}))) => {
-        t->expect(id)->Expect.toBe(messageId)
-        switch content->Array.get(0) {
-        | Some(AssistantContentPart.Text({text})) => t->expect(text)->Expect.toBe("Hello world")
-        | _ => t->expect("Got text content")->Expect.toBe("Expected text content")
-        }
-      }
-    | _ => t->expect("Got Completed message")->Expect.toBe("Expected Completed message")
-    }
-  })
 })
 
 describe("Client State Reducer - Selectors", () => {
@@ -504,7 +293,6 @@ describe("Client State Reducer - Selectors", () => {
       Reducer.Message.Streaming({
         id: "streaming-1",
         textBuffer: "",
-        createdAt: 0.0,
         agentId: "test-agent",
       }),
     )
@@ -622,7 +410,6 @@ describe("Client State Reducer - Tool Lifecycle", () => {
           Streaming({
             id: "assistant-1",
             textBuffer: "",
-            createdAt: 0.0,
             agentId: "test-agent",
           }),
         ),

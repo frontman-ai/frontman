@@ -7,41 +7,47 @@ type flushEntry = {
   taskId: string,
   messageId: string,
   text: string,
-  timestamp: string,
   agentId: string,
 }
 
+let makeBuffer = (
+  ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~agentId as _) => (),
+  ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~agentId as _) => (),
+) => Buffer.make(~onFlush, ~onUserFlush)
+
+let addAssistant = (
+  buffer: Buffer.t,
+  ~text,
+  ~taskId="task-1",
+  ~messageId="message-1",
+  ~agentId="executor-id",
+) => buffer.add(~taskId, ~messageId, ~text, ~agentId)
+
+let addUserBlock = (
+  buffer: Buffer.t,
+  ~block,
+  ~taskId="task-1",
+  ~messageId="message-1",
+  ~agentId="executor-id",
+) => buffer.addUserBlock(~taskId, ~messageId, ~block, ~agentId)
+
 describe("TextDeltaBuffer", () => {
-  test("discardTask removes only failed task buffers and identities", t => {
+  test("discardTask removes only failed task buffers", t => {
     let flushed = ref([])
-    let buffer = Buffer.make(
-      ~onFlush=(~taskId, ~messageId as _, ~text as _, ~timestamp as _, ~agentId as _) =>
+    let buffer = makeBuffer(
+      ~onFlush=(~taskId, ~messageId as _, ~text as _, ~agentId as _) =>
         flushed := flushed.contents->Array.concat([taskId]),
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
     )
-    buffer.add(
-      ~taskId="failed-task",
-      ~messageId="failed-message",
-      ~text="discard",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.add(
-      ~taskId="healthy-task",
-      ~messageId="healthy-message",
-      ~text="keep",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
+    addAssistant(buffer, ~taskId="failed-task", ~messageId="failed-message", ~text="discard")
+    addAssistant(buffer, ~taskId="healthy-task", ~messageId="healthy-message", ~text="keep")
 
     buffer.discardTask("failed-task")
     buffer.flush()
-    buffer.add(
+    addAssistant(
+      buffer,
       ~taskId="replacement-task",
       ~messageId="failed-message",
-      ~text="identity released",
-      ~timestamp="2024-01-15T10:00:01Z",
+      ~text="replacement",
       ~agentId="planner-id",
     )
     buffer.flush()
@@ -84,26 +90,13 @@ describe("TextDeltaBuffer", () => {
       _meta: None,
       annotations: None,
     })
-    let buffer = Buffer.make(
-      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~timestamp as _, ~agentId as _) => (),
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks, ~timestamp as _, ~agentId as _) =>
+    let buffer = makeBuffer(
+      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks, ~agentId as _) =>
         parsed := Some(Client__FrontmanProvider.parseUserMessageBlocks(blocks)),
     )
 
-    buffer.addUserBlock(
-      ~taskId="task-1",
-      ~messageId="user-1",
-      ~block=annotation,
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.addUserBlock(
-      ~taskId="task-1",
-      ~messageId="user-1",
-      ~block=screenshot,
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
+    addUserBlock(buffer, ~messageId="user-1", ~block=annotation)
+    addUserBlock(buffer, ~messageId="user-1", ~block=screenshot)
     buffer.flush()
 
     switch parsed.contents {
@@ -132,26 +125,13 @@ describe("TextDeltaBuffer", () => {
       _meta: None,
       annotations: None,
     })
-    let buffer = Buffer.make(
-      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~timestamp as _, ~agentId as _) => (),
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks, ~timestamp as _, ~agentId as _) =>
+    let buffer = makeBuffer(
+      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks, ~agentId as _) =>
         parsed := Some(Client__FrontmanProvider.parseUserMessageBlocks(blocks)),
     )
 
-    buffer.addUserBlock(
-      ~taskId="task-1",
-      ~messageId="user-1",
-      ~block=text,
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.addUserBlock(
-      ~taskId="task-1",
-      ~messageId="user-1",
-      ~block=image,
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
+    addUserBlock(buffer, ~messageId="user-1", ~block=text)
+    addUserBlock(buffer, ~messageId="user-1", ~block=image)
     buffer.flush()
 
     switch parsed.contents {
@@ -171,33 +151,18 @@ describe("TextDeltaBuffer", () => {
 
   test("flush synchronously dispatches all pending entries", t => {
     let flushed: ref<array<flushEntry>> = ref([])
-    let buffer = Buffer.make(
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-      ~onFlush=(~taskId, ~messageId, ~text, ~timestamp, ~agentId) => {
-        flushed.contents =
-          flushed.contents->Array.concat([{taskId, messageId, text, timestamp, agentId}])
+    let buffer = makeBuffer(
+      ~onFlush=(~taskId, ~messageId, ~text, ~agentId) => {
+        flushed.contents = flushed.contents->Array.concat([{taskId, messageId, text, agentId}])
       },
     )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~text="Hello ",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~text="world",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.add(
+    addAssistant(buffer, ~text="Hello ")
+    addAssistant(buffer, ~text="world")
+    addAssistant(
+      buffer,
       ~taskId="task-2",
       ~messageId="message-2",
       ~text="Other",
-      ~timestamp="2024-01-15T11:00:00Z",
       ~agentId="planner-id",
     )
 
@@ -208,10 +173,9 @@ describe("TextDeltaBuffer", () => {
     buffer.flush()
     t->expect(flushed.contents->Array.length)->Expect.toBe(2)
 
-    // task-1 text was concatenated, first timestamp preserved
+    // task-1 text was concatenated
     let task1Entry = flushed.contents->Array.find(e => e.taskId === "task-1")
     t->expect(task1Entry->Option.map(e => e.text))->Expect.toBe(Some("Hello world"))
-    t->expect(task1Entry->Option.map(e => e.timestamp))->Expect.toBe(Some("2024-01-15T10:00:00Z"))
     t->expect(task1Entry->Option.map(e => e.agentId))->Expect.toBe(Some("executor-id"))
 
     // task-2 is separate
@@ -221,20 +185,12 @@ describe("TextDeltaBuffer", () => {
 
   test("flush after flush is a no-op", t => {
     let callCount = ref(0)
-    let buffer = Buffer.make(
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~timestamp as _, ~agentId as _) => {
+    let buffer = makeBuffer(
+      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~agentId as _) => {
         callCount := callCount.contents + 1
       },
     )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~text="Hello",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
+    addAssistant(buffer, ~text="Hello")
     buffer.flush()
     t->expect(callCount.contents)->Expect.toBe(1)
 
@@ -242,206 +198,36 @@ describe("TextDeltaBuffer", () => {
     t->expect(callCount.contents)->Expect.toBe(1)
   })
 
-  test("reset discards pending entries and clears identities", t => {
+  test("reset discards pending entries", t => {
     let callCount = ref(0)
-    let buffer = Buffer.make(
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~timestamp as _, ~agentId as _) => {
+    let buffer = makeBuffer(
+      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~agentId as _) => {
         callCount := callCount.contents + 1
       },
     )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~text="Hello",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
+    addAssistant(buffer, ~text="Hello")
     buffer.reset()
     t->expect(callCount.contents)->Expect.toBe(0)
 
-    buffer.add(
-      ~taskId="task-2",
-      ~messageId="message-1",
-      ~text="Reused after reset",
-      ~timestamp="2024-01-15T10:01:00Z",
-      ~agentId="planner-id",
-    )
+    addAssistant(buffer, ~taskId="task-2", ~text="Reused after reset", ~agentId="planner-id")
     buffer.flush()
     t->expect(callCount.contents)->Expect.toBe(1)
   })
 
   test("flushes interleaved message IDs independently", t => {
     let flushed: ref<array<flushEntry>> = ref([])
-    let buffer = Buffer.make(
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-      ~onFlush=(~taskId, ~messageId, ~text, ~timestamp, ~agentId) => {
-        flushed.contents =
-          flushed.contents->Array.concat([{taskId, messageId, text, timestamp, agentId}])
+    let buffer = makeBuffer(
+      ~onFlush=(~taskId, ~messageId, ~text, ~agentId) => {
+        flushed.contents = flushed.contents->Array.concat([{taskId, messageId, text, agentId}])
       },
     )
 
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~text="Execute",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-2",
-      ~text="Plan",
-      ~timestamp="2024-01-15T10:01:00Z",
-      ~agentId="executor-id",
-    )
+    addAssistant(buffer, ~messageId="message-1", ~text="Execute")
+    addAssistant(buffer, ~messageId="message-2", ~text="Plan")
     buffer.flush()
 
     t
     ->expect(flushed.contents->Array.map(entry => (entry.messageId, entry.text)))
     ->Expect.toEqual([("message-1", "Execute"), ("message-2", "Plan")])
-  })
-
-  test("fails when one message changes agents", t => {
-    let buffer = Buffer.make(
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~timestamp as _, ~agentId as _) => (),
-    )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~text="Execute",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.flush()
-
-    Expect.toThrow(
-      t->expect(
-        () =>
-          buffer.add(
-            ~taskId="task-1",
-            ~messageId="message-1",
-            ~text="Plan",
-            ~timestamp="2024-01-15T10:01:00Z",
-            ~agentId="planner-id",
-          ),
-      ),
-    )
-  })
-
-  test("fails when one message changes timestamps after flush", t => {
-    let buffer = Buffer.make(
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~timestamp as _, ~agentId as _) => (),
-    )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~text="One",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.flush()
-
-    Expect.toThrow(
-      t->expect(
-        () =>
-          buffer.add(
-            ~taskId="task-1",
-            ~messageId="message-1",
-            ~text="Two",
-            ~timestamp="2024-01-15T10:00:01Z",
-            ~agentId="executor-id",
-          ),
-      ),
-    )
-  })
-
-  test("user message metadata and role remain immutable", t => {
-    let block = ACP.TextContent({text: "Hello", _meta: None, annotations: None})
-    let buffer = Buffer.make(
-      ~onFlush=(~taskId as _, ~messageId as _, ~text as _, ~timestamp as _, ~agentId as _) => (),
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-    )
-    buffer.addUserBlock(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~block,
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    buffer.flush()
-
-    Expect.toThrow(
-      t->expect(
-        () =>
-          buffer.addUserBlock(
-            ~taskId="task-1",
-            ~messageId="message-1",
-            ~block,
-            ~timestamp="2024-01-15T10:00:01Z",
-            ~agentId="executor-id",
-          ),
-      ),
-    )
-    Expect.toThrow(
-      t->expect(
-        () =>
-          buffer.add(
-            ~taskId="task-1",
-            ~messageId="message-1",
-            ~text="Assistant",
-            ~timestamp="2024-01-15T10:00:00Z",
-            ~agentId="executor-id",
-          ),
-      ),
-    )
-    Expect.toThrow(
-      t->expect(
-        () =>
-          buffer.addUserBlock(
-            ~taskId="task-2",
-            ~messageId="message-1",
-            ~block,
-            ~timestamp="2024-01-15T10:00:00Z",
-            ~agentId="executor-id",
-          ),
-      ),
-    )
-  })
-
-  test("fails when one message crosses tasks", t => {
-    let flushed: ref<array<flushEntry>> = ref([])
-    let buffer = Buffer.make(
-      ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~timestamp as _, ~agentId as _) =>
-        (),
-      ~onFlush=(~taskId, ~messageId, ~text, ~timestamp, ~agentId) =>
-        flushed := flushed.contents->Array.concat([{taskId, messageId, text, timestamp, agentId}]),
-    )
-    buffer.add(
-      ~taskId="task-1",
-      ~messageId="message-1",
-      ~text="Execute",
-      ~timestamp="2024-01-15T10:00:00Z",
-      ~agentId="executor-id",
-    )
-    Expect.toThrow(
-      t->expect(
-        () =>
-          buffer.add(
-            ~taskId="task-2",
-            ~messageId="message-1",
-            ~text="Plan",
-            ~timestamp="2024-01-15T10:00:00Z",
-            ~agentId="planner-id",
-          ),
-      ),
-    )
   })
 })

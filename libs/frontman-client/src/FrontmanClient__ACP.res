@@ -74,12 +74,14 @@ type session = {
   onUpdate: (string, Types.sessionUpdate) => unit,
 }
 
-let cleanupSessionChannel = (session: session): unit => {
-  session.channel->Channel.off(~event=#"acp:message")
-  session.channel->Channel.off(~event=#"mcp:message")
-  session.channel->Channel.off(~event=#title_updated)
-  Channel.leave(session.channel)->ignore
+let cleanupChannel = channel => {
+  channel->Channel.off(~event=#"acp:message")
+  channel->Channel.off(~event=#"mcp:message")
+  channel->Channel.off(~event=#title_updated)
+  Channel.leave(channel)->ignore
 }
+
+let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.channel)
 
 let disconnect = (conn: connection, ~session: option<session>=?): unit => {
   session->Option.forEach(cleanupSessionChannel)
@@ -257,7 +259,13 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
         state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
-        Ok({socket, channel, clientConfig, state, onMessage: config.onMessage})
+        Ok({
+          socket,
+          channel,
+          clientConfig,
+          state,
+          onMessage: config.onMessage,
+        })
       }
     }
   }
@@ -277,7 +285,7 @@ let isInitialized = (conn: connection): bool => {
 
 @@live
 let getAgentAttributionVersion = (conn: connection): option<Client.agentAttributionVersion> =>
-  Client.getAgentAttributionVersion(conn.state.contents)
+  conn.state.contents.agentAttributionVersion
 
 module MCP = FrontmanClient__MCP
 module MCPTypes = FrontmanClient__MCP__Types
@@ -291,18 +299,28 @@ let joinSession = async (
   conn: connection,
   sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
+  ~catalog: option<array<Types.agentCatalogEntry>>,
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
+  ~validateUpdates=true,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
+  let validator = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId, catalog)
+  let handleUpdate = (notificationSessionId, update) =>
+    switch validateUpdates {
+    | false => onUpdate(notificationSessionId, update)
+    | true =>
+      switch validator(notificationSessionId, update) {
+      | Ok() => onUpdate(notificationSessionId, update)
+      | Error(error) => failwith(error)
+      }
+    }
   let handleParseError = err => {
     switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
-    | true =>
-      sessionChannel->Channel.off(~event=#"acp:message")
-      Channel.leave(sessionChannel)->ignore
+    | true => cleanupChannel(sessionChannel)
     | false => ()
     }
     switch onParseError {
@@ -315,7 +333,7 @@ let joinSession = async (
   Protocol.attachMessageHandler(
     ~channel=sessionChannel,
     ~state=conn.state,
-    ~onUpdate=Some(onUpdate),
+    ~onUpdate=Some(handleUpdate),
     ~onMessage=conn.onMessage,
     ~onParseError=Some(handleParseError),
   )
@@ -345,6 +363,7 @@ let joinSession = async (
 
   joinResult
   ->Result.mapError(err => {
+    cleanupChannel(sessionChannel)
     let errMsg = switch err {
     | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
     | JoinFailed(msg) => msg
@@ -358,7 +377,7 @@ let joinSession = async (
       sessionId,
       channel: sessionChannel,
       connection: conn,
-      onUpdate,
+      onUpdate: handleUpdate,
     }
   })
 }
@@ -376,7 +395,7 @@ let createSession = async (
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
-): result<(session, Types.sessionNewResult), string> => {
+): result<(session, Types.sessionNewResult, option<array<Types.agentCatalogEntry>>), string> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
   let sessionNewResult = await Protocol.sendSessionNew(
@@ -388,20 +407,25 @@ let createSession = async (
 
   switch sessionNewResult {
   | Ok(result) =>
-    switch Client.validateSessionMetadata(conn.state.contents, result._meta, "session/new") {
-    | Error(e) => Error(e)
-    | Ok() =>
+    switch (
+      result.sessionId == sessionId,
+      Client.validateSessionMetadata(conn.state.contents, result._meta, "session/new"),
+    ) {
+    | (false, _) => Error(`session/new returned unexpected session ID: ${result.sessionId}`)
+    | (true, Error(e)) => Error(e)
+    | (true, Ok(catalog)) =>
       let joinResult = await joinSession(
         conn,
         result.sessionId,
         ~onUpdate,
+        ~catalog,
         ~onTitleUpdated,
         ~onParseError?,
         ~mcpServerInterface?,
         ~onMcpMessage?,
       )
       switch joinResult {
-      | Ok(session) => Ok((session, result))
+      | Ok(session) => Ok((session, result, catalog))
       | Error(e) => Error(e)
       }
     }
@@ -500,7 +524,7 @@ let deleteSession = (conn: connection, sessionId: string): promise<result<unit, 
 let loadSession = async (
   conn: connection,
   sessionId: string,
-  ~onLoadResult: Types.sessionLoadResult => unit,
+  ~onLoadResult: (Types.sessionLoadResult, option<array<Types.agentCatalogEntry>>) => unit,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
@@ -511,10 +535,18 @@ let loadSession = async (
   let bufferedUpdates = ref([])
   let parseError = ref(None)
   let cleanupOnParseError = ref(false)
+  let validator = ref(None)
   let handleUpdate = (sessionId, update) =>
     switch buffering.contents {
     | true => bufferedUpdates := bufferedUpdates.contents->Array.concat([(sessionId, update)])
-    | false => onUpdate(sessionId, update)
+    | false => {
+        let validate =
+          validator.contents->Option.getOrThrow(~message="Loaded session validator is required")
+        switch validate(sessionId, update) {
+        | Ok() => onUpdate(sessionId, update)
+        | Error(error) => failwith(error)
+        }
+      }
     }
 
   // First join the session channel to receive history updates
@@ -522,6 +554,7 @@ let loadSession = async (
     conn,
     sessionId,
     ~onUpdate=handleUpdate,
+    ~catalog=None,
     ~onTitleUpdated,
     ~onParseError=err =>
       switch buffering.contents {
@@ -539,6 +572,7 @@ let loadSession = async (
     ~cleanupOnParseError,
     ~mcpServerInterface?,
     ~onMcpMessage?,
+    ~validateUpdates=false,
   )
 
   switch joinResult {
@@ -580,13 +614,22 @@ let loadSession = async (
             conn.state.contents,
             result._meta,
             "session/load",
-          )->Result.flatMap(() =>
-            Client.validateSessionReplay(
+          )->Result.flatMap(catalog => {
+            let validate = Client.makeSessionUpdateValidator(
               conn.state.contents,
-              result._meta,
-              bufferedUpdates.contents,
+              ~sessionId,
+              catalog,
             )
-          )
+            validator := Some(validate)
+            bufferedUpdates.contents->Array.reduce(Ok(catalog), (
+              result,
+              (updateSessionId, update),
+            ) =>
+              result->Result.flatMap(
+                catalog => validate(updateSessionId, update)->Result.map(() => catalog),
+              )
+            )
+          })
         }
 
         switch validation {
@@ -594,8 +637,8 @@ let loadSession = async (
             cleanupSessionChannel(session)
             Error(e)
           }
-        | Ok() => {
-            onLoadResult(result)
+        | Ok(catalog) => {
+            onLoadResult(result, catalog)
             buffering := false
             let replayError = try {
               bufferedUpdates.contents->Array.forEach(((sessionId, update)) =>

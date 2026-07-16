@@ -9,6 +9,7 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
+module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 
@@ -89,18 +90,15 @@ type action =
   | SessionCreateError({sessionId: string, error: string})
   | SessionFailed({sessionId: string, error: string})
   | CreateSession({
-      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
+      onUpdate: (string, ACPTypes.sessionUpdate) => unit,
       onTitleUpdated: (string, string) => unit,
       onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<string, string> => unit,
     })
   | SendPrompt({
       text: string,
-      additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
-      onComplete: result<
-        FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult,
-        string,
-      > => unit,
+      additionalBlocks: array<ACPTypes.contentBlock>,
+      onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
     })
   | CancelPrompt
@@ -108,7 +106,7 @@ type action =
   | LoadTask({
       taskId: string,
       needsHistory: bool,
-      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
+      onUpdate: (string, ACPTypes.sessionUpdate) => unit,
       onTitleUpdated: (string, string) => unit,
       onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
@@ -129,7 +127,7 @@ type effect =
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
+      onUpdate: (string, ACPTypes.sessionUpdate) => unit,
       onTitleUpdated: (string, string) => unit,
       onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<string, string> => unit,
@@ -137,11 +135,8 @@ type effect =
   | SendPromptEffect({
       session: ACP.session,
       text: string,
-      additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
-      onComplete: result<
-        FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult,
-        string,
-      > => unit,
+      additionalBlocks: array<ACPTypes.contentBlock>,
+      onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
     })
   | CancelPromptEffect({session: ACP.session})
@@ -152,7 +147,7 @@ type effect =
       mcpServer: MCPServer.t,
       taskId: string,
       needsHistory: bool,
-      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
+      onUpdate: (string, ACPTypes.sessionUpdate) => unit,
       onTitleUpdated: (string, string) => unit,
       onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
       onComplete: result<unit, string> => unit,
@@ -294,13 +289,8 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [],
     )
 
-  | ({session: SessionCreating(None)}, SessionCreateSuccess(sess)) => (
-      {...state, session: SessionActive(sess)},
-      [LogInfo(`Session activated: ${sess.sessionId}`)],
-    )
-
-  | ({session: SessionCreating(Some(expectedSessionId))}, SessionCreateSuccess(sess))
-    if expectedSessionId == sess.sessionId => (
+  | ({session: SessionCreating(expectedSessionId)}, SessionCreateSuccess(sess))
+    if expectedSessionId->Option.mapOr(true, id => id == sess.sessionId) => (
       {...state, session: SessionActive(sess)},
       [LogInfo(`Session activated: ${sess.sessionId}`)],
     )
@@ -310,13 +300,8 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [CleanupSessionEffect({session: sess}), LogInfo(`Stale session ignored: ${sess.sessionId}`)],
     )
 
-  | ({session: SessionCreating(None)}, SessionCreateError({error, _})) => (
-      {...state, session: SessionError(error)},
-      [LogError(`Session failed: ${error}`)],
-    )
-
-  | ({session: SessionCreating(Some(expectedSessionId))}, SessionCreateError({sessionId, error}))
-    if expectedSessionId == sessionId => (
+  | ({session: SessionCreating(expectedSessionId)}, SessionCreateError({sessionId, error}))
+    if expectedSessionId->Option.mapOr(true, id => id == sessionId) => (
       {...state, session: SessionError(error)},
       [LogError(`Session failed: ${error}`)],
     )
@@ -503,21 +488,18 @@ let cleanupSession = (session: ACP.session): unit => {
 // This receives current state and dispatch, so async callbacks can safely dispatch
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   let dispatchConfigOptions = (configOptions: option<array<_>>) =>
-    switch configOptions {
-    | Some(opts) => Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
-    | None => ()
-    }
+    configOptions->Option.forEach(opts =>
+      Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
+    )
 
   let dispatchSessionResult = (
     taskId,
-    metadata: option<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionMetadata>,
+    catalog: option<array<ACPTypes.agentCatalogEntry>>,
     configOptions,
   ) => {
-    let catalog: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.agentCatalogEntry> =
-      metadata
-      ->Option.flatMap(metadata => metadata.agents)
-      ->Option.getOrThrow(~message="Validated attribution catalog is required")
-    let taskAction: Client__Task__Reducer.action = AgentCatalogInstalled(catalog)
+    let taskAction: Client__Task__Reducer.action = AgentCatalogInstalled(
+      catalog->Option.getOrThrow(~message="Validated attribution catalog is required"),
+    )
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: taskAction}))
     dispatchConfigOptions(configOptions)
   }
@@ -620,19 +602,15 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         ~onMcpMessage,
       )
       switch result {
-      | Ok((sess, sessionNewResult)) =>
+      | Ok((sess, sessionNewResult, catalog)) =>
         switch creationError.contents {
         | Some(error) =>
           ACP.cleanupSessionChannel(sess)
           onComplete(Error(error))
         | None =>
+          dispatchSessionResult(sess.sessionId, catalog, sessionNewResult.configOptions)
           dispatch(SessionCreateSuccess(sess))
           onComplete(Ok(sess.sessionId))
-          dispatchSessionResult(
-            sess.sessionId,
-            sessionNewResult._meta,
-            sessionNewResult.configOptions,
-          )
         }
       | Error(err) =>
         dispatch(SessionCreateError({sessionId, error: err}))
@@ -690,7 +668,8 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         let loadResult = await ACP.loadSession(
           connection,
           taskId,
-          ~onLoadResult=result => dispatchSessionResult(taskId, result._meta, result.configOptions),
+          ~onLoadResult=(result, catalog) =>
+            dispatchSessionResult(taskId, catalog, result.configOptions),
           ~onUpdate,
           ~onTitleUpdated,
           ~onParseError=err => {
@@ -700,15 +679,18 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           ~mcpServerInterface,
           ~onMcpMessage,
         )
-        switch loadResult {
-        | Ok((session, _sessionLoadResult)) => Ok(session)
-        | Error(e) => Error(e)
-        }
+        loadResult->Result.map(((session, _)) => session)
       | false =>
+        let task =
+          StateStore.getState(Client__State__Store.store).tasks
+          ->Dict.get(taskId)
+          ->Option.getOrThrow(~message=`Unknown task: ${taskId}`)
+        let catalog = Client__Task__Types.Task.getAgentCatalog(task)
         await ACP.joinSession(
           connection,
           taskId,
           ~onUpdate,
+          ~catalog,
           ~onTitleUpdated,
           ~onParseError=err => {
             Client__TextDeltaBuffer.discardTask(taskId)

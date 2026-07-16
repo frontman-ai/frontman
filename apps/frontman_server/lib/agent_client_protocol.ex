@@ -92,9 +92,6 @@ defmodule AgentClientProtocol do
 
   def protocol_version, do: @protocol_version
 
-  @spec agent_attribution_version() :: pos_integer()
-  def agent_attribution_version, do: @agent_attribution_version
-
   # Channel event accessors
   def event_acp_message, do: @event_acp_message
   def event_config_options_updated, do: @event_config_options_updated
@@ -131,8 +128,6 @@ defmodule AgentClientProtocol do
     }
   end
 
-  @spec negotiate_agent_attribution_version(map() | nil) ::
-          {:ok, pos_integer() | nil} | {:error, String.t()}
   def negotiate_agent_attribution_version(nil), do: {:ok, nil}
 
   def negotiate_agent_attribution_version(%{"_meta" => metadata}) when is_map(metadata),
@@ -307,18 +302,14 @@ defmodule AgentClientProtocol do
         message_id,
         agent_id
       ) do
-    JsonRpc.notification(@method_session_update, %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "agent_message_chunk",
-        "messageId" => message_id,
-        "content" => %{"type" => "text", "text" => text},
-        "_meta" => message_metadata(agent_id, timestamp)
-      }
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "agent_message_chunk",
+      "messageId" => message_id,
+      "content" => %{"type" => "text", "text" => text},
+      "_meta" => message_metadata(agent_id, timestamp)
     })
   end
 
-  @spec agent_message_id(String.t(), non_neg_integer()) :: String.t()
   def agent_message_id(turn_started_id, ordinal), do: "#{turn_started_id}:#{ordinal}"
 
   @doc """
@@ -328,14 +319,11 @@ defmodule AgentClientProtocol do
   """
   def build_user_message_chunk_notification(session_id, message_id, content, agent_id, timestamp)
       when is_binary(agent_id) and agent_id != "" do
-    JsonRpc.notification(@method_session_update, %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "user_message_chunk",
-        "messageId" => message_id,
-        "content" => content,
-        "_meta" => message_metadata(agent_id, timestamp)
-      }
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "user_message_chunk",
+      "messageId" => message_id,
+      "content" => content,
+      "_meta" => message_metadata(agent_id, timestamp)
     })
   end
 
@@ -344,6 +332,10 @@ defmodule AgentClientProtocol do
       @agent_id_metadata_key => agent_id,
       @timestamp_metadata_key => DateTime.to_iso8601(timestamp)
     }
+  end
+
+  defp session_update_notification(session_id, update) do
+    JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
   end
 
   @doc """
@@ -361,10 +353,7 @@ defmodule AgentClientProtocol do
         stop_reason -> Map.put(update, "stopReason", stop_reason)
       end
 
-    JsonRpc.notification(@method_session_update, %{
-      "sessionId" => session_id,
-      "update" => update
-    })
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -399,7 +388,7 @@ defmodule AgentClientProtocol do
           |> Map.put("maxAttempts", Keyword.fetch!(retry_opts, :max_attempts))
       end
 
-    JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -432,10 +421,7 @@ defmodule AgentClientProtocol do
       "timestamp" => DateTime.to_iso8601(timestamp)
     }
 
-    JsonRpc.notification(@method_session_update, %{
-      "sessionId" => session_id,
-      "update" => update
-    })
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -454,12 +440,7 @@ defmodule AgentClientProtocol do
 
     update = if content, do: Map.put(update, "content", content), else: update
 
-    params = %{
-      "sessionId" => session_id,
-      "update" => update
-    }
-
-    JsonRpc.notification(@method_session_update, params)
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -489,15 +470,10 @@ defmodule AgentClientProtocol do
   def plan_update(session_id, entries) do
     validate_plan_entries!(entries)
 
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "plan",
-        "entries" => entries
-      }
-    }
-
-    JsonRpc.notification(@method_session_update, params)
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "plan",
+      "entries" => entries
+    })
   end
 
   defp validate_plan_entries!(entries) when is_list(entries) do

@@ -102,20 +102,11 @@ let parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
   (content, annotations)
 }
 
-let validateAttributedAgentInState = (state: Client__State__Types.state, ~taskId, ~agentId) => {
-  let task = state.tasks->Dict.get(taskId)->Option.getOrThrow(~message=`Unknown task: ${taskId}`)
-  let catalog = Client__Task__Types.Task.getAgentCatalog(task)
-  Client__Agent.findOrThrow(catalog, agentId)->ignore
-}
-
-let validateAttributedAgent = (~taskId, ~agentId) =>
-  validateAttributedAgentInState(StateStore.getState(Client__State__Store.store), ~taskId, ~agentId)
-
 // Coalesce protocol message chunks before dispatching complete logical updates.
 let textDeltaBuffer = Client__TextDeltaBuffer.make(
-  ~onFlush=(~taskId, ~messageId, ~text, ~timestamp, ~agentId) =>
-    Client__State.Actions.textDeltaReceived(~taskId, ~messageId, ~text, ~timestamp, ~agentId),
-  ~onUserFlush=(~taskId, ~messageId, ~blocks, ~timestamp as _, ~agentId) => {
+  ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
+    Client__State.Actions.textDeltaReceived(~taskId, ~messageId, ~text, ~agentId),
+  ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) => {
     let (content, annotations) = parseUserMessageBlocks(blocks)
     Client__State.Actions.userMessageReceived(
       ~taskId,
@@ -296,23 +287,15 @@ module Provider = {
     ) => {
       let taskId = sessionId
       switch update {
-      | AgentMessageChunk({messageId, content, _meta: {agentId, timestamp}}) =>
-        validateAttributedAgent(~taskId, ~agentId)
+      | AgentMessageChunk({messageId, content, _meta: {agentId}}) =>
         // Per ACP spec: first agent_message_chunk implicitly signals message start.
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
         getContentBlockText(content)->Option.forEach(text => {
-          textDeltaBuffer.add(~taskId, ~messageId, ~text, ~timestamp, ~agentId)
+          textDeltaBuffer.add(~taskId, ~messageId, ~text, ~agentId)
         })
       | UserMessageChunk({messageId, content, _meta}) =>
-        validateAttributedAgent(~taskId, ~agentId=_meta.agentId)
-        textDeltaBuffer.addUserBlock(
-          ~taskId,
-          ~messageId,
-          ~block=content,
-          ~timestamp=_meta.timestamp,
-          ~agentId=_meta.agentId,
-        )
+        textDeltaBuffer.addUserBlock(~taskId, ~messageId, ~block=content, ~agentId=_meta.agentId)
       | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
         failwith("Frontman UI requires negotiated agent attribution")
       | Unknown(_) => ()
@@ -380,7 +363,7 @@ module Provider = {
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => Client__TextDeltaBuffer.flush()
-      | Error({_meta, message, timestamp, retryAt, attempt, maxAttempts, category}) =>
+      | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>
@@ -397,7 +380,6 @@ module Provider = {
             ~taskId,
             ~id=agentErrorId(_meta),
             ~error=message,
-            ~timestamp,
             ~category=Client__ErrorCategory.fromAcpCategory(category),
           )
         }

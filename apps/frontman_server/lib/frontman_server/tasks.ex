@@ -115,7 +115,6 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Projects canonical interaction rows into their domain payloads."
-  @spec interactions(TaskSchema.t()) :: [struct()]
   def interactions(%TaskSchema{interaction_rows: rows}) when is_list(rows) do
     {:ok, history} = History.new(rows)
     History.interactions(history)
@@ -523,47 +522,41 @@ defmodule FrontmanServer.Tasks do
 
   defp claim_next_turn_for_task(scope, task_schema, task_id) do
     rows = load_interaction_rows(task_id)
-    {:ok, history} = History.new(rows)
 
-    case {History.active_run_turn_number(history), History.pending_accepted_messages(history)} do
-      {{:ok, nil}, [_ | _] = accepted_messages} ->
-        turn_number = History.next_turn_number(history)
-        default_agent_id = Agents.default_agent_id(scope)
-        agent_id = accepted_message_agent_id(List.first(accepted_messages), default_agent_id)
+    with {:ok, history} <- History.new(rows),
+         {nil, [_ | _] = accepted_messages} <-
+           {History.active_run_turn_number(history), History.pending_accepted_messages(history)} do
+      turn_number = History.next_turn_number(history)
+      default_agent_id = Agents.default_agent_id(scope)
+      agent_id = accepted_message_agent_id(List.first(accepted_messages), default_agent_id)
 
-        accepted_messages =
-          Enum.take_while(accepted_messages, fn row ->
-            accepted_message_agent_id(row, default_agent_id) == agent_id
-          end)
+      accepted_messages =
+        Enum.take_while(accepted_messages, fn row ->
+          accepted_message_agent_id(row, default_agent_id) == agent_id
+        end)
 
-        user_message_ids = Enum.map(accepted_messages, & &1.id)
+      user_message_ids = Enum.map(accepted_messages, & &1.id)
 
-        with {:ok, turn_model} <- turn_model_for_accepted_messages(accepted_messages),
-             {:ok, agent} <- Agents.get_agent(scope, agent_id),
-             turn_started_attrs = %{
-               agent_id: agent.id,
-               agent_name: agent.name,
-               agent_display_name: agent.display_name,
-               agent_description: agent.description,
-               agent_color: agent.color,
-               user_message_ids: user_message_ids
-             },
-             {:ok, turn_started_row} <-
-               insert_turn_started(task_schema, turn_started_attrs, turn_number) do
-          {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
-        else
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      {{:ok, nil}, []} ->
-        {:error, :no_accepted_messages}
-
-      {{:ok, _turn_number}, _accepted_messages} ->
-        {:error, :already_running}
-
-      {{:error, reason}, _accepted_messages} ->
-        {:error, reason}
+      with {:ok, turn_model} <- turn_model_for_accepted_messages(accepted_messages),
+           {:ok, agent} <- Agents.get_agent(scope, agent_id),
+           turn_started_attrs = %{
+             agent_id: agent.id,
+             agent_name: agent.name,
+             agent_display_name: agent.display_name,
+             agent_description: agent.description,
+             agent_color: agent.color,
+             user_message_ids: user_message_ids
+           },
+           {:ok, turn_started_row} <-
+             insert_turn_started(task_schema, turn_started_attrs, turn_number) do
+        {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
+      else
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:error, reason} -> {:error, reason}
+      {nil, []} -> {:error, :no_accepted_messages}
+      {_turn_number, _accepted_messages} -> {:error, :already_running}
     end
   end
 
@@ -744,15 +737,14 @@ defmodule FrontmanServer.Tasks do
   the active run attempt for their turn number.
   """
   def get_active_run_unresolved_tool_calls(scope, task_id) do
-    with {:ok, _schema} <- get_task_by_id(scope, task_id) do
-      rows = load_interaction_rows(task_id)
-      {:ok, history} = History.new(rows)
-
+    with {:ok, _schema} <- get_task_by_id(scope, task_id),
+         rows = load_interaction_rows(task_id),
+         {:ok, history} <- History.new(rows) do
       case History.active_run_turn_number(history) do
-        {:ok, nil} ->
+        nil ->
           {:ok, :no_active_run}
 
-        {:ok, turn_number} ->
+        turn_number ->
           tool_calls =
             InteractionSchema.for_task(task_id)
             |> InteractionSchema.for_turn(turn_number)
@@ -762,9 +754,6 @@ defmodule FrontmanServer.Tasks do
             |> Enum.map(& &1.data)
 
           {:ok, turn_number, tool_calls}
-
-        {:error, reason} ->
-          {:error, reason}
       end
     end
   end
@@ -843,13 +832,12 @@ defmodule FrontmanServer.Tasks do
   def resume_execution(scope, task_id, execution) do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- History.new(task.interaction_rows),
-         {:ok, turn_number} when is_integer(turn_number) <-
-           History.active_run_turn_number(history),
+         turn_number when is_integer(turn_number) <- History.active_run_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution) do
       run_execution(scope, task, turn_number, agent, execution)
     else
-      {:ok, nil} -> {:error, :not_running}
+      nil -> {:error, :not_running}
       {:error, reason} -> {:error, reason}
     end
   end

@@ -21,7 +21,11 @@ Schema release `1.19.0` describes ACP wire protocol version `1`. These versions 
 4. Verify published checksum before replacing files.
 5. Update provenance fields above and checksum in `FrontmanServer.ProtocolSchema`.
 6. Run `mix test test/protocols/acp_upstream_compliance_test.exs` from `apps/frontman_server`.
-7. Run all Task 15 verification commands from `plan.md`.
+7. Run `make -C libs/frontman-protocol check-schemas`.
+8. Run `make -C libs/frontman-client check`.
+9. Run `make -C libs/client test`.
+10. Run `make -C apps/frontman_server precommit`.
+11. Run `make reanalyze` from the repository root.
 
 `FrontmanServer.ProtocolSchema` adapts `$defs` to draft-7 `definitions` only in memory because
 the test dependency supports draft 7, while this artifact declares draft 2020-12. The pinned

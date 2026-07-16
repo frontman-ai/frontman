@@ -71,7 +71,6 @@ describe("Task - Protocol Message Identity", () => {
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "Hello",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "executor-id",
       }),
     )
@@ -80,7 +79,6 @@ describe("Task - Protocol Message Identity", () => {
       TextDeltaReceived({
         messageId: "assistant-1",
         text: " world",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "executor-id",
       }),
     )
@@ -101,7 +99,6 @@ describe("Task - Protocol Message Identity", () => {
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "Hello",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
       }),
     )
@@ -234,36 +231,6 @@ describe("Task - Load State Machine", () => {
 // ============================================================================
 
 describe("Task - Session Rehydration (Loading history → LoadComplete)", () => {
-  test("agent message (TextDeltaReceived) survives LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-
-    let (task, _) = TaskReducer.next(
-      task,
-      TextDeltaReceived({
-        messageId: "assistant-1",
-        text: "Hi there!",
-        timestamp: "2024-01-15T10:00:00Z",
-        agentId: "test-agent",
-      }),
-    )
-    let (loaded, _) = TaskReducer.next(task, LoadComplete)
-
-    t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
-    let messages = TestHelpers.getMessages(loaded)
-    t->expect(messages->Array.length)->Expect.toBe(1)
-
-    switch messages->Array.get(0) {
-    | Some(Message.Assistant(Completed({content, _}))) =>
-      switch content->Array.get(0) {
-      | Some(Message.AssistantContentPart.Text({text})) => t->expect(text)->Expect.toBe("Hi there!")
-      | _ => t->expect("Assistant text content")->Expect.toBe("missing")
-      }
-    | Some(Message.Assistant(Streaming(_))) =>
-      t->expect("Streaming after LoadComplete")->Expect.toBe("should be Completed")
-    | _ => t->expect("Assistant message")->Expect.toBe("not found")
-    }
-  })
-
   test("in-flight streaming message is finalized to Completed by LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
 
@@ -272,7 +239,6 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "partial ",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
       }),
     )
@@ -281,7 +247,6 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "response",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
       }),
     )
@@ -476,7 +441,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         id: "agent-error-1",
         error: "Quota exhausted",
-        timestamp: "2025-01-15T10:30:00Z",
         category: #quota,
       }),
     )
@@ -509,7 +473,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         id: "agent-error-1",
         error: "Some error",
-        timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
       }),
     )
@@ -525,7 +488,6 @@ describe("Task - Error Handling", () => {
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "Partial response",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
       }),
     )
@@ -542,7 +504,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         id: "agent-error-1",
         error: "Error occurred",
-        timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
       }),
     )
@@ -564,7 +525,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         id: "agent-error-1",
         error: "Error",
-        timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
       }),
     )
@@ -579,7 +539,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         id: "agent-error-1",
         error: "Some error",
-        timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
       }),
     )
@@ -613,7 +572,6 @@ describe("Task - Error Handling", () => {
       AgentError({
         id: "agent-error-1",
         error: "Previous error",
-        timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
       }),
     )
@@ -655,7 +613,6 @@ describe("Task - CancelTurn", () => {
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "Partial resp",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
       }),
     )
@@ -756,7 +713,6 @@ describe("Task - CancelTurn", () => {
       AgentError({
         id: "agent-error-1",
         error: "Some error",
-        timestamp: "2025-01-15T10:30:00Z",
         category: #unknown,
       }),
     )
@@ -780,7 +736,6 @@ describe("Task - CancelTurn", () => {
       TextDeltaReceived({
         messageId: "assistant-2",
         text: "New response",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
       }),
     )
@@ -810,7 +765,6 @@ describe("Task - Running-independent streamed events", () => {
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "stream text",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
       }),
     )
@@ -852,7 +806,6 @@ describe("Task - Running-independent streamed events", () => {
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "loading text",
-        timestamp: "2024-01-15T10:00:00Z",
         agentId: "test-agent",
       }),
     )

@@ -281,7 +281,6 @@ let make = (~onConfigureProvider: unit => unit) => {
         <AssistantMessage
           variant=AssistantMessage.Streaming
           content={textBuffer}
-          messageId
           agent={agentForId(agentId)}
           isNew={isLastItem}
         />
@@ -301,7 +300,6 @@ let make = (~onConfigureProvider: unit => unit) => {
               key={partKey}
               variant=AssistantMessage.Completed
               content={text}
-              messageId={partKey}
               agent={agentForId(agentId)}
               isNew={isLastItem && i == 0}
             />

@@ -11,11 +11,10 @@ defmodule FrontmanServer.Tasks.History do
   alias FrontmanServer.Tasks.InteractionSchema
 
   @task_scoped_types InteractionSchema.task_scoped_types()
-  @starter_types [:turn_started, :agent_retry]
   @terminal_types [:agent_completed, :agent_error, :agent_paused]
   @run_types [:agent_response, :tool_call, :tool_result]
 
-  @enforce_keys ~w(rows ordered_rows users_by_id turns_by_number user_owners response_counts)a
+  @enforce_keys ~w(rows ordered_rows users_by_id turns_by_number user_owners response_counts active_turn)a
   defstruct @enforce_keys
 
   @type row_context :: %{
@@ -31,10 +30,10 @@ defmodule FrontmanServer.Tasks.History do
           users_by_id: %{String.t() => InteractionSchema.t()},
           turns_by_number: %{pos_integer() => InteractionSchema.t()},
           user_owners: %{String.t() => %{agent_id: String.t() | nil, turn_number: pos_integer()}},
-          response_counts: %{pos_integer() => non_neg_integer()}
+          response_counts: %{pos_integer() => non_neg_integer()},
+          active_turn: pos_integer() | nil
         }
 
-  @spec new([InteractionSchema.t()]) :: {:ok, t()} | {:error, term()}
   def new(rows) when is_list(rows) do
     history = %__MODULE__{
       rows: rows,
@@ -42,7 +41,8 @@ defmodule FrontmanServer.Tasks.History do
       users_by_id: %{},
       turns_by_number: %{},
       user_owners: %{},
-      response_counts: %{}
+      response_counts: %{},
+      active_turn: nil
     }
 
     rows
@@ -51,13 +51,8 @@ defmodule FrontmanServer.Tasks.History do
     |> project_ordered_rows()
   end
 
-  @spec interactions(t()) :: [struct()]
   def interactions(%__MODULE__{rows: rows}), do: Enum.map(rows, & &1.data)
 
-  @spec ordered_rows(t()) :: [row_context()]
-  def ordered_rows(%__MODULE__{ordered_rows: rows}), do: rows
-
-  @spec attributed_rows(t()) :: {:ok, [row_context()]} | {:error, term()}
   def attributed_rows(%__MODULE__{ordered_rows: rows}) do
     case Enum.find(rows, &match?(%{row: %{type: :user_message}, agent_id: nil}, &1)) do
       nil -> {:ok, rows}
@@ -65,7 +60,6 @@ defmodule FrontmanServer.Tasks.History do
     end
   end
 
-  @spec agent_ids(t()) :: [String.t()]
   def agent_ids(%__MODULE__{ordered_rows: rows}) do
     rows
     |> Enum.map(& &1.agent_id)
@@ -73,13 +67,10 @@ defmodule FrontmanServer.Tasks.History do
     |> Enum.uniq()
   end
 
-  @spec user_row(t(), String.t()) :: InteractionSchema.t()
   def user_row(%__MODULE__{users_by_id: users}, id), do: Map.fetch!(users, id)
 
-  @spec turns(t()) :: [InteractionSchema.t()]
   def turns(%__MODULE__{rows: rows}), do: Enum.filter(rows, &(&1.type == :turn_started))
 
-  @spec turn(t(), pos_integer()) :: {:ok, InteractionSchema.t()} | {:error, :missing_turn}
   def turn(%__MODULE__{turns_by_number: turns}, turn_number) do
     case Map.fetch(turns, turn_number) do
       {:ok, row} -> {:ok, row}
@@ -87,7 +78,6 @@ defmodule FrontmanServer.Tasks.History do
     end
   end
 
-  @spec turn_agent_id(t(), pos_integer()) :: {:ok, String.t()} | {:error, :missing_turn}
   def turn_agent_id(%__MODULE__{} = history, turn_number) do
     with {:ok, %InteractionSchema{data: %Interaction.TurnStarted{agent_id: agent_id}}} <-
            turn(history, turn_number) do
@@ -95,7 +85,6 @@ defmodule FrontmanServer.Tasks.History do
     end
   end
 
-  @spec pending_accepted_messages(t()) :: [InteractionSchema.t()]
   def pending_accepted_messages(%__MODULE__{} = history) do
     Enum.filter(history.rows, fn
       %InteractionSchema{type: :user_message, id: id} ->
@@ -106,25 +95,18 @@ defmodule FrontmanServer.Tasks.History do
     end)
   end
 
-  @spec active_run_turn_number(t()) :: {:ok, pos_integer() | nil} | {:error, term()}
-  def active_run_turn_number(%__MODULE__{rows: rows}) do
-    rows
-    |> Enum.reduce_while(nil, &project_active_run/2)
-    |> case do
-      {:error, reason} -> {:error, reason}
-      turn_number -> {:ok, turn_number}
-    end
-  end
+  def active_run_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn
+  def active_turn_context(%__MODULE__{} = history), do: turn_context(history, history.active_turn)
 
-  @spec next_turn_number(t()) :: pos_integer()
   def next_turn_number(%__MODULE__{turns_by_number: turns}) do
     turns |> Map.keys() |> Enum.max(fn -> 0 end) |> Kernel.+(1)
   end
 
-  @spec latest_turn_number(t()) :: non_neg_integer()
   def latest_turn_number(%__MODULE__{} = history), do: next_turn_number(history) - 1
 
-  @spec turn_model(t(), pos_integer()) :: {:ok, String.t()} | {:error, :missing_model}
+  def latest_turn_context(%__MODULE__{} = history),
+    do: turn_context(history, latest_turn_number(history))
+
   def turn_model(%__MODULE__{} = history, turn_number) do
     with {:ok, %InteractionSchema{data: %Interaction.TurnStarted{user_message_ids: ids}}} <-
            turn(history, turn_number),
@@ -137,7 +119,6 @@ defmodule FrontmanServer.Tasks.History do
     end
   end
 
-  @spec response_context(t(), pos_integer(), String.t()) :: map()
   def response_context(%__MODULE__{} = history, turn_number, agent_id)
       when is_binary(agent_id) and agent_id != "" do
     {:ok, %InteractionSchema{id: id}} = turn(history, turn_number)
@@ -149,7 +130,6 @@ defmodule FrontmanServer.Tasks.History do
     }
   end
 
-  @spec turn_context(t(), non_neg_integer() | nil) :: map() | nil
   def turn_context(_history, turn_number) when turn_number in [nil, 0], do: nil
 
   def turn_context(%__MODULE__{} = history, turn_number) do
@@ -228,7 +208,8 @@ defmodule FrontmanServer.Tasks.History do
          %{
            history
            | ordered_rows: Enum.reverse(state.rows),
-             response_counts: state.responses
+             response_counts: state.responses,
+             active_turn: state.active_turn
          }}
 
       {:error, reason} ->
@@ -238,7 +219,7 @@ defmodule FrontmanServer.Tasks.History do
 
   defp row_context(
          history,
-         %InteractionSchema{id: id, type: :user_message, data: message} = row,
+         %InteractionSchema{id: id, type: :user_message, turn_number: nil, data: message} = row,
          state
        ) do
     with {:ok, owner} <- user_owner(history, id, message),
@@ -263,9 +244,13 @@ defmodule FrontmanServer.Tasks.History do
        ),
        do: {:error, {:run_already_active, active_turn, turn_number}}
 
-  defp row_context(_history, %InteractionSchema{type: type} = row, state)
+  defp row_context(_history, %InteractionSchema{type: type, turn_number: nil} = row, state)
        when type in @task_scoped_types,
        do: {:ok, context(row, nil, nil, nil), state}
+
+  defp row_context(_history, %InteractionSchema{type: type}, _state)
+       when type in @task_scoped_types or type == :user_message,
+       do: {:error, {:unknown_interaction_type, type}}
 
   defp row_context(
          history,
@@ -378,26 +363,4 @@ defmodule FrontmanServer.Tasks.History do
       end
     end)
   end
-
-  defp project_active_run(%InteractionSchema{type: type, turn_number: nil}, active)
-       when type in @task_scoped_types or type == :user_message,
-       do: {:cont, active}
-
-  defp project_active_run(%InteractionSchema{type: type, turn_number: nil}, _active),
-    do: {:halt, {:error, {:missing_turn_number, type}}}
-
-  defp project_active_run(%InteractionSchema{type: type, turn_number: turn_number}, _active)
-       when type in @starter_types and is_integer(turn_number) and turn_number > 0,
-       do: {:cont, turn_number}
-
-  defp project_active_run(%InteractionSchema{type: type, turn_number: turn_number}, turn_number)
-       when type in @terminal_types,
-       do: {:cont, nil}
-
-  defp project_active_run(%InteractionSchema{type: type}, active)
-       when type in @terminal_types or type in @run_types,
-       do: {:cont, active}
-
-  defp project_active_run(%InteractionSchema{type: type}, _active),
-    do: {:halt, {:error, {:unknown_interaction_type, type}}}
 end

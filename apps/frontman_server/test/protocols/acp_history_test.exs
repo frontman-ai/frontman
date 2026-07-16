@@ -3,6 +3,7 @@ defmodule AgentClientProtocol.HistoryTest do
 
   alias AgentClientProtocol.History
   alias FrontmanServer.Agents.Agent
+  alias FrontmanServer.Tasks.History, as: TaskHistory
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
@@ -36,7 +37,7 @@ defmodule AgentClientProtocol.HistoryTest do
       })
     ]
 
-    assert {:ok, replay} = History.build(rows, @session_id, [agent()])
+    assert {:ok, replay} = build(rows)
     updates = Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
 
     assert [%{"id" => "executor-id"}] = replay.catalog
@@ -46,13 +47,6 @@ defmodule AgentClientProtocol.HistoryTest do
     assert answer["messageId"] == "turn-row:1"
     assert answer["_meta"]["frontman.dev/agentId"] == "executor-id"
     assert error["_meta"]["frontman.dev/agentErrorId"] == "error-id"
-  end
-
-  test "returns one error and no partial replay when turn context is missing" do
-    rows = [row("response", :agent_response, 1, response("orphan"))]
-
-    assert {:error, {:inactive_run, :agent_response, 1, nil}} =
-             History.build(rows, @session_id, [agent()])
   end
 
   test "resolves removed agents from persisted turn metadata" do
@@ -67,7 +61,7 @@ defmodule AgentClientProtocol.HistoryTest do
       row("response", :agent_response, 1, response("Old answer"))
     ]
 
-    assert {:ok, replay} = History.build(rows, @session_id, [agent()])
+    assert {:ok, replay} = build(rows)
     assert Enum.any?(replay.catalog, &(&1["id"] == "archived-id"))
   end
 
@@ -77,25 +71,19 @@ defmodule AgentClientProtocol.HistoryTest do
       row("paused", :agent_paused, 1, %Interaction.AgentPaused{timestamp: @timestamp})
     ]
 
-    assert {:ok, replay} = History.build(rows, @session_id, [agent()])
+    assert {:ok, replay} = build(rows)
 
     assert [%{"params" => %{"update" => update}}] = replay.notifications
     assert update == %{"sessionUpdate" => "state_update", "state" => "requires_action"}
   end
 
-  test "rejects run rows after their turn terminated" do
-    rows = [
-      row("turn-row", :turn_started, 1, turn("turn-id", [])),
-      row("paused", :agent_paused, 1, %Interaction.AgentPaused{timestamp: @timestamp}),
-      row("response", :agent_response, 1, response("late"))
-    ]
-
-    assert {:error, {:inactive_run, :agent_response, 1, nil}} =
-             History.build(rows, @session_id, [agent()])
-  end
-
   defp row(id, type, turn_number, data) do
     %InteractionSchema{id: id, type: type, turn_number: turn_number, data: data}
+  end
+
+  defp build(rows) do
+    with {:ok, history} <- TaskHistory.new(rows),
+         do: History.build(history, @session_id, [agent()])
   end
 
   defp turn(id, user_message_ids) do

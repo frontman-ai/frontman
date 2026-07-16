@@ -2,10 +2,12 @@
   "type": "object",
   "properties": {
     "jsonrpc": {
-      "type": "string"
+      "type": "string",
+      "const": "2.0"
     },
     "method": {
-      "type": "string"
+      "type": "string",
+      "const": "session/update"
     },
     "params": {
       "type": "object",
