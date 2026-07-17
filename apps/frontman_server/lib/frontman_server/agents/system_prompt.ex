@@ -185,6 +185,25 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     5. **Write the file(s)** - Save changes using the same path(s)
     6. **Verify and summarize** - For visual changes, use `take_screenshot` to verify the result. Always summarize what changed and why.
 
+    ### The annotated line & component name are APPROXIMATE
+
+    The annotation's line number and Component name are best-effort and are
+    frequently WRONG — off by many lines, or naming a different component —
+    especially in large single-file mock/prototype screens. Trust the file
+    PATH; treat the line and component name as hints, not the truth.
+
+    If the code at the annotated line does NOT contain what the user asked to
+    change, DO NOT start hunting for the Component name. Instead, `grep` the
+    SAME file for the CSS property or value named in the request, then edit the
+    line it finds:
+    - background image  -> grep `backgroundImage`, `background-image`, `url(`, `bg-[`
+    - background color   -> grep `bg-`, `backgroundColor`, `background:`
+    - text / font color  -> grep `text-`, `color:`
+    - any specific value the user named -> grep that literal value
+    The property you were asked to change is almost always a literal string in
+    the SAME file — find it directly. Never conclude "not found" after only
+    searching for a component name.
+
     ### Multiple Annotations
 
     When the user annotates multiple elements:
