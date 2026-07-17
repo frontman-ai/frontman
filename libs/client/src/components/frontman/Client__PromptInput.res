@@ -69,13 +69,15 @@ module ModelSelector = {
       <Select.Trigger
         id="frontman-model-selector"
         ariaLabel="Model"
-        className="inline-flex w-full min-w-0 items-center gap-1 h-8 pl-2 pr-1.5 text-xs rounded-md
+        className="inline-flex w-full min-w-0 items-center gap-1 h-9 pl-2 pr-1.5 text-xs rounded-md
                    bg-transparent text-zinc-400 border-none cursor-pointer
                    hover:text-zinc-200 hover:bg-white/6
                    focus:outline-none focus:ring-0
                    data-[placeholder]:text-zinc-500 [&_svg]:size-3 [&_svg]:text-zinc-400"
       >
-        <span className="min-w-0 truncate">
+        <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
+        <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+        <span className="min-w-0 truncate text-zinc-300">
           {React.string(selectedDisplay->Option.getOr("Select model..."))}
         </span>
       </Select.Trigger>
@@ -134,19 +136,22 @@ module AgentSelector = {
   ) => {
     let selectedAgent = Client__Agent.findOrThrow(Some(agents), selectedAgentId)
 
-    <Field className="min-w-0 gap-1">
-      <Field.Label htmlFor="frontman-agent-selector" className="text-[11px] text-zinc-500 shrink-0">
+    <Field className="min-w-0 gap-0">
+      <Field.Label htmlFor="frontman-agent-selector" className="sr-only">
         {React.string("Agent")}
       </Field.Label>
       <Select value={selectedAgentId} onValueChange={(value, _) => onAgentChange(value)}>
         <Select.Trigger
           id="frontman-agent-selector"
           ariaLabel="Agent"
-          className="h-8 w-full min-w-0 border-none bg-transparent px-1.5 text-xs text-zinc-300
+          className="h-9 w-full min-w-0 border-none bg-transparent px-1.5 text-xs text-zinc-300
                      hover:bg-white/6 focus:ring-0 [&_svg]:size-3"
         >
+          <span className="shrink-0 text-zinc-500"> {React.string("Agent")} </span>
+          <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
           <span
-            className="size-2 shrink-0 rounded-full" style={{backgroundColor: selectedAgent.color}}
+            className="size-1.5 shrink-0 rounded-full opacity-70"
+            style={{backgroundColor: selectedAgent.color}}
           />
           <span className="min-w-0 truncate"> {React.string(selectedAgent.displayName)} </span>
         </Select.Trigger>
@@ -166,7 +171,8 @@ module AgentSelector = {
                 className="text-xs text-zinc-200 focus:bg-zinc-700 focus:text-white"
               >
                 <span
-                  className="size-2 shrink-0 rounded-full" style={{backgroundColor: agent.color}}
+                  className="size-2 shrink-0 self-center rounded-full"
+                  style={{backgroundColor: agent.color}}
                 />
                 <span className="min-w-0 truncate"> {React.string(agent.displayName)} </span>
               </Select.Item>
@@ -358,7 +364,18 @@ let make = (
     | Some(configOption) => !modelConfigOptionHasModels(configOption)
     | None => false
     }
-  let hasMultipleAgents = agentCatalog->Option.mapOr(false, agents => agents->Array.length > 1)
+  let hasAgentSelector = switch (agentCatalog, selectedAgentId) {
+  | (Some(agents), Some(_)) => agents->Array.length > 0
+  | _ => false
+  }
+  let composerBorderColor = switch selectedAgentId {
+  | Some(agentId) =>
+    agentCatalog
+    ->Option.flatMap(agents => agents->Array.find(agent => agent.id == agentId))
+    ->Option.map(agent => `color-mix(in srgb, ${agent.color} 40%, transparent)`)
+    ->Option.getOr("rgb(255 255 255 / 0.1)")
+  | None => "rgb(255 255 255 / 0.1)"
+  }
 
   let getDroppedFiles: ReactEvent.Mouse.t => array<Client__PromptEditor.browserFile> = %raw(`
     function(event) {
@@ -462,95 +479,103 @@ let make = (
     | None => React.null
     }}
 
-    <div className="min-w-0 px-3 pt-2">
-      <div
-        className={`${showToolbarLabels ? "px-2.5" : "px-2"} grid min-w-0 ${hasMultipleAgents
-            ? "grid-cols-2"
-            : "grid-cols-1"} gap-2`}
-      >
-        {switch (agentCatalog, selectedAgentId) {
-        | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
-          <AgentSelector agents selectedAgentId={agentId} onAgentChange />
-        | _ => React.null
-        }}
-
-        <Client__UI__Field className="min-w-0 gap-1">
-          <Client__UI__Field.Label
-            htmlFor="frontman-model-selector" className="shrink-0 text-[11px] text-zinc-500"
-          >
-            {React.string("Model")}
-          </Client__UI__Field.Label>
-          {switch (isModelsConfigLoading, modelConfigOption) {
-          | (true, _) =>
-            <div className="inline-flex h-8 min-w-0 items-center px-2 text-xs text-zinc-500">
-              <span className="truncate"> {React.string("Loading...")} </span>
-            </div>
-          | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
-            <button
-              type_="button"
-              onClick={_ => onConfigureProvider()}
-              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs
-                         text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
-                         transition-colors cursor-pointer"
-            >
-              {React.string("Configure provider")}
-            </button>
-          | (false, Some(configOption)) =>
-            <div className="min-w-0 overflow-hidden">
-              <ModelSelector
-                configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
-              />
-            </div>
-          | (false, None) => React.null
+    <div
+      className="mx-3 mb-2 overflow-hidden rounded-xl border bg-white/[0.025] transition-colors
+                 focus-within:ring-1 focus-within:ring-white/20"
+      style={{borderColor: composerBorderColor}}
+    >
+      <div className="min-w-0 py-1">
+        <div
+          className={`${showToolbarLabels ? "px-2.5" : "px-2"} grid min-w-0 ${hasAgentSelector
+              ? "grid-cols-2"
+              : "grid-cols-1"} gap-2`}
+        >
+          {switch (agentCatalog, selectedAgentId) {
+          | (Some(agents), Some(agentId)) if agents->Array.length > 0 =>
+            <AgentSelector agents selectedAgentId={agentId} onAgentChange />
+          | _ => React.null
           }}
-        </Client__UI__Field>
+
+          <Client__UI__Field className="min-w-0 gap-0">
+            <Client__UI__Field.Label htmlFor="frontman-model-selector" className="sr-only">
+              {React.string("Model")}
+            </Client__UI__Field.Label>
+            {switch (isModelsConfigLoading, modelConfigOption) {
+            | (true, _) =>
+              <div className="inline-flex h-9 min-w-0 items-center gap-1 px-2 text-xs">
+                <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
+                <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+                <span className="truncate text-zinc-500"> {React.string("Loading...")} </span>
+              </div>
+            | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
+              <button
+                type_="button"
+                onClick={_ => onConfigureProvider()}
+                className="inline-flex h-9 min-w-0 items-center gap-1 rounded-md px-2 text-xs
+                           text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
+                           transition-colors cursor-pointer"
+              >
+                <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
+                <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+                <span className="truncate"> {React.string("Configure provider")} </span>
+              </button>
+            | (false, Some(configOption)) =>
+              <div className="min-w-0 overflow-hidden">
+                <ModelSelector
+                  configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
+                />
+              </div>
+            | (false, None) => React.null
+            }}
+          </Client__UI__Field>
+        </div>
       </div>
-    </div>
 
-    // Tiptap input area with inline pills
-    <div className="px-3 py-2">
-      <Client__PromptEditor
-        disabled={isInputDisabled}
-        placeholder={currentPlaceholder}
-        isEnrichingAnnotations
-        hasAnnotations
-        submitSignal
-        attachSignal
-        dropFilesSignal
-        droppedFiles
-        onHasContentChange={value => setHasContent(_ => value)}
-        onSubmit={handleEditorSubmit}
-        onPreviewImage={src => setPreviewSrc(_ => Some(src))}
-        onFileSizeError={message => setFileSizeError(_ => Some(message))}
-      />
-    </div>
-
-    // Footer with tools and submit — toolbar anchored at bottom, always stable position
-    <div className="flex items-center justify-between px-3 pb-2 pt-1">
-      <div className="flex flex-1 items-center gap-1 min-w-0 overflow-hidden transition-opacity">
-        <AttachButton
-          onClick={openAttachPicker}
-          disabled={isInputDisabled || isEnrichingAnnotations}
-          showLabel={showToolbarLabels}
+      // Tiptap input area with inline pills
+      <div className="border-t border-white/8">
+        <Client__PromptEditor
+          disabled={isInputDisabled}
+          placeholder={currentPlaceholder}
+          isEnrichingAnnotations
+          hasAnnotations
+          submitSignal
+          attachSignal
+          dropFilesSignal
+          droppedFiles
+          onHasContentChange={value => setHasContent(_ => value)}
+          onSubmit={handleEditorSubmit}
+          onPreviewImage={src => setPreviewSrc(_ => Some(src))}
+          onFileSizeError={message => setFileSizeError(_ => Some(message))}
         />
+      </div>
 
-        // Select element button (optional)
-        {switch onSelectElement {
-        | Some(handler) =>
-          <SelectElementButton
-            onClick={handler}
-            isSelecting={isSelecting}
-            hasAnnotations={hasAnnotations}
+      // Footer with tools and submit — toolbar anchored at bottom, always stable position
+      <div className="flex items-center justify-between border-t border-white/8 px-2 py-1">
+        <div className="flex flex-1 items-center gap-1 min-w-0 overflow-hidden transition-opacity">
+          <AttachButton
+            onClick={openAttachPicker}
+            disabled={isInputDisabled || isEnrichingAnnotations}
             showLabel={showToolbarLabels}
           />
-        | None => React.null
-        }}
-      </div>
 
-      // Submit / Stop
-      <SubmitButton
-        disabled={isSubmitDisabled} showStop={showStopButton} onClick={doSubmit} onCancel
-      />
+          // Select element button (optional)
+          {switch onSelectElement {
+          | Some(handler) =>
+            <SelectElementButton
+              onClick={handler}
+              isSelecting={isSelecting}
+              hasAnnotations={hasAnnotations}
+              showLabel={showToolbarLabels}
+            />
+          | None => React.null
+          }}
+        </div>
+
+        // Submit / Stop
+        <SubmitButton
+          disabled={isSubmitDisabled} showStop={showStopButton} onClick={doSubmit} onCancel
+        />
+      </div>
     </div>
 
     // Image lightbox preview

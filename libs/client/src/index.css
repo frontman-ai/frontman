@@ -83,20 +83,15 @@
 }
 
 .frontman-prompt-editor {
-	border: 1px solid rgb(255 255 255 / 0.08);
-	border-radius: 0.75rem;
-	background: rgb(255 255 255 / 0.02);
 	overflow: hidden;
 }
 
 .frontman-prompt-editor:focus-within {
-	border-color: rgb(152 93 247 / 0.45);
-	box-shadow: 0 0 0 1px rgb(152 93 247 / 0.18);
+	background: rgb(255 255 255 / 0.02);
 }
 
 .frontman-prompt-editor-content {
 	width: 100%;
-	border-bottom: 1px solid rgb(255 255 255 / 0.08);
 	color: rgb(244 244 245);
 	font-size: 0.875rem;
 	line-height: 1.25rem;
