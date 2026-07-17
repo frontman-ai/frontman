@@ -19,6 +19,8 @@ let renderToolbarButton = (~label, ~onClick, ~children, ~className="") =>
 @react.component
 let make = (
   ~chatboxWidth: int,
+  ~chatOpen: bool=true,
+  ~onToggleChat: unit => unit=() => (),
   ~onSettingsClick: unit => unit,
   ~showProviderNudgeBubble: bool=false,
   ~showProviderNudgeBadge: bool=false,
@@ -105,13 +107,24 @@ let make = (
     <div className="h-8 flex items-center shrink-0 bg-[#130d20] border-b border-[#1e1538]">
       // LEFT ZONE — width tracks the resizable chat panel
       <div
-        style={{width: `${Int.toString(chatboxWidth >= 240 ? chatboxWidth : 240)}px`}}
+        style={{
+          width: chatOpen ? `${Int.toString(chatboxWidth >= 240 ? chatboxWidth : 240)}px` : "auto",
+        }}
         className="flex items-center h-full shrink-0 px-1 gap-1 overflow-hidden"
       >
-        <div className="flex items-center justify-center w-7 h-7 shrink-0">
-          <FrontmanLogo size=18 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
-        </div>
-        <Client__TopBar__TaskDropdown onNewTask={handleNewTask} />
+        {switch chatOpen {
+        | true =>
+          <>
+            <div className="flex items-center justify-center w-7 h-7 shrink-0">
+              <FrontmanLogo size=18 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
+            </div>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <Client__TopBar__TaskDropdown onNewTask={handleNewTask} />
+            </div>
+          </>
+        | false => React.null
+        }}
+        <Client__ChatToggle chatOpen onToggle=onToggleChat isAgentRunning />
       </div>
       // Vertical divider — visually continues the panel border below
       <div className="w-px h-full bg-[#1e1538] shrink-0" />
