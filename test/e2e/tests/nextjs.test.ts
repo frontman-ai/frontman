@@ -69,7 +69,9 @@ describe("Next.js E2E", () => {
       const panelBox = await panel.boundingBox();
       const selectorBox = await agentSelector.boundingBox();
       const modelBox = await modelSelector.boundingBox();
-      const promptBox = await selectorPage.getByRole("textbox").boundingBox();
+      const promptBox = await selectorPage
+        .getByRole("textbox", { name: "What would you like to change?" })
+        .boundingBox();
       const attachBox = await selectorPage
         .getByTitle("Attach files (images or PDFs up to 10MB)")
         .boundingBox();
