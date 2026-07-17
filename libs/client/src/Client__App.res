@@ -33,6 +33,9 @@ let make = (~apiBaseUrl: string) => {
   // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
+  // Chat panel open/closed toggle — collapse the chat to see the full preview
+  let (chatOpen, setChatOpen) = React.useState(() => true)
+
   // Settings modal state
   let (settingsOpen, setSettingsOpen) = React.useState(() => false)
   let (settingsInitialTab, setSettingsInitialTab) = React.useState(() => None)
@@ -118,6 +121,8 @@ let make = (~apiBaseUrl: string) => {
     // Top bar (sits above the panel split)
     <Client__TopBar
       chatboxWidth
+      chatOpen
+      onToggleChat={() => setChatOpen(prev => !prev)}
       onSettingsClick={() => setSettingsOpen(_ => true)}
       showProviderNudgeBubble
       showProviderNudgeBadge
@@ -131,7 +136,7 @@ let make = (~apiBaseUrl: string) => {
       | true => <div className="fixed inset-0 z-50 cursor-col-resize" />
       | false => React.null
       }}
-      <div
+      {chatOpen ? <div
         style={{width: `${Int.toString(chatboxWidth)}px`}}
         className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
       >
@@ -147,7 +152,7 @@ let make = (~apiBaseUrl: string) => {
           ]->Array.join(" ")}
           onMouseDown={handleResizeMouseDown}
         />
-      </div>
+      </div> : React.null}
       <div className="grow h-full min-w-0">
         <Client__WebPreview />
       </div>
