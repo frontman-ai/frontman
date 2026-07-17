@@ -6,6 +6,9 @@ This document defines Frontman's version 1 agent-attribution extension for Agent
 Client Protocol (ACP) v1. The key words **MUST**, **MUST NOT**, **REQUIRED**,
 **SHOULD**, **SHOULD NOT**, and **MAY** are normative.
 
+This extension is unreleased. Version 1 may change until its first release; after
+release, the versioning rules below apply.
+
 ## Standards Basis
 
 This extension follows these upstream requirements:
@@ -40,7 +43,6 @@ Frontman owns these `_meta` keys:
 | Location | Key | Value |
 | --- | --- | --- |
 | `clientCapabilities._meta` and `agentCapabilities._meta` | `frontman.dev` | Capability namespace object |
-| New/load session response `_meta` | `frontman.dev/agents` | Agent catalog array |
 | User/agent message chunk `_meta` | `frontman.dev/agentId` | Agent ID string |
 | User/agent message chunk `_meta` | `frontman.dev/timestamp` | RFC 3339 timestamp string |
 
@@ -87,9 +89,10 @@ A Frontman client supporting this extension MUST advertise version 1 in
 }
 ```
 
-### Agent Advertisement
+### Agent Advertisement And Configuration
 
-A supporting Agent MUST advertise version 1 in `agentCapabilities._meta`:
+A supporting Agent MUST advertise version 1 and its complete agent configuration
+in `agentCapabilities._meta`:
 
 ```json
 {
@@ -108,7 +111,24 @@ A supporting Agent MUST advertise version 1 in `agentCapabilities._meta`:
         "frontman.dev": {
           "agentAttribution": {
             "version": 1
-          }
+          },
+          "agents": [
+            {
+              "id": "executor",
+              "name": "executor",
+              "displayName": "Executor",
+              "description": "Implements approved work",
+              "color": "#16A085"
+            },
+            {
+              "id": "planner",
+              "name": "planner",
+              "displayName": "Planner",
+              "description": "Plans implementation work",
+              "color": "#6D5EF5"
+            }
+          ],
+          "defaultAgentId": "planner"
         }
       }
     },
@@ -129,14 +149,19 @@ from 1 through 65535 is not malformed; peers continue with generic ACP behavior.
 
 If a peer advertises `frontman.dev.agentAttribution` but its value is not an
 object, or its `version` is not an integer from 1 through 65535, a Frontman
-implementation MUST fail initialization visibly. An Agent receiving a malformed request uses a
-JSON-RPC invalid-params error. A Client receiving a malformed response rejects
-initialization and reports the reason to the user.
+implementation MUST fail initialization visibly. An Agent receiving a malformed
+request uses a JSON-RPC invalid-params error. A Client receiving a malformed
+response rejects initialization and reports the reason to the user.
+
+When a Client recognizes version 1 in the Agent response, `agents` and
+`defaultAgentId` are REQUIRED. Missing or malformed configuration MUST fail
+initialization visibly. Unsupported versions remain generic ACP behavior and do
+not require version 1 configuration.
 
 ## Agent Catalog
 
-After version 1 negotiation, every successful `session/new` and `session/load`
-response MUST contain `_meta["frontman.dev/agents"]`.
+After version 1 negotiation, `agentCapabilities._meta["frontman.dev"].agents`
+is the connection's sole agent catalog. It MUST be a non-empty array.
 
 Each catalog entry has these Frontman-defined fields:
 
@@ -150,6 +175,16 @@ Each catalog entry has these Frontman-defined fields:
 
 Catalog IDs MUST be unique. Clients MUST use the supplied color and MUST NOT
 derive or substitute one. Unknown catalog-entry fields MUST be ignored.
+
+`defaultAgentId` MUST be a non-empty string matching exactly one catalog entry.
+A Client MUST initially select that entry regardless of catalog order.
+
+On reconnect, a Frontman Client MUST atomically replace the connection catalog.
+It retains its browser-session selection when the selected ID remains present;
+otherwise it selects the newly advertised default. Disconnecting MUST NOT clear
+the last catalog, so already attributed transcript remains renderable. Selection
+is browser-session state only: it survives task changes, is not persisted, and a
+page reload uses the current server default.
 
 ### New Session
 
@@ -170,40 +205,18 @@ derive or substitute one. Unknown catalog-entry fields MUST be ignored.
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "sessionId": "sess_abc123",
-    "_meta": {
-      "frontman.dev/agents": [
-        {
-          "id": "planner",
-          "name": "planner",
-          "displayName": "Planner",
-          "description": "Plans implementation work",
-          "color": "#6D5EF5"
-        },
-        {
-          "id": "executor",
-          "name": "executor",
-          "displayName": "Executor",
-          "description": "Implements approved work",
-          "color": "#16A085"
-        }
-      ]
-    }
+    "sessionId": "sess_abc123"
   }
 }
 ```
 
 ### Loaded Session And ACP Ordering
 
-Frontman MUST preserve ACP's load sequence: the Agent streams complete history
-as `session/update` notifications and only then returns the `session/load`
-response. Frontman MUST NOT send the load response before history.
-
-To make the response catalog available before application state consumes
-attributed history, the low-level Frontman client MUST buffer load-time
-notifications. After the response arrives, it validates and installs the catalog,
-then delivers buffered notifications in original wire order. Buffering changes no
-ACP wire ordering and is invisible to generic clients.
+Frontman MUST preserve ACP's load sequence: the Agent validates the complete
+replay against the connection catalog, streams complete history as
+`session/update` notifications, and only then returns the `session/load`
+response. Frontman MUST NOT emit partial history or send the load response before
+history.
 
 ```json
 {
@@ -225,40 +238,20 @@ After all history:
 {
   "jsonrpc": "2.0",
   "id": 2,
-  "result": {
-    "_meta": {
-      "frontman.dev/agents": [
-        {
-          "id": "planner",
-          "name": "planner",
-          "displayName": "Planner",
-          "description": "Plans implementation work",
-          "color": "#6D5EF5"
-        },
-        {
-          "id": "executor",
-          "name": "executor",
-          "displayName": "Executor",
-          "description": "Implements approved work",
-          "color": "#16A085"
-        }
-      ]
-    }
-  }
+  "result": {}
 }
 ```
 
-The Agent MUST validate the complete catalog and replay sequence before emitting
-the first history notification. The Client MUST discard its whole replay buffer
-if response metadata or any buffered attributed update is invalid. Partial
-history MUST NOT enter application state.
+The Client MUST validate every attributed update against the connection catalog.
+If any buffered attributed update is invalid, it MUST discard its whole replay
+buffer. Partial history MUST NOT enter application state.
 
 ## Catalog Ownership And History
 
 Frontman server exposes one current global product-agent catalog. Each catalog
-entry defines one product agent. Session creation and loading MUST return that
-catalog in active configuration order. Conversation history persists only the
-stable catalog entry ID; it does not preserve display metadata snapshots.
+entry defines one product agent. Initialization returns that catalog in active
+configuration order. Conversation history persists only the stable catalog entry
+ID; it does not preserve display metadata snapshots.
 
 Renaming, recoloring, or otherwise changing a catalog entry while retaining its
 ID intentionally changes how all historical messages display. Every attributed
@@ -273,7 +266,7 @@ After version 1 negotiation, every `user_message_chunk` and
 
 - ACP `messageId` as a present, non-empty string.
 - `_meta["frontman.dev/agentId"]` as a present, non-empty string resolving in
-  the session catalog.
+  the connection catalog.
 - `_meta["frontman.dev/timestamp"]` as a present RFC 3339 timestamp.
 
 All chunks belonging to one logical message MUST repeat identical `messageId`,
@@ -282,6 +275,21 @@ opaque string and MUST NOT parse its implementation-specific structure.
 
 For user chunks, `agentId` identifies the selected execution target for that
 message. It does not identify the human author.
+
+Every `session/prompt` request sent by Frontman MUST snapshot the selected agent
+at submission time in `_meta.agent` as a non-empty catalog ID. Model selection is
+independent and remains in `_meta.model`. Queued work, attachments, and lazy
+session creation MUST carry this captured ID rather than reading later mutable
+selection state:
+
+```json
+{
+  "_meta": {
+    "model": "anthropic:claude-opus-4-6",
+    "agent": "planner"
+  }
+}
+```
 
 ### Multi-block User Message
 
@@ -403,10 +411,10 @@ response had no content chunks.
 
 When version 1 is negotiated:
 
-- Missing catalog metadata received from a peer, empty identity fields, and
-  invalid colors MUST fail session creation or loading visibly. Invalid server
-  catalog configuration and historical IDs absent from the current global
-  catalog MUST crash.
+- Missing initialization configuration, empty identity fields, invalid colors,
+  duplicate catalog IDs, or an unknown default MUST fail initialization visibly.
+  Invalid server catalog configuration and historical IDs absent from the
+  current global catalog MUST crash.
 - A known user or agent chunk with missing or malformed `messageId`, `agentId`,
   or `timestamp` MUST fail the session visibly. It MUST NOT degrade into an
   unknown update.
@@ -435,33 +443,21 @@ as ACP `_meta` values are extension data. It still sees standard
 fields. No mode update or `configOptions` entry is required to interpret base ACP
 messages.
 
-Example generic session response:
+Example generic session response remains standard ACP:
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "sessionId": "sess_abc123",
-    "_meta": {
-      "frontman.dev/agents": [
-        {
-          "id": "executor",
-          "name": "executor",
-          "displayName": "Executor",
-          "description": "Implements approved work",
-          "color": "#16A085"
-        }
-      ],
-      "example.net/traceId": "trace-7"
-    }
+    "sessionId": "sess_abc123"
   }
 }
 ```
 
-Generic clients ignore both metadata entries and consume `sessionId`. Frontman
-clients negotiated at version 1 validate `frontman.dev/agents` and ignore the
-unrelated `example.net/traceId` entry.
+Generic clients ignore Frontman capability and prompt metadata and consume
+standard ACP fields. Frontman clients negotiated at version 1 validate the
+initialization configuration and ignore unrelated metadata entries.
 
 ## Versioning
 
