@@ -20,16 +20,11 @@ module TestHelpers = {
     ->Task.newToLoaded(~id, ~title)
     ->Task.updateLoadedData(data => {...data, messages, isAgentRunning})
 
-  let makeStateWithTasks = (
-    ~tasks,
-    ~currentTask,
-    ~sessionsLoadState=Client__State__Types.SessionsNotLoaded,
-  ) => {
+  let makeStateWithTasks = (~tasks, ~currentTask) => {
     ...Reducer.defaultState,
     tasks,
     currentTask,
     selectedModelValue: None,
-    sessionsLoadState,
   }
 
   let makeStateWithTask = (
