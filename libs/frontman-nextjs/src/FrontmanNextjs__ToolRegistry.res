@@ -9,6 +9,7 @@ type t = CoreRegistry.t
 
 // Next.js specific tools
 let nextjsTools: array<tool> = [
+  module(FrontmanNextjs__Tool__Git),
   module(FrontmanNextjs__Tool__GetRoutes),
   module(FrontmanNextjs__Tool__GetLogs),
 ]
