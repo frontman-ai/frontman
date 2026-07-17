@@ -48,6 +48,7 @@ let entries: array<schemaEntry> = [
     name: "agentAttributionConfigurationMetadata",
     schema: ACP.agentAttributionConfigurationMetadataSchema->toUnknownSchema,
   },
+  {dir: "acp", name: "sessionMetadata", schema: ACP.sessionMetadataSchema->toUnknownSchema},
   {dir: "acp", name: "messageMetadata", schema: ACP.messageMetadataSchema->toUnknownSchema},
   {dir: "acp", name: "sessionUpdate", schema: ACP.sessionUpdateSchema->toUnknownSchema},
   {

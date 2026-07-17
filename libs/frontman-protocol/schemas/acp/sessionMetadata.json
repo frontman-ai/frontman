@@ -1,20 +1,7 @@
 {
   "type": "object",
   "properties": {
-    "agentAttribution": {
-      "type": "object",
-      "properties": {
-        "version": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 65535
-        }
-      },
-      "required": [
-        "version"
-      ]
-    },
-    "agents": {
+    "frontman.dev/agents": {
       "items": {
         "type": "object",
         "properties": {
@@ -49,17 +36,7 @@
       },
       "type": "array",
       "uniqueItems": true,
-      "description": "Frontman runtime validation also requires unique id fields",
-      "minItems": 1
-    },
-    "defaultAgentId": {
-      "type": "string",
-      "minLength": 1
+      "description": "Frontman runtime validation also requires unique id fields"
     }
-  },
-  "required": [
-    "agentAttribution",
-    "agents",
-    "defaultAgentId"
-  ]
+  }
 }
