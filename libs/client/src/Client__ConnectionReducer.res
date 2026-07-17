@@ -541,9 +541,10 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           ACP.cleanupSessionChannel(sess)
           onComplete(Error(error))
         | None =>
-          dispatchSessionResult(sess.sessionId, catalog, sessionNewResult.configOptions)
           dispatch(SessionCreateSuccess(sess))
           onComplete(Ok(sess.sessionId))
+          // Completion creates the task synchronously; attribution belongs to that task.
+          dispatchSessionResult(sess.sessionId, catalog, sessionNewResult.configOptions)
         }
       | Error(err) =>
         dispatch(SessionCreateError({sessionId, error: err}))
