@@ -25,11 +25,52 @@ permissions:
 
 jobs:
   # ==========================================================================
+  # Client build: validate and package on an ephemeral GitHub-hosted runner
+  # ==========================================================================
+  build-client:
+    name: Build Client
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Cache dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build client standalone bundle
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: make -C libs/client build-standalone
+
+      - name: Upload client bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: client-dist
+          path: libs/client/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  # ==========================================================================
   # Server: rsync source → build natively on prod server → blue-green deploy
   # ==========================================================================
   deploy-server:
     name: Deploy Server
-    needs: deploy-client
+    needs: build-client
     runs-on: self-hosted
     environment: production
     env:
@@ -119,13 +160,12 @@ jobs:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
   # ==========================================================================
-  # Client: build standalone bundle on CI → deploy to Cloudflare Pages
-  # Deploy first so a client failure cannot leave a newer server paired with
-  # an older client.
+  # Client deploy: publish validated bundle after server health check succeeds
   # ==========================================================================
   deploy-client:
     name: Deploy Client
-    runs-on: self-hosted
+    needs: deploy-server
+    runs-on: ubuntu-latest
     environment: production
     steps:
       - name: Checkout code
@@ -139,46 +179,19 @@ jobs:
       - name: Enable Corepack
         run: corepack enable && corepack install
 
-      - name: Check runner disk capacity
-        run: |
-          # Ephemeral runner registration does not clear the container layer.
-          # Remove known leftovers before installing this run's dependencies.
-          rm -rf ~/.yarn/berry/cache node_modules libs/client/dist
-          available_kb=$(df -Pk / | awk 'NR == 2 {print $4}')
-          required_kb=$((10 * 1024 * 1024))
-          df -h / "$GITHUB_WORKSPACE"
-          if [ "$available_kb" -lt "$required_kb" ]; then
-            echo "::error::Client deployment requires at least 10 GiB free; only $((available_kb / 1024 / 1024)) GiB is available."
-            exit 1
-          fi
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Build ReScript
-        run: yarn rescript clean && yarn rescript build
-
-      - name: Build client standalone bundle
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
-        run: |
-          cd libs/client
-          yarn vite build --config vite.config.standalone.ts
-          echo "Client bundle built:"
-          ls -lh dist/
+      - name: Download client bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: client-dist
+          path: libs/client/dist
 
       - name: Deploy client to Cloudflare Pages
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: yarn
           command: pages deploy libs/client/dist --project-name=frontman-client --branch=main
-
-      - name: Cleanup client build
-        if: always()
-        run: |
-          yarn rescript clean || true
-          rm -rf ~/.yarn/berry/cache node_modules libs/client/dist
 
       - name: Notify Discord
         if: always()
