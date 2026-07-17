@@ -66,16 +66,19 @@ describe("Next.js E2E", () => {
       );
       const panelBox = await panel.boundingBox();
       const selectorBox = await agentSelector.boundingBox();
+      const promptBox = await selectorPage.getByRole("textbox").boundingBox();
       const attachBox = await selectorPage
         .getByTitle("Attach files (images or PDFs up to 10MB)")
         .boundingBox();
       expect(panelBox).not.toBeNull();
       expect(selectorBox).not.toBeNull();
+      expect(promptBox).not.toBeNull();
       expect(attachBox).not.toBeNull();
       expect(selectorBox!.x).toBeGreaterThanOrEqual(panelBox!.x);
       expect(selectorBox!.x + selectorBox!.width).toBeLessThanOrEqual(
         panelBox!.x + panelBox!.width,
       );
+      expect(selectorBox!.y + selectorBox!.height).toBeLessThanOrEqual(promptBox!.y);
       expect(selectorBox!.y + selectorBox!.height).toBeLessThanOrEqual(attachBox!.y);
     }
 

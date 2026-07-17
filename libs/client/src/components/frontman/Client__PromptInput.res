@@ -459,6 +459,14 @@ let make = (
     | None => React.null
     }}
 
+    {switch (agentCatalog, selectedAgentId) {
+    | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
+      <div className="flex min-w-0 items-center px-3 pt-2">
+        <AgentSelector agents selectedAgentId={agentId} onAgentChange />
+      </div>
+    | _ => React.null
+    }}
+
     // Tiptap input area with inline pills
     <div className="px-3 py-2">
       <Client__PromptEditor
@@ -476,14 +484,6 @@ let make = (
         onFileSizeError={message => setFileSizeError(_ => Some(message))}
       />
     </div>
-
-    {switch (agentCatalog, selectedAgentId) {
-    | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
-      <div className="flex min-w-0 items-center px-3 pb-1">
-        <AgentSelector agents selectedAgentId={agentId} onAgentChange />
-      </div>
-    | _ => React.null
-    }}
 
     // Footer with tools and submit — toolbar anchored at bottom, always stable position
     <div className="flex items-center justify-between px-3 pb-2 pt-1">
