@@ -112,15 +112,19 @@ let make = (
         }}
         className="flex items-center h-full shrink-0 px-1 gap-1 overflow-hidden"
       >
-        {renderToolbarButton(
-          ~label=chatOpen ? "Hide chat" : "Show chat",
-          ~onClick=_ => onToggleChat(),
-          ~children=<Icons.MessageCircle />,
-        )}
-        <div className="flex items-center justify-center w-7 h-7 shrink-0">
-          <FrontmanLogo size=18 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
-        </div>
-        {chatOpen ? <Client__TopBar__TaskDropdown onNewTask={handleNewTask} /> : React.null}
+        {switch chatOpen {
+        | true =>
+          <>
+            <div className="flex items-center justify-center w-7 h-7 shrink-0">
+              <FrontmanLogo size=18 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
+            </div>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <Client__TopBar__TaskDropdown onNewTask={handleNewTask} />
+            </div>
+          </>
+        | false => React.null
+        }}
+        <Client__ChatToggle chatOpen onToggle=onToggleChat isAgentRunning />
       </div>
       // Vertical divider — visually continues the panel border below
       <div className="w-px h-full bg-[#1e1538] shrink-0" />

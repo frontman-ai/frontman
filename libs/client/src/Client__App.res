@@ -136,23 +136,26 @@ let make = (~apiBaseUrl: string) => {
       | true => <div className="fixed inset-0 z-50 cursor-col-resize" />
       | false => React.null
       }}
-      {chatOpen ? <div
-        style={{width: `${Int.toString(chatboxWidth)}px`}}
-        className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
-      >
-        <Client__Chatbox onConfigureProvider=openSettingsProviders />
-        // Resize handle on right edge
-        <div
-          className={[
-            "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
-            switch isResizing {
-            | true => "bg-zinc-500"
-            | false => "hover:bg-zinc-600"
-            },
-          ]->Array.join(" ")}
-          onMouseDown={handleResizeMouseDown}
-        />
-      </div> : React.null}
+      {chatOpen
+        ? <div
+            id="chat-panel"
+            style={{width: `${Int.toString(chatboxWidth)}px`}}
+            className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
+          >
+            <Client__Chatbox onConfigureProvider=openSettingsProviders />
+            // Resize handle on right edge
+            <div
+              className={[
+                "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
+                switch isResizing {
+                | true => "bg-zinc-500"
+                | false => "hover:bg-zinc-600"
+                },
+              ]->Array.join(" ")}
+              onMouseDown={handleResizeMouseDown}
+            />
+          </div>
+        : React.null}
       <div className="grow h-full min-w-0">
         <Client__WebPreview />
       </div>

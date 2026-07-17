@@ -63,6 +63,14 @@ module Monitor = {
   @module("lucide-react") external make: React.component<props> = "MonitorIcon"
 }
 
+module PanelLeftClose = {
+  @module("lucide-react") external make: React.component<props> = "PanelLeftCloseIcon"
+}
+
+module PanelLeftOpen = {
+  @module("lucide-react") external make: React.component<props> = "PanelLeftOpenIcon"
+}
+
 module Plus = {
   @module("lucide-react") external make: React.component<props> = "PlusIcon"
 }
@@ -102,6 +110,8 @@ module TrashIcon = Trash
 module ChatBubbleIcon = MessageCircle
 module MobileIcon = Smartphone
 module DesktopIcon = Monitor
+module PanelLeftCloseIcon = PanelLeftClose
+module PanelLeftOpenIcon = PanelLeftOpen
 module UpdateIcon = RefreshCw
 module CheckIcon = Check
 module CreditCardIcon = CreditCard
