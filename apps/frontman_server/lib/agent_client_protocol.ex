@@ -25,6 +25,8 @@ defmodule AgentClientProtocol do
   @protocol_version 1
   @agent_attribution_version 1
   @extension_namespace "frontman.dev"
+  @invalid_agent_attribution_capability {:error,
+                                         "Invalid Frontman agent attribution capability metadata"}
   @agent_catalog_metadata_key "#{@extension_namespace}/agents"
   @agent_id_metadata_key "#{@extension_namespace}/agentId"
   @agent_error_id_metadata_key "#{@extension_namespace}/agentErrorId"
@@ -83,6 +85,8 @@ defmodule AgentClientProtocol do
   def tool_call_status_in_progress, do: @tool_call_status_in_progress
   def tool_call_status_completed, do: @tool_call_status_completed
   def tool_call_status_failed, do: @tool_call_status_failed
+  def tool_call_status(false), do: @tool_call_status_completed
+  def tool_call_status(true), do: @tool_call_status_failed
 
   def stop_reason_end_turn, do: @stop_reason_end_turn
   def stop_reason_max_tokens, do: @stop_reason_max_tokens
@@ -130,16 +134,22 @@ defmodule AgentClientProtocol do
 
   def negotiate_agent_attribution_version(nil), do: {:ok, nil}
 
-  def negotiate_agent_attribution_version(%{"_meta" => metadata}) when is_map(metadata),
-    do: negotiate_agent_attribution_metadata(metadata)
+  def negotiate_agent_attribution_version(%{} = capabilities) do
+    with {:ok, metadata} <- optional_map(capabilities, "_meta"),
+         {:ok, namespace} <- optional_map(metadata, @extension_namespace),
+         {:ok, advertisement} <- optional_map(namespace, "agentAttribution") do
+      case Map.fetch(advertisement, "version") do
+        {:ok, @agent_attribution_version} -> {:ok, @agent_attribution_version}
+        {:ok, version} when version in 1..65_535 -> {:ok, nil}
+        _invalid -> @invalid_agent_attribution_capability
+      end
+    else
+      :absent -> {:ok, nil}
+      :invalid -> @invalid_agent_attribution_capability
+    end
+  end
 
-  def negotiate_agent_attribution_version(%{"_meta" => _invalid}),
-    do: invalid_agent_attribution_capability()
-
-  def negotiate_agent_attribution_version(%{}), do: {:ok, nil}
-
-  def negotiate_agent_attribution_version(_invalid),
-    do: invalid_agent_attribution_capability()
+  def negotiate_agent_attribution_version(_invalid), do: @invalid_agent_attribution_capability
 
   @doc """
   Builds the initialize response result.
@@ -153,38 +163,13 @@ defmodule AgentClientProtocol do
     }
   end
 
-  defp negotiate_agent_attribution_metadata(%{@extension_namespace => namespace})
-       when is_map(namespace),
-       do: negotiate_agent_attribution_namespace(namespace)
-
-  defp negotiate_agent_attribution_metadata(%{@extension_namespace => _invalid}),
-    do: invalid_agent_attribution_capability()
-
-  defp negotiate_agent_attribution_metadata(%{}), do: {:ok, nil}
-
-  defp negotiate_agent_attribution_namespace(%{"agentAttribution" => advertisement})
-       when is_map(advertisement),
-       do: negotiate_agent_attribution_advertisement(advertisement)
-
-  defp negotiate_agent_attribution_namespace(%{"agentAttribution" => _invalid}),
-    do: invalid_agent_attribution_capability()
-
-  defp negotiate_agent_attribution_namespace(%{}), do: {:ok, nil}
-
-  defp negotiate_agent_attribution_advertisement(%{
-         "version" => @agent_attribution_version
-       }),
-       do: {:ok, @agent_attribution_version}
-
-  defp negotiate_agent_attribution_advertisement(%{"version" => version})
-       when version in 1..65_535,
-       do: {:ok, nil}
-
-  defp negotiate_agent_attribution_advertisement(%{}),
-    do: invalid_agent_attribution_capability()
-
-  defp invalid_agent_attribution_capability,
-    do: {:error, "Invalid Frontman agent attribution capability metadata"}
+  defp optional_map(map, key) do
+    case Map.fetch(map, key) do
+      {:ok, value} when is_map(value) -> {:ok, value}
+      {:ok, _invalid} -> :invalid
+      :error -> :absent
+    end
+  end
 
   @doc """
   Translates domain model config data into ACP SessionConfigOption format.

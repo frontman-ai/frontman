@@ -2,7 +2,10 @@ defmodule AgentClientProtocol.ContentTest do
   use ExUnit.Case, async: true
 
   alias AgentClientProtocol.Content
+  alias FrontmanServer.ProtocolSchema
   alias FrontmanServer.Tasks.Interaction
+
+  @timestamp ~U[2026-07-15 10:00:00.000000Z]
 
   describe "from_tool_result/1" do
     test "formats binary as text" do
@@ -47,13 +50,27 @@ defmodule AgentClientProtocol.ContentTest do
         current_page: %Interaction.CurrentPage{url: "https://example.com"}
       }
 
-      assert [text, annotation, screenshot, image, page] = Content.from_user_message(message)
+      blocks = Content.from_user_message(message)
+      assert [text, annotation, screenshot, image, page] = blocks
       assert text == %{"type" => "text", "text" => "Hello"}
-      assert annotation["resource"]["_meta"]["custom"] == "value"
-      assert annotation["resource"]["_meta"]["bounding_box"]["width"] == 3.0
-      assert screenshot["resource"]["_meta"]["annotation_screenshot"]
-      assert image["resource"]["resource"]["mimeType"] == "image/jpeg"
-      assert page["resource"]["resource"]["uri"] == "page://https://example.com"
+      assert annotation["_meta"]["custom"] == "value"
+      assert annotation["_meta"]["bounding_box"]["width"] == 3.0
+      assert screenshot["_meta"]["annotation_screenshot"]
+      assert image["resource"]["mimeType"] == "image/jpeg"
+      assert page["resource"]["uri"] == "page://https://example.com"
+
+      blocks
+      |> Enum.with_index()
+      |> Enum.each(fn {content, index} ->
+        AgentClientProtocol.build_user_message_chunk_notification(
+          "session-1",
+          "resource-#{index}",
+          content,
+          "executor-id",
+          @timestamp
+        )
+        |> ProtocolSchema.validate_upstream_acp!()
+      end)
     end
 
     test "reconstructs Elementor annotation URI and text from persisted metadata" do
@@ -78,13 +95,13 @@ defmodule AgentClientProtocol.ContentTest do
 
       assert [annotation] = Content.from_user_message(message)
 
-      assert annotation["resource"]["resource"] == %{
+      assert annotation["resource"] == %{
                "uri" => "elementor://post/42/element/b535bb8",
                "mimeType" => "text/plain",
                "text" => "Annotated Elementor element: <div> widget html (Inspect before editing)"
              }
 
-      assert annotation["resource"]["_meta"]["selector"] ==
+      assert annotation["_meta"]["selector"] ==
                ".elementor-element-b535bb8"
     end
   end

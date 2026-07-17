@@ -292,32 +292,27 @@ module MCPTypes = FrontmanClient__MCP__Types
 
 exception SessionMessageParseError(string)
 
-// Join a session channel (internal helper)
-// mcpServerInterface is used to create MCP handler BEFORE joining to avoid race with server MCP init
-// onUpdate receives (sessionId, update) per ACP session/update notification params
+let validatedUpdateHandler = (conn, sessionId, catalog, onUpdate) => {
+  let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId, catalog)
+  (sessionId, update) =>
+    switch validate(sessionId, update) {
+    | Ok() => onUpdate(sessionId, update)
+    | Error(error) => failwith(error)
+    }
+}
+
+// Attach handlers before joining to avoid racing the server's MCP initialization.
 let joinSession = async (
   conn: connection,
   sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
-  ~catalog: option<array<Types.agentCatalogEntry>>,
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
-  ~validateUpdates=true,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
-  let validator = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId, catalog)
-  let handleUpdate = (notificationSessionId, update) =>
-    switch validateUpdates {
-    | false => onUpdate(notificationSessionId, update)
-    | true =>
-      switch validator(notificationSessionId, update) {
-      | Ok() => onUpdate(notificationSessionId, update)
-      | Error(error) => failwith(error)
-      }
-    }
   let handleParseError = err => {
     switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
     | true => cleanupChannel(sessionChannel)
@@ -333,7 +328,7 @@ let joinSession = async (
   Protocol.attachMessageHandler(
     ~channel=sessionChannel,
     ~state=conn.state,
-    ~onUpdate=Some(handleUpdate),
+    ~onUpdate=Some(onUpdate),
     ~onMessage=conn.onMessage,
     ~onParseError=Some(handleParseError),
   )
@@ -377,15 +372,12 @@ let joinSession = async (
       sessionId,
       channel: sessionChannel,
       connection: conn,
-      onUpdate: handleUpdate,
+      onUpdate,
     }
   })
 }
 
-// Create a new ACP session and auto-join the session channel
-// Client generates sessionId (UUID) and sends it to the server
-// mcpServerInterface is attached before channel join to handle server's immediate MCP init
-// onUpdate receives (sessionId, update) per ACP session/update notification params
+// Create a client-identified ACP session and join its channel.
 @@live
 let createSession = async (
   conn: connection,
@@ -417,8 +409,7 @@ let createSession = async (
       let joinResult = await joinSession(
         conn,
         result.sessionId,
-        ~onUpdate,
-        ~catalog,
+        ~onUpdate=validatedUpdateHandler(conn, sessionId, catalog, onUpdate),
         ~onTitleUpdated,
         ~onParseError?,
         ~mcpServerInterface?,
@@ -549,12 +540,10 @@ let loadSession = async (
       }
     }
 
-  // First join the session channel to receive history updates
   let joinResult = await joinSession(
     conn,
     sessionId,
     ~onUpdate=handleUpdate,
-    ~catalog=None,
     ~onTitleUpdated,
     ~onParseError=err =>
       switch buffering.contents {
@@ -572,18 +561,11 @@ let loadSession = async (
     ~cleanupOnParseError,
     ~mcpServerInterface?,
     ~onMcpMessage?,
-    ~validateUpdates=false,
   )
 
   switch joinResult {
   | Error(e) => Error(e)
   | Ok(session) =>
-    // Send ACP session/load request to session channel (not tasks channel)
-    // History notifications are sent to the channel that receives this request,
-    // and the onUpdate callback is attached to the session channel in joinSession.
-    // Include clientInfo metadata in _meta so the task channel can extract
-    // env API keys for config option resolution (env keys are only sent
-    // during initialize on the tasks channel, not available on session channels).
     let params: Types.sessionLoadParams = {
       sessionId,
       cwd: "/",
@@ -605,71 +587,55 @@ let loadSession = async (
     )
     cleanupOnParseError := true
 
-    switch loadResult {
-    | Ok(result) => {
-        let validation = switch parseError.contents {
-        | Some(e) => Error(e)
-        | None =>
-          Client.validateSessionMetadata(
-            conn.state.contents,
-            result._meta,
-            "session/load",
-          )->Result.flatMap(catalog => {
-            let validate = Client.makeSessionUpdateValidator(
-              conn.state.contents,
-              ~sessionId,
-              catalog,
-            )
-            validator := Some(validate)
-            bufferedUpdates.contents->Array.reduce(Ok(catalog), (
-              result,
-              (updateSessionId, update),
-            ) =>
-              result->Result.flatMap(
-                catalog => validate(updateSessionId, update)->Result.map(() => catalog),
-              )
-            )
-          })
-        }
-
-        switch validation {
-        | Error(e) => {
-            cleanupSessionChannel(session)
-            Error(e)
-          }
-        | Ok(catalog) => {
-            onLoadResult(result, catalog)
-            buffering := false
-            let replayError = try {
-              bufferedUpdates.contents->Array.forEach(((sessionId, update)) =>
-                onUpdate(sessionId, update)
-              )
-              None
-            } catch {
-            | Failure(error) => Some(error)
-            | exn =>
-              Some(
-                exn
-                ->JsExn.fromException
-                ->Option.flatMap(JsExn.message)
-                ->Option.getOr("Session update handler failed"),
-              )
-            }
-            switch replayError {
-            | Some(error) =>
-              cleanupSessionChannel(session)
-              onParseError->Option.forEach(callback => callback(error))
-              Error(error)
-            | None =>
-              bufferedUpdates := []
-              Ok((session, result))
-            }
-          }
-        }
+    let validatedLoad = loadResult->Result.flatMap(result =>
+      switch parseError.contents {
+      | Some(error) => Error(error)
+      | None =>
+        Client.validateSessionMetadata(
+          conn.state.contents,
+          result._meta,
+          "session/load",
+        )->Result.flatMap(catalog => {
+          let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId, catalog)
+          validator := Some(validate)
+          bufferedUpdates.contents
+          ->Array.reduce(
+            Ok(),
+            (result, (updateSessionId, update)) =>
+              result->Result.flatMap(() => validate(updateSessionId, update)),
+          )
+          ->Result.map(() => (result, catalog))
+        })
       }
-    | Error(e) => {
+    )
+
+    switch validatedLoad {
+    | Error(error) =>
+      cleanupSessionChannel(session)
+      Error(error)
+    | Ok((result, catalog)) =>
+      onLoadResult(result, catalog)
+      buffering := false
+      try {
+        bufferedUpdates.contents->Array.forEach(((sessionId, update)) =>
+          onUpdate(sessionId, update)
+        )
+        bufferedUpdates := []
+        Ok((session, result))
+      } catch {
+      | Failure(error) =>
         cleanupSessionChannel(session)
-        Error(e)
+        onParseError->Option.forEach(callback => callback(error))
+        Error(error)
+      | exn =>
+        let error =
+          exn
+          ->JsExn.fromException
+          ->Option.flatMap(JsExn.message)
+          ->Option.getOr("Session update handler failed")
+        cleanupSessionChannel(session)
+        onParseError->Option.forEach(callback => callback(error))
+        Error(error)
       }
     }
   }

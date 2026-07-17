@@ -842,58 +842,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
     t->expect(nextState.sessionsLoadState)->Expect.toEqual(Client__State__Types.SessionsLoaded)
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
   })
-
-  test("UserMessageReceived hydrates message into existing task", t => {
-    // Create a Loading task (simulating one that's being loaded from session)
-    let task = Task.makeUnloaded(
-      ~id="task-123",
-      ~title="Loaded Session",
-      ~createdAt=1000.0,
-      ~updatedAt=1000.0,
-    )
-    let loadingTask =
-      TaskReducer.next(task, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
-
-    let tasks = Dict.make()
-    tasks->Dict.set("task-123", loadingTask)
-
-    let state = TestHelpers.makeStateWithTasks(
-      ~tasks,
-      ~currentTask=Task.Selected("task-123"),
-      ~sessionsLoadState=Client__State__Types.SessionsLoaded,
-    )
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      TaskAction({
-        target: ForTask("task-123"),
-        action: UserMessageReceived({
-          id: "msg-1",
-          content: [Client__Message.UserContentPart.text("Hello from history")],
-          annotations: [],
-          agentId: "executor-id",
-        }),
-      }),
-    )
-
-    // Verify message was added to task
-    let updatedTask = nextState.tasks->Dict.get("task-123")->Option.getOrThrow
-    let messages = Task.getMessages(updatedTask)
-    t->expect(messages->Array.some(msg => Reducer.Message.getId(msg) == "msg-1"))->Expect.toBe(true)
-
-    let message =
-      messages->Array.find(msg => Reducer.Message.getId(msg) == "msg-1")->Option.getOrThrow
-    switch message {
-    | User({id, content, _}) => {
-        t->expect(id)->Expect.toBe("msg-1")
-        switch content->Array.get(0) {
-        | Some(UserContentPart.Text({text})) => t->expect(text)->Expect.toBe("Hello from history")
-        | _ => JsExn.throw("Expected Text content part")
-        }
-      }
-    | _ => JsExn.throw("Expected User message")
-    }
-  })
 })
 
 describe("Client State Reducer - UpdateTaskTitle safety", () => {

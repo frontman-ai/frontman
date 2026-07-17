@@ -42,7 +42,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, task} ->
         {:ok, history} = TaskHistory.new(task.interaction_rows)
         active_turn = TaskHistory.active_turn_context(history)
-        turn_context = TaskHistory.latest_turn_context(history)
 
         SentryContext.set_task_scope_context(scope, task_id)
 
@@ -69,7 +68,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           |> assign(:mcp_status, :pending)
           |> assign(:session_loaded, false)
           |> assign(:active_turn, active_turn)
-          |> assign(:turn_context, turn_context)
           |> assign(:pending_mcp_tool_requests, %{})
 
         send(self(), {:start_mcp_init, init_actions})
@@ -218,10 +216,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       turn_started_id: turn_started_id
     }
 
-    {:noreply,
-     socket
-     |> assign(:active_turn, context)
-     |> assign(:turn_context, context)}
+    {:noreply, assign(socket, :active_turn, context)}
   end
 
   defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
@@ -278,12 +273,8 @@ defmodule FrontmanServerWeb.TaskChannel do
           :ok
       end
     else
-      status =
-        if tool_result.is_error,
-          do: ACP.tool_call_status_failed(),
-          else: ACP.tool_call_status_completed()
-
       content = ACP.Content.from_tool_result(tool_result.result)
+      status = ACP.tool_call_status(tool_result.is_error)
       notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
       push(socket, @acp_message, notification)
     end
@@ -297,15 +288,12 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_interaction(%Tasks.Interaction.AgentRetry{}, turn_number, socket) do
     context =
-      case socket.assigns.turn_context do
+      case socket.assigns.active_turn do
         %{turn_number: ^turn_number} = context -> context
         _missing -> load_turn_context!(socket, turn_number)
       end
 
-    {:noreply,
-     socket
-     |> assign(:active_turn, context)
-     |> assign(:turn_context, context)}
+    {:noreply, assign(socket, :active_turn, context)}
   end
 
   defp handle_interaction(%Tasks.Interaction.AgentPaused{}, turn_number, socket) do
@@ -416,8 +404,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     is_error = MCP.error?(result)
     meta = result["_meta"] || %{}
 
-    status =
-      if is_error, do: ACP.tool_call_status_failed(), else: ACP.tool_call_status_completed()
+    status = ACP.tool_call_status(is_error)
 
     Logger.info("Tool #{tool_call.tool_name} #{status}")
 
@@ -626,42 +613,37 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
 
-    with {:ok, task} <- Tasks.get_task(scope, task_id),
-         {:ok, history} <- TaskHistory.new(task.interaction_rows),
-         {:ok, replay} <-
-           ACPHistory.build(history, task.id, Agents.list_agents(scope)) do
-      Enum.each(replay.notifications, &push(socket, @acp_message, &1))
+    case Tasks.get_task(scope, task_id) do
+      {:ok, task} ->
+        {:ok, history} = TaskHistory.new(task.interaction_rows)
+        {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
+        Enum.each(replay.notifications, &push(socket, @acp_message, &1))
 
-      # Return ACP-compliant LoadSessionResponse with config options.
-      model_options = scope |> Providers.model_config_data() |> ACP.build_model_config_options()
-      config_options = model_options
-
-      push(
-        socket,
-        @acp_message,
-        JsonRpc.success_response(
-          id,
-          ACP.build_session_load_result(config_options, replay.catalog)
+        # Return ACP-compliant LoadSessionResponse with config options.
+        push(
+          socket,
+          @acp_message,
+          JsonRpc.success_response(
+            id,
+            ACP.build_session_load_result(
+              scope |> Providers.model_config_data() |> ACP.build_model_config_options(),
+              replay.catalog
+            )
+          )
         )
-      )
 
-      socket =
-        socket
-        |> assign(:session_loaded, true)
-        |> assign(:active_turn, TaskHistory.active_turn_context(history))
-        |> assign(:turn_context, TaskHistory.latest_turn_context(history))
-        |> redispatch_unresolved_tool_calls()
+        socket =
+          socket
+          |> assign(:session_loaded, true)
+          |> assign(:active_turn, TaskHistory.active_turn_context(history))
+          |> redispatch_unresolved_tool_calls()
 
-      wake_runner(socket, nil)
+        wake_runner(socket, nil)
 
-      {:noreply, socket}
-    else
+        {:noreply, socket}
+
       {:error, :not_found} ->
         push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
-
-      {:error, reason} ->
-        Logger.error("Invalid session history: #{inspect(reason)}")
-        push_acp_error(socket, id, JsonRpc.error_internal(), "Invalid session history")
     end
   end
 

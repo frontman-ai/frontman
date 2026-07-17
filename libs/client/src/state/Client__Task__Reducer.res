@@ -918,12 +918,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(data), AgentCatalogInstalled(catalog)) =>
-    Client__Agent.validateCatalogOrThrow(catalog)
-    (Task.Loading({...data, agentCatalog: Some(catalog)}), [])
-  | (Task.Loaded(data), AgentCatalogInstalled(catalog)) =>
-    Client__Agent.validateCatalogOrThrow(catalog)
-    (Task.Loaded({...data, agentCatalog: Some(catalog)}), [])
+  | (Task.Loading(data), AgentCatalogInstalled(catalog)) => (
+      Task.Loading({...data, agentCatalog: Some(catalog)}),
+      [],
+    )
+  | (Task.Loaded(data), AgentCatalogInstalled(catalog)) => (
+      Task.Loaded({...data, agentCatalog: Some(catalog)}),
+      [],
+    )
 
   // ============================================================================
   // Loaded-only Actions - require isAgentRunning or planEntries

@@ -510,6 +510,12 @@ let embeddedResourceResourceSchema = S.union([
   }),
 ])
 
+// Sury needs a transform boundary to reverse nested union fields correctly.
+let embeddedResourceContentSchema = embeddedResourceResourceSchema->S.transform(_ => {
+  parser: resource => resource,
+  serializer: resource => resource,
+})
+
 // Embedded resource for ContentBlock::Resource (per ACP spec)
 @schema
 type embeddedResource = {
@@ -525,7 +531,7 @@ type embeddedResource = {
 // - ImageContent (type="image"): base64 data + mimeType
 // - AudioContent (type="audio"): base64 data + mimeType
 // - ResourceLink (type="resource_link"): name + uri
-// - EmbeddedResource (type="resource"): embedded resource wrapper
+// - EmbeddedResource (type="resource"): embedded resource
 type contentBlock =
   | TextContent({text: string, _meta: option<JSON.t>, annotations: option<annotations>})
   | ImageContent({
@@ -546,11 +552,7 @@ type contentBlock =
       _meta: option<JSON.t>,
       annotations: option<annotations>,
     })
-  | EmbeddedResource({
-      resource: embeddedResource,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
+  | EmbeddedResource(embeddedResource)
 
 let contentBlockSchema = S.union([
   S.object(s => {
@@ -591,7 +593,7 @@ let contentBlockSchema = S.union([
   S.object(s => {
     s.tag("type", "resource")
     EmbeddedResource({
-      resource: s.field("resource", embeddedResourceSchema),
+      resource: s.field("resource", embeddedResourceContentSchema),
       _meta: s.field("_meta", S.option(S.json)),
       annotations: s.field("annotations", S.option(annotationsSchema)),
     })

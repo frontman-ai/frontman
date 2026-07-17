@@ -45,7 +45,7 @@ type relayState =
 
 type sessionState =
   | NoSession
-  | SessionCreating(option<string>)
+  | SessionCreating(string)
   | SessionActive(ACP.session)
   | SessionError(string)
 
@@ -77,6 +77,23 @@ type initPayload = {
   mcpServer: MCPServer.t,
 }
 
+type loadTaskRequest = {
+  taskId: string,
+  needsHistory: bool,
+  onUpdate: (string, ACPTypes.sessionUpdate) => unit,
+  onTitleUpdated: (string, string) => unit,
+  onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+  onComplete: result<unit, string> => unit,
+}
+
+type createSessionRequest = {
+  sessionId: string,
+  onUpdate: (string, ACPTypes.sessionUpdate) => unit,
+  onTitleUpdated: (string, string) => unit,
+  onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+  onComplete: result<string, string> => unit,
+}
+
 // Actions
 type action =
   | Initialize(initPayload)
@@ -85,16 +102,10 @@ type action =
   | ACPConnectError(string)
   | RelayConnectSuccess
   | RelayConnectError(string)
-  | SessionCreationIdentified(string)
   | SessionCreateSuccess(ACP.session)
   | SessionCreateError({sessionId: string, error: string})
   | SessionFailed({sessionId: string, error: string})
-  | CreateSession({
-      onUpdate: (string, ACPTypes.sessionUpdate) => unit,
-      onTitleUpdated: (string, string) => unit,
-      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<string, string> => unit,
-    })
+  | CreateSession(createSessionRequest)
   | SendPrompt({
       text: string,
       additionalBlocks: array<ACPTypes.contentBlock>,
@@ -103,14 +114,7 @@ type action =
     })
   | CancelPrompt
   | RetryTurn({retriedErrorId: string})
-  | LoadTask({
-      taskId: string,
-      needsHistory: bool,
-      onUpdate: (string, ACPTypes.sessionUpdate) => unit,
-      onTitleUpdated: (string, string) => unit,
-      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<unit, string> => unit,
-    })
+  | LoadTask(loadTaskRequest)
   | DeleteSession({taskId: string, onComplete: result<unit, string> => unit})
   | ClearSession
 
@@ -127,10 +131,7 @@ type effect =
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      onUpdate: (string, ACPTypes.sessionUpdate) => unit,
-      onTitleUpdated: (string, string) => unit,
-      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<string, string> => unit,
+      request: createSessionRequest,
     })
   | SendPromptEffect({
       session: ACP.session,
@@ -142,16 +143,7 @@ type effect =
   | CancelPromptEffect({session: ACP.session})
   | RetryTurnEffect({session: ACP.session, retriedErrorId: string})
   | FetchSessionsEffect(ACP.connection)
-  | LoadTaskEffect({
-      connection: ACP.connection,
-      mcpServer: MCPServer.t,
-      taskId: string,
-      needsHistory: bool,
-      onUpdate: (string, ACPTypes.sessionUpdate) => unit,
-      onTitleUpdated: (string, string) => unit,
-      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<unit, string> => unit,
-    })
+  | LoadTaskEffect({connection: ACP.connection, mcpServer: MCPServer.t, request: loadTaskRequest})
   | DeleteSessionEffect({
       connection: ACP.connection,
       taskId: string,
@@ -284,13 +276,8 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   // === Session lifecycle ===
-  | ({session: SessionCreating(None)}, SessionCreationIdentified(sessionId)) => (
-      {...state, session: SessionCreating(Some(sessionId))},
-      [],
-    )
-
   | ({session: SessionCreating(expectedSessionId)}, SessionCreateSuccess(sess))
-    if expectedSessionId->Option.mapOr(true, id => id == sess.sessionId) => (
+    if expectedSessionId == sess.sessionId => (
       {...state, session: SessionActive(sess)},
       [LogInfo(`Session activated: ${sess.sessionId}`)],
     )
@@ -301,19 +288,15 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | ({session: SessionCreating(expectedSessionId)}, SessionCreateError({sessionId, error}))
-    if expectedSessionId->Option.mapOr(true, id => id == sessionId) => (
-      {...state, session: SessionError(error)},
-      [LogError(`Session failed: ${error}`)],
-    )
-
-  | ({session: SessionActive({sessionId: activeSessionId})}, SessionFailed({sessionId, error}))
-    if sessionId == activeSessionId => (
-      {...state, session: SessionError(error)},
-      [LogError(`Session failed: ${error}`)],
-    )
-
-  | ({session: SessionCreating(Some(expectedSessionId))}, SessionFailed({sessionId, error}))
     if expectedSessionId == sessionId => (
+      {...state, session: SessionError(error)},
+      [LogError(`Session failed: ${error}`)],
+    )
+
+  | (
+      {session: SessionActive({sessionId: expectedSessionId}) | SessionCreating(expectedSessionId)},
+      SessionFailed({sessionId, error}),
+    ) if expectedSessionId == sessionId => (
       {...state, session: SessionError(error)},
       [LogError(`Session failed: ${error}`)],
     )
@@ -327,19 +310,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         mcpServer: Some(mcpServer),
         session: NoSession,
       },
-      CreateSession({onUpdate, onTitleUpdated, onMcpMessage, onComplete}),
+      CreateSession(request),
     ) => (
-      {...state, session: SessionCreating(None)},
-      [
-        CreateSessionEffect({
-          connection: conn,
-          mcpServer,
-          onUpdate,
-          onTitleUpdated,
-          onMcpMessage,
-          onComplete,
-        }),
-      ],
+      {...state, session: SessionCreating(request.sessionId)},
+      [CreateSessionEffect({connection: conn, mcpServer, request})],
     )
 
   | (
@@ -367,60 +341,26 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   // Load a persisted task (calls ACP.loadSession or joinSession based on needsHistory)
   | (
       {acp: ACPConnected(conn), mcpServer: Some(mcpServer), session: SessionActive({sessionId})},
-      LoadTask({taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete}),
-    ) if sessionId == taskId => (
+      LoadTask(request),
+    ) if sessionId == request.taskId => (
       state,
-      [
-        LoadTaskEffect({
-          connection: conn,
-          mcpServer,
-          taskId,
-          needsHistory,
-          onUpdate,
-          onTitleUpdated,
-          onMcpMessage,
-          onComplete,
-        }),
-      ],
+      [LoadTaskEffect({connection: conn, mcpServer, request})],
     )
 
   | (
       {acp: ACPConnected(conn), mcpServer: Some(mcpServer), session: SessionActive(oldSession)},
-      LoadTask({taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete}),
+      LoadTask(request),
     ) => (
-      {...state, session: SessionCreating(Some(taskId))},
+      {...state, session: SessionCreating(request.taskId)},
       [
         CleanupSessionEffect({session: oldSession}),
-        LoadTaskEffect({
-          connection: conn,
-          mcpServer,
-          taskId,
-          needsHistory,
-          onUpdate,
-          onTitleUpdated,
-          onMcpMessage,
-          onComplete,
-        }),
+        LoadTaskEffect({connection: conn, mcpServer, request}),
       ],
     )
 
-  | (
-      {acp: ACPConnected(conn), mcpServer: Some(mcpServer)},
-      LoadTask({taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete}),
-    ) => (
-      {...state, session: SessionCreating(Some(taskId))},
-      [
-        LoadTaskEffect({
-          connection: conn,
-          mcpServer,
-          taskId,
-          needsHistory,
-          onUpdate,
-          onTitleUpdated,
-          onMcpMessage,
-          onComplete,
-        }),
-      ],
+  | ({acp: ACPConnected(conn), mcpServer: Some(mcpServer)}, LoadTask(request)) => (
+      {...state, session: SessionCreating(request.taskId)},
+      [LoadTaskEffect({connection: conn, mcpServer, request})],
     )
 
   | (_, LoadTask(_)) => (state, [LogError("Cannot load task: not connected")])
@@ -461,10 +401,8 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [LogInfo("Stale relay connection result ignored")],
     )
 
-  | (_, SessionCreationIdentified(_) | SessionCreateError(_)) => (
-      state,
-      [LogInfo("Stale session create result ignored")],
-    )
+  | (_, SessionCreateError(_)) => (state, [LogInfo("Stale session create result ignored")])
+
   | ({session: NoSession | SessionCreating(_) | SessionError(_)}, CancelPrompt) => (
       state,
       [LogError("CancelPrompt rejected: no active session")],
@@ -578,16 +516,11 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | CreateSessionEffect({
       connection,
       mcpServer,
-      onUpdate,
-      onTitleUpdated,
-      onMcpMessage,
-      onComplete,
+      request: {sessionId, onUpdate, onTitleUpdated, onMcpMessage, onComplete},
     }) =>
     let create = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
-      let sessionId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
       let creationError = ref(None)
-      dispatch(SessionCreationIdentified(sessionId))
       let result = await ACP.createSession(
         connection,
         ~sessionId,
@@ -654,12 +587,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LoadTaskEffect({
       connection,
       mcpServer,
-      taskId,
-      needsHistory,
-      onUpdate,
-      onTitleUpdated,
-      onMcpMessage,
-      onComplete,
+      request: {taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete},
     }) =>
     let activateSession = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
@@ -689,8 +617,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         await ACP.joinSession(
           connection,
           taskId,
-          ~onUpdate,
-          ~catalog,
+          ~onUpdate=ACP.validatedUpdateHandler(connection, taskId, catalog, onUpdate),
           ~onTitleUpdated,
           ~onParseError=err => {
             Client__TextDeltaBuffer.discardTask(taskId)

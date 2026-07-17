@@ -23,17 +23,6 @@ defmodule FrontmanServer.Agents.Agent do
 
   @hex_color ~r/\A#[0-9A-Fa-f]{6}\z/
 
-  @type t :: %__MODULE__{
-          id: String.t(),
-          name: String.t(),
-          display_name: String.t(),
-          description: String.t(),
-          color: String.t(),
-          system: String.t() | nil,
-          tools: :all | [String.t()],
-          source: atom()
-        }
-
   def new!(attrs) do
     agent = struct!(__MODULE__, attrs)
 

@@ -248,13 +248,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   defp user_image_block(binary, mime \\ "image/png") do
     %{
       "type" => "resource",
+      "_meta" => %{"user_image" => true, "filename" => "image.png"},
       "resource" => %{
-        "_meta" => %{"user_image" => true, "filename" => "image.png"},
-        "resource" => %{
-          "uri" => "attachment://#{System.unique_integer([:positive])}/image.png",
-          "mimeType" => mime,
-          "blob" => Base.encode64(binary)
-        }
+        "uri" => "attachment://#{System.unique_integer([:positive])}/image.png",
+        "mimeType" => mime,
+        "blob" => Base.encode64(binary)
       }
     }
   end

@@ -255,28 +255,16 @@ history MUST NOT enter application state.
 
 ## Catalog Ownership And History
 
-The Agent owns catalog contents. New `TurnStarted` records MUST persist an
-immutable snapshot containing `id`, `name`, `displayName`, `description`, and
-`color` from validated active agent configuration.
+Frontman server exposes one current global product-agent catalog. Each catalog
+entry defines one product agent. Session creation and loading MUST return that
+catalog in active configuration order. Conversation history persists only the
+stable catalog entry ID; it does not preserve display metadata snapshots.
 
-A loaded-session catalog is a stable-order union keyed by `id`:
-
-1. Active agents appear first in active configuration order.
-2. Historical snapshot IDs not already present follow in first `TurnStarted`
-   occurrence order.
-3. Identical definitions with the same ID deduplicate.
-4. Different definitions with the same ID are a conflict and fail the load before
-   any history notification.
-
-Renaming, recoloring, or removing an active agent MUST NOT alter persisted
-snapshots. Every attributed historical chunk MUST resolve to exactly one catalog
-entry returned for that load.
-
-Legacy `TurnStarted` records without snapshots resolve their `agentId` against
-current validated agent configuration once, while preparing replay. The resolved
-definition acts as that load's snapshot. If no definition exists, session load
-MUST fail before history emission. The Agent MUST NOT remap a missing legacy ID
-to a default agent.
+Renaming, recoloring, or otherwise changing a catalog entry while retaining its
+ID intentionally changes how all historical messages display. Every attributed
+historical chunk MUST resolve to exactly one entry in the current catalog. If a
+referenced ID has been removed, session load MUST crash before history emission.
+Frontman server MUST NOT remap a missing ID to a default or synthetic agent.
 
 ## Attributed Message Chunks
 
@@ -415,9 +403,10 @@ response had no content chunks.
 
 When version 1 is negotiated:
 
-- Missing catalog metadata, duplicate catalog IDs, conflicting definitions,
-  empty identity fields, invalid colors, and unresolved historical agents MUST
-  fail session creation or loading visibly.
+- Missing catalog metadata received from a peer, empty identity fields, and
+  invalid colors MUST fail session creation or loading visibly. Invalid server
+  catalog configuration and historical IDs absent from the current global
+  catalog MUST crash.
 - A known user or agent chunk with missing or malformed `messageId`, `agentId`,
   or `timestamp` MUST fail the session visibly. It MUST NOT degrade into an
   unknown update.

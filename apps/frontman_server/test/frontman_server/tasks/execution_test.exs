@@ -656,30 +656,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
 
-    test "uses default agent when resuming a legacy turn without agent id", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      parent = self()
-      task = task_schema!(task_id)
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-
-      insert_accepted_user_message!(task, "legacy turn")
-      insert_turn_started_for_messages!(task_id, 1, nil)
-
-      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
-        send(parent, {:provider_messages, messages})
-        ReqLLMResponses.response("done")
-      end)
-
-      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
-
-      assert_receive {:provider_messages, messages}, 1_000
-      assert [system_text] = provider_system_texts(messages)
-      assert system_text =~ "Test planner system."
-      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
-    end
-
     test "adds task runtime context to the selected agent system prompt", %{
       task_id: task_id,
       scope: scope
@@ -1487,24 +1463,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     |> Repo.insert!()
   end
 
-  defp insert_turn_started_for_messages!(task_id, turn_number, agent_id \\ "test-frontman")
-
-  defp insert_turn_started_for_messages!(task_id, turn_number, nil) do
-    %InteractionSchema{
-      task_id: task_id,
-      type: :turn_started,
-      sequence: System.unique_integer([:monotonic, :positive]),
-      turn_number: turn_number,
-      data: %Interaction.TurnStarted{
-        id: Ecto.UUID.generate(),
-        timestamp: Interaction.now(),
-        user_message_ids: accepted_user_message_ids(task_id)
-      }
-    }
-    |> Repo.insert!()
-  end
-
-  defp insert_turn_started_for_messages!(task_id, turn_number, agent_id) do
+  defp insert_turn_started_for_messages!(task_id, turn_number, agent_id \\ "test-frontman") do
     InteractionSchema.create_changeset(
       task_id,
       :turn_started,
@@ -1512,10 +1471,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: agent_id,
-        agent_name: "executor",
-        agent_display_name: "Executor",
-        agent_description: "Software engineering execution agent with full tool access.",
-        agent_color: "#985DF7",
         user_message_ids: accepted_user_message_ids(task_id)
       },
       turn_number

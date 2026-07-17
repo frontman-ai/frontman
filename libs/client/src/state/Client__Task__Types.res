@@ -714,12 +714,8 @@ let annotationTextResourceBlock = (
   let _meta = makeAnnotationMeta(annotation, ~index)
 
   ACPTypes.EmbeddedResource({
-    resource: {
-      _meta: Some(_meta),
-      annotations: None,
-      resource: ACPTypes.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
-    },
-    _meta: None,
+    resource: ACPTypes.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
+    _meta: Some(_meta),
     annotations: None,
   })
 }
@@ -759,16 +755,12 @@ let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): 
     }->S.decodeOrThrow(~from=screenshotMetaSchema, ~to=S.json->S.noValidation(true))
 
     ACPTypes.EmbeddedResource({
-      resource: {
-        _meta: Some(screenshotMeta),
-        annotations: None,
-        resource: ACPTypes.BlobResourceContents({
-          uri: `annotation://${annotation.id}/screenshot`,
-          mimeType: Some(mimeType),
-          blob: base64Data,
-        }),
-      },
-      _meta: None,
+      resource: ACPTypes.BlobResourceContents({
+        uri: `annotation://${annotation.id}/screenshot`,
+        mimeType: Some(mimeType),
+        blob: base64Data,
+      }),
+      _meta: Some(screenshotMeta),
       annotations: None,
     })
   })
@@ -978,21 +970,13 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
 
   let summaryText = summaryParts->Array.filterMap(x => x)->Array.join(", ")
 
-  let textResource: ACPTypes.textResourceContents = {
-    uri: `page://${url}`,
-    mimeType: Some("text/plain"),
-    text: `Current page: ${summaryText}`,
-  }
-
-  let embeddedResource: ACPTypes.embeddedResource = {
-    _meta: Some(_meta),
-    annotations: None,
-    resource: ACPTypes.TextResourceContents(textResource),
-  }
-
   ACPTypes.EmbeddedResource({
-    resource: embeddedResource,
-    _meta: None,
+    resource: ACPTypes.TextResourceContents({
+      uri: `page://${url}`,
+      mimeType: Some("text/plain"),
+      text: `Current page: ${summaryText}`,
+    }),
+    _meta: Some(_meta),
     annotations: None,
   })
 }

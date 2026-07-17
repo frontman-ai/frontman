@@ -78,23 +78,20 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       refute invalid_changeset.valid?
     end
 
-    test "requires a complete valid agent snapshot", %{task: task} do
+    test "requires an agent id", %{task: task} do
       attrs = valid_turn_started_attrs()
 
       assert InteractionSchema.create_changeset(task.id, :turn_started, attrs, 1).valid?
 
-      for field <- [
-            :agent_id,
-            :agent_name,
-            :agent_display_name,
-            :agent_description,
-            :agent_color
-          ] do
-        changeset =
-          InteractionSchema.create_changeset(task.id, :turn_started, Map.delete(attrs, field), 1)
+      changeset =
+        InteractionSchema.create_changeset(
+          task.id,
+          :turn_started,
+          Map.delete(attrs, :agent_id),
+          1
+        )
 
-        refute changeset.valid?
-      end
+      refute changeset.valid?
     end
   end
 
@@ -110,21 +107,6 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       assert decoded["type"] == "tool_call"
       assert decoded["tool_call_id"] == "call_1"
       assert decoded["tool_name"] == "read_file"
-    end
-
-    test "encodes TurnStarted agent identity", %{task: task} do
-      row =
-        task.id
-        |> InteractionSchema.create_changeset(:turn_started, valid_turn_started_attrs(), 1)
-        |> Ecto.Changeset.apply_changes()
-
-      decoded = row |> Jason.encode!() |> Jason.decode!()
-
-      assert decoded["agent_id"] == "test-frontman"
-      assert decoded["agent_name"] == "executor"
-      assert decoded["agent_display_name"] == "Executor"
-      assert decoded["agent_description"] == "Execution agent"
-      assert decoded["agent_color"] == "#985DF7"
     end
   end
 
@@ -150,10 +132,6 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       id: Ecto.UUID.generate(),
       timestamp: Interaction.now(),
       agent_id: "test-frontman",
-      agent_name: "executor",
-      agent_display_name: "Executor",
-      agent_description: "Execution agent",
-      agent_color: "#985DF7",
       user_message_ids: [Ecto.UUID.generate()]
     }
   end

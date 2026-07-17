@@ -141,7 +141,7 @@ defmodule AgentClientProtocol.Content do
   end
 
   defp resource(metadata, content) do
-    %{"type" => "resource", "resource" => %{"_meta" => metadata, "resource" => content}}
+    %{"type" => "resource", "_meta" => metadata, "resource" => content}
   end
 
   defp tool_content(text) do

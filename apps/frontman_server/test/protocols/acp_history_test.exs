@@ -49,20 +49,25 @@ defmodule AgentClientProtocol.HistoryTest do
     assert error["_meta"]["frontman.dev/agentErrorId"] == "error-id"
   end
 
-  test "resolves removed agents from persisted turn metadata" do
+  test "crashes when history references an agent outside the global catalog" do
     rows = [
       row("turn-row", :turn_started, 1, %{
         turn("archived-turn", [])
-        | agent_id: "archived-id",
-          agent_name: "archived",
-          agent_display_name: "Archived",
-          agent_color: "#123456"
+        | agent_id: "archived-id"
       }),
       row("response", :agent_response, 1, response("Old answer"))
     ]
 
-    assert {:ok, replay} = build(rows)
-    assert Enum.any?(replay.catalog, &(&1["id"] == "archived-id"))
+    assert_raise KeyError, fn -> build(rows) end
+  end
+
+  test "crashes when persisted turn has no agent ID" do
+    rows = [
+      row("turn-row", :turn_started, 1, %{turn("turn-id", []) | agent_id: nil}),
+      row("response", :agent_response, 1, response("Answer"))
+    ]
+
+    assert_raise FunctionClauseError, fn -> build(rows) end
   end
 
   test "replays paused terminal state as requires_action" do
@@ -90,10 +95,6 @@ defmodule AgentClientProtocol.HistoryTest do
     %Interaction.TurnStarted{
       id: id,
       agent_id: "executor-id",
-      agent_name: "executor",
-      agent_display_name: "Executor",
-      agent_description: "Executes changes",
-      agent_color: "#22C55E",
       user_message_ids: user_message_ids,
       timestamp: @timestamp
     }

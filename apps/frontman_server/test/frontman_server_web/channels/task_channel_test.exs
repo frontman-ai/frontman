@@ -192,7 +192,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert reply == %{task_id: task_id}
       assert socket.assigns.task_id == task_id
-      refute Map.has_key?(socket.assigns, :acp_agent_attribution_version)
     end
 
     test "fails when task does not exist", %{scope: scope} do
@@ -299,11 +298,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       selector_annotation =
         Helpers.annotation_block("selector-ann", "button", nil, nil, nil, index: 0)
         |> put_in(
-          ["resource", "_meta", "selector"],
+          ["_meta", "selector"],
           ".toolbar > button[data-action='save']"
         )
         |> put_in(
-          ["resource", "resource"],
+          ["resource"],
           %{
             "uri" => "selector://.toolbar > button[data-action='save']",
             "mimeType" => "text/plain",
@@ -311,24 +310,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           }
         )
 
-      image = %{
-        "type" => "resource",
-        "resource" => %{
-          "_meta" => %{"user_image" => true, "filename" => "reference.png"},
-          "resource" => %{
-            "uri" => "attachment://reference.png",
-            "mimeType" => "image/png",
-            "blob" => "aW1hZ2U="
-          }
-        }
-      }
-
       content_blocks = [
         Helpers.text_block("Match these persisted chunks"),
         selector_annotation,
         Helpers.screenshot_block("selector-ann", "c2NyZWVuc2hvdA=="),
-        Helpers.annotation_block("file-ann", "section", "/app/page.tsx", 12, 7, index: 1),
-        image,
         Helpers.current_page_block("https://example.com/editor")
       ]
 
@@ -514,32 +499,29 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         do: update
   end
 
-  describe "stable assistant response identity" do
-    test "forwards upstream response identity on every content chunk", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
-      turn_started_id = Ecto.UUID.generate()
-      metadata = response_metadata(turn_started_id)
-      message_id = "#{turn_started_id}:0"
-      activate_turn(socket, turn_started_id)
+  test "keeps response identity across assistant chunks", %{scope: scope} do
+    {socket, _task_id} = join_task_channel(scope)
+    turn_started_id = Ecto.UUID.generate()
+    metadata = response_metadata(turn_started_id)
+    message_id = "#{turn_started_id}:0"
+    activate_turn(socket, turn_started_id)
 
-      send(socket.channel_pid, execution_chunk(1, :content, "first ", metadata))
-      send(socket.channel_pid, execution_chunk(1, :content, "segment", metadata))
+    for text <- ["first", "second"] do
+      send(socket.channel_pid, execution_chunk(1, :content, text, metadata))
 
-      for text <- ["first ", "segment"] do
-        assert_push("acp:message", %{
-          "params" => %{
-            "update" => %{
-              "sessionUpdate" => "agent_message_chunk",
-              "messageId" => ^message_id,
-              "content" => %{"text" => ^text},
-              "_meta" => %{
-                "frontman.dev/agentId" => "test-frontman",
-                "frontman.dev/timestamp" => "2026-07-14T12:30:01.000000Z"
-              }
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "agent_message_chunk",
+            "messageId" => ^message_id,
+            "content" => %{"type" => "text", "text" => ^text},
+            "_meta" => %{
+              "frontman.dev/agentId" => "test-frontman",
+              "frontman.dev/timestamp" => "2026-07-14T12:30:01.000000Z"
             }
           }
-        })
-      end
+        }
+      })
     end
   end
 

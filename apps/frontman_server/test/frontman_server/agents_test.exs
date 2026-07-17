@@ -35,11 +35,12 @@ defmodule FrontmanServer.AgentsTest do
     end
   end
 
-  test "resolve_catalog/2 rejects conflicting definitions", %{scope: scope} do
+  test "resolve_catalog!/2 crashes on duplicate global IDs", %{scope: scope} do
     [agent | _] = Agents.list_agents(scope)
 
-    assert Agents.resolve_catalog([agent, %{agent | display_name: "Conflict"}], []) ==
-             {:error, {:conflicting_agent_definition, agent.id}}
+    assert_raise MatchError, fn ->
+      Agents.resolve_catalog!([agent, %{agent | display_name: "Conflict"}], [])
+    end
   end
 
   describe "Agent.new!/1" do

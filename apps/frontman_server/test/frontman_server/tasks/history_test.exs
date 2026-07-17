@@ -1,6 +1,9 @@
 defmodule FrontmanServer.Tasks.HistoryTest do
   use ExUnit.Case, async: true
 
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [agent_resp: 1, interaction_row: 2, turn_started: 1, user_msg: 1]
+
   alias FrontmanServer.Tasks.History
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -16,8 +19,8 @@ defmodule FrontmanServer.Tasks.HistoryTest do
 
     assert {:ok, history} = History.new(rows)
 
-    assert {:ok, [user, turn, first_response, second_response, pending]} =
-             History.attributed_rows(history)
+    assert {[user, turn, first_response, second_response, pending], ["executor-id"]} =
+             History.attributed_rows!(history)
 
     assert History.user_row(history, "accepted").id == "accepted"
     assert [%InteractionSchema{id: "pending"}] = History.pending_accepted_messages(history)
@@ -38,7 +41,6 @@ defmodule FrontmanServer.Tasks.HistoryTest do
     assert second_response.response_ordinal == 1
     assert pending.agent_id == "executor-id"
     assert pending.turn_row == nil
-    assert History.agent_ids(history) == ["executor-id"]
   end
 
   test "rejects one user row assigned to conflicting turns" do
@@ -67,42 +69,20 @@ defmodule FrontmanServer.Tasks.HistoryTest do
   end
 
   defp user_row(id, model) do
-    %InteractionSchema{
-      id: id,
-      type: :user_message,
-      data: %Interaction.UserMessage{
-        id: "embedded-#{id}",
-        agent_id: "executor-id",
-        model: model,
-        messages: [id],
-        images: []
-      }
-    }
+    interaction = %{user_msg(id) | id: "embedded-#{id}", agent_id: "executor-id", model: model}
+    %{interaction_row(interaction, nil) | id: id}
   end
 
   defp turn_row(id, turn_number, user_message_ids) do
-    %InteractionSchema{
-      id: "row-#{id}",
-      type: :turn_started,
-      turn_number: turn_number,
-      data: turn(id, user_message_ids, "executor-id")
-    }
+    interaction = %{turn_started(user_message_ids) | id: id, agent_id: "executor-id"}
+    %{interaction_row(interaction, turn_number) | id: "row-#{id}"}
   end
 
   defp turn(id, user_message_ids, agent_id) do
-    %Interaction.TurnStarted{
-      id: id,
-      agent_id: agent_id,
-      user_message_ids: user_message_ids
-    }
+    %{turn_started(user_message_ids) | id: id, agent_id: agent_id}
   end
 
   defp response_row(turn_number) do
-    %InteractionSchema{
-      id: Ecto.UUID.generate(),
-      type: :agent_response,
-      turn_number: turn_number,
-      data: %Interaction.AgentResponse{id: Ecto.UUID.generate(), content: nil}
-    }
+    interaction_row(agent_resp(nil), turn_number)
   end
 end

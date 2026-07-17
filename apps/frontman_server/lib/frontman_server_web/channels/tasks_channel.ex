@@ -129,11 +129,11 @@ defmodule FrontmanServerWeb.TasksChannel do
        )
        when is_binary(session_id) and session_id != "" do
     Logger.info("ACP session/new request received with sessionId: #{session_id}")
+    agents = Agents.list_agents(socket.assigns.scope)
 
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
-         {:ok, agents} <- Agents.resolve_catalog(Agents.list_agents(socket.assigns.scope), []),
          {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
            Tasks.create_task(
              socket.assigns.scope,
@@ -160,10 +160,6 @@ defmodule FrontmanServerWeb.TasksChannel do
 
       nil ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
-
-      {:error, reason} when is_tuple(reason) ->
-        Logger.error("Invalid server agent catalog: #{inspect(reason)}")
-        push_error(socket, id, JsonRpc.error_internal(), "Invalid server agent catalog")
 
       {:error, _changeset} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
@@ -197,10 +193,9 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   defp current_config_options(socket) do
-    scope = socket.assigns.scope
-
-    model_options = scope |> Providers.model_config_data() |> ACP.build_model_config_options()
-    model_options
+    socket.assigns.scope
+    |> Providers.model_config_data()
+    |> ACP.build_model_config_options()
   end
 
   # UUID v4 format: 8-4-4-4-12 hex digits with dashes

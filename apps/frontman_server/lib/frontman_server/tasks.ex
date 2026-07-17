@@ -117,7 +117,7 @@ defmodule FrontmanServer.Tasks do
   @doc "Projects canonical interaction rows into their domain payloads."
   def interactions(%TaskSchema{interaction_rows: rows}) when is_list(rows) do
     {:ok, history} = History.new(rows)
-    History.interactions(history)
+    Enum.map(history.rows, & &1.data)
   end
 
   @doc """
@@ -541,10 +541,6 @@ defmodule FrontmanServer.Tasks do
            {:ok, agent} <- Agents.get_agent(scope, agent_id),
            turn_started_attrs = %{
              agent_id: agent.id,
-             agent_name: agent.name,
-             agent_display_name: agent.display_name,
-             agent_description: agent.description,
-             agent_color: agent.color,
              user_message_ids: user_message_ids
            },
            {:ok, turn_started_row} <-

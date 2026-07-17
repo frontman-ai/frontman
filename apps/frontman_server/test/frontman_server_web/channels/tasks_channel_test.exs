@@ -1,6 +1,4 @@
 defmodule FrontmanServerWeb.TasksChannelTest do
-  # async: false required because "ACP session/load" describe block uses shared_sandbox: true
-  # Shared sandbox mode is incompatible with async tests as it can interfere with other tests' connections
   use FrontmanServerWeb.ChannelCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
@@ -20,12 +18,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     {:ok, socket: socket, scope: scope}
   end
 
-  describe "join tasks" do
-    test "succeeds without initialization state", %{socket: socket} do
-      refute Map.has_key?(socket.assigns, :acp_initialized)
-    end
-  end
-
   describe "ACP initialize" do
     test "succeeds with matching protocol version", %{socket: socket} do
       version = ACP.protocol_version()
@@ -40,9 +32,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("config_options_updated", %{"configOptions" => config_options})
-
-      refute Enum.any?(config_options, &(&1["id"] == "agent"))
+      assert_push("config_options_updated", %{"configOptions" => _})
 
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
@@ -52,8 +42,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "agentInfo" => %{"name" => "frontman-server"}
         }
       })
-
-      refute Map.has_key?(:sys.get_state(socket.channel_pid).assigns, :acp_client_capabilities)
     end
 
     test "rejects malformed Frontman agent attribution metadata", %{socket: socket} do

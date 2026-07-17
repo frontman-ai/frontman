@@ -36,6 +36,12 @@ defmodule FrontmanServer.Protocols.AcpUpstreamComplianceTest do
   end
 
   test "draft adapter preserves upstream envelope and known-update constraints" do
+    assert ProtocolSchema.upstream_acp_definition_valid?(
+             FrontmanServer.CurrentPageContext.to_content_blocks(%{url: "http://localhost"})
+             |> hd(),
+             "ContentBlock"
+           )
+
     refute ProtocolSchema.upstream_acp_valid?(%{
              "jsonrpc" => "1.0",
              "id" => 1,

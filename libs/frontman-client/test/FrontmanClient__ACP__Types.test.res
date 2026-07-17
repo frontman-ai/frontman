@@ -156,133 +156,42 @@ describe("ACP Types encoding/decoding", _t => {
     t->expect(Types.currentProtocolVersion)->Expect.toEqual(1)
   })
 
-  test("contentBlock encodes embedded text resource", t => {
-    let block: Types.contentBlock = Types.EmbeddedResource({
-      resource: {
-        _meta: Some(JSON.Encode.object(Dict.fromArray([("current_page", JSON.Encode.bool(true))]))),
-        annotations: None,
-        resource: Types.TextResourceContents({
-          uri: "page://http://localhost:4321/",
-          mimeType: Some("text/plain"),
-          text: "Current page",
-        }),
-      },
-      _meta: None,
-      annotations: None,
-    })
+  test("contentBlock round trips embedded text resource", t => {
+    let json = JSON.parseOrThrow(`{"type":"resource","_meta":{"current_page":true},"resource":{"uri":"page://localhost","mimeType":"text/plain","text":"Current page"}}`)
+    let block = json->S.parseOrThrow(~to=Types.contentBlockSchema)
 
-    let json =
-      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
-    let obj = json->JSON.Decode.object->Option.getOrThrow
-    let resource = obj->Dict.get("resource")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
-    let contents =
-      resource->Dict.get("resource")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
-
-    t
-    ->expect(obj->Dict.get("type")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("resource"))
-    t
-    ->expect(contents->Dict.get("uri")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("page://http://localhost:4321/"))
-    t
-    ->expect(contents->Dict.get("text")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("Current page"))
-    t->expect(contents->Dict.get("blob")->Option.isNone)->Expect.toEqual(true)
-  })
-
-  test("contentBlock decodes embedded text resource", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("type", JSON.Encode.string("resource")),
-        (
-          "resource",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "resource",
-                JSON.Encode.object(
-                  Dict.fromArray([
-                    ("uri", JSON.Encode.string("page://http://localhost:4321/")),
-                    ("mimeType", JSON.Encode.string("text/plain")),
-                    ("text", JSON.Encode.string("Current page")),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
-
-    switch json->S.parseOrThrow(~to=Types.contentBlockSchema) {
-    | Types.EmbeddedResource({resource: {resource: Types.TextResourceContents({uri, text})}}) =>
-      t->expect(uri)->Expect.toEqual("page://http://localhost:4321/")
-      t->expect(text)->Expect.toEqual("Current page")
+    switch block {
+    | Types.EmbeddedResource({resource: Types.TextResourceContents({uri, text})}) => {
+        t->expect(uri)->Expect.toEqual("page://localhost")
+        t->expect(text)->Expect.toEqual("Current page")
+      }
     | _ => t->expect("EmbeddedResource")->Expect.toEqual("not matched")
     }
-  })
-
-  test("contentBlock encodes embedded blob resource", t => {
-    let block: Types.contentBlock = Types.EmbeddedResource({
-      resource: {
-        _meta: None,
-        annotations: None,
-        resource: Types.BlobResourceContents({
-          uri: "annotation://a1/screenshot",
-          mimeType: Some("image/png"),
-          blob: "base64-data",
-        }),
-      },
-      _meta: None,
-      annotations: None,
-    })
-
-    let json =
-      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
-    let obj = json->JSON.Decode.object->Option.getOrThrow
-    let resource = obj->Dict.get("resource")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
-    let contents =
-      resource->Dict.get("resource")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
 
     t
-    ->expect(contents->Dict.get("uri")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("annotation://a1/screenshot"))
-    t
-    ->expect(contents->Dict.get("blob")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("base64-data"))
-    t->expect(contents->Dict.get("text")->Option.isNone)->Expect.toEqual(true)
-  })
-
-  test("contentBlock decodes embedded blob resource", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("type", JSON.Encode.string("resource")),
-        (
-          "resource",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "resource",
-                JSON.Encode.object(
-                  Dict.fromArray([
-                    ("uri", JSON.Encode.string("annotation://a1/screenshot")),
-                    ("mimeType", JSON.Encode.string("image/png")),
-                    ("blob", JSON.Encode.string("base64-data")),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ]),
+    ->expect(
+      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true)),
     )
+    ->Expect.toEqual(json)
+  })
 
-    switch json->S.parseOrThrow(~to=Types.contentBlockSchema) {
-    | Types.EmbeddedResource({resource: {resource: Types.BlobResourceContents({uri, blob})}}) =>
-      t->expect(uri)->Expect.toEqual("annotation://a1/screenshot")
-      t->expect(blob)->Expect.toEqual("base64-data")
+  test("contentBlock round trips embedded blob resource", t => {
+    let json = JSON.parseOrThrow(`{"type":"resource","resource":{"uri":"annotation://a1/screenshot","mimeType":"image/png","blob":"base64-data"}}`)
+    let block = json->S.parseOrThrow(~to=Types.contentBlockSchema)
+
+    switch block {
+    | Types.EmbeddedResource({resource: Types.BlobResourceContents({uri, blob})}) => {
+        t->expect(uri)->Expect.toEqual("annotation://a1/screenshot")
+        t->expect(blob)->Expect.toEqual("base64-data")
+      }
     | _ => t->expect("EmbeddedResource blob")->Expect.toEqual("not matched")
     }
+
+    t
+    ->expect(
+      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true)),
+    )
+    ->Expect.toEqual(json)
   })
 })
 
@@ -291,15 +200,8 @@ describe("ACP Types encoding/decoding", _t => {
 // ============================================================================
 
 module Fixtures = {
-  let messageMetadata = (~agentId: string, ~timestamp: string): JSON.t =>
-    JSON.Encode.object(
-      Dict.fromArray([
-        ("frontman.dev/agentId", JSON.Encode.string(agentId)),
-        ("frontman.dev/timestamp", JSON.Encode.string(timestamp)),
-      ]),
-    )
-
-  let makeAgentMessageChunk = (
+  let makeMessageChunk = (
+    ~sessionUpdate: string,
     ~messageId: string,
     ~agentId: string,
     ~text: string,
@@ -307,7 +209,7 @@ module Fixtures = {
   ): JSON.t => {
     JSON.Encode.object(
       Dict.fromArray([
-        ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
+        ("sessionUpdate", JSON.Encode.string(sessionUpdate)),
         ("messageId", JSON.Encode.string(messageId)),
         (
           "content",
@@ -319,30 +221,6 @@ module Fixtures = {
           ),
         ),
         ("_meta", messageMetadata(~agentId, ~timestamp)),
-      ]),
-    )
-  }
-
-  let makeUserMessageChunk = (
-    ~messageId: string,
-    ~agentId: string,
-    ~text: string,
-    ~timestamp: string,
-  ): JSON.t => {
-    JSON.Encode.object(
-      Dict.fromArray([
-        ("sessionUpdate", JSON.Encode.string("user_message_chunk")),
-        ("messageId", JSON.Encode.string(messageId)),
-        ("_meta", messageMetadata(~agentId, ~timestamp)),
-        (
-          "content",
-          JSON.Encode.object(
-            Dict.fromArray([
-              ("type", JSON.Encode.string("text")),
-              ("text", JSON.Encode.string(text)),
-            ]),
-          ),
-        ),
       ]),
     )
   }
@@ -364,7 +242,8 @@ module Fixtures = {
 
 describe("sessionUpdate schema parsing", () => {
   test("agent_message_chunk with identity metadata", t => {
-    let json = Fixtures.makeAgentMessageChunk(
+    let json = Fixtures.makeMessageChunk(
+      ~sessionUpdate="agent_message_chunk",
       ~messageId="turn-123:0",
       ~agentId="executor-id",
       ~text="Hello from the agent",
@@ -387,7 +266,8 @@ describe("sessionUpdate schema parsing", () => {
   })
 
   test("user_message_chunk with canonical identity metadata", t => {
-    let json = Fixtures.makeUserMessageChunk(
+    let json = Fixtures.makeMessageChunk(
+      ~sessionUpdate="user_message_chunk",
       ~messageId="msg-123",
       ~agentId="executor-id",
       ~text="Accepted user message",
@@ -409,37 +289,24 @@ describe("sessionUpdate schema parsing", () => {
     }
   })
 
-  test("state_update running", t => {
-    let json = Fixtures.makeStateUpdate(~state="running")
-    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
-
-    switch parsed {
-    | Types.StateUpdate({state: Types.Running, stopReason: None}) =>
-      t->expect("running")->Expect.toBe("running")
-    | _ => t->expect("StateUpdate running")->Expect.toBe("not matched")
-    }
-  })
-
-  test("state_update idle with stop reason", t => {
-    let json = Fixtures.makeStateUpdate(~state="idle", ~stopReason="end_turn")
-    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
-
-    switch parsed {
-    | Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn)}) =>
-      t->expect("idle")->Expect.toBe("idle")
-    | _ => t->expect("StateUpdate idle")->Expect.toBe("not matched")
-    }
-  })
-
-  test("state_update requires_action", t => {
-    let json = Fixtures.makeStateUpdate(~state="requires_action")
-    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
-
-    switch parsed {
-    | Types.StateUpdate({state: Types.RequiresAction, stopReason: None}) =>
-      t->expect("requires_action")->Expect.toBe("requires_action")
-    | _ => t->expect("StateUpdate requires_action")->Expect.toBe("not matched")
-    }
+  test("state_update variants", t => {
+    [
+      (
+        Fixtures.makeStateUpdate(~state="running"),
+        Types.StateUpdate({state: Types.Running, stopReason: None}),
+      ),
+      (
+        Fixtures.makeStateUpdate(~state="idle", ~stopReason="end_turn"),
+        Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn)}),
+      ),
+      (
+        Fixtures.makeStateUpdate(~state="requires_action"),
+        Types.StateUpdate({state: Types.RequiresAction, stopReason: None}),
+      ),
+    ]->Array.forEach(
+      ((json, expected)) =>
+        t->expect(json->S.parseOrThrow(~to=Types.sessionUpdateSchema))->Expect.toEqual(expected),
+    )
   })
 
   test("malformed known agent_message_chunk is rejected", t => {
@@ -458,14 +325,7 @@ describe("sessionUpdate schema parsing", () => {
       ]),
     )
 
-    let rejected = try {
-      json->S.parseOrThrow(~to=Types.sessionUpdateSchema)->ignore
-      false
-    } catch {
-    | _ => true
-    }
-
-    t->expect(rejected)->Expect.toBe(true)
+    t->expect(json->parsesWith(Types.sessionUpdateSchema))->Expect.toBe(false)
   })
 
   test("generic chunk accepts Frontman metadata that negotiated v1 rejects", t => {
@@ -495,14 +355,7 @@ describe("sessionUpdate schema parsing", () => {
       Dict.fromArray([("sessionUpdate", JSON.Encode.string("future_update"))]),
     )
 
-    let rejected = try {
-      json->S.parseOrThrow(~to=Types.sessionUpdateSchema)->ignore
-      false
-    } catch {
-    | _ => true
-    }
-
-    t->expect(rejected)->Expect.toBe(true)
+    t->expect(json->parsesWith(Types.sessionUpdateSchema))->Expect.toBe(false)
 
     switch json->S.parseOrThrow(~to=Types.unknownSessionUpdateSchema) {
     | Types.Unknown({sessionUpdate: "future_update"}) => ()

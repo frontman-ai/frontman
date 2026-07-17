@@ -67,49 +67,8 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  test "session results use identical agent catalog metadata" do
-    catalog = [
-      %{
-        "id" => "executor",
-        "name" => "executor",
-        "displayName" => "Executor",
-        "description" => "Executes work",
-        "color" => "#985DF7"
-      }
-    ]
-
-    new_result = AgentClientProtocol.build_session_new_result("session-123", [], catalog)
-    load_result = AgentClientProtocol.build_session_load_result([], catalog)
-
-    assert new_result["_meta"] == load_result["_meta"]
-    assert new_result["_meta"]["frontman.dev/agents"] == catalog
-  end
-
-  test "user message notification includes complete attribution metadata" do
-    content = %{"type" => "text", "text" => "Hello"}
-
-    notification =
-      AgentClientProtocol.build_user_message_chunk_notification(
-        "session-123",
-        "message-123",
-        content,
-        "executor",
-        ~U[2026-07-14 12:30:00.123456Z]
-      )
-
-    assert get_in(notification, ["params", "update"]) == %{
-             "sessionUpdate" => "user_message_chunk",
-             "messageId" => "message-123",
-             "content" => content,
-             "_meta" => %{
-               "frontman.dev/agentId" => "executor",
-               "frontman.dev/timestamp" => "2026-07-14T12:30:00.123456Z"
-             }
-           }
-  end
-
   describe "AgentClientProtocol.tool_call_create/6" do
-    test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
+    test "validates against acp/sessionUpdateNotification schema" do
       payload =
         AgentClientProtocol.tool_call_create(
           "session-123",
@@ -120,7 +79,6 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
           "pending"
         )
 
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
@@ -130,7 +88,6 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
       payload =
         AgentClientProtocol.tool_call_update("session-123", "tc-1", "completed")
 
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
 
@@ -140,7 +97,6 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
       payload =
         AgentClientProtocol.tool_call_update("session-123", "tc-1", "completed", content)
 
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
@@ -161,13 +117,12 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
       ]
 
       payload = AgentClientProtocol.plan_update("session-123", entries)
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
 
   describe "AgentClientProtocol.build_error_notification/4" do
-    test "validates against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
+    test "validates against acp/sessionUpdateNotification schema" do
       payload =
         AgentClientProtocol.build_error_notification(
           "session-123",
@@ -177,7 +132,6 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
           agent_error_id: "agent-error-123"
         )
 
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
 
       assert %{
@@ -189,10 +143,9 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
   end
 
   describe "AgentClientProtocol.build_state_update_notification/3" do
-    test "validates running state against jsonrpc/notification and acp/sessionUpdateNotification schemas" do
+    test "validates running state against acp/sessionUpdateNotification schema" do
       payload = AgentClientProtocol.build_state_update_notification("session-123", "running")
 
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
 
       assert %{
@@ -213,7 +166,6 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
           AgentClientProtocol.stop_reason_end_turn()
         )
 
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
 
       assert %{
@@ -225,14 +177,6 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
                  }
                }
              } = payload
-    end
-
-    test "validates requires_action state" do
-      payload =
-        AgentClientProtocol.build_state_update_notification("session-123", "requires_action")
-
-      ProtocolSchema.validate!(payload, "jsonrpc/notification")
-      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
   end
 

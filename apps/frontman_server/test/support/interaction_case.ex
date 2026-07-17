@@ -109,13 +109,11 @@ defmodule FrontmanServer.InteractionCase do
 
       %{
         "type" => "resource",
+        "_meta" => meta,
         "resource" => %{
-          "_meta" => meta,
-          "resource" => %{
-            "uri" => "file://#{file}:#{line}:#{col}",
-            "mimeType" => "text/plain",
-            "text" => "Annotated element: <#{tag}> at #{file}:#{line}:#{col}"
-          }
+          "uri" => "file://#{file}:#{line}:#{col}",
+          "mimeType" => "text/plain",
+          "text" => "Annotated element: <#{tag}> at #{file}:#{line}:#{col}"
         }
       }
     end
@@ -124,17 +122,15 @@ defmodule FrontmanServer.InteractionCase do
     def screenshot_block(annotation_id, blob, mime \\ "image/png") do
       %{
         "type" => "resource",
+        "_meta" => %{
+          "annotation_screenshot" => true,
+          "annotation_index" => 0,
+          "annotation_id" => annotation_id
+        },
         "resource" => %{
-          "_meta" => %{
-            "annotation_screenshot" => true,
-            "annotation_index" => 0,
-            "annotation_id" => annotation_id
-          },
-          "resource" => %{
-            "uri" => "annotation://#{annotation_id}/screenshot",
-            "mimeType" => mime,
-            "blob" => blob
-          }
+          "uri" => "annotation://#{annotation_id}/screenshot",
+          "mimeType" => mime,
+          "blob" => blob
         }
       }
     end
@@ -145,13 +141,11 @@ defmodule FrontmanServer.InteractionCase do
 
       %{
         "type" => "resource",
+        "_meta" => meta,
         "resource" => %{
-          "_meta" => meta,
-          "resource" => %{
-            "uri" => "page://#{url}",
-            "mimeType" => "text/plain",
-            "text" => "Current page: #{url}"
-          }
+          "uri" => "page://#{url}",
+          "mimeType" => "text/plain",
+          "text" => "Current page: #{url}"
         }
       }
     end
@@ -202,10 +196,6 @@ defmodule FrontmanServer.InteractionCase do
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: "test-frontman",
-        agent_name: "executor",
-        agent_display_name: "Executor",
-        agent_description: "Software engineering execution agent with full tool access.",
-        agent_color: "#985DF7",
         user_message_ids: user_message_ids
       }
     end

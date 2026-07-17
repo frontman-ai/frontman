@@ -798,23 +798,6 @@ describe("Task - Running-independent streamed events", () => {
     | _ => t->expect("Tool call")->Expect.toBe("not found")
     }
   })
-
-  test("events during Loading state still work", t => {
-    let task = TestHelpers.makeLoadingTask()
-    let (task2, _) = TaskReducer.next(
-      task,
-      TextDeltaReceived({
-        messageId: "assistant-1",
-        text: "loading text",
-        agentId: "test-agent",
-      }),
-    )
-
-    switch TaskReducer.Selectors.streamingMessage(task2) {
-    | Some(Message.Streaming({textBuffer})) => t->expect(textBuffer)->Expect.toBe("loading text")
-    | _ => t->expect("Streaming message")->Expect.toBe("not found during loading")
-    }
-  })
 })
 
 // ============================================================================

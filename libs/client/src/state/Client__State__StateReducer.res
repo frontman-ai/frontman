@@ -504,16 +504,12 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
     let meta = JSON.Encode.object(metaObj)
 
     Client__State__Types.ACPTypes.EmbeddedResource({
-      resource: {
-        _meta: Some(meta),
-        annotations: None,
-        resource: Client__State__Types.ACPTypes.BlobResourceContents({
-          uri: `attachment://${att.id}/${att.filename}`,
-          mimeType: Some(att.mediaType),
-          blob: base64Data,
-        }),
-      },
-      _meta: None,
+      resource: Client__State__Types.ACPTypes.BlobResourceContents({
+        uri: `attachment://${att.id}/${att.filename}`,
+        mimeType: Some(att.mediaType),
+        blob: base64Data,
+      }),
+      _meta: Some(meta),
       annotations: None,
     })
   })

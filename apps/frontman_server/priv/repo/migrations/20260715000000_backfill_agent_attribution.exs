@@ -1,13 +1,7 @@
 defmodule FrontmanServer.Repo.Migrations.BackfillAgentAttribution do
   use Ecto.Migration
 
-  @agent %{
-    id: "01987f6e-2c6d-7f0c-9a0e-7a4b3d2c1f09",
-    name: "executor",
-    display_name: "Executor",
-    description: "Software engineering execution agent with full tool access.",
-    color: "#985DF7"
-  }
+  @agent_id "01987f6e-2c6d-7f0c-9a0e-7a4b3d2c1f09"
 
   def up do
     execute("""
@@ -19,20 +13,14 @@ defmodule FrontmanServer.Repo.Migrations.BackfillAgentAttribution do
 
     execute("""
     UPDATE interactions
-    SET data = jsonb_set(data, '{agent_id}', to_jsonb('#{@agent.id}'::text), true)
+    SET data = jsonb_set(data, '{agent_id}', to_jsonb('#{@agent_id}'::text), true)
     WHERE type = 'user_message'
       AND COALESCE(data->>'agent_id', '') = ''
     """)
 
     execute("""
     UPDATE interactions
-    SET data = data || jsonb_build_object(
-      'agent_id', '#{@agent.id}',
-      'agent_name', '#{@agent.name}',
-      'agent_display_name', '#{@agent.display_name}',
-      'agent_description', '#{@agent.description}',
-      'agent_color', '#{@agent.color}'
-    )
+    SET data = jsonb_set(data, '{agent_id}', to_jsonb('#{@agent_id}'::text), true)
     WHERE type = 'turn_started'
       AND COALESCE(data->>'agent_id', '') = ''
     """)

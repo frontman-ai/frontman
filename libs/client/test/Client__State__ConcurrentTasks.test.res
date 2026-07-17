@@ -37,19 +37,6 @@ module TestSetup = {
   }
 }
 
-// Helper to get messages from a task's loadedData
-let getTaskMessages = (task: Task.t) => {
-  Task.getMessages(task)
-}
-
-// Helper to get current task ID
-let getCurrentTaskId = (state: StateReducer.state): option<string> => {
-  switch state.currentTask {
-  | Task.New(_) => None
-  | Task.Selected(id) => Some(id)
-  }
-}
-
 let textDeltaAction = (~taskId, ~messageId, ~text) => StateReducer.TaskAction({
   target: ForTask(taskId),
   action: TextDeltaReceived({
@@ -70,31 +57,17 @@ describe("Concurrent Tasks Event Routing", () => {
       ~isAgentRunning=true,
     )
 
-    // Act: Start streaming in all three tasks
+    // Act: Stream to all three tasks
     let (state1, _) = StateReducer.next(
       state,
-      textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text=""),
+      textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text="A"),
     )
     let (state2, _) = StateReducer.next(
       state1,
-      textDeltaAction(~taskId=taskBId, ~messageId="assistant-b", ~text=""),
-    )
-    let (state3, _) = StateReducer.next(
-      state2,
-      textDeltaAction(~taskId=taskCId, ~messageId="assistant-c", ~text=""),
-    )
-
-    // Send text deltas to each task
-    let (state4, _) = StateReducer.next(
-      state3,
-      textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text="A"),
-    )
-    let (state5, _) = StateReducer.next(
-      state4,
       textDeltaAction(~taskId=taskBId, ~messageId="assistant-b", ~text="B"),
     )
     let (finalState, _) = StateReducer.next(
-      state5,
+      state2,
       textDeltaAction(~taskId=taskCId, ~messageId="assistant-c", ~text="C"),
     )
 
@@ -103,9 +76,9 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
     let taskC = finalState.tasks->Dict.get(taskCId)->Option.getOrThrow
 
-    t->expect(getTaskMessages(taskA)->Array.length)->Expect.toBe(1)
-    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(1)
-    t->expect(getTaskMessages(taskC)->Array.length)->Expect.toBe(1)
+    t->expect(Task.getMessages(taskA)->Array.length)->Expect.toBe(1)
+    t->expect(Task.getMessages(taskB)->Array.length)->Expect.toBe(1)
+    t->expect(Task.getMessages(taskC)->Array.length)->Expect.toBe(1)
 
     let getStreamingText = (task: StateReducer.Task.t) => {
       switch Client__Task__Reducer.Selectors.streamingMessage(task) {
@@ -130,15 +103,10 @@ describe("Concurrent Tasks Event Routing", () => {
 
     // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
-    t->expect(getCurrentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
+    t->expect(StateReducer.Selectors.currentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
 
-    // Start streaming in Task A
-    let (stateWithStream, _) = StateReducer.next(
-      stateWithB,
-      textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text=""),
-    )
     let (stateWithText, _) = StateReducer.next(
-      stateWithStream,
+      stateWithB,
       textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text="Complete message"),
     )
 
@@ -153,7 +121,7 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
     // Find the completed message (there should be exactly one)
-    let completedMessages = getTaskMessages(taskA)->Array.filter(
+    let completedMessages = Task.getMessages(taskA)->Array.filter(
       msg =>
         switch msg {
         | Assistant(Completed(_)) => true
@@ -173,7 +141,7 @@ describe("Concurrent Tasks Event Routing", () => {
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
+    t->expect(Task.getMessages(taskB)->Array.length)->Expect.toBe(0)
   })
 
   test("Tool result events route to correct task", t => {
@@ -219,7 +187,7 @@ describe("Concurrent Tasks Event Routing", () => {
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
     let toolMessage =
-      getTaskMessages(taskA)
+      Task.getMessages(taskA)
       ->Array.find(msg => StateReducer.Message.getId(msg) == "tool-1")
       ->Option.getOrThrow
 
@@ -229,7 +197,7 @@ describe("Concurrent Tasks Event Routing", () => {
       t->expect(result->Option.isSome)->Expect.toBe(true)
     | _ => t->expect(false)->Expect.toBe(true)
     }
-    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
+    t->expect(Task.getMessages(taskB)->Array.length)->Expect.toBe(0)
   })
 
   test("Switching current task mid-stream doesn't affect event routing", t => {
@@ -241,19 +209,14 @@ describe("Concurrent Tasks Event Routing", () => {
       ~isAgentRunning=true,
     )
 
-    // Start streaming in Task A
-    let (stateWithStream, _) = StateReducer.next(
-      state,
-      textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text=""),
-    )
     let (stateWithText1, _) = StateReducer.next(
-      stateWithStream,
+      state,
       textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text="Part 1. "),
     )
 
     // Switch to Task B mid-stream
     let (stateWithB, _) = StateReducer.next(stateWithText1, SwitchTask({taskId: taskBId}))
-    t->expect(getCurrentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
+    t->expect(StateReducer.Selectors.currentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
 
     // Continue receiving text for Task A
     let (finalState, _) = StateReducer.next(
@@ -271,6 +234,6 @@ describe("Concurrent Tasks Event Routing", () => {
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    t->expect(getTaskMessages(taskB)->Array.length)->Expect.toBe(0)
+    t->expect(Task.getMessages(taskB)->Array.length)->Expect.toBe(0)
   })
 })

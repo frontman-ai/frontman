@@ -13,39 +13,21 @@ defmodule AgentClientProtocol.History do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
+  @ignored_types [
+    :turn_started,
+    :agent_completed,
+    :agent_retry,
+    :discovered_project_rule,
+    :discovered_project_structure
+  ]
+
   def build(%TaskHistory{} = history, session_id, active_agents)
       when is_binary(session_id) and is_list(active_agents) do
-    with {:ok, rows} <- TaskHistory.attributed_rows(history),
-         {:ok, agents} <-
-           Agents.resolve_catalog(
-             active_agents,
-             TaskHistory.turns(history),
-             TaskHistory.agent_ids(history)
-           ) do
-      catalog = ACP.build_agent_catalog(agents)
-      notifications = Enum.flat_map(rows, &encode_row(&1, session_id))
-      {:ok, %{catalog: catalog, notifications: notifications}}
-    end
-  end
-
-  def encode_row(
-        %{
-          row: %InteractionSchema{id: id, data: %Interaction.UserMessage{} = message},
-          agent_id: agent_id
-        },
-        session_id
-      ) do
-    message
-    |> ACP.Content.from_user_message()
-    |> Enum.map(fn content ->
-      ACP.build_user_message_chunk_notification(
-        session_id,
-        id,
-        content,
-        agent_id,
-        message.timestamp
-      )
-    end)
+    {rows, agent_ids} = TaskHistory.attributed_rows!(history)
+    agents = Agents.resolve_catalog!(active_agents, agent_ids)
+    catalog = ACP.build_agent_catalog(agents)
+    notifications = Enum.flat_map(rows, &encode_row(&1, session_id))
+    {:ok, %{catalog: catalog, notifications: notifications}}
   end
 
   def encode_row(
@@ -74,64 +56,67 @@ defmodule AgentClientProtocol.History do
     end
   end
 
-  def encode_row(%{row: %InteractionSchema{data: %Interaction.ToolCall{} = call}}, session_id) do
-    [
-      ACP.tool_call_create(
-        session_id,
-        call.tool_call_id,
-        call.tool_name,
-        "other",
-        call.timestamp
-      ),
-      ACP.tool_call_update(
-        session_id,
-        call.tool_call_id,
-        ACP.tool_call_status_pending(),
-        ACP.Content.from_tool_result(call.arguments)
-      )
-    ]
-  end
-
   def encode_row(
-        %{row: %InteractionSchema{data: %Interaction.ToolResult{} = result}},
+        %{row: %InteractionSchema{data: data, type: type} = row} = context,
         session_id
       ) do
-    status =
-      case result.is_error do
-        true -> ACP.tool_call_status_failed()
-        false -> ACP.tool_call_status_completed()
-      end
+    case data do
+      %Interaction.UserMessage{} = message ->
+        message
+        |> ACP.Content.from_user_message()
+        |> Enum.map(fn content ->
+          ACP.build_user_message_chunk_notification(
+            session_id,
+            row.id,
+            content,
+            context.agent_id,
+            message.timestamp
+          )
+        end)
 
-    [
-      ACP.tool_call_update(
-        session_id,
-        result.tool_call_id,
-        status,
-        ACP.Content.from_tool_result(result.result)
-      )
-    ]
+      %Interaction.ToolCall{} = call ->
+        [
+          ACP.tool_call_create(
+            session_id,
+            call.tool_call_id,
+            call.tool_name,
+            "other",
+            call.timestamp
+          ),
+          ACP.tool_call_update(
+            session_id,
+            call.tool_call_id,
+            ACP.tool_call_status_pending(),
+            ACP.Content.from_tool_result(call.arguments)
+          )
+        ]
+
+      %Interaction.ToolResult{} = result ->
+        [
+          ACP.tool_call_update(
+            session_id,
+            result.tool_call_id,
+            ACP.tool_call_status(result.is_error),
+            ACP.Content.from_tool_result(result.result)
+          )
+        ]
+
+      %Interaction.AgentError{} = error ->
+        [
+          ACP.build_error_notification(session_id, error.error, error.timestamp,
+            category: error.category,
+            agent_error_id: error.id
+          )
+        ]
+
+      %Interaction.AgentPaused{} ->
+        [ACP.build_state_update_notification(session_id, "requires_action")]
+
+      _ignored when type in @ignored_types ->
+        []
+
+      _unsupported ->
+        raise FunctionClauseError, module: __MODULE__, function: :encode_row, arity: 2
+    end
   end
-
-  def encode_row(%{row: %InteractionSchema{data: %Interaction.AgentError{} = error}}, session_id) do
-    [
-      ACP.build_error_notification(session_id, error.error, error.timestamp,
-        category: error.category,
-        agent_error_id: error.id
-      )
-    ]
-  end
-
-  def encode_row(%{row: %InteractionSchema{data: %Interaction.AgentPaused{}}}, session_id) do
-    [ACP.build_state_update_notification(session_id, "requires_action")]
-  end
-
-  def encode_row(%{row: %InteractionSchema{type: type}}, _session_id)
-      when type in [
-             :turn_started,
-             :agent_completed,
-             :agent_retry,
-             :discovered_project_rule,
-             :discovered_project_structure
-           ],
-      do: []
 end

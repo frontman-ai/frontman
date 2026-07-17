@@ -8,6 +8,7 @@ defmodule FrontmanServer.TasksTest do
 
   alias FrontmanServer.Repo.Migrations.{
     BackfillInteractionTurnNumbers,
+    BackfillToolResultPayloads,
     BackfillTurnStartedForUserMessages,
     BackfillUserMessageModels
   }
@@ -142,7 +143,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "run_next_turn/3 agent identity" do
-    test "persists configured identity and keeps it after config changes", %{scope: scope} do
+    test "persists configured agent identity", %{scope: scope} do
       task = task_fixture(scope)
 
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
@@ -160,32 +161,9 @@ defmodule FrontmanServer.TasksTest do
                  execution_request_fixture(model: "missing:test")
                )
 
-      original_config = Application.fetch_env!(:frontman_server, FrontmanServer.Agents)
-
-      on_exit(fn ->
-        Application.put_env(:frontman_server, FrontmanServer.Agents, original_config)
-      end)
-
-      renamed_config =
-        Keyword.update!(original_config, :agents, fn [executor | agents] ->
-          [%{executor | name: "builder", display_name: "Builder", color: "#123456"} | agents]
-        end)
-
-      Application.put_env(
-        :frontman_server,
-        FrontmanServer.Agents,
-        renamed_config
-      )
-
       assert {:ok, loaded_task} = Tasks.get_task(scope, task.id)
 
-      assert %Interaction.TurnStarted{
-               agent_id: "test-frontman",
-               agent_name: "executor",
-               agent_display_name: "Executor",
-               agent_description: "Software engineering execution agent with full tool access.",
-               agent_color: "#985DF7"
-             } =
+      assert %Interaction.TurnStarted{agent_id: "test-frontman"} =
                Enum.find(
                  Tasks.interactions(loaded_task),
                  &match?(%Interaction.TurnStarted{}, &1)
@@ -427,16 +405,47 @@ defmodule FrontmanServer.TasksTest do
                turn_number: 1,
                data: %Interaction.TurnStarted{
                  agent_id: nil,
-                 agent_name: nil,
-                 agent_display_name: nil,
-                 agent_description: nil,
-                 agent_color: nil,
                  user_message_ids: [user_message_id]
                }
              } = Enum.find(rows, &(&1.type == :turn_started))
 
       assert user_message_id == user_message.id
-      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+    end
+  end
+
+  describe "tool-result payload backfill migration" do
+    test "wraps legacy strings as MCP text results and preserves canonical maps", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      canonical = MCP.tool_result_text("already canonical")
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 1, %{
+        "tool_call_id" => "legacy-call",
+        "result" => "[{\"name\":\"README.md\"}]",
+        "is_error" => true
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 2, %{
+        "tool_call_id" => "canonical-call",
+        "result" => canonical,
+        "is_error" => false
+      })
+
+      run_tool_result_payload_backfill_migration()
+
+      assert [legacy, existing] =
+               InteractionSchema.for_task(task_id)
+               |> InteractionSchema.of_type(:tool_result)
+               |> InteractionSchema.ordered()
+               |> Repo.all()
+
+      assert legacy.data.result == %{
+               "content" => [
+                 %{"type" => "text", "text" => "[{\"name\":\"README.md\"}]"}
+               ],
+               "isError" => true
+             }
+
+      assert existing.data.result == canonical
     end
   end
 
@@ -802,10 +811,6 @@ defmodule FrontmanServer.TasksTest do
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: "test-frontman",
-        agent_name: "executor",
-        agent_display_name: "Executor",
-        agent_description: "Software engineering execution agent with full tool access.",
-        agent_color: "#985DF7",
         user_message_ids: [row.id]
       },
       turn_number
@@ -953,6 +958,22 @@ defmodule FrontmanServer.TasksTest do
                Repo.config(),
                0,
                BackfillTurnStartedForUserMessages,
+               :forward,
+               :up,
+               :up,
+               log: false
+             )
+  end
+
+  defp run_tool_result_payload_backfill_migration do
+    Code.require_file("priv/repo/migrations/20260717000000_backfill_tool_result_payloads.exs")
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               BackfillToolResultPayloads,
                :forward,
                :up,
                :up,

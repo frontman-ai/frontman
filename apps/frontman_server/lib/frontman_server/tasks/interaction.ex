@@ -431,7 +431,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       content_blocks
       |> Enum.filter(&annotation_block?/1)
-      |> Enum.map(fn %{"type" => "resource", "resource" => %{"_meta" => meta}} ->
+      |> Enum.map(fn %{"type" => "resource", "_meta" => meta} ->
         Annotation.from_meta(meta, screenshot_map)
       end)
       |> Enum.sort_by(& &1.annotation_index)
@@ -439,7 +439,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp annotation_block?(%{
            "type" => "resource",
-           "resource" => %{"_meta" => %{"annotation" => true}}
+           "_meta" => %{"annotation" => true}
          }),
          do: true
 
@@ -449,15 +449,17 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp extract_screenshot_map(content_blocks) do
       content_blocks
       |> Enum.filter(&annotation_screenshot_block?/1)
-      |> Enum.reduce(%{}, fn %{"type" => "resource", "resource" => resource}, acc ->
-        annotation_id = get_in(resource, ["_meta", "annotation_id"])
-        inner = Map.get(resource, "resource", %{})
-
-        case {annotation_id, inner["blob"]} do
+      |> Enum.reduce(%{}, fn %{
+                               "type" => "resource",
+                               "_meta" => meta,
+                               "resource" => resource
+                             },
+                             acc ->
+        case {meta["annotation_id"], resource["blob"]} do
           {annotation_id, blob} when is_binary(annotation_id) and is_binary(blob) ->
             Map.put(acc, annotation_id, %{
               "blob" => blob,
-              "mime_type" => inner["mimeType"] || "image/jpeg"
+              "mime_type" => resource["mimeType"] || "image/jpeg"
             })
 
           {_annotation_id, _blob} ->
@@ -468,7 +470,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp annotation_screenshot_block?(%{
            "type" => "resource",
-           "resource" => %{"_meta" => %{"annotation_screenshot" => true}}
+           "_meta" => %{"annotation_screenshot" => true}
          }),
          do: true
 
@@ -478,10 +480,8 @@ defmodule FrontmanServer.Tasks.Interaction do
       Enum.find_value(content_blocks, fn
         %{
           "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_node" => true, "node_id" => node_id} = meta,
-            "resource" => %{"text" => text}
-          }
+          "_meta" => %{"figma_node" => true, "node_id" => node_id} = meta,
+          "resource" => %{"text" => text}
         }
         when is_binary(text) and is_binary(node_id) ->
           is_dsl = Map.get(meta, "is_dsl", true)
@@ -501,15 +501,13 @@ defmodule FrontmanServer.Tasks.Interaction do
     # Extract Figma image blob from content blocks
     defp extract_figma_image_blob(content_blocks) do
       Enum.find_value(content_blocks, fn
-        %{"type" => "resource", "resource" => resource} ->
-          case resource do
-            %{"_meta" => %{"figma_image" => true}, "resource" => %{"blob" => blob}}
-            when is_binary(blob) ->
-              blob
-
-            _ ->
-              nil
-          end
+        %{
+          "type" => "resource",
+          "_meta" => %{"figma_image" => true},
+          "resource" => %{"blob" => blob}
+        }
+        when is_binary(blob) ->
+          blob
 
         _ ->
           nil
@@ -518,7 +516,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp extract_current_page(content_blocks) do
       Enum.find_value(content_blocks, fn
-        %{"type" => "resource", "resource" => %{"_meta" => meta}} ->
+        %{"type" => "resource", "_meta" => meta} ->
           CurrentPage.attrs_from_acp_meta(meta)
 
         _ ->
@@ -529,24 +527,19 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp extract_user_images(content_blocks) do
       content_blocks
       |> Enum.filter(&user_image_block?/1)
-      |> Enum.map(fn %{"type" => "resource", "resource" => resource} ->
-        inner = Map.get(resource, "resource", %{})
-        meta = Map.get(resource, "_meta", %{})
-
-        # UserImage fields come from both _meta (filename) and inner resource (blob, mimeType, uri).
-        # Merge into the embedded schema attrs.
+      |> Enum.map(fn %{"type" => "resource", "_meta" => meta, "resource" => resource} ->
         %{
-          "blob" => inner["blob"] || "",
-          "mime_type" => inner["mimeType"] || "image/png",
+          "blob" => resource["blob"] || "",
+          "mime_type" => resource["mimeType"] || "image/png",
           "filename" => meta["filename"] || "attachment",
-          "uri" => inner["uri"]
+          "uri" => resource["uri"]
         }
       end)
     end
 
     defp user_image_block?(%{
            "type" => "resource",
-           "resource" => %{"_meta" => %{"user_image" => true}}
+           "_meta" => %{"user_image" => true}
          }),
          do: true
 
@@ -735,21 +728,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     use Ecto.Schema
     import Ecto.Changeset
 
-    @fields [
-      :agent_id,
-      :agent_name,
-      :agent_display_name,
-      :agent_description,
-      :agent_color,
-      :user_message_ids
-    ]
+    @fields [:agent_id, :user_message_ids]
 
     embedded_schema do
       field :agent_id, :string
-      field :agent_name, :string
-      field :agent_display_name, :string
-      field :agent_description, :string
-      field :agent_color, :string
       field :user_message_ids, {:array, :string}
       field :timestamp, :utc_datetime_usec
     end

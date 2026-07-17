@@ -33,81 +33,12 @@ let agentErrorId = meta => {
   S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
 }
 
-// Parse accepted user_message content blocks into (content, annotations).
-// Inverse of messageAnnotationsToContentBlocks + buildAttachmentContentBlocks on the send path.
-let parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
-  array<Client__Message.UserContentPart.t>,
-  array<Client__Message.MessageAnnotation.t>,
-) => {
-  // First pass: collect screenshot data URLs keyed by annotation_id
-  let screenshotMap = Dict.make()
-  blocks->Array.forEach(block =>
-    switch block {
-    | EmbeddedResource({
-        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
-      })
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) !=
-        None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.screenshotMetaSchema)
-      if parsed.annotationScreenshot {
-        screenshotMap->Dict.set(
-          parsed.annotationId,
-          `data:${mimeType->Option.getOrThrow};base64,${blob}`,
-        )
-      }
-    | _ => ()
-    }
-  )
-
-  // Second pass: build content parts and annotations
-  let content = []
-  let annotations = []
-  blocks->Array.forEach(block =>
-    switch block {
-    | TextContent({text}) =>
-      content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
-    | EmbeddedResource({resource: {_meta: Some(meta), resource: TextResourceContents(_)}})
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation")) != None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.annotationMetaSchema)
-      if parsed.annotation {
-        let screenshot = screenshotMap->Dict.get(parsed.annotationId)
-        annotations
-        ->Array.push(Client__Task__Types.annotationMetaToMessageAnnotation(parsed, ~screenshot))
-        ->ignore
-      }
-    | EmbeddedResource({
-        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
-      }) =>
-      // User images (screenshots already handled in first pass)
-      switch meta->JSON.Decode.object {
-      | Some(d) if d->Dict.get("user_image") == Some(JSON.Encode.bool(true)) =>
-        let filename =
-          d->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
-        let mime = mimeType->Option.getOrThrow
-        content
-        ->Array.push(
-          Client__Message.UserContentPart.Image({
-            id: None,
-            image: `data:${mime};base64,${blob}`,
-            mediaType: Some(mime),
-            name: Some(filename),
-          }),
-        )
-        ->ignore
-      | _ => ()
-      }
-    | _ => ()
-    }
-  )
-  (content, annotations)
-}
-
 // Coalesce protocol message chunks before dispatching complete logical updates.
 let textDeltaBuffer = Client__TextDeltaBuffer.make(
   ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
     Client__State.Actions.textDeltaReceived(~taskId, ~messageId, ~text, ~agentId),
   ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) => {
-    let (content, annotations) = parseUserMessageBlocks(blocks)
+    let (content, annotations) = Client__ACP__MessageCodec.parseUserMessageBlocks(blocks)
     Client__State.Actions.userMessageReceived(
       ~taskId,
       ~id=messageId,
@@ -389,6 +320,7 @@ module Provider = {
     let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
       dispatch(
         CreateSession({
+          sessionId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
           onMcpMessage: logMCPMessage,

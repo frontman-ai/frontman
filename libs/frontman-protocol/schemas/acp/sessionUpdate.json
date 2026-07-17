@@ -124,67 +124,52 @@
                   "type": "string",
                   "const": "resource"
                 },
-                "resource": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {},
-                    "annotations": {
-                      "type": "object",
-                      "properties": {
-                        "_meta": {}
-                      }
-                    },
-                    "resource": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "uri": {
-                              "type": "string"
-                            },
-                            "mimeType": {
-                              "type": "string"
-                            },
-                            "text": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "uri",
-                            "text"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "uri": {
-                              "type": "string"
-                            },
-                            "mimeType": {
-                              "type": "string"
-                            },
-                            "blob": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "uri",
-                            "blob"
-                          ]
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "resource"
-                  ]
-                },
                 "_meta": {},
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "_meta": {}
                   }
+                },
+                "resource": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "uri",
+                        "text"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "blob": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "uri",
+                        "blob"
+                      ]
+                    }
+                  ]
                 }
               },
               "required": [
@@ -344,67 +329,52 @@
                   "type": "string",
                   "const": "resource"
                 },
-                "resource": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {},
-                    "annotations": {
-                      "type": "object",
-                      "properties": {
-                        "_meta": {}
-                      }
-                    },
-                    "resource": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "uri": {
-                              "type": "string"
-                            },
-                            "mimeType": {
-                              "type": "string"
-                            },
-                            "text": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "uri",
-                            "text"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "uri": {
-                              "type": "string"
-                            },
-                            "mimeType": {
-                              "type": "string"
-                            },
-                            "blob": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "uri",
-                            "blob"
-                          ]
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "resource"
-                  ]
-                },
                 "_meta": {},
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "_meta": {}
                   }
+                },
+                "resource": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "uri",
+                        "text"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "blob": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "uri",
+                        "blob"
+                      ]
+                    }
+                  ]
                 }
               },
               "required": [
@@ -619,67 +589,52 @@
                         "type": "string",
                         "const": "resource"
                       },
-                      "resource": {
-                        "type": "object",
-                        "properties": {
-                          "_meta": {},
-                          "annotations": {
-                            "type": "object",
-                            "properties": {
-                              "_meta": {}
-                            }
-                          },
-                          "resource": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "uri": {
-                                    "type": "string"
-                                  },
-                                  "mimeType": {
-                                    "type": "string"
-                                  },
-                                  "text": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "uri",
-                                  "text"
-                                ]
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "uri": {
-                                    "type": "string"
-                                  },
-                                  "mimeType": {
-                                    "type": "string"
-                                  },
-                                  "blob": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "uri",
-                                  "blob"
-                                ]
-                              }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "resource"
-                        ]
-                      },
                       "_meta": {},
                       "annotations": {
                         "type": "object",
                         "properties": {
                           "_meta": {}
                         }
+                      },
+                      "resource": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "uri": {
+                                "type": "string"
+                              },
+                              "mimeType": {
+                                "type": "string"
+                              },
+                              "text": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "uri",
+                              "text"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "uri": {
+                                "type": "string"
+                              },
+                              "mimeType": {
+                                "type": "string"
+                              },
+                              "blob": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "uri",
+                              "blob"
+                            ]
+                          }
+                        ]
                       }
                     },
                     "required": [

@@ -28,18 +28,7 @@ defmodule FrontmanServer.ProtocolSchema do
   Returns `:ok` on success, raises on failure with a descriptive message.
   """
   def validate!(data, schema_name) do
-    schema = load!(schema_name)
-
-    case ExJsonSchema.Validator.validate(schema, data) do
-      :ok ->
-        :ok
-
-      {:error, errors} ->
-        formatted =
-          Enum.map_join(errors, "\n", fn {message, path} -> "  #{path}: #{message}" end)
-
-        raise "Schema validation failed for #{schema_name}:\n#{formatted}\n\nData: #{inspect(data, pretty: true)}"
-    end
+    validate_schema!(load!(schema_name), data, "Schema validation failed for #{schema_name}")
   end
 
   @doc """
@@ -52,18 +41,7 @@ defmodule FrontmanServer.ProtocolSchema do
 
   @doc "Validates one envelope against the checksum-pinned official ACP v1 schema."
   def validate_upstream_acp!(data) do
-    schema = load_upstream_acp!()
-
-    case ExJsonSchema.Validator.validate(schema, data) do
-      :ok ->
-        :ok
-
-      {:error, errors} ->
-        formatted =
-          Enum.map_join(errors, "\n", fn {message, path} -> "  #{path}: #{message}" end)
-
-        raise "Upstream ACP schema validation failed:\n#{formatted}\n\nData: #{inspect(data, pretty: true)}"
-    end
+    validate_schema!(load_upstream_acp!(), data, "Upstream ACP schema validation failed")
   end
 
   @doc "Returns true when one envelope conforms to the pinned official ACP v1 schema."
@@ -83,6 +61,19 @@ defmodule FrontmanServer.ProtocolSchema do
     |> Map.put("definitions", definitions)
     |> ExJsonSchema.Schema.resolve()
     |> ExJsonSchema.Validator.valid?(data)
+  end
+
+  defp validate_schema!(schema, data, failure) do
+    case ExJsonSchema.Validator.validate(schema, data) do
+      :ok ->
+        :ok
+
+      {:error, errors} ->
+        formatted =
+          Enum.map_join(errors, "\n", fn {message, path} -> "  #{path}: #{message}" end)
+
+        raise "#{failure}:\n#{formatted}\n\nData: #{inspect(data, pretty: true)}"
+    end
   end
 
   defp load_upstream_acp! do
