@@ -2,32 +2,112 @@ open Vitest
 
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-describe("ACP Types encoding/decoding", _t => {
-  test("initializeParams should encode without throwing", _t => {
-    let params: Types.initializeParams = {
-      protocolVersion: Types.currentProtocolVersion,
-      clientCapabilities: Some({
-        fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
-        terminal: Some(false),
-        elicitation: None,
-      }),
-      clientInfo: Some({name: "test-client", version: "1.0.0", title: None, _meta: None}),
-    }
+let parsesWith = (json, schema) => {
+  try {
+    json->S.parseOrThrow(~to=schema)->ignore
+    true
+  } catch {
+  | _ => false
+  }
+}
 
-    params->Types.initializeParamsToJson->ignore
+let object = fields => JSON.Encode.object(Dict.fromArray(fields))
+let capabilityMetadata = frontmanDev => object([("frontman.dev", frontmanDev)])
+let attributionMetadata = version =>
+  capabilityMetadata(
+    object([("agentAttribution", object([("version", JSON.Encode.int(version))]))]),
+  )
+let agent = (~id="executor", ~name="executor", ~displayName="Executor", ~color="#16A085") =>
+  object([
+    ("id", JSON.Encode.string(id)),
+    ("name", JSON.Encode.string(name)),
+    ("displayName", JSON.Encode.string(displayName)),
+    ("description", JSON.Encode.string("Implements approved work")),
+    ("color", JSON.Encode.string(color)),
+  ])
+let sessionMetadata = agents => object([("frontman.dev/agents", JSON.Encode.array(agents))])
+let messageMetadata = (~agentId="executor", ~timestamp) =>
+  object([
+    ("frontman.dev/agentId", JSON.Encode.string(agentId)),
+    ("frontman.dev/timestamp", JSON.Encode.string(timestamp)),
+  ])
+
+describe("Frontman agent attribution metadata", () => {
+  test("capability metadata rejects malformed advertisements", t => {
+    [
+      capabilityMetadata(JSON.Encode.string("invalid")),
+      capabilityMetadata(object([("agentAttribution", JSON.Encode.string("invalid"))])),
+      attributionMetadata(0),
+      attributionMetadata(65536),
+    ]->Array.forEach(
+      json => t->expect(json->parsesWith(Types.capabilityMetadataSchema))->Expect.toBe(false),
+    )
   })
 
-  test("initializeParams should encode correct JSON structure", t => {
-    let params: Types.initializeParams = {
-      protocolVersion: 1,
-      clientCapabilities: None,
-      clientInfo: Some({name: "test", version: "1.0", title: Some("Test Client"), _meta: None}),
-    }
+  test("session metadata rejects empty identities, duplicate ids, and malformed colors", t => {
+    [
+      sessionMetadata([agent(~id="")]),
+      sessionMetadata([agent(~name="")]),
+      sessionMetadata([agent(~displayName="")]),
+      sessionMetadata([agent(~color="blue")]),
+      sessionMetadata([agent(), agent(~name="other")]),
+    ]->Array.forEach(
+      json => t->expect(json->parsesWith(Types.sessionMetadataSchema))->Expect.toBe(false),
+    )
+    t
+    ->expect(sessionMetadata([agent(~id="constructor")])->parsesWith(Types.sessionMetadataSchema))
+    ->Expect.toBe(true)
+  })
 
-    let json = params->Types.initializeParamsToJson
-    let obj = json->JSON.Decode.object->Option.getOrThrow
+  test("message metadata validates identity and RFC 3339 timestamp", t => {
+    let valid = object([
+      ("frontman.dev/agentId", JSON.Encode.string("executor")),
+      ("frontman.dev/timestamp", JSON.Encode.string("2026-07-14T12:30:01.123456Z")),
+      ("unrelated.dev/value", JSON.Encode.bool(true)),
+    ])
 
-    t->expect(obj->Dict.get("protocolVersion"))->Expect.toEqual(Some(JSON.Encode.int(1)))
+    t->expect(valid->parsesWith(Types.messageMetadataSchema))->Expect.toBe(true)
+    t
+    ->expect(
+      messageMetadata(~timestamp="2026-07-14T14:30:01+02:00")->parsesWith(
+        Types.messageMetadataSchema,
+      ),
+    )
+    ->Expect.toBe(true)
+    [
+      messageMetadata(~agentId="", ~timestamp="2026-07-14T12:30:01Z"),
+      messageMetadata(~timestamp="July 14, 2026"),
+      messageMetadata(~timestamp="2026-02-30T12:30:01Z"),
+    ]->Array.forEach(
+      json => t->expect(json->parsesWith(Types.messageMetadataSchema))->Expect.toBe(false),
+    )
+  })
+})
+
+describe("ACP Types encoding/decoding", _t => {
+  test("base result schemas preserve raw extension metadata", t => {
+    let metadata = object([
+      ("other.vendor", JSON.Encode.bool(true)),
+      ("frontman.dev", JSON.Encode.string("future-shape")),
+      ("frontman.dev/agents", JSON.Encode.string("future-catalog")),
+    ])
+    let initialize = JSON.parseOrThrow(`{"protocolVersion":1,"agentCapabilities":{}}`)
+    initialize
+    ->JSON.Decode.object
+    ->Option.getOrThrow
+    ->Dict.get("agentCapabilities")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.getOrThrow
+    ->Dict.set("_meta", metadata)
+    let session = object([("sessionId", JSON.Encode.string("task-1")), ("_meta", metadata)])
+
+    let initializeResult = initialize->S.parseOrThrow(~to=Types.initializeResultSchema)
+    let sessionResult = session->S.parseOrThrow(~to=Types.sessionNewResultSchema)
+
+    t
+    ->expect(initializeResult.agentCapabilities->Option.flatMap(c => c._meta))
+    ->Expect.toEqual(Some(metadata))
+    t->expect(sessionResult._meta)->Expect.toEqual(Some(metadata))
   })
 
   test("initializeResult should decode without throwing", t => {
@@ -76,133 +156,42 @@ describe("ACP Types encoding/decoding", _t => {
     t->expect(Types.currentProtocolVersion)->Expect.toEqual(1)
   })
 
-  test("contentBlock encodes embedded text resource", t => {
-    let block: Types.contentBlock = Types.EmbeddedResource({
-      resource: {
-        _meta: Some(JSON.Encode.object(Dict.fromArray([("current_page", JSON.Encode.bool(true))]))),
-        annotations: None,
-        resource: Types.TextResourceContents({
-          uri: "page://http://localhost:4321/",
-          mimeType: Some("text/plain"),
-          text: "Current page",
-        }),
-      },
-      _meta: None,
-      annotations: None,
-    })
+  test("contentBlock round trips embedded text resource", t => {
+    let json = JSON.parseOrThrow(`{"type":"resource","_meta":{"current_page":true},"resource":{"uri":"page://localhost","mimeType":"text/plain","text":"Current page"}}`)
+    let block = json->S.parseOrThrow(~to=Types.contentBlockSchema)
 
-    let json =
-      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
-    let obj = json->JSON.Decode.object->Option.getOrThrow
-    let resource = obj->Dict.get("resource")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
-    let contents =
-      resource->Dict.get("resource")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
-
-    t
-    ->expect(obj->Dict.get("type")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("resource"))
-    t
-    ->expect(contents->Dict.get("uri")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("page://http://localhost:4321/"))
-    t
-    ->expect(contents->Dict.get("text")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("Current page"))
-    t->expect(contents->Dict.get("blob")->Option.isNone)->Expect.toEqual(true)
-  })
-
-  test("contentBlock decodes embedded text resource", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("type", JSON.Encode.string("resource")),
-        (
-          "resource",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "resource",
-                JSON.Encode.object(
-                  Dict.fromArray([
-                    ("uri", JSON.Encode.string("page://http://localhost:4321/")),
-                    ("mimeType", JSON.Encode.string("text/plain")),
-                    ("text", JSON.Encode.string("Current page")),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
-
-    switch json->S.parseOrThrow(~to=Types.contentBlockSchema) {
-    | Types.EmbeddedResource({resource: {resource: Types.TextResourceContents({uri, text})}}) =>
-      t->expect(uri)->Expect.toEqual("page://http://localhost:4321/")
-      t->expect(text)->Expect.toEqual("Current page")
+    switch block {
+    | Types.EmbeddedResource({resource: Types.TextResourceContents({uri, text})}) => {
+        t->expect(uri)->Expect.toEqual("page://localhost")
+        t->expect(text)->Expect.toEqual("Current page")
+      }
     | _ => t->expect("EmbeddedResource")->Expect.toEqual("not matched")
     }
-  })
-
-  test("contentBlock encodes embedded blob resource", t => {
-    let block: Types.contentBlock = Types.EmbeddedResource({
-      resource: {
-        _meta: None,
-        annotations: None,
-        resource: Types.BlobResourceContents({
-          uri: "annotation://a1/screenshot",
-          mimeType: Some("image/png"),
-          blob: "base64-data",
-        }),
-      },
-      _meta: None,
-      annotations: None,
-    })
-
-    let json =
-      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
-    let obj = json->JSON.Decode.object->Option.getOrThrow
-    let resource = obj->Dict.get("resource")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
-    let contents =
-      resource->Dict.get("resource")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
 
     t
-    ->expect(contents->Dict.get("uri")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("annotation://a1/screenshot"))
-    t
-    ->expect(contents->Dict.get("blob")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("base64-data"))
-    t->expect(contents->Dict.get("text")->Option.isNone)->Expect.toEqual(true)
-  })
-
-  test("contentBlock decodes embedded blob resource", t => {
-    let json = JSON.Encode.object(
-      Dict.fromArray([
-        ("type", JSON.Encode.string("resource")),
-        (
-          "resource",
-          JSON.Encode.object(
-            Dict.fromArray([
-              (
-                "resource",
-                JSON.Encode.object(
-                  Dict.fromArray([
-                    ("uri", JSON.Encode.string("annotation://a1/screenshot")),
-                    ("mimeType", JSON.Encode.string("image/png")),
-                    ("blob", JSON.Encode.string("base64-data")),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ]),
+    ->expect(
+      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true)),
     )
+    ->Expect.toEqual(json)
+  })
 
-    switch json->S.parseOrThrow(~to=Types.contentBlockSchema) {
-    | Types.EmbeddedResource({resource: {resource: Types.BlobResourceContents({uri, blob})}}) =>
-      t->expect(uri)->Expect.toEqual("annotation://a1/screenshot")
-      t->expect(blob)->Expect.toEqual("base64-data")
+  test("contentBlock round trips embedded blob resource", t => {
+    let json = JSON.parseOrThrow(`{"type":"resource","resource":{"uri":"annotation://a1/screenshot","mimeType":"image/png","blob":"base64-data"}}`)
+    let block = json->S.parseOrThrow(~to=Types.contentBlockSchema)
+
+    switch block {
+    | Types.EmbeddedResource({resource: Types.BlobResourceContents({uri, blob})}) => {
+        t->expect(uri)->Expect.toEqual("annotation://a1/screenshot")
+        t->expect(blob)->Expect.toEqual("base64-data")
+      }
     | _ => t->expect("EmbeddedResource blob")->Expect.toEqual("not matched")
     }
+
+    t
+    ->expect(
+      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true)),
+    )
+    ->Expect.toEqual(json)
   })
 })
 
@@ -211,10 +200,17 @@ describe("ACP Types encoding/decoding", _t => {
 // ============================================================================
 
 module Fixtures = {
-  let makeAgentMessageChunk = (~text: string, ~timestamp: string): JSON.t => {
+  let makeMessageChunk = (
+    ~sessionUpdate: string,
+    ~messageId: string,
+    ~agentId: string,
+    ~text: string,
+    ~timestamp: string,
+  ): JSON.t => {
     JSON.Encode.object(
       Dict.fromArray([
-        ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
+        ("sessionUpdate", JSON.Encode.string(sessionUpdate)),
+        ("messageId", JSON.Encode.string(messageId)),
         (
           "content",
           JSON.Encode.object(
@@ -224,27 +220,7 @@ module Fixtures = {
             ]),
           ),
         ),
-        ("timestamp", JSON.Encode.string(timestamp)),
-      ]),
-    )
-  }
-
-  let makeUserMessage = (~messageId: string, ~text: string): JSON.t => {
-    JSON.Encode.object(
-      Dict.fromArray([
-        ("sessionUpdate", JSON.Encode.string("user_message")),
-        ("messageId", JSON.Encode.string(messageId)),
-        (
-          "content",
-          JSON.Encode.array([
-            JSON.Encode.object(
-              Dict.fromArray([
-                ("type", JSON.Encode.string("text")),
-                ("text", JSON.Encode.string(text)),
-              ]),
-            ),
-          ]),
-        ),
+        ("_meta", messageMetadata(~agentId, ~timestamp)),
       ]),
     )
   }
@@ -265,67 +241,75 @@ module Fixtures = {
 }
 
 describe("sessionUpdate schema parsing", () => {
-  test("agent_message_chunk with text content and timestamp", t => {
-    let json = Fixtures.makeAgentMessageChunk(
+  test("agent_message_chunk with identity metadata", t => {
+    let json = Fixtures.makeMessageChunk(
+      ~sessionUpdate="agent_message_chunk",
+      ~messageId="turn-123:0",
+      ~agentId="executor-id",
       ~text="Hello from the agent",
       ~timestamp="2024-01-15T10:00:30Z",
     )
     let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
 
     switch parsed {
-    | Types.AgentMessageChunk({content: Types.TextContent({text}), timestamp}) =>
+    | Types.AgentMessageChunk({
+        messageId,
+        content: Types.TextContent({text}),
+        _meta: {agentId, timestamp},
+      }) =>
+      t->expect(messageId)->Expect.toBe("turn-123:0")
       t->expect(text)->Expect.toBe("Hello from the agent")
+      t->expect(agentId)->Expect.toBe("executor-id")
       t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:30Z")
     | _ => t->expect("AgentMessageChunk")->Expect.toBe("not matched")
     }
   })
 
-  test("user_message with canonical message id and content", t => {
-    let json = Fixtures.makeUserMessage(~messageId="msg-123", ~text="Accepted user message")
+  test("user_message_chunk with canonical identity metadata", t => {
+    let json = Fixtures.makeMessageChunk(
+      ~sessionUpdate="user_message_chunk",
+      ~messageId="msg-123",
+      ~agentId="executor-id",
+      ~text="Accepted user message",
+      ~timestamp="2024-01-15T10:00:00Z",
+    )
     let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
 
     switch parsed {
-    | Types.UserMessage({messageId, content: [Types.TextContent({text})]}) =>
+    | Types.UserMessageChunk({
+        messageId,
+        content: Types.TextContent({text}),
+        _meta: {agentId, timestamp},
+      }) =>
       t->expect(messageId)->Expect.toBe("msg-123")
       t->expect(text)->Expect.toBe("Accepted user message")
-    | _ => t->expect("UserMessage")->Expect.toBe("not matched")
+      t->expect(agentId)->Expect.toBe("executor-id")
+      t->expect(timestamp)->Expect.toBe("2024-01-15T10:00:00Z")
+    | _ => t->expect("UserMessageChunk")->Expect.toBe("not matched")
     }
   })
 
-  test("state_update running", t => {
-    let json = Fixtures.makeStateUpdate(~state="running")
-    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
-
-    switch parsed {
-    | Types.StateUpdate({state: Types.Running, stopReason: None}) =>
-      t->expect("running")->Expect.toBe("running")
-    | _ => t->expect("StateUpdate running")->Expect.toBe("not matched")
-    }
+  test("state_update variants", t => {
+    [
+      (
+        Fixtures.makeStateUpdate(~state="running"),
+        Types.StateUpdate({state: Types.Running, stopReason: None}),
+      ),
+      (
+        Fixtures.makeStateUpdate(~state="idle", ~stopReason="end_turn"),
+        Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn)}),
+      ),
+      (
+        Fixtures.makeStateUpdate(~state="requires_action"),
+        Types.StateUpdate({state: Types.RequiresAction, stopReason: None}),
+      ),
+    ]->Array.forEach(
+      ((json, expected)) =>
+        t->expect(json->S.parseOrThrow(~to=Types.sessionUpdateSchema))->Expect.toEqual(expected),
+    )
   })
 
-  test("state_update idle with stop reason", t => {
-    let json = Fixtures.makeStateUpdate(~state="idle", ~stopReason="end_turn")
-    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
-
-    switch parsed {
-    | Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn)}) =>
-      t->expect("idle")->Expect.toBe("idle")
-    | _ => t->expect("StateUpdate idle")->Expect.toBe("not matched")
-    }
-  })
-
-  test("state_update requires_action", t => {
-    let json = Fixtures.makeStateUpdate(~state="requires_action")
-    let parsed = json->S.parseOrThrow(~to=Types.sessionUpdateSchema)
-
-    switch parsed {
-    | Types.StateUpdate({state: Types.RequiresAction, stopReason: None}) =>
-      t->expect("requires_action")->Expect.toBe("requires_action")
-    | _ => t->expect("StateUpdate requires_action")->Expect.toBe("not matched")
-    }
-  })
-
-  test("agent_message_chunk without timestamp falls through to Unknown", t => {
+  test("malformed known agent_message_chunk is rejected", t => {
     let json = JSON.Encode.object(
       Dict.fromArray([
         ("sessionUpdate", JSON.Encode.string("agent_message_chunk")),
@@ -341,21 +325,53 @@ describe("sessionUpdate schema parsing", () => {
       ]),
     )
 
-    let result = try {
-      Ok(json->S.parseOrThrow(~to=Types.sessionUpdateSchema))
-    } catch {
-    | _ => Error("parse threw")
-    }
+    t->expect(json->parsesWith(Types.sessionUpdateSchema))->Expect.toBe(false)
+  })
 
-    switch result {
-    | Ok(Types.AgentMessageChunk(_)) =>
-      t->expect("AgentMessageChunk without timestamp")->Expect.toBe("should not parse")
-    | Ok(Types.Unknown({sessionUpdate})) =>
-      // Falls to Unknown — message silently dropped by handleSessionUpdate
-      t->expect(sessionUpdate)->Expect.toBe("agent_message_chunk")
-    | Ok(_) => t->expect("unexpected variant")->Expect.toBe("should not happen")
-    | Error(_) => // Sury fully rejected — also acceptable
-      ()
+  test("generic chunk accepts Frontman metadata that negotiated v1 rejects", t => {
+    let json = JSON.parseOrThrow(`{
+      "sessionUpdate":"agent_message_chunk",
+      "messageId":"message-1",
+      "content":{"type":"text","text":"hello"},
+      "_meta":{"frontman.dev/agentId":42,"frontman.dev/timestamp":"invalid"}
+    }`)
+
+    t->expect(json->parsesWith(Types.sessionUpdateSchema))->Expect.toBe(false)
+    t->expect(json->parsesWith(Types.genericSessionUpdateSchema))->Expect.toBe(true)
+  })
+
+  test("generic known chunk still requires standard ACP content", t => {
+    let json = JSON.parseOrThrow(`{
+      "sessionUpdate":"agent_message_chunk",
+      "messageId":"message-1",
+      "_meta":{"frontman.dev/agentId":42}
+    }`)
+
+    t->expect(json->parsesWith(Types.genericSessionUpdateSchema))->Expect.toBe(false)
+  })
+
+  test("unknown session update is rejected", t => {
+    let json = JSON.Encode.object(
+      Dict.fromArray([("sessionUpdate", JSON.Encode.string("future_update"))]),
+    )
+
+    t->expect(json->parsesWith(Types.sessionUpdateSchema))->Expect.toBe(false)
+
+    switch json->S.parseOrThrow(~to=Types.unknownSessionUpdateSchema) {
+    | Types.Unknown({sessionUpdate: "future_update"}) => ()
+    | _ => t->expect("Unknown future_update")->Expect.toBe("not matched")
     }
+  })
+
+  test("notification requires literal JSON-RPC version and method", t => {
+    [
+      `{"jsonrpc":"1.0","method":"session/update","params":{"sessionId":"task-1","update":{"sessionUpdate":"state_update","state":"running"}}}`,
+      `{"jsonrpc":"2.0","method":"session/prompt","params":{"sessionId":"task-1","update":{"sessionUpdate":"state_update","state":"running"}}}`,
+    ]->Array.forEach(
+      json =>
+        t
+        ->expect(JSON.parseOrThrow(json)->parsesWith(Types.sessionUpdateNotificationSchema))
+        ->Expect.toBe(false),
+    )
   })
 })

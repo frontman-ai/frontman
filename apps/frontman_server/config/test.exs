@@ -67,6 +67,7 @@ config :frontman_server, FrontmanServer.Agents,
       name: "executor",
       display_name: "Executor",
       description: "Software engineering execution agent with full tool access.",
+      color: "#985DF7",
       system: "Test executor system."
     },
     %{
@@ -75,6 +76,7 @@ config :frontman_server, FrontmanServer.Agents,
       display_name: "Planner",
       description:
         "Read-only planning agent that prepares implementation plans for later execution.",
+      color: "#F59E0B",
       system: "Test planner system.",
       tools: %{access: [:read]}
     }

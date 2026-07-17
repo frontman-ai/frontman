@@ -16,9 +16,12 @@ module Actions = {
   }
 
   // ForTask(taskId) actions - streaming/tool events from ACP
-  let textDeltaReceived = (~taskId: string, ~text: string, ~timestamp: string) =>
+  let textDeltaReceived = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: TextDeltaReceived({text, timestamp})}),
+      TaskAction({
+        target: ForTask(taskId),
+        action: TextDeltaReceived({messageId, text, agentId}),
+      }),
     )
 
   // TOOLS
@@ -154,32 +157,27 @@ module Actions = {
     ~taskId: string,
     ~id: string,
     ~error: string,
-    ~timestamp: string,
     ~category: Client__ErrorCategory.t,
   ) =>
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: AgentError({id, error, timestamp, category}),
+        action: AgentError({id, error, category}),
       }),
     )
 
   let retryingStatusReceived = (
     ~taskId: string,
     ~retryStatus: Client__Task__Types.Task.retryStatus,
-  ) => {
-    let status = retryStatus
+  ) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: RetryingUpdate({retryStatus: status})}),
+      TaskAction({target: ForTask(taskId), action: RetryingUpdate({retryStatus: retryStatus})}),
     )
-  }
 
-  let retryTurn = (~taskId: string, ~retriedErrorId: string) => {
-    let errorId = retriedErrorId
+  let retryTurn = (~taskId: string, ~retriedErrorId: string) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: RetryTurn({retriedErrorId: errorId})}),
+      TaskAction({target: ForTask(taskId), action: RetryTurn({retriedErrorId: retriedErrorId})}),
     )
-  }
 
   // Plan action creators (ForTask)
   let planReceived = (~taskId: string, ~entries) =>
@@ -251,11 +249,12 @@ module Actions = {
     ~id: string,
     ~content: array<Client__Message.UserContentPart.t>,
     ~annotations: array<Client__Message.MessageAnnotation.t>,
+    ~agentId: string,
   ) =>
     Client__State__Store.dispatch(
       TaskAction({
         target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations}),
+        action: UserMessageReceived({id, content, annotations, agentId}),
       }),
     )
 

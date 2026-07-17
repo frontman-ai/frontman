@@ -375,7 +375,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       Process.sleep(100)
 
-      assert {:ok, %Interaction.UserMessage{}} =
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task_id,
                  message: user_content("Queued follow-up"),
@@ -396,12 +396,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       agent_responses =
-        Enum.filter(task.interactions, &match?(%Interaction.AgentResponse{}, &1))
+        Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentResponse{}, &1))
 
       assert length(agent_responses) == 2,
              "Expected 2 agent responses, got #{length(agent_responses)}"
 
-      assert task.interactions |> Enum.filter(&match?(%Interaction.UserMessage{}, &1)) |> length() ==
+      assert Tasks.interactions(task)
+             |> Enum.filter(&match?(%Interaction.UserMessage{}, &1))
+             |> length() ==
                2
     end
 
@@ -490,10 +492,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, returned, 1} =
         submit_user_message(scope, task_id, content_blocks, model: "missing:test")
 
-      assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.current_page
+      assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.data.current_page
 
       assert [%Interaction.Annotation{parent: %Interaction.ParentLocation{}}] =
-               returned.annotations
+               returned.data.annotations
 
       assert_receive_interaction(%Interaction.UserMessage{} = broadcast_message, nil)
 
@@ -503,7 +505,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      assert [%Interaction.UserMessage{} = persisted_message | _] = task.interactions
+      assert [%Interaction.UserMessage{} = persisted_message | _] = Tasks.interactions(task)
 
       assert %Interaction.CurrentPage{title: "Frontman: Visual AI Frontend Editing"} =
                persisted_message.current_page
@@ -541,7 +543,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
+
+      completions =
+        Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentCompleted{}, &1))
+
       assert length(completions) == 2
     end
 
@@ -569,7 +574,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
-      refute Enum.any?(task.interactions, &match?(%Interaction.AgentRetry{}, &1))
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentRetry{}, &1))
     end
   end
 
@@ -648,30 +653,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [system_text] = provider_system_texts(messages)
       assert system_text =~ "Test planner system."
       assert system_text =~ "## Next.js"
-      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
-    end
-
-    test "uses default agent when resuming a legacy turn without agent id", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      parent = self()
-      task = task_schema!(task_id)
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-
-      insert_accepted_user_message!(task, "legacy turn")
-      insert_turn_started_for_messages!(task_id, 1, nil)
-
-      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
-        send(parent, {:provider_messages, messages})
-        ReqLLMResponses.response("done")
-      end)
-
-      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
-
-      assert_receive {:provider_messages, messages}, 1_000
-      assert [system_text] = provider_system_texts(messages)
-      assert system_text =~ "Test planner system."
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
 
@@ -853,14 +834,16 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       tool_results =
-        Enum.filter(task.interactions, fn
+        Enum.filter(Tasks.interactions(task), fn
           %Interaction.ToolResult{tool_name: "question"} -> true
           _ -> false
         end)
 
       assert [_ | _] = tool_results
 
-      completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
+      completions =
+        Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentCompleted{}, &1))
+
       assert [_ | _] = completions
     end
   end
@@ -926,7 +909,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       tool_results =
-        Enum.filter(task.interactions, fn
+        Enum.filter(Tasks.interactions(task), fn
           %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
           _ -> false
         end)
@@ -968,7 +951,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       tool_call_interaction =
-        Enum.find(task.interactions, fn
+        Enum.find(Tasks.interactions(task), fn
           %Interaction.ToolCall{tool_call_id: ^question_tc_id} -> true
           _ -> false
         end)
@@ -977,7 +960,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
              "Expected a ToolCall interaction to be persisted"
 
       tool_result =
-        Enum.find(task.interactions, fn
+        Enum.find(Tasks.interactions(task), fn
           %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
           _ -> false
         end)
@@ -1243,7 +1226,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       agent_error =
-        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+        Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert agent_error != nil
       assert agent_error.kind == "terminated"
@@ -1290,7 +1273,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       agent_error =
-        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+        Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert agent_error != nil
       assert agent_error.kind == "crashed"
@@ -1337,7 +1320,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       agent_error =
-        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+        Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert agent_error != nil
       assert agent_error.kind == "failed"
@@ -1422,7 +1405,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       tool_result =
-        Enum.find(task.interactions, fn
+        Enum.find(Tasks.interactions(task), fn
           %Interaction.ToolResult{tool_call_id: ^tc_id} -> true
           _ -> false
         end)
@@ -1458,7 +1441,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       tool_result =
-        Enum.find(task.interactions, fn
+        Enum.find(Tasks.interactions(task), fn
           %Interaction.ToolResult{tool_call_id: ^tc_id} -> true
           _ -> false
         end)
@@ -1481,14 +1464,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp insert_turn_started_for_messages!(task_id, turn_number, agent_id \\ "test-frontman") do
-    user_message_ids =
-      InteractionSchema
-      |> InteractionSchema.for_task(task_id)
-      |> InteractionSchema.of_type(:user_message)
-      |> InteractionSchema.ordered()
-      |> Repo.all()
-      |> Enum.map(& &1.id)
-
     InteractionSchema.create_changeset(
       task_id,
       :turn_started,
@@ -1496,11 +1471,20 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: agent_id,
-        user_message_ids: user_message_ids
+        user_message_ids: accepted_user_message_ids(task_id)
       },
       turn_number
     )
     |> Repo.insert!()
+  end
+
+  defp accepted_user_message_ids(task_id) do
+    InteractionSchema
+    |> InteractionSchema.for_task(task_id)
+    |> InteractionSchema.of_type(:user_message)
+    |> InteractionSchema.ordered()
+    |> Repo.all()
+    |> Enum.map(& &1.id)
   end
 
   defp provider_user_texts(messages) do

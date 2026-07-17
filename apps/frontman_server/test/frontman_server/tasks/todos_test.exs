@@ -18,7 +18,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
   describe "list_todos/1" do
     test "returns empty map when no interactions", %{task_id: task_id, scope: scope} do
       {:ok, task} = Tasks.get_task(scope, task_id)
-      assert %{} = Todos.list_todos(task.interactions)
+      assert %{} = Todos.list_todos(task.interaction_rows)
     end
 
     test "parses todos from a todo_write result", %{
@@ -59,7 +59,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      todos = Todos.list_todos(task.interactions)
+      todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 2
 
       todo_list = Map.values(todos)
@@ -115,7 +115,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      todos = Todos.list_todos(task.interactions)
+      todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 1
 
       [todo] = Map.values(todos)
@@ -162,7 +162,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      todos = Todos.list_todos(task.interactions)
+      todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 1
       assert [%{content: "Good task"}] = Map.values(todos)
     end
@@ -182,7 +182,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      assert %{} = Todos.list_todos(task.interactions)
+      assert %{} = Todos.list_todos(task.interaction_rows)
     end
 
     test "old todo_add/update/remove interactions are ignored", %{
@@ -210,7 +210,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      todos = Todos.list_todos(task.interactions)
+      todos = Todos.list_todos(task.interaction_rows)
       assert todos == %{}
     end
   end

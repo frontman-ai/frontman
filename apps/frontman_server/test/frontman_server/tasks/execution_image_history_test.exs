@@ -82,7 +82,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     refute content_text([turn1_tool_message]) =~ "data:image"
 
     {:ok, task} = Tasks.get_task(scope, task_id)
-    persisted = tool_result!(task.interactions, screenshot_tool_call_id)
+    persisted = tool_result!(Tasks.interactions(task), screenshot_tool_call_id)
     assert persisted.result == client_result
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
@@ -164,7 +164,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     refute content_text([tool_message]) =~ "data:image"
 
     {:ok, task} = Tasks.get_task(scope, task_id)
-    persisted = tool_result!(task.interactions, tool_call_id)
+    persisted = tool_result!(Tasks.interactions(task), tool_call_id)
 
     assert persisted.result == mcp_image_result(screenshot)
   end
@@ -248,13 +248,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   defp user_image_block(binary, mime \\ "image/png") do
     %{
       "type" => "resource",
+      "_meta" => %{"user_image" => true, "filename" => "image.png"},
       "resource" => %{
-        "_meta" => %{"user_image" => true, "filename" => "image.png"},
-        "resource" => %{
-          "uri" => "attachment://#{System.unique_integer([:positive])}/image.png",
-          "mimeType" => mime,
-          "blob" => Base.encode64(binary)
-        }
+        "uri" => "attachment://#{System.unique_integer([:positive])}/image.png",
+        "mimeType" => mime,
+        "blob" => Base.encode64(binary)
       }
     }
   end

@@ -77,6 +77,22 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
 
       refute invalid_changeset.valid?
     end
+
+    test "requires an agent id", %{task: task} do
+      attrs = valid_turn_started_attrs()
+
+      assert InteractionSchema.create_changeset(task.id, :turn_started, attrs, 1).valid?
+
+      changeset =
+        InteractionSchema.create_changeset(
+          task.id,
+          :turn_started,
+          Map.delete(attrs, :agent_id),
+          1
+        )
+
+      refute changeset.valid?
+    end
   end
 
   describe "JSON encoding" do
@@ -108,6 +124,15 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       id: Ecto.UUID.generate(),
       timestamp: Interaction.now(),
       retried_error_id: retried_error_id
+    }
+  end
+
+  defp valid_turn_started_attrs do
+    %{
+      id: Ecto.UUID.generate(),
+      timestamp: Interaction.now(),
+      agent_id: "test-frontman",
+      user_message_ids: [Ecto.UUID.generate()]
     }
   end
 end

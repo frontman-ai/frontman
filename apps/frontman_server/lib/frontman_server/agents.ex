@@ -20,7 +20,16 @@ defmodule FrontmanServer.Agents do
   def list_agents(%Scope{}) do
     config()
     |> Keyword.fetch!(:agents)
-    |> Enum.map(&struct!(Agent, &1))
+    |> Enum.map(&Agent.new!/1)
+    |> resolve_catalog!()
+  end
+
+  @doc "Asserts the current global catalog and referenced agent IDs."
+  def resolve_catalog!(active_agents, referenced_agent_ids \\ [])
+      when is_list(active_agents) and is_list(referenced_agent_ids) do
+    agent_ids = agent_ids!(active_agents)
+    Enum.each(referenced_agent_ids, &Map.fetch!(agent_ids, &1))
+    active_agents
   end
 
   def get_agent(%Scope{} = scope, agent_id) when is_binary(agent_id) do
@@ -50,6 +59,13 @@ defmodule FrontmanServer.Agents do
 
   def system_prompt(%Agent{} = agent, context) when is_map(context) do
     SystemPrompt.compose(agent, context)
+  end
+
+  defp agent_ids!(agents) do
+    Enum.reduce(agents, %{}, fn %Agent{id: id} = agent, agents_by_id ->
+      false = Map.has_key?(agents_by_id, id)
+      Map.put(agents_by_id, id, agent)
+    end)
   end
 
   defp config do

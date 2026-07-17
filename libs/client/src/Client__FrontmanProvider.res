@@ -12,13 +12,6 @@ module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
 module RuntimeConfig = Client__RuntimeConfig
 
-// Create the text delta buffer instance and register it as active.
-// The onFlush callback breaks the circular dep: TextDeltaBuffer doesn't import Client__State.
-let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(~taskId, ~text, ~timestamp) => {
-  Client__State.Actions.textDeltaReceived(~taskId, ~text, ~timestamp)
-})
-let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
-
 // Extract text from a contentBlock (returns Some for TextContent, None for other variants)
 let getContentBlockText = (block: Types.contentBlock): option<string> =>
   switch block {
@@ -40,74 +33,22 @@ let agentErrorId = meta => {
   S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
 }
 
-// Parse accepted user_message content blocks into (content, annotations).
-// Inverse of messageAnnotationsToContentBlocks + buildAttachmentContentBlocks on the send path.
-let parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
-  array<Client__Message.UserContentPart.t>,
-  array<Client__Message.MessageAnnotation.t>,
-) => {
-  // First pass: collect screenshot data URLs keyed by annotation_id
-  let screenshotMap = Dict.make()
-  blocks->Array.forEach(block =>
-    switch block {
-    | EmbeddedResource({
-        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
-      })
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) !=
-        None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.screenshotMetaSchema)
-      if parsed.annotationScreenshot {
-        screenshotMap->Dict.set(
-          parsed.annotationId,
-          `data:${mimeType->Option.getOrThrow};base64,${blob}`,
-        )
-      }
-    | _ => ()
-    }
-  )
-
-  // Second pass: build content parts and annotations
-  let content = []
-  let annotations = []
-  blocks->Array.forEach(block =>
-    switch block {
-    | TextContent({text}) =>
-      content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
-    | EmbeddedResource({resource: {_meta: Some(meta), resource: TextResourceContents(_)}})
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation")) != None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.annotationMetaSchema)
-      if parsed.annotation {
-        let screenshot = screenshotMap->Dict.get(parsed.annotationId)
-        annotations
-        ->Array.push(Client__Task__Types.annotationMetaToMessageAnnotation(parsed, ~screenshot))
-        ->ignore
-      }
-    | EmbeddedResource({
-        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
-      }) =>
-      // User images (screenshots already handled in first pass)
-      switch meta->JSON.Decode.object {
-      | Some(d) if d->Dict.get("user_image") == Some(JSON.Encode.bool(true)) =>
-        let filename =
-          d->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
-        let mime = mimeType->Option.getOrThrow
-        content
-        ->Array.push(
-          Client__Message.UserContentPart.Image({
-            id: None,
-            image: `data:${mime};base64,${blob}`,
-            mediaType: Some(mime),
-            name: Some(filename),
-          }),
-        )
-        ->ignore
-      | _ => ()
-      }
-    | _ => ()
-    }
-  )
-  (content, annotations)
-}
+// Coalesce protocol message chunks before dispatching complete logical updates.
+let textDeltaBuffer = Client__TextDeltaBuffer.make(
+  ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
+    Client__State.Actions.textDeltaReceived(~taskId, ~messageId, ~text, ~agentId),
+  ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) => {
+    let (content, annotations) = Client__ACP__MessageCodec.parseUserMessageBlocks(blocks)
+    Client__State.Actions.userMessageReceived(
+      ~taskId,
+      ~id=messageId,
+      ~content,
+      ~annotations,
+      ~agentId,
+    )
+  },
+)
+let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
 // Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
@@ -257,7 +198,7 @@ module Provider = {
           state.relayInstance->Option.forEach(relay => Relay.disconnect(relay))
           let activeSession = switch state.session {
           | SessionActive(session) => Some(session)
-          | NoSession | SessionCreating | SessionError(_) => None
+          | NoSession | SessionCreating(_) | SessionError(_) => None
           }
           switch state.acp {
           | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
@@ -277,17 +218,18 @@ module Provider = {
     ) => {
       let taskId = sessionId
       switch update {
-      | AgentMessageChunk({content, timestamp}) =>
+      | AgentMessageChunk({messageId, content, _meta: {agentId}}) =>
         // Per ACP spec: first agent_message_chunk implicitly signals message start.
         // Buffer text deltas and flush once per animation frame to avoid
         // dozens of full state rebuilds per second during fast streaming.
         getContentBlockText(content)->Option.forEach(text => {
-          textDeltaBuffer.add(~taskId, ~text, ~timestamp)
+          textDeltaBuffer.add(~taskId, ~messageId, ~text, ~agentId)
         })
-      | UserMessage({messageId, content}) =>
-        Client__TextDeltaBuffer.flush()
-        let (content, annotations) = parseUserMessageBlocks(content)
-        Client__State.Actions.userMessageReceived(~taskId, ~id=messageId, ~content, ~annotations)
+      | UserMessageChunk({messageId, content, _meta}) =>
+        textDeltaBuffer.addUserBlock(~taskId, ~messageId, ~block=content, ~agentId=_meta.agentId)
+      | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
+        failwith("Frontman UI requires negotiated agent attribution")
+      | Unknown(_) => ()
       | ToolCall({toolCallId, title, parentAgentId, spawningToolName, _}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.toolCallReceived(
@@ -305,6 +247,7 @@ module Provider = {
           },
         )
       | ToolCallUpdate({toolCallId, status, content}) =>
+        Client__TextDeltaBuffer.flush()
         let text =
           content
           ->Option.flatMap(c => c->Array.get(0))
@@ -337,21 +280,21 @@ module Provider = {
         | Some(InProgress) => () // Normal transitional status for MCP tools
         | None => ()
         }
-      | Plan({entries}) => Client__State.Actions.planReceived(~taskId, ~entries)
+      | Plan({entries}) =>
+        Client__TextDeltaBuffer.flush()
+        Client__State.Actions.planReceived(~taskId, ~entries)
       | StateUpdate({state, stopReason: _}) =>
+        Client__TextDeltaBuffer.flush()
         switch state {
         | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle =>
-          Client__TextDeltaBuffer.flush()
-          Client__State.Actions.executionStateIdle(~taskId)
-        | RequiresAction =>
-          Client__TextDeltaBuffer.flush()
-          Client__State.Actions.executionStateRequiresAction(~taskId)
+        | Idle => Client__State.Actions.executionStateIdle(~taskId)
+        | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
       | ConfigOptionUpdate({configOptions}) =>
+        Client__TextDeltaBuffer.flush()
         Client__State.Actions.configOptionsReceived(~configOptions)
-      | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
-      | Error({_meta, message, timestamp, retryAt, attempt, maxAttempts, category}) =>
+      | CurrentModeUpdate(_) => Client__TextDeltaBuffer.flush()
+      | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>
@@ -368,17 +311,16 @@ module Provider = {
             ~taskId,
             ~id=agentErrorId(_meta),
             ~error=message,
-            ~timestamp,
             ~category=Client__ErrorCategory.fromAcpCategory(category),
           )
         }
-      | Unknown(_) => ()
       }
     })
 
     let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
       dispatch(
         CreateSession({
+          sessionId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
           onMcpMessage: logMCPMessage,

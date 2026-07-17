@@ -82,7 +82,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   """
   def user_message_fixture(scope, task_id, content_blocks, model \\ @default_test_model) do
     task = task_schema!(scope, task_id)
-    {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model)
+    {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
 
     with {:ok, row} <-
            InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)

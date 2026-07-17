@@ -19,6 +19,33 @@ module ACPTypes = Types.ACPTypes
 
 module MessageStore = Client__MessageStore
 
+let requireSameAgent = (~existingAgentId, ~agentId, ~message) =>
+  switch existingAgentId == agentId {
+  | true => ()
+  | false => failwith(message)
+  }
+
+let mergeUserMessage = (message, ~id, ~content, ~annotations, ~agentId) =>
+  switch message {
+  | Message.User({
+      content: existingContent,
+      annotations: existingAnnotations,
+      agentId: existingAgentId,
+    }) =>
+    requireSameAgent(
+      ~existingAgentId,
+      ~agentId,
+      ~message=`[TaskReducer] Agent changed within message ${id}`,
+    )
+    Message.User({
+      id,
+      content: Array.concat(existingContent, content),
+      annotations: Array.concat(existingAnnotations, annotations),
+      agentId,
+    })
+  | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
+  }
+
 module Lens = {
   // ---- Generic helpers to eliminate repetitive 4-way switches ----
 
@@ -66,8 +93,7 @@ module Lens = {
     | _ => task
     }
 
-  // Get the streaming message (at most one per task)
-  // INVARIANT: Only one streaming message can exist at a time.
+  // Get latest streaming message for UI state.
   let getStreamingMessage = (task: Task.t): option<Message.assistantMessage> => {
     let messages = Task.getMessages(task)
     let streaming = messages->Array.filterMap(msg => {
@@ -77,8 +103,7 @@ module Lens = {
       }
     })
 
-    assert(Array.length(streaming) <= 1)
-    streaming->Array.get(0)
+    streaming->Array.get(Array.length(streaming) - 1)
   }
 
   // Complete any streaming message (convert Streaming to Completed)
@@ -87,14 +112,14 @@ module Lens = {
     updateMessages(task, store =>
       MessageStore.map(store, msg =>
         switch msg {
-        | Message.Assistant(Streaming({id, textBuffer, createdAt})) =>
+        | Message.Assistant(Streaming({id, textBuffer, agentId})) =>
           // Empty buffer = empty content array (not a Text part with empty string)
           let content = if String.length(textBuffer) > 0 {
             [AssistantContentPart.Text({text: textBuffer})]
           } else {
             []
           }
-          Message.Assistant(Completed({id, content, createdAt}))
+          Message.Assistant(Completed({id, content, agentId}))
         | other => other
         }
       )
@@ -292,8 +317,8 @@ type annotationElement = {
 
 type action =
   // Streaming actions
-  | StreamingStarted
-  | TextDeltaReceived({text: string, timestamp: string})
+  | TextDeltaReceived({messageId: string, text: string, agentId: string})
+  | AgentCatalogInstalled(array<ACPTypes.agentCatalogEntry>)
   // Tool call actions
   | ToolInputReceived({id: string, input: JSON.t})
   | ToolResultReceived({id: string, result: JSON.t})
@@ -342,7 +367,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   // Error actions
-  | AgentError({id: string, error: string, timestamp: string, category: Client__ErrorCategory.t})
+  | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
@@ -355,6 +380,7 @@ type action =
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
     })
   // Question tool actions
   | QuestionReceived({
@@ -407,8 +433,8 @@ type delegated =
 let actionToString = (action: action): string =>
   switch action {
   | AddUserMessage(_) => "AddUserMessage"
-  | StreamingStarted => "StreamingStarted"
   | TextDeltaReceived(_) => "TextDeltaReceived"
+  | AgentCatalogInstalled(_) => "AgentCatalogInstalled"
   | ToolCallReceived(_) => "ToolCallReceived"
   | ToolInputReceived(_) => "ToolInputReceived"
   | ToolResultReceived(_) => "ToolResultReceived"
@@ -777,66 +803,24 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Message Actions - work on Loading or Loaded (via Lens)
   // ============================================================================
 
-  | (Task.Loading(_) | Task.Loaded(_), StreamingStarted) =>
-    switch Lens.getStreamingMessage(task) {
-    | Some(_) =>
-      failwith(
-        `[TaskReducer] StreamingStarted but streaming message already exists in task ${getTaskIdForError(
-            task,
-          )}`,
+  | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({messageId, text, agentId})) =>
+    switch Task.getMessages(task)->Array.find(message => Message.getId(message) == messageId) {
+    | Some(Message.Assistant(Streaming({textBuffer, agentId: existingAgentId}))) =>
+      requireSameAgent(
+        ~existingAgentId,
+        ~agentId,
+        ~message=`[TaskReducer] Agent changed within message ${messageId}`,
       )
-    | None =>
-      let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
-      let newMessage = Message.Assistant(
-        Streaming({id: msgId, textBuffer: "", createdAt: Date.now()}),
-      )
-      (Lens.insertMessage(task, newMessage), [])
-    }
-
-  | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({text, timestamp})) =>
-    let resolvedCreatedAt = Date.fromString(timestamp)->Date.getTime
-    switch Lens.getStreamingMessage(task) {
-    | Some(Message.Streaming({id: msgId, textBuffer, createdAt})) =>
       let updatedMsg = Message.Assistant(
-        Streaming({id: msgId, textBuffer: textBuffer ++ text, createdAt}),
+        Streaming({id: messageId, textBuffer: textBuffer ++ text, agentId}),
       )
-      (Lens.updateMessage(task, msgId, _ => updatedMsg), [])
-    | Some(Message.Completed(_)) =>
-      failwith(
-        `[TaskReducer] TextDeltaReceived but message already Completed in task ${getTaskIdForError(
-            task,
-          )}`,
-      )
+      (Lens.updateMessage(task, messageId, _ => updatedMsg), [])
+    | Some(Message.Assistant(Completed(_))) =>
+      failwith(`[TaskReducer] Message ${messageId} is already completed`)
+    | Some(_) => failwith(`[TaskReducer] Message ${messageId} changed roles`)
     | None =>
-      // Per ACP spec: first agent_message_chunk implicitly signals message start
-      // Check if last message is a Completed assistant message - if so, reopen it for streaming
-      let messages = Task.getMessages(task)
-      let lastMsg = messages->Array.get(Array.length(messages) - 1)
-      switch lastMsg {
-      | Some(Message.Assistant(Completed({id: msgId, content, createdAt}))) =>
-        // Extract existing text from all Text content parts
-        let existingText =
-          content
-          ->Array.filterMap(part =>
-            switch part {
-            | AssistantContentPart.Text({text: t}) => Some(t)
-            | AssistantContentPart.ToolCall(_) => None
-            }
-          )
-          ->Array.join("")
-        // Convert back to Streaming with appended text
-        let updatedMsg = Message.Assistant(
-          Streaming({id: msgId, textBuffer: existingText ++ text, createdAt}),
-        )
-        (Lens.updateMessage(task, msgId, _ => updatedMsg), [])
-      | _ =>
-        // Last message is User/ToolCall/None - create new streaming message
-        let msgId = `msg_${getTaskIdForError(task)}_${Date.now()->Float.toString}`
-        let newMessage = Message.Assistant(
-          Streaming({id: msgId, textBuffer: text, createdAt: resolvedCreatedAt}),
-        )
-        (Lens.insertMessage(task, newMessage), [])
-      }
+      let newMessage = Message.Assistant(Streaming({id: messageId, textBuffer: text, agentId}))
+      (Lens.insertMessage(task, newMessage), [])
     }
 
   | (Task.Loading(_) | Task.Loaded(_), ToolCallReceived({toolCall})) =>
@@ -894,17 +878,52 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Accepted user messages from server history replay.
   // Per ACP spec: a new history user message signals the end of the previous agent message.
-  | (Task.Loading(_), UserMessageReceived({id, content, annotations})) =>
-    let userMessage = Message.User({id, content, annotations})
-    (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
+  | (Task.Loading(_), UserMessageReceived({id, content, annotations, agentId})) =>
+    switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
+    | Some(message) =>
+      let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
+      (Lens.updateMessage(task, id, _ => updated), [])
+    | None =>
+      let userMessage = Message.User({id, content, annotations, agentId})
+      (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
+    }
 
-  | (Task.Loaded(data), UserMessageReceived({id, content, annotations})) =>
-    let userMessage = Message.User({id, content, annotations})
-    (
-      Task.Loaded({
-        ...data,
-        queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
-      }),
+  | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId})) =>
+    switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
+    | index if index >= 0 =>
+      let queuedUserMessages = data.queuedUserMessages->Array.copy
+      let updated = mergeUserMessage(
+        queuedUserMessages->Array.getUnsafe(index),
+        ~id,
+        ~content,
+        ~annotations,
+        ~agentId,
+      )
+      queuedUserMessages->Array.setUnsafe(index, updated)
+      (Task.Loaded({...data, queuedUserMessages}), [])
+    | _ =>
+      switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
+      | Some(message) =>
+        let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
+        (Lens.updateMessage(task, id, _ => updated), [])
+      | None =>
+        let userMessage = Message.User({id, content, annotations, agentId})
+        (
+          Task.Loaded({
+            ...data,
+            queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
+          }),
+          [],
+        )
+      }
+    }
+
+  | (Task.Loading(data), AgentCatalogInstalled(catalog)) => (
+      Task.Loading({...data, agentCatalog: Some(catalog)}),
+      [],
+    )
+  | (Task.Loaded(data), AgentCatalogInstalled(catalog)) => (
+      Task.Loaded({...data, agentCatalog: Some(catalog)}),
       [],
     )
 
@@ -954,6 +973,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (Task.Loaded(data), ExecutionStateRequiresAction) => (
       Task.Loaded({...data, isAgentRunning: false, retryStatus: None}),
+      [],
+    )
+
+  | (Task.Loading(data), ExecutionStateRunning) => (
+      Task.Loading({...data, isAgentRunning: true}),
+      [],
+    )
+
+  | (Task.Loading(data), ExecutionStateIdle | ExecutionStateRequiresAction) => (
+      Task.Loading({...data, isAgentRunning: false}),
       [],
     )
 
@@ -1007,24 +1036,15 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(_), AgentError({id, error, timestamp, category})) =>
-    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~timestamp, ~category))
+  | (Task.Loading(_), AgentError({id, error, category})) =>
+    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(data), AgentError({id, error, category, timestamp: _timestamp})) =>
-    // Set turn error and stop agent running - user can still send messages
-    let completed = task->Lens.completeStreamingMessage
+  | (Task.Loaded(_), AgentError({id, error, category})) =>
+    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
+    let completed = task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg)
     switch completed {
-    | Task.Loaded(completedData) => (
-        Task.Loaded({
-          ...completedData,
-          turnError: Some({id, message: error, category}),
-          isAgentRunning: false,
-          retryStatus: None,
-        }),
-        [],
-      )
-    | _ => (
+    | Task.Loaded(data) => (
         Task.Loaded({
           ...data,
           turnError: Some({id, message: error, category}),
@@ -1033,6 +1053,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         }),
         [],
       )
+    | _ => failwith("AgentError changed a loaded task into an invalid state")
     }
 
   | (Task.Loaded(data), ClearTurnError) => (Task.Loaded({...data, turnError: None}), [])
@@ -1046,11 +1067,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(data), RetryTurn({retriedErrorId})) =>
-    let errorId = retriedErrorId
-    (
+  | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
       Task.Loaded({...data, turnError: None, isAgentRunning: true}),
-      [RetryTurnEffect({retriedErrorId: errorId})],
+      [RetryTurnEffect({retriedErrorId: retriedErrorId})],
     )
 
   // ============================================================================
@@ -1073,6 +1092,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         annotations: [],
         activePopupAnnotationId: None,
+        agentCatalog: None,
+        isAgentRunning: false,
       }),
       [],
     )
@@ -1091,6 +1112,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode,
         annotations,
         activePopupAnnotationId,
+        agentCatalog,
+        isAgentRunning,
       }) => (
         Task.Loaded({
           id,
@@ -1103,7 +1126,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          isAgentRunning: false,
+          agentCatalog,
+          isAgentRunning,
           planEntries: [],
           queuedUserMessages: [],
           turnError: None,
@@ -1228,8 +1252,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   // Streaming/message actions require Loading or Loaded (with agent running)
   | (
       Task.New(_) | Task.Unloaded(_),
-      StreamingStarted
-      | TextDeltaReceived(_)
+      TextDeltaReceived(_)
+      | AgentCatalogInstalled(_)
       | ToolCallReceived(_)
       | ToolInputReceived(_)
       | ToolResultReceived(_)
@@ -1251,7 +1275,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // Loaded-only actions: require an active session
   | (
-      Task.New(_) | Task.Loading(_) | Task.Unloaded(_),
+      Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
       | PlanReceived(_)
       | ExecutionStateRunning
@@ -1300,6 +1324,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   // AddAnnotations requires New, Loading, or Loaded
   | (Task.Unloaded(_), AddAnnotations(_)) =>
+    failwith(
+      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
+          task,
+        )} task ${getTaskIdForError(task)}`,
+    )
+
+  | (Task.Loading(_), _) =>
     failwith(
       `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
           task,
@@ -1535,9 +1566,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   | SendMessage({text, attachments, annotations}) =>
     delegate(NeedSendMessage({text, attachments, annotations}))
   | CancelPrompt => delegate(NeedCancelPrompt)
-  | RetryTurnEffect({retriedErrorId}) =>
-    let errorId = retriedErrorId
-    delegate(NeedRetryTurn({retriedErrorId: errorId}))
+  | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   // Question tool resolution — call the resolve/reject callback directly.
   // No delegation needed since the callback is self-contained (captured in the pending question).
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)

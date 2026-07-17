@@ -1,9 +1,128 @@
 // ACP (Agent Client Protocol) Types
-// Based on: https://github.com/agentclientprotocol/agent-client-protocol/schema/schema.json
+// Based on ACP schema-v1.19.0 at commit a213df5240048f96d2b23f644984bb20c188a234.
+// Source: libs/frontman-protocol/schemas/acp/upstream/README.md
 
 // Protocol version is an integer (uint16 in spec)
 type protocolVersion = int
 let currentProtocolVersion = 1
+
+// ---------------------------------------------------------------------------
+// Frontman agent attribution extension metadata
+// Contract: docs/acp-agent-attribution.md
+// ---------------------------------------------------------------------------
+
+let nonEmptyStringSchema = S.string->S.min(1, ~message="Must not be empty")
+
+type agentAttributionCapability = {version: int}
+
+let agentAttributionCapabilitySchema = S.object(s => {
+  version: s.field(
+    "version",
+    S.int
+    ->S.min(1, ~message="Version must be a positive integer")
+    ->S.max(65535, ~message="Version must fit an unsigned 16-bit integer"),
+  ),
+})
+
+type frontmanCapabilityNamespace = {
+  agentAttribution: option<agentAttributionCapability>,
+}
+
+let frontmanCapabilityNamespaceSchema = S.object(s => {
+  agentAttribution: s.field("agentAttribution", S.option(agentAttributionCapabilitySchema)),
+})
+
+type capabilityMetadata = {
+  frontmanDev: option<frontmanCapabilityNamespace>,
+}
+
+let capabilityMetadataSchema = S.object(s => {
+  frontmanDev: s.field("frontman.dev", S.option(frontmanCapabilityNamespaceSchema)),
+})
+
+type agentCatalogEntry = {
+  id: string,
+  name: string,
+  displayName: string,
+  description: string,
+  color: string,
+}
+
+let agentCatalogEntrySchema = S.object(s => {
+  id: s.field("id", nonEmptyStringSchema),
+  name: s.field("name", nonEmptyStringSchema),
+  displayName: s.field("displayName", nonEmptyStringSchema),
+  description: s.field("description", nonEmptyStringSchema),
+  color: s.field(
+    "color",
+    S.string->S.pattern(/^#[0-9A-Fa-f]{6}$/, ~message="Expected #RRGGBB color"),
+  ),
+})
+
+let catalogIdsUnique = agents => {
+  let ids = Set.make()
+  agents->Array.every(agent => {
+    switch ids->Set.has(agent.id) {
+    | true => false
+    | false => {
+        ids->Set.add(agent.id)
+        true
+      }
+    }
+  })
+}
+
+let agentCatalogSchema =
+  S.array(agentCatalogEntrySchema)
+  ->S.refine(catalogIdsUnique, ~error="Agent catalog IDs must be unique")
+  ->S.extendJSONSchema({
+    uniqueItems: true,
+    description: "Frontman runtime validation also requires unique id fields",
+  })
+
+type sessionMetadata = {
+  agents: option<array<agentCatalogEntry>>,
+}
+
+let sessionMetadataSchema = S.object(s => {
+  agents: s.field("frontman.dev/agents", S.option(agentCatalogSchema)),
+})
+
+let rfc3339TimestampSchema =
+  S.string
+  ->S.pattern(
+    /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])[Tt]([01]\d|2[0-3]):[0-5]\d:([0-5]\d|60)(\.\d+)?([Zz]|[+-]([01]\d|2[0-3]):[0-5]\d)$/,
+    ~message="Expected RFC 3339 timestamp",
+  )
+  ->S.refine(timestamp => {
+    let year = timestamp->String.slice(~start=0, ~end=4)->Int.fromString
+    let month = timestamp->String.slice(~start=5, ~end=7)->Int.fromString
+    let day = timestamp->String.slice(~start=8, ~end=10)->Int.fromString
+
+    switch (year, month, day) {
+    | (Some(year), Some(month), Some(day)) => {
+        let leapYear = mod(year, 4) == 0 && (mod(year, 100) != 0 || mod(year, 400) == 0)
+        let daysInMonth = switch month {
+        | 2 => leapYear ? 29 : 28
+        | 4 | 6 | 9 | 11 => 30
+        | _ => 31
+        }
+        day <= daysInMonth
+      }
+    | _ => false
+    }
+  }, ~error="Timestamp contains an invalid calendar date")
+  ->S.extendJSONSchema({format: "date-time"})
+
+type messageMetadata = {
+  agentId: string,
+  timestamp: string,
+}
+
+let messageMetadataSchema = S.object(s => {
+  agentId: s.field("frontman.dev/agentId", nonEmptyStringSchema),
+  timestamp: s.field("frontman.dev/timestamp", rfc3339TimestampSchema),
+})
 
 // Implementation info (used for clientInfo and agentInfo)
 @schema
@@ -38,6 +157,8 @@ type clientCapabilities = {
   fs: option<fileSystemCapability>,
   terminal: option<bool>,
   elicitation: option<elicitationCapability>,
+  @as("_meta")
+  _meta: option<JSON.t>,
 }
 
 // Prompt capabilities (what content types agent supports)
@@ -66,6 +187,8 @@ type agentCapabilities = {
   mcpCapabilities: option<mcpCapabilities>,
   @as("promptCapabilities")
   promptCapabilities: option<promptCapabilities>,
+  @as("_meta")
+  _meta: option<JSON.t>,
 }
 
 // Auth method
@@ -88,8 +211,9 @@ type initializeParams = {
 }
 
 let initializeParamsToJson = (params: initializeParams): JSON.t => {
-  params->S.assertOrThrow(~to=initializeParamsSchema)
-  params->JSON.stringifyAny->Option.getOrThrow->JSON.parseOrThrow
+  let json = params->JSON.stringifyAny->Option.getOrThrow->JSON.parseOrThrow
+  json->S.parseOrThrow(~to=initializeParamsSchema)->ignore
+  json
 }
 
 // Initialize response result
@@ -386,6 +510,12 @@ let embeddedResourceResourceSchema = S.union([
   }),
 ])
 
+// Sury needs a transform boundary to reverse nested union fields correctly.
+let embeddedResourceContentSchema = embeddedResourceResourceSchema->S.transform(_ => {
+  parser: resource => resource,
+  serializer: resource => resource,
+})
+
 // Embedded resource for ContentBlock::Resource (per ACP spec)
 @schema
 type embeddedResource = {
@@ -401,7 +531,7 @@ type embeddedResource = {
 // - ImageContent (type="image"): base64 data + mimeType
 // - AudioContent (type="audio"): base64 data + mimeType
 // - ResourceLink (type="resource_link"): name + uri
-// - EmbeddedResource (type="resource"): embedded resource wrapper
+// - EmbeddedResource (type="resource"): embedded resource
 type contentBlock =
   | TextContent({text: string, _meta: option<JSON.t>, annotations: option<annotations>})
   | ImageContent({
@@ -422,11 +552,7 @@ type contentBlock =
       _meta: option<JSON.t>,
       annotations: option<annotations>,
     })
-  | EmbeddedResource({
-      resource: embeddedResource,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
+  | EmbeddedResource(embeddedResource)
 
 let contentBlockSchema = S.union([
   S.object(s => {
@@ -467,7 +593,7 @@ let contentBlockSchema = S.union([
   S.object(s => {
     s.tag("type", "resource")
     EmbeddedResource({
-      resource: s.field("resource", embeddedResourceSchema),
+      resource: s.field("resource", embeddedResourceContentSchema),
       _meta: s.field("_meta", S.option(S.json)),
       annotations: s.field("annotations", S.option(annotationsSchema)),
     })
@@ -562,10 +688,20 @@ let planEntrySchema = S.object(s => {
 })
 
 // Session update variants - discriminated by sessionUpdate field
-// Session update variants - discriminated by sessionUpdate field
 type sessionUpdate =
-  | AgentMessageChunk({content: contentBlock, timestamp: string})
-  | UserMessage({messageId: string, content: array<contentBlock>})
+  | AgentMessageChunk({messageId: string, content: contentBlock, _meta: messageMetadata})
+  | UserMessageChunk({messageId: string, content: contentBlock, _meta: messageMetadata})
+  | GenericAgentMessageChunk({
+      messageId: option<string>,
+      content: contentBlock,
+      _meta: option<JSON.t>,
+    })
+  | GenericUserMessageChunk({
+      messageId: option<string>,
+      content: contentBlock,
+      _meta: option<JSON.t>,
+    })
+  | Unknown({sessionUpdate: string})
   | ToolCall({
       toolCallId: string,
       title: string,
@@ -593,24 +729,8 @@ type sessionUpdate =
       maxAttempts: option<int>,
       category: option<string>,
     })
-  | Unknown({sessionUpdate: string})
 
-// Session update schema using S.union with s.tag for proper discrimination
-let sessionUpdateSchema = S.union([
-  S.object(s => {
-    s.tag("sessionUpdate", "agent_message_chunk")
-    AgentMessageChunk({
-      content: s.field("content", contentBlockSchema),
-      timestamp: s.field("timestamp", S.string),
-    })
-  }),
-  S.object(s => {
-    s.tag("sessionUpdate", "user_message")
-    UserMessage({
-      messageId: s.field("messageId", S.string),
-      content: s.field("content", S.array(contentBlockSchema)),
-    })
-  }),
+let commonSessionUpdateSchema = S.union([
   S.object(s => {
     s.tag("sessionUpdate", "tool_call")
     ToolCall({
@@ -668,24 +788,56 @@ let sessionUpdateSchema = S.union([
       category: s.field("category", S.option(S.string)),
     })
   }),
-  // Fallback for unknown session update types
-  S.object(s => {
-    Unknown({
-      sessionUpdate: s.field("sessionUpdate", S.string),
-    })
-  }),
 ])
 
-// session/update params
+let sessionUpdateSchema = S.union([
+  S.object(s => {
+    s.tag("sessionUpdate", "agent_message_chunk")
+    AgentMessageChunk({
+      messageId: s.field("messageId", nonEmptyStringSchema),
+      content: s.field("content", contentBlockSchema),
+      _meta: s.field("_meta", messageMetadataSchema),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "user_message_chunk")
+    UserMessageChunk({
+      messageId: s.field("messageId", nonEmptyStringSchema),
+      content: s.field("content", contentBlockSchema),
+      _meta: s.field("_meta", messageMetadataSchema),
+    })
+  }),
+  commonSessionUpdateSchema,
+])
+
+let genericSessionUpdateSchema = S.union([
+  S.object(s => {
+    s.tag("sessionUpdate", "agent_message_chunk")
+    GenericAgentMessageChunk({
+      messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
+      content: s.field("content", contentBlockSchema),
+      _meta: s.field("_meta", S.option(S.json)),
+    })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "user_message_chunk")
+    GenericUserMessageChunk({
+      messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
+      content: s.field("content", contentBlockSchema),
+      _meta: s.field("_meta", S.option(S.json)),
+    })
+  }),
+  commonSessionUpdateSchema,
+])
+
+let unknownSessionUpdateSchema = S.object(s => Unknown({
+  sessionUpdate: s.field("sessionUpdate", S.string),
+}))
+
 type sessionUpdateParams = {
   sessionId: string,
   update: sessionUpdate,
 }
-
-let sessionUpdateParamsSchema = S.object(s => {
-  sessionId: s.field("sessionId", S.string),
-  update: s.field("update", sessionUpdateSchema),
-})
 
 // Full session/update notification envelope
 type sessionUpdateNotification = {
@@ -694,11 +846,26 @@ type sessionUpdateNotification = {
   params: sessionUpdateParams,
 }
 
-let sessionUpdateNotificationSchema = S.object(s => {
-  jsonrpc: s.field("jsonrpc", S.string),
-  method: s.field("method", S.string),
-  params: s.field("params", sessionUpdateParamsSchema),
-})
+let makeSessionUpdateNotificationSchema = updateSchema =>
+  S.object(s => {
+    jsonrpc: s.field("jsonrpc", S.literal("2.0")),
+    method: s.field("method", S.literal("session/update")),
+    params: s.field(
+      "params",
+      S.object(s => {
+        sessionId: s.field("sessionId", S.string),
+        update: s.field("update", updateSchema),
+      }),
+    ),
+  })
+
+let sessionUpdateNotificationSchema = makeSessionUpdateNotificationSchema(sessionUpdateSchema)
+let genericSessionUpdateNotificationSchema = makeSessionUpdateNotificationSchema(
+  genericSessionUpdateSchema,
+)
+let unknownSessionUpdateNotificationSchema = makeSessionUpdateNotificationSchema(
+  unknownSessionUpdateSchema,
+)
 
 // Session summary for list_sessions response
 type sessionSummary = {

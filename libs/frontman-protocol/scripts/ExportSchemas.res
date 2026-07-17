@@ -37,6 +37,14 @@ let entries: array<schemaEntry> = [
   // ACP
   {dir: "acp", name: "initializeParams", schema: ACP.initializeParamsSchema->toUnknownSchema},
   {dir: "acp", name: "initializeResult", schema: ACP.initializeResultSchema->toUnknownSchema},
+  {
+    dir: "acp",
+    name: "capabilityMetadata",
+    schema: ACP.capabilityMetadataSchema->toUnknownSchema,
+  },
+  {dir: "acp", name: "agentCatalogEntry", schema: ACP.agentCatalogEntrySchema->toUnknownSchema},
+  {dir: "acp", name: "sessionMetadata", schema: ACP.sessionMetadataSchema->toUnknownSchema},
+  {dir: "acp", name: "messageMetadata", schema: ACP.messageMetadataSchema->toUnknownSchema},
   {dir: "acp", name: "sessionUpdate", schema: ACP.sessionUpdateSchema->toUnknownSchema},
   {
     dir: "acp",

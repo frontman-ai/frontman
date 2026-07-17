@@ -12,12 +12,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 type messageDirection = Send | Receive
 
-let sessionIdFromParams = (params: option<JSON.t>): option<string> =>
-  params
-  ->Option.flatMap(JSON.Decode.object)
-  ->Option.flatMap(obj => obj->Dict.get("sessionId"))
-  ->Option.flatMap(JSON.Decode.string)
-
 // Generic request sender - eliminates duplication across sendInitialize, createSession, sendPrompt
 let sendRequest = (
   ~channel: Channel.t,
@@ -32,8 +26,6 @@ let sendRequest = (
     let request = JsonRpc.Request.make(~id, ~method, ~params)
 
     let pending: Client.pendingRequest = {
-      method,
-      sessionId: sessionIdFromParams(params),
       resolve: json => {
         switch parseResult(json) {
         | Ok(result) => resolve(Ok(result))
@@ -174,9 +166,22 @@ let handleIncomingMessage = (
   switch getMethod(payload) {
   | Some("session/update") =>
     // Session update notification - parse and dispatch with sessionId
-    switch Client.parseSessionUpdateNotification(payload) {
+    switch Client.parseSessionUpdateNotification(state.contents, payload) {
     | Ok(notification) =>
-      onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
+      onUpdate->Option.forEach(cb => {
+        try {
+          cb(notification.params.sessionId, notification.params.update)
+        } catch {
+        | Failure(error) => onParseError->Option.forEach(cb => cb(error))
+        | exn =>
+          let error =
+            exn
+            ->JsExn.fromException
+            ->Option.flatMap(JsExn.message)
+            ->Option.getOr("Session update handler failed")
+          onParseError->Option.forEach(cb => cb(error))
+        }
+      })
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake

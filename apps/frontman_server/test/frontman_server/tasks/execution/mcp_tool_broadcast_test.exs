@@ -71,7 +71,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       assert %Tasks.Interaction.AgentResponse{metadata: %{"tool_calls" => [persisted_call]}} =
-               Enum.find(task.interactions, &match?(%Tasks.Interaction.AgentResponse{}, &1))
+               Enum.find(
+                 Tasks.interactions(task),
+                 &match?(%Tasks.Interaction.AgentResponse{}, &1)
+               )
 
       assert persisted_call["id"] == mcp_tool_call.id
       assert persisted_call["name"] == "some_mcp_tool"

@@ -121,8 +121,8 @@ type toolCallState =
   | OutputError
 
 type assistantMessage =
-  | Streaming({id: string, textBuffer: string, createdAt: float})
-  | Completed({id: string, content: array<AssistantContentPart.t>, createdAt: float})
+  | Streaming({id: string, textBuffer: string, agentId: string})
+  | Completed({id: string, content: array<AssistantContentPart.t>, agentId: string})
 
 type toolCall = {
   id: string,
@@ -138,22 +138,14 @@ type toolCall = {
 
 module ErrorMessage: {
   type t
-  let make: (
-    ~id: string,
-    ~error: string,
-    ~timestamp: string,
-    ~category: Client__ErrorCategory.t,
-  ) => t
+  let make: (~id: string, ~error: string, ~category: Client__ErrorCategory.t) => t
   let id: t => string
   let error: t => string
   let category: t => Client__ErrorCategory.t
 } = {
   type t = {id: string, error: string, category: Client__ErrorCategory.t}
 
-  let make = (~id, ~error, ~timestamp, ~category) => {
-    ignore(timestamp)
-    {id, error, category}
-  }
+  let make = (~id, ~error, ~category) => {id, error, category}
 
   let id = t => t.id
   let error = t => t.error
@@ -161,7 +153,12 @@ module ErrorMessage: {
 }
 
 type t =
-  | User({id: string, content: array<UserContentPart.t>, annotations: array<MessageAnnotation.t>})
+  | User({
+      id: string,
+      content: array<UserContentPart.t>,
+      annotations: array<MessageAnnotation.t>,
+      agentId: string,
+    })
   | Assistant(assistantMessage)
   | ToolCall(toolCall)
   | Error(ErrorMessage.t)

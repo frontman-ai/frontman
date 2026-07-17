@@ -9,6 +9,7 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
+module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 
@@ -44,7 +45,7 @@ type relayState =
 
 type sessionState =
   | NoSession
-  | SessionCreating
+  | SessionCreating(string)
   | SessionActive(ACP.session)
   | SessionError(string)
 
@@ -76,6 +77,23 @@ type initPayload = {
   mcpServer: MCPServer.t,
 }
 
+type loadTaskRequest = {
+  taskId: string,
+  needsHistory: bool,
+  onUpdate: (string, ACPTypes.sessionUpdate) => unit,
+  onTitleUpdated: (string, string) => unit,
+  onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+  onComplete: result<unit, string> => unit,
+}
+
+type createSessionRequest = {
+  sessionId: string,
+  onUpdate: (string, ACPTypes.sessionUpdate) => unit,
+  onTitleUpdated: (string, string) => unit,
+  onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+  onComplete: result<string, string> => unit,
+}
+
 // Actions
 type action =
   | Initialize(initPayload)
@@ -85,32 +103,18 @@ type action =
   | RelayConnectSuccess
   | RelayConnectError(string)
   | SessionCreateSuccess(ACP.session)
-  | SessionCreateError(string)
-  | CreateSession({
-      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
-      onTitleUpdated: (string, string) => unit,
-      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<string, string> => unit,
-    })
+  | SessionCreateError({sessionId: string, error: string})
+  | SessionFailed({sessionId: string, error: string})
+  | CreateSession(createSessionRequest)
   | SendPrompt({
       text: string,
-      additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
-      onComplete: result<
-        FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult,
-        string,
-      > => unit,
+      additionalBlocks: array<ACPTypes.contentBlock>,
+      onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
     })
   | CancelPrompt
   | RetryTurn({retriedErrorId: string})
-  | LoadTask({
-      taskId: string,
-      needsHistory: bool,
-      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
-      onTitleUpdated: (string, string) => unit,
-      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<unit, string> => unit,
-    })
+  | LoadTask(loadTaskRequest)
   | DeleteSession({taskId: string, onComplete: result<unit, string> => unit})
   | ClearSession
 
@@ -127,34 +131,19 @@ type effect =
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
-      onTitleUpdated: (string, string) => unit,
-      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<string, string> => unit,
+      request: createSessionRequest,
     })
   | SendPromptEffect({
       session: ACP.session,
       text: string,
-      additionalBlocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
-      onComplete: result<
-        FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.promptResult,
-        string,
-      > => unit,
+      additionalBlocks: array<ACPTypes.contentBlock>,
+      onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
     })
   | CancelPromptEffect({session: ACP.session})
   | RetryTurnEffect({session: ACP.session, retriedErrorId: string})
   | FetchSessionsEffect(ACP.connection)
-  | LoadTaskEffect({
-      connection: ACP.connection,
-      mcpServer: MCPServer.t,
-      taskId: string,
-      needsHistory: bool,
-      onUpdate: (string, FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionUpdate) => unit,
-      onTitleUpdated: (string, string) => unit,
-      onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-      onComplete: result<unit, string> => unit,
-    })
+  | LoadTaskEffect({connection: ACP.connection, mcpServer: MCPServer.t, request: loadTaskRequest})
   | DeleteSessionEffect({
       connection: ACP.connection,
       taskId: string,
@@ -177,7 +166,7 @@ module Selectors = {
   let getSession = (state: state): option<ACP.session> => {
     switch state.session {
     | SessionActive(s) => Some(s)
-    | NoSession | SessionCreating | SessionError(_) => None
+    | NoSession | SessionCreating(_) | SessionError(_) => None
     }
   }
 
@@ -287,15 +276,32 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   // === Session lifecycle ===
-  | (_, SessionCreateSuccess(sess)) => (
+  | ({session: SessionCreating(expectedSessionId)}, SessionCreateSuccess(sess))
+    if expectedSessionId == sess.sessionId => (
       {...state, session: SessionActive(sess)},
       [LogInfo(`Session activated: ${sess.sessionId}`)],
     )
 
-  | ({session: SessionCreating}, SessionCreateError(msg)) => (
-      {...state, session: SessionError(msg)},
-      [LogError(`Session failed: ${msg}`)],
+  | (_, SessionCreateSuccess(sess)) => (
+      state,
+      [CleanupSessionEffect({session: sess}), LogInfo(`Stale session ignored: ${sess.sessionId}`)],
     )
+
+  | ({session: SessionCreating(expectedSessionId)}, SessionCreateError({sessionId, error}))
+    if expectedSessionId == sessionId => (
+      {...state, session: SessionError(error)},
+      [LogError(`Session failed: ${error}`)],
+    )
+
+  | (
+      {session: SessionActive({sessionId: expectedSessionId}) | SessionCreating(expectedSessionId)},
+      SessionFailed({sessionId, error}),
+    ) if expectedSessionId == sessionId => (
+      {...state, session: SessionError(error)},
+      [LogError(`Session failed: ${error}`)],
+    )
+
+  | (_, SessionFailed(_)) => (state, [LogInfo("Stale session failure ignored")])
 
   | (
       {
@@ -304,19 +310,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         mcpServer: Some(mcpServer),
         session: NoSession,
       },
-      CreateSession({onUpdate, onTitleUpdated, onMcpMessage, onComplete}),
+      CreateSession(request),
     ) => (
-      {...state, session: SessionCreating},
-      [
-        CreateSessionEffect({
-          connection: conn,
-          mcpServer,
-          onUpdate,
-          onTitleUpdated,
-          onMcpMessage,
-          onComplete,
-        }),
-      ],
+      {...state, session: SessionCreating(request.sessionId)},
+      [CreateSessionEffect({connection: conn, mcpServer, request})],
     )
 
   | (
@@ -336,29 +333,34 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (_, RetryTurn(_)) => (state, [LogError("Cannot retry turn: no active session")])
 
-  | ({session: NoSession | SessionCreating | SessionError(_)}, SendPrompt(_)) => (
+  | ({session: NoSession | SessionCreating(_) | SessionError(_)}, SendPrompt(_)) => (
       state,
       [LogError("Cannot send prompt: no active session")],
     )
 
   // Load a persisted task (calls ACP.loadSession or joinSession based on needsHistory)
   | (
-      {acp: ACPConnected(conn), mcpServer: Some(mcpServer)},
-      LoadTask({taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete}),
-    ) => (
+      {acp: ACPConnected(conn), mcpServer: Some(mcpServer), session: SessionActive({sessionId})},
+      LoadTask(request),
+    ) if sessionId == request.taskId => (
       state,
+      [LoadTaskEffect({connection: conn, mcpServer, request})],
+    )
+
+  | (
+      {acp: ACPConnected(conn), mcpServer: Some(mcpServer), session: SessionActive(oldSession)},
+      LoadTask(request),
+    ) => (
+      {...state, session: SessionCreating(request.taskId)},
       [
-        LoadTaskEffect({
-          connection: conn,
-          mcpServer,
-          taskId,
-          needsHistory,
-          onUpdate,
-          onTitleUpdated,
-          onMcpMessage,
-          onComplete,
-        }),
+        CleanupSessionEffect({session: oldSession}),
+        LoadTaskEffect({connection: conn, mcpServer, request}),
       ],
+    )
+
+  | ({acp: ACPConnected(conn), mcpServer: Some(mcpServer)}, LoadTask(request)) => (
+      {...state, session: SessionCreating(request.taskId)},
+      [LoadTaskEffect({connection: conn, mcpServer, request})],
     )
 
   | (_, LoadTask(_)) => (state, [LogError("Cannot load task: not connected")])
@@ -400,7 +402,8 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (_, SessionCreateError(_)) => (state, [LogInfo("Stale session create result ignored")])
-  | ({session: NoSession | SessionCreating | SessionError(_)}, CancelPrompt) => (
+
+  | ({session: NoSession | SessionCreating(_) | SessionError(_)}, CancelPrompt) => (
       state,
       [LogError("CancelPrompt rejected: no active session")],
     )
@@ -423,10 +426,21 @@ let cleanupSession = (session: ACP.session): unit => {
 // This receives current state and dispatch, so async callbacks can safely dispatch
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   let dispatchConfigOptions = (configOptions: option<array<_>>) =>
-    switch configOptions {
-    | Some(opts) => Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
-    | None => ()
-    }
+    configOptions->Option.forEach(opts =>
+      Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
+    )
+
+  let dispatchSessionResult = (
+    taskId,
+    catalog: option<array<ACPTypes.agentCatalogEntry>>,
+    configOptions,
+  ) => {
+    let taskAction: Client__Task__Reducer.action = AgentCatalogInstalled(
+      catalog->Option.getOrThrow(~message="Validated attribution catalog is required"),
+    )
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: taskAction}))
+    dispatchConfigOptions(configOptions)
+  }
 
   switch effect {
   | LogError(msg) => Log.error(msg)
@@ -436,7 +450,13 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
       switch result {
-      | Ok(conn) => dispatch(ACPConnectSuccess(conn))
+      | Ok(conn) =>
+        switch ACP.getAgentAttributionVersion(conn) {
+        | Some(_) => dispatch(ACPConnectSuccess(conn))
+        | None =>
+          ACP.disconnect(conn)
+          dispatch(ACPConnectError("Frontman requires agent attribution v1"))
+        }
       | Error(err) =>
         // Don't dispatch error for aborted connections - component is unmounting
         switch signal.aborted {
@@ -496,29 +516,38 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | CreateSessionEffect({
       connection,
       mcpServer,
-      onUpdate,
-      onTitleUpdated,
-      onMcpMessage,
-      onComplete,
+      request: {sessionId, onUpdate, onTitleUpdated, onMcpMessage, onComplete},
     }) =>
     let create = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
-      let sessionId = WebAPI.Global.crypto->WebAPI.Crypto.randomUUID
+      let creationError = ref(None)
       let result = await ACP.createSession(
         connection,
         ~sessionId,
         ~onUpdate,
         ~onTitleUpdated,
+        ~onParseError=error => {
+          creationError := Some(error)
+          Client__TextDeltaBuffer.discardTask(sessionId)
+          dispatch(SessionFailed({sessionId, error}))
+        },
         ~mcpServerInterface,
         ~onMcpMessage,
       )
       switch result {
-      | Ok((sess, configOptions)) =>
-        dispatchConfigOptions(configOptions)
-        dispatch(SessionCreateSuccess(sess))
-        onComplete(Ok(sess.sessionId))
+      | Ok((sess, sessionNewResult, catalog)) =>
+        switch creationError.contents {
+        | Some(error) =>
+          ACP.cleanupSessionChannel(sess)
+          onComplete(Error(error))
+        | None =>
+          dispatch(SessionCreateSuccess(sess))
+          onComplete(Ok(sess.sessionId))
+          // Completion creates the task synchronously; attribution belongs to that task.
+          dispatchSessionResult(sess.sessionId, catalog, sessionNewResult.configOptions)
+        }
       | Error(err) =>
-        dispatch(SessionCreateError(err))
+        dispatch(SessionCreateError({sessionId, error: err}))
         onComplete(Error(err))
       }
     }
@@ -559,12 +588,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LoadTaskEffect({
       connection,
       mcpServer,
-      taskId,
-      needsHistory,
-      onUpdate,
-      onTitleUpdated,
-      onMcpMessage,
-      onComplete,
+      request: {taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete},
     }) =>
     let activateSession = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
@@ -573,23 +597,33 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         let loadResult = await ACP.loadSession(
           connection,
           taskId,
+          ~onLoadResult=(result, catalog) =>
+            dispatchSessionResult(taskId, catalog, result.configOptions),
           ~onUpdate,
           ~onTitleUpdated,
+          ~onParseError=err => {
+            Client__TextDeltaBuffer.discardTask(taskId)
+            dispatch(SessionFailed({sessionId: taskId, error: err}))
+          },
           ~mcpServerInterface,
           ~onMcpMessage,
         )
-        switch loadResult {
-        | Ok((session, sessionLoadResult)) =>
-          dispatchConfigOptions(sessionLoadResult.configOptions)
-          Ok(session)
-        | Error(e) => Error(e)
-        }
+        loadResult->Result.map(((session, _)) => session)
       | false =>
+        let task =
+          StateStore.getState(Client__State__Store.store).tasks
+          ->Dict.get(taskId)
+          ->Option.getOrThrow(~message=`Unknown task: ${taskId}`)
+        let catalog = Client__Task__Types.Task.getAgentCatalog(task)
         await ACP.joinSession(
           connection,
           taskId,
-          ~onUpdate,
+          ~onUpdate=ACP.validatedUpdateHandler(connection, taskId, catalog, onUpdate),
           ~onTitleUpdated,
+          ~onParseError=err => {
+            Client__TextDeltaBuffer.discardTask(taskId)
+            dispatch(SessionFailed({sessionId: taskId, error: err}))
+          },
           ~mcpServerInterface,
           ~onMcpMessage,
         )
@@ -600,7 +634,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         Log.info(~ctx={"taskId": taskId}, "Session activated")
         onComplete(Ok())
       | Error(err) =>
-        dispatch(SessionCreateError(err))
+        dispatch(SessionCreateError({sessionId: taskId, error: err}))
         Log.error(~ctx={"error": err}, "Failed to activate session")
         onComplete(Error(err))
       }
@@ -614,7 +648,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         cleanupSession(oldSession)
         activateSession()->ignore
       }
-    | NoSession | SessionCreating | SessionError(_) => activateSession()->ignore
+    | NoSession | SessionCreating(_) | SessionError(_) => activateSession()->ignore
     }
 
   | DeleteSessionEffect({connection, taskId, onComplete}) =>

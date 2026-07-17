@@ -16,15 +16,16 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias AgentClientProtocol.History, as: ACPHistory
   alias FrontmanServer.Agents
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.History, as: TaskHistory
   alias FrontmanServer.Tasks.RetryCoordinator
   alias FrontmanServer.Tasks.Todos.Todo
   alias FrontmanServer.Tools
-  alias FrontmanServerWeb.ACPHistory
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias ModelContextProtocol, as: MCP
 
@@ -33,13 +34,15 @@ defmodule FrontmanServerWeb.TaskChannel do
   @acp_method_session_prompt ACP.method_session_prompt()
   @acp_method_session_cancel ACP.method_session_cancel()
   @acp_method_session_load ACP.method_session_load()
-
   @impl true
   def join("task:" <> task_id, _params, socket) do
     scope = socket.assigns.scope
 
     case Tasks.get_task(scope, task_id) do
       {:ok, task} ->
+        {:ok, history} = TaskHistory.new(task.interaction_rows)
+        active_turn = TaskHistory.active_turn_context(history)
+
         SentryContext.set_task_scope_context(scope, task_id)
 
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
@@ -64,6 +67,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           |> assign(:mcp_tools, [])
           |> assign(:mcp_status, :pending)
           |> assign(:session_loaded, false)
+          |> assign(:active_turn, active_turn)
           |> assign(:pending_mcp_tool_requests, %{})
 
         send(self(), {:start_mcp_init, init_actions})
@@ -158,11 +162,23 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # --- Execution events (live transport from Tasks via PubSub) ---
 
-  def handle_info({:execution_chunk, _turn_number, chunk}, socket) do
-    {:noreply, handle_execution_chunk(socket, chunk)}
+  def handle_info({:execution_chunk, turn_number, metadata, chunk}, socket) do
+    {:noreply, handle_execution_chunk(socket, turn_number, metadata, chunk)}
   end
 
   # --- Interaction events (from Tasks persistence layer via PubSub) ---
+
+  def handle_info(
+        {:interaction,
+         %{
+           id: turn_started_id,
+           data: %Tasks.Interaction.TurnStarted{} = interaction,
+           turn_number: turn_number
+         }},
+        socket
+      ) do
+    handle_turn_started(interaction, turn_started_id, turn_number, socket)
+  end
 
   def handle_info({:interaction, %{data: interaction, turn_number: turn_number}}, socket) do
     handle_interaction(interaction, turn_number, socket)
@@ -187,6 +203,20 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info(msg, _socket) do
     raise "Unhandled message in TaskChannel: #{inspect(msg)}"
+  end
+
+  defp handle_turn_started(turn, turn_started_id, turn_number, socket) do
+    task_id = socket.assigns.task_id
+    notification = ACP.build_state_update_notification(task_id, "running")
+    push(socket, @acp_message, notification)
+
+    context = %{
+      agent_id: turn.agent_id,
+      turn_number: turn_number,
+      turn_started_id: turn_started_id
+    }
+
+    {:noreply, assign(socket, :active_turn, context)}
   end
 
   defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
@@ -243,12 +273,8 @@ defmodule FrontmanServerWeb.TaskChannel do
           :ok
       end
     else
-      status =
-        if tool_result.is_error,
-          do: ACP.tool_call_status_failed(),
-          else: ACP.tool_call_status_completed()
-
       content = ACP.Content.from_tool_result(tool_result.result)
+      status = ACP.tool_call_status(tool_result.is_error)
       notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
       push(socket, @acp_message, notification)
     end
@@ -260,11 +286,14 @@ defmodule FrontmanServerWeb.TaskChannel do
     finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
   end
 
-  defp handle_interaction(%Tasks.Interaction.TurnStarted{}, _turn_number, socket) do
-    task_id = socket.assigns.task_id
-    notification = ACP.build_state_update_notification(task_id, "running")
-    push(socket, @acp_message, notification)
-    {:noreply, socket}
+  defp handle_interaction(%Tasks.Interaction.AgentRetry{}, turn_number, socket) do
+    context =
+      case socket.assigns.active_turn do
+        %{turn_number: ^turn_number} = context -> context
+        _missing -> load_turn_context!(socket, turn_number)
+      end
+
+    {:noreply, assign(socket, :active_turn, context)}
   end
 
   defp handle_interaction(%Tasks.Interaction.AgentPaused{}, turn_number, socket) do
@@ -298,6 +327,12 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_interaction(_interaction, _turn_number, socket) do
     {:noreply, socket}
+  end
+
+  defp load_turn_context!(socket, turn_number) do
+    {:ok, task} = Tasks.get_task(socket.assigns.scope, socket.assigns.task_id)
+    {:ok, history} = TaskHistory.new(task.interaction_rows)
+    TaskHistory.turn_context(history, turn_number)
   end
 
   defp handle_mcp_response(id, result, socket) do
@@ -369,8 +404,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     is_error = MCP.error?(result)
     meta = result["_meta"] || %{}
 
-    status =
-      if is_error, do: ACP.tool_call_status_failed(), else: ACP.tool_call_status_completed()
+    status = ACP.tool_call_status(is_error)
 
     Logger.info("Tool #{tool_call.tool_name} #{status}")
 
@@ -574,30 +608,34 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   # This is called after the client has joined the session channel, allowing
   # history notifications to be received through the onUpdate callback.
-  defp handle_session_load(id, _params, socket) do
-    task_id = socket.assigns.task_id
+  defp handle_session_load(id, %{"sessionId" => task_id}, socket)
+       when task_id == socket.assigns.task_id do
     scope = socket.assigns.scope
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
 
     case Tasks.get_task(scope, task_id) do
       {:ok, task} ->
-        stream_session_history(socket, task)
+        {:ok, history} = TaskHistory.new(task.interaction_rows)
+        {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
+        Enum.each(replay.notifications, &push(socket, @acp_message, &1))
 
         # Return ACP-compliant LoadSessionResponse with config options.
-        config_options =
-          scope
-          |> Providers.model_config_data()
-          |> ACP.build_model_config_options()
-
         push(
           socket,
           @acp_message,
-          JsonRpc.success_response(id, ACP.build_session_load_result(config_options))
+          JsonRpc.success_response(
+            id,
+            ACP.build_session_load_result(
+              scope |> Providers.model_config_data() |> ACP.build_model_config_options(),
+              replay.catalog
+            )
+          )
         )
 
         socket =
           socket
           |> assign(:session_loaded, true)
+          |> assign(:active_turn, TaskHistory.active_turn_context(history))
           |> redispatch_unresolved_tool_calls()
 
         wake_runner(socket, nil)
@@ -609,12 +647,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp stream_session_history(socket, task) do
-    task.interactions
-    |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.id))
-    |> Enum.each(fn notification ->
-      push(socket, @acp_message, notification)
-    end)
+  defp handle_session_load(id, _params, socket) do
+    push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session does not match channel")
   end
 
   defp process_prompt(id, %{"prompt" => content_blocks, "_meta" => meta}, socket)
@@ -628,7 +662,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
-             {:ok, interaction} <-
+             {:ok, row} <-
                Tasks.submit_user_message(
                  scope,
                  %{
@@ -638,11 +672,7 @@ defmodule FrontmanServerWeb.TaskChannel do
                    agent_id: agent_id
                  }
                ) do
-          push(
-            socket,
-            @acp_message,
-            ACP.build_user_message_notification(task_id, interaction.id, content_blocks)
-          )
+          push_user_message_chunks(socket, task_id, row)
 
           wake_runner(socket, meta)
 
@@ -669,6 +699,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  defp push_user_message_chunks(socket, task_id, row) do
+    %{row: row, agent_id: row.data.agent_id}
+    |> ACPHistory.encode_row(task_id)
+    |> Enum.each(&push(socket, @acp_message, &1))
+  end
+
   defp reply_acp_error(socket, id, code, message) do
     {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
   end
@@ -678,20 +714,69 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp handle_execution_chunk(socket, %{type: :content, text: text})
+  defp handle_execution_chunk(
+         socket,
+         turn_number,
+         %{
+           turn_started_id: turn_started_id,
+           agent_id: agent_id,
+           ordinal: ordinal,
+           timestamp: timestamp
+         },
+         %{type: :content, text: text}
+       )
        when is_binary(text) and text != "" do
+    validate_execution_context!(socket, turn_number, turn_started_id, agent_id)
     task_id = socket.assigns.task_id
-    notification = ACP.build_agent_message_chunk_notification(task_id, text, DateTime.utc_now())
+    message_id = ACP.agent_message_id(turn_started_id, ordinal)
+
+    notification =
+      ACP.build_agent_message_chunk_notification(task_id, text, timestamp, message_id, agent_id)
+
     push(socket, @acp_message, notification)
     socket
   end
 
-  defp handle_execution_chunk(socket, %{type: :tool_call, name: name, metadata: %{id: id}})
+  defp handle_execution_chunk(
+         socket,
+         turn_number,
+         %{turn_started_id: turn_started_id, agent_id: agent_id},
+         %{type: :tool_call, name: name, metadata: %{id: id}}
+       )
        when is_binary(name) and is_binary(id) do
+    validate_execution_context!(socket, turn_number, turn_started_id, agent_id)
     announce_stream_tool_call_once(socket, id, name)
   end
 
-  defp handle_execution_chunk(socket, _chunk), do: socket
+  defp handle_execution_chunk(socket, _turn_number, _metadata, %{type: :content, text: ""}),
+    do: socket
+
+  defp handle_execution_chunk(_socket, _turn_number, metadata, %{type: type})
+       when type in [:content, :tool_call],
+       do: raise("Invalid #{type} chunk metadata: #{inspect(metadata)}")
+
+  defp handle_execution_chunk(socket, _turn_number, _metadata, _chunk), do: socket
+
+  defp validate_execution_context!(
+         %{assigns: %{active_turn: active_turn}},
+         turn_number,
+         turn_started_id,
+         agent_id
+       ) do
+    expected = %{
+      agent_id: agent_id,
+      turn_number: turn_number,
+      turn_started_id: turn_started_id
+    }
+
+    case active_turn do
+      ^expected ->
+        :ok
+
+      _other ->
+        raise "Stale execution chunk: expected #{inspect(active_turn)}, got #{inspect(expected)}"
+    end
+  end
 
   defp announce_stream_tool_call_once(socket, id, name) do
     announced = socket.assigns[:announced_tool_calls] || MapSet.new()
@@ -792,9 +877,20 @@ defmodule FrontmanServerWeb.TaskChannel do
   # Unified turn finalization — every code path that ends a turn goes through here.
   # This guarantees the domain invariant: retry_state is always nil when a turn ends.
 
-  defp finalize_turn(socket, outcome, _turn_number) do
+  defp finalize_turn(socket, outcome, turn_number) do
     task_id = socket.assigns.task_id
-    socket = assign(socket, :retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
+
+    case {turn_number, socket.assigns.active_turn} do
+      {nil, _active_turn} -> :ok
+      {_turn_number, nil} -> :ok
+      {turn_number, %{turn_number: turn_number}} -> :ok
+      {_turn_number, active_turn} -> raise "Stale turn finalization: #{inspect(active_turn)}"
+    end
+
+    socket =
+      socket
+      |> assign(:retry_state, RetryCoordinator.clear(socket.assigns[:retry_state]))
+      |> assign(:active_turn, nil)
 
     case outcome do
       {:completed, stop_reason} ->

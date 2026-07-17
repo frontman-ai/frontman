@@ -190,13 +190,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           text_block("Hello"),
           %{
             "type" => "resource",
+            "_meta" => %{"url" => "https://example.com/not-page-context"},
             "resource" => %{
-              "_meta" => %{"url" => "https://example.com/not-page-context"},
-              "resource" => %{
-                "uri" => "custom://resource",
-                "mimeType" => "text/plain",
-                "text" => "Resource with URL metadata"
-              }
+              "uri" => "custom://resource",
+              "mimeType" => "text/plain",
+              "text" => "Resource with URL metadata"
             }
           }
         ])

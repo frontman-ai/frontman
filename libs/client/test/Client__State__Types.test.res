@@ -53,18 +53,18 @@ let makeTestAnnotation = (
 // Helper to extract _meta from an EmbeddedResource content block
 let getMeta = (block: ACPTypes.contentBlock): JSON.t => {
   switch block {
-  | EmbeddedResource({resource}) => resource._meta->Option.getOrThrow
+  | EmbeddedResource({_meta}) => _meta->Option.getOrThrow
   | TextContent(_) | ImageContent(_) | AudioContent(_) | ResourceLink(_) =>
     failwith("getMeta: expected EmbeddedResource content block")
   }
 }
 
-// Helper to extract the embeddedResource from an EmbeddedResource content block
-let getEmbeddedResource = (block: ACPTypes.contentBlock): ACPTypes.embeddedResource => {
+// Helper to extract resource contents from an EmbeddedResource content block
+let getResource = (block: ACPTypes.contentBlock): ACPTypes.embeddedResourceResource => {
   switch block {
   | EmbeddedResource({resource}) => resource
   | TextContent(_) | ImageContent(_) | AudioContent(_) | ResourceLink(_) =>
-    failwith("getEmbeddedResource: expected EmbeddedResource content block")
+    failwith("getResource: expected EmbeddedResource content block")
   }
 }
 
@@ -183,9 +183,9 @@ describe("Client__State__Types", () => {
 
         let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
         let block = blocks->Array.getUnsafe(0)
-        let embeddedResource = getEmbeddedResource(block)
+        let resource = getResource(block)
 
-        switch embeddedResource.resource {
+        switch resource {
         | TextResourceContents(textResource) =>
           // The URI should use file:// with cleaned path and line:col
           t
@@ -213,13 +213,13 @@ describe("Client__State__Types", () => {
 
         // Second block should be screenshot blob
         let screenshotBlock = blocks->Array.getUnsafe(1)
-        let screenshotResource = getEmbeddedResource(screenshotBlock)
-        let screenshotMeta = screenshotResource._meta->Option.getOrThrow
+        let screenshotResource = getResource(screenshotBlock)
+        let screenshotMeta = getMeta(screenshotBlock)
 
         t->expect(getMetaBool(screenshotMeta, "annotation_screenshot"))->Expect.toBe(true)
         t->expect(getMetaString(screenshotMeta, "annotation_id"))->Expect.toBe("test-annotation-id")
 
-        switch screenshotResource.resource {
+        switch screenshotResource {
         | BlobResourceContents(blobResource) =>
           t->expect(blobResource.mimeType)->Expect.toEqual(Some("image/jpeg"))
           t->expect(blobResource.blob)->Expect.toBe("/9j/4AAQ")
@@ -262,9 +262,9 @@ describe("Client__State__Types", () => {
 
         let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
         let block = blocks->Array.getUnsafe(0)
-        let embeddedResource = getEmbeddedResource(block)
+        let resource = getResource(block)
 
-        switch embeddedResource.resource {
+        switch resource {
         | TextResourceContents(textResource) =>
           t->expect(textResource.uri)->Expect.toBe("selector://div.my-class")
         | _ => JsExn.throw("Expected TextResourceContents")
@@ -317,7 +317,7 @@ describe("Client__State__Types", () => {
         }
 
         let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
-        let embeddedResource = getEmbeddedResource(blocks->Array.getUnsafe(0))
+        let resource = getResource(blocks->Array.getUnsafe(0))
         let meta = getMeta(blocks->Array.getUnsafe(0))
         let elementor = getMetaObject(meta, "elementor")
         let nearbyText = getMetaString(meta, "nearby_text")
@@ -332,7 +332,7 @@ describe("Client__State__Types", () => {
         t->expect(nearbyText->String.includes("Elementor"))->Expect.toBe(true)
         t->expect(nearbyText->String.includes("abc12345"))->Expect.toBe(true)
 
-        switch embeddedResource.resource {
+        switch resource {
         | TextResourceContents(textResource) =>
           t->expect(textResource.uri)->Expect.toBe("elementor://post/42/element/abc12345")
           t->expect(textResource.text->String.includes("Elementor"))->Expect.toBe(true)

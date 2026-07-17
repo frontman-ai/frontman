@@ -1,175 +1,117 @@
-defmodule FrontmanServer.Protocols.AcpHistoryTest do
-  @moduledoc """
-  Ensures every Interaction type has an ACPHistory protocol implementation.
-
-  This test exists because the protocol has no @fallback_to_any — a missing
-  implementation will raise Protocol.UndefinedError at runtime when
-  stream_session_history iterates over task interactions.
-
-  The completeness test dynamically checks every module in
-  `InteractionSchema.types/0`, so adding a new type to that list
-  without providing an ACPHistory impl will fail this test.
-  """
+defmodule AgentClientProtocol.HistoryTest do
   use ExUnit.Case, async: true
 
+  alias AgentClientProtocol.History
+  alias FrontmanServer.Agents.Agent
+  alias FrontmanServer.Tasks.History, as: TaskHistory
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
-  alias FrontmanServerWeb.ACPHistory
-  alias ModelContextProtocol, as: MCP
 
   @session_id "test-session-123"
+  @timestamp ~U[2026-07-14 12:00:00.000000Z]
 
-  # Minimal required fields per interaction type. Every type needs at least
-  # :timestamp; types with additional enforced fields are listed explicitly.
-  @minimal_fields %{
-    Interaction.UserMessage => %{id: "t", messages: ["hi"], images: []},
-    Interaction.TurnStarted => %{id: "t", user_message_ids: ["um-1"]},
-    Interaction.AgentResponse => %{id: "t", content: "c"},
-    Interaction.AgentCompleted => %{id: "t"},
-    Interaction.ToolCall => %{id: "t", tool_call_id: "tc", tool_name: "t", arguments: %{}},
-    Interaction.ToolResult => %{
-      id: "t",
-      tool_call_id: "tc",
-      tool_name: "t",
-      result: MCP.tool_result_text("r"),
-      is_error: false
-    },
-    Interaction.AgentError => %{id: "t", error: "e"},
-    Interaction.AgentPaused => %{id: "t", reason: "r", tool_name: "t", timeout_ms: 1000},
-    Interaction.AgentRetry => %{id: "t", retried_error_id: "e"},
-    Interaction.DiscoveredProjectRule => %{path: "/p", content: "c"},
-    Interaction.DiscoveredProjectStructure => %{summary: "s"}
-  }
-
-  describe "ACPHistory protocol completeness" do
-    for mod <- Keyword.values(InteractionSchema.types()) do
-      type_name = mod |> Module.split() |> List.last()
-
-      test "#{type_name} has a working ACPHistory implementation" do
-        mod = unquote(mod)
-        extra = Map.get(unquote(Macro.escape(@minimal_fields)), mod, %{})
-
-        interaction = struct!(mod, Map.merge(%{timestamp: DateTime.utc_now()}, extra))
-
-        # Must not raise Protocol.UndefinedError
-        result = ACPHistory.to_history_items(interaction, @session_id)
-        assert is_list(result)
-      end
-    end
-  end
-
-  describe "conversation types return non-empty history items" do
-    test "UserMessage" do
-      interaction = %Interaction.UserMessage{
-        id: "um-1",
-        timestamp: DateTime.utc_now(),
-        messages: ["Hello"],
-        images: []
-      }
-
-      items = ACPHistory.to_history_items(interaction, @session_id)
-      assert items != []
-      assert [%{"params" => %{"update" => %{"sessionUpdate" => "user_message"}}}] = items
-    end
-
-    test "UserMessage annotation keeps generic metadata" do
-      metadata = %{
-        "custom_context" => %{
-          "target_id" => "abc12345",
-          "target_type" => "widget"
-        }
-      }
-
-      interaction = %Interaction.UserMessage{
-        id: "um-elementor",
-        timestamp: DateTime.utc_now(),
-        messages: [],
+  test "replays canonical row IDs, complete blocks, tools, errors, and response ordinals" do
+    rows = [
+      row("user-row", :user_message, nil, %Interaction.UserMessage{
+        id: "embedded-id",
+        agent_id: "executor-id",
+        messages: ["First", "Second"],
         images: [],
-        annotations: [
-          %Interaction.Annotation{
-            annotation_id: "ann-1",
-            annotation_index: 0,
-            tag_name: "span",
-            metadata: metadata
-          }
-        ]
-      }
-
-      [item] = ACPHistory.to_history_items(interaction, @session_id)
-      [content] = item["params"]["update"]["content"]
-      resource = content["resource"]
-
-      assert resource["_meta"]["custom_context"] == metadata["custom_context"]
-      assert resource["resource"]["uri"] == "element://span"
-      assert resource["resource"]["text"] == "Annotated element: <span>"
-    end
-
-    test "AgentResponse" do
-      interaction = %Interaction.AgentResponse{
-        id: "ar-1",
-        content: "Response text",
-        timestamp: DateTime.utc_now()
-      }
-
-      items = ACPHistory.to_history_items(interaction, @session_id)
-      assert items != []
-    end
-
-    test "ToolCall" do
-      interaction = %Interaction.ToolCall{
-        id: "tc-1",
-        tool_call_id: "call-1",
+        timestamp: @timestamp
+      }),
+      row("turn-row", :turn_started, 1, turn("turn-id", ["user-row"])),
+      row("empty-response", :agent_response, 1, response(nil)),
+      row("response", :agent_response, 1, response("Answer")),
+      row("tool", :tool_call, 1, %Interaction.ToolCall{
+        id: "tool",
+        tool_call_id: "call",
         tool_name: "read_file",
-        arguments: %{"path" => "test.txt"},
-        timestamp: DateTime.utc_now()
-      }
+        arguments: %{"path" => "file"},
+        timestamp: @timestamp
+      }),
+      row("error", :agent_error, 1, %Interaction.AgentError{
+        id: "error-id",
+        error: "Failed",
+        category: "unknown",
+        timestamp: @timestamp
+      })
+    ]
 
-      items = ACPHistory.to_history_items(interaction, @session_id)
-      assert items != []
-    end
+    assert {:ok, replay} = build(rows)
+    updates = Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
 
-    test "ToolResult" do
-      interaction = %Interaction.ToolResult{
-        id: "tr-1",
-        tool_call_id: "call-1",
-        tool_name: "read_file",
-        result: MCP.tool_result_text("file contents"),
-        is_error: false,
-        timestamp: DateTime.utc_now()
-      }
-
-      items = ACPHistory.to_history_items(interaction, @session_id)
-      assert items != []
-    end
+    assert [%{"id" => "executor-id"}] = replay.catalog
+    assert [first, second, answer, _tool_create, _tool_update, error] = updates
+    assert first["messageId"] == "user-row"
+    assert second["messageId"] == "user-row"
+    assert answer["messageId"] == "turn-row:1"
+    assert answer["_meta"]["frontman.dev/agentId"] == "executor-id"
+    assert error["_meta"]["frontman.dev/agentErrorId"] == "error-id"
   end
 
-  describe "non-conversation types return empty list" do
-    test "AgentCompleted" do
-      interaction = %Interaction.AgentCompleted{
-        id: "ac-1",
-        timestamp: DateTime.utc_now()
-      }
+  test "crashes when history references an agent outside the global catalog" do
+    rows = [
+      row("turn-row", :turn_started, 1, %{
+        turn("archived-turn", [])
+        | agent_id: "archived-id"
+      }),
+      row("response", :agent_response, 1, response("Old answer"))
+    ]
 
-      assert ACPHistory.to_history_items(interaction, @session_id) == []
-    end
+    assert_raise KeyError, fn -> build(rows) end
+  end
 
-    test "DiscoveredProjectRule" do
-      interaction = %Interaction.DiscoveredProjectRule{
-        path: "/project/AGENTS.md",
-        content: "# Rules",
-        timestamp: DateTime.utc_now()
-      }
+  test "crashes when persisted turn has no agent ID" do
+    rows = [
+      row("turn-row", :turn_started, 1, %{turn("turn-id", []) | agent_id: nil}),
+      row("response", :agent_response, 1, response("Answer"))
+    ]
 
-      assert ACPHistory.to_history_items(interaction, @session_id) == []
-    end
+    assert_raise FunctionClauseError, fn -> build(rows) end
+  end
 
-    test "DiscoveredProjectStructure" do
-      interaction = %Interaction.DiscoveredProjectStructure{
-        summary: "Project type: single project\n\nDirectory layout:\n.",
-        timestamp: DateTime.utc_now()
-      }
+  test "replays paused terminal state as requires_action" do
+    rows = [
+      row("turn-row", :turn_started, 1, turn("turn-id", [])),
+      row("paused", :agent_paused, 1, %Interaction.AgentPaused{timestamp: @timestamp})
+    ]
 
-      assert ACPHistory.to_history_items(interaction, @session_id) == []
-    end
+    assert {:ok, replay} = build(rows)
+
+    assert [%{"params" => %{"update" => update}}] = replay.notifications
+    assert update == %{"sessionUpdate" => "state_update", "state" => "requires_action"}
+  end
+
+  defp row(id, type, turn_number, data) do
+    %InteractionSchema{id: id, type: type, turn_number: turn_number, data: data}
+  end
+
+  defp build(rows) do
+    with {:ok, history} <- TaskHistory.new(rows),
+         do: History.build(history, @session_id, [agent()])
+  end
+
+  defp turn(id, user_message_ids) do
+    %Interaction.TurnStarted{
+      id: id,
+      agent_id: "executor-id",
+      user_message_ids: user_message_ids,
+      timestamp: @timestamp
+    }
+  end
+
+  defp response(content) do
+    %Interaction.AgentResponse{id: Ecto.UUID.generate(), content: content, timestamp: @timestamp}
+  end
+
+  defp agent do
+    %Agent{
+      id: "executor-id",
+      name: "executor",
+      display_name: "Executor",
+      description: "Executes changes",
+      color: "#22C55E",
+      system: "Execute"
+    }
   end
 end

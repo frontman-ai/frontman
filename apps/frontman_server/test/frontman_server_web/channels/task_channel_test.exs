@@ -3,11 +3,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.InteractionCase.Helpers,
-    only: [agent_error: 2, agent_error: 4, interaction_event: 2, tool_call: 2, tool_call: 3]
+    only: [
+      agent_error: 2,
+      agent_error: 4,
+      interaction_event: 2,
+      tool_call: 2,
+      tool_call: 3,
+      turn_started: 1
+    ]
 
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias AgentClientProtocol.Content.{ContentItem, TextBlock}
+  alias FrontmanServer.InteractionCase.Helpers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Test.Fixtures.LLMProvider
   alias FrontmanServer.Workers.GenerateTitle
@@ -18,13 +25,31 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   # --- Live execution chunk builders ---
 
+  defp response_metadata(turn_started_id \\ "turn-1", ordinal \\ 0) do
+    %{
+      turn_started_id: turn_started_id,
+      agent_id: "test-frontman",
+      ordinal: ordinal,
+      timestamp: ~U[2026-07-14 12:30:01.000000Z]
+    }
+  end
+
   defp execution_chunk(type, text),
-    do: {:execution_chunk, 1, %{type: type, text: text}}
+    do: execution_chunk(1, type, text)
+
+  defp execution_chunk(turn_number, type, text, metadata \\ response_metadata()),
+    do: {:execution_chunk, turn_number, metadata, %{type: type, text: text}}
 
   defp execution_tool_call(id, name),
     do:
-      {:execution_chunk, 1,
+      {:execution_chunk, 1, response_metadata(),
        %{type: :tool_call, name: name, arguments: %{}, metadata: %{id: id, index: 0}}}
+
+  defp activate_turn(socket, turn_started_id) do
+    turn = %{turn_started([]) | id: turn_started_id}
+    send(socket.channel_pid, interaction_event(turn, 1))
+    assert_state_update_running(socket.assigns.task_id)
+  end
 
   defp agent_failed(message, category \\ "unknown") do
     interaction_event(agent_error(message, "failed", false, category), 1)
@@ -198,6 +223,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "forwards prompt model to title generation job", %{
       socket: socket,
+      scope: scope,
       task_id: task_id,
       user: user
     } do
@@ -223,9 +249,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{
-            "sessionUpdate" => "user_message",
+            "sessionUpdate" => "user_message_chunk",
             "messageId" => _message_id,
-            "content" => [%{"type" => "text", "text" => "Hello"}]
+            "content" => %{"type" => "text", "text" => "Hello"}
           }
         }
       })
@@ -249,29 +275,75 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "agent_message_chunk",
-            "content" => %{"type" => "text", "text" => "Test response"}
+            "messageId" => response_message_id,
+            "content" => %{"type" => "text", "text" => "Test response"},
+            "_meta" => %{
+              "frontman.dev/agentId" => "test-frontman",
+              "frontman.dev/timestamp" => response_timestamp
+            }
           }
         }
       })
 
       assert_state_update_idle(task_id)
-    end
-
-    test "persists selected agent on accepted prompt", %{
-      socket: socket,
-      scope: scope,
-      task_id: task_id
-    } do
-      ref = push(socket, "acp:message", build_prompt_request())
-
-      assert_push("acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "user_message"}}
-      })
-
-      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
       assert {:ok, task} = Tasks.get_task(scope, task_id)
-      assert [%Interaction.UserMessage{agent_id: "test-frontman"}] = task.interactions
+      turn_row = Enum.find(task.interaction_rows, &(&1.type == :turn_started))
+      response = Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentResponse{}, &1))
+      assert response_message_id == "#{turn_row.id}:0"
+      assert DateTime.to_iso8601(response.timestamp) == response_timestamp
+    end
+
+    test "live user chunks equal replayed persisted chunks", %{socket: socket, task_id: task_id} do
+      selector_annotation =
+        Helpers.annotation_block("selector-ann", "button", nil, nil, nil, index: 0)
+        |> put_in(
+          ["_meta", "selector"],
+          ".toolbar > button[data-action='save']"
+        )
+        |> put_in(
+          ["resource"],
+          %{
+            "uri" => "selector://.toolbar > button[data-action='save']",
+            "mimeType" => "text/plain",
+            "text" => "Annotated element: <button> matching .toolbar > button[data-action='save']"
+          }
+        )
+
+      content_blocks = [
+        Helpers.text_block("Match these persisted chunks"),
+        selector_annotation,
+        Helpers.screenshot_block("selector-ann", "c2NyZWVuc2hvdA=="),
+        Helpers.current_page_block("https://example.com/editor")
+      ]
+
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_acp_request("session/prompt", 46, %{
+            "prompt" => content_blocks,
+            "_meta" => %{
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+              "agent" => "test-frontman"
+            }
+          })
+        )
+
+      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+      live_chunks = collect_all_pushes() |> user_message_updates()
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 47, %{"sessionId" => task_id})
+      )
+
+      :sys.get_state(socket.channel_pid)
+      replayed_chunks = collect_all_pushes() |> user_message_updates()
+
+      assert length(live_chunks) == length(content_blocks)
+      assert replayed_chunks == live_chunks
     end
 
     test "uses configured default agent when agent is missing", %{
@@ -292,13 +364,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         )
 
       assert_push("acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "user_message"}}
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "user_message_chunk",
+            "_meta" => %{"frontman.dev/agentId" => "test-planner"}
+          }
+        }
       })
 
       assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
       assert {:ok, task} = Tasks.get_task(scope, task_id)
-      assert [%Interaction.UserMessage{agent_id: "test-planner"}] = task.interactions
+      assert [%Interaction.UserMessage{agent_id: "test-planner"}] = Tasks.interactions(task)
     end
 
     test "returns invalid params when agent is unknown", %{
@@ -323,7 +400,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert response["error"]["message"] == "Unknown agent"
 
       assert {:ok, task} = Tasks.get_task(scope, task_id)
-      assert task.interactions == []
+      assert Tasks.interactions(task) == []
     end
 
     test "returns invalid params for malformed text content block", %{socket: socket} do
@@ -358,7 +435,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_push("acp:message", %{
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "user_message"}
+          "update" => %{"sessionUpdate" => "user_message_chunk"}
         }
       })
 
@@ -386,7 +463,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_push("acp:message", %{
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "user_message"}
+          "update" => %{"sessionUpdate" => "user_message_chunk"}
         }
       })
 
@@ -399,8 +476,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{
-            "sessionUpdate" => "user_message",
-            "content" => [%{"type" => "text", "text" => "second"}]
+            "sessionUpdate" => "user_message_chunk",
+            "content" => %{"type" => "text", "text" => "second"}
           }
         }
       })
@@ -409,6 +486,42 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_state_update_idle(task_id)
       assert_state_update_running_then_idle(task_id)
+    end
+  end
+
+  defp user_message_updates(pushes) do
+    for {"acp:message",
+         %{
+           "params" => %{
+             "update" => %{"sessionUpdate" => "user_message_chunk"} = update
+           }
+         }} <- pushes,
+        do: update
+  end
+
+  test "keeps response identity across assistant chunks", %{scope: scope} do
+    {socket, _task_id} = join_task_channel(scope)
+    turn_started_id = Ecto.UUID.generate()
+    metadata = response_metadata(turn_started_id)
+    message_id = "#{turn_started_id}:0"
+    activate_turn(socket, turn_started_id)
+
+    for text <- ["first", "second"] do
+      send(socket.channel_pid, execution_chunk(1, :content, text, metadata))
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "agent_message_chunk",
+            "messageId" => ^message_id,
+            "content" => %{"type" => "text", "text" => ^text},
+            "_meta" => %{
+              "frontman.dev/agentId" => "test-frontman",
+              "frontman.dev/timestamp" => "2026-07-14T12:30:01.000000Z"
+            }
+          }
+        }
+      })
     end
   end
 
@@ -491,6 +604,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: task_id
     } do
       # Thinking chunks and empty-text chunks are silently dropped
+      activate_turn(socket, "turn-1")
+
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
@@ -623,8 +738,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_tool_result))
       :sys.get_state(socket.channel_pid)
 
-      # Phoenix.ChannelTest delivers raw Elixir terms (no JSON serialisation),
-      # so content arrives as ACP.Content structs rather than plain maps.
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "method" => "session/update",
@@ -634,7 +747,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "sessionUpdate" => "tool_call_update",
             "toolCallId" => "call_123",
             "status" => "completed",
-            "content" => [%ContentItem{content: %TextBlock{text: "Logged: hello"}}]
+            "content" => [
+              %{
+                "type" => "content",
+                "content" => %{"type" => "text", "text" => "Logged: hello"}
+              }
+            ]
           }
         }
       })
@@ -813,6 +931,68 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "session/load wake" do
+    test "rejects a session ID different from the joined task", %{scope: scope} do
+      task = task_fixture(scope)
+      other_task = task_fixture(scope)
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task.id}", %{})
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 88, %{"sessionId" => other_task.id})
+      )
+
+      assert_push("acp:message", %{
+        "id" => 88,
+        "error" => %{"code" => -32_602, "message" => "Session does not match channel"}
+      })
+    end
+
+    test "pushes history before a load result containing the agent catalog", %{scope: scope} do
+      task = task_fixture(scope)
+      {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"))
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task.id}", %{})
+
+      collect_all_pushes()
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 90, %{"sessionId" => task.id})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      messages =
+        collect_all_pushes()
+        |> Enum.filter(fn {event, _payload} -> event == "acp:message" end)
+        |> Enum.map(&elem(&1, 1))
+
+      assert [
+               %{
+                 "method" => "session/update",
+                 "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
+               },
+               %{
+                 "id" => 90,
+                 "result" => %{"_meta" => %{"frontman.dev/agents" => agents}}
+               }
+             ] = messages
+
+      assert Enum.any?(
+               agents,
+               &match?(%{"id" => "test-frontman", "displayName" => "Executor"}, &1)
+             )
+    end
+
     test "drains accepted work created outside the channel prompt flow", %{scope: scope} do
       task = task_fixture(scope)
 
@@ -823,7 +1003,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       complete_mcp_handshake(socket)
 
-      {:ok, %Interaction.UserMessage{}} =
+      {:ok, %Tasks.InteractionSchema{data: %Interaction.UserMessage{}}} =
         Tasks.submit_user_message(scope, %{
           task_id: task.id,
           message: user_content("queued elsewhere"),
@@ -881,6 +1061,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       task_id: _task_id
     } do
       tool_call_id = "call_dedup_#{:rand.uniform(1_000_000)}"
+      activate_turn(socket, "turn-1")
 
       # Step 1: Send tool_call chunk (early streaming notification)
       send(socket.channel_pid, execution_tool_call(tool_call_id, "write_file"))
@@ -989,7 +1170,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      refute Enum.any?(task.interactions, &match?(%Interaction.AgentError{}, &1))
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       {:ok, _reply, socket} =
         UserSocket
@@ -1024,7 +1205,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
+
+      tool_results =
+        Enum.filter(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
 
       assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
                tool_results
@@ -1158,7 +1341,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
+
+      tool_results =
+        Enum.filter(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
 
       assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
                tool_results
@@ -1273,7 +1458,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       refute Enum.any?(
-               task.interactions,
+               Tasks.interactions(task),
                &match?(
                  %Interaction.AgentRetry{
                    retried_error_id: ^retried_error_id
@@ -1289,7 +1474,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      refute Enum.any?(task.interactions, &match?(%Interaction.AgentRetry{}, &1))
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentRetry{}, &1))
 
       send(socket.channel_pid, {:fire_retry, retry_state.timer_token})
       :sys.get_state(socket.channel_pid)
@@ -1297,7 +1482,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       assert Enum.any?(
-               task.interactions,
+               Tasks.interactions(task),
                &match?(
                  %Interaction.AgentRetry{
                    retried_error_id: ^retried_error_id
@@ -1351,7 +1536,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       assert Enum.any?(
-               task.interactions,
+               Tasks.interactions(task),
                &match?(
                  %Interaction.AgentRetry{
                    retried_error_id: ^retried_error_id
@@ -1390,7 +1575,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       refute Enum.any?(
-               task.interactions,
+               Tasks.interactions(task),
                &match?(%Interaction.AgentRetry{}, &1)
              )
 
@@ -1440,7 +1625,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       refute Enum.any?(
-               task.interactions,
+               Tasks.interactions(task),
                &match?(
                  %Interaction.AgentRetry{},
                  &1
@@ -1448,7 +1633,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
              )
 
       refute Enum.any?(
-               task.interactions,
+               Tasks.interactions(task),
                &match?(%Interaction.AgentError{kind: "cancelled"}, &1)
              )
     end

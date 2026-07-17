@@ -225,7 +225,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       tool_result =
-        Enum.find(task.interactions, fn
+        Enum.find(Tasks.interactions(task), fn
           %Interaction.ToolResult{tool_call_id: "tc-deadline-1"} -> true
           _ -> false
         end)
@@ -252,7 +252,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       tool_result =
-        Enum.find(task.interactions, fn
+        Enum.find(Tasks.interactions(task), fn
           %Interaction.ToolResult{tool_call_id: "tc-pause-1"} -> true
           _ -> false
         end)

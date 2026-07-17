@@ -425,6 +425,8 @@ module Selectors = {
     state.configOptions
   }
 
+  let agentCatalog = state => currentTask(state)->Task.getAgentCatalog
+
   // Get selected model value (sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
   let selectedModelValue = (state: state): option<
     Client__State__Types.ACPConfig.sessionConfigValueId,
@@ -502,16 +504,12 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
     let meta = JSON.Encode.object(metaObj)
 
     Client__State__Types.ACPTypes.EmbeddedResource({
-      resource: {
-        _meta: Some(meta),
-        annotations: None,
-        resource: Client__State__Types.ACPTypes.BlobResourceContents({
-          uri: `attachment://${att.id}/${att.filename}`,
-          mimeType: Some(att.mediaType),
-          blob: base64Data,
-        }),
-      },
-      _meta: None,
+      resource: Client__State__Types.ACPTypes.BlobResourceContents({
+        uri: `attachment://${att.id}/${att.filename}`,
+        mimeType: Some(att.mediaType),
+        blob: base64Data,
+      }),
+      _meta: Some(meta),
       annotations: None,
     })
   })
@@ -1273,7 +1271,11 @@ let next = (state: state, action) => {
       | None => ()
       }
     })
-    {...state, tasks: updatedTasks, acpSession: NoAcpSession}->StateReducer.update
+    {
+      ...state,
+      tasks: updatedTasks,
+      acpSession: NoAcpSession,
+    }->StateReducer.update
 
   // ============================================================================
   // Global state actions

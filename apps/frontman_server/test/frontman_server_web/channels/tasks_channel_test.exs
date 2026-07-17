@@ -1,17 +1,11 @@
 defmodule FrontmanServerWeb.TasksChannelTest do
-  # async: false required because "ACP session/load" describe block uses shared_sandbox: true
-  # Shared sandbox mode is incompatible with async tests as it can interfere with other tests' connections
   use FrontmanServerWeb.ChannelCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias AgentClientProtocol, as: ACP
-  alias Ecto.Migration.Runner
   alias FrontmanServer.Repo
-  alias FrontmanServer.Repo.Migrations.BackfillTurnStartedForUserMessages
-  alias FrontmanServer.Tasks.Interaction
-  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServerWeb.UserSocket
 
@@ -22,12 +16,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       |> subscribe_and_join("tasks", %{})
 
     {:ok, socket: socket, scope: scope}
-  end
-
-  describe "join tasks" do
-    test "succeeds and sets acp_initialized to false", %{socket: socket} do
-      assert socket.assigns.acp_initialized == false
-    end
   end
 
   describe "ACP initialize" do
@@ -44,12 +32,36 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
+      assert_push("config_options_updated", %{"configOptions" => _})
+
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
         "result" => %{
           "protocolVersion" => ^version,
           "agentInfo" => %{"name" => "frontman-server"}
+        }
+      })
+    end
+
+    test "rejects malformed Frontman agent attribution metadata", %{socket: socket} do
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => ACP.protocol_version(),
+          "clientCapabilities" => %{
+            "_meta" => %{"frontman.dev" => %{"agentAttribution" => "invalid"}}
+          }
+        }
+      })
+
+      assert_push("acp:message", %{
+        "id" => 1,
+        "error" => %{
+          "code" => -32_602,
+          "message" => "Invalid Frontman agent attribution capability metadata"
         }
       })
     end
@@ -125,7 +137,15 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 2,
-        "result" => %{"sessionId" => ^client_session_id}
+        "result" => %{
+          "sessionId" => ^client_session_id,
+          "_meta" => %{
+            "frontman.dev/agents" => [
+              %{"id" => "test-frontman"},
+              %{"id" => "test-planner"}
+            ]
+          }
+        }
       })
 
       # Verify task was created with the client-provided ID
@@ -452,285 +472,4 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert {:ok, _task} = FrontmanServer.Tasks.get_task(other_scope, other_task_id)
     end
   end
-
-  describe "ACP session/load" do
-    @describetag shared_sandbox: true
-
-    setup %{scope: scope} do
-      task_id = task_fixture(scope).id
-      {:ok, task_id: task_id}
-    end
-
-    test "returns success for valid session", %{socket: socket, task_id: task_id} do
-      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "result" => %{}
-      })
-    end
-
-    test "streams user message history as canonical accepted messages", %{
-      socket: socket,
-      scope: scope,
-      task_id: task_id
-    } do
-      # Persist messages without starting execution — this test is about
-      # session/load history streaming, not the agent loop.
-      user_message_fixture(scope, task_id, [
-        %{"type" => "text", "text" => "Hello"}
-      ])
-
-      user_message_fixture(scope, task_id, [
-        %{"type" => "text", "text" => "World"}
-      ])
-
-      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
-
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "user_message",
-            "messageId" => message_id1,
-            "content" => [%{"text" => "Hello"}]
-          }
-        }
-      })
-
-      assert is_binary(message_id1)
-
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "user_message",
-            "messageId" => message_id2,
-            "content" => [%{"text" => "World"}]
-          }
-        }
-      })
-
-      assert is_binary(message_id2)
-
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
-    end
-
-    test "streams migrated legacy turn-numbered user message history", %{
-      socket: socket,
-      task_id: task_id
-    } do
-      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
-        "messages" => ["Legacy hello"],
-        "model" => "openrouter:openai/gpt-5.5"
-      })
-
-      run_turn_started_backfill_migration()
-
-      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
-
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "user_message",
-            "messageId" => message_id,
-            "content" => [%{"text" => "Legacy hello"}]
-          }
-        }
-      })
-
-      assert is_binary(message_id)
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
-    end
-
-    test "streams agent message history", %{
-      socket: socket,
-      scope: scope,
-      task_id: task_id
-    } do
-      user_message_fixture(scope, task_id, [
-        %{"type" => "text", "text" => "Prompt"}
-      ])
-
-      turn_number = latest_turn_number(task_id)
-
-      FrontmanServer.Tasks.agent_replied(scope, task_id, turn_number, "Response 1", %{})
-      FrontmanServer.Tasks.agent_replied(scope, task_id, turn_number, "Response 2", %{})
-
-      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
-
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "user_message",
-            "content" => [%{"text" => "Prompt"}]
-          }
-        }
-      })
-
-      # Per ACP spec: only agent_message_chunk exists (no start/end markers)
-      # Client's LoadComplete handler finalizes any streaming messages
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "agent_message_chunk",
-            "content" => %{"text" => "Response 1"}
-          }
-        }
-      })
-
-      assert_push("acp:message", %{
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "agent_message_chunk",
-            "content" => %{"text" => "Response 2"}
-          }
-        }
-      })
-
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
-    end
-
-    test "streams mixed history in order", %{socket: socket, scope: scope, task_id: task_id} do
-      user_message_fixture(scope, task_id, [
-        %{"type" => "text", "text" => "Question"}
-      ])
-
-      turn_number = latest_turn_number(task_id)
-
-      FrontmanServer.Tasks.agent_replied(scope, task_id, turn_number, "Answer", %{})
-
-      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
-
-      # User message
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "user_message",
-            "content" => [%{"text" => "Question"}]
-          }
-        }
-      })
-
-      # Per ACP spec: only agent_message_chunk exists (no start/end markers)
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "agent_message_chunk",
-            "content" => %{"text" => "Answer"}
-          }
-        }
-      })
-
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
-    end
-
-    test "returns empty history for task with no messages", %{socket: socket, task_id: task_id} do
-      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => task_id}))
-
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
-      refute_push("acp:message", %{"method" => "session/update"}, 100)
-    end
-
-    test "returns error for non-existent session", %{socket: socket} do
-      push(
-        socket,
-        "acp:message",
-        acp_request(1, "session/load", %{"sessionId" => Ecto.UUID.generate()})
-      )
-
-      assert_push("acp:message", %{
-        "id" => 1,
-        "error" => %{"code" => -32_602, "message" => "Session not found"}
-      })
-    end
-
-    test "returns error for unauthorized session (appears as not found)", %{socket: socket} do
-      # Security: Implementation returns "not found" for unauthorized access
-      # to avoid revealing whether a resource exists
-      other_scope = user_scope_fixture()
-      other_task_id = task_fixture(other_scope, framework: "vite").id
-
-      push(socket, "acp:message", acp_request(1, "session/load", %{"sessionId" => other_task_id}))
-
-      assert_push("acp:message", %{
-        "id" => 1,
-        "error" => %{"code" => -32_602, "message" => "Session not found"}
-      })
-    end
-
-    test "returns error when sessionId missing", %{socket: socket} do
-      push(socket, "acp:message", acp_request(1, "session/load", %{}))
-
-      assert_push("acp:message", %{
-        "id" => 1,
-        "error" => %{"code" => -32_602, "message" => "Missing sessionId parameter"}
-      })
-    end
-  end
-
-  defp acp_request(id, method, params) do
-    %{"jsonrpc" => "2.0", "id" => id, "method" => method, "params" => params}
-  end
-
-  defp insert_legacy_interaction_row(task_id, type, turn_number, data) do
-    now = DateTime.utc_now(:second)
-
-    data =
-      %{
-        "__type__" => interaction_type(type) |> Atom.to_string(),
-        "id" => Ecto.UUID.generate(),
-        "timestamp" => DateTime.to_iso8601(now),
-        "images" => []
-      }
-      |> Map.merge(data)
-
-    Repo.query!(
-      """
-      INSERT INTO interactions (id, task_id, type, data, turn_number, sequence, inserted_at)
-      VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7)
-      """,
-      [
-        Ecto.UUID.dump!(Ecto.UUID.generate()),
-        Ecto.UUID.dump!(task_id),
-        interaction_type(type) |> Atom.to_string(),
-        Jason.encode!(data),
-        turn_number,
-        System.unique_integer([:monotonic, :positive]),
-        now
-      ]
-    )
-  end
-
-  defp run_turn_started_backfill_migration do
-    Code.require_file(
-      "priv/repo/migrations/20260630000000_backfill_turn_started_for_user_messages.exs"
-    )
-
-    assert :ok =
-             Runner.run(
-               Repo,
-               Repo.config(),
-               0,
-               BackfillTurnStartedForUserMessages,
-               :forward,
-               :up,
-               :up,
-               log: false
-             )
-  end
-
-  defp interaction_type(module),
-    do: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, module)
 end

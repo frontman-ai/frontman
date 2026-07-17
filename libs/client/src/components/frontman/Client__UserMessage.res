@@ -7,6 +7,7 @@
  */
 module UserContentPart = Client__State__Types.UserContentPart
 module MessageAnnotation = Client__Message.MessageAnnotation
+module AgentChip = Client__AgentChip
 
 // Circled number characters for annotation badges (1-20)
 let _circledNumbers = [
@@ -40,6 +41,7 @@ let make = (
   ~content: array<UserContentPart.t>,
   ~annotations: array<MessageAnnotation.t>=[],
   ~messageId: string,
+  ~agent: Client__Agent.t,
   ~isNew: bool=false,
 ) => {
   let rootClass = isNew
@@ -71,8 +73,11 @@ let make = (
 
   <div className=rootClass>
     <div
-      className="w-full min-w-0 overflow-hidden bg-violet-600/80 rounded-2xl px-3 py-2 text-[14px] leading-relaxed text-white font-semibold"
+      className="relative mt-2.5 w-full min-w-0 bg-violet-600/80 rounded-2xl px-3 pb-2 pt-5 text-[14px] leading-relaxed text-white font-semibold"
     >
+      <div className="absolute -top-2.5 left-1 z-10">
+        <AgentChip agent className="" borderColor="rgb(124 58 237 / 0.8)" />
+      </div>
       // Annotation chips (above images/text)
       {hasAnnotations
         ? <div className="flex flex-wrap gap-1.5 mb-2 min-w-0 w-full">

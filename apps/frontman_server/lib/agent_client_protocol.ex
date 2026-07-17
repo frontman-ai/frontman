@@ -16,9 +16,21 @@ defmodule AgentClientProtocol do
   the agent server, separate from MCP which handles tool invocation.
   """
 
-  use Boundary, deps: [JsonRpc], exports: :all
+  use Boundary,
+    deps: [JsonRpc, FrontmanServer],
+    exports: :all
+
+  alias FrontmanServer.Agents.Agent
 
   @protocol_version 1
+  @agent_attribution_version 1
+  @extension_namespace "frontman.dev"
+  @invalid_agent_attribution_capability {:error,
+                                         "Invalid Frontman agent attribution capability metadata"}
+  @agent_catalog_metadata_key "#{@extension_namespace}/agents"
+  @agent_id_metadata_key "#{@extension_namespace}/agentId"
+  @agent_error_id_metadata_key "#{@extension_namespace}/agentErrorId"
+  @timestamp_metadata_key "#{@extension_namespace}/timestamp"
 
   # Channel event names — the single source of truth for Phoenix channel events.
   @event_acp_message "acp:message"
@@ -73,6 +85,8 @@ defmodule AgentClientProtocol do
   def tool_call_status_in_progress, do: @tool_call_status_in_progress
   def tool_call_status_completed, do: @tool_call_status_completed
   def tool_call_status_failed, do: @tool_call_status_failed
+  def tool_call_status(false), do: @tool_call_status_completed
+  def tool_call_status(true), do: @tool_call_status_failed
 
   def stop_reason_end_turn, do: @stop_reason_end_turn
   def stop_reason_max_tokens, do: @stop_reason_max_tokens
@@ -109,9 +123,33 @@ defmodule AgentClientProtocol do
     %{
       "loadSession" => true,
       "mcpCapabilities" => %{"http" => false, "sse" => false, "websocket" => true},
-      "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true}
+      "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true},
+      "_meta" => %{
+        @extension_namespace => %{
+          "agentAttribution" => %{"version" => @agent_attribution_version}
+        }
+      }
     }
   end
+
+  def negotiate_agent_attribution_version(nil), do: {:ok, nil}
+
+  def negotiate_agent_attribution_version(%{} = capabilities) do
+    with {:ok, metadata} <- optional_map(capabilities, "_meta"),
+         {:ok, namespace} <- optional_map(metadata, @extension_namespace),
+         {:ok, advertisement} <- optional_map(namespace, "agentAttribution") do
+      case Map.fetch(advertisement, "version") do
+        {:ok, @agent_attribution_version} -> {:ok, @agent_attribution_version}
+        {:ok, version} when version in 1..65_535 -> {:ok, nil}
+        _invalid -> @invalid_agent_attribution_capability
+      end
+    else
+      :absent -> {:ok, nil}
+      :invalid -> @invalid_agent_attribution_capability
+    end
+  end
+
+  def negotiate_agent_attribution_version(_invalid), do: @invalid_agent_attribution_capability
 
   @doc """
   Builds the initialize response result.
@@ -123,6 +161,14 @@ defmodule AgentClientProtocol do
       "agentInfo" => agent_info(),
       "authMethods" => []
     }
+  end
+
+  defp optional_map(map, key) do
+    case Map.fetch(map, key) do
+      {:ok, value} when is_map(value) -> {:ok, value}
+      {:ok, _invalid} -> :invalid
+      :error -> :absent
+    end
   end
 
   @doc """
@@ -155,27 +201,46 @@ defmodule AgentClientProtocol do
     ]
   end
 
-  @doc """
-  Builds session/new result payload with optional config options.
-  """
-  def build_session_new_result(session_id, config_options \\ []) do
-    result = %{"sessionId" => session_id}
+  @doc "Encodes the resolved agent catalog for ACP metadata."
+  def build_agent_catalog(agents) when is_list(agents) do
+    Enum.map(agents, &agent_entry/1)
+  end
 
-    case config_options do
-      [] -> result
-      opts when is_list(opts) -> Map.put(result, "configOptions", opts)
-    end
+  @doc """
+  Builds session/new result payload with config options and agent catalog.
+  """
+  def build_session_new_result(session_id, config_options, catalog)
+      when is_list(config_options) and is_list(catalog) do
+    %{
+      "sessionId" => session_id,
+      "_meta" => %{@agent_catalog_metadata_key => catalog}
+    }
+    |> put_config_options(config_options)
   end
 
   @doc """
   Builds session/load result payload with optional config options.
   """
-  def build_session_load_result(config_options \\ []) do
-    case config_options do
-      [] -> %{}
-      opts when is_list(opts) -> %{"configOptions" => opts}
-    end
+  def build_session_load_result(config_options, catalog)
+      when is_list(config_options) and is_list(catalog) do
+    %{"_meta" => %{@agent_catalog_metadata_key => catalog}}
+    |> put_config_options(config_options)
   end
+
+  defp agent_entry(%Agent{} = agent) do
+    %{
+      "id" => agent.id,
+      "name" => agent.name,
+      "displayName" => agent.display_name,
+      "description" => agent.description,
+      "color" => agent.color
+    }
+  end
+
+  defp put_config_options(result, []), do: result
+
+  defp put_config_options(result, config_options),
+    do: Map.put(result, "configOptions", config_options)
 
   @doc """
   Builds a session summary for the list_sessions channel response.
@@ -215,36 +280,47 @@ defmodule AgentClientProtocol do
   Per ACP spec: The first agent_message_chunk implicitly signals message start.
   Message end is signaled by the session/prompt response with stopReason.
   """
-  def build_agent_message_chunk_notification(session_id, text, timestamp) do
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "agent_message_chunk",
-        "content" => %{
-          "type" => "text",
-          "text" => text
-        },
-        "timestamp" => DateTime.to_iso8601(timestamp)
-      }
-    }
-
-    JsonRpc.notification(@method_session_update, params)
+  def build_agent_message_chunk_notification(
+        session_id,
+        text,
+        timestamp,
+        message_id,
+        agent_id
+      ) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "agent_message_chunk",
+      "messageId" => message_id,
+      "content" => %{"type" => "text", "text" => text},
+      "_meta" => message_metadata(agent_id, timestamp)
+    })
   end
 
+  def agent_message_id(turn_started_id, ordinal), do: "#{turn_started_id}:#{ordinal}"
+
   @doc """
-  Builds a canonical accepted user_message session/update notification.
+  Builds a canonical accepted user_message_chunk session/update notification.
 
   Used when a user message is persisted as accepted session history. `message_id` is server-owned.
   """
-  def build_user_message_notification(session_id, message_id, content) do
-    JsonRpc.notification(@method_session_update, %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "user_message",
-        "messageId" => message_id,
-        "content" => content
-      }
+  def build_user_message_chunk_notification(session_id, message_id, content, agent_id, timestamp)
+      when is_binary(agent_id) and agent_id != "" do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "user_message_chunk",
+      "messageId" => message_id,
+      "content" => content,
+      "_meta" => message_metadata(agent_id, timestamp)
     })
+  end
+
+  defp message_metadata(agent_id, timestamp) do
+    %{
+      @agent_id_metadata_key => agent_id,
+      @timestamp_metadata_key => DateTime.to_iso8601(timestamp)
+    }
+  end
+
+  defp session_update_notification(session_id, update) do
+    JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
   end
 
   @doc """
@@ -262,10 +338,7 @@ defmodule AgentClientProtocol do
         stop_reason -> Map.put(update, "stopReason", stop_reason)
       end
 
-    JsonRpc.notification(@method_session_update, %{
-      "sessionId" => session_id,
-      "update" => update
-    })
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -285,7 +358,7 @@ defmodule AgentClientProtocol do
       "message" => message,
       "timestamp" => DateTime.to_iso8601(timestamp),
       "category" => Keyword.fetch!(retry_opts, :category),
-      "_meta" => %{"frontman.dev/agentErrorId" => Keyword.fetch!(retry_opts, :agent_error_id)}
+      "_meta" => %{@agent_error_id_metadata_key => Keyword.fetch!(retry_opts, :agent_error_id)}
     }
 
     update =
@@ -300,7 +373,7 @@ defmodule AgentClientProtocol do
           |> Map.put("maxAttempts", Keyword.fetch!(retry_opts, :max_attempts))
       end
 
-    JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -333,10 +406,7 @@ defmodule AgentClientProtocol do
       "timestamp" => DateTime.to_iso8601(timestamp)
     }
 
-    JsonRpc.notification(@method_session_update, %{
-      "sessionId" => session_id,
-      "update" => update
-    })
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -355,12 +425,7 @@ defmodule AgentClientProtocol do
 
     update = if content, do: Map.put(update, "content", content), else: update
 
-    params = %{
-      "sessionId" => session_id,
-      "update" => update
-    }
-
-    JsonRpc.notification(@method_session_update, params)
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -390,15 +455,10 @@ defmodule AgentClientProtocol do
   def plan_update(session_id, entries) do
     validate_plan_entries!(entries)
 
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "plan",
-        "entries" => entries
-      }
-    }
-
-    JsonRpc.notification(@method_session_update, params)
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "plan",
+      "entries" => entries
+    })
   end
 
   defp validate_plan_entries!(entries) when is_list(entries) do

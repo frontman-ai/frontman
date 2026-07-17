@@ -17,10 +17,10 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Agents
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
-  alias FrontmanServerWeb.ACPHistory
 
   @acp_protocol_version ACP.protocol_version()
   @acp_message ACP.event_acp_message()
@@ -29,7 +29,6 @@ defmodule FrontmanServerWeb.TasksChannel do
   @acp_delete_session ACP.event_delete_session()
   @acp_method_initialize ACP.method_initialize()
   @acp_method_session_new ACP.method_session_new()
-  @acp_method_session_load ACP.method_session_load()
 
   @impl true
   def join("tasks", _params, socket) do
@@ -46,7 +45,6 @@ defmodule FrontmanServerWeb.TasksChannel do
         Providers.config_pubsub_topic(user_id)
       )
 
-      socket = assign(socket, :acp_initialized, false)
       {:ok, %{status: "connected"}, socket}
     else
       Logger.info("Client joining tasks channel (unauthenticated)")
@@ -92,21 +90,23 @@ defmodule FrontmanServerWeb.TasksChannel do
        ) do
     Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
 
-    socket =
-      socket
-      |> assign(:acp_initialized, true)
-      |> assign(:acp_client_info, params["clientInfo"])
-      |> assign(:acp_client_capabilities, params["clientCapabilities"])
+    case ACP.negotiate_agent_attribution_version(params["clientCapabilities"]) do
+      {:ok, _version} ->
+        socket = assign(socket, :acp_client_info, params["clientInfo"])
 
-    # Push config options immediately so the model selector is populated
-    # before any session is created.
-    push(
-      socket,
-      @acp_config_updated,
-      ACP.build_config_options_updated_payload(current_config_options(socket))
-    )
+        # Push config options immediately so the model selector is populated
+        # before any session is created.
+        push(
+          socket,
+          @acp_config_updated,
+          ACP.build_config_options_updated_payload(current_config_options(socket))
+        )
 
-    push_response(socket, id, ACP.build_initialize_result())
+        push_response(socket, id, ACP.build_initialize_result())
+
+      {:error, message} ->
+        push_error(socket, id, JsonRpc.error_invalid_params(), message)
+    end
   end
 
   defp handle_message({:request, id, @acp_method_initialize, %{"protocolVersion" => _}}, socket) do
@@ -129,6 +129,7 @@ defmodule FrontmanServerWeb.TasksChannel do
        )
        when is_binary(session_id) and session_id != "" do
     Logger.info("ACP session/new request received with sessionId: #{session_id}")
+    agents = Agents.list_agents(socket.assigns.scope)
 
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
@@ -142,7 +143,11 @@ defmodule FrontmanServerWeb.TasksChannel do
       push_response(
         socket,
         id,
-        ACP.build_session_new_result(session_id, current_config_options(socket))
+        ACP.build_session_new_result(
+          session_id,
+          current_config_options(socket),
+          ACP.build_agent_catalog(agents)
+        )
       )
     else
       :error ->
@@ -163,30 +168,6 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp handle_message({:request, id, @acp_method_session_new, _params}, socket) do
     push_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
-  end
-
-  # ACP session/load - streams history via session/update notifications
-  defp handle_message(
-         {:request, id, @acp_method_session_load, %{"sessionId" => session_id} = _params},
-         socket
-       ) do
-    Logger.info("ACP session/load request received for session: #{session_id}")
-    scope = socket.assigns.scope
-
-    case Tasks.get_task(scope, session_id) do
-      {:ok, task} ->
-        # Stream history via session/update notifications
-        stream_session_history(socket, task)
-
-        push_response(socket, id, ACP.build_session_load_result(current_config_options(socket)))
-
-      {:error, :not_found} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
-    end
-  end
-
-  defp handle_message({:request, id, @acp_method_session_load, _params}, socket) do
-    push_error(socket, id, JsonRpc.error_invalid_params(), "Missing sessionId parameter")
   end
 
   # Unknown method
@@ -247,14 +228,5 @@ defmodule FrontmanServerWeb.TasksChannel do
   defp push_error(socket, id, code, message) do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
     {:noreply, socket}
-  end
-
-  # Streams session history as ACP session/update notifications
-  defp stream_session_history(socket, task) do
-    task.interactions
-    |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.id))
-    |> Enum.each(fn notification ->
-      push(socket, @acp_message, notification)
-    end)
   end
 end

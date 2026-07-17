@@ -14,9 +14,9 @@ type acpState =
   | Connecting
   | Initialized(Types.initializeResult)
 
+type agentAttributionVersion = V1
+
 type pendingRequest = {
-  method: string,
-  sessionId: option<string>,
   resolve: JSON.t => unit,
   reject: string => unit,
 }
@@ -24,6 +24,7 @@ type pendingRequest = {
 type state = {
   currentId: int,
   acpState: acpState,
+  agentAttributionVersion: option<agentAttributionVersion>,
   pendingRequests: Dict.t<pendingRequest>,
 }
 
@@ -42,7 +43,27 @@ type action =
 let initialState: state = {
   currentId: 0,
   acpState: Disconnected,
+  agentAttributionVersion: None,
   pendingRequests: Dict.make(),
+}
+
+let negotiateAgentAttributionVersion = (result: Types.initializeResult) => {
+  switch result.agentCapabilities->Option.flatMap(capabilities => capabilities._meta) {
+  | None => None
+  | Some(metadata) =>
+    switch metadata->Decoders.parseSchema(Types.capabilityMetadataSchema) {
+    | Error(_) => None
+    | Ok(metadata) =>
+      let advertisedVersion =
+        metadata.frontmanDev
+        ->Option.flatMap(frontman => frontman.agentAttribution)
+        ->Option.map(attribution => attribution.version)
+      switch (result.protocolVersion, advertisedVersion) {
+      | (1, Some(1)) => Some(V1)
+      | _ => None
+      }
+    }
+  }
 }
 
 // Pure reducer function
@@ -60,7 +81,12 @@ let reduce = (state: state, action: action): state => {
     let newPending = state.pendingRequests->Dict.copy
     newPending->Dict.delete(Int.toString(id))
     {...state, pendingRequests: newPending}
-  | ACPStateChanged(acpState) => {...state, acpState}
+  | ACPStateChanged(Initialized(result) as acpState) => {
+      ...state,
+      acpState,
+      agentAttributionVersion: negotiateAgentAttributionVersion(result),
+    }
+  | ACPStateChanged(acpState) => {...state, acpState, agentAttributionVersion: None}
   }
 }
 
@@ -94,44 +120,50 @@ let handleResponse = (state: state, payload: JSON.t): state => {
   }
 }
 
-let resolvePendingSessionRequest = (
-  state: state,
-  ~method: string,
-  ~sessionId: string,
-  ~result: JSON.t,
-): state => {
-  let matchRef = ref(None)
-
-  state.pendingRequests->Dict.forEachWithKey((pending, id) => {
-    switch matchRef.contents {
-    | None if pending.method == method && pending.sessionId == Some(sessionId) =>
-      matchRef := Some((id, pending))
-    | _ => ()
-    }
-  })
-
-  switch matchRef.contents {
-  | Some((id, pending)) =>
-    pending.resolve(result)
-    let newPending = state.pendingRequests->Dict.copy
-    newPending->Dict.delete(id)
-    {...state, pendingRequests: newPending}
-  | None => state
-  }
+// Build initialize params JSON
+let advertiseAgentAttribution = metadata => {
+  let merged =
+    metadata->Option.mapOr(Dict.make(), metadata =>
+      metadata->JSON.Decode.object->Option.getOrThrow->Dict.copy
+    )
+  let frontman =
+    merged
+    ->Dict.get("frontman.dev")
+    ->Option.mapOr(Dict.make(), value => value->JSON.Decode.object->Option.getOrThrow->Dict.copy)
+  let advertisement =
+    ({version: 1}: Types.agentAttributionCapability)->S.decodeOrThrow(
+      ~from=Types.agentAttributionCapabilitySchema,
+      ~to=S.json->S.noValidation(true),
+    )
+  frontman->Dict.set("agentAttribution", advertisement)
+  merged->Dict.set("frontman.dev", JSON.Encode.object(frontman))
+  JSON.Encode.object(merged)
 }
 
-// Build initialize params JSON
 let buildInitializeParams = (config: config): JSON.t => {
   let params: Types.initializeParams = {
     protocolVersion: Types.currentProtocolVersion,
-    clientCapabilities: Some(config.clientCapabilities),
+    clientCapabilities: Some({
+      ...config.clientCapabilities,
+      _meta: Some(advertiseAgentAttribution(config.clientCapabilities._meta)),
+    }),
     clientInfo: Some(config.clientInfo),
   }
   params->Types.initializeParamsToJson
 }
 
-// Parse initialize result
-let parseInitializeResult = json => json->Decoders.parseSchema(Types.initializeResultSchema)
+let ensureSupportedProtocolVersion = ({protocolVersion} as result: Types.initializeResult) => {
+  switch protocolVersion == Types.currentProtocolVersion {
+  | true => Ok(result)
+  | false => Error(`Unsupported ACP protocol version: ${protocolVersion->Int.toString}`)
+  }
+}
+
+// Parse initialize result and enforce ACP base-version agreement before extension negotiation.
+let parseInitializeResult = json =>
+  json
+  ->Decoders.parseSchema(Types.initializeResultSchema)
+  ->Result.flatMap(ensureSupportedProtocolVersion)
 
 // Parse session/new result
 let parseSessionNewResult = json => json->Decoders.parseSchema(Types.sessionNewResultSchema)
@@ -142,9 +174,40 @@ let parseSessionLoadResult = json => json->Decoders.parseSchema(Types.sessionLoa
 // Parse session/prompt result
 let parsePromptResult = json => json->Decoders.parseSchema(Types.promptResultSchema)
 
-// Parse session/update notification
-let parseSessionUpdateNotification = json =>
-  json->Decoders.parseSchema(Types.sessionUpdateNotificationSchema)
+// Parse session/update notification under the negotiated extension contract.
+let sessionUpdateName = json =>
+  json
+  ->JSON.Decode.object
+  ->Option.flatMap(message => message->Dict.get("params"))
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.flatMap(params => params->Dict.get("update"))
+  ->Option.flatMap(JSON.Decode.object)
+  ->Option.flatMap(update => update->Dict.get("sessionUpdate"))
+  ->Option.flatMap(JSON.Decode.string)
+
+let knownSessionUpdate = name =>
+  switch name {
+  | "agent_message_chunk"
+  | "user_message_chunk"
+  | "tool_call"
+  | "tool_call_update"
+  | "plan"
+  | "config_option_update"
+  | "current_mode_update"
+  | "state_update"
+  | "error" => true
+  | _ => false
+  }
+
+let parseSessionUpdateNotification = (state, json) => {
+  let schema = switch (state.agentAttributionVersion, sessionUpdateName(json)) {
+  | (Some(V1), Some(name)) if knownSessionUpdate(name) => Types.sessionUpdateNotificationSchema
+  | (None, Some(name)) if knownSessionUpdate(name) => Types.genericSessionUpdateNotificationSchema
+  | (_, Some(_unknown)) => Types.unknownSessionUpdateNotificationSchema
+  | (_, None) => Types.genericSessionUpdateNotificationSchema
+  }
+  json->Decoders.parseSchema(schema)
+}
 
 // Check if initialized
 let isInitialized = (state: state): bool => {
@@ -156,3 +219,78 @@ let isInitialized = (state: state): bool => {
 
 // Get connection state
 let getACPState = (state: state): acpState => state.acpState
+
+let validateSessionMetadata = (state: state, metadata: option<JSON.t>, method) => {
+  switch state.agentAttributionVersion {
+  | None => Ok(None)
+  | Some(V1) =>
+    switch metadata {
+    | None => Error(`${method} missing frontman.dev/agents metadata`)
+    | Some(metadata) =>
+      metadata
+      ->Decoders.parseSchema(Types.sessionMetadataSchema)
+      ->Result.flatMap(metadata =>
+        switch metadata.agents {
+        | Some(catalog) => Ok(Some(catalog))
+        | None => Error(`${method} missing frontman.dev/agents metadata`)
+        }
+      )
+    }
+  }
+}
+
+type messageRole = Assistant | User
+
+type messageIdentity = {
+  role: messageRole,
+  agentId: string,
+  timestamp: string,
+}
+
+let makeSessionUpdateValidator = (
+  state: state,
+  ~sessionId: string,
+  catalog: option<array<Types.agentCatalogEntry>>,
+) => {
+  let identities: Dict.t<messageIdentity> = Dict.make()
+  let agentIds =
+    catalog->Option.map(catalog => catalog->Array.map(agent => agent.id)->Set.fromArray)
+
+  (notificationSessionId, update) => {
+    switch notificationSessionId == sessionId {
+    | false => Error(`Session update ${notificationSessionId} received on ${sessionId}`)
+    | true =>
+      let identity = switch (state.agentAttributionVersion, update) {
+      | (Some(V1), Types.AgentMessageChunk({messageId, _meta: {agentId, timestamp}})) =>
+        Some((messageId, {role: Assistant, agentId, timestamp}))
+      | (Some(V1), Types.UserMessageChunk({messageId, _meta: {agentId, timestamp}})) =>
+        Some((messageId, {role: User, agentId, timestamp}))
+      | _ => None
+      }
+
+      switch identity {
+      | Some((_, {agentId}))
+        if !(
+          agentIds
+          ->Option.getOrThrow(~message="Validated v1 session metadata is required")
+          ->Set.has(agentId)
+        ) =>
+        Error(`Session update references unknown agent: ${agentId}`)
+      | Some((messageId, identity)) =>
+        switch identities->Dict.get(messageId) {
+        | Some(existing) if existing.role != identity.role =>
+          Error(`Message ${messageId} changed roles`)
+        | Some(existing) if existing.agentId != identity.agentId =>
+          Error(`Message ${messageId} changed agents`)
+        | Some(existing) if existing.timestamp != identity.timestamp =>
+          Error(`Message ${messageId} changed timestamps`)
+        | Some(_) => Ok()
+        | None =>
+          identities->Dict.set(messageId, identity)
+          Ok()
+        }
+      | None => Ok()
+      }
+    }
+  }
+}
