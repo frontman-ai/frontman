@@ -145,7 +145,7 @@ module AgentSelector = {
           id="frontman-agent-selector"
           ariaLabel="Agent"
           className="h-9 w-full min-w-0 border-none bg-transparent px-1.5 text-xs text-zinc-300
-                     hover:bg-white/6 focus:ring-0 [&_svg]:size-3"
+                     hover:bg-white/6 focus:ring-0 cursor-pointer [&_svg]:size-3"
         >
           <span className="shrink-0 text-zinc-500"> {React.string("Agent")} </span>
           <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
