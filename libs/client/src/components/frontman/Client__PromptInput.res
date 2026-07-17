@@ -477,6 +477,14 @@ let make = (
       />
     </div>
 
+    {switch (agentCatalog, selectedAgentId) {
+    | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
+      <div className="flex min-w-0 items-center px-3 pb-1">
+        <AgentSelector agents selectedAgentId={agentId} onAgentChange />
+      </div>
+    | _ => React.null
+    }}
+
     // Footer with tools and submit — toolbar anchored at bottom, always stable position
     <div className="flex items-center justify-between px-3 pb-2 pt-1">
       <div className="flex flex-1 items-center gap-1 min-w-0 overflow-hidden transition-opacity">
@@ -496,14 +504,6 @@ let make = (
             showLabel={showToolbarLabels}
           />
         | None => React.null
-        }}
-
-        {switch (agentCatalog, selectedAgentId) {
-        | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
-          <div className="shrink min-w-0 overflow-hidden">
-            <AgentSelector agents selectedAgentId={agentId} onAgentChange />
-          </div>
-        | _ => React.null
         }}
 
         // Model selector — shown inline, shrinks when space is tight
