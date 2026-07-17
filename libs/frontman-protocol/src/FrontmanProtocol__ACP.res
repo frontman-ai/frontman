@@ -74,24 +74,13 @@ let catalogIdsUnique = agents => {
 
 let agentCatalogSchema =
   S.array(agentCatalogEntrySchema)
+  ->S.refine(agents => agents->Array.length > 0, ~error="Agent catalog must not be empty")
   ->S.refine(catalogIdsUnique, ~error="Agent catalog IDs must be unique")
   ->S.extendJSONSchema({
     uniqueItems: true,
+    minItems: 1,
     description: "Frontman runtime validation also requires unique id fields",
   })
-
-let nonEmptyAgentCatalogSchema =
-  agentCatalogSchema
-  ->S.refine(agents => agents->Array.length > 0, ~error="Agent catalog must not be empty")
-  ->S.extendJSONSchema({minItems: 1})
-
-type sessionMetadata = {
-  agents: option<array<agentCatalogEntry>>,
-}
-
-let sessionMetadataSchema = S.object(s => {
-  agents: s.field("frontman.dev/agents", S.option(agentCatalogSchema)),
-})
 
 type agentAttributionConfigurationMetadata = {
   agentAttribution: agentAttributionCapability,
@@ -101,7 +90,7 @@ type agentAttributionConfigurationMetadata = {
 
 let agentAttributionConfigurationMetadataSchema = S.object(s => {
   agentAttribution: s.field("agentAttribution", agentAttributionCapabilitySchema),
-  agents: s.field("agents", nonEmptyAgentCatalogSchema),
+  agents: s.field("agents", agentCatalogSchema),
   defaultAgentId: s.field("defaultAgentId", nonEmptyStringSchema),
 })->S.refine(
   configuration =>
