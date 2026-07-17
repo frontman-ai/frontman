@@ -29,6 +29,7 @@ jobs:
   # ==========================================================================
   deploy-server:
     name: Deploy Server
+    needs: deploy-client
     runs-on: self-hosted
     environment: production
     env:
@@ -119,11 +120,11 @@ jobs:
 
   # ==========================================================================
   # Client: build standalone bundle on CI → deploy to Cloudflare Pages
-  # Runs after server to avoid OOM on shared self-hosted runner
+  # Deploy first so a client failure cannot leave a newer server paired with
+  # an older client.
   # ==========================================================================
   deploy-client:
     name: Deploy Client
-    needs: deploy-server
     runs-on: self-hosted
     environment: production
     steps:
@@ -138,12 +139,18 @@ jobs:
       - name: Enable Corepack
         run: corepack enable && corepack install
 
-      - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-berry-${{ runner.os }}-
+      - name: Check runner disk capacity
+        run: |
+          # Ephemeral runner registration does not clear the container layer.
+          # Remove known leftovers before installing this run's dependencies.
+          rm -rf ~/.yarn/berry/cache node_modules libs/client/dist
+          available_kb=$(df -Pk / | awk 'NR == 2 {print $4}')
+          required_kb=$((10 * 1024 * 1024))
+          df -h / "$GITHUB_WORKSPACE"
+          if [ "$available_kb" -lt "$required_kb" ]; then
+            echo "::error::Client deployment requires at least 10 GiB free; only $((available_kb / 1024 / 1024)) GiB is available."
+            exit 1
+          fi
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -166,6 +173,12 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy libs/client/dist --project-name=frontman-client --branch=main
+
+      - name: Cleanup client build
+        if: always()
+        run: |
+          yarn rescript clean || true
+          rm -rf ~/.yarn/berry/cache node_modules libs/client/dist
 
       - name: Notify Discord
         if: always()
