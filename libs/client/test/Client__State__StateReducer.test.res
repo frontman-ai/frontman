@@ -1296,5 +1296,58 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(nextState.nvidiaKeySettings.source)->Expect.toEqual(Client__State__Types.None)
       },
     )
+
+    test(
+      "provider settings remain unloaded while any status is being fetched",
+      t => {
+        let loadingState = {
+          ...Reducer.defaultState,
+          anthropicOAuthStatus: FetchingStatus,
+          openaiOAuthStatus: OpenAIFetchingStatus,
+          openrouterKeySettings: {
+            source: Loading,
+            saveStatus: Idle,
+          },
+        }
+
+        t->expect(Reducer.Selectors.providerSettingsLoaded(loadingState))->Expect.toBe(false)
+      },
+    )
+
+    test(
+      "provider settings are loaded after every status settles",
+      t => {
+        let loadedState = {
+          ...Reducer.defaultState,
+          anthropicOAuthStatus: NotConnected,
+          openaiOAuthStatus: OpenAINotConnected,
+        }
+
+        t->expect(Reducer.Selectors.providerSettingsLoaded(loadedState))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "provider settings remain unloaded when a status fetch fails",
+      t => {
+        let failedState = {
+          ...Reducer.defaultState,
+          anthropicOAuthStatus: Error("status unavailable"),
+          openaiOAuthStatus: OpenAINotConnected,
+        }
+
+        t->expect(Reducer.Selectors.providerSettingsLoaded(failedState))->Expect.toBe(false)
+      },
+    )
+
+    test(
+      "clearing the ACP session invalidates loaded provider settings",
+      t => {
+        let state = {...Reducer.defaultState, sessionInitialized: true}
+        let (nextState, _effects) = Reducer.next(state, ClearAcpSession)
+
+        t->expect(nextState.sessionInitialized)->Expect.toBe(false)
+      },
+    )
   })
 })

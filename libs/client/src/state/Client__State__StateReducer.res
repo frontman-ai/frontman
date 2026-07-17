@@ -487,6 +487,24 @@ module Selectors = {
       }
     }
   }
+
+  let providerSettingsLoaded = (state: state): bool => {
+    let apiKeySettingsLoaded = switch (
+      state.openrouterKeySettings.source,
+      state.nvidiaKeySettings.source,
+      state.fireworksKeySettings.source,
+      state.anthropicKeySettings.source,
+    ) {
+    | (Loading, _, _, _) | (_, Loading, _, _) | (_, _, Loading, _) | (_, _, _, Loading) => false
+    | _ => true
+    }
+    let oauthSettingsLoaded = switch (state.anthropicOAuthStatus, state.openaiOAuthStatus) {
+    | (NotConnected | Connected(_), OpenAINotConnected | OpenAIConnected(_)) => true
+    | _ => false
+    }
+
+    apiKeySettingsLoaded && oauthSettingsLoaded
+  }
 }
 
 // ============================================================================
@@ -1252,6 +1270,8 @@ let next = (state: state, action) => {
         apiBaseUrl,
       }),
       sessionInitialized: true,
+      anthropicOAuthStatus: Client__State__Types.FetchingStatus,
+      openaiOAuthStatus: Client__State__Types.OpenAIFetchingStatus,
     }
     ->setAllApiKeySources(Client__State__Types.Loading)
     ->StateReducer.update(
@@ -1284,6 +1304,7 @@ let next = (state: state, action) => {
       ...state,
       tasks: updatedTasks,
       acpSession: NoAcpSession,
+      sessionInitialized: false,
     }->StateReducer.update
 
   // ============================================================================
