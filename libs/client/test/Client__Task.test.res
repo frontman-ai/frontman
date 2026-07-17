@@ -30,14 +30,20 @@ module TestHelpers = {
     TaskReducer.next(unloaded, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
   }
 
-  let acceptUserMessage = (task, ~id="user-1", ~text="Hello", ~annotations=[]) => {
+  let acceptUserMessage = (
+    task,
+    ~id="user-1",
+    ~text="Hello",
+    ~annotations=[],
+    ~agentId="executor-id",
+  ) => {
     TaskReducer.next(
       task,
       UserMessageReceived({
         id,
         content: [Client__Task__Types.UserContentPart.Text({text: text})],
         annotations,
-        agentId: "executor-id",
+        agentId,
       }),
     )->Pair.first
   }
@@ -310,14 +316,25 @@ describe("Task - Agent Running State", () => {
     }
   })
 
-  test("normal running drains queued user messages into transcript", t => {
+  test("running drains only the queued same-agent prefix into transcript", t => {
     let task = TestHelpers.makeLoadedTask()
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="One")
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-2", ~text="Two")
+    let task = TestHelpers.acceptUserMessage(
+      task,
+      ~id="queued-3",
+      ~text="Three",
+      ~agentId="planner-id",
+    )
 
     let (runningTask, _) = TaskReducer.next(task, ExecutionStateRunning)
 
-    t->expect(TestHelpers.getQueuedUserMessages(runningTask)->Array.length)->Expect.toBe(0)
+    let queued = TestHelpers.getQueuedUserMessages(runningTask)
+    t->expect(queued->Array.length)->Expect.toBe(1)
+    switch queued->Array.get(0) {
+    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("queued-3")
+    | _ => t->expect("Planner message")->Expect.toBe("missing")
+    }
     let messages = TestHelpers.getMessages(runningTask)
     t->expect(messages->Array.length)->Expect.toBe(2)
     switch (messages->Array.get(0), messages->Array.get(1)) {

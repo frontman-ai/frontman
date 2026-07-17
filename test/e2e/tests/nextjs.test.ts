@@ -44,7 +44,7 @@ describe("Next.js E2E", () => {
     const modelSelector = selectorPage.getByRole("combobox", { name: "Model" });
     await agentSelector.waitFor();
     await modelSelector.waitFor();
-    expect(await agentSelector.textContent()).toContain("Planner");
+    expect(await agentSelector.textContent()).toContain("Executor");
 
     await agentSelector.focus();
     await agentSelector.press("ArrowDown");
@@ -54,7 +54,7 @@ describe("Next.js E2E", () => {
 
     await selectorPage.reload();
     await agentSelector.waitFor();
-    expect(await agentSelector.textContent()).toContain("Planner");
+    expect(await agentSelector.textContent()).toContain("Executor");
 
     for (const width of [280, 384, 600]) {
       await selectorPage.evaluate((chatboxWidth) => {

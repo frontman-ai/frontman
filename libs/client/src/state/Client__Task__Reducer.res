@@ -83,12 +83,30 @@ module Lens = {
     switch task {
     | Task.Loaded({queuedUserMessages: []}) => task
     | Task.Loaded(data) =>
+      let messageAgentId = message =>
+        switch message {
+        | Message.User({agentId, _}) => agentId
+        | _ => failwith("[Lens.drainQueuedUserMessages] Queue contains non-user message")
+        }
+      let firstAgentId = data.queuedUserMessages->Array.getUnsafe(0)->messageAgentId
+      let prefixLength = switch data.queuedUserMessages->Array.findIndex(message =>
+        message->messageAgentId != firstAgentId
+      ) {
+      | -1 => data.queuedUserMessages->Array.length
+      | index => index
+      }
       Task.Loaded({
         ...data,
         messages: MessageStore.fromArray(
-          Array.concat(MessageStore.toArray(data.messages), data.queuedUserMessages),
+          Array.concat(
+            MessageStore.toArray(data.messages),
+            data.queuedUserMessages->Array.slice(~start=0, ~end=prefixLength),
+          ),
         ),
-        queuedUserMessages: [],
+        queuedUserMessages: data.queuedUserMessages->Array.slice(
+          ~start=prefixLength,
+          ~end=data.queuedUserMessages->Array.length,
+        ),
       })
     | _ => task
     }

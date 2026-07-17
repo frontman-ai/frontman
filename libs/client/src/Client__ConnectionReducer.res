@@ -439,8 +439,12 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | ConnectACP({config, signal, initialAuthBehavior}) =>
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
-      switch result {
-      | Ok(conn) =>
+      switch (signal.aborted, result) {
+      | (true, Ok(conn)) =>
+        ACP.disconnect(conn)
+        Log.info("ACP connection aborted after connect (cleanup)")
+      | (true, Error(_)) => Log.info("ACP connection aborted (cleanup)")
+      | (false, Ok(conn)) =>
         switch ACP.getAgentAttributionConfiguration(conn) {
         | Some({agents, defaultAgentId}) =>
           Client__State.Actions.agentAttributionConfigured(~agentCatalog=agents, ~defaultAgentId)
@@ -449,34 +453,29 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           ACP.disconnect(conn)
           dispatch(ACPConnectError("Frontman requires agent attribution v1"))
         }
-      | Error(err) =>
-        // Don't dispatch error for aborted connections - component is unmounting
-        switch signal.aborted {
-        | true => Log.info("ACP connection aborted (cleanup)")
-        | false =>
-          switch err {
-          | ACP.AuthRequired({loginUrl}) =>
-            let currentUrl = Client__HostNavigation.currentUrl()
-            let returnTo = encodeURIComponent(currentUrl)
-            let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
+      | (false, Error(err)) =>
+        switch err {
+        | ACP.AuthRequired({loginUrl}) =>
+          let currentUrl = Client__HostNavigation.currentUrl()
+          let returnTo = encodeURIComponent(currentUrl)
+          let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
 
-            let frameworkParam = switch framework {
-            | Some(framework) => `&framework=${encodeURIComponent(framework)}`
-            | None => ""
-            }
-
-            let separator = switch String.includes(loginUrl, "?") {
-            | true => "&"
-            | false => "?"
-            }
-            let fullUrl = `${loginUrl}${separator}return_to=${returnTo}${frameworkParam}`
-            switch initialAuthBehavior {
-            | Client__FtueState.ShowWelcomeModal =>
-              dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
-            | Client__FtueState.RedirectToLogin => Client__HostNavigation.assign(~url=fullUrl)
-            }
-          | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
+          let frameworkParam = switch framework {
+          | Some(framework) => `&framework=${encodeURIComponent(framework)}`
+          | None => ""
           }
+
+          let separator = switch String.includes(loginUrl, "?") {
+          | true => "&"
+          | false => "?"
+          }
+          let fullUrl = `${loginUrl}${separator}return_to=${returnTo}${frameworkParam}`
+          switch initialAuthBehavior {
+          | Client__FtueState.ShowWelcomeModal =>
+            dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
+          | Client__FtueState.RedirectToLogin => Client__HostNavigation.assign(~url=fullUrl)
+          }
+        | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
         }
       }
     }
