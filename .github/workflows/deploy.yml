@@ -63,7 +63,16 @@ jobs:
           name: client-dist
           path: libs/client/dist
           if-no-files-found: error
-          retention-days: 1
+          overwrite: true
+
+      - name: Notify Discord on client build failure
+        if: failure()
+        continue-on-error: true
+        uses: ./.github/actions/discord-notify
+        with:
+          status: ${{ job.status }}
+          component: Client build
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
   # ==========================================================================
   # Server: rsync source → build natively on prod server → blue-green deploy
