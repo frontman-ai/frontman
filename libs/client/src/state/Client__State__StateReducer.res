@@ -34,6 +34,7 @@ type action =
       sessionId: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
     })
   // Cancel current turn
   | CancelTurn
@@ -65,6 +66,8 @@ type action =
       configOptions: array<Client__State__Types.ACPConfig.sessionConfigOption>,
     })
   | SetSelectedModelValue({value: Client__State__Types.ACPConfig.sessionConfigValueId})
+  | AgentAttributionConfigured({agentCatalog: array<ACP.agentCatalogEntry>, defaultAgentId: string})
+  | SetSelectedAgentId(string)
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus
   | AnthropicOAuthStatusReceived({connected: bool, expiresAt: option<string>})
@@ -256,6 +259,8 @@ let defaultState: state = {
   openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
   configOptions: None,
   selectedModelValue: loadSelectedModelValueFromStorage(),
+  agentCatalog: None,
+  selectedAgentId: None,
   pendingProviderAutoSelect: None,
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
   updateInfo: None,
@@ -425,7 +430,9 @@ module Selectors = {
     state.configOptions
   }
 
-  let agentCatalog = state => currentTask(state)->Task.getAgentCatalog
+  let agentCatalog = (state: state) => state.agentCatalog
+
+  let selectedAgentId = (state: state) => state.selectedAgentId
 
   // Get selected model value (sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
   let selectedModelValue = (state: state): option<
@@ -522,6 +529,7 @@ let sendMessageToAPIImpl = (
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
   ~taskId,
+  ~agentId,
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
@@ -541,19 +549,12 @@ let sendMessageToAPIImpl = (
 
     let runtimeConfig = Client__RuntimeConfig.read()
     let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
-
-    // Add selected model to _meta if present (as "provider:value" string)
-    let _meta = switch state.selectedModelValue {
-    | Some(modelValue) =>
-      switch baseMeta->JSON.Decode.object {
-      | Some(dict) =>
-        let newDict = dict->Dict.copy
-        newDict->Dict.set("model", JSON.Encode.string(modelValue))
-        Some(JSON.Encode.object(newDict))
-      | None => Some(baseMeta)
-      }
-    | None => Some(baseMeta)
-    }
+    let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
+    state.selectedModelValue->Option.forEach(modelValue =>
+      metadata->Dict.set("model", JSON.Encode.string(modelValue))
+    )
+    metadata->Dict.set("agent", JSON.Encode.string(agentId))
+    let _meta = Some(JSON.Encode.object(metadata))
 
     sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
   | NoAcpSession => Log.error("Cannot send message: no active ACP session")
@@ -681,7 +682,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       // Handle delegation from task effects
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({text, attachments, annotations}) =>
+        | NeedSendMessage({text, attachments, annotations, agentId}) =>
           // Resolve the taskId from target
           let taskId = switch target {
           | ForTask(id) => id
@@ -692,7 +693,15 @@ let handleEffect = (effect, state: state, dispatch) => {
               failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
             }
           }
-          sendMessageToAPIImpl(state, dispatch, ~message=text, ~attachments, ~annotations, ~taskId)
+          sendMessageToAPIImpl(
+            state,
+            dispatch,
+            ~message=text,
+            ~attachments,
+            ~annotations,
+            ~taskId,
+            ~agentId,
+          )
         | NeedCancelPrompt =>
           switch state.acpSession {
           | AcpSessionActive({cancelPrompt}) => cancelPrompt()
@@ -1108,7 +1117,7 @@ let next = (state: state, action) => {
   // ============================================================================
   // AddUserMessage - cross-cutting (creates tasks, manages dict)
   // ============================================================================
-  | AddUserMessage({id, sessionId, content, annotations}) => {
+  | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
       let textContent = TaskReducer.extractTextFromUserContent(content)
 
       switch state.currentTask {
@@ -1125,12 +1134,12 @@ let next = (state: state, action) => {
         // Delegate AddUserMessage to the (now Loaded) task reducer
         promotedState->Lens.delegateToTask(
           Task.Selected(sessionId),
-          TaskReducer.AddUserMessage({id, content, annotations}),
+          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
         )
       | Task.Selected(taskId) =>
         state->Lens.delegateToTask(
           Task.Selected(taskId),
-          TaskReducer.AddUserMessage({id, content, annotations}),
+          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
         )
       }
     }
@@ -1383,6 +1392,18 @@ let next = (state: state, action) => {
   | SetSelectedModelValue({value}) =>
     saveSelectedModelValueToStorage(value)
     {...state, selectedModelValue: Some(value)}->StateReducer.update
+
+  | AgentAttributionConfigured({agentCatalog, defaultAgentId}) =>
+    Client__Agent.findOrThrow(Some(agentCatalog), defaultAgentId)->ignore
+    let selectedAgentId = switch state.selectedAgentId {
+    | Some(agentId) if agentCatalog->Array.some(agent => agent.id == agentId) => Some(agentId)
+    | _ => Some(defaultAgentId)
+    }
+    {...state, agentCatalog: Some(agentCatalog), selectedAgentId}->StateReducer.update
+
+  | SetSelectedAgentId(agentId) =>
+    Client__Agent.findOrThrow(state.agentCatalog, agentId)->ignore
+    {...state, selectedAgentId: Some(agentId)}->StateReducer.update
 
   // Anthropic OAuth actions
   | FetchAnthropicOAuthStatus =>

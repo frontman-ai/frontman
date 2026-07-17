@@ -120,6 +120,63 @@ module ModelSelector = {
   }
 }
 
+module AgentSelector = {
+  module Field = Client__UI__Field
+  module Select = Client__UI__Select
+
+  @react.component
+  let make = (
+    ~agents: array<ACP.agentCatalogEntry>,
+    ~selectedAgentId: string,
+    ~onAgentChange: string => unit,
+  ) => {
+    let selectedAgent = Client__Agent.findOrThrow(Some(agents), selectedAgentId)
+
+    <Field orientation=Horizontal className="items-center gap-1 min-w-0">
+      <Field.Label htmlFor="frontman-agent-selector" className="text-[11px] text-zinc-500 shrink-0">
+        {React.string("Agent")}
+      </Field.Label>
+      <Select value={selectedAgentId} onValueChange={(value, _) => onAgentChange(value)}>
+        <Select.Trigger
+          id="frontman-agent-selector"
+          ariaLabel="Agent"
+          className="h-8 min-w-0 max-w-[112px] border-none bg-transparent px-1.5 text-xs text-zinc-300
+                     hover:bg-white/6 focus:ring-0 [&_svg]:size-3"
+        >
+          <span
+            className="size-2 shrink-0 rounded-full" style={{backgroundColor: selectedAgent.color}}
+          />
+          <span className="min-w-0 truncate"> {React.string(selectedAgent.displayName)} </span>
+        </Select.Trigger>
+        <Select.Content
+          side=BaseUi.Types.Side.Top
+          align=BaseUi.Types.Align.Start
+          sideOffset=4.
+          className="z-50 min-w-[190px] max-w-[min(280px,calc(100vw-16px))] bg-zinc-800 border border-zinc-700"
+        >
+          <Select.Group>
+            {agents
+            ->Array.map(agent =>
+              <Select.Item
+                key={agent.id}
+                value={agent.id}
+                label={agent.displayName}
+                className="text-xs text-zinc-200 focus:bg-zinc-700 focus:text-white"
+              >
+                <span
+                  className="size-2 shrink-0 rounded-full" style={{backgroundColor: agent.color}}
+                />
+                <span className="min-w-0 truncate"> {React.string(agent.displayName)} </span>
+              </Select.Item>
+            )
+            ->React.array}
+          </Select.Group>
+        </Select.Content>
+      </Select>
+    </Field>
+  }
+}
+
 let modelConfigOptionHasModels = (configOption: ACP.sessionConfigOption) => {
   switch configOption {
   | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
@@ -267,6 +324,9 @@ let make = (
   ~isModelsConfigLoading: bool,
   ~selectedModelValue: option<ACP.sessionConfigValueId>,
   ~onModelChange: string => unit,
+  ~agentCatalog: option<array<ACP.agentCatalogEntry>>,
+  ~selectedAgentId: option<string>,
+  ~onAgentChange: string => unit,
   ~onConfigureProvider: unit => unit,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
@@ -436,6 +496,14 @@ let make = (
             showLabel={showToolbarLabels}
           />
         | None => React.null
+        }}
+
+        {switch (agentCatalog, selectedAgentId) {
+        | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
+          <div className="shrink min-w-0 overflow-hidden">
+            <AgentSelector agents selectedAgentId={agentId} onAgentChange />
+          </div>
+        | _ => React.null
         }}
 
         // Model selector — shown inline, shrinks when space is tight

@@ -272,28 +272,6 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
 })
 
 describe("Task - Agent Running State", () => {
-  test("second prompt preserves task agent catalog", t => {
-    let agent: FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.agentCatalogEntry = {
-      id: "executor-id",
-      name: "executor",
-      displayName: "Executor",
-      description: "Executes",
-      color: "#22C55E",
-    }
-    let task = TestHelpers.makeLoadedTask()
-    let (task, _) = TaskReducer.next(task, AgentCatalogInstalled([agent]))
-    let (task, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: "user-2",
-        content: [Client__Task__Types.UserContentPart.text("Again")],
-        annotations: [],
-      }),
-    )
-
-    t->expect(Task.getAgentCatalog(task))->Expect.toEqual(Some([agent]))
-  })
-
   test("state updates drive isAgentRunning", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task2, _) = TaskReducer.next(
@@ -302,6 +280,7 @@ describe("Task - Agent Running State", () => {
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(false))
@@ -592,6 +571,7 @@ describe("Task - Error Handling", () => {
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "New message"})],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
     t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
@@ -880,6 +860,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
+        agentId: "executor-id",
       }),
     )
 
@@ -902,6 +883,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
+        agentId: "executor-id",
       }),
     )
 
@@ -924,6 +906,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
         id: "user-1",
         content: [],
         annotations: _sampleMessageAnnotations,
+        agentId: "executor-id",
       }),
     )
 
@@ -969,11 +952,15 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix"})],
         annotations: _sampleMessageAnnotations,
+        agentId: "executor-id",
       }),
     )
 
     switch effects->Array.get(0) {
-    | Some(SendMessage({annotations})) => t->expect(annotations->Array.length)->Expect.toBe(2)
+    | Some(SendMessage({annotations, agentId})) => {
+        t->expect(annotations->Array.length)->Expect.toBe(2)
+        t->expect(agentId)->Expect.toBe("executor-id")
+      }
     | _ => t->expect("SendMessage effect")->Expect.toBe("not found")
     }
   })

@@ -284,16 +284,17 @@ let isInitialized = (conn: connection): bool => {
 }
 
 @@live
-let getAgentAttributionVersion = (conn: connection): option<Client.agentAttributionVersion> =>
-  conn.state.contents.agentAttributionVersion
+let getAgentAttributionConfiguration = (conn: connection): option<
+  Types.agentAttributionConfigurationMetadata,
+> => conn.state.contents.agentAttributionConfiguration
 
 module MCP = FrontmanClient__MCP
 module MCPTypes = FrontmanClient__MCP__Types
 
 exception SessionMessageParseError(string)
 
-let validatedUpdateHandler = (conn, sessionId, catalog, onUpdate) => {
-  let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId, catalog)
+let validatedUpdateHandler = (conn, sessionId, onUpdate) => {
+  let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId)
   (sessionId, update) =>
     switch validate(sessionId, update) {
     | Ok() => onUpdate(sessionId, update)
@@ -387,7 +388,7 @@ let createSession = async (
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
-): result<(session, Types.sessionNewResult, option<array<Types.agentCatalogEntry>>), string> => {
+): result<(session, Types.sessionNewResult), string> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
   let sessionNewResult = await Protocol.sendSessionNew(
@@ -399,24 +400,20 @@ let createSession = async (
 
   switch sessionNewResult {
   | Ok(result) =>
-    switch (
-      result.sessionId == sessionId,
-      Client.validateSessionMetadata(conn.state.contents, result._meta, "session/new"),
-    ) {
-    | (false, _) => Error(`session/new returned unexpected session ID: ${result.sessionId}`)
-    | (true, Error(e)) => Error(e)
-    | (true, Ok(catalog)) =>
+    switch result.sessionId == sessionId {
+    | false => Error(`session/new returned unexpected session ID: ${result.sessionId}`)
+    | true =>
       let joinResult = await joinSession(
         conn,
         result.sessionId,
-        ~onUpdate=validatedUpdateHandler(conn, sessionId, catalog, onUpdate),
+        ~onUpdate=validatedUpdateHandler(conn, sessionId, onUpdate),
         ~onTitleUpdated,
         ~onParseError?,
         ~mcpServerInterface?,
         ~onMcpMessage?,
       )
       switch joinResult {
-      | Ok(session) => Ok((session, result, catalog))
+      | Ok(session) => Ok((session, result))
       | Error(e) => Error(e)
       }
     }
@@ -510,12 +507,11 @@ let deleteSession = (conn: connection, sessionId: string): promise<result<unit, 
 }
 
 // Load an existing session while preserving ACP history-before-response wire ordering.
-// History callbacks are buffered until onLoadResult installs validated response metadata.
 @@live
 let loadSession = async (
   conn: connection,
   sessionId: string,
-  ~onLoadResult: (Types.sessionLoadResult, option<array<Types.agentCatalogEntry>>) => unit,
+  ~onLoadResult: Types.sessionLoadResult => unit,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
@@ -526,17 +522,14 @@ let loadSession = async (
   let bufferedUpdates = ref([])
   let parseError = ref(None)
   let cleanupOnParseError = ref(false)
-  let validator = ref(None)
+  let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId)
   let handleUpdate = (sessionId, update) =>
     switch buffering.contents {
     | true => bufferedUpdates := bufferedUpdates.contents->Array.concat([(sessionId, update)])
-    | false => {
-        let validate =
-          validator.contents->Option.getOrThrow(~message="Loaded session validator is required")
-        switch validate(sessionId, update) {
-        | Ok() => onUpdate(sessionId, update)
-        | Error(error) => failwith(error)
-        }
+    | false =>
+      switch validate(sessionId, update) {
+      | Ok() => onUpdate(sessionId, update)
+      | Error(error) => failwith(error)
       }
     }
 
@@ -591,21 +584,11 @@ let loadSession = async (
       switch parseError.contents {
       | Some(error) => Error(error)
       | None =>
-        Client.validateSessionMetadata(
-          conn.state.contents,
-          result._meta,
-          "session/load",
-        )->Result.flatMap(catalog => {
-          let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId, catalog)
-          validator := Some(validate)
-          bufferedUpdates.contents
-          ->Array.reduce(
-            Ok(),
-            (result, (updateSessionId, update)) =>
-              result->Result.flatMap(() => validate(updateSessionId, update)),
-          )
-          ->Result.map(() => (result, catalog))
-        })
+        bufferedUpdates.contents
+        ->Array.reduce(Ok(), (validation, (updateSessionId, update)) =>
+          validation->Result.flatMap(() => validate(updateSessionId, update))
+        )
+        ->Result.map(() => result)
       }
     )
 
@@ -613,8 +596,8 @@ let loadSession = async (
     | Error(error) =>
       cleanupSessionChannel(session)
       Error(error)
-    | Ok((result, catalog)) =>
-      onLoadResult(result, catalog)
+    | Ok(result) =>
+      onLoadResult(result)
       buffering := false
       try {
         bufferedUpdates.contents->Array.forEach(((sessionId, update)) =>

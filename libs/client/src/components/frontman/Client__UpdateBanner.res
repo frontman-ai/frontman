@@ -18,6 +18,7 @@ let make = () => {
     Client__State.Selectors.updateBannerDismissed,
   )
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
+  let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let {relay, session, createSession} = Client__FrontmanProvider.useFrontman()
 
   // Trigger the version check once relay is connected AND ACP session is active.
@@ -43,6 +44,7 @@ let make = () => {
   let handleUpdateClick = () => {
     switch updateInfo {
     | Some({npmPackage, latestVersion, installedVersion}) =>
+      let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
       let runtimeConfig = RuntimeConfig.read()
       let projectRootHint = switch runtimeConfig.projectRoot {
       | Some(root) => ` The project root is ${root}.`
@@ -56,7 +58,7 @@ let make = () => {
         ` (yarn.lock, package-lock.json, pnpm-lock.yaml, or bun.lock),` ++ ` and run the appropriate update command from that package's directory.`
       let content = [Client__State.UserContentPart.Text({text: text})]
       let sendMessage = (sessionId: string) => {
-        Client__State.Actions.addUserMessage(~sessionId, ~content)
+        Client__State.Actions.addUserMessage(~sessionId, ~content, ~agentId)
       }
       switch session {
       | Some(sess) =>

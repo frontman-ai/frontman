@@ -31,6 +31,8 @@ let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
     openaiOAuthStatus,
     configOptions: None,
     selectedModelValue: None,
+    agentCatalog: None,
+    selectedAgentId: None,
     pendingProviderAutoSelect: None,
     sessionsLoadState: Types.SessionsNotLoaded,
     updateInfo: None,

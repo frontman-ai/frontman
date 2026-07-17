@@ -7,6 +7,11 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
+let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
+let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
+
+afterEach(() => clearRuntime())
+
 module TestHelpers = {
   let makeLoadedTask = (
     ~id,
@@ -76,6 +81,53 @@ module TestHelpers = {
 }
 
 describe("Client State Reducer", () => {
+  test("agent configuration selects advertised default and preserves valid selection", t => {
+    let executor: ACP.agentCatalogEntry = {
+      id: "executor-id",
+      name: "executor",
+      displayName: "Executor",
+      description: "Executes work",
+      color: "#985DF7",
+    }
+    let planner: ACP.agentCatalogEntry = {
+      id: "planner-id",
+      name: "planner",
+      displayName: "Planner",
+      description: "Plans work",
+      color: "#F59E0B",
+    }
+    let (state, _) = Reducer.next(
+      Reducer.defaultState,
+      AgentAttributionConfigured({agentCatalog: [executor, planner], defaultAgentId: "planner-id"}),
+    )
+
+    t->expect(state.selectedAgentId)->Expect.toEqual(Some("planner-id"))
+    let (state, _) = Reducer.next(state, SetSelectedAgentId("executor-id"))
+    let (state, _) = Reducer.next(
+      state,
+      AgentAttributionConfigured({agentCatalog: [planner, executor], defaultAgentId: "planner-id"}),
+    )
+    t->expect(state.selectedAgentId)->Expect.toEqual(Some("executor-id"))
+  })
+
+  test("agent configuration replaces stale selection with advertised default", t => {
+    let planner: ACP.agentCatalogEntry = {
+      id: "planner-id",
+      name: "planner",
+      displayName: "Planner",
+      description: "Plans work",
+      color: "#F59E0B",
+    }
+    let state = {...Reducer.defaultState, selectedAgentId: Some("removed-id")}
+    let (state, _) = Reducer.next(
+      state,
+      AgentAttributionConfigured({agentCatalog: [planner], defaultAgentId: "planner-id"}),
+    )
+
+    t->expect(state.agentCatalog)->Expect.toEqual(Some([planner]))
+    t->expect(state.selectedAgentId)->Expect.toEqual(Some("planner-id"))
+  })
+
   test("AddUserMessage creates task and sends without optimistic message", t => {
     let state = Reducer.defaultState
     let action = Reducer.AddUserMessage({
@@ -83,6 +135,7 @@ describe("Client State Reducer", () => {
       sessionId: "session-1",
       content: [UserContentPart.text("Hello")],
       annotations: [],
+      agentId: "executor-id",
     })
 
     let (nextState, effects) = Reducer.next(state, action)
@@ -95,7 +148,8 @@ describe("Client State Reducer", () => {
     t->expect(messages->Array.length)->Expect.toBe(0)
 
     switch effects->Array.get(0) {
-    | Some(Reducer.TaskEffect({effect: SendMessage(_)})) => ()
+    | Some(Reducer.TaskEffect({effect: SendMessage({agentId})})) =>
+      t->expect(agentId)->Expect.toBe("executor-id")
     | _ => JsExn.throw("Expected SendMessage effect")
     }
   })
@@ -110,6 +164,7 @@ describe("Client State Reducer", () => {
         sessionId: "session-1",
         content: [UserContentPart.text("Hi")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -464,6 +519,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -476,6 +532,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         sessionId: "sessionId",
         content: [UserContentPart.text("Second message")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -496,6 +553,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -643,6 +701,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         sessionId: "session-new",
         content: [UserContentPart.text("Hello after delete")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -684,6 +743,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         sessionId: "session",
         content: [UserContentPart.Text({text: "Message in task 1"})],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -694,6 +754,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         sessionId: "session",
         content: [UserContentPart.Text({text: "Second message"})],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -929,6 +990,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         sessionId: "session-1",
         content: [UserContentPart.text("Fix this")],
         annotations: _sampleAnnotations,
+        agentId: "executor-id",
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -965,6 +1027,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         sessionId: "session-1",
         content: [],
         annotations: _sampleAnnotations,
+        agentId: "executor-id",
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -996,6 +1059,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         sessionId: "session-1",
         content: [UserContentPart.text("Hello")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -1016,6 +1080,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       sessionId: "session-1",
       content: [UserContentPart.text("Fix this")],
       annotations: _sampleAnnotations,
+      agentId: "executor-id",
     })
 
     let (_nextState, effects) = Reducer.next(state, action)
@@ -1035,6 +1100,47 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
     | _ => JsExn.throw("Expected TaskEffect(SendMessage) with annotations")
     }
+  })
+
+  test("SendMessage metadata carries submission agent and selected model", t => {
+    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
+    let sentMetadata = ref(None)
+    let state = {
+      ...Reducer.defaultState,
+      selectedModelValue: Some("anthropic:claude-opus-4-6"),
+      acpSession: AcpSessionActive({
+        sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
+        cancelPrompt: () => (),
+        retryTurn: _ => (),
+        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+        deleteSession: (_, ~onComplete as _) => (),
+        apiBaseUrl: "http://localhost:4000",
+      }),
+    }
+    let (state, effects) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: "user-1",
+        sessionId: "session-1",
+        content: [UserContentPart.text("Fix this")],
+        annotations: [],
+        agentId: "planner-id",
+      }),
+    )
+
+    effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+    let metadata =
+      sentMetadata.contents
+      ->Option.getOrThrow
+      ->JSON.Decode.object
+      ->Option.getOrThrow
+
+    t
+    ->expect(metadata->Dict.get("agent")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("planner-id"))
+    t
+    ->expect(metadata->Dict.get("model")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("anthropic:claude-opus-4-6"))
   })
 
   describe("API key provider actions", () => {

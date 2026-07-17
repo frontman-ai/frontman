@@ -36,6 +36,47 @@ describe("Next.js E2E", () => {
     expect(html).toContain("Hello World");
   });
 
+  it("selects agents accessibly without overflowing chat widths", async () => {
+    const selectorPage = await context.newPage();
+    await openFrontmanUI(selectorPage, PORT, { assertHealthy: server.assertHealthy });
+
+    const agentSelector = selectorPage.getByRole("combobox", { name: "Agent" });
+    await agentSelector.waitFor();
+    expect(await agentSelector.textContent()).toContain("Planner");
+
+    await agentSelector.focus();
+    await agentSelector.press("ArrowDown");
+    await agentSelector.press("Home");
+    await agentSelector.press("Enter");
+    expect(await agentSelector.textContent()).toContain("Executor");
+
+    await selectorPage.reload();
+    await agentSelector.waitFor();
+    expect(await agentSelector.textContent()).toContain("Planner");
+
+    for (const width of [280, 384, 600]) {
+      await selectorPage.evaluate((chatboxWidth) => {
+        localStorage.setItem("frontman:chatbox-width", String(chatboxWidth));
+      }, width);
+      await selectorPage.reload();
+
+      await agentSelector.waitFor();
+      const panel = agentSelector.locator(
+        `xpath=ancestor::*[contains(@style, "width: ${width}px")][1]`,
+      );
+      const panelBox = await panel.boundingBox();
+      const selectorBox = await agentSelector.boundingBox();
+      expect(panelBox).not.toBeNull();
+      expect(selectorBox).not.toBeNull();
+      expect(selectorBox!.x).toBeGreaterThanOrEqual(panelBox!.x);
+      expect(selectorBox!.x + selectorBox!.width).toBeLessThanOrEqual(
+        panelBox!.x + panelBox!.width,
+      );
+    }
+
+    await selectorPage.close();
+  });
+
   it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 

@@ -4,5 +4,5 @@
 "@frontman-ai/frontman-protocol": patch
 ---
 
-Add negotiated ACP agent attribution with validated session catalogs, stable message IDs,
-explicit agent colors, and migration of persisted session history.
+Add prompt-level Executor and Planner selection, negotiated connection agent catalogs, stable
+message IDs, explicit agent colors, and migration of persisted session history.

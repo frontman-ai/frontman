@@ -318,7 +318,6 @@ type annotationElement = {
 type action =
   // Streaming actions
   | TextDeltaReceived({messageId: string, text: string, agentId: string})
-  | AgentCatalogInstalled(array<ACPTypes.agentCatalogEntry>)
   // Tool call actions
   | ToolInputReceived({id: string, input: JSON.t})
   | ToolResultReceived({id: string, result: JSON.t})
@@ -329,6 +328,7 @@ type action =
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
     })
   // Annotation actions — unified selection mode
   | SetAnnotationMode({mode: Annotation.annotationMode})
@@ -412,6 +412,7 @@ type effect =
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
     })
   | CancelPrompt
   | RetryTurnEffect({retriedErrorId: string})
@@ -426,6 +427,7 @@ type delegated =
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
     })
   | NeedCancelPrompt
   | NeedRetryTurn({retriedErrorId: string})
@@ -434,7 +436,6 @@ let actionToString = (action: action): string =>
   switch action {
   | AddUserMessage(_) => "AddUserMessage"
   | TextDeltaReceived(_) => "TextDeltaReceived"
-  | AgentCatalogInstalled(_) => "AgentCatalogInstalled"
   | ToolCallReceived(_) => "ToolCallReceived"
   | ToolInputReceived(_) => "ToolInputReceived"
   | ToolResultReceived(_) => "ToolResultReceived"
@@ -918,19 +919,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loading(data), AgentCatalogInstalled(catalog)) => (
-      Task.Loading({...data, agentCatalog: Some(catalog)}),
-      [],
-    )
-  | (Task.Loaded(data), AgentCatalogInstalled(catalog)) => (
-      Task.Loaded({...data, agentCatalog: Some(catalog)}),
-      [],
-    )
-
   // ============================================================================
   // Loaded-only Actions - require isAgentRunning or planEntries
   // ============================================================================
-  | (Task.Loaded(data), AddUserMessage({id: _, content, annotations})) =>
+  | (Task.Loaded(data), AddUserMessage({id: _, content, annotations, agentId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
 
@@ -952,7 +944,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
       }),
-      [SendMessage({text, attachments, annotations})],
+      [SendMessage({text, attachments, annotations, agentId})],
     )
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
@@ -1092,7 +1084,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         annotations: [],
         activePopupAnnotationId: None,
-        agentCatalog: None,
         isAgentRunning: false,
       }),
       [],
@@ -1112,7 +1103,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        agentCatalog,
         isAgentRunning,
       }) => (
         Task.Loaded({
@@ -1126,7 +1116,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           annotationMode,
           annotations,
           activePopupAnnotationId,
-          agentCatalog,
           isAgentRunning,
           planEntries: [],
           queuedUserMessages: [],
@@ -1253,7 +1242,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Unloaded(_),
       TextDeltaReceived(_)
-      | AgentCatalogInstalled(_)
       | ToolCallReceived(_)
       | ToolInputReceived(_)
       | ToolResultReceived(_)
@@ -1563,8 +1551,8 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({text, attachments, annotations}) =>
-    delegate(NeedSendMessage({text, attachments, annotations}))
+  | SendMessage({text, attachments, annotations, agentId}) =>
+    delegate(NeedSendMessage({text, attachments, annotations, agentId}))
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   // Question tool resolution — call the resolve/reject callback directly.

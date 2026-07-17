@@ -161,6 +161,8 @@ type state = {
   // Currently selected model value (ACP sessionConfigValueId, e.g. "anthropic:claude-sonnet-4-5").
   // Persisted to localStorage. Derives from configOptions where category=Model.
   selectedModelValue: option<ACPConfig.sessionConfigValueId>,
+  agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
+  selectedAgentId: option<string>,
   // When a provider is freshly connected, this holds its id (e.g. "anthropic")
   // so the next config options refresh auto-selects its first model.
   pendingProviderAutoSelect: option<string>,

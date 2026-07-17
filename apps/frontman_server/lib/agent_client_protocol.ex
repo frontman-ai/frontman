@@ -27,7 +27,6 @@ defmodule AgentClientProtocol do
   @extension_namespace "frontman.dev"
   @invalid_agent_attribution_capability {:error,
                                          "Invalid Frontman agent attribution capability metadata"}
-  @agent_catalog_metadata_key "#{@extension_namespace}/agents"
   @agent_id_metadata_key "#{@extension_namespace}/agentId"
   @agent_error_id_metadata_key "#{@extension_namespace}/agentErrorId"
   @timestamp_metadata_key "#{@extension_namespace}/timestamp"
@@ -119,14 +118,17 @@ defmodule AgentClientProtocol do
     }
   end
 
-  def agent_capabilities do
+  def agent_capabilities(agents, default_agent_id)
+      when is_list(agents) and is_binary(default_agent_id) do
     %{
       "loadSession" => true,
       "mcpCapabilities" => %{"http" => false, "sse" => false, "websocket" => true},
       "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true},
       "_meta" => %{
         @extension_namespace => %{
-          "agentAttribution" => %{"version" => @agent_attribution_version}
+          "agentAttribution" => %{"version" => @agent_attribution_version},
+          "agents" => build_agent_catalog(agents),
+          "defaultAgentId" => default_agent_id
         }
       }
     }
@@ -154,10 +156,11 @@ defmodule AgentClientProtocol do
   @doc """
   Builds the initialize response result.
   """
-  def build_initialize_result do
+  def build_initialize_result(agents, default_agent_id)
+      when is_list(agents) and is_binary(default_agent_id) do
     %{
       "protocolVersion" => @protocol_version,
-      "agentCapabilities" => agent_capabilities(),
+      "agentCapabilities" => agent_capabilities(agents, default_agent_id),
       "agentInfo" => agent_info(),
       "authMethods" => []
     }
@@ -207,23 +210,18 @@ defmodule AgentClientProtocol do
   end
 
   @doc """
-  Builds session/new result payload with config options and agent catalog.
+  Builds session/new result payload with config options.
   """
-  def build_session_new_result(session_id, config_options, catalog)
-      when is_list(config_options) and is_list(catalog) do
-    %{
-      "sessionId" => session_id,
-      "_meta" => %{@agent_catalog_metadata_key => catalog}
-    }
+  def build_session_new_result(session_id, config_options) when is_list(config_options) do
+    %{"sessionId" => session_id}
     |> put_config_options(config_options)
   end
 
   @doc """
   Builds session/load result payload with optional config options.
   """
-  def build_session_load_result(config_options, catalog)
-      when is_list(config_options) and is_list(catalog) do
-    %{"_meta" => %{@agent_catalog_metadata_key => catalog}}
+  def build_session_load_result(config_options) when is_list(config_options) do
+    %{}
     |> put_config_options(config_options)
   end
 
