@@ -30,7 +30,9 @@ You scroll. The video advances. You reverse direction. The video rewinds with th
 
 This guide is based on [Nicolai Palmkvist's original video tutorial](https://www.youtube.com/watch?v=s7n9vRFvmM0). We do not own or claim the video. It is embedded below with credit because it provides the visual demonstration; the analysis, technical sourcing, and Frontman workflow here are original.
 
-<iframe width="100%" height="400" src="https://www.youtube-nocookie.com/embed/s7n9vRFvmM0" title="Nicolai Palmkvist tutorial: play video on scroll in Elementor" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="border-radius: 8px; margin: 2rem 0;"></iframe>
+<iframe width="100%" height="400" src="https://www.youtube-nocookie.com/embed/s7n9vRFvmM0" title="Nicolai Palmkvist tutorial: play video on scroll in Elementor" frameborder="0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="border-radius: 8px; margin: 2rem 0;"></iframe>
+
+If the embedded player is unavailable, [watch the original tutorial on YouTube](https://www.youtube.com/watch?v=s7n9vRFvmM0).
 
 ## What the original workflow actually needs
 
