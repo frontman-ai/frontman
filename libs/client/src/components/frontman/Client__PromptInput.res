@@ -67,6 +67,8 @@ module ModelSelector = {
 
     <Select value={selectedValue} onValueChange={(value, _) => onModelChange(value)}>
       <Select.Trigger
+        id="frontman-model-selector"
+        ariaLabel="Model"
         className="inline-flex w-full min-w-0 items-center gap-1 h-8 pl-2 pr-1.5 text-xs rounded-md
                    bg-transparent text-zinc-400 border-none cursor-pointer
                    hover:text-zinc-200 hover:bg-white/6
@@ -132,7 +134,7 @@ module AgentSelector = {
   ) => {
     let selectedAgent = Client__Agent.findOrThrow(Some(agents), selectedAgentId)
 
-    <Field orientation=Horizontal className="items-center gap-1 min-w-0">
+    <Field className="min-w-0 gap-1">
       <Field.Label htmlFor="frontman-agent-selector" className="text-[11px] text-zinc-500 shrink-0">
         {React.string("Agent")}
       </Field.Label>
@@ -140,7 +142,7 @@ module AgentSelector = {
         <Select.Trigger
           id="frontman-agent-selector"
           ariaLabel="Agent"
-          className="h-8 min-w-0 max-w-[112px] border-none bg-transparent px-1.5 text-xs text-zinc-300
+          className="h-8 w-full min-w-0 border-none bg-transparent px-1.5 text-xs text-zinc-300
                      hover:bg-white/6 focus:ring-0 [&_svg]:size-3"
         >
           <span
@@ -356,6 +358,7 @@ let make = (
     | Some(configOption) => !modelConfigOptionHasModels(configOption)
     | None => false
     }
+  let hasMultipleAgents = agentCatalog->Option.mapOr(false, agents => agents->Array.length > 1)
 
   let getDroppedFiles: ReactEvent.Mouse.t => array<Client__PromptEditor.browserFile> = %raw(`
     function(event) {
@@ -459,15 +462,50 @@ let make = (
     | None => React.null
     }}
 
-    {switch (agentCatalog, selectedAgentId) {
-    | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
-      <div className="flex min-w-0 items-center px-3 pt-2">
-        <div className={showToolbarLabels ? "px-2.5" : "px-2"}>
+    <div className="min-w-0 px-3 pt-2">
+      <div
+        className={`${showToolbarLabels ? "px-2.5" : "px-2"} grid min-w-0 ${hasMultipleAgents
+            ? "grid-cols-2"
+            : "grid-cols-1"} gap-2`}
+      >
+        {switch (agentCatalog, selectedAgentId) {
+        | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
           <AgentSelector agents selectedAgentId={agentId} onAgentChange />
-        </div>
+        | _ => React.null
+        }}
+
+        <Client__UI__Field className="min-w-0 gap-1">
+          <Client__UI__Field.Label
+            htmlFor="frontman-model-selector" className="shrink-0 text-[11px] text-zinc-500"
+          >
+            {React.string("Model")}
+          </Client__UI__Field.Label>
+          {switch (isModelsConfigLoading, modelConfigOption) {
+          | (true, _) =>
+            <div className="inline-flex h-8 min-w-0 items-center px-2 text-xs text-zinc-500">
+              <span className="truncate"> {React.string("Loading...")} </span>
+            </div>
+          | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
+            <button
+              type_="button"
+              onClick={_ => onConfigureProvider()}
+              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs
+                         text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
+                         transition-colors cursor-pointer"
+            >
+              {React.string("Configure provider")}
+            </button>
+          | (false, Some(configOption)) =>
+            <div className="min-w-0 overflow-hidden">
+              <ModelSelector
+                configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
+              />
+            </div>
+          | (false, None) => React.null
+          }}
+        </Client__UI__Field>
       </div>
-    | _ => React.null
-    }}
+    </div>
 
     // Tiptap input area with inline pills
     <div className="px-3 py-2">
@@ -506,33 +544,6 @@ let make = (
             showLabel={showToolbarLabels}
           />
         | None => React.null
-        }}
-
-        // Model selector — shown inline, shrinks when space is tight
-        {switch (isModelsConfigLoading, modelConfigOption) {
-        | (true, _) =>
-          <div
-            className="inline-flex items-center gap-1 h-8 px-2 text-xs text-zinc-500 shrink min-w-0"
-          >
-            <span className="truncate"> {React.string("Loading...")} </span>
-          </div>
-        | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
-          <button
-            type_="button"
-            onClick={_ => onConfigureProvider()}
-            className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md
-                       text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
-                       transition-colors cursor-pointer shrink-0"
-          >
-            {React.string("Configure provider")}
-          </button>
-        | (false, Some(configOption)) =>
-          <div className="shrink min-w-0 max-w-[160px] overflow-hidden">
-            <ModelSelector
-              configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
-            />
-          </div>
-        | (false, None) => React.null
         }}
       </div>
 

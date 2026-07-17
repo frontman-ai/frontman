@@ -41,7 +41,9 @@ describe("Next.js E2E", () => {
     await openFrontmanUI(selectorPage, PORT, { assertHealthy: server.assertHealthy });
 
     const agentSelector = selectorPage.getByRole("combobox", { name: "Agent" });
+    const modelSelector = selectorPage.getByRole("combobox", { name: "Model" });
     await agentSelector.waitFor();
+    await modelSelector.waitFor();
     expect(await agentSelector.textContent()).toContain("Planner");
 
     await agentSelector.focus();
@@ -66,19 +68,25 @@ describe("Next.js E2E", () => {
       );
       const panelBox = await panel.boundingBox();
       const selectorBox = await agentSelector.boundingBox();
+      const modelBox = await modelSelector.boundingBox();
       const promptBox = await selectorPage.getByRole("textbox").boundingBox();
       const attachBox = await selectorPage
         .getByTitle("Attach files (images or PDFs up to 10MB)")
         .boundingBox();
       expect(panelBox).not.toBeNull();
       expect(selectorBox).not.toBeNull();
+      expect(modelBox).not.toBeNull();
       expect(promptBox).not.toBeNull();
       expect(attachBox).not.toBeNull();
       expect(selectorBox!.x).toBeGreaterThanOrEqual(panelBox!.x);
       expect(selectorBox!.x + selectorBox!.width).toBeLessThanOrEqual(
         panelBox!.x + panelBox!.width,
       );
+      expect(modelBox!.x).toBeGreaterThanOrEqual(panelBox!.x);
+      expect(modelBox!.x + modelBox!.width).toBeLessThanOrEqual(panelBox!.x + panelBox!.width);
+      expect(Math.abs(modelBox!.y - selectorBox!.y)).toBeLessThanOrEqual(1);
       expect(selectorBox!.y + selectorBox!.height).toBeLessThanOrEqual(promptBox!.y);
+      expect(modelBox!.y + modelBox!.height).toBeLessThanOrEqual(promptBox!.y);
       expect(selectorBox!.y + selectorBox!.height).toBeLessThanOrEqual(attachBox!.y);
     }
 
