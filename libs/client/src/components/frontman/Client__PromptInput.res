@@ -462,7 +462,9 @@ let make = (
     {switch (agentCatalog, selectedAgentId) {
     | (Some(agents), Some(agentId)) if agents->Array.length > 1 =>
       <div className="flex min-w-0 items-center px-3 pt-2">
-        <AgentSelector agents selectedAgentId={agentId} onAgentChange />
+        <div className={showToolbarLabels ? "px-2.5" : "px-2"}>
+          <AgentSelector agents selectedAgentId={agentId} onAgentChange />
+        </div>
       </div>
     | _ => React.null
     }}
