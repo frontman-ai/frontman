@@ -24,10 +24,9 @@ defmodule AgentClientProtocol.History do
   def build(%TaskHistory{} = history, session_id, active_agents)
       when is_binary(session_id) and is_list(active_agents) do
     {rows, agent_ids} = TaskHistory.attributed_rows!(history)
-    agents = Agents.resolve_catalog!(active_agents, agent_ids)
-    catalog = ACP.build_agent_catalog(agents)
+    Agents.resolve_catalog!(active_agents, agent_ids)
     notifications = Enum.flat_map(rows, &encode_row(&1, session_id))
-    {:ok, %{catalog: catalog, notifications: notifications}}
+    {:ok, %{notifications: notifications}}
   end
 
   def encode_row(

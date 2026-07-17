@@ -44,6 +44,8 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     openaiOAuthStatus: Types.OpenAINotConnected,
     configOptions: None,
     selectedModelValue,
+    agentCatalog: None,
+    selectedAgentId: None,
     pendingProviderAutoSelect,
     sessionsLoadState: Types.SessionsNotLoaded,
     updateInfo: None,

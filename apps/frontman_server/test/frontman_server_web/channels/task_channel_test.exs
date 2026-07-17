@@ -952,7 +952,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "pushes history before a load result containing the agent catalog", %{scope: scope} do
+    test "pushes history before a standard load result", %{scope: scope} do
       task = task_fixture(scope)
       {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"))
 
@@ -983,14 +983,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                },
                %{
                  "id" => 90,
-                 "result" => %{"_meta" => %{"frontman.dev/agents" => agents}}
+                 "result" => %{"configOptions" => _config_options}
                }
              ] = messages
-
-      assert Enum.any?(
-               agents,
-               &match?(%{"id" => "test-frontman", "displayName" => "Executor"}, &1)
-             )
     end
 
     test "drains accepted work created outside the channel prompt flow", %{scope: scope} do

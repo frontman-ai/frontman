@@ -102,7 +102,13 @@ defmodule FrontmanServerWeb.TasksChannel do
           ACP.build_config_options_updated_payload(current_config_options(socket))
         )
 
-        push_response(socket, id, ACP.build_initialize_result())
+        agents = Agents.list_agents(socket.assigns.scope)
+
+        push_response(
+          socket,
+          id,
+          ACP.build_initialize_result(agents, Agents.default_agent_id(socket.assigns.scope))
+        )
 
       {:error, message} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), message)
@@ -129,7 +135,6 @@ defmodule FrontmanServerWeb.TasksChannel do
        )
        when is_binary(session_id) and session_id != "" do
     Logger.info("ACP session/new request received with sessionId: #{session_id}")
-    agents = Agents.list_agents(socket.assigns.scope)
 
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
@@ -145,8 +150,7 @@ defmodule FrontmanServerWeb.TasksChannel do
         id,
         ACP.build_session_new_result(
           session_id,
-          current_config_options(socket),
-          ACP.build_agent_catalog(agents)
+          current_config_options(socket)
         )
       )
     else

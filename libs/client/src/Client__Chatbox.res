@@ -115,6 +115,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
+  let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
@@ -143,6 +144,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let hasAnnotations = Array.length(annotations) > 0
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
+    let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
     // Snapshot live annotations into serializable MessageAnnotation records
     let messageAnnotations =
       annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
@@ -157,6 +159,7 @@ let make = (~onConfigureProvider: unit => unit) => {
             ~sessionId,
             ~content,
             ~annotations=messageAnnotations,
+            ~agentId,
           )
         }
         switch session {
@@ -423,6 +426,9 @@ let make = (~onConfigureProvider: unit => unit) => {
           isModelsConfigLoading
           selectedModelValue
           onModelChange={value => Client__State.Actions.setSelectedModelValue(~value)}
+          agentCatalog
+          selectedAgentId
+          onAgentChange={agentId => Client__State.Actions.setSelectedAgentId(~agentId)}
           onConfigureProvider
           isAgentRunning
           hasActiveACPSession

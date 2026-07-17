@@ -17,12 +17,13 @@ Official sources:
 | --- | --- | --- |
 | Attribution advertisement absent | Continue as generic ACP without Frontman validation | `FrontmanClient__ACP__Client.test.res`: generic initialize/load tests |
 | Attribution version unsupported | Do not negotiate attribution | `acp_contract_test.exs`: absent or unsupported advertisement |
-| Negotiated session catalog missing | Fail session new/load visibly | `FrontmanClient__ACP__Client.test.res`: missing catalog tests |
-| Catalog color malformed | Reject metadata | `FrontmanClient__ACP__Types.test.res`: session metadata validation |
+| Negotiated initialization configuration missing | Fail initialization visibly | `FrontmanClient__ACP__Client.test.res`: missing configuration tests |
+| Catalog color malformed or default unknown | Reject initialization metadata | `FrontmanClient__ACP__Types.test.res`: initialization metadata validation |
 | Attributed chunk `agentId` missing or empty | Reject known chunk | `FrontmanClient__ACP__Types.test.res`: message and known chunk validation |
 | Attributed chunk references unknown agent | Fail replay/live session | `FrontmanClient__ACP__Client.test.res`: unknown replay agent |
 | Message identity changes timestamp or task | Fail visibly | `FrontmanClient__ACP__Client.test.res`: session update identity tests |
 | Historical agent ID is absent from current global catalog | Crash before emitting partial history | `acp_history_test.exs`: unknown global agent replay |
+| Generic ACP peer receives Frontman metadata | Ignore extension metadata and consume standard ACP fields | Upstream compliance and generic initialize tests |
 | Unrelated `_meta` keys | Accept and ignore | Upstream compliance test and ACP type metadata tests |
 | Unknown future `sessionUpdate` | Ignore at runtime for forward compatibility; not valid against closed upstream enum | ACP client unknown-update tests |
 

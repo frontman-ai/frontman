@@ -39,7 +39,15 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "id" => 1,
         "result" => %{
           "protocolVersion" => ^version,
-          "agentInfo" => %{"name" => "frontman-server"}
+          "agentInfo" => %{"name" => "frontman-server"},
+          "agentCapabilities" => %{
+            "_meta" => %{
+              "frontman.dev" => %{
+                "agents" => [%{"id" => "test-frontman"}, %{"id" => "test-planner"}],
+                "defaultAgentId" => "test-planner"
+              }
+            }
+          }
         }
       })
     end
@@ -138,13 +146,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "jsonrpc" => "2.0",
         "id" => 2,
         "result" => %{
-          "sessionId" => ^client_session_id,
-          "_meta" => %{
-            "frontman.dev/agents" => [
-              %{"id" => "test-frontman"},
-              %{"id" => "test-planner"}
-            ]
-          }
+          "sessionId" => ^client_session_id
         }
       })
 

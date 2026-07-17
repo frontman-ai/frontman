@@ -74,19 +74,29 @@ let catalogIdsUnique = agents => {
 
 let agentCatalogSchema =
   S.array(agentCatalogEntrySchema)
+  ->S.refine(agents => agents->Array.length > 0, ~error="Agent catalog must not be empty")
   ->S.refine(catalogIdsUnique, ~error="Agent catalog IDs must be unique")
   ->S.extendJSONSchema({
     uniqueItems: true,
+    minItems: 1,
     description: "Frontman runtime validation also requires unique id fields",
   })
 
-type sessionMetadata = {
-  agents: option<array<agentCatalogEntry>>,
+type agentAttributionConfigurationMetadata = {
+  agentAttribution: agentAttributionCapability,
+  agents: array<agentCatalogEntry>,
+  defaultAgentId: string,
 }
 
-let sessionMetadataSchema = S.object(s => {
-  agents: s.field("frontman.dev/agents", S.option(agentCatalogSchema)),
-})
+let agentAttributionConfigurationMetadataSchema = S.object(s => {
+  agentAttribution: s.field("agentAttribution", agentAttributionCapabilitySchema),
+  agents: s.field("agents", agentCatalogSchema),
+  defaultAgentId: s.field("defaultAgentId", nonEmptyStringSchema),
+})->S.refine(
+  configuration =>
+    configuration.agents->Array.some(agent => agent.id == configuration.defaultAgentId),
+  ~error="Default agent ID must exist in agent catalog",
+)
 
 let rfc3339TimestampSchema =
   S.string

@@ -10,9 +10,9 @@ module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 // Action creators
 module Actions = {
-  let addUserMessage = (~sessionId, ~content, ~annotations=[]) => {
+  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
     let id = `user-${Date.now()->Float.toString}`
-    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations}))
+    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
   }
 
   // ForTask(taskId) actions - streaming/tool events from ACP
@@ -219,6 +219,12 @@ module Actions = {
 
   let setSelectedModelValue = (~value) =>
     Client__State__Store.dispatch(SetSelectedModelValue({value: value}))
+
+  let agentAttributionConfigured = (~agentCatalog, ~defaultAgentId) =>
+    Client__State__Store.dispatch(AgentAttributionConfigured({agentCatalog, defaultAgentId}))
+
+  let setSelectedAgentId = (~agentId: string) =>
+    Client__State__Store.dispatch(SetSelectedAgentId(agentId))
 
   // Anthropic OAuth action creators
   let fetchAnthropicOAuthStatus = () => Client__State__Store.dispatch(FetchAnthropicOAuthStatus)

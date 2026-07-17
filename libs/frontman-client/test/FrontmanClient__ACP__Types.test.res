@@ -25,7 +25,12 @@ let agent = (~id="executor", ~name="executor", ~displayName="Executor", ~color="
     ("description", JSON.Encode.string("Implements approved work")),
     ("color", JSON.Encode.string(color)),
   ])
-let sessionMetadata = agents => object([("frontman.dev/agents", JSON.Encode.array(agents))])
+let attributionConfiguration = (~agents, ~defaultAgentId="executor") =>
+  object([
+    ("agentAttribution", object([("version", JSON.Encode.int(1))])),
+    ("agents", JSON.Encode.array(agents)),
+    ("defaultAgentId", JSON.Encode.string(defaultAgentId)),
+  ])
 let messageMetadata = (~agentId="executor", ~timestamp) =>
   object([
     ("frontman.dev/agentId", JSON.Encode.string(agentId)),
@@ -44,18 +49,41 @@ describe("Frontman agent attribution metadata", () => {
     )
   })
 
-  test("session metadata rejects empty identities, duplicate ids, and malformed colors", t => {
+  test("initialization configuration validates catalog and default", t => {
     [
-      sessionMetadata([agent(~id="")]),
-      sessionMetadata([agent(~name="")]),
-      sessionMetadata([agent(~displayName="")]),
-      sessionMetadata([agent(~color="blue")]),
-      sessionMetadata([agent(), agent(~name="other")]),
+      attributionConfiguration(~agents=[]),
+      attributionConfiguration(~agents=[agent(~id="")]),
+      attributionConfiguration(~agents=[agent(~name="")]),
+      attributionConfiguration(~agents=[agent(~displayName="")]),
+      attributionConfiguration(~agents=[agent(~color="blue")]),
+      attributionConfiguration(~agents=[agent(), agent(~name="other")]),
+      attributionConfiguration(~agents=[agent()], ~defaultAgentId=""),
+      attributionConfiguration(~agents=[agent()], ~defaultAgentId="planner"),
     ]->Array.forEach(
-      json => t->expect(json->parsesWith(Types.sessionMetadataSchema))->Expect.toBe(false),
+      json =>
+        t
+        ->expect(json->parsesWith(Types.agentAttributionConfigurationMetadataSchema))
+        ->Expect.toBe(false),
     )
     t
-    ->expect(sessionMetadata([agent(~id="constructor")])->parsesWith(Types.sessionMetadataSchema))
+    ->expect(
+      attributionConfiguration(
+        ~agents=[agent(~id="constructor")],
+        ~defaultAgentId="constructor",
+      )->parsesWith(Types.agentAttributionConfigurationMetadataSchema),
+    )
+    ->Expect.toBe(true)
+  })
+
+  test("initialization configuration accepts unrelated metadata", t => {
+    let configuration = attributionConfiguration(~agents=[agent()])
+    configuration
+    ->JSON.Decode.object
+    ->Option.getOrThrow
+    ->Dict.set("unrelated.dev/value", JSON.Encode.bool(true))
+
+    t
+    ->expect(configuration->parsesWith(Types.agentAttributionConfigurationMetadataSchema))
     ->Expect.toBe(true)
   })
 

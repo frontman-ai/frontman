@@ -626,8 +626,9 @@ defmodule FrontmanServerWeb.TaskChannel do
           JsonRpc.success_response(
             id,
             ACP.build_session_load_result(
-              scope |> Providers.model_config_data() |> ACP.build_model_config_options(),
-              replay.catalog
+              scope
+              |> Providers.model_config_data()
+              |> ACP.build_model_config_options()
             )
           )
         )

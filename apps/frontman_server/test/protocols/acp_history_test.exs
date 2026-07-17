@@ -40,7 +40,6 @@ defmodule AgentClientProtocol.HistoryTest do
     assert {:ok, replay} = build(rows)
     updates = Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
 
-    assert [%{"id" => "executor-id"}] = replay.catalog
     assert [first, second, answer, _tool_create, _tool_update, error] = updates
     assert first["messageId"] == "user-row"
     assert second["messageId"] == "user-row"

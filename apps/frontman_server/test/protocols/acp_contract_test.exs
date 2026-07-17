@@ -1,22 +1,34 @@
 defmodule FrontmanServer.Protocols.AcpContractTest do
   use ExUnit.Case, async: true
 
+  alias FrontmanServer.Agents.Agent
   alias FrontmanServer.ProtocolSchema
 
   describe "AgentClientProtocol.build_initialize_result/0" do
     test "validates against acp/initializeResult schema" do
-      payload = AgentClientProtocol.build_initialize_result()
+      payload = AgentClientProtocol.build_initialize_result(agents(), "planner-id")
       ProtocolSchema.validate!(payload, "acp/initializeResult")
     end
 
     test "advertises Frontman agent attribution v1 under capability metadata" do
+      result = AgentClientProtocol.build_initialize_result(agents(), "planner-id")
+
       assert %{
                "agentCapabilities" => %{
                  "_meta" => %{
-                   "frontman.dev" => %{"agentAttribution" => %{"version" => 1}}
+                   "frontman.dev" => %{
+                     "agentAttribution" => %{"version" => 1},
+                     "agents" => [%{"id" => "executor-id"}, %{"id" => "planner-id"}],
+                     "defaultAgentId" => "planner-id"
+                   }
                  }
                }
-             } = AgentClientProtocol.build_initialize_result()
+             } = result
+
+      ProtocolSchema.validate!(
+        get_in(result, ["agentCapabilities", "_meta", "frontman.dev"]),
+        "acp/agentAttributionConfigurationMetadata"
+      )
     end
   end
 
@@ -185,5 +197,26 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
       payload = AgentClientProtocol.agent_info()
       ProtocolSchema.validate!(payload, "acp/implementation")
     end
+  end
+
+  defp agents do
+    [
+      %Agent{
+        id: "executor-id",
+        name: "executor",
+        display_name: "Executor",
+        description: "Executes work",
+        color: "#985DF7",
+        system: "Execute"
+      },
+      %Agent{
+        id: "planner-id",
+        name: "planner",
+        display_name: "Planner",
+        description: "Plans work",
+        color: "#F59E0B",
+        system: "Plan"
+      }
+    ]
   end
 end

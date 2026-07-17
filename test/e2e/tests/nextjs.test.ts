@@ -36,6 +36,65 @@ describe("Next.js E2E", () => {
     expect(html).toContain("Hello World");
   });
 
+  it("selects agents accessibly without overflowing chat widths", async () => {
+    const selectorPage = await context.newPage();
+    await openFrontmanUI(selectorPage, PORT, { assertHealthy: server.assertHealthy });
+
+    const agentSelector = selectorPage.getByRole("combobox", { name: "Agent" });
+    const modelSelector = selectorPage.getByRole("combobox", { name: "Model" });
+    await agentSelector.waitFor();
+    await modelSelector.waitFor();
+    expect(await agentSelector.textContent()).toContain("Executor");
+
+    await agentSelector.focus();
+    await agentSelector.press("ArrowDown");
+    await agentSelector.press("Home");
+    await agentSelector.press("Enter");
+    expect(await agentSelector.textContent()).toContain("Executor");
+
+    await selectorPage.reload();
+    await agentSelector.waitFor();
+    expect(await agentSelector.textContent()).toContain("Executor");
+
+    for (const width of [280, 384, 600]) {
+      await selectorPage.evaluate((chatboxWidth) => {
+        localStorage.setItem("frontman:chatbox-width", String(chatboxWidth));
+      }, width);
+      await selectorPage.reload();
+
+      await agentSelector.waitFor();
+      const panel = agentSelector.locator(
+        `xpath=ancestor::*[contains(@style, "width: ${width}px")][1]`,
+      );
+      const panelBox = await panel.boundingBox();
+      const selectorBox = await agentSelector.boundingBox();
+      const modelBox = await modelSelector.boundingBox();
+      const promptBox = await selectorPage
+        .getByRole("textbox", { name: "What would you like to change?" })
+        .boundingBox();
+      const attachBox = await selectorPage
+        .getByTitle("Attach files (images or PDFs up to 10MB)")
+        .boundingBox();
+      expect(panelBox).not.toBeNull();
+      expect(selectorBox).not.toBeNull();
+      expect(modelBox).not.toBeNull();
+      expect(promptBox).not.toBeNull();
+      expect(attachBox).not.toBeNull();
+      expect(selectorBox!.x).toBeGreaterThanOrEqual(panelBox!.x);
+      expect(selectorBox!.x + selectorBox!.width).toBeLessThanOrEqual(
+        panelBox!.x + panelBox!.width,
+      );
+      expect(modelBox!.x).toBeGreaterThanOrEqual(panelBox!.x);
+      expect(modelBox!.x + modelBox!.width).toBeLessThanOrEqual(panelBox!.x + panelBox!.width);
+      expect(Math.abs(modelBox!.y - selectorBox!.y)).toBeLessThanOrEqual(1);
+      expect(selectorBox!.y + selectorBox!.height).toBeLessThanOrEqual(promptBox!.y);
+      expect(modelBox!.y + modelBox!.height).toBeLessThanOrEqual(promptBox!.y);
+      expect(selectorBox!.y + selectorBox!.height).toBeLessThanOrEqual(attachBox!.y);
+    }
+
+    await selectorPage.close();
+  });
+
   it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 

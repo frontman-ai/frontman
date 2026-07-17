@@ -430,17 +430,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
     )
 
-  let dispatchSessionResult = (
-    taskId,
-    catalog: option<array<ACPTypes.agentCatalogEntry>>,
-    configOptions,
-  ) => {
-    let taskAction: Client__Task__Reducer.action = AgentCatalogInstalled(
-      catalog->Option.getOrThrow(~message="Validated attribution catalog is required"),
-    )
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: taskAction}))
-    dispatchConfigOptions(configOptions)
-  }
+  let dispatchSessionResult = configOptions => dispatchConfigOptions(configOptions)
 
   switch effect {
   | LogError(msg) => Log.error(msg)
@@ -449,42 +439,43 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | ConnectACP({config, signal, initialAuthBehavior}) =>
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
-      switch result {
-      | Ok(conn) =>
-        switch ACP.getAgentAttributionVersion(conn) {
-        | Some(_) => dispatch(ACPConnectSuccess(conn))
+      switch (signal.aborted, result) {
+      | (true, Ok(conn)) =>
+        ACP.disconnect(conn)
+        Log.info("ACP connection aborted after connect (cleanup)")
+      | (true, Error(_)) => Log.info("ACP connection aborted (cleanup)")
+      | (false, Ok(conn)) =>
+        switch ACP.getAgentAttributionConfiguration(conn) {
+        | Some({agents, defaultAgentId}) =>
+          Client__State.Actions.agentAttributionConfigured(~agentCatalog=agents, ~defaultAgentId)
+          dispatch(ACPConnectSuccess(conn))
         | None =>
           ACP.disconnect(conn)
           dispatch(ACPConnectError("Frontman requires agent attribution v1"))
         }
-      | Error(err) =>
-        // Don't dispatch error for aborted connections - component is unmounting
-        switch signal.aborted {
-        | true => Log.info("ACP connection aborted (cleanup)")
-        | false =>
-          switch err {
-          | ACP.AuthRequired({loginUrl}) =>
-            let currentUrl = Client__HostNavigation.currentUrl()
-            let returnTo = encodeURIComponent(currentUrl)
-            let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
+      | (false, Error(err)) =>
+        switch err {
+        | ACP.AuthRequired({loginUrl}) =>
+          let currentUrl = Client__HostNavigation.currentUrl()
+          let returnTo = encodeURIComponent(currentUrl)
+          let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
 
-            let frameworkParam = switch framework {
-            | Some(framework) => `&framework=${encodeURIComponent(framework)}`
-            | None => ""
-            }
-
-            let separator = switch String.includes(loginUrl, "?") {
-            | true => "&"
-            | false => "?"
-            }
-            let fullUrl = `${loginUrl}${separator}return_to=${returnTo}${frameworkParam}`
-            switch initialAuthBehavior {
-            | Client__FtueState.ShowWelcomeModal =>
-              dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
-            | Client__FtueState.RedirectToLogin => Client__HostNavigation.assign(~url=fullUrl)
-            }
-          | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
+          let frameworkParam = switch framework {
+          | Some(framework) => `&framework=${encodeURIComponent(framework)}`
+          | None => ""
           }
+
+          let separator = switch String.includes(loginUrl, "?") {
+          | true => "&"
+          | false => "?"
+          }
+          let fullUrl = `${loginUrl}${separator}return_to=${returnTo}${frameworkParam}`
+          switch initialAuthBehavior {
+          | Client__FtueState.ShowWelcomeModal =>
+            dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
+          | Client__FtueState.RedirectToLogin => Client__HostNavigation.assign(~url=fullUrl)
+          }
+        | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
         }
       }
     }
@@ -535,7 +526,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         ~onMcpMessage,
       )
       switch result {
-      | Ok((sess, sessionNewResult, catalog)) =>
+      | Ok((sess, sessionNewResult)) =>
         switch creationError.contents {
         | Some(error) =>
           ACP.cleanupSessionChannel(sess)
@@ -543,8 +534,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         | None =>
           dispatch(SessionCreateSuccess(sess))
           onComplete(Ok(sess.sessionId))
-          // Completion creates the task synchronously; attribution belongs to that task.
-          dispatchSessionResult(sess.sessionId, catalog, sessionNewResult.configOptions)
+          dispatchSessionResult(sessionNewResult.configOptions)
         }
       | Error(err) =>
         dispatch(SessionCreateError({sessionId, error: err}))
@@ -597,8 +587,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         let loadResult = await ACP.loadSession(
           connection,
           taskId,
-          ~onLoadResult=(result, catalog) =>
-            dispatchSessionResult(taskId, catalog, result.configOptions),
+          ~onLoadResult=result => dispatchSessionResult(result.configOptions),
           ~onUpdate,
           ~onTitleUpdated,
           ~onParseError=err => {
@@ -610,15 +599,10 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         )
         loadResult->Result.map(((session, _)) => session)
       | false =>
-        let task =
-          StateStore.getState(Client__State__Store.store).tasks
-          ->Dict.get(taskId)
-          ->Option.getOrThrow(~message=`Unknown task: ${taskId}`)
-        let catalog = Client__Task__Types.Task.getAgentCatalog(task)
         await ACP.joinSession(
           connection,
           taskId,
-          ~onUpdate=ACP.validatedUpdateHandler(connection, taskId, catalog, onUpdate),
+          ~onUpdate=ACP.validatedUpdateHandler(connection, taskId, onUpdate),
           ~onTitleUpdated,
           ~onParseError=err => {
             Client__TextDeltaBuffer.discardTask(taskId)
