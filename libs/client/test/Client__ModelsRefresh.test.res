@@ -128,8 +128,8 @@ module SampleConfig = {
     name: "Fireworks AI",
     options: [
       {
-        value: "fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo",
-        name: "Kimi K2.6 Turbo",
+        value: "fireworks_ai:accounts/fireworks/routers/kimi-k2p5-turbo",
+        name: "Kimi K2.5 Turbo",
         description: None,
         _meta: None,
       },
@@ -255,7 +255,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo"))
+    ->Expect.toEqual(Some("fireworks_ai:accounts/fireworks/routers/kimi-k2p5-turbo"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 

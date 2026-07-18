@@ -38,10 +38,8 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
 
       assert %{groups: groups} = Providers.model_config_data(scope)
 
-      assert %{id: "fireworks_ai", options: [%{value: model} | _]} =
+      assert %{id: "fireworks_ai", options: [%{value: "fireworks_ai:" <> _} | _]} =
                Enum.find(groups, &(&1.id == "fireworks_ai"))
-
-      assert String.starts_with?(model, "fireworks_ai:")
 
       {:ok, {"fireworks_ai:test-model", llm_opts}} =
         Providers.prepare_llm_args(scope, "fireworks_ai:test-model")

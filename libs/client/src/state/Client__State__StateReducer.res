@@ -164,14 +164,10 @@ module Lens = {
 let getInitialUrl = Client__BrowserUrl.getInitialUrl
 let selectedModelStorageKey = "frontman:selectedModelValue"
 
-let migrateSelectedModelValue = value =>
+let migrateOpenAIModelValue = value =>
   switch value->String.startsWith("openai:") {
   | true => "openai_codex:" ++ value->String.slice(~start=7, ~end=String.length(value))
-  | false =>
-    switch value->String.startsWith("fireworks:") {
-    | true => "fireworks_ai:" ++ value->String.slice(~start=10, ~end=String.length(value))
-    | false => value
-    }
+  | false => value
   }
 
 // Load selected model value from localStorage (a sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
@@ -179,7 +175,7 @@ let loadSelectedModelValueFromStorage = (): option<string> => {
   try {
     FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
     ->Nullable.toOption
-    ->Option.map(migrateSelectedModelValue)
+    ->Option.map(migrateOpenAIModelValue)
   } catch {
   | _ => None
   }

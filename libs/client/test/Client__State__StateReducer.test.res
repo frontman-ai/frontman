@@ -1168,17 +1168,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
     ]
 
     test(
-      "migrates legacy Fireworks model values to the canonical provider",
-      t => {
-        t
-        ->expect(
-          Reducer.migrateSelectedModelValue("fireworks:accounts/fireworks/routers/kimi-k2p6-turbo"),
-        )
-        ->Expect.toBe("fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo")
-      },
-    )
-
-    test(
       "keeps the Fireworks runtime config field stable",
       t => {
         t->expect(Reducer.apiKeyRuntimeKey(Fireworks))->Expect.toBe("fireworksKeyValue")
