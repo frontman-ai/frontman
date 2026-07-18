@@ -53,18 +53,18 @@ export const annotationCaptureScript = `(function() {
           contentFile = text.trim().slice('__frontman_content_file__:'.length).trim();
         }
       } else if (node.nodeType === 1) {
-        if (pendingProps.length > 0 && node.hasAttribute('data-astro-source-file')) {
+        if (pendingProps.length > 0 && (node.hasAttribute('data-frontman-source-file') || node.hasAttribute('data-astro-source-file'))) {
           propsMap.set(node, pendingProps.slice());
           pendingProps = [];
         }
       }
     }
 
-    document.querySelectorAll('[data-astro-source-file]').forEach(function(el) {
-      var sourceFile = el.getAttribute('data-astro-source-file');
+    document.querySelectorAll('[data-frontman-source-file], [data-astro-source-file]').forEach(function(el) {
+      var sourceFile = el.getAttribute('data-frontman-source-file') || el.getAttribute('data-astro-source-file');
       var annotation = {
         file: sourceFile,
-        loc: el.getAttribute('data-astro-source-loc')
+        loc: el.getAttribute('data-frontman-source-loc') || el.getAttribute('data-astro-source-loc')
       };
 
       var propsChain = propsMap.get(el);

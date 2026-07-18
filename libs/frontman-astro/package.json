@@ -52,8 +52,10 @@
 		"node": ">=18.0.0"
 	},
 	"dependencies": {
+		"@astrojs/compiler": "^4.0.0",
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.4.0"
+		"lighthouse": "^13.4.0",
+		"magic-string": "^0.30.21"
 	},
 	"peerDependencies": {
 		"astro": "^5.0.0 || ^6.0.0"

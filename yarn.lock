@@ -1969,6 +1969,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman-ai/astro@workspace:libs/frontman-astro"
   dependencies:
+    "@astrojs/compiler": "npm:^4.0.0"
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@frontman/bindings": "npm:*"
@@ -1977,6 +1978,7 @@ __metadata:
     chrome-launcher: "npm:^1.1.2"
     dom-element-to-component-source: "npm:0.5.0"
     lighthouse: "npm:^13.4.0"
+    magic-string: "npm:^0.30.21"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"

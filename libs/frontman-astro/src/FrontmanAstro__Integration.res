@@ -42,6 +42,10 @@ let getAstroMajorVersion = () => getAstroVersion()->parseMajorVersion
 @module("./vite-plugin-props-injection.mjs")
 external frontmanPropsInjectionPlugin: unit => Bindings.vitePlugin = "frontmanPropsInjectionPlugin"
 
+@module("./vite-plugin-source-annotations.mjs")
+external frontmanSourceAnnotationsPlugin: unit => Bindings.vitePlugin =
+  "frontmanSourceAnnotationsPlugin"
+
 // Browser-side annotation capture script (exported as a string for injectScript)
 @module("./annotation-capture.mjs")
 external annotationCaptureScript: string = "annotationCaptureScript"
@@ -81,7 +85,8 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
   // Detect Astro version to choose route discovery strategy.
   // v5+ provides astro:routes:resolved hook with authoritative route data.
   // v4 falls back to filesystem scanning of src/pages/.
-  let useResolvedRoutes = getAstroMajorVersion() >= 5
+  let astroMajorVersion = getAstroMajorVersion()
+  let useResolvedRoutes = astroMajorVersion >= 5
   let resolvedRoutes = ref([])
 
   let routeDiscovery: Middleware.routeDiscovery = switch useResolvedRoutes {
@@ -140,9 +145,17 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // component props as HTML comments into the SSR output.
             // This lets the client-side annotation capture script associate
             // props with each component instance for AI agent context.
+            let vitePlugins = switch astroMajorVersion >= 7 {
+            | true => [
+                middlewarePlugin,
+                frontmanSourceAnnotationsPlugin(),
+                frontmanPropsInjectionPlugin(),
+              ]
+            | false => [middlewarePlugin, frontmanPropsInjectionPlugin()]
+            }
             ctx.updateConfig({
               vite: ?Some({
-                plugins: ?Some([middlewarePlugin, frontmanPropsInjectionPlugin()]),
+                plugins: ?Some(vitePlugins),
               }),
             })
 
