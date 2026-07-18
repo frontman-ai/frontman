@@ -4,7 +4,7 @@ Tags: ai editor, website editor, elementor, woocommerce, ai
 Requires at least: 6.0
 Tested up to: 6.9.4
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -220,6 +220,10 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 4. Visual selection for Elementor pages, buttons, headings, menus, and other WordPress elements.
 
 == Changelog ==
+
+= 1.4.0 =
+* Sync the Frontman plugin release with Frontman v1.4.0
+* See the GitHub release notes for the full cross-product changelog
 
 = 1.3.0 =
 * Keep the WordPress plugin aligned with the Frontman v1.3.0 release train.
