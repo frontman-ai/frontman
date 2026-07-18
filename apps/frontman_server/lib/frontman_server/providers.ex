@@ -236,7 +236,7 @@ defmodule FrontmanServer.Providers do
   """
   def upsert_api_key(%Scope{user: %User{} = user}, provider, key) do
     user_id = user.id
-    provider = String.downcase(provider)
+    provider = provider |> String.downcase() |> normalize_api_key_provider()
     # Build struct with user_id set explicitly (not via changeset for security)
     api_key = %ApiKey{user_id: user_id}
     changeset = ApiKey.changeset(api_key, %{provider: provider, key: key})
@@ -254,6 +254,9 @@ defmodule FrontmanServer.Providers do
         error
     end
   end
+
+  defp normalize_api_key_provider("fireworks"), do: "fireworks_ai"
+  defp normalize_api_key_provider(provider), do: provider
 
   @doc """
   Lists providers with saved API keys for the user.

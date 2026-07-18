@@ -1163,9 +1163,27 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let _providerCases: array<(Reducer.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
-      (Fireworks, "fireworks"),
+      (Fireworks, "fireworks_ai"),
       (Nvidia, "nvidia"),
     ]
+
+    test(
+      "migrates legacy Fireworks model values to the canonical provider",
+      t => {
+        t
+        ->expect(
+          Reducer.migrateSelectedModelValue("fireworks:accounts/fireworks/routers/kimi-k2p6-turbo"),
+        )
+        ->Expect.toBe("fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo")
+      },
+    )
+
+    test(
+      "keeps the Fireworks runtime config field stable",
+      t => {
+        t->expect(Reducer.apiKeyRuntimeKey(Fireworks))->Expect.toBe("fireworksKeyValue")
+      },
+    )
 
     let _settingsForProvider = (
       state: Client__State__Types.state,

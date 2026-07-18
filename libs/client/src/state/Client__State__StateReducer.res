@@ -164,10 +164,14 @@ module Lens = {
 let getInitialUrl = Client__BrowserUrl.getInitialUrl
 let selectedModelStorageKey = "frontman:selectedModelValue"
 
-let migrateOpenAIModelValue = value =>
+let migrateSelectedModelValue = value =>
   switch value->String.startsWith("openai:") {
   | true => "openai_codex:" ++ value->String.slice(~start=7, ~end=String.length(value))
-  | false => value
+  | false =>
+    switch value->String.startsWith("fireworks:") {
+    | true => "fireworks_ai:" ++ value->String.slice(~start=10, ~end=String.length(value))
+    | false => value
+    }
   }
 
 // Load selected model value from localStorage (a sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
@@ -175,7 +179,7 @@ let loadSelectedModelValueFromStorage = (): option<string> => {
   try {
     FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
     ->Nullable.toOption
-    ->Option.map(migrateOpenAIModelValue)
+    ->Option.map(migrateSelectedModelValue)
   } catch {
   | _ => None
   }
@@ -194,13 +198,17 @@ let apiKeyProviderId = provider =>
   switch provider {
   | OpenRouter => "openrouter"
   | Anthropic => "anthropic"
-  | Fireworks => "fireworks"
+  | Fireworks => "fireworks_ai"
   | Nvidia => "nvidia"
   }
 
 let apiKeyProviders: array<apiKeyProvider> = [OpenRouter, Anthropic, Fireworks, Nvidia]
 
-let apiKeyRuntimeKey = provider => `${apiKeyProviderId(provider)}KeyValue`
+let apiKeyRuntimeKey = provider =>
+  switch provider {
+  | Fireworks => "fireworksKeyValue"
+  | provider => `${apiKeyProviderId(provider)}KeyValue`
+  }
 
 let hasRuntimeApiKey = (runtimeConfig, provider) =>
   Client__RuntimeConfig.toEnvApiKeyDict(runtimeConfig)->Dict.has(apiKeyRuntimeKey(provider))

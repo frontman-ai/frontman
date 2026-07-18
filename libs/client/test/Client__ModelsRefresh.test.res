@@ -124,12 +124,12 @@ module SampleConfig = {
   }
 
   let _fireworksGroup: ACP.sessionConfigSelectGroup = {
-    group: "fireworks",
+    group: "fireworks_ai",
     name: "Fireworks AI",
     options: [
       {
-        value: "fireworks:accounts/fireworks/routers/kimi-k2p5-turbo",
-        name: "Kimi K2.5 Turbo",
+        value: "fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo",
+        name: "Kimi K2.6 Turbo",
         description: None,
         _meta: None,
       },
@@ -174,7 +174,7 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
     let providerCases: array<(Reducer.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
-      (Fireworks, "fireworks"),
+      (Fireworks, "fireworks_ai"),
     ]
 
     providerCases->Array.forEach(
@@ -242,9 +242,9 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
-  test("auto-selects Fireworks model when pendingProviderAutoSelect is fireworks", t => {
+  test("auto-selects Fireworks model when pendingProviderAutoSelect is fireworks_ai", t => {
     let state = _makeState(
-      ~pendingProviderAutoSelect=Some("fireworks"),
+      ~pendingProviderAutoSelect=Some("fireworks_ai"),
       ~selectedModelValue=Some("openrouter:anthropic/claude-haiku-4.5"),
     )
 
@@ -255,7 +255,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("fireworks:accounts/fireworks/routers/kimi-k2p5-turbo"))
+    ->Expect.toEqual(Some("fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
