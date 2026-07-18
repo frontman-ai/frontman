@@ -17,9 +17,13 @@ type devToolbarConfig = {enabled: bool}
 
 // Opaque type for rehype/remark plugins (JS functions)
 type rehypePlugin
+type markdownProcessor
 
 // Astro config (subset we care about)
-type markdownConfig = {rehypePlugins: array<rehypePlugin>}
+type markdownConfig = {
+  processor?: markdownProcessor,
+  rehypePlugins: array<rehypePlugin>,
+}
 
 type astroConfig = {
   root: string,

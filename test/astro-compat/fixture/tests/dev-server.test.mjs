@@ -47,7 +47,8 @@ test("packed integration works in Astro dev server", {timeout: 120_000}, async t
   const pageHtml = await pageResponse.text()
   assert.equal(pageResponse.status, 200)
   assert.match(pageHtml, /Hello\s+<!--.*?-->Astro|Hello Astro/s)
-  assert.match(pageHtml, /data-astro-source-file=/)
+  assert.match(pageHtml, /data-(?:frontman|astro)-source-file=/)
+  assert.match(pageHtml, /src\/components\/Greeting\.astro/)
 
   const frontmanResponse = await fetch(`${origin}/frontman/`)
   assert.equal(frontmanResponse.status, 200)
