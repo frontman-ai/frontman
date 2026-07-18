@@ -14,8 +14,8 @@ providers = [
      max_image_dimension: nil,
      llm_db_provider: [],
      models: [
-       {"GPT-5.6 Sol", "gpt-5.6-sol", :packaged},
        {"GPT-5.6 Terra", "gpt-5.6-terra", :packaged},
+       {"GPT-5.6 Sol", "gpt-5.6-sol", :packaged},
        {"GPT-5.6 Luna", "gpt-5.6-luna", :packaged},
        {"GPT-5.5", "gpt-5.5", :packaged},
        {"GPT-5.4", "gpt-5.4", :packaged},
@@ -48,8 +48,8 @@ providers = [
      max_image_dimension: nil,
      llm_db_provider: [],
      models: [
-       {"GPT-5.6 Sol", "openai/gpt-5.6-sol", :packaged},
        {"GPT-5.6 Terra", "openai/gpt-5.6-terra", :packaged},
+       {"GPT-5.6 Sol", "openai/gpt-5.6-sol", :packaged},
        {"GPT-5.6 Luna", "openai/gpt-5.6-luna", :packaged},
        {"GPT-5.5", "openai/gpt-5.5", :packaged},
        {"GPT-5.5 Pro", "openai/gpt-5.5-pro", :packaged},

@@ -93,12 +93,12 @@ module SampleConfig = {
     name: "OpenAI",
     options: [
       {
-        value: "openai_codex:gpt-5.6-sol",
-        name: "GPT-5.6 Sol",
+        value: "openai_codex:gpt-5.6-terra",
+        name: "GPT-5.6 Terra",
         description: None,
         _meta: None,
       },
-      {value: "openai_codex:gpt-5.6-terra", name: "GPT-5.6 Terra", description: None, _meta: None},
+      {value: "openai_codex:gpt-5.6-sol", name: "GPT-5.6 Sol", description: None, _meta: None},
     ],
     _meta: None,
   }
@@ -108,8 +108,8 @@ module SampleConfig = {
     name: "OpenRouter",
     options: [
       {
-        value: "openrouter:openai/gpt-5.6-sol",
-        name: "GPT-5.6 Sol",
+        value: "openrouter:openai/gpt-5.6-terra",
+        name: "GPT-5.6 Terra",
         description: None,
         _meta: None,
       },
@@ -221,7 +221,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openai_codex:gpt-5.6-sol"))
+    ->Expect.toEqual(Some("openai_codex:gpt-5.6-terra"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -238,7 +238,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openrouter:openai/gpt-5.6-sol"))
+    ->Expect.toEqual(Some("openrouter:openai/gpt-5.6-terra"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
