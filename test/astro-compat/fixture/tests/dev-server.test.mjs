@@ -49,6 +49,11 @@ test("packed integration works in Astro dev server", {timeout: 120_000}, async t
   assert.match(pageHtml, /Hello\s+<!--.*?-->Astro|Hello Astro/s)
   assert.match(pageHtml, /data-(?:frontman|astro)-source-file=/)
   assert.match(pageHtml, /src\/components\/Greeting\.astro/)
+  const propsMarker = pageHtml.match(/__frontman_props__:([A-Za-z0-9+/=]+)/)
+  assert.ok(propsMarker)
+  const propsPayload = JSON.parse(Buffer.from(propsMarker[1], "base64").toString("utf8"))
+  assert.match(propsPayload.moduleId, /\/src\/components\/Greeting\.astro$/)
+  assert.deepEqual(propsPayload.props, {name: "Astro"})
 
   const markdownResponse = await fetch(`${origin}/docs/`)
   const markdownHtml = await markdownResponse.text()

@@ -57,5 +57,6 @@ const props = {id: "title"}
     expect(annotationCaptureScript).toContain("getContentFile")
     expect(annotationCaptureScript).toContain("data-frontman-source-loc")
     expect(annotationCaptureScript).toContain("data-astro-source-loc")
+    expect(annotationCaptureScript).not.toContain("split('/').pop()")
   })
 })
