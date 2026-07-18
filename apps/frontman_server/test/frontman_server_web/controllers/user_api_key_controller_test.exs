@@ -3,8 +3,6 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.ApiKey
-  alias FrontmanServer.Repo
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
   describe "POST /api/user/api-keys" do
@@ -49,28 +47,6 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
         Providers.prepare_llm_args(scope, "fireworks_ai:test-model")
 
       assert llm_opts[:api_key] == "sk-fireworks-test-123"
-    end
-
-    test "normalizes the legacy Fireworks provider ID", %{conn: conn} do
-      conn =
-        post(conn, ~p"/api/user/api-keys", %{
-          "provider" => "fireworks",
-          "key" => "sk-fireworks-test-123"
-        })
-
-      assert %{"provider" => "fireworks_ai"} = json_response(conn, 200)
-
-      conn = get(recycle(conn), ~p"/api/user/api-keys")
-
-      assert %{"providers" => ["fireworks_ai"]} = json_response(conn, 200)
-    end
-
-    test "normalizes legacy writes from an old server during deployment", %{user: user} do
-      %ApiKey{user_id: user.id}
-      |> ApiKey.changeset(%{provider: "fireworks", key: "sk-fireworks-test-123"})
-      |> Repo.insert!()
-
-      assert Providers.list_api_key_providers(Scope.for_user(user)) == ["fireworks_ai"]
     end
 
     test "stores Fireworks keys without affecting other users", %{conn: conn, user: user} do

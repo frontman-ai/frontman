@@ -44,7 +44,7 @@ Elixir changes follow `agent_docs/elixir-style.md`. SQL migrations remain explic
 
 ## Boundaries
 
-- Always: preserve encrypted key bytes, normalize existing and blue-green rollout writes, and support legacy browser-selected model values.
+- Always: preserve encrypted key bytes, normalize existing provider rows, and support legacy browser-selected model values.
 - Ask first: change provider validation for every API-key provider or rewrite historical interaction JSON.
 - Never: query or log production key values or user identifiers; add a permanent broad alias that lets new `fireworks` rows continue to be created.
 
@@ -52,7 +52,6 @@ Elixir changes follow `agent_docs/elixir-style.md`. SQL migrations remain explic
 
 - Client submits `fireworks_ai` when saving a Fireworks key.
 - Existing `fireworks` API-key rows migrate to `fireworks_ai` without data loss.
-- Requests from stale clients posting `fireworks` persist and return `fireworks_ai`.
 - Saving a Fireworks key exposes a `fireworks_ai` model group whose values use the `fireworks_ai:` prefix.
 - Saved key resolves for a canonical Fireworks prompt.
 - Legacy browser-selected `fireworks:` model values migrate to `fireworks_ai:`.

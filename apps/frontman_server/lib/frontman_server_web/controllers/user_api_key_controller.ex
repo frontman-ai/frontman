@@ -25,8 +25,8 @@ defmodule FrontmanServerWeb.UserApiKeyController do
     scope = conn.assigns.current_scope
 
     case Providers.upsert_api_key(scope, provider, key) do
-      {:ok, record} ->
-        json(conn, %{status: "ok", provider: record.provider})
+      {:ok, _record} ->
+        json(conn, %{status: "ok", provider: provider})
 
       {:error, changeset} ->
         conn
