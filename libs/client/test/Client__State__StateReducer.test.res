@@ -1172,9 +1172,16 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let _providerCases: array<(Reducer.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
-      (Fireworks, "fireworks"),
+      (Fireworks, "fireworks_ai"),
       (Nvidia, "nvidia"),
     ]
+
+    test(
+      "keeps the Fireworks runtime config field stable",
+      t => {
+        t->expect(Reducer.apiKeyRuntimeKey(Fireworks))->Expect.toBe("fireworksKeyValue")
+      },
+    )
 
     let _settingsForProvider = (
       state: Client__State__Types.state,

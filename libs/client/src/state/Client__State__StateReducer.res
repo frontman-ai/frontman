@@ -194,13 +194,17 @@ let apiKeyProviderId = provider =>
   switch provider {
   | OpenRouter => "openrouter"
   | Anthropic => "anthropic"
-  | Fireworks => "fireworks"
+  | Fireworks => "fireworks_ai"
   | Nvidia => "nvidia"
   }
 
 let apiKeyProviders: array<apiKeyProvider> = [OpenRouter, Anthropic, Fireworks, Nvidia]
 
-let apiKeyRuntimeKey = provider => `${apiKeyProviderId(provider)}KeyValue`
+let apiKeyRuntimeKey = provider =>
+  switch provider {
+  | Fireworks => "fireworksKeyValue"
+  | provider => `${apiKeyProviderId(provider)}KeyValue`
+  }
 
 let hasRuntimeApiKey = (runtimeConfig, provider) =>
   Client__RuntimeConfig.toEnvApiKeyDict(runtimeConfig)->Dict.has(apiKeyRuntimeKey(provider))
