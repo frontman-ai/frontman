@@ -33,8 +33,10 @@ export const annotationCaptureScript = `(function() {
   function captureAnnotations() {
     var annotations = new Map();
     var propsMap = new Map();
+    var contentFiles = new Map();
     var pendingProps = [];
     var contentFile = null;
+    var contentMarkers = [];
 
     var walker = document.createTreeWalker(
       document.documentElement,
@@ -49,16 +51,22 @@ export const annotationCaptureScript = `(function() {
         var parsed = parsePropsPayload(text);
         if (parsed) {
           pendingProps.push(parsed);
-        } else if (text && text.trim().indexOf('__frontman_content_file__:') === 0) {
-          contentFile = text.trim().slice('__frontman_content_file__:'.length).trim();
         }
       } else if (node.nodeType === 1) {
+        if (node.hasAttribute('data-frontman-content-file')) {
+          contentFile = node.getAttribute('data-frontman-content-file');
+          contentMarkers.push(node);
+          continue;
+        }
+        if (contentFile) contentFiles.set(node, contentFile);
         if (pendingProps.length > 0 && (node.hasAttribute('data-frontman-source-file') || node.hasAttribute('data-astro-source-file'))) {
           propsMap.set(node, pendingProps.slice());
           pendingProps = [];
         }
       }
     }
+
+    contentMarkers.forEach(function(marker) { marker.remove(); });
 
     document.querySelectorAll('[data-frontman-source-file], [data-astro-source-file]').forEach(function(el) {
       var sourceFile = el.getAttribute('data-frontman-source-file') || el.getAttribute('data-astro-source-file');
@@ -108,6 +116,7 @@ export const annotationCaptureScript = `(function() {
     window.__frontman_annotations__ = {
       _map: annotations,
       get: function(el) { return annotations.get(el); },
+      getContentFile: function(el) { return contentFiles.get(el) || null; },
       has: function(el) { return annotations.has(el); },
       size: function() { return annotations.size; },
       contentFile: contentFile

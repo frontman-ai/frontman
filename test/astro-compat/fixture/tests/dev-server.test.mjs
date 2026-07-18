@@ -50,6 +50,11 @@ test("packed integration works in Astro dev server", {timeout: 120_000}, async t
   assert.match(pageHtml, /data-(?:frontman|astro)-source-file=/)
   assert.match(pageHtml, /src\/components\/Greeting\.astro/)
 
+  const markdownResponse = await fetch(`${origin}/docs/`)
+  const markdownHtml = await markdownResponse.text()
+  assert.equal(markdownResponse.status, 200)
+  assert.match(markdownHtml, /<template data-frontman-content-file="src\/pages\/docs\.md"><\/template>/)
+
   const frontmanResponse = await fetch(`${origin}/frontman/`)
   assert.equal(frontmanResponse.status, 200)
 

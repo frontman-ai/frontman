@@ -91,7 +91,14 @@ let getElementSourceLocation = (
         // All annotations point to node_modules (e.g., Starlight internals).
         // Fall back to the content file path injected by the rehype plugin,
         // or to the first annotation if no content file is available.
-        switch api.contentFile->Nullable.toOption {
+        let contentFile = switch api.getContentFile {
+        | Some(getContentFile) =>
+          getContentFile(element)
+          ->Nullable.toOption
+          ->Option.orElse(() => api.contentFile->Nullable.toOption)
+        | None => api.contentFile->Nullable.toOption
+        }
+        switch contentFile {
         | Some(contentFile) =>
           Some({
             Client__Types.SourceLocation.componentName: None,

@@ -56,8 +56,10 @@ describe("createSatteriContentFilePlugin", () => {
 
     expect(insertBefore).toHaveBeenCalledOnce()
     expect(insertBefore).toHaveBeenCalledWith(first, {
-      type: "comment",
-      value: " __frontman_content_file__:src/pages/docs.md ",
+      type: "element",
+      tagName: "template",
+      properties: {"data-frontman-content-file": "src/pages/docs.md"},
+      children: [],
     })
   })
 

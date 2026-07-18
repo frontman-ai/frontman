@@ -27,8 +27,12 @@ export function createSatteriContentFilePlugin(options) {
 
         inserted = true
         context.insertBefore(node, {
-          type: "comment",
-          value: ` __frontman_content_file__:${relativeContentPath(context.fileURL, options.projectRoot)} `,
+          type: "element",
+          tagName: "template",
+          properties: {
+            "data-frontman-content-file": relativeContentPath(context.fileURL, options.projectRoot),
+          },
+          children: [],
         })
       },
     },

@@ -53,6 +53,8 @@ const props = {id: "title"}
 
   test("capture script prefers Frontman attributes and preserves Astro fallback", () => {
     expect(annotationCaptureScript).toContain("[data-frontman-source-file], [data-astro-source-file]")
+    expect(annotationCaptureScript).toContain("data-frontman-content-file")
+    expect(annotationCaptureScript).toContain("getContentFile")
     expect(annotationCaptureScript).toContain("data-frontman-source-loc")
     expect(annotationCaptureScript).toContain("data-astro-source-loc")
   })

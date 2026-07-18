@@ -1,38 +1,35 @@
-// Rehype plugin that prepends an HTML comment with the content file path.
+import { relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Rehype plugin that prepends an inert template with the content file path.
 //
 // Astro's compiler adds data-astro-source-file to .astro template elements,
 // but markdown content goes through unified (remark→rehype→stringify) and gets
-// no source attribution. This plugin bridges the gap by injecting a comment
+// no source attribution. This plugin bridges the gap by injecting a marker
 // that the Frontman annotation capture script can read as a fallback.
 //
-// The comment follows the same pattern as __frontman_props__ comments:
-//   <!-- __frontman_content_file__:src/content/docs/page.md -->
+// The marker survives both Markdown and MDX rendering:
+//   <template data-frontman-content-file="src/content/docs/page.md"></template>
 
 export function rehypeContentFile(options) {
   var raw = (options && options.projectRoot) || '';
-  // Astro's resolved config.root is a URL object — coerce to a filesystem path.
-  var projectRoot = typeof raw === 'string' ? raw : raw.pathname || '';
-  // Normalize: strip trailing slash for consistent path.relative behavior
-  if (projectRoot.endsWith('/')) {
-    projectRoot = projectRoot.slice(0, -1);
-  }
+  var projectRoot = raw instanceof URL ? fileURLToPath(raw) : raw;
 
   return function transformer(tree, file) {
     if (!file || !file.path) {
       return;
     }
 
-    var absolute = file.path;
-    var relative = absolute;
-    if (projectRoot && absolute.startsWith(projectRoot + '/')) {
-      relative = absolute.slice(projectRoot.length + 1);
-    }
+    var contentFile = projectRoot ? relative(projectRoot, file.path) : file.path;
+    if (sep !== '/') contentFile = contentFile.split(sep).join('/');
 
-    var comment = {
-      type: 'comment',
-      value: ' __frontman_content_file__:' + relative + ' '
+    var marker = {
+      type: 'element',
+      tagName: 'template',
+      properties: {'data-frontman-content-file': contentFile},
+      children: []
     };
 
-    tree.children.unshift(comment);
+    tree.children.unshift(marker);
   };
 }
