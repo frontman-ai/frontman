@@ -487,6 +487,24 @@ module Selectors = {
       }
     }
   }
+
+  let providerSettingsLoaded = (state: state): bool => {
+    let apiKeySettingsLoaded = switch (
+      state.openrouterKeySettings.source,
+      state.nvidiaKeySettings.source,
+      state.fireworksKeySettings.source,
+      state.anthropicKeySettings.source,
+    ) {
+    | (Loading, _, _, _) | (_, Loading, _, _) | (_, _, Loading, _) | (_, _, _, Loading) => false
+    | _ => true
+    }
+    let oauthSettingsLoaded = switch (state.anthropicOAuthStatus, state.openaiOAuthStatus) {
+    | (FetchingStatus, _) | (_, OpenAIFetchingStatus) => false
+    | _ => true
+    }
+
+    apiKeySettingsLoaded && oauthSettingsLoaded
+  }
 }
 
 // ============================================================================
@@ -1241,7 +1259,7 @@ let next = (state: state, action) => {
     // Just set up session callbacks - task creation happens in AddUserMessage
     // when user sends their first message (lazy session creation)
     // apiBaseUrl is co-located in AcpSessionActive to make illegal state unrepresentable
-    {
+    let stateWithSession = {
       ...state,
       acpSession: AcpSessionActive({
         sendPrompt,
@@ -1253,15 +1271,24 @@ let next = (state: state, action) => {
       }),
       sessionInitialized: true,
     }
-    ->setAllApiKeySources(Client__State__Types.Loading)
-    ->StateReducer.update(
-      ~sideEffects=[
-        FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
-        FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
-        FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-        FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-      ],
-    )
+    switch state.sessionInitialized {
+    | true => stateWithSession->StateReducer.update
+    | false =>
+      {
+        ...stateWithSession,
+        anthropicOAuthStatus: Client__State__Types.FetchingStatus,
+        openaiOAuthStatus: Client__State__Types.OpenAIFetchingStatus,
+      }
+      ->setAllApiKeySources(Client__State__Types.Loading)
+      ->StateReducer.update(
+        ~sideEffects=[
+          FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
+          FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
+          FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
+          FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
+        ],
+      )
+    }
 
   | ClearAcpSession =>
     // Clear pending questions across all tasks — the connection is gone,
@@ -1284,6 +1311,7 @@ let next = (state: state, action) => {
       ...state,
       tasks: updatedTasks,
       acpSession: NoAcpSession,
+      sessionInitialized: false,
     }->StateReducer.update
 
   // ============================================================================

@@ -22,10 +22,6 @@ let make = (
   ~chatOpen: bool=true,
   ~onToggleChat: unit => unit=() => (),
   ~onSettingsClick: unit => unit,
-  ~showProviderNudgeBubble: bool=false,
-  ~showProviderNudgeBadge: bool=false,
-  ~onProviderNudgeDismiss: unit => unit=() => (),
-  ~onProviderNudgeCta: unit => unit=() => (),
 ) => {
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
@@ -173,29 +169,13 @@ let make = (
             )->ignore,
           ~children=<Icons.QuestionMarkCircledIcon />,
         )}
-        // Settings gear with optional provider nudge
+        // Settings gear
         <div className="relative">
           {renderToolbarButton(
             ~label="Settings",
             ~onClick=_ => onSettingsClick(),
-            ~children=<>
-              <Icons.GearIcon />
-              {switch showProviderNudgeBadge {
-              | true =>
-                <span
-                  className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-violet-500 ring-2 ring-zinc-900"
-                />
-              | false => React.null
-              }}
-            </>,
+            ~children=<Icons.GearIcon />,
           )}
-          {switch showProviderNudgeBubble {
-          | true =>
-            <Client__ProviderNudgeBubble
-              onOpenSettings=onProviderNudgeCta onDismiss=onProviderNudgeDismiss
-            />
-          | false => React.null
-          }}
         </div>
       </div>
     </div>

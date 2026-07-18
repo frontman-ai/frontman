@@ -2020,7 +2020,6 @@ __metadata:
     "@types/react-dom": "npm:^19.2.3"
     "@zumer/snapdom": "npm:^2.12.2"
     babel-plugin-react-compiler: "npm:^1.0.0"
-    canvas-confetti: "npm:^1.9.4"
     dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "npm:^0.5.0"
     lucide-react: "npm:^1.18.0"
@@ -8239,13 +8238,6 @@ __metadata:
   version: 1.0.30001803
   resolution: "caniuse-lite@npm:1.0.30001803"
   checksum: 10c0/71586e9c84633cf766b208448eb76f860ec6e3befffc626d1f004e1902da063a7ab96cc94d1f4b36c0324e12997b3325a726de3287edfec91d0df495627a1d43
-  languageName: node
-  linkType: hard
-
-"canvas-confetti@npm:^1.9.4":
-  version: 1.9.4
-  resolution: "canvas-confetti@npm:1.9.4"
-  checksum: 10c0/08f11b5fa20b365922108828d7488f9b3eac2afdf39bc478339268c1250b5215df82682d7074520a3f0f72f4728f9703bbc937dcfe793f196b44e6e8ac0b1f7b
   languageName: node
   linkType: hard
 

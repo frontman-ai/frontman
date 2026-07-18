@@ -1160,6 +1160,15 @@ describe("Client State Reducer - Annotations on Messages", () => {
       }
     }
 
+    let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
+      sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+      cancelPrompt: () => (),
+      retryTurn: _ => (),
+      loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+      deleteSession: (_, ~onComplete as _) => (),
+      apiBaseUrl: "http://localhost:4000",
+    })
+
     let _providerCases: array<(Reducer.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
@@ -1294,6 +1303,111 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(nextState.anthropicKeySettings.source)->Expect.toEqual(FromEnv)
         t->expect(nextState.fireworksKeySettings.source)->Expect.toEqual(Client__State__Types.None)
         t->expect(nextState.nvidiaKeySettings.source)->Expect.toEqual(Client__State__Types.None)
+      },
+    )
+
+    test(
+      "provider settings remain unloaded while any status is being fetched",
+      t => {
+        let loadingState = {
+          ...Reducer.defaultState,
+          anthropicOAuthStatus: FetchingStatus,
+          openaiOAuthStatus: OpenAIFetchingStatus,
+          openrouterKeySettings: {
+            source: Loading,
+            saveStatus: Idle,
+          },
+        }
+
+        t->expect(Reducer.Selectors.providerSettingsLoaded(loadingState))->Expect.toBe(false)
+      },
+    )
+
+    test(
+      "provider settings are loaded after every status settles",
+      t => {
+        let loadedState = {
+          ...Reducer.defaultState,
+          anthropicOAuthStatus: NotConnected,
+          openaiOAuthStatus: OpenAINotConnected,
+        }
+
+        t->expect(Reducer.Selectors.providerSettingsLoaded(loadedState))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "provider settings are loaded after OAuth flow or fetch failure",
+      t => {
+        let authorizing: Client__State__Types.anthropicOAuthStatus = Authorizing({
+          authorizeUrl: "https://example.com",
+          verifier: "verifier",
+        })
+        let showingCode: Client__State__Types.openaiOAuthStatus = OpenAIShowingCode({
+          deviceAuthId: "device-auth-id",
+          userCode: "ABCD-EFGH",
+          verificationUrl: "https://example.com/device",
+        })
+        let activeFlowState = {
+          ...Reducer.defaultState,
+          anthropicOAuthStatus: authorizing,
+          openaiOAuthStatus: showingCode,
+        }
+        let failedState = {
+          ...Reducer.defaultState,
+          anthropicOAuthStatus: Error("status unavailable"),
+          openaiOAuthStatus: OpenAINotConnected,
+        }
+
+        t->expect(Reducer.Selectors.providerSettingsLoaded(activeFlowState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.providerSettingsLoaded(failedState))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "updating an initialized ACP session preserves OAuth progress",
+      t => {
+        let authorizing: Client__State__Types.anthropicOAuthStatus = Authorizing({
+          authorizeUrl: "https://example.com",
+          verifier: "verifier",
+        })
+        let showingCode: Client__State__Types.openaiOAuthStatus = OpenAIShowingCode({
+          deviceAuthId: "device-auth-id",
+          userCode: "ABCD-EFGH",
+          verificationUrl: "https://example.com/device",
+        })
+        let state = {
+          ...Reducer.defaultState,
+          sessionInitialized: true,
+          anthropicOAuthStatus: authorizing,
+          openaiOAuthStatus: showingCode,
+        }
+        let (nextState, effects) = Reducer.next(state, _setAcpSessionAction())
+
+        t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(authorizing)
+        t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(showingCode)
+        t->expect(effects->Array.length)->Expect.toBe(0)
+      },
+    )
+
+    test(
+      "initializing a new ACP session fetches provider settings",
+      t => {
+        let (nextState, effects) = Reducer.next(Reducer.defaultState, _setAcpSessionAction())
+
+        t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(FetchingStatus)
+        t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAIFetchingStatus)
+        t->expect(effects->Array.length)->Expect.toBe(4)
+      },
+    )
+
+    test(
+      "clearing the ACP session invalidates loaded provider settings",
+      t => {
+        let state = {...Reducer.defaultState, sessionInitialized: true}
+        let (nextState, _effects) = Reducer.next(state, ClearAcpSession)
+
+        t->expect(nextState.sessionInitialized)->Expect.toBe(false)
       },
     )
   })

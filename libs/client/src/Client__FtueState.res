@@ -2,12 +2,12 @@
 //
 // Tracks the user's FTUE progress:
 //   - New: never visited before (key absent AND no other frontman keys)
-//   - WelcomeShown: saw the welcome modal, hasn't completed signup celebration
-//   - Completed: all FTUE flows finished
+//   - WelcomeShown: saw the welcome modal, hasn't returned from sign-in
+//   - Completed: sign-in flow finished
 //
 // Existing users who predate this feature are detected by the presence of other
 // `frontman:*` localStorage keys (e.g. chatbox-width, selectedModelValue). When found,
-// we auto-migrate them to Completed so they never see onboarding flows.
+// we auto-migrate them to Completed so they never see the welcome flow.
 
 let storageKey = "frontman:ftue_state"
 

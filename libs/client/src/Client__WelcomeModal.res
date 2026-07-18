@@ -48,9 +48,7 @@ let make = (~loginUrl: string) => {
         </div>
         <Dialog.Title> {React.string("Welcome to Frontman!")} </Dialog.Title>
         <Dialog.Description>
-          {React.string(
-            "Your AI-powered coding assistant is ready. Let's get you signed in so you can start building.",
-          )}
+          {React.string("Sign in to Frontman to start setting up your coding assistant.")}
         </Dialog.Description>
       </Dialog.Header>
       <div className="space-y-4">

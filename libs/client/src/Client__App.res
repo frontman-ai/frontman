@@ -42,18 +42,18 @@ let make = (~apiBaseUrl: string) => {
 
   // FTUE state
   let (ftueState, setFtueState) = React.useState(() => Client__FtueState.get())
-  let (showCelebration, setShowCelebration) = React.useState(() => false)
-  let (providerNudgeDismissed, setProviderNudgeDismissed) = React.useState(() => false)
-  let (nudgeBubbleDismissed, setNudgeBubbleDismissed) = React.useState(() => false)
   let hasProviderConfigured = Client__State.useSelector(
     Client__State.Selectors.hasAnyProviderConfigured,
   )
+  let providerSettingsLoaded = Client__State.useSelector(
+    Client__State.Selectors.providerSettingsLoaded,
+  )
+  let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
 
-  // Trigger post-signup celebration when session becomes active for first time after signup
+  // Complete the sign-up flow once the authenticated connection is ready.
   React.useEffect(() => {
     switch (connectionState, ftueState) {
     | (Connected | SessionActive(_), Client__FtueState.WelcomeShown) =>
-      setShowCelebration(_ => true)
       Client__FtueState.setCompleted()
       setFtueState(_ => Client__FtueState.Completed)
     | _ => ()
@@ -67,28 +67,18 @@ let make = (~apiBaseUrl: string) => {
     setSettingsOpen(_ => true)
   }
 
-  let handleCelebrationDismiss = () => {
-    setShowCelebration(_ => false)
-  }
-
-  let handleCelebrationConnectProvider = () => {
-    setShowCelebration(_ => false)
-    openSettingsProviders()
-  }
-
-  let showNudge = switch (ftueState, hasProviderConfigured, providerNudgeDismissed) {
-  | (Client__FtueState.Completed, false, false) => true
+  let showNudge = switch (
+    ftueState,
+    sessionInitialized,
+    providerSettingsLoaded,
+    hasProviderConfigured,
+  ) {
+  | (Client__FtueState.Completed, true, true, false) => true
   | _ => false
   }
-  let showProviderNudgeBubble = showNudge && !nudgeBubbleDismissed
-  let showProviderNudgeBadge = showNudge && nudgeBubbleDismissed
+  let showProviderSetupModal = showNudge && !settingsOpen
 
-  let handleProviderNudgeDismiss = () => {
-    setNudgeBubbleDismissed(_ => true)
-  }
-
-  let handleProviderNudgeCta = () => {
-    setProviderNudgeDismissed(_ => true)
+  let handleProviderSetupCta = () => {
     openSettingsProviders()
   }
 
@@ -105,18 +95,13 @@ let make = (~apiBaseUrl: string) => {
     <SettingsModal
       open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
     />
+    <Client__ProviderSetupModal
+      open_={showProviderSetupModal} onOpenSettings=handleProviderSetupCta
+    />
     // FTUE: Welcome modal for first-time unauthenticated users
     {switch (authRedirectUrl, ftueState) {
     | (Some(loginUrl), Client__FtueState.New) => <Client__WelcomeModal loginUrl />
     | _ => React.null
-    }}
-    // FTUE: Post-signup celebration overlay
-    {switch showCelebration {
-    | true =>
-      <Client__PostSignupCelebration
-        onDismiss=handleCelebrationDismiss onConnectProvider=handleCelebrationConnectProvider
-      />
-    | false => React.null
     }}
     // Top bar (sits above the panel split)
     <Client__TopBar
@@ -124,10 +109,6 @@ let make = (~apiBaseUrl: string) => {
       chatOpen
       onToggleChat={() => setChatOpen(prev => !prev)}
       onSettingsClick={() => setSettingsOpen(_ => true)}
-      showProviderNudgeBubble
-      showProviderNudgeBadge
-      onProviderNudgeDismiss=handleProviderNudgeDismiss
-      onProviderNudgeCta=handleProviderNudgeCta
     />
     // Main content area — flex row of chat + preview panels
     <div className="flex flex-1 min-h-0 w-full">
