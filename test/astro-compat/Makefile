@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := test
-.PHONY: test pack consumer
+.PHONY: test pack consumer probe-next
 
 ASTRO_VERSION ?= 6
 PACKAGE_DIR := ../../libs/frontman-astro
@@ -16,3 +16,6 @@ consumer: pack
 	node run-consumer.mjs "$(ASTRO_VERSION)" "$$TARBALL"
 
 test: consumer
+
+probe-next:
+	@FRONTMAN_ASTRO_ALLOW_UNSUPPORTED=1 $(MAKE) consumer ASTRO_VERSION=7
