@@ -1160,6 +1160,15 @@ describe("Client State Reducer - Annotations on Messages", () => {
       }
     }
 
+    let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
+      sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+      cancelPrompt: () => (),
+      retryTurn: _ => (),
+      loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+      deleteSession: (_, ~onComplete as _) => (),
+      apiBaseUrl: "http://localhost:4000",
+    })
+
     let _providerCases: array<(Reducer.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
@@ -1328,15 +1337,67 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
 
     test(
-      "provider settings remain unloaded when a status fetch fails",
+      "provider settings are loaded after OAuth flow or fetch failure",
       t => {
+        let authorizing: Client__State__Types.anthropicOAuthStatus = Authorizing({
+          authorizeUrl: "https://example.com",
+          verifier: "verifier",
+        })
+        let showingCode: Client__State__Types.openaiOAuthStatus = OpenAIShowingCode({
+          deviceAuthId: "device-auth-id",
+          userCode: "ABCD-EFGH",
+          verificationUrl: "https://example.com/device",
+        })
+        let activeFlowState = {
+          ...Reducer.defaultState,
+          anthropicOAuthStatus: authorizing,
+          openaiOAuthStatus: showingCode,
+        }
         let failedState = {
           ...Reducer.defaultState,
           anthropicOAuthStatus: Error("status unavailable"),
           openaiOAuthStatus: OpenAINotConnected,
         }
 
-        t->expect(Reducer.Selectors.providerSettingsLoaded(failedState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSettingsLoaded(activeFlowState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.providerSettingsLoaded(failedState))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "updating an initialized ACP session preserves OAuth progress",
+      t => {
+        let authorizing: Client__State__Types.anthropicOAuthStatus = Authorizing({
+          authorizeUrl: "https://example.com",
+          verifier: "verifier",
+        })
+        let showingCode: Client__State__Types.openaiOAuthStatus = OpenAIShowingCode({
+          deviceAuthId: "device-auth-id",
+          userCode: "ABCD-EFGH",
+          verificationUrl: "https://example.com/device",
+        })
+        let state = {
+          ...Reducer.defaultState,
+          sessionInitialized: true,
+          anthropicOAuthStatus: authorizing,
+          openaiOAuthStatus: showingCode,
+        }
+        let (nextState, effects) = Reducer.next(state, _setAcpSessionAction())
+
+        t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(authorizing)
+        t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(showingCode)
+        t->expect(effects->Array.length)->Expect.toBe(0)
+      },
+    )
+
+    test(
+      "initializing a new ACP session fetches provider settings",
+      t => {
+        let (nextState, effects) = Reducer.next(Reducer.defaultState, _setAcpSessionAction())
+
+        t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(FetchingStatus)
+        t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAIFetchingStatus)
+        t->expect(effects->Array.length)->Expect.toBe(4)
       },
     )
 
