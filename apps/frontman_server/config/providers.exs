@@ -30,8 +30,8 @@ providers = [
      max_image_dimension: 7680,
      llm_db_provider: [],
      models: [
-       {"Claude Fable 5", "claude-fable-5", :packaged},
        {"Claude Sonnet 5", "claude-sonnet-5", :packaged},
+       {"Claude Fable 5", "claude-fable-5", :packaged},
        {"Claude Opus 4.8", "claude-opus-4-8", :packaged},
        {"Claude Opus 4.7", "claude-opus-4-7", :packaged},
        {"Claude Opus 4.6", "claude-opus-4-6", :packaged},

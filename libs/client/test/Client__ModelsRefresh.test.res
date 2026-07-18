@@ -78,12 +78,12 @@ module SampleConfig = {
     name: "Anthropic (Claude Pro/Max)",
     options: [
       {
-        value: "anthropic:claude-sonnet-4-5",
-        name: "Claude Sonnet 4.5",
+        value: "anthropic:claude-sonnet-5",
+        name: "Claude Sonnet 5",
         description: None,
         _meta: None,
       },
-      {value: "anthropic:claude-opus-4-5", name: "Claude Opus 4.5", description: None, _meta: None},
+      {value: "anthropic:claude-fable-5", name: "Claude Fable 5", description: None, _meta: None},
     ],
     _meta: None,
   }
@@ -93,12 +93,12 @@ module SampleConfig = {
     name: "OpenAI",
     options: [
       {
-        value: "openai_codex:gpt-5.1-codex-max",
-        name: "GPT-5.1 Codex Max",
+        value: "openai_codex:gpt-5.6",
+        name: "GPT-5.6",
         description: None,
         _meta: None,
       },
-      {value: "openai_codex:gpt-5.2", name: "GPT-5.2", description: None, _meta: None},
+      {value: "openai_codex:gpt-5.6-terra", name: "GPT-5.6 Terra", description: None, _meta: None},
     ],
     _meta: None,
   }
@@ -108,8 +108,8 @@ module SampleConfig = {
     name: "OpenRouter",
     options: [
       {
-        value: "openrouter:google/gemini-3-flash-preview",
-        name: "Gemini 3 Flash Preview",
+        value: "openrouter:openai/gpt-5.6-sol",
+        name: "GPT-5.6 Sol",
         description: None,
         _meta: None,
       },
@@ -204,7 +204,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("anthropic:claude-sonnet-4-5"))
+    ->Expect.toEqual(Some("anthropic:claude-sonnet-5"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -221,7 +221,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openai_codex:gpt-5.1-codex-max"))
+    ->Expect.toEqual(Some("openai_codex:gpt-5.6"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -238,7 +238,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openrouter:google/gemini-3-flash-preview"))
+    ->Expect.toEqual(Some("openrouter:openai/gpt-5.6-sol"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -282,7 +282,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("anthropic:claude-sonnet-4-5"))
+    ->Expect.toEqual(Some("anthropic:claude-sonnet-5"))
   })
 
   test("clears pendingProviderAutoSelect even when provider and current model are missing", t => {
