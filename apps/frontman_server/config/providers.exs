@@ -14,7 +14,7 @@ providers = [
      max_image_dimension: nil,
      llm_db_provider: [],
      models: [
-       {"GPT-5.6", "gpt-5.6", :packaged},
+       {"GPT-5.6 Sol", "gpt-5.6-sol", :packaged},
        {"GPT-5.6 Terra", "gpt-5.6-terra", :packaged},
        {"GPT-5.6 Luna", "gpt-5.6-luna", :packaged},
        {"GPT-5.5", "gpt-5.5", :packaged},

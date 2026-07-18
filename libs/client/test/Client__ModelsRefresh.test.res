@@ -93,8 +93,8 @@ module SampleConfig = {
     name: "OpenAI",
     options: [
       {
-        value: "openai_codex:gpt-5.6",
-        name: "GPT-5.6",
+        value: "openai_codex:gpt-5.6-sol",
+        name: "GPT-5.6 Sol",
         description: None,
         _meta: None,
       },
@@ -221,7 +221,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openai_codex:gpt-5.6"))
+    ->Expect.toEqual(Some("openai_codex:gpt-5.6-sol"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 

@@ -161,9 +161,9 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, _} = upsert_openai_oauth_token(scope, expires_at)
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "openai_codex:gpt-5.6", max_tokens: 16_384)
+        Providers.prepare_llm_args(scope, "openai_codex:gpt-5.6-sol", max_tokens: 16_384)
 
-      assert model == "openai_codex:gpt-5.6"
+      assert model == "openai_codex:gpt-5.6-sol"
       assert llm_opts[:access_token] == "openai_access"
       assert llm_opts[:auth_mode] == :oauth
       assert llm_opts[:chatgpt_account_id] == "acc-789"
