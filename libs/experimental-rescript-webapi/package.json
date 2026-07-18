@@ -1,6 +1,6 @@
 {
   "name": "@rescript/webapi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Experimental successor to [rescript-webapi](https://github.com/TheSpyder/rescript-webapi)",
   "keywords": [
     "dom",

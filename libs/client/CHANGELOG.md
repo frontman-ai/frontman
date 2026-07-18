@@ -1,5 +1,38 @@
 # @frontman-ai/client
 
+## 1.0.2
+
+### Patch Changes
+
+- [#1287](https://github.com/frontman-ai/frontman/pull/1287) [`89a4d04`](https://github.com/frontman-ai/frontman/commit/89a4d04fc756630e1b20882af1db32480b53b8c5) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add supported GPT-5.6 variants and Claude 5 models through native providers and OpenRouter, with GPT-5.6 Terra and Claude Sonnet 5 as provider defaults.
+
+- [#1239](https://github.com/frontman-ai/frontman/pull/1239) [`be420bc`](https://github.com/frontman-ai/frontman/commit/be420bc7df28ca0955f18440e38ea20c30ec9470) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Railway deploy configuration and self-hosting docs for publishing Frontman as a one-click Railway template.
+
+- [#1230](https://github.com/frontman-ai/frontman/pull/1230) [`6d04707`](https://github.com/frontman-ai/frontman/commit/6d047076a003b8a6de359cd6f3dabcce4523b808) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align React peer dependencies with React DOM 19.2.7.
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reopened tasks now show accepted follow-up prompts as normal user messages, preserving the full conversation history.
+
+- [#1261](https://github.com/frontman-ai/frontman/pull/1261) [`27d6ac6`](https://github.com/frontman-ai/frontman/commit/27d6ac66f410f0023b8315715754fead45aa6c3e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Align development dependencies with supported Vite, React, Tiptap, and Astro peer ranges.
+
+- [#1259](https://github.com/frontman-ai/frontman/pull/1259) [`e7bdadf`](https://github.com/frontman-ai/frontman/commit/e7bdadf286d8a8a8c69342d169d266e54db40d59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace prompt editor internals with a Tiptap-based composer while preserving file, paste, drop, and annotation submit behavior.
+
+- [#1286](https://github.com/frontman-ai/frontman/pull/1286) [`a557acf`](https://github.com/frontman-ai/frontman/commit/a557acfb2a8ec3422cd24e8d146bbf5b8a863746) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace misleading post-signup celebration with a required provider setup modal where chat is unavailable.
+
+- [#1282](https://github.com/frontman-ai/frontman/pull/1282) [`80369df`](https://github.com/frontman-ai/frontman/commit/80369df055f984d17ddf279d124e79c67aa8278a) Thanks [@ntheanh201](https://github.com/ntheanh201)! - Allow the chat panel to collapse into a compact Frontman logo control, giving the browser preview the full workspace.
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Follow-up prompts sent while an agent is busy now appear in a queue drawer, making it clear what will run next.
+
+- [#1236](https://github.com/frontman-ai/frontman/pull/1236) [`a5f8945`](https://github.com/frontman-ai/frontman/commit/a5f8945cb58f6ac598d37785fdc4c543fa334578) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace Radix-backed TSX UI wrappers with ReScript-native Base UI shadcn primitives and remove direct Radix wrapper dependencies.
+
+- [#1262](https://github.com/frontman-ai/frontman/pull/1262) [`f081562`](https://github.com/frontman-ai/frontman/commit/f081562d24f17c09b2ae8bfe20467980e224ce81) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add prompt-level Executor and Planner selection, negotiated connection agent catalogs, stable
+  message IDs, explicit agent colors, and migration of persisted session history.
+
+- [#1192](https://github.com/frontman-ai/frontman/pull/1192) [`c7848c6`](https://github.com/frontman-ai/frontman/commit/c7848c6cd137afdb8df9298789dded95675ac5e1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Carry stable agent error IDs through retry error updates.
+
+- [#1288](https://github.com/frontman-ai/frontman/pull/1288) [`945cde1`](https://github.com/frontman-ai/frontman/commit/945cde14a3e5ec66e725b5be4305a940b2dc14fb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix Fireworks API-key setup so saved keys expose Fireworks models and use the provider ID expected by the server.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
 ## 1.0.1
 
 ### Patch Changes
