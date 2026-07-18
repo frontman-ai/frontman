@@ -14,6 +14,9 @@ providers = [
      max_image_dimension: nil,
      llm_db_provider: [],
      models: [
+       {"GPT-5.6 Terra", "gpt-5.6-terra", :packaged},
+       {"GPT-5.6 Sol", "gpt-5.6-sol", :packaged},
+       {"GPT-5.6 Luna", "gpt-5.6-luna", :packaged},
        {"GPT-5.5", "gpt-5.5", :packaged},
        {"GPT-5.4", "gpt-5.4", :packaged},
        {"GPT-5.4 Mini", "gpt-5.4-mini", :packaged},
@@ -27,6 +30,8 @@ providers = [
      max_image_dimension: 7680,
      llm_db_provider: [],
      models: [
+       {"Claude Sonnet 5", "claude-sonnet-5", :packaged},
+       {"Claude Fable 5", "claude-fable-5", :packaged},
        {"Claude Opus 4.8", "claude-opus-4-8", :packaged},
        {"Claude Opus 4.7", "claude-opus-4-7", :packaged},
        {"Claude Opus 4.6", "claude-opus-4-6", :packaged},
@@ -43,12 +48,17 @@ providers = [
      max_image_dimension: nil,
      llm_db_provider: [],
      models: [
+       {"GPT-5.6 Terra", "openai/gpt-5.6-terra", :packaged},
+       {"GPT-5.6 Sol", "openai/gpt-5.6-sol", :packaged},
+       {"GPT-5.6 Luna", "openai/gpt-5.6-luna", :packaged},
        {"GPT-5.5", "openai/gpt-5.5", :packaged},
        {"GPT-5.5 Pro", "openai/gpt-5.5-pro", :packaged},
        {"GPT-5.4", "openai/gpt-5.4", :packaged},
        {"GPT-5.4 Pro", "openai/gpt-5.4-pro", :packaged},
        {"GPT-5.3 Codex", "openai/gpt-5.3-codex", :packaged},
        # --------------
+       {"Claude Fable 5", "anthropic/claude-fable-5", :packaged},
+       {"Claude Sonnet 5", "anthropic/claude-sonnet-5", :packaged},
        {"Claude Opus 4.8", "anthropic/claude-opus-4.8", :packaged},
        {"Claude Opus 4.8 Fast", "anthropic/claude-opus-4.8-fast", :packaged},
        {"Claude Opus 4.7", "anthropic/claude-opus-4.7", :packaged},
