@@ -46,9 +46,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     test "falls back to user key when no OAuth token", %{scope: scope} do
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
 
-      {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+      {:ok, {model, llm_opts}} =
+        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-5")
 
+      assert model == "anthropic:claude-sonnet-5"
       assert llm_opts[:api_key] == "user_key_456"
       assert llm_opts[:anthropic_prompt_cache] == true
       assert llm_opts[:anthropic_cache_messages] == -1
@@ -147,9 +148,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     test "openrouter user key resolves correctly", %{scope: scope} do
       {:ok, _} = Providers.upsert_api_key(scope, "openrouter", "sk-or-user-test")
 
-      {:ok, {model, llm_opts}} = Providers.prepare_llm_args(scope, "openrouter:openai/gpt-5.5")
+      {:ok, {model, llm_opts}} =
+        Providers.prepare_llm_args(scope, "openrouter:anthropic/claude-fable-5")
 
-      assert model == "openrouter:openai/gpt-5.5"
+      assert model == "openrouter:anthropic/claude-fable-5"
       assert llm_opts[:api_key] == "sk-or-user-test"
     end
 
@@ -159,9 +161,9 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, _} = upsert_openai_oauth_token(scope, expires_at)
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "openai_codex:gpt-5.3-codex", max_tokens: 16_384)
+        Providers.prepare_llm_args(scope, "openai_codex:gpt-5.6", max_tokens: 16_384)
 
-      assert model == "openai_codex:gpt-5.3-codex"
+      assert model == "openai_codex:gpt-5.6"
       assert llm_opts[:access_token] == "openai_access"
       assert llm_opts[:auth_mode] == :oauth
       assert llm_opts[:chatgpt_account_id] == "acc-789"
