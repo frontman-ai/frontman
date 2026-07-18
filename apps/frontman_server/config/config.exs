@@ -171,7 +171,7 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
 config :frontman_server, FrontmanServer.Mailer,
   adapter: Swoosh.Adapters.Local,
   contacts_url: "https://api.resend.com/contacts",
-  segment_id: "974ede17-1b25-4e48-a71d-6d5f0923f402"
+  segment_id: "5786d8bb-df16-413c-a06d-64d1a579cc2f"
 
 # Signup workers — disabled by default, enabled in prod and test.
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: false
