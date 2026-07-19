@@ -183,7 +183,6 @@ export async function startAstro(port: number): Promise<FrameworkServer> {
     [astroBin, "dev", "--host", "127.0.0.1", "--port", String(port)],
     {
       cwd: fixtureDir,
-      env: { ...process.env, ASTRO_DEV_BACKGROUND: "0" } as NodeJS.ProcessEnv,
       stdio: "pipe",
     },
   );
