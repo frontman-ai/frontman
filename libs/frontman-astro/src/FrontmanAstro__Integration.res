@@ -42,10 +42,6 @@ let getAstroMajorVersion = () => getAstroVersion()->parseMajorVersion
 @module("./vite-plugin-props-injection.mjs")
 external frontmanPropsInjectionPlugin: unit => Bindings.vitePlugin = "frontmanPropsInjectionPlugin"
 
-@module("./vite-plugin-source-annotations.mjs")
-external frontmanSourceAnnotationsPlugin: unit => Bindings.vitePlugin =
-  "frontmanSourceAnnotationsPlugin"
-
 // Browser-side annotation capture script (exported as a string for injectScript)
 @module("./annotation-capture.mjs")
 external annotationCaptureScript: string = "annotationCaptureScript"
@@ -152,14 +148,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // component props as HTML comments into the SSR output.
             // This lets the client-side annotation capture script associate
             // props with each component instance for AI agent context.
-            let vitePlugins = switch astroMajorVersion >= 7 {
-            | true => [
-                middlewarePlugin,
-                frontmanSourceAnnotationsPlugin(),
-                frontmanPropsInjectionPlugin(),
-              ]
-            | false => [middlewarePlugin, frontmanPropsInjectionPlugin()]
-            }
+            let vitePlugins = [middlewarePlugin, frontmanPropsInjectionPlugin()]
             ctx.updateConfig({
               vite: ?Some({
                 plugins: ?Some(vitePlugins),
