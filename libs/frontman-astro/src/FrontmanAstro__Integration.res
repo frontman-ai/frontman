@@ -116,7 +116,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // (data-astro-source-file/loc) when devToolbar.enabled is true.
             // Without annotations, Frontman falls back to CSS selector detection
             // and cannot resolve the source component file/line for selected elements.
-            if !ctx.config.devToolbar.enabled {
+            if astroMajorVersion < 7 && !ctx.config.devToolbar.enabled {
               Console.warn(
                 "[Frontman] Astro devToolbar is disabled — element source detection will be limited. " ++ "Set `devToolbar: { enabled: true }` in your astro.config to enable full component source resolution.",
               )

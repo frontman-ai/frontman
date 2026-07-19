@@ -17,7 +17,7 @@ If you want the end-to-end execution model behind that split, read [How the Agen
 | Platform | Package / integration | Status | Minimum versions | What Frontman can access |
 |----------|------------------------|--------|------------------|--------------------------|
 | Next.js | `@frontman-ai/nextjs` | Supported | Next.js 13.2+, Node.js 18+ | Files, route manifest, dev logs, optional OpenTelemetry spans |
-| Astro | `@frontman-ai/astro` | Supported | Astro 5.x or 6.x, Node.js 18+ | Files, resolved routes, dev logs, Astro source annotations |
+| Astro | `@frontman-ai/astro` | Supported | Astro 5.x, 6.x, or 7.x; Node.js 22.19+ | Files, resolved routes, dev logs, Astro and Frontman source annotations |
 | Vite-based apps | `@frontman-ai/vite` | Supported | Vite 5.x or 6.x, Node.js 18+ | Files, dev logs, framework-aware client context |
 | WordPress | Frontman WordPress plugin | Beta | WordPress 6.0+, PHP 7.4+ | Site content, Elementor, templates, widgets, menus, and settings through WordPress tools |
 
@@ -63,19 +63,20 @@ See [Next.js integration](/docs/integrations/nextjs/).
 `@frontman-ai/astro` integrates through Astro lifecycle hooks and the underlying Vite dev server.
 
 **Supported versions**
-- Astro 5.x or 6.x
-- Node.js 18 or later
+- Astro 5.x, 6.x, or 7.x
+- Node.js 22.19 or later
 
 **What the integration provides**
 - File access within `projectRoot` / `sourceRoot`
 - `get_client_pages` for Astro route discovery
 - `get_logs` for Astro and Vite dev output
-- Source mapping through Astro dev-toolbar annotations and content-file metadata
+- Source mapping through Astro 5/6 Dev Toolbar annotations, Frontman-owned Astro 7 annotations, and content-file metadata
 
 **Notes**
 - On Astro 5+, route discovery uses the resolved route manifest, which includes content collections, redirects, API endpoints, and integration-injected routes.
 - On older behavior paths, filesystem scanning is less complete. Current documentation and support target Astro 5+.
-- Accurate element-to-file mapping depends on Astro dev toolbar annotations being available.
+- Astro 5 and 6 require Dev Toolbar annotations for exact element locations. Astro 7 uses Frontman-owned annotations because its Rust compiler does not emit the legacy attributes.
+- Both Astro 7's default Sätteri Markdown processor and the optional unified processor are supported.
 
 See [Astro integration](/docs/integrations/astro/).
 

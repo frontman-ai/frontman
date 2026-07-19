@@ -1,7 +1,7 @@
 # @frontman-ai/astro
 
 [![npm version](https://img.shields.io/npm/v/@frontman-ai/astro)](https://www.npmjs.com/package/@frontman-ai/astro)
-[![astro ^5.0.0](https://img.shields.io/badge/astro-%5E5.0.0-blueviolet)](https://astro.build)
+[![Astro 5, 6, and 7](https://img.shields.io/badge/Astro-5%20%7C%206%20%7C%207-blueviolet)](https://astro.build)
 
 Astro integration for [Frontman](https://frontman.sh) — AI-powered development tools that let you edit your frontend from the browser.
 
@@ -39,11 +39,12 @@ Then start your dev server and open `http://localhost:4321/frontman/`.
 The integration automatically (in dev mode only):
 
 - Registers a dev toolbar app for element selection
-- Captures Astro source annotations so the AI knows which `.astro` file and line each element comes from
+- Captures source annotations so the AI knows which `.astro` file and line each element comes from
+- Maps Markdown and MDX output back to its content file with both Sätteri and unified processors
 - Serves the Frontman UI at `/<basePath>/` (default: `/frontman/`)
 - Exposes tool endpoints for AI interactions (file edits, screenshots, etc.)
 
-> **Note:** Element source detection requires `devToolbar.enabled: true` (the default). Astro only emits `data-astro-source-file` / `data-astro-source-loc` annotations when the dev toolbar is enabled. If you've disabled it, Frontman will log a warning and fall back to CSS selector-based detection.
+> **Note:** Astro 5 and 6 element source detection requires `devToolbar.enabled: true` (the default). Astro 7 uses Frontman-owned source annotations and does not depend on Dev Toolbar attributes.
 
 ## Configuration
 
@@ -69,17 +70,19 @@ All options are optional with sensible defaults:
 
 ## How it works
 
-The integration uses two Astro hooks:
+The integration uses four Astro hooks:
 
 - **`astro:config:setup`** — Registers the dev toolbar app and injects the annotation capture script via `injectScript('head-inline', ...)`
+- **`astro:config:done`** — Captures the final trailing-slash policy
 - **`astro:server:setup`** — Registers Frontman API routes as Vite dev server middleware via `server.middlewares.use()`
+- **`astro:routes:resolved`** — Captures Astro's resolved route manifest
 
 No manual middleware file needed. No SSR adapter required. Works with static (`output: 'static'`) Astro projects.
 
 ## Requirements
 
-- Astro ^5.0.0
-- Node.js >= 18
+- Astro 5.x, 6.x, or 7.x
+- Node.js >= 22.19.0
 
 ## Links
 

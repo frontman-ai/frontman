@@ -140,7 +140,7 @@ Frontman uses a cascading strategy to find which source file and line correspond
 
 2. **Vue 3 component instance** — for Vue-based frameworks, Frontman inspects the Vue component instance attached to the DOM element to extract source file and location metadata.
 
-3. **Astro annotations** — the `@frontman-ai/astro` plugin captures `data-astro-source-file` and `data-astro-source-loc` attributes that Astro adds in dev mode. It also captures component props from injected HTML comments. This happens before Astro's dev toolbar strips the attributes.
+3. **Astro annotations** — `@frontman-ai/astro` captures Astro's `data-astro-source-*` attributes on Astro 5/6 and adds `data-frontman-source-*` attributes on Astro 7. It also captures bounded, secret-redacted component props from injected HTML comments.
 
 4. **Timeout fallback** — source detection has a 5-second timeout. If resolution stalls (e.g., CORS-blocked URLs), the annotation proceeds without source location — the agent still gets the screenshot, selector, and other context.
 
