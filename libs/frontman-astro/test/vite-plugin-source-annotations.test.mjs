@@ -55,6 +55,7 @@ const props = {id: "title"}
     expect(annotationCaptureScript).toContain("[data-frontman-source-file], [data-astro-source-file]")
     expect(annotationCaptureScript).toContain("data-frontman-content-file")
     expect(annotationCaptureScript).toContain("getContentFile")
+    expect(annotationCaptureScript).toContain("capturedAfterSwap")
     expect(annotationCaptureScript).toContain("data-frontman-source-loc")
     expect(annotationCaptureScript).toContain("data-astro-source-loc")
     expect(annotationCaptureScript).not.toContain("split('/').pop()")

@@ -126,9 +126,14 @@ export const annotationCaptureScript = `(function() {
   document.addEventListener('DOMContentLoaded', captureAnnotations);
 
   var initialLoad = true;
+  var capturedAfterSwap = false;
   document.addEventListener('astro:page-load', function() {
     if (initialLoad) { initialLoad = false; return; }
+    if (capturedAfterSwap) { capturedAfterSwap = false; return; }
     captureAnnotations();
   });
-  document.addEventListener('astro:after-swap', captureAnnotations);
+  document.addEventListener('astro:after-swap', function() {
+    captureAnnotations();
+    capturedAfterSwap = true;
+  });
 })();`;

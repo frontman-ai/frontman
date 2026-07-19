@@ -3,8 +3,18 @@ import MagicString from "magic-string"
 
 const EXCLUDED_ELEMENTS = new Set(["script", "slot", "style"])
 
-function byteOffsetToUtf16Index(code, offset) {
-  return Buffer.from(code, "utf8").subarray(0, offset).toString("utf8").length
+function byteOffsetsToUtf16Indexes(code, offsets) {
+  const bytes = Buffer.from(code, "utf8")
+  const indexes = new Map()
+  let previousOffset = 0
+  let utf16Index = 0
+
+  for (const offset of [...new Set(offsets)].sort((left, right) => left - right)) {
+    utf16Index += bytes.subarray(previousOffset, offset).toString("utf8").length
+    indexes.set(offset, utf16Index)
+    previousOffset = offset
+  }
+  return indexes
 }
 
 function escapeAttribute(value) {
@@ -59,8 +69,9 @@ export function frontmanSourceAnnotationsPlugin() {
         if (edits.length === 0) return null
 
         const output = new MagicString(code)
+        const indexes = byteOffsetsToUtf16Indexes(code, edits.map(edit => edit.offset))
         for (const edit of edits.reverse()) {
-          output.appendLeft(byteOffsetToUtf16Index(code, edit.offset), edit.attributes)
+          output.appendLeft(indexes.get(edit.offset), edit.attributes)
         }
 
         return {

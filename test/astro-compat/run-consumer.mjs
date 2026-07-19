@@ -11,8 +11,13 @@ assert.ok(astroVersion && tarball, "Usage: node run-consumer.mjs <astro-version>
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "fixture")
 const consumer = await mkdtemp(resolve(tmpdir(), `frontman-astro-${astroVersion.replaceAll(".", "-")}-`))
 
-function run(command, args) {
-  const result = spawnSync(command, args, {cwd: consumer, encoding: "utf8", stdio: "inherit"})
+function run(command, args, env = {}) {
+  const result = spawnSync(command, args, {
+    cwd: consumer,
+    encoding: "utf8",
+    stdio: "inherit",
+    env: {...process.env, ...env},
+  })
   assert.equal(result.status, 0, `${command} ${args.join(" ")} failed`)
 }
 
@@ -30,7 +35,12 @@ try {
   run("npm", ["ls", "astro", "@frontman-ai/astro", "--all"])
   run("npm", ["run", "build"])
   run(process.execPath, ["--test", "tests/package.test.mjs"])
-  run(process.execPath, ["--test", "tests/dev-server.test.mjs"])
+  for (const [trailingSlash, port] of [["ignore", "4327"], ["always", "4328"], ["never", "4329"]]) {
+    run(process.execPath, ["--test", "tests/dev-server.test.mjs"], {
+      ASTRO_TRAILING_SLASH: trailingSlash,
+      COMPAT_PORT: port,
+    })
+  }
 } finally {
   await rm(consumer, {recursive: true, force: true})
 }

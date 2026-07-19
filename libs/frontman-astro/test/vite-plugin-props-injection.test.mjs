@@ -67,6 +67,8 @@ describe("frontmanPropsInjectionPlugin", () => {
     const destination = {value: "", write(value) { this.value += value }}
     const props = {
       apiKey: "never expose this",
+      privateKey: "private material",
+      credentials: "login material",
       profile: {name: "Ada", authorization: "Bearer secret"},
       items: Array.from({length: 80}, (_, index) => index),
       deep: {one: {two: {three: {four: {five: "hidden"}}}}},
@@ -79,11 +81,25 @@ describe("frontmanPropsInjectionPlugin", () => {
 
     const marker = decodeMarker(destination.value)
     expect(marker.props.apiKey).toBe("[REDACTED]")
+    expect(marker.props.privateKey).toBe("[REDACTED]")
+    expect(marker.props.credentials).toBe("[REDACTED]")
     expect(marker.props.profile.authorization).toBe("[REDACTED]")
     expect(marker.props.items.at(-1)).toBe("[Truncated 30 items]")
     expect(marker.props.deep.one.two.three).toBe("[Max depth]")
     expect(marker.props.long).toMatch(/\[Truncated\]$/)
     expect(marker.props.custom).toBe("[Object]")
+  })
+
+  test("does not change rendering when prop access throws", async () => {
+    const {module} = await loadTransformed(runtimeSource())
+    const destination = {value: "", write(value) { this.value += value }}
+    const props = {}
+    Object.defineProperty(props, "unsafe", {enumerable: true, get() { throw new Error("unsafe getter") }})
+
+    const instance = module.renderComponent({}, "Greeting", {moduleId: "/project/Greeting.astro"}, props, {})
+    instance.render(destination)
+
+    expect(destination.value).toBe("<h1>Rendered</h1>")
   })
 
   test("ignores non-SSR and unrelated transforms", () => {

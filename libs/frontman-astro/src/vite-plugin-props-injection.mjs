@@ -89,7 +89,7 @@ function recursiveCalls(code, start, end) {
 
 const wrapperCode = `
 
-const __frontman_SECRET_KEY = /token|secret|password|authorization|cookie|session|api[-_]?key/i;
+const __frontman_SECRET_KEY = /token|secret|password|passwd|passphrase|authorization|auth|cookie|session|api[-_]?key|access[-_]?key|private[-_]?key|credential/i;
 const __frontman_MAX_DEPTH = 4;
 const __frontman_MAX_COLLECTION_LENGTH = 50;
 const __frontman_MAX_VALUE_BYTES = 4096;
@@ -138,28 +138,31 @@ function __frontman_sanitize(value, depth, seen) {
 }
 
 function __frontman_safeSerialize(displayName, Component, props) {
-  const entry = {
-    displayName,
-    props: __frontman_sanitize(props || {}, 0, new WeakSet()),
-  };
-  if (Component && Component.moduleId) {
-    entry.moduleId = String(Component.moduleId).replaceAll('\\\\', '/');
-  }
+  try {
+    const entry = {
+      displayName,
+      props: __frontman_sanitize(props || {}, 0, new WeakSet()),
+    };
+    if (Component && Component.moduleId) {
+      entry.moduleId = String(Component.moduleId).replaceAll('\\\\', '/');
+    }
 
-  let serialized = JSON.stringify(entry);
-  if (Buffer.byteLength(serialized, 'utf8') > __frontman_MAX_PAYLOAD_BYTES) {
-    serialized = JSON.stringify({displayName, props: {__truncated__: true}, moduleId: entry.moduleId});
+    let serialized = JSON.stringify(entry);
+    if (Buffer.byteLength(serialized, 'utf8') > __frontman_MAX_PAYLOAD_BYTES) {
+      serialized = JSON.stringify({displayName, props: {__truncated__: true}, moduleId: entry.moduleId});
+    }
+    return serialized;
+  } catch {
+    return null;
   }
-  return serialized;
 }
 
 function __frontman_wrapInstance(renderInstance, displayName, Component, props) {
   if (!renderInstance || typeof renderInstance.render !== 'function') return renderInstance;
 
-  const encoded = Buffer.from(
-    __frontman_safeSerialize(displayName, Component, props),
-    'utf8',
-  ).toString('base64');
+  const serialized = __frontman_safeSerialize(displayName, Component, props);
+  if (!serialized) return renderInstance;
+  const encoded = Buffer.from(serialized, 'utf8').toString('base64');
   const originalRender = renderInstance.render;
   renderInstance.render = function(destination) {
     destination.write(markHTMLString('<!-- __frontman_props__:' + encoded + ' -->'));
