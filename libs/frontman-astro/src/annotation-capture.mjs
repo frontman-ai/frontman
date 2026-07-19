@@ -92,8 +92,8 @@ export const annotationCaptureScript = `(function() {
         for (var i = 0; i < propsChain.length; i++) {
           var entry = propsChain[i];
           if (entry.moduleId) {
-            var entryFile = entry.moduleId.replaceAll('\\', '/');
-            var srcFile = sourceFile.replaceAll('\\', '/');
+            var entryFile = entry.moduleId.replaceAll('\\\\', '/');
+            var srcFile = sourceFile.replaceAll('\\\\', '/');
             if (entryFile === srcFile || entryFile.endsWith('/' + srcFile) || srcFile.endsWith('/' + entryFile)) {
               match = entry;
               break;
