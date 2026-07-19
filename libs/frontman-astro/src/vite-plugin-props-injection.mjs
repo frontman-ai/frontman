@@ -105,19 +105,19 @@ function __frontman_isSecretKey(key) {
   return __frontman_SECRET_KEY.test(normalized);
 }
 
-function __frontman_sanitize(value, depth, seen) {
+function __frontman_sanitize(value, depth, ancestors) {
   if (value === null || value === undefined) return value;
   const type = typeof value;
   if (type === 'string') return __frontman_truncateString(value);
   if (type === 'number' || type === 'boolean') return value;
   if (type !== 'object') return undefined;
   if (depth >= __frontman_MAX_DEPTH) return '[Max depth]';
-  if (seen.has(value)) return '[Circular]';
+  if (ancestors.includes(value)) return '[Circular]';
 
-  seen.add(value);
+  const nextAncestors = [...ancestors, value];
   if (Array.isArray(value)) {
     const output = value.slice(0, __frontman_MAX_COLLECTION_LENGTH).map(item =>
-      __frontman_sanitize(item, depth + 1, seen)
+      __frontman_sanitize(item, depth + 1, nextAncestors)
     );
     if (value.length > __frontman_MAX_COLLECTION_LENGTH) {
       output.push('[Truncated ' + (value.length - __frontman_MAX_COLLECTION_LENGTH) + ' items]');
@@ -134,7 +134,7 @@ function __frontman_sanitize(value, depth, seen) {
     if (key.startsWith('data-astro-cid-') || key === 'class' || key === 'class:list') continue;
     output[key] = __frontman_isSecretKey(key)
       ? '[REDACTED]'
-      : __frontman_sanitize(value[key], depth + 1, seen);
+      : __frontman_sanitize(value[key], depth + 1, nextAncestors);
   }
   if (keys.length > __frontman_MAX_COLLECTION_LENGTH) {
     output.__truncated__ = keys.length - __frontman_MAX_COLLECTION_LENGTH;
@@ -146,7 +146,7 @@ function __frontman_safeSerialize(displayName, Component, props) {
   try {
     const entry = {
       displayName,
-      props: __frontman_sanitize(props || {}, 0, new WeakSet()),
+      props: __frontman_sanitize(props || {}, 0, []),
     };
     if (Component && Component.moduleId) {
       entry.moduleId = String(Component.moduleId).replaceAll('\\\\', '/');

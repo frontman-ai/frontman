@@ -92,6 +92,26 @@ describe("frontmanPropsInjectionPlugin", () => {
     expect(marker.props.custom).toBe("[Object]")
   })
 
+  test("distinguishes repeated references from cycles", async () => {
+    const {module} = await loadTransformed(runtimeSource())
+    const destination = {value: "", write(value) { this.value += value }}
+    const shared = {name: "Ada"}
+    const circular = {}
+    circular.self = circular
+
+    const instance = module.renderComponent(
+      {}, "Greeting", {moduleId: "/project/Greeting.astro"},
+      {primary: shared, secondary: shared, circular}, {},
+    )
+    instance.render(destination)
+
+    expect(decodeMarker(destination.value).props).toEqual({
+      primary: {name: "Ada"},
+      secondary: {name: "Ada"},
+      circular: {self: "[Circular]"},
+    })
+  })
+
   test("does not change rendering when prop access throws", async () => {
     const {module} = await loadTransformed(runtimeSource())
     const destination = {value: "", write(value) { this.value += value }}
