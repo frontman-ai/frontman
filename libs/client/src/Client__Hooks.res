@@ -234,14 +234,13 @@ external observeWindowLocation: (WebAPI.DOMAPI.window, string => unit) => unit =
   "observeWindowLocation"
 
 type navigation
-type navigationListenerOptions = {capture: bool}
 
 @send
 external navigationAddEventListener: (
   navigation,
   string,
   WebAPI.EventAPI.event => unit,
-  navigationListenerOptions,
+  bool,
 ) => unit = "addEventListener"
 
 @send
@@ -249,7 +248,7 @@ external navigationRemoveEventListener: (
   navigation,
   string,
   WebAPI.EventAPI.event => unit,
-  navigationListenerOptions,
+  bool,
 ) => unit = "removeEventListener"
 
 let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachmentKey: int) => {
@@ -305,9 +304,8 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
             (
               iframeWindow->WebAPI.Window.navigation->Obj.magic: Nullable.t<navigation>
             )->Nullable.toOption
-          let listenerOptions: navigationListenerOptions = {capture: false}
           navigation->Option.forEach(navigation =>
-            navigation->navigationAddEventListener("navigate", onNavigation, listenerOptions)
+            navigation->navigationAddEventListener("navigate", onNavigation, false)
           )
           let cleanupLocationObserver = observeWindowLocation(iframeWindow, currentLocation =>
             setLocation(_ => Some(currentLocation))
@@ -318,11 +316,7 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
               try {
                 cleanupLocationObserver()
                 navigation->Option.forEach(navigation =>
-                  navigation->navigationRemoveEventListener(
-                    "navigate",
-                    onNavigation,
-                    listenerOptions,
-                  )
+                  navigation->navigationRemoveEventListener("navigate", onNavigation, false)
                 )
               } catch {
               | exn =>
