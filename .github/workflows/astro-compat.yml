@@ -50,14 +50,8 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Build integration
-        run: make -C libs/frontman-astro build
-
       - name: Pack integration
-        run: |
-          mkdir -p test/astro-compat/.artifacts
-          npm pack --json --pack-destination test/astro-compat/.artifacts ./libs/frontman-astro > test/astro-compat/.artifacts/pack.json
-          node test/astro-compat/assert-pack.mjs test/astro-compat/.artifacts/pack.json
+        run: make -C test/astro-compat pack
 
       - name: Upload package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
