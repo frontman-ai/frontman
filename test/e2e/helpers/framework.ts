@@ -178,12 +178,15 @@ export async function startAstro(port: number): Promise<FrameworkServer> {
   killPort(port);
 
   const astroBin = resolveBin(fixtureDir, "astro");
+  const astroEnv = { ...process.env, ASTRO_DEV_BACKGROUND: "0" };
+  // Astro 7 interprets VITEST=true and serves resolved project pages as 404.
+  delete astroEnv.VITEST;
   const proc = spawn(
     process.execPath,
     [astroBin, "dev", "--host", "127.0.0.1", "--port", String(port)],
     {
       cwd: fixtureDir,
-      env: { ...process.env, ASTRO_DEV_BACKGROUND: "0" } as NodeJS.ProcessEnv,
+      env: astroEnv,
       stdio: "pipe",
     },
   );
