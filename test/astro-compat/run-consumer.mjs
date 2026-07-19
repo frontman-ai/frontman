@@ -11,9 +11,9 @@ assert.ok(astroVersion && tarball, "Usage: node run-consumer.mjs <astro-version>
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "fixture")
 const consumer = await mkdtemp(resolve(tmpdir(), `frontman-astro-${astroVersion.replaceAll(".", "-")}-`))
 
-function run(command, args, {allowFailure = false} = {}) {
+function run(command, args) {
   const result = spawnSync(command, args, {cwd: consumer, encoding: "utf8", stdio: "inherit"})
-  if (!allowFailure) assert.equal(result.status, 0, `${command} ${args.join(" ")} failed`)
+  assert.equal(result.status, 0, `${command} ${args.join(" ")} failed`)
 }
 
 try {
@@ -26,12 +26,8 @@ try {
   }
   await writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2) + "\n")
 
-  const allowUnsupported = process.env.FRONTMAN_ASTRO_ALLOW_UNSUPPORTED === "1"
-  const peerMode = allowUnsupported
-    ? "--force"
-    : "--strict-peer-deps"
-  run("npm", ["install", peerMode, "--save-exact"])
-  run("npm", ["ls", "astro", "@frontman-ai/astro", "--all"], {allowFailure: allowUnsupported})
+  run("npm", ["install", "--strict-peer-deps", "--save-exact"])
+  run("npm", ["ls", "astro", "@frontman-ai/astro", "--all"])
   run("npm", ["run", "build"])
   run(process.execPath, ["--test", "tests/package.test.mjs"])
   run(process.execPath, ["--test", "tests/dev-server.test.mjs"])

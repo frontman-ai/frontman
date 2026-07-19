@@ -49,7 +49,7 @@
 		"build": "yarn build:rescript && yarn build:bundle"
 	},
 	"engines": {
-		"node": ">=18.0.0"
+		"node": ">=22.19.0"
 	},
 	"dependencies": {
 		"@astrojs/compiler": "^4.0.0",
@@ -58,7 +58,7 @@
 		"magic-string": "^0.30.21"
 	},
 	"peerDependencies": {
-		"astro": "^5.0.0 || ^6.0.0"
+		"astro": "^5.0.0 || ^6.0.0 || ^7.0.0"
 	},
 	"publishConfig": {
 		"access": "public"
