@@ -14,7 +14,7 @@ Frontman is a browser-based AI agent that executes LLM-driven tool calls against
 apps/
   frontman_server/      Elixir/Phoenix backend
   swarm_ai/             Agentic loop runtime (Hex package)
-  marketing/            Astro 5.17 static site
+  marketing/            Astro 7.1 static site
   chrome-extension/     Chrome extension
 
 libs/
@@ -346,7 +346,7 @@ All three packages inject the Frontman client UI into dev servers, establish Web
 
 ## Marketing Site
 
-Astro 5.17 at `apps/marketing/`. 94 components. Deployed to Cloudflare Pages.
+Astro 7.1 at `apps/marketing/`. 94 components. Deployed to Cloudflare Pages.
 
 Content: 16 blog posts, 10 competitor comparison pages (`/vs/`), 3 integration guides (`/integrations/`), glossary, lighthouse audits. Blog cover images generated server-side via `satori` + `sharp`.
 

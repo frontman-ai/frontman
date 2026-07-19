@@ -418,6 +418,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Test marketing site
+        run: make -C apps/marketing test
+
       - name: Build ReScript packages
         run: yarn rescript
 
