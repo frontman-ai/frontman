@@ -3,7 +3,7 @@
  */
 
 import { spawn, execSync, type ChildProcess } from "node:child_process";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -270,10 +270,11 @@ export async function stopFramework(
   if (!server) return;
 
   server.proc.kill("SIGTERM");
+  const fixturePath = relative(ROOT, server.fixtureDir);
 
   // Restore modified tracked files (AI edits + installer-modified configs)
   try {
-    execSync(`git checkout -- "${server.fixtureDir}"`, {
+    execSync(`git checkout -- "${fixturePath}"`, {
       cwd: ROOT,
       stdio: "pipe",
     });
@@ -283,7 +284,7 @@ export async function stopFramework(
 
   // Remove untracked files created by the installer (middleware.ts, instrumentation.ts)
   try {
-    execSync(`git clean -fd -- "${server.fixtureDir}"`, {
+    execSync(`git clean -fd -- "${fixturePath}"`, {
       cwd: ROOT,
       stdio: "pipe",
     });

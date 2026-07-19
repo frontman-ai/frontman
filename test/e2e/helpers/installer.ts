@@ -10,7 +10,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import {
   existsSync,
   writeFileSync,
@@ -18,6 +18,12 @@ import {
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 const FRONTMAN_SERVER = "localhost:4002";
+
+function resetFixture(fixtureDir: string): void {
+  const fixturePath = relative(ROOT, fixtureDir);
+  execSync(`git checkout -- "${fixturePath}"`, { cwd: ROOT, stdio: "pipe" });
+  execSync(`git clean -fd -- "${fixturePath}"`, { cwd: ROOT, stdio: "pipe" });
+}
 
 /**
  * Run the Frontman Next.js installer on the fixture project.
@@ -29,6 +35,7 @@ const FRONTMAN_SERVER = "localhost:4002";
  */
 export function installNextjs(): void {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/nextjs");
+  resetFixture(fixtureDir);
   const cli = resolve(ROOT, "libs/frontman-nextjs/dist/cli.js");
   if (!existsSync(cli)) {
     throw new Error(
@@ -52,6 +59,7 @@ export function installNextjs(): void {
  */
 export function installVite(): void {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vite");
+  resetFixture(fixtureDir);
   const cli = resolve(ROOT, "libs/frontman-vite/dist/cli.js");
   if (!existsSync(cli)) {
     throw new Error(
@@ -75,6 +83,7 @@ export function installVite(): void {
  */
 export function installVueVite(): void {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vue-vite");
+  resetFixture(fixtureDir);
   const cli = resolve(ROOT, "libs/frontman-vite/dist/cli.js");
   if (!existsSync(cli)) {
     throw new Error(
@@ -97,6 +106,7 @@ export function installVueVite(): void {
  */
 export function installAstro(): void {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/astro");
+  resetFixture(fixtureDir);
 
   console.log("  [e2e] Configuring Frontman Astro integration...");
   const config = `import { defineConfig } from 'astro/config';
