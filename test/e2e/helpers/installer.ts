@@ -13,6 +13,7 @@ import { execSync } from "node:child_process";
 import { relative, resolve } from "node:path";
 import {
   existsSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 
@@ -107,6 +108,7 @@ export function installVueVite(): void {
 export function installAstro(): void {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/astro");
   resetFixture(fixtureDir);
+  rmSync(resolve(fixtureDir, ".astro"), { recursive: true, force: true });
 
   console.log("  [e2e] Configuring Frontman Astro integration...");
   const config = `import { defineConfig } from 'astro/config';
