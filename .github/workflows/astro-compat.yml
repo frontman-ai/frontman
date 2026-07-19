@@ -59,6 +59,7 @@ jobs:
           name: frontman-astro-package
           path: test/astro-compat/.artifacts/*.tgz
           if-no-files-found: error
+          include-hidden-files: true
 
   latest:
     name: Astro ${{ matrix.astro }} / Node ${{ matrix.node }}

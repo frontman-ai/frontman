@@ -95,7 +95,7 @@ let getElementSourceLocation = (
         | Some(getContentFile) =>
           getContentFile(element)
           ->Nullable.toOption
-          ->Option.orElse(() => api.contentFile->Nullable.toOption)
+          ->Option.orElse(api.contentFile->Nullable.toOption)
         | None => api.contentFile->Nullable.toOption
         }
         switch contentFile {

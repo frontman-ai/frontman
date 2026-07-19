@@ -3,9 +3,9 @@
 // Exported as a string because Astro's injectScript API takes raw JS code,
 // not a module reference. This runs in the user's browser as an inline <script>.
 //
-// Reads Astro's data-astro-source-file/loc attributes and __frontman_props__
-// HTML comments, then stores them on window.__frontman_annotations__ for
-// the Frontman client to consume.
+// Reads Astro 5/6 data-astro-source-* attributes, Astro 7
+// data-frontman-source-* attributes, content markers, and __frontman_props__
+// HTML comments. Results are stored on window.__frontman_annotations__.
 //
 // Timing: Astro's dev toolbar strips data-astro-source-* attributes inside a
 // DOMContentLoaded handler registered by a <script type="module">. This script
@@ -14,7 +14,8 @@
 // Since DOMContentLoaded listeners fire in registration order, we capture
 // annotations before the toolbar strips them.
 //
-// Also re-captures on Astro View Transitions (SPA navigations) via astro:page-load.
+// Also re-captures on Astro View Transitions via astro:after-swap, with
+// astro:page-load as a fallback for navigations that do not emit a swap.
 
 export const annotationCaptureScript = `(function() {
   var PROPS_PREFIX = '__frontman_props__:';
