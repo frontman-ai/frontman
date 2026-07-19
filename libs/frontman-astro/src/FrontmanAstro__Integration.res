@@ -37,11 +37,6 @@ let parseMajorVersion = (version: string) =>
 
 let getAstroMajorVersion = () => getAstroVersion()->parseMajorVersion
 
-// Vite plugin that wraps Astro's renderComponent to inject component props
-// as HTML comments. Imported as raw JS since it transforms Vite module internals.
-@module("./vite-plugin-props-injection.mjs")
-external frontmanPropsInjectionPlugin: unit => Bindings.vitePlugin = "frontmanPropsInjectionPlugin"
-
 // Browser-side annotation capture script (exported as a string for injectScript)
 @module("./annotation-capture.mjs")
 external annotationCaptureScript: string = "annotationCaptureScript"
@@ -144,14 +139,9 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               ),
             })
 
-            // Register Vite plugin that monkey-patches renderComponent to inject
-            // component props as HTML comments into the SSR output.
-            // This lets the client-side annotation capture script associate
-            // props with each component instance for AI agent context.
-            let vitePlugins = [middlewarePlugin, frontmanPropsInjectionPlugin()]
             ctx.updateConfig({
               vite: ?Some({
-                plugins: ?Some(vitePlugins),
+                plugins: ?Some([middlewarePlugin]),
               }),
             })
 
