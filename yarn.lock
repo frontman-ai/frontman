@@ -2524,7 +2524,7 @@ __metadata:
   resolution: "@frontman/e2e-astro@workspace:test/e2e/fixtures/astro"
   dependencies:
     "@frontman-ai/astro": "workspace:*"
-    astro: "npm:^6.3.7"
+    astro: "npm:7.1.1"
   languageName: unknown
   linkType: soft
 
@@ -8326,7 +8326,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"astro@npm:^6.3.7, astro@npm:^6.4.8":
+"astro@npm:^6.4.8":
   version: 6.4.8
   resolution: "astro@npm:6.4.8"
   dependencies:
