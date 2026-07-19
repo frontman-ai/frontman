@@ -130,4 +130,5 @@ export const annotationCaptureScript = `(function() {
     if (initialLoad) { initialLoad = false; return; }
     captureAnnotations();
   });
+  document.addEventListener('astro:after-swap', captureAnnotations);
 })();`;

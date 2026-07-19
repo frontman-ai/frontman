@@ -11,6 +11,7 @@ type devToolbarAppConfig = {
 
 // Astro command type
 type astroCommand = [#dev | #build | #preview | #sync]
+type trailingSlash = [#always | #never | #ignore]
 
 // Astro devToolbar config
 type devToolbarConfig = {enabled: bool}
@@ -29,6 +30,7 @@ type astroConfig = {
   root: string,
   devToolbar: devToolbarConfig,
   markdown: markdownConfig,
+  trailingSlash: trailingSlash,
 }
 
 // Vite plugin type — opaque, we just pass plugin objects through
@@ -70,6 +72,8 @@ type configSetupHookContext = {
   config: astroConfig,
   command: astroCommand,
 }
+
+type configDoneHookContext = {config: astroConfig}
 
 // --- Server-side toolbar object (available in astro:server:setup hook) ---
 // Must be defined before serverSetupHookContext which references it.
@@ -120,6 +124,8 @@ type routesResolvedHookContext = {routes: array<integrationResolvedRoute>}
 type astroHooks = {
   @as("astro:config:setup")
   configSetup?: configSetupHookContext => unit,
+  @as("astro:config:done")
+  configDone?: configDoneHookContext => unit,
   @as("astro:server:setup")
   serverSetup?: serverSetupHookContext => unit,
   @as("astro:routes:resolved")

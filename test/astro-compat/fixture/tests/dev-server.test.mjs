@@ -6,6 +6,7 @@ import test from "node:test"
 
 const port = Number(process.env.COMPAT_PORT || 4327)
 const origin = `http://127.0.0.1:${port}`
+const trailingSlash = process.env.ASTRO_TRAILING_SLASH || "ignore"
 const require = createRequire(import.meta.url)
 const astroPackagePath = require.resolve("astro/package.json")
 const astroPackage = require(astroPackagePath)
@@ -55,15 +56,18 @@ test("packed integration works in Astro dev server", {timeout: 120_000}, async t
   assert.match(propsPayload.moduleId, /\/src\/components\/Greeting\.astro$/)
   assert.deepEqual(propsPayload.props, {name: "Astro"})
 
-  const markdownResponse = await fetch(`${origin}/docs/`)
+  const markdownPath = trailingSlash === "never" ? "/docs" : "/docs/"
+  const markdownResponse = await fetch(`${origin}${markdownPath}`)
   const markdownHtml = await markdownResponse.text()
   assert.equal(markdownResponse.status, 200)
   assert.match(markdownHtml, /<template data-frontman-content-file="src\/pages\/docs\.md"><\/template>/)
 
-  const frontmanResponse = await fetch(`${origin}/frontman/`)
+  const frontmanPath = trailingSlash === "always" ? "/frontman" : "/frontman/"
+  const toolPath = trailingSlash === "always" ? "/frontman/tools/call" : "/frontman/tools/call/"
+  const frontmanResponse = await fetch(`${origin}${frontmanPath}`)
   assert.equal(frontmanResponse.status, 200)
 
-  const toolResponse = await fetch(`${origin}/frontman/tools/call/`, {
+  const toolResponse = await fetch(`${origin}${toolPath}`, {
     method: "POST",
     headers: {"content-type": "application/json"},
     body: JSON.stringify({name: "get_client_pages", arguments: {}}),
