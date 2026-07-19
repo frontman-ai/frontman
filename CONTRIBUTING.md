@@ -87,6 +87,14 @@ frontman/
 - Test files are named `*.test.res.mjs`.
 - Assertion style: `t->expect(value)->Expect.toEqual(expected)`.
 
+Run the packed `@frontman-ai/astro` consumer against a supported Astro version with:
+
+```bash
+make -C test/astro-compat ASTRO_VERSION=7
+```
+
+Use `5`, `6`, or `7` to test another supported major. This installs the packed package with strict peer dependency validation before building and testing the fixture.
+
 ## Pull Request Process
 
 1. Fill out the PR template (description, related issues, testing checklist).

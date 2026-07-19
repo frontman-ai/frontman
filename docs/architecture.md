@@ -336,7 +336,7 @@ Session update types: `UserMessageChunk`, `AssistantMessageStart`, `ToolCallStar
 
 Three published npm packages inject Frontman into dev servers:
 
-- **@frontman-ai/astro** (`libs/frontman-astro`) — Astro integration hook + Vite middleware, dev toolbar app, serves Frontman UI at `/<basePath>/`, captures `data-astro-source-file` annotations, component props injection as HTML comments
+- **@frontman-ai/astro** (`libs/frontman-astro`) — Astro integration hook + Vite middleware, dev toolbar app, serves Frontman UI at `/<basePath>/`, captures Astro 5/6 `data-astro-source-*` annotations, injects Astro 7 `data-frontman-source-*` annotations, maps Sätteri and unified Markdown output to source files, and injects component props as HTML comments
 - **@frontman-ai/nextjs** (`libs/frontman-nextjs`) — Middleware (Next.js 15) or proxy (Next.js 16+), serves Frontman UI at `/frontman`, OpenTelemetry instrumentation (tracks HTTP requests, route rendering, API execution), LogCapture (auto-patches console.log, process.stdout.write, error handlers — circular buffer of 1024 entries via `globalThis`)
 - **@frontman-ai/vite** (`libs/frontman-vite`) — Vite middleware plugin, auto-detects framework from vite.config (React, Vue, Svelte), adapts Web API to Vite's Node.js request/response
 

@@ -347,7 +347,7 @@ Three npm packages inject Frontman into your dev server. Each follows the same p
 
 | Integration | How it hooks in | Special features |
 |------------|----------------|-----------------|
-| **Astro** (`@frontman-ai/astro`) | Astro integration hook + Vite middleware | Dev toolbar app, `data-astro-source-file` capture, component props injection as HTML comments |
+| **Astro** (`@frontman-ai/astro`) | Astro integration hook + Vite middleware | Dev toolbar app, Astro 5/6 `data-astro-source-*` capture, Astro 7 `data-frontman-source-*` injection, Markdown source mapping, component props injection as HTML comments |
 | **Next.js** (`@frontman-ai/nextjs`) | OpenTelemetry instrumentation + client injection | Log capture integration (circular buffer) |
 | **Vite** (`@frontman-ai/vite`) | Vite middleware plugin | Adapts Web API to Vite's Node.js request/response |
 
