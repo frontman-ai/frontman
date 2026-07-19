@@ -89,7 +89,7 @@ function recursiveCalls(code, start, end) {
 
 const wrapperCode = `
 
-const __frontman_SECRET_KEY = /token|secret|password|passwd|passphrase|authorization|auth|cookie|session|api[-_]?key|access[-_]?key|private[-_]?key|credential/i;
+const __frontman_SECRET_KEY = /(?:^|[-_])(?:token|secret|password|passwd|passphrase|authorization|auth|cookie|session|api[-_]?key|access[-_]?key|private[-_]?key|credentials?)(?:$|[-_])/;
 const __frontman_MAX_DEPTH = 4;
 const __frontman_MAX_COLLECTION_LENGTH = 50;
 const __frontman_MAX_VALUE_BYTES = 4096;
@@ -98,6 +98,11 @@ const __frontman_MAX_PAYLOAD_BYTES = 16384;
 function __frontman_truncateString(value) {
   if (Buffer.byteLength(value, 'utf8') <= __frontman_MAX_VALUE_BYTES) return value;
   return Buffer.from(value, 'utf8').subarray(0, __frontman_MAX_VALUE_BYTES - 11).toString('utf8') + '[Truncated]';
+}
+
+function __frontman_isSecretKey(key) {
+  const normalized = key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+  return __frontman_SECRET_KEY.test(normalized);
 }
 
 function __frontman_sanitize(value, depth, seen) {
@@ -124,15 +129,15 @@ function __frontman_sanitize(value, depth, seen) {
   if (prototype !== Object.prototype && prototype !== null) return '[Object]';
 
   const output = {};
-  const entries = Object.entries(value);
-  for (const [key, item] of entries.slice(0, __frontman_MAX_COLLECTION_LENGTH)) {
+  const keys = Object.keys(value);
+  for (const key of keys.slice(0, __frontman_MAX_COLLECTION_LENGTH)) {
     if (key.startsWith('data-astro-cid-') || key === 'class' || key === 'class:list') continue;
-    output[key] = __frontman_SECRET_KEY.test(key)
+    output[key] = __frontman_isSecretKey(key)
       ? '[REDACTED]'
-      : __frontman_sanitize(item, depth + 1, seen);
+      : __frontman_sanitize(value[key], depth + 1, seen);
   }
-  if (entries.length > __frontman_MAX_COLLECTION_LENGTH) {
-    output.__truncated__ = entries.length - __frontman_MAX_COLLECTION_LENGTH;
+  if (keys.length > __frontman_MAX_COLLECTION_LENGTH) {
+    output.__truncated__ = keys.length - __frontman_MAX_COLLECTION_LENGTH;
   }
   return output;
 }

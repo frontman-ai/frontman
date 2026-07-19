@@ -69,6 +69,7 @@ describe("frontmanPropsInjectionPlugin", () => {
       apiKey: "never expose this",
       privateKey: "private material",
       credentials: "login material",
+      author: "Ada",
       profile: {name: "Ada", authorization: "Bearer secret"},
       items: Array.from({length: 80}, (_, index) => index),
       deep: {one: {two: {three: {four: {five: "hidden"}}}}},
@@ -83,6 +84,7 @@ describe("frontmanPropsInjectionPlugin", () => {
     expect(marker.props.apiKey).toBe("[REDACTED]")
     expect(marker.props.privateKey).toBe("[REDACTED]")
     expect(marker.props.credentials).toBe("[REDACTED]")
+    expect(marker.props.author).toBe("Ada")
     expect(marker.props.profile.authorization).toBe("[REDACTED]")
     expect(marker.props.items.at(-1)).toBe("[Truncated 30 items]")
     expect(marker.props.deep.one.two.three).toBe("[Max depth]")
@@ -100,6 +102,42 @@ describe("frontmanPropsInjectionPlugin", () => {
     instance.render(destination)
 
     expect(destination.value).toBe("<h1>Rendered</h1>")
+  })
+
+  test("redacts secret getters without reading them", async () => {
+    const {module} = await loadTransformed(runtimeSource())
+    const destination = {value: "", write(value) { this.value += value }}
+    const props = {name: "Astro"}
+    Object.defineProperty(props, "privateKey", {
+      enumerable: true,
+      get() { throw new Error("secret getter must not execute") },
+    })
+
+    const instance = module.renderComponent({}, "Greeting", {moduleId: "/project/Greeting.astro"}, props, {})
+    instance.render(destination)
+
+    expect(decodeMarker(destination.value).props).toEqual({
+      name: "Astro",
+      privateKey: "[REDACTED]",
+    })
+  })
+
+  test("does not read properties beyond the collection limit", async () => {
+    const {module} = await loadTransformed(runtimeSource())
+    const destination = {value: "", write(value) { this.value += value }}
+    const props = Object.fromEntries(Array.from({length: 50}, (_, index) => [`value${index}`, index]))
+    Object.defineProperty(props, "overflow", {
+      enumerable: true,
+      get() { throw new Error("overflow getter must not execute") },
+    })
+
+    const instance = module.renderComponent({}, "Greeting", {moduleId: "/project/Greeting.astro"}, props, {})
+    instance.render(destination)
+
+    const captured = decodeMarker(destination.value).props
+    expect(captured.value49).toBe(49)
+    expect(captured.__truncated__).toBe(1)
+    expect(captured).not.toHaveProperty("overflow")
   })
 
   test("ignores non-SSR and unrelated transforms", () => {
