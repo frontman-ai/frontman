@@ -1,5 +1,11 @@
 # @frontman-ai/frontman-client
 
+## 1.0.4
+
+### Patch Changes
+
+- [#1303](https://github.com/frontman-ai/frontman/pull/1303) [`1e04b55`](https://github.com/frontman-ai/frontman/commit/1e04b553677ed045415dde90b89cadd682860b2d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover when an agent requests a tool unavailable under its current access policy instead of crashing the task or leaving unresolved tool history.
+
 ## 1.0.3
 
 ### Patch Changes
