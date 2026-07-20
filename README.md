@@ -105,7 +105,7 @@ npm run dev
 # Open http://localhost:4321/frontman
 ```
 
-Compatible with Astro 5 and 6. Listed on the [Astro integration registry](https://astro.build/integrations/?search=frontman). Understands Islands architecture, content collections, and SSR/hybrid modes.
+Compatible with Astro 5, 6, and 7 on Node.js 22.19 or newer. Listed on the [Astro integration registry](https://astro.build/integrations/?search=frontman). Understands Islands architecture, content collections, and SSR/hybrid modes.
 
 See the [Astro integration guide](https://frontman.sh/docs/integrations/astro/) for details.
 
