@@ -86,14 +86,14 @@ Multi-select collects all your selections and batches them into a single coordin
 
 ## Try It
 
-Multi-select is available now in all Frontman integrations — [Next.js](https://frontman.sh), [Astro](https://frontman.sh), and [Vite](https://frontman.sh) (React, Vue, Svelte). Your engineering team adds one line to the dev server config:
+Multi-select is available now in all Frontman integrations — [Next.js](/docs/integrations/nextjs/), [Astro](/docs/integrations/astro/), and [Vite](/docs/integrations/vite/) (React, Vue, Svelte). Install the package for your framework:
 
 ```bash
 npx @frontman-ai/nextjs install
 npx @frontman-ai/vite install
-astro add @frontman-ai/astro
+npx astro add @frontman-ai/astro
 ```
 
-Then anyone on the team — designer, PM, design system lead — can open the running app, hold Shift, click everything that drifts from the system, and fix it. [Getting started](/blog/getting-started/) takes five minutes.
+Then anyone on the team — designer, PM, design system lead — can open the `/frontman` workspace, hold Shift, click everything that drifts from the system, and fix it. Follow the [getting started guide](/blog/getting-started/) for the complete setup flow.
 
 Star it on [GitHub](https://github.com/frontman-ai/frontman) if you've ever wished you could fix design inconsistencies yourself instead of filing tickets.

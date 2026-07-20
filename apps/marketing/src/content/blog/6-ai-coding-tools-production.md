@@ -70,7 +70,7 @@ Get started in your project folder:
 npx @frontman-ai/nextjs install
 
 # Astro
-astro add @frontman-ai/astro
+npx astro add @frontman-ai/astro
 
 # Vite (React, Vue, Svelte)
 npx @frontman-ai/vite install
@@ -176,7 +176,7 @@ Try it on your project:
 npx @frontman-ai/nextjs install
 
 # Astro
-astro add @frontman-ai/astro
+npx astro add @frontman-ai/astro
 
 # Vite (React, Vue, Svelte)
 npx @frontman-ai/vite install

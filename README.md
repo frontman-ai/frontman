@@ -94,19 +94,19 @@ npm run dev
 
 Works with App Router and Pages Router. Compatible with Turbopack.
 
-See the [Next.js integration guide](https://frontman.sh/integrations/nextjs/) for details.
+See the [Next.js integration guide](https://frontman.sh/docs/integrations/nextjs/) for details.
 
 ### Astro
 
 ```bash
-astro add @frontman-ai/astro
-astro dev
+npx astro add @frontman-ai/astro
+npm run dev
 # Open http://localhost:4321/frontman
 ```
 
 Listed on the [Astro integration registry](https://astro.build/integrations/?search=frontman). Understands Islands architecture, content collections, and SSR/hybrid modes.
 
-See the [Astro integration guide](https://frontman.sh/integrations/astro/) for details.
+See the [Astro integration guide](https://frontman.sh/docs/integrations/astro/) for details.
 
 ### Vite (React, Vue, Svelte)
 
@@ -118,7 +118,7 @@ npm run dev
 
 Auto-detects your framework from `vite.config`. Works with React, Vue, and Svelte — including SvelteKit.
 
-See the [Vite integration guide](https://frontman.sh/integrations/vite/) for details.
+See the [Vite integration guide](https://frontman.sh/docs/integrations/vite/) for details.
 
 Need setup help? Join the [Discord](https://discord.gg/xk8uXJSvhC) or open a [GitHub issue](https://github.com/frontman-ai/frontman/issues).
 
