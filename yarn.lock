@@ -16634,15 +16634,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rescript-vitest@https://github.com/cometkim/rescript-vitest.git#commit=662019a08334dd1b188efe6b0b306c9c0bcdb75a":
+"rescript-vitest@npm:2.1.1":
   version: 2.1.1
-  resolution: "rescript-vitest@https://github.com/cometkim/rescript-vitest.git#commit=662019a08334dd1b188efe6b0b306c9c0bcdb75a"
+  resolution: "rescript-vitest@npm:2.1.1"
   dependencies:
-    vitest: "npm:^4.1.7"
+    vitest: "npm:^3.1.4"
   peerDependencies:
     rescript: ^10.1.0 || ^11.0.0-0 || ^12.0.0-0
-    vite: ^6.0.0 || ^7.0.0 || ^8.0.0
-  checksum: 10c0/ef87dd2cdaf713fb42c2efbf9d016d96afd2359835fbacf713c18ac33da66b0f937853d88aac54c6931acaeb55a0f309e4c642e5ec6152b43e87b283ed2494c7
+    vite: ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
+  checksum: 10c0/313752ed7cfbb20d2efd18a67dcee0a8acf3116eefe5965458de61654ab7ddedc8a572c2e81d85524b95c8065318d73340d5a5fad749d58c38ebf31b8e5ff553
   languageName: node
   linkType: hard
 
@@ -19352,7 +19352,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vitest@npm:4.1.10, vitest@npm:^4.1.7":
+"vitest@npm:4.1.10":
   version: 4.1.10
   resolution: "vitest@npm:4.1.10"
   dependencies:
