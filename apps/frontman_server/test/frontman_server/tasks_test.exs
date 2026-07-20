@@ -671,44 +671,6 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "resolve_tool_request/5" do
-    test "returns the existing result for a duplicate tool_call_id", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-      tool_call_data = %{id: "call_dedup", name: "some_tool"}
-
-      assert {:ok, first, :no_executor} =
-               resolve_tool(
-                 scope,
-                 task_id,
-                 tool_call_data,
-                 MCP.tool_result_text("result1"),
-                 false,
-                 turn_number
-               )
-
-      assert {:ok, duplicate, :duplicate} =
-               resolve_tool(
-                 scope,
-                 task_id,
-                 tool_call_data,
-                 MCP.tool_result_text("result2"),
-                 false,
-                 turn_number
-               )
-
-      assert duplicate == first
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      tool_results =
-        Enum.filter(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
-
-      assert [%Tasks.Interaction.ToolResult{result: result}] = tool_results
-      assert result == MCP.tool_result_text("result1")
-    end
-  end
-
   describe "interaction persistence ordering" do
     test "mixed interaction writes persist strictly ordered unique positive sequences", %{
       scope: scope

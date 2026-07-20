@@ -21,46 +21,39 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
         parent = self()
 
         tasks =
-          Enum.map(["result1", "result2"], fn result ->
+          for result <- ["result1", "result2"] do
             Task.async(fn ->
               Sandbox.unboxed_run(Repo, fn ->
                 send(parent, {:ready, self()})
 
                 receive do
-                  :resolve ->
-                    Tasks.resolve_tool_request(
-                      scope,
-                      task_id,
-                      %{id: "call_dedup", name: "some_tool"},
-                      MCP.tool_result_text(result),
-                      false,
-                      turn_number: turn_number
-                    )
+                  :resolve -> resolve(scope, task_id, turn_number, result)
                 after
                   1_000 -> raise "timed out waiting to resolve tool result"
                 end
               end)
             end)
-          end)
+          end
 
-        task_pids =
-          Enum.map(tasks, fn _task ->
-            assert_receive {:ready, task_pid}, 1_000
-            task_pid
-          end)
-
-        Enum.each(task_pids, &send(&1, :resolve))
+        assert_receive {:ready, _task_pid}, 1_000
+        assert_receive {:ready, _task_pid}, 1_000
+        Enum.each(tasks, &send(&1.pid, :resolve))
 
         results = Enum.map(tasks, &Task.await(&1, 1_000))
 
-        assert Enum.sort(Enum.map(results, fn {:ok, _interaction, status} -> status end)) ==
-                 [:duplicate, :no_executor]
+        assert Enum.all?(results, &match?({:ok, _interaction, :no_executor}, &1))
 
-        assert 1 ==
-                 results
-                 |> Enum.map(fn {:ok, interaction, _status} -> interaction.id end)
-                 |> Enum.uniq()
-                 |> length()
+        [{:ok, canonical, :no_executor}, {:ok, canonical, :no_executor}] = results
+
+        Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, "call_dedup"}, %{
+          caller_pid: self()
+        })
+
+        assert {:ok, ^canonical, :notified} =
+                 resolve(scope, task_id, turn_number, "late result")
+
+        assert %{"content" => [%{"text" => canonical_text}]} = canonical.result
+        assert_receive {:tool_result, "call_dedup", [%{text: ^canonical_text}], false}
 
         {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -70,5 +63,16 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
         Repo.delete!(Scope.user(scope))
       end
     end)
+  end
+
+  defp resolve(scope, task_id, turn_number, result) do
+    Tasks.resolve_tool_request(
+      scope,
+      task_id,
+      %{id: "call_dedup", name: "some_tool"},
+      MCP.tool_result_text(result),
+      false,
+      turn_number: turn_number
+    )
   end
 end

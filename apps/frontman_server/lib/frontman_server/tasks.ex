@@ -683,8 +683,7 @@ defmodule FrontmanServer.Tasks do
   unique partial index on the interactions table.
 
   Returns `{:ok, interaction, :notified}` when a live executor received the result,
-  `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart),
-  and `{:ok, interaction, :duplicate}` when the database already contains the result.
+  and `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
   """
   def resolve_tool_request(
         scope,
@@ -708,7 +707,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp resolve_recorded_tool_result({:ok, interaction}, _task_id, _turn_number, _tool_call_id) do
-    {:ok, interaction, Execution.notify_tool_result(interaction)}
+    notify_recorded_tool_result(interaction)
   end
 
   defp resolve_recorded_tool_result(
@@ -728,11 +727,15 @@ defmodule FrontmanServer.Tasks do
           |> Repo.one!()
           |> Map.fetch!(:data)
 
-        {:ok, interaction, :duplicate}
+        notify_recorded_tool_result(interaction)
 
       false ->
         {:error, changeset}
     end
+  end
+
+  defp notify_recorded_tool_result(interaction) do
+    {:ok, interaction, Execution.notify_tool_result(interaction)}
   end
 
   defp tool_result_turn_number(task_id, tool_call_id, opts) do
