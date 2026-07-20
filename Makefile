@@ -490,12 +490,16 @@ publish-wordpress-plugin-svn: package-wordpress-plugin ## Publish WordPress.org 
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
 test-wordpress-core-tools: ## Run PHP tests for WordPress tool implementations
-	@php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
-	@php libs/frontman-wordpress/tests/ElementorToolsTest.php
-	@php libs/frontman-wordpress/tests/MediaToolsTest.php
-	@php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
-	@php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
-	@php libs/frontman-wordpress/tests/RouterTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ElementorToolsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MediaToolsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PluginDependenciesTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/RouterTest.php
+
+test-wordpress-runtime: ## Run plugin integration tests in WordPress 7.0.2 containers
+	@bash scripts/test-wordpress-plugin-runtime.sh
 
 ## REL_END
 
