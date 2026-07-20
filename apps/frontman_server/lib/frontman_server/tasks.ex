@@ -683,7 +683,8 @@ defmodule FrontmanServer.Tasks do
   unique partial index on the interactions table.
 
   Returns `{:ok, interaction, :notified}` when a live executor received the result,
-  `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
+  `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart),
+  and `{:ok, interaction, :duplicate}` when the database already contains the result.
   """
   def resolve_tool_request(
         scope,
@@ -696,14 +697,41 @@ defmodule FrontmanServer.Tasks do
       when is_boolean(is_error) and is_list(opts) do
     Logger.debug(fn -> "resolve_tool_result(#{inspect(result)})" end)
 
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
-         turn_number = tool_result_turn_number(task_id, tool_call_id, opts),
-         attrs = Interaction.ToolResult.attrs(tool_call_data, result, is_error),
-         {:ok, interaction} <-
-           record_interaction(schema, :tool_result, attrs, turn_number) do
-      executor_status = Execution.notify_tool_result(interaction)
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
+      attrs = Interaction.ToolResult.attrs(tool_call_data, result, is_error)
 
-      {:ok, interaction, executor_status}
+      schema
+      |> record_interaction(:tool_result, attrs, turn_number)
+      |> resolve_recorded_tool_result(task_id, turn_number, tool_call_id)
+    end
+  end
+
+  defp resolve_recorded_tool_result({:ok, interaction}, _task_id, _turn_number, _tool_call_id) do
+    {:ok, interaction, Execution.notify_tool_result(interaction)}
+  end
+
+  defp resolve_recorded_tool_result(
+         {:error, %Ecto.Changeset{} = changeset},
+         task_id,
+         turn_number,
+         tool_call_id
+       ) do
+    case InteractionSchema.duplicate_tool_result?(changeset) do
+      true ->
+        interaction =
+          InteractionSchema
+          |> InteractionSchema.for_task(task_id)
+          |> InteractionSchema.for_turn(turn_number)
+          |> InteractionSchema.of_type(:tool_result)
+          |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
+          |> Repo.one!()
+          |> Map.fetch!(:data)
+
+        {:ok, interaction, :duplicate}
+
+      false ->
+        {:error, changeset}
     end
   end
 

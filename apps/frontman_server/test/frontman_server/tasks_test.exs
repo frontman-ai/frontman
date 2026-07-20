@@ -672,23 +672,22 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "resolve_tool_request/5" do
-    test "rejects duplicate tool result for the same tool_call_id", %{scope: scope} do
+    test "returns the existing result for a duplicate tool_call_id", %{scope: scope} do
       task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
-
       tool_call_data = %{id: "call_dedup", name: "some_tool"}
 
-      {:ok, _first, _status} =
-        resolve_tool(
-          scope,
-          task_id,
-          tool_call_data,
-          MCP.tool_result_text("result1"),
-          false,
-          turn_number
-        )
+      assert {:ok, first, :no_executor} =
+               resolve_tool(
+                 scope,
+                 task_id,
+                 tool_call_data,
+                 MCP.tool_result_text("result1"),
+                 false,
+                 turn_number
+               )
 
-      assert {:error, %Ecto.Changeset{}} =
+      assert {:ok, duplicate, :duplicate} =
                resolve_tool(
                  scope,
                  task_id,
@@ -697,6 +696,8 @@ defmodule FrontmanServer.TasksTest do
                  false,
                  turn_number
                )
+
+      assert duplicate == first
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 

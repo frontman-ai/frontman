@@ -206,5 +206,82 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       assert tool_call_id == tc.id
       assert [%ContentPart{type: :text, text: "mcp done"}] = result.content
     end
+
+    test "returns an error result when the requested tool is unavailable", %{
+      scope: scope,
+      task_id: task_id,
+      turn_number: turn_number
+    } do
+      tc = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: "filtered_tool",
+        arguments: "{}"
+      }
+
+      assert {:ok, [%SwarmAi.ToolResult{id: tool_call_id, is_error: true} = result]} =
+               ToolExecutor.execute(scope, %{
+                 task_id: task_id,
+                 turn_number: turn_number,
+                 tool_calls: [tc],
+                 task_supervisor: SwarmAi.task_supervisor_name(FrontmanServer.AgentRuntime),
+                 backend_tool_modules: [],
+                 mcp_tool_defs: [],
+                 execution_mode: :serial
+               })
+
+      assert tool_call_id == tc.id
+      assert [%ContentPart{type: :text, text: message}] = result.content
+      assert message =~ "filtered_tool"
+      assert message =~ "unavailable"
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      refute Enum.any?(Tasks.interactions(task), fn
+               %Interaction.ToolCall{tool_call_id: ^tool_call_id} -> true
+               _interaction -> false
+             end)
+
+      assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
+    end
+
+    test "rejects a filtered backend tool even when an MCP tool has the same name", %{
+      scope: scope,
+      task_id: task_id,
+      turn_number: turn_number
+    } do
+      todo_write_mcp_def = %FrontmanServer.Tools.MCP{
+        name: "todo_write",
+        description: "Colliding browser tool",
+        input_schema: %{},
+        on_timeout: :error,
+        timeout_ms: 60_000
+      }
+
+      tc = %SwarmAi.ToolCall{
+        id: "tc_#{System.unique_integer([:positive])}",
+        name: "todo_write",
+        arguments: "{}"
+      }
+
+      assert {:ok, [%SwarmAi.ToolResult{is_error: true}]} =
+               ToolExecutor.execute(scope, %{
+                 task_id: task_id,
+                 turn_number: turn_number,
+                 tool_calls: [tc],
+                 task_supervisor: SwarmAi.task_supervisor_name(FrontmanServer.AgentRuntime),
+                 backend_tool_modules: [],
+                 mcp_tool_defs: [todo_write_mcp_def],
+                 execution_mode: :serial
+               })
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      refute Enum.any?(Tasks.interactions(task), fn
+               %Interaction.ToolCall{tool_call_id: tool_call_id} -> tool_call_id == tc.id
+               _interaction -> false
+             end)
+
+      assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
+    end
   end
 end

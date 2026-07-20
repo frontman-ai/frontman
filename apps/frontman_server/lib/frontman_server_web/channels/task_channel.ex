@@ -423,6 +423,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:ok, _interaction, :notified} ->
           socket
 
+        {:ok, _interaction, :duplicate} ->
+          socket
+
         {:ok, _interaction, :no_executor} ->
           # No live executor (agent dead after server restart). If all active-run
           # tool calls have results, resume the agent using model from the tool

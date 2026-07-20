@@ -1030,7 +1030,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "Got: #{inspect(meta.output)}"
     end
 
-    test "read-only agent cannot execute hidden backend write tools", %{
+    test "read-only agent rejects hidden backend write tools without executing them", %{
       task_id: task_id,
       scope: scope
     } do
@@ -1047,15 +1047,19 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       tc_id = "tc_todo_read_only_#{System.unique_integer([:positive])}"
       todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
 
-      expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
-        ReqLLMResponses.response({:tool_calls, [todo_tc], "Writing todos"})
-      end)
+      expect_llm_responses([
+        {:tool_calls, [todo_tc], "Writing todos"},
+        "Continued without the unavailable tool."
+      ])
 
       assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
 
-      refute_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements,
-                      %{tool_name: "todo_write"}},
-                     500
+      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, metadata}
+      assert metadata.tool_name == "todo_write"
+      assert metadata.is_error == true
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
+      assert {:ok, []} = Tasks.list_todos(scope, task_id)
     end
   end
 
