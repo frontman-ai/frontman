@@ -2377,7 +2377,7 @@ __metadata:
     "@types/babel__core": "npm:^7"
     "@types/react": "npm:^19.2.15"
     "@types/react-dom": "npm:^19.2.3"
-    "@zumer/snapdom": "npm:^2.12.2"
+    "@zumer/snapdom": "npm:^2.12.9"
     babel-plugin-react-compiler: "npm:^1.0.0"
     dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "npm:^0.5.0"
@@ -7930,10 +7930,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@zumer/snapdom@npm:^2.12.2":
-  version: 2.12.2
-  resolution: "@zumer/snapdom@npm:2.12.2"
-  checksum: 10c0/169ae388843a44ef2d786483195602bd192199427c12507bca6f460823ce3ad26a3a97c6f249254856064894feb5d82a503bb062fc470dd0a14f7961d1845db7
+"@zumer/snapdom@npm:^2.12.9":
+  version: 2.12.9
+  resolution: "@zumer/snapdom@npm:2.12.9"
+  checksum: 10c0/0a11bfadea0be7201450fc101d186574a1d30cabea4956a13375b741e47cff25873a146ad14caa83d013d89e237e56857f78e29a0f216d42461b94b0f5e60e95
   languageName: node
   linkType: hard
 
