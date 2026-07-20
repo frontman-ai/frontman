@@ -53,17 +53,17 @@ function statusLabel(status: Status): string {
                 <th scope="row" class:list={['px-6 py-4 text-left text-base font-semibold text-white/90', !isLast && 'border-b border-white/[0.06]']}>{feature.name}</th>
                 <td class:list={['bg-primary-500/[0.08] px-6 py-4', !isLast && 'border-b border-white/[0.06]']} aria-label={statusLabel(feature.frontman)}>
                   <div class="flex items-center gap-2">
-                    {feature.frontman === 'yes' && <svg class="inline-block text-green-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                    {feature.frontman === 'no' && <svg class="inline-block text-red-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-                    {feature.frontman === 'partial' && <svg class="inline-block text-amber-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+                    {feature.frontman === 'yes' && <svg class="inline-block shrink-0 text-green-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                    {feature.frontman === 'no' && <svg class="inline-block shrink-0 text-red-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+                    {feature.frontman === 'partial' && <svg class="inline-block shrink-0 text-amber-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
                     {feature.frontmanNote && <span class="text-[13px] text-white/50">{feature.frontmanNote}</span>}
                   </div>
                 </td>
                 <td class:list={['px-6 py-4', !isLast && 'border-b border-white/[0.06]']} aria-label={statusLabel(feature.competitor)}>
                   <div class="flex items-center gap-2">
-                    {feature.competitor === 'yes' && <svg class="inline-block text-green-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                    {feature.competitor === 'no' && <svg class="inline-block text-red-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-                    {feature.competitor === 'partial' && <svg class="inline-block text-amber-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+                    {feature.competitor === 'yes' && <svg class="inline-block shrink-0 text-green-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                    {feature.competitor === 'no' && <svg class="inline-block shrink-0 text-red-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+                    {feature.competitor === 'partial' && <svg class="inline-block shrink-0 text-amber-500" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
                     {feature.competitorNote && <span class="text-[13px] text-white/50">{feature.competitorNote}</span>}
                   </div>
                 </td>
@@ -83,17 +83,17 @@ function statusLabel(status: Status): string {
             <div class="flex items-center justify-between rounded-lg border border-primary-500/25 bg-primary-500/[0.12] px-3 py-2">
               <span class="text-sm font-semibold text-primary-500">Frontman</span>
               <span>
-                {feature.frontman === 'yes' && <svg class="inline-block text-green-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                {feature.frontman === 'no' && <svg class="inline-block text-red-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-                {feature.frontman === 'partial' && <svg class="inline-block text-amber-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+                {feature.frontman === 'yes' && <svg class="inline-block shrink-0 text-green-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                {feature.frontman === 'no' && <svg class="inline-block shrink-0 text-red-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+                {feature.frontman === 'partial' && <svg class="inline-block shrink-0 text-amber-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
               </span>
             </div>
             <div class="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2">
               <span class="text-sm text-white/60">{competitorName}</span>
               <span>
-                {feature.competitor === 'yes' && <svg class="inline-block text-green-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                {feature.competitor === 'no' && <svg class="inline-block text-red-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
-                {feature.competitor === 'partial' && <svg class="inline-block text-amber-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
+                {feature.competitor === 'yes' && <svg class="inline-block shrink-0 text-green-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                {feature.competitor === 'no' && <svg class="inline-block shrink-0 text-red-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>}
+                {feature.competitor === 'partial' && <svg class="inline-block shrink-0 text-amber-500" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>}
               </span>
             </div>
           </div>

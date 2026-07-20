@@ -53,7 +53,7 @@ export default defineConfig([
     noExternal: sharedNoExternal,
     external: sharedExternal,
     platform: 'node',
-    target: 'node18',
+    target: 'node22',
     treeshake: true,
   },
   // Integration entry point
@@ -66,7 +66,7 @@ export default defineConfig([
     noExternal: sharedNoExternal,
     external: sharedExternal,
     platform: 'node',
-    target: 'node18',
+    target: 'node22',
     treeshake: true,
   },
   // Toolbar entry point (runs in browser)

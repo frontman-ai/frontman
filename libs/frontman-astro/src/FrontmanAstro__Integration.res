@@ -42,17 +42,27 @@ let getAstroMajorVersion = () => getAstroVersion()->parseMajorVersion
 @module("./vite-plugin-props-injection.mjs")
 external frontmanPropsInjectionPlugin: unit => Bindings.vitePlugin = "frontmanPropsInjectionPlugin"
 
+@module("./vite-plugin-source-annotations.mjs")
+external frontmanSourceAnnotationsPlugin: unit => Bindings.vitePlugin =
+  "frontmanSourceAnnotationsPlugin"
+
 // Browser-side annotation capture script (exported as a string for injectScript)
 @module("./annotation-capture.mjs")
 external annotationCaptureScript: string = "annotationCaptureScript"
 
-// Rehype plugin that injects __frontman_content_file__ comments into markdown output.
-// This lets the annotation capture script resolve the source .md file for
-// elements rendered from markdown (which lack data-astro-source-file attributes).
-//
-// Registered as [attacher, options] tuple — unified calls attacher(options) to get the transformer.
-// A ReScript tuple (fn, opts) compiles to a JS array [fn, opts], which matches
-// the format Astro's markdown processor expects for rehype plugin entries.
+@module("./astro-route-rewrite.mjs")
+external prependFrontmanRouteRewrite: (
+  Bindings.viteDevServer,
+  string,
+  Bindings.trailingSlash,
+) => unit = "prependFrontmanRouteRewrite"
+
+@module("./markdown-content-file.mjs")
+external registerContentFilePlugin: (
+  option<Bindings.markdownProcessor>,
+  {..},
+) => [#legacy | #satteri | #unified | #unsupported] = "registerContentFilePlugin"
+
 @module("./rehype-content-file.mjs")
 external rehypeContentFile: {..} => Bindings.rehypePlugin = "rehypeContentFile"
 external asRehypePlugin: (({..} => Bindings.rehypePlugin, {..})) => Bindings.rehypePlugin =
@@ -81,8 +91,10 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
   // Detect Astro version to choose route discovery strategy.
   // v5+ provides astro:routes:resolved hook with authoritative route data.
   // v4 falls back to filesystem scanning of src/pages/.
-  let useResolvedRoutes = getAstroMajorVersion() >= 5
+  let astroMajorVersion = getAstroMajorVersion()
+  let useResolvedRoutes = astroMajorVersion >= 5
   let resolvedRoutes = ref([])
+  let trailingSlash = ref(#ignore)
 
   let routeDiscovery: Middleware.routeDiscovery = switch useResolvedRoutes {
   | true => ResolvedRoutes({getRoutes: () => resolvedRoutes.contents})
@@ -104,7 +116,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // (data-astro-source-file/loc) when devToolbar.enabled is true.
             // Without annotations, Frontman falls back to CSS selector detection
             // and cannot resolve the source component file/line for selected elements.
-            if !ctx.config.devToolbar.enabled {
+            if astroMajorVersion < 7 && !ctx.config.devToolbar.enabled {
               Console.warn(
                 "[Frontman] Astro devToolbar is disabled — element source detection will be limited. " ++ "Set `devToolbar: { enabled: true }` in your astro.config to enable full component source resolution.",
               )
@@ -140,23 +152,35 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             // component props as HTML comments into the SSR output.
             // This lets the client-side annotation capture script associate
             // props with each component instance for AI agent context.
+            let vitePlugins = switch astroMajorVersion >= 7 {
+            | true => [
+                middlewarePlugin,
+                frontmanSourceAnnotationsPlugin(),
+                frontmanPropsInjectionPlugin(),
+              ]
+            | false => [middlewarePlugin, frontmanPropsInjectionPlugin()]
+            }
             ctx.updateConfig({
               vite: ?Some({
-                plugins: ?Some([middlewarePlugin, frontmanPropsInjectionPlugin()]),
+                plugins: ?Some(vitePlugins),
               }),
             })
 
-            // Register rehype plugin as [attacher, options] tuple. Astro's markdown
-            // processor calls unified.use(attacher, options) — passing the pre-invoked
-            // transformer directly won't work because unified treats it as an attacher
-            // and calls it with no args.
-            ctx.updateConfig({
-              markdown: ?Some({
-                rehypePlugins: ?Some([
-                  asRehypePlugin((rehypeContentFile, {"projectRoot": config.sourceRoot})),
-                ]),
-              }),
-            })
+            switch registerContentFilePlugin(
+              ctx.config.markdown.processor,
+              {"projectRoot": config.sourceRoot},
+            ) {
+            | #satteri | #unified => ()
+            | #legacy =>
+              ctx.updateConfig({
+                markdown: ?Some({
+                  rehypePlugins: ?Some([
+                    asRehypePlugin((rehypeContentFile, {"projectRoot": config.sourceRoot})),
+                  ]),
+                }),
+              })
+            | #unsupported => Console.warn("[Frontman] Unsupported Markdown processor")
+            }
 
             // Register the dev toolbar app
             ctx.addDevToolbarApp({
@@ -181,53 +205,14 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
           }
         },
       ),
+      configDone: ?Some(({config}) => trailingSlash := config.trailingSlash),
       serverSetup: ?Some(
         ({server, toolbar}) => {
           // Initialize core LogCapture to intercept console/stdout for the
           // get_logs tool and post-edit error checking in edit_file
           FrontmanAiFrontmanCore.FrontmanCore__LogCapture.initialize()
 
-          // Rewrite Frontman routes so Astro's trailingSlash: "always" doesn't
-          // 404 them. Astro's trailing-slash check runs inside its Connect
-          // handler, before any middleware registered via configureServer.
-          // The only way to intercept first is to prepend a raw HTTP "request"
-          // listener that appends a trailing slash before Connect sees it.
-          //
-          // We rewrite:
-          //   /{basePath}         → /{basePath}/         (UI entry)
-          //   /{basePath}/tools   → /{basePath}/tools/   (API route)
-          //   /foo/{basePath}     → /foo/{basePath}/     (suffix UI route)
-          // Basically any path ending with /{basePath} or starting with
-          // /{basePath}/ that lacks a trailing slash.
-          let prependTrailingSlashRewrite: (Bindings.viteDevServer, string) => unit = %raw(`
-            function(server, basePath) {
-              var hs = server.httpServer;
-              if (!hs) return;
-              var prefix = "/" + basePath.toLowerCase();
-              var prefixSlash = prefix + "/";
-              var listeners = hs.listeners("request").slice();
-              hs.removeAllListeners("request");
-              hs.on("request", function(req) {
-                var raw = req.url || "";
-                var qIdx = raw.indexOf("?");
-                var path = (qIdx !== -1 ? raw.slice(0, qIdx) : raw).toLowerCase();
-                var needsSlash = false;
-                // Exact match: /frontman
-                if (path === prefix) needsSlash = true;
-                // Prefix API/UI routes: /frontman/tools, /frontman/tools/call, etc.
-                // Only when the path doesn't already end with /
-                else if (path.lastIndexOf("/") < path.length - 1 && (path.startsWith(prefixSlash) || path.endsWith(prefix))) needsSlash = true;
-                if (needsSlash) {
-                  var qs = qIdx !== -1 ? raw.slice(qIdx) : "";
-                  // Preserve original case: insert / before query string
-                  var pathPart = qIdx !== -1 ? raw.slice(0, qIdx) : raw;
-                  req.url = pathPart + "/" + qs;
-                }
-              });
-              for (var i = 0; i < listeners.length; i++) hs.on("request", listeners[i]);
-            }
-          `)
-          prependTrailingSlashRewrite(server, config.basePath)
+          prependFrontmanRouteRewrite(server, config.basePath, trailingSlash.contents)
 
           // Log when the toolbar app is initialized
           toolbar->Bindings.toolbarOnAppInitialized("frontman:toolbar", () => {

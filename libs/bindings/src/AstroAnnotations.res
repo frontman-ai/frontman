@@ -14,6 +14,7 @@ type annotation = {
 // Type matching window.__frontman_annotations__ API
 type annotationsApi = {
   get: WebAPI.DOMAPI.element => Nullable.t<annotation>,
+  getContentFile?: WebAPI.DOMAPI.element => Nullable.t<string>,
   has: WebAPI.DOMAPI.element => bool,
   size: unit => int,
   contentFile: Nullable.t<string>,

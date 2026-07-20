@@ -66,6 +66,22 @@ describe("Astro E2E", () => {
     expect(indexRoute.file).toContain("index.astro");
   });
 
+  it("should sync the preview URL after client-side navigation", async () => {
+    page = await context.newPage();
+    await openFrontmanUI(page, PORT);
+
+    const preview = page.frameLocator(`iframe[title^="Preview -"][src="http://localhost:${PORT}/"]`);
+    await preview.getByRole("link", { name: "About" }).click();
+
+    await page.waitForFunction(
+      (expectedUrl) =>
+        document.querySelector<HTMLInputElement>('input[type="text"]')?.value === expectedUrl,
+      `http://localhost:${PORT}/about/`,
+    );
+    await page.waitForURL(`http://localhost:${PORT}/about/frontman/`);
+    await page.close();
+  });
+
   it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 

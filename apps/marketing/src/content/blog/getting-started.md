@@ -12,7 +12,7 @@ By the end of this tutorial, you will have installed Frontman, connected an AI p
 
 ### Prerequisites
 
-- Node.js 18 or later
+- Node.js 18 or later (Node.js 22.19 or later for Astro)
 - A project using Next.js, Vite (React, Vue, or Svelte), or Astro
 - A running dev server (`npm run dev` or equivalent)
 - An account with an AI provider (Claude, OpenAI, or OpenRouter)

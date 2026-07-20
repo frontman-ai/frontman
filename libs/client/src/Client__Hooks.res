@@ -229,6 +229,28 @@ let getIframeWindowSafe = (iframe: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.
   }
 }
 
+@module("./iframe-location-observer.mjs")
+external observeWindowLocation: (WebAPI.DOMAPI.window, string => unit) => unit => unit =
+  "observeWindowLocation"
+
+type navigation
+
+@send
+external navigationAddEventListener: (
+  navigation,
+  string,
+  WebAPI.EventAPI.event => unit,
+  bool,
+) => unit = "addEventListener"
+
+@send
+external navigationRemoveEventListener: (
+  navigation,
+  string,
+  WebAPI.EventAPI.event => unit,
+  bool,
+) => unit = "removeEventListener"
+
 let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachmentKey: int) => {
   let (location, setLocation) = React.useState(() => None)
 
@@ -278,21 +300,23 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
             }
           }
 
-          WebAPI.Navigation.addEventListener(
-            iframeWindow->WebAPI.Window.navigation,
-            Custom("navigate"),
-            onNavigation,
-            ~options={capture: false},
+          let navigation: option<navigation> =
+            (
+              iframeWindow->WebAPI.Window.navigation->Obj.magic: Nullable.t<navigation>
+            )->Nullable.toOption
+          navigation->Option.forEach(navigation =>
+            navigation->navigationAddEventListener("navigate", onNavigation, false)
+          )
+          let cleanupLocationObserver = observeWindowLocation(iframeWindow, currentLocation =>
+            setLocation(_ => Some(currentLocation))
           )
 
           Some(
             () => {
               try {
-                WebAPI.Navigation.removeEventListener(
-                  iframeWindow->WebAPI.Window.navigation,
-                  Custom("navigate"),
-                  onNavigation,
-                  ~options={capture: false},
+                cleanupLocationObserver()
+                navigation->Option.forEach(navigation =>
+                  navigation->navigationRemoveEventListener("navigate", onNavigation, false)
                 )
               } catch {
               | exn =>

@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := help
-.PHONY: help install dev build deploy blog-cover
+.PHONY: help install test dev build deploy blog-cover
+
+PORT ?= 4321
 
 help: ## Display available commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -7,8 +9,11 @@ help: ## Display available commands
 install: ## Install dependencies
 	yarn install
 
+test: ## Run marketing tests
+	yarn run -T vitest run src/integrations/*.test.mjs
+
 dev: ## Start development server
-	yarn dev
+	yarn dev --port $(PORT)
 
 build: ## Build for production
 	yarn build

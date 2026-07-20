@@ -1,0 +1,8 @@
+{
+  "name": "frontman-astro-compat-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "astro build"
+  }
+}
