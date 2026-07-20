@@ -34,6 +34,12 @@ Then register it in your config:
 
 <CodeFromFile snippet="astro/astro.config.ts.txt" />
 
+:::note[Sign-in and AI provider required]
+The default setup connects to Frontman's hosted server at `api.frontman.sh`. When you first open `/frontman`, your browser redirects there so you can sign in to Frontman with a GitHub or Google account, then attempts to return to your project. Standard `localhost` and `127.0.0.1` URLs return automatically; if you use another local hostname and remain on the hosted page, reopen `/frontman` after signing in. Before your first prompt, connect a supported AI provider with OAuth or add an API key. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
+
+If you configure `host` or `FRONTMAN_HOST`, sign-in happens on that Frontman server instead. Self-hosted production servers still require GitHub or Google OAuth through WorkOS; see [Self-Hosting](/docs/reference/self-hosting/).
+:::
+
 ## Configuration
 
 All options are optional. Defaults are inferred from environment variables and the Astro config.

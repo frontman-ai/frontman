@@ -12,6 +12,12 @@ Frontman uses a split architecture:
 
 For local development, the server runs at `api.frontman.sh` (our hosted instance). **Self-hosting is only needed if you want to run your own instance of the orchestration server** — for data sovereignty, air-gapped environments, or custom modifications.
 
+:::caution[Self-hosting does not disable authentication]
+Production users who open `/frontman` are redirected to your Frontman server's login page and must sign in with GitHub or Google through WorkOS. Configure WorkOS credentials and redirect URIs before inviting users. After sign-in, Frontman returns users to accepted project URLs; if a custom local hostname is not accepted, they can reopen `/frontman` after signing in.
+
+Frontman account authentication is separate from model access. Each user must also connect a supported AI provider with OAuth or add an API key before sending a prompt. Email/password login is available only in development and test environments.
+:::
+
 :::note[When to self-host]
 **Most users don't need to self-host.** The client libraries are open source (Apache 2.0) and run entirely in your browser. Your source code never leaves your machine. The hosted server at `api.frontman.sh` only receives MCP tool calls (DOM queries, file reads/writes) and returns edits.
 

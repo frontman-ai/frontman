@@ -69,7 +69,7 @@ module SuccessMessages = {
         "(see details below)",
       )}`
 
-  let installComplete = (~devCommand: string, ~port: string) => {
+  let installComplete = (~devCommand: string, ~port: string, ~server: string) => {
     let p = Style.purple
     let pb = Style.purpleBold
     let d = Style.dim
@@ -80,6 +80,9 @@ module SuccessMessages = {
   ${pb("Next steps:")}
     ${p("1.")} Start your dev server   ${d(devCommand)}
     ${p("2.")} Open your browser to    ${d(`http://localhost:${port}/frontman`)}
+    ${p("3.")} Sign in on your Frontman server   ${d(server)}
+    ${p("4.")} Production sign-in uses GitHub or Google
+    ${p("5.")} After returning, connect an AI provider or add an API key
 
   ${p(
         "┌───────────────────────────────────────────────┐",

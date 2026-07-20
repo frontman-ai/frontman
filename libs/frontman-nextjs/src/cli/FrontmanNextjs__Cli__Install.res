@@ -220,7 +220,7 @@ let run = async (options: installOptions): installResult => {
             let devCommand = Detect.getDevCommand(info.packageManager)
             Console.log("")
             Console.log(`  ${Style.divider}`)
-            Console.log(Templates.SuccessMessages.installComplete(~devCommand))
+            Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
           }
           Success
         }
