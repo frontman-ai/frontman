@@ -1,68 +1,86 @@
 ---
 title: 'Frontman Quickstart: First UI Edit'
 pubDate: 2026-02-15T05:00:00Z
-description: 'Install Frontman, connect an AI provider, and make your first live UI edit — all in under five minutes. This tutorial walks through one complete change from install to diff.'
+description: 'Install the Frontman integration for Next.js, Vite, or Astro, open the /frontman workspace, connect an AI provider, and make your first UI edit.'
 author: 'Danni Friedland'
 image: '/blog/getting-started-cover.png'
 tags: ['tutorial', 'getting-started']
-updatedDate: 2026-04-14T00:00:00Z
+updatedDate: 2026-07-18T00:00:00Z
 ---
 
-By the end of this tutorial, you will have installed Frontman, connected an AI provider, clicked a button in your running app, changed its color with a plain English instruction, and seen the source code update. Total time: about five minutes.
+By the end of this tutorial, you will have installed Frontman, signed in, connected an AI provider, selected a button in your running app, and asked Frontman to edit its source code.
 
 ### Prerequisites
 
 - Node.js 18 or later (Node.js 22.19 or later for Astro)
-- A project using Next.js, Vite (React, Vue, or Svelte), or Astro
+- A project using Next.js 13.2-16, Vite 5 or 6, or Astro 5-7
 - A running dev server (`npm run dev` or equivalent)
-- An account with an AI provider (Claude, OpenAI, or OpenRouter)
+- A Frontman account; sign-in uses GitHub or Google OAuth
+- An Anthropic or OpenAI account, or an API key for a supported provider
 
 ### Step 1: Install Frontman
 
-Run the install command for your framework:
+Stop your dev server, then run the command for your framework from the project root.
 
 **Next.js:**
 ```bash
-npx frontman@latest init --framework nextjs
+npx @frontman-ai/nextjs install
 ```
 
 **Vite (React, Vue, or Svelte):**
 ```bash
-npx frontman@latest init --framework vite
+npx @frontman-ai/vite install
 ```
 
 **Astro:**
 ```bash
-npx frontman@latest init --framework astro
+npx astro add @frontman-ai/astro
 ```
 
-This adds Frontman as a dev dependency and creates a one-line plugin entry in your framework config. You can check the diff — it touches one config file.
+These commands install the framework-specific package and wire Frontman into the development server. The files changed depend on the framework:
+
+| Framework | Files added or updated |
+|---|---|
+| Next.js 16 | `package.json`, your lockfile, `proxy.ts`, and `instrumentation.ts` |
+| Next.js 13-15 | `package.json`, your lockfile, `middleware.ts`, and `instrumentation.ts` |
+| Vite | `package.json`, your lockfile, and `vite.config.ts`, `.js`, `.mts`, or `.mjs` |
+| Astro | `package.json`, your lockfile, and `astro.config.mjs` or equivalent |
+
+Run `git diff` after installation and review these changes before continuing.
 
 ### Step 2: Restart Your Dev Server
 
-Stop your dev server and start it again:
+Start your project as usual:
 
 ```bash
 npm run dev
 ```
 
-You should see `Frontman connected` in the terminal output. If you do not, check that the plugin line was added to your framework config — the init command prints the exact location.
+After installation, open `/frontman` on the same origin as your app:
 
-### Step 3: Connect an AI Provider
+- Next.js default: `http://localhost:3000/frontman`
+- Vite default: `http://localhost:5173/frontman`
+- Astro default: `http://localhost:4321/frontman`
 
-Open your app in the browser. You will see the Frontman overlay in the bottom-right corner. Click it to open the settings panel.
+Frontman opens as a full-page workspace with chat on the left and a live preview of your app on the right. If your dev server uses another port, keep that port and append `/frontman`.
 
-Choose your AI provider:
+### Step 3: Sign In
 
-- **Claude** — click Connect, follow the auth flow
-- **OpenAI** — click Connect, follow the auth flow
-- **OpenRouter** — paste your API key (gives you access to multiple models)
+On your first visit, Frontman shows a welcome dialog and redirects you to sign in. Complete GitHub or Google OAuth. After authentication, you return to the `/frontman` workspace.
 
-If you already have an account with any of these providers, this step takes about thirty seconds.
+### Step 4: Connect an AI Provider
 
-### Step 4: Change a Button Color
+Frontman requires a provider before chat is enabled. In the provider setup dialog, click **Connect AI provider**. The **Providers** settings tab supports:
 
-Find any button in your app. Click it. The Frontman selection overlay appears, showing you the component name, file path, and current styles.
+- **Anthropic Claude Pro/Max** through account authorization, or an Anthropic API key
+- **OpenAI** through account authorization
+- **NVIDIA**, **Fireworks AI**, or **OpenRouter** with an API key
+
+Connect one provider, then choose an available model in the chat composer. Provider credentials are saved to your Frontman account; they are not written into your project files.
+
+### Step 5: Select and Change a Button
+
+In the chat composer, click **Select**. The control changes to **Selecting…** and your cursor becomes a crosshair over the live preview. Click a button in the preview. Frontman adds the selected element to your prompt with its DOM, source, style, and screenshot context when available.
 
 Now type:
 
@@ -70,9 +88,9 @@ Now type:
 Make this button use our primary color
 ```
 
-Frontman reads your project's design tokens, finds the primary color value, traces the button back to its source file, and applies the change. Hot-reload fires. The button updates in the browser.
+Send the prompt. Frontman inspects the selected element and project context, edits the relevant source file, and lets your framework's hot reload update the preview.
 
-Check your terminal or editor — the source file has changed:
+The exact diff depends on your project. A Tailwind button change might look like this:
 
 ```diff
 - <button className="bg-gray-600 text-white px-4 py-2 rounded">
@@ -83,7 +101,7 @@ Check your terminal or editor — the source file has changed:
 
 The diff is in your working tree. Run `git diff` to see it. This is a normal code change — your team reviews it like any other PR.
 
-### Step 5: Iterate or Commit
+### Step 6: Iterate or Commit
 
 If the result is not quite right, describe what is off:
 
@@ -95,19 +113,23 @@ Frontman applies the correction. Keep iterating until it looks right, then commi
 
 ### What Just Happened
 
-You clicked a live UI element, described a change in plain English, and Frontman:
+You selected a live UI element inside the `/frontman` workspace, described a change in plain English, and Frontman:
 
-1. Identified which component renders that element
-2. Read its current styles (including resolved token values)
-3. Found the source file and line number
-4. Applied the edit using your project's conventions
-5. Hot-reload showed you the result
+1. Captured the selected element and its rendered context
+2. Resolved source and component information exposed by your framework
+3. Used your connected provider to plan and apply the edit
+4. Wrote the change to your normal working tree
+5. Let your framework's hot reload show the result
 
-No IDE. No file paths. No Tailwind class lookup. The change is real source code that goes through your normal review process.
+The result is real source code that goes through your normal review process.
 
 ### Next Steps
 
-- [Full documentation and framework guides](https://frontman.sh)
+- [Installation guide](/docs/installation/)
+- [Next.js integration](/docs/integrations/nextjs/)
+- [Vite integration](/docs/integrations/vite/)
+- [Astro integration](/docs/integrations/astro/)
+- [API keys and providers](/docs/api-keys/)
 - [What Frontman can and cannot do](/blog/frontman-launch/) — capabilities, tradeoffs, and how it fits into your team's workflow
 - [How Frontman compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/)
 - [Security model](/blog/security/) — how Frontman handles your source code

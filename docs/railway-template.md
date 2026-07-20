@@ -129,7 +129,7 @@ The server exposes `/health` for deployment health checks and listens on Railway
 3. Configure your WorkOS redirect URL for the Railway public domain.
 4. Install a Frontman integration in your app:
    - `npx @frontman-ai/nextjs install`
-   - `astro add @frontman-ai/astro`
+   - `npx astro add @frontman-ai/astro`
    - `npx @frontman-ai/vite install`
 5. Point the integration at your self-hosted Frontman server if required by your environment.
 6. Open `/frontman` in your running app, sign in, select an element, and request a frontend change.

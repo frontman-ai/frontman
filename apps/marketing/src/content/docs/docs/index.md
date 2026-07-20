@@ -23,7 +23,7 @@ Start here if Frontman isn't running in your project yet.
 
 | Framework | Install command | Docs |
 |-----------|----------------|------|
-| **Astro** | `astro add @frontman-ai/astro` | [Astro integration →](/docs/integrations/astro/) |
+| **Astro** | `npx astro add @frontman-ai/astro` | [Astro integration →](/docs/integrations/astro/) |
 | **Next.js** | `npx @frontman-ai/nextjs install` | [Next.js integration →](/docs/integrations/nextjs/) |
 | **Vite** | `npx @frontman-ai/vite install` | [Vite integration →](/docs/integrations/vite/) |
 | **WordPress** | [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/) (beta) | [WordPress setup →](/docs/integrations/wordpress/) |
