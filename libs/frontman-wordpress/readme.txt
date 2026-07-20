@@ -128,7 +128,10 @@ The WordPress plugin is open source and available on GitHub.
 1. Download the Frontman plugin release ZIP or upload the `frontman-agentic-ai-editor` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu
 3. Navigate to `/frontman` on your site (you must be logged in as an admin)
-4. Start describing WordPress edits beside the live preview
+4. Sign in to Frontman at `api.frontman.sh` with GitHub or Google when prompted
+5. Return to `/frontman` on your site if Frontman does not redirect you back automatically
+6. Connect an AI provider with OAuth or add an API key
+7. Start describing WordPress edits beside the live preview
 
 == Frequently Asked Questions ==
 
@@ -136,6 +139,10 @@ The WordPress plugin is open source and available on GitHub.
 = Do I need another server? =
 
 No. Frontman now runs the WordPress tools, Elementor editing tools, and WooCommerce tools directly in PHP inside the plugin.
+
+= Do I need a Frontman account and AI provider? =
+
+Yes. Your WordPress administrator login protects the site tools. Frontman separately requires sign-in with a GitHub or Google account at `api.frontman.sh`. Before your first prompt, you must also connect a supported AI provider with OAuth or add an API key. Frontman does not include a built-in model credential.
 
 = Do I need to know code? =
 

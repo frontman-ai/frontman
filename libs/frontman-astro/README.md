@@ -34,6 +34,8 @@ export default defineConfig({
 
 Then start your dev server and open `http://localhost:4321/frontman/`.
 
+With the default hosted setup, Frontman redirects you to `api.frontman.sh` to sign in with GitHub or Google, then returns you to the local `/frontman` URL. Before your first prompt, connect a supported AI provider with OAuth or add an API key. If you configured another Frontman server, sign in on that server instead.
+
 ## What it does
 
 The integration automatically (in dev mode only):
