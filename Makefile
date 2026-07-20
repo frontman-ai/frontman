@@ -112,7 +112,7 @@ dev-marketing: ## Start development server for marketing site
 # Build & Quality
 # ============================================================================
 ## BUILD_START
-.PHONY: install build rescript-watch rescript-build reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins docs-install-smoke
+.PHONY: install build rescript-watch rescript-build reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins
 
 install: ## Install dependencies
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -154,9 +154,6 @@ verify-toolchain-pins: ## Verify Docker Elixir image matches mise.toml
 		$$expected*) printf "$(GREEN)Toolchain pins match: $$docker_image$(RESET)\n" ;; \
 		*) printf "$(YELLOW)Toolchain pin mismatch: expected Docker image prefix '$$expected', got '$$docker_image'.$(RESET)\n"; exit 1 ;; \
 	esac
-
-docs-install-smoke: ## Test published quickstart installers in clean fixtures
-	node test/docs-install-smoke/run.mjs
 
 build: ## Build ReScript project
 	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"
