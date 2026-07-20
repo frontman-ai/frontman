@@ -5,15 +5,15 @@ description: 'Install the Frontman integration for Next.js, Vite, or Astro, open
 author: 'Danni Friedland'
 image: '/blog/getting-started-cover.png'
 tags: ['tutorial', 'getting-started']
-updatedDate: 2026-07-18T00:00:00Z
+updatedDate: 2026-07-20T00:00:00Z
 ---
 
 By the end of this tutorial, you will have installed Frontman, signed in, connected an AI provider, selected a button in your running app, and asked Frontman to edit its source code.
 
 ### Prerequisites
 
-- Node.js 18 or later (Node.js 22.19 or later for Astro)
-- A project using Next.js 13.2-16, Vite 5 or 6, or Astro 5-7
+- A Node.js version supported by your framework
+- A project using Next.js 13.2-16, Vite 5 or later, or Astro 5-6
 - A running dev server (`npm run dev` or equivalent)
 - A Frontman account; sign-in uses GitHub or Google OAuth
 - An Anthropic or OpenAI account, or an API key for a supported provider
@@ -41,12 +41,16 @@ These commands install the framework-specific package and wire Frontman into the
 
 | Framework | Files added or updated |
 |---|---|
-| Next.js 16 | `package.json`, your lockfile, `proxy.ts`, and `instrumentation.ts` |
+| Next.js 16 | `package.json`, your lockfile, `proxy.ts`, and `instrumentation.ts` or `src/instrumentation.ts` |
 | Next.js 13-15 | `package.json`, your lockfile, `middleware.ts`, and `instrumentation.ts` |
 | Vite | `package.json`, your lockfile, and `vite.config.ts`, `.js`, `.mts`, or `.mjs` |
 | Astro | `package.json`, your lockfile, and `astro.config.mjs` or equivalent |
 
 Run `git diff` after installation and review these changes before continuing.
+
+These compatibility ranges describe the current packages published to npm. Repository support can land before a new package release, so use the published package metadata as the source of truth.
+
+If your Next.js 16 project uses a `src/` directory, the current installer creates `proxy.ts` at the project root. Move it to `src/proxy.ts` before restarting the dev server. Next.js only loads the proxy from the same level as your `app/` or `pages/` directory.
 
 ### Step 2: Restart Your Dev Server
 
