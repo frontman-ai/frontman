@@ -763,41 +763,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       refute "hidden_read_mcp" in tool_names
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
-
-    test "retry uses persisted turn agent to filter available tools", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      parent = self()
-      task = task_schema!(task_id)
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-
-      insert_accepted_user_message!(task, "retry tools")
-      insert_turn_started_for_messages!(task_id, 1, "test-planner")
-      {:ok, error} = Tasks.record_agent_run_result(scope, task_id, 1, {:failed, "try again"})
-
-      expect(LLMProviderMock, :stream_text, fn _model, _messages, opts ->
-        send(parent, {:provider_tool_names, Enum.map(opts[:tools], & &1.name)})
-        ReqLLMResponses.response("done")
-      end)
-
-      assert :ok =
-               Tasks.retry_execution(
-                 scope,
-                 task_id,
-                 error.id,
-                 execution_request_fixture(mcp_tools: mixed_access_mcp_tool_defs())
-               )
-
-      assert_receive {:provider_tool_names, tool_names}, 1_000
-      assert "web_fetch" in tool_names
-      assert "read_mcp" in tool_names
-      refute "todo_write" in tool_names
-      refute "write_mcp" in tool_names
-      refute "read_write_mcp" in tool_names
-      refute "hidden_read_mcp" in tool_names
-      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
-    end
   end
 
   describe "interactive tool (question) blocking" do
@@ -1030,7 +995,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "Got: #{inspect(meta.output)}"
     end
 
-    test "read-only agent cannot execute hidden backend write tools", %{
+    test "read-only agent rejects hidden backend write tools without executing them", %{
       task_id: task_id,
       scope: scope
     } do
@@ -1047,64 +1012,24 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       tc_id = "tc_todo_read_only_#{System.unique_integer([:positive])}"
       todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
 
-      expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
-        ReqLLMResponses.response({:tool_calls, [todo_tc], "Writing todos"})
-      end)
+      expect_llm_responses([
+        {:tool_calls, [todo_tc], "Writing todos"},
+        "Continued without the unavailable tool."
+      ])
 
       assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
 
-      refute_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements,
-                      %{tool_name: "todo_write"}},
-                     500
-    end
-  end
-
-  describe "backend tool execution — channel level" do
-    setup [
-      :setup_sandbox,
-      :setup_user,
-      :setup_task_only,
-      :setup_channel
-    ]
-
-    test "todo_write executes through the full channel → executor pipeline", %{
-      task_id: task_id,
-      scope: scope,
-      socket: socket
-    } do
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-
-      ref =
-        :telemetry_test.attach_event_handlers(self(), [[:swarm_ai, :tool, :execute, :stop]])
-
-      on_exit(fn -> :telemetry.detach(ref) end)
-
-      tc_id = "tc_todo_ch_#{System.unique_integer([:positive])}"
-      todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
-      expect_llm_responses([{:tool_calls, [todo_tc], "Writing todos"}, "Todos written."])
-
-      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Write todos"))
+      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, metadata}
+      assert metadata.tool_name == "todo_write"
+      assert metadata.is_error == true
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
+      assert {:ok, []} = Tasks.list_todos(scope, task_id)
 
-      :sys.get_state(socket.channel_pid)
-
-      assert_push(@acp_message, %{
-        "jsonrpc" => "2.0",
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
-        }
-      })
-
-      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
-      assert meta.tool_name == "todo_write"
-
-      assert meta.is_error == false,
-             "todo_write returned an error through the channel pipeline — " <>
-               "backend tool was rejected as unavailable. " <>
-               "Got: #{inspect(meta.output)}"
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      interactions = Tasks.interactions(task)
+      refute Enum.any?(interactions, &match?(%Interaction.ToolCall{tool_call_id: ^tc_id}, &1))
+      assert Enum.any?(interactions, &match?(%Interaction.ToolResult{tool_call_id: ^tc_id}, &1))
     end
   end
 

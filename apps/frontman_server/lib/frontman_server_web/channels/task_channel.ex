@@ -404,14 +404,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     is_error = MCP.error?(result)
     meta = result["_meta"] || %{}
 
-    status = ACP.tool_call_status(is_error)
-
-    Logger.info("Tool #{tool_call.tool_name} #{status}")
-
-    content = ACP.Content.from_tool_result(result)
-    notification = ACP.tool_call_update(task_id, tool_call.tool_call_id, status, content)
-    push(socket, @acp_message, notification)
-
     socket =
       case Tasks.resolve_tool_request(
              scope,
@@ -420,27 +412,14 @@ defmodule FrontmanServerWeb.TaskChannel do
              result,
              is_error
            ) do
-        {:ok, _interaction, :notified} ->
-          socket
+        {:ok, interaction, executor_status} ->
+          status = ACP.tool_call_status(interaction.is_error)
+          content = ACP.Content.from_tool_result(interaction.result)
+          notification = ACP.tool_call_update(task_id, interaction.tool_call_id, status, content)
+          push(socket, @acp_message, notification)
+          Logger.info("Tool #{interaction.tool_name} #{status}")
 
-        {:ok, _interaction, :no_executor} ->
-          # No live executor (agent dead after server restart). If all active-run
-          # tool calls have results, resume the agent using model from the tool
-          # result's _meta (sent by the client per MCP spec).
-          case Tasks.get_active_run_unresolved_tool_calls(scope, task_id) do
-            {:ok, _turn_number, []} ->
-              Logger.info(
-                "Active agent run has no unresolved tool calls for #{task_id}, resuming agent"
-              )
-
-              resume_agent(socket, scope, task_id, meta)
-
-            {:ok, _turn_number, [_ | _]} ->
-              socket
-
-            {:ok, :no_active_run} ->
-              socket
-          end
+          resume_after_tool_result(executor_status, socket, scope, task_id, meta)
 
         {:error, reason} ->
           Logger.warning(
@@ -451,6 +430,25 @@ defmodule FrontmanServerWeb.TaskChannel do
       end
 
     {:noreply, socket}
+  end
+
+  defp resume_after_tool_result(:notified, socket, _scope, _task_id, _meta), do: socket
+
+  defp resume_after_tool_result(:no_executor, socket, scope, task_id, meta) do
+    case Tasks.get_active_run_unresolved_tool_calls(scope, task_id) do
+      {:ok, _turn_number, []} ->
+        Logger.info(
+          "Active agent run has no unresolved tool calls for #{task_id}, resuming agent"
+        )
+
+        resume_agent(socket, scope, task_id, meta)
+
+      {:ok, _turn_number, [_ | _]} ->
+        socket
+
+      {:ok, :no_active_run} ->
+        socket
+    end
   end
 
   defp resume_agent(socket, scope, task_id, meta) do
@@ -534,18 +532,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     Logger.error("MCP tool execution failed", metadata)
 
-    failed_content = ACP.Content.from_tool_result(error_message)
-
-    failed_notification =
-      ACP.tool_call_update(
-        task_id,
-        tool_call.tool_call_id,
-        ACP.tool_call_status_failed(),
-        failed_content
-      )
-
-    push(socket, @acp_message, failed_notification)
-
     # Store error result and notify agent.
     # :no_executor means the agent is dead (e.g. server restart). Unlike the
     # success path in handle_tool_call_response/4, we don't auto-resume here because MCP
@@ -558,7 +544,11 @@ defmodule FrontmanServerWeb.TaskChannel do
            ModelContextProtocol.tool_result_error(error_message),
            true
          ) do
-      {:ok, _interaction, _executor_status} ->
+      {:ok, interaction, _executor_status} ->
+        status = ACP.tool_call_status(interaction.is_error)
+        content = ACP.Content.from_tool_result(interaction.result)
+        notification = ACP.tool_call_update(task_id, interaction.tool_call_id, status, content)
+        push(socket, @acp_message, notification)
         :ok
 
       {:error, reason} ->

@@ -35,6 +35,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     discovered_project_structure: Interaction.DiscoveredProjectStructure
   ]
 
+  @tool_result_unique_constraint :interactions_tool_result_turn_uniqueness
+
   @type_values Keyword.keys(@types)
   @task_scoped_types [:discovered_project_rule, :discovered_project_structure]
 
@@ -118,6 +120,15 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: fragment("?->>?", i.data, ^field) == ^value)
   end
 
+  def duplicate_tool_result?(%Ecto.Changeset{} = changeset) do
+    Enum.any?(changeset.errors, fn {_field, {_message, metadata}} ->
+      case {Keyword.fetch(metadata, :constraint), Keyword.fetch(metadata, :constraint_name)} do
+        {{:ok, :unique}, {:ok, name}} -> name == Atom.to_string(@tool_result_unique_constraint)
+        _other_constraint -> false
+      end
+    end)
+  end
+
   def unresolved_tool_calls(query \\ __MODULE__) do
     from(i in query,
       left_join: r in __MODULE__,
@@ -146,7 +157,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> validate_turn_number()
     |> foreign_key_constraint(:task_id)
     |> unique_constraint([:task_id, :data],
-      name: :interactions_tool_result_turn_uniqueness,
+      name: @tool_result_unique_constraint,
       message: "duplicate tool result for this tool_call_id"
     )
   end
