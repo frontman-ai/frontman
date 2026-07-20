@@ -1,5 +1,11 @@
 # @frontman-ai/nextjs
 
+## 1.0.3
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
 ## 1.0.2
 
 ### Patch Changes

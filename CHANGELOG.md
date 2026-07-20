@@ -3,6 +3,59 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [2.0.0] - 2026-07-20
+
+
+#### @frontman-ai/client
+
+
+### Patch Changes
+
+- [#1292](https://github.com/frontman-ai/frontman/pull/1292) [`6097f0b`](https://github.com/frontman-ai/frontman/commit/6097f0be83ab3ff3a79f06306fd63fae21534481) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Astro 7 support while preserving Astro 5 and 6 compatibility. Raise the minimum Node.js version to 22.19, support Sätteri and unified Markdown processors, restore source annotations under Astro's Rust compiler, harden component prop capture, honor Astro's trailing-slash policy, and keep preview URLs synchronized during client-side navigation.
+
+#### @frontman-ai/astro
+
+
+### Major Changes
+
+- [#1292](https://github.com/frontman-ai/frontman/pull/1292) [`6097f0b`](https://github.com/frontman-ai/frontman/commit/6097f0be83ab3ff3a79f06306fd63fae21534481) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Astro 7 support while preserving Astro 5 and 6 compatibility. Raise the minimum Node.js version to 22.19, support Sätteri and unified Markdown processors, restore source annotations under Astro's Rust compiler, harden component prop capture, honor Astro's trailing-slash policy, and keep preview URLs synchronized during client-side navigation.
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+#### @frontman-ai/frontman-client
+
+
+### Patch Changes
+
+- [#1303](https://github.com/frontman-ai/frontman/pull/1303) [`1e04b55`](https://github.com/frontman-ai/frontman/commit/1e04b553677ed045415dde90b89cadd682860b2d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover when an agent requests a tool unavailable under its current access policy instead of crashing the task or leaving unresolved tool history.
+
+#### @frontman-ai/nextjs
+
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+#### @frontman-ai/vite
+
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Minor Changes
+
+- [#1306](https://github.com/frontman-ai/frontman/pull/1306) [`84d9997`](https://github.com/frontman-ai/frontman/commit/84d9997834cdf0d77f42f744458e056b81602260) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add verified WordPress 7 support, including nested Gutenberg block paths, block-theme navigation tools, and WordPress 7.0.2 runtime coverage on PHP 7.4 and 8.4.
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
 ## [1.4.0] - 2026-07-18
 
 

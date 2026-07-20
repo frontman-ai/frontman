@@ -1,6 +1,6 @@
 {
 	"name": "@frontman-ai/astro",
-	"version": "1.0.3",
+	"version": "2.0.0",
 	"description": "Astro integration for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
