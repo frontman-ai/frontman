@@ -88,6 +88,7 @@ The framework integration turns your local dev server into an [MCP server](https
 
 ```bash
 npx @frontman-ai/nextjs install
+# If your project uses src/: mv proxy.ts src/proxy.ts
 npm run dev
 # Open http://localhost:3000/frontman
 ```
@@ -104,7 +105,7 @@ npm run dev
 # Open http://localhost:4321/frontman
 ```
 
-Listed on the [Astro integration registry](https://astro.build/integrations/?search=frontman). Understands Islands architecture, content collections, and SSR/hybrid modes.
+Compatible with Astro 5 and 6. Listed on the [Astro integration registry](https://astro.build/integrations/?search=frontman). Understands Islands architecture, content collections, and SSR/hybrid modes.
 
 See the [Astro integration guide](https://frontman.sh/docs/integrations/astro/) for details.
 
