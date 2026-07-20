@@ -296,6 +296,10 @@ class Frontman_Tool_Blocks {
 
 		$raw_index = array_shift( $parent_path );
 		if ( empty( $parent_path ) ) {
+			$inner_content = $blocks[ $raw_index ]['innerContent'] ?? null;
+			if ( ! is_array( $inner_content ) || ! in_array( null, $inner_content, true ) ) {
+				throw new Frontman_Tool_Error( 'Parent block does not support nested blocks' );
+			}
 			$children = $blocks[ $raw_index ]['innerBlocks'] ?? [];
 			$index = min( $index, count( $children ) );
 			array_splice( $children, $index, 0, [ $block ] );

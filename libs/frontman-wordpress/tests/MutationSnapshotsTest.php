@@ -799,6 +799,19 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( 5, $listed['total_block_count'], 'wp_list_blocks includes nested named blocks' );
 		$this->assert_same( [ 0, 1, 0 ], $listed['all_blocks'][3]['path'], 'wp_list_blocks returns stable nested paths' );
 		$this->assert_same( 'core/paragraph', $tool->read_block( [ 'post_id' => 12, 'path' => [ 0, 1, 0 ] ] )['name'], 'wp_read_block reads nested blocks by path' );
+		$original_content = get_post( 12 )->post_content;
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->insert_block( [
+					'post_id' => 12,
+					'parent_path' => [ 0, 0 ],
+					'block_markup' => '<p>Invalid nested paragraph</p>',
+				] );
+			},
+			'does not support nested blocks',
+			'wp_insert_block rejects leaf blocks as nested parents'
+		);
+		$this->assert_same( $original_content, get_post( 12 )->post_content, 'wp_insert_block preserves content after rejecting a leaf parent' );
 
 		$updated = $tool->update_block( [
 			'post_id' => 12,
