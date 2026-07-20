@@ -38,14 +38,13 @@
 	"dependencies": {
 		"rescript": "catalog:"
 	},
-	"resolutions_comment": "Overrides for transitive vulnerabilities and known-compatible dependency metadata.",
+	"resolutions_comment": "Minimal security overrides for transitive deps whose upstream ranges still resolve vulnerable versions.",
 	"resolutions": {
 		"qs": ">=6.15.2",
 		"glob": ">=13.0.5",
 		"yaml": ">=2.8.3",
 		"esbuild": ">=0.28.1",
-		"postcss": ">=8.5.10",
-		"vitest": "4.1.10"
+		"postcss": ">=8.5.10"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.7.0",
