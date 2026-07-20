@@ -13,7 +13,7 @@ By the end of this tutorial, you will have installed Frontman, signed in, connec
 ### Prerequisites
 
 - A Node.js version supported by your framework
-- A project using Next.js 13.2-16, Vite 5 or later, or Astro 5-6
+- A project using Next.js 13.2-16, Vite 5 or later, or Astro 5-7 on Node.js 22.19 or newer
 - A running dev server (`npm run dev` or equivalent)
 - A Frontman account; sign-in uses GitHub or Google OAuth
 - An Anthropic or OpenAI account, or an API key for a supported provider
