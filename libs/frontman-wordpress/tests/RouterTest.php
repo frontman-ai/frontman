@@ -48,6 +48,9 @@ class Frontman_Router_Test_Runner {
 		$this->classifyRoute = $reflection->getMethod( 'classify_route' );
 		$this->getRequestPath = $reflection->getMethod( 'get_request_path' );
 		$this->sendSseToolResult = $reflection->getMethod( 'send_sse_tool_result' );
+		$this->classifyRoute->setAccessible( true );
+		$this->getRequestPath->setAccessible( true );
+		$this->sendSseToolResult->setAccessible( true );
 	}
 
 	public function run(): void {

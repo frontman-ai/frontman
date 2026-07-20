@@ -121,6 +121,18 @@ if ( ! function_exists( 'get_post' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_posts' ) ) {
+	function get_posts( array $args ): array {
+		return array_values( array_filter( $GLOBALS['frontman_test_posts'], static function( $post ) use ( $args ) {
+			if ( isset( $args['post_type'] ) && $post->post_type !== $args['post_type'] ) {
+				return false;
+			}
+
+			return ! isset( $args['post_status'] ) || 'any' === $args['post_status'] || $post->post_status === $args['post_status'];
+		} ) );
+	}
+}
+
 if ( ! function_exists( 'wp_insert_post' ) ) {
 	function wp_insert_post( array $post_data, bool $wp_error = false ) {
 		$post_data = wp_unslash( $post_data );
@@ -217,9 +229,37 @@ if ( ! function_exists( 'add_post_meta' ) ) {
 
 if ( ! function_exists( 'parse_blocks' ) ) {
 	function parse_blocks( string $content ): array {
+		if ( 'NESTED_BLOCK_FIXTURE' === $content ) {
+			return [
+				[
+					'blockName' => 'core/group',
+					'attrs' => [],
+					'innerHTML' => '<div></div>',
+					'innerContent' => [ '<div>', null, null, '</div>' ],
+					'innerBlocks' => [
+						[ 'blockName' => 'core/paragraph', 'attrs' => [], 'innerHTML' => '<p>Nested one</p>', 'innerContent' => [ '<p>Nested one</p>' ], 'innerBlocks' => [], 'markup' => '<p>Nested one</p>' ],
+						[
+							'blockName' => 'core/group',
+							'attrs' => [],
+							'innerHTML' => '<div></div>',
+							'innerContent' => [ '<div>', null, '</div>' ],
+							'innerBlocks' => [
+								[ 'blockName' => 'core/paragraph', 'attrs' => [], 'innerHTML' => '<p>Nested two</p>', 'innerContent' => [ '<p>Nested two</p>' ], 'innerBlocks' => [], 'markup' => '<p>Nested two</p>' ],
+							],
+						],
+					],
+				],
+				[ 'blockName' => 'core/paragraph', 'attrs' => [], 'innerHTML' => '<p>Top level</p>', 'innerContent' => [ '<p>Top level</p>' ], 'innerBlocks' => [], 'markup' => '<p>Top level</p>' ],
+			];
+		}
+
 		$parts = array_values( array_filter( explode( "\n\n", $content ) ) );
 		$blocks = [];
 		foreach ( $parts as $part ) {
+			if ( 0 === strpos( $part, 'BLOCK:' ) ) {
+				$blocks[] = unserialize( base64_decode( substr( $part, 6 ) ) );
+				continue;
+			}
 			if ( 0 === strpos( $part, 'RAW:' ) || 0 === strpos( $part, '<div>' ) ) {
 				$markup = 0 === strpos( $part, 'RAW:' ) ? substr( $part, 4 ) : $part;
 				$blocks[] = [
@@ -246,7 +286,11 @@ if ( ! function_exists( 'parse_blocks' ) ) {
 
 if ( ! function_exists( 'serialize_block' ) ) {
 	function serialize_block( array $block ): string {
-		return $block['markup'];
+		if ( array_key_exists( 'markup', $block ) && empty( $block['innerBlocks'] ) ) {
+			return $block['markup'];
+		}
+
+		return 'BLOCK:' . base64_encode( serialize( $block ) );
 	}
 }
 
@@ -521,8 +565,10 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->test_posts_include_before_snapshots();
 		$this->test_blocks_include_before_snapshots();
 		$this->test_block_move_and_delete_snapshots();
+		$this->test_nested_blocks_use_stable_paths();
 		$this->test_duplicate_post_copies_page_metadata();
 		$this->test_menu_management_snapshots();
+		$this->test_block_navigation_management();
 		$this->test_menu_item_creation_includes_before_snapshot();
 		$this->test_menu_option_and_widget_updates_include_before_snapshots();
 		$this->test_theme_source_tools();
@@ -566,6 +612,25 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$slash_post->post_author = 1;
 		$slash_post->post_name = 'slash-before';
 		$GLOBALS['frontman_test_posts'][11] = $slash_post;
+
+		$nested_post = new WP_Post();
+		$nested_post->ID = 12;
+		$nested_post->post_title = 'Nested Blocks';
+		$nested_post->post_content = 'NESTED_BLOCK_FIXTURE';
+		$nested_post->post_excerpt = '';
+		$nested_post->post_status = 'publish';
+		$nested_post->post_type = 'page';
+		$GLOBALS['frontman_test_posts'][12] = $nested_post;
+
+		$navigation = new WP_Post();
+		$navigation->ID = 30;
+		$navigation->post_title = 'Header Navigation';
+		$navigation->post_content = '<!-- wp:navigation-link {"label":"Home","url":"/"} /-->';
+		$navigation->post_excerpt = '';
+		$navigation->post_status = 'publish';
+		$navigation->post_type = 'wp_navigation';
+		$navigation->post_name = 'header-navigation';
+		$GLOBALS['frontman_test_posts'][30] = $navigation;
 
 		$GLOBALS['frontman_test_menu_terms'][7] = (object) [
 			'term_id' => 7,
@@ -726,6 +791,67 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_true( false !== strpos( $deleted['after']['post_content'], 'C:\\tmp\\file' ), 'wp_delete_block preserves existing backslash-sensitive block markup' );
 	}
 
+	private function test_nested_blocks_use_stable_paths(): void {
+		$tool = new Frontman_Tool_Blocks();
+		$listed = $tool->list_blocks( [ 'post_id' => 12 ] );
+
+		$this->assert_same( 2, $listed['block_count'], 'wp_list_blocks preserves top-level block count' );
+		$this->assert_same( 5, $listed['total_block_count'], 'wp_list_blocks includes nested named blocks' );
+		$this->assert_same( [ 0, 1, 0 ], $listed['all_blocks'][3]['path'], 'wp_list_blocks returns stable nested paths' );
+		$this->assert_same( 'core/paragraph', $tool->read_block( [ 'post_id' => 12, 'path' => [ 0, 1, 0 ] ] )['name'], 'wp_read_block reads nested blocks by path' );
+		$original_content = get_post( 12 )->post_content;
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->insert_block( [
+					'post_id' => 12,
+					'parent_path' => [ 0, 0 ],
+					'block_markup' => '<p>Invalid nested paragraph</p>',
+				] );
+			},
+			'does not support nested blocks',
+			'wp_insert_block rejects leaf blocks as nested parents'
+		);
+		$this->assert_same( $original_content, get_post( 12 )->post_content, 'wp_insert_block preserves content after rejecting a leaf parent' );
+
+		$updated = $tool->update_block( [
+			'post_id' => 12,
+			'path' => [ 0, 1, 0 ],
+			'block_markup' => '<p>Updated nested</p>',
+		] );
+		$this->assert_same( '<p>Updated nested</p>', $updated['after']['block']['markup'], 'wp_update_block replaces a nested block by path' );
+
+		$inserted = $tool->insert_block( [
+			'post_id' => 12,
+			'parent_path' => [ 0, 1 ],
+			'index' => 1,
+			'block_markup' => '<p>Inserted nested</p>',
+		] );
+		$this->assert_same( 6, $inserted['after']['blocks']['total_block_count'], 'wp_insert_block inserts into a nested parent path' );
+
+		$moved = $tool->move_block( [
+			'post_id' => 12,
+			'from_path' => [ 0, 0 ],
+			'to_parent_path' => [ 0, 1 ],
+			'to_index' => 0,
+		] );
+		$this->assert_same( 'Nested one', $moved['after']['blocks']['all_blocks'][2]['innerText'], 'wp_move_block moves a block between nested parents' );
+
+		$deleted = $tool->delete_block( [ 'post_id' => 12, 'path' => [ 0, 0, 1 ], 'confirm' => true ] );
+		$this->assert_same( 5, $deleted['after']['blocks']['total_block_count'], 'wp_delete_block deletes nested blocks by path' );
+
+		$same_parent = new WP_Post();
+		$same_parent->ID = 13;
+		$same_parent->post_title = 'Same Parent Move';
+		$same_parent->post_content = '<p>First</p>' . "\n\n" . '<p>Second</p>';
+		$same_parent->post_excerpt = '';
+		$same_parent->post_status = 'publish';
+		$same_parent->post_type = 'page';
+		$GLOBALS['frontman_test_posts'][13] = $same_parent;
+		$forward = $tool->move_block( [ 'post_id' => 13, 'from_path' => [ 0 ], 'to_index' => 1 ] );
+		$this->assert_same( 'Second', $forward['after']['blocks']['blocks'][0]['innerText'], 'path-based forward moves use final destination indices' );
+		$this->assert_same( 0, $tool->read_block( [ 'post_id' => 13, 'path' => [ 0 ] ] )['index'], 'top-level path reads preserve legacy index output' );
+	}
+
 	private function test_duplicate_post_copies_page_metadata(): void {
 		$tool = new Frontman_Tool_Posts();
 		$duplicated = $tool->duplicate_post( [
@@ -764,6 +890,37 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 		$deleted = $tool->delete_menu( [ 'id' => $created['menu_id'], 'confirm' => true ] );
 		$this->assert_same( $created['menu_id'], $deleted['id'], 'wp_delete_menu reports deleted menu id' );
+	}
+
+	private function test_block_navigation_management(): void {
+		$tool = new Frontman_Tool_Menus();
+		$listed = $tool->list_navigation_menus( [] );
+		$this->assert_same( 1, count( $listed ), 'wp_list_navigation_menus lists wp_navigation posts' );
+		$this->assert_same( 'Header Navigation', $tool->read_navigation_menu( [ 'id' => 30 ] )['title'], 'wp_read_navigation_menu reads block navigation content' );
+
+		$created = $tool->create_navigation_menu( [
+			'title' => 'Footer Navigation',
+			'content' => '<!-- wp:navigation-link {"label":"Contact","url":"/contact"} /-->',
+		] );
+		$this->assert_same( 'wp_navigation', get_post( $created['id'] )->post_type, 'wp_create_navigation_menu creates wp_navigation posts' );
+
+		$updated = $tool->update_navigation_menu( [
+			'id' => 30,
+			'title' => 'Main Navigation',
+			'content' => '<!-- wp:navigation-link {"label":"About","url":"/about"} /-->',
+		] );
+		$this->assert_same( 'Header Navigation', $updated['before']['title'], 'wp_update_navigation_menu captures previous navigation state' );
+		$this->assert_same( 'Main Navigation', $updated['after']['title'], 'wp_update_navigation_menu updates block navigation posts' );
+
+		$this->assert_error_contains(
+			static function() use ( $tool, $created ) {
+				$tool->delete_navigation_menu( [ 'id' => $created['id'], 'confirm' => false ] );
+			},
+			'explicit confirmation',
+			'wp_delete_navigation_menu requires confirm=true'
+		);
+		$deleted = $tool->delete_navigation_menu( [ 'id' => $created['id'], 'confirm' => true ] );
+		$this->assert_same( 'Footer Navigation', $deleted['before']['title'], 'wp_delete_navigation_menu returns deleted navigation snapshot' );
 	}
 
 	private function test_menu_option_and_widget_updates_include_before_snapshots(): void {
