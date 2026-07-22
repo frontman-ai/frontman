@@ -861,13 +861,15 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def attrs(%SwarmAi.ToolCall{} = tc) do
+      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+
       case SwarmAi.ToolCall.parse_arguments(tc) do
         {:ok, arguments} ->
           {:ok,
            %{
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: SwarmAi.SchemaTransformer.strip_nulls(arguments)
+             arguments: arguments
            }}
 
         {:error, message} ->
@@ -892,31 +894,17 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :timestamp, :utc_datetime_usec
     end
 
-    @invalid_result_message "Invalid tool result"
-    @accepted_attr_keys [
-      :id,
-      "id",
-      :tool_call_id,
-      "tool_call_id",
-      :tool_name,
-      "tool_name",
-      :timestamp,
-      "timestamp"
-    ]
-
     def changeset(%__MODULE__{} = tool_result, attrs) do
-      result = attrs |> raw_result() |> canonicalize()
-      attrs = Map.take(attrs, @accepted_attr_keys)
-
       tool_result
       |> Interaction.cast_timestamped(attrs, [
         :id,
         :tool_call_id,
         :tool_name,
+        :result,
         :timestamp
       ])
-      |> put_change(:result, result)
-      |> put_change(:is_error, result["isError"])
+      |> scrub_result_metadata()
+      |> derive_is_error()
       |> validate_required([:tool_call_id, :tool_name, :result, :is_error])
     end
 
@@ -929,87 +917,29 @@ defmodule FrontmanServer.Tasks.Interaction do
       }
     end
 
-    defp raw_result(%{"result" => result}), do: result
-    defp raw_result(%{result: result}), do: result
-    defp raw_result(_attrs), do: nil
+    defp scrub_result_metadata(changeset) do
+      case get_change(changeset, :result) do
+        %{} = result ->
+          put_change(changeset, :result, scrub_result_metadata_value(result))
 
-    defp canonicalize(%{"content" => content} = result) when is_list(content) do
-      with {:ok, content} <- canonical_content(content),
-           {:ok, is_error} <- canonical_is_error(result),
-           {:ok, metadata} <- persisted_metadata(result) do
-        canonical = %{
-          "content" => content,
-          "structuredContent" => Map.get(result, "structuredContent", %{}),
-          "isError" => is_error,
-          "_meta" => metadata
-        }
-
-        case Jason.encode(canonical) do
-          {:ok, _json} -> canonical
-          {:error, _reason} -> canonical_error()
-        end
-      else
-        {:error, _reason} -> canonical_error()
+        _missing_or_invalid ->
+          changeset
       end
     end
 
-    defp canonicalize(_result), do: canonical_error()
+    defp scrub_result_metadata_value(result) do
+      result
+      |> Map.take(["content", "structuredContent", "isError"])
+      |> Map.put_new("isError", false)
+      |> Map.put("_meta", %{})
+    end
 
-    defp canonical_content(content) do
-      Enum.reduce_while(content, {:ok, []}, fn block, {:ok, blocks} ->
-        case canonical_content_block(block) do
-          {:ok, block} -> {:cont, {:ok, [block | blocks]}}
-          {:error, reason} -> {:halt, {:error, reason}}
-        end
-      end)
-      |> case do
-        {:ok, blocks} -> {:ok, Enum.reverse(blocks)}
-        {:error, reason} -> {:error, reason}
+    defp derive_is_error(changeset) do
+      case get_field(changeset, :result) do
+        %{"isError" => true} -> put_change(changeset, :is_error, true)
+        %{} -> put_change(changeset, :is_error, false)
+        _missing_or_invalid -> changeset
       end
-    end
-
-    defp canonical_content_block(%{"type" => "text", "text" => text})
-         when is_binary(text) do
-      {:ok, %{"type" => "text", "text" => text}}
-    end
-
-    defp canonical_content_block(%{
-           "type" => "image",
-           "data" => data,
-           "mimeType" => mime_type
-         })
-         when is_binary(data) and is_binary(mime_type) do
-      {:ok, %{"type" => "image", "data" => data, "mimeType" => mime_type}}
-    end
-
-    defp canonical_content_block(_block), do: {:error, :invalid_content}
-
-    defp canonical_is_error(result) do
-      case Map.fetch(result, "isError") do
-        {:ok, is_error} when is_boolean(is_error) -> {:ok, is_error}
-        {:ok, _is_error} -> {:error, :invalid_is_error}
-        :error -> {:ok, false}
-      end
-    end
-
-    defp persisted_metadata(result) do
-      case Map.fetch(result, "_meta") do
-        {:ok, metadata} when is_map(metadata) -> {:ok, approved_metadata(metadata)}
-        {:ok, _metadata} -> {:error, :invalid_metadata}
-        :error -> {:ok, approved_metadata(%{})}
-      end
-    end
-
-    # Persisted metadata requires explicit approval here; no nested keys are approved yet.
-    defp approved_metadata(_metadata), do: %{}
-
-    defp canonical_error do
-      %{
-        "content" => [%{"type" => "text", "text" => @invalid_result_message}],
-        "structuredContent" => %{},
-        "isError" => true,
-        "_meta" => %{}
-      }
     end
   end
 

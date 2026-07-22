@@ -229,6 +229,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   defp execute_backend_tool(scope, module, tool_call, task_id, turn_number) do
     Logger.debug("ToolExecutor: Executing backend tool #{tool_call.name}")
     {:ok, task} = Tasks.get_task(scope, task_id)
+    tool_call = SwarmAi.ToolCall.strip_null_arguments(tool_call)
 
     context = %Backend.Context{
       task: task
@@ -259,7 +260,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         do_run_backend_tool(
           scope,
           module,
-          SwarmAi.SchemaTransformer.strip_nulls(args),
+          args,
           context,
           tool_call,
           task_id,
@@ -287,8 +288,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
          turn_number
        )
        when is_list(content) do
-    result = persist_tool_result(scope, task_id, turn_number, tool_call, result)
-
     case result["isError"] do
       true ->
         metadata = [
@@ -300,10 +299,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
         Logger.error("Tool execution failed", metadata)
 
-      false ->
+      _not_error ->
         :ok
     end
 
+    persist_tool_result(scope, task_id, turn_number, tool_call, result)
     result
   end
 
@@ -339,9 +339,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp persist_tool_result(scope, task_id, turn_number, tool_call, result) do
-    {:ok, interaction, _executor_status} =
+    {:ok, _interaction, _executor_status} =
       Tasks.resolve_tool_request(scope, task_id, tool_call, result, turn_number: turn_number)
 
-    interaction.result
+    result
   end
 end

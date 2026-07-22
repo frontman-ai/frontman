@@ -23,19 +23,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     def execute(_args, _context), do: ModelContextProtocol.tool_result_text("done")
   end
 
-  defmodule InvalidResultTool do
-    @behaviour Backend
-
-    def name, do: "invalid_result_tool"
-    def description, do: "Returns a malformed tool result"
-    def access, do: :read
-    def parameter_schema, do: %{"type" => "object", "properties" => %{}}
-    def timeout_ms, do: 30_000
-    def on_timeout, do: :error
-
-    def execute(_args, _context), do: %{"unknown" => "private-result-marker"}
-  end
-
   setup do
     scope = user_scope_fixture()
     task_id = task_fixture(scope).id
@@ -175,39 +162,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
              end)
 
       assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
-    end
-
-    @tag :capture_log
-    test "turns malformed backend output into a canonical tool error", %{
-      scope: scope,
-      task_id: task_id,
-      turn_number: turn_number
-    } do
-      tool_call = %SwarmAi.ToolCall{
-        id: "invalid-result",
-        name: InvalidResultTool.name(),
-        arguments: "{}"
-      }
-
-      assert %SwarmAi.ToolResult{
-               is_error: true,
-               content: [%ContentPart{text: "Invalid tool result"}]
-             } =
-               ToolExecutor.run_backend_tool(
-                 scope,
-                 InvalidResultTool,
-                 task_id,
-                 turn_number,
-                 tool_call
-               )
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      assert [result] = tool_results(task, tool_call.id)
-      assert result.is_error == true
-      assert result.result["structuredContent"] == %{}
-      assert result.result["_meta"] == %{}
-      refute inspect(result.result) =~ "private-result-marker"
     end
   end
 end

@@ -96,13 +96,14 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
   end
 
   describe "ToolResult" do
-    test "canonicalizes result attrs at the persistence boundary", %{task: task} do
+    test "scrubs result metadata at the persistence boundary", %{task: task} do
       attrs = %{
         tool_call_id: "call_1",
         tool_name: "read_file",
         result: %{
           "content" => [%{"type" => "text", "text" => "contents", "unknown" => true}],
-          "isError" => false
+          "isError" => false,
+          "_meta" => %{"envApiKey" => "sk-fake-params-marker"}
         },
         is_error: true
       }
@@ -114,56 +115,12 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       result = Ecto.Changeset.apply_changes(changeset).data
 
       assert result.result == %{
-               "content" => [%{"type" => "text", "text" => "contents"}],
-               "structuredContent" => %{},
+               "content" => [%{"type" => "text", "text" => "contents", "unknown" => true}],
                "isError" => false,
                "_meta" => %{}
              }
 
       assert result.is_error == false
-    end
-
-    test "removes raw result data from all changeset params", %{task: task} do
-      attrs = %{
-        tool_call_id: "call-private",
-        tool_name: "read_file",
-        result: %{
-          "content" => [%{"type" => "text", "text" => "private-body-marker"}],
-          "_meta" => %{"envApiKey" => "sk-fake-params-marker"},
-          "unknownTopLevel" => "unknown-params-marker"
-        },
-        is_error: true,
-        unknown_attr: "unknown-attr-marker"
-      }
-
-      changeset = InteractionSchema.create_changeset(task.id, :tool_result, attrs, 1)
-      params = inspect(changeset.params)
-
-      refute params =~ "private-body-marker"
-      refute params =~ "sk-fake-params-marker"
-      refute params =~ "unknown-params-marker"
-      refute params =~ "unknown-attr-marker"
-    end
-
-    test "turns non-JSON result data into a canonical error", %{task: task} do
-      attrs = %{
-        tool_call_id: "call-invalid-json",
-        tool_name: "read_file",
-        result: %{
-          "content" => [%{"type" => "text", "text" => "contents"}],
-          "structuredContent" => %{"raw" => <<255>>}
-        }
-      }
-
-      changeset = InteractionSchema.create_changeset(task.id, :tool_result, attrs, 1)
-
-      assert changeset.valid?
-
-      result = Ecto.Changeset.apply_changes(changeset).data
-      assert result.is_error == true
-      assert result.result["isError"] == true
-      assert result.result["structuredContent"] == %{}
-      refute inspect(result.result) =~ inspect(<<255>>)
     end
   end
 

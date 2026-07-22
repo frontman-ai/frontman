@@ -195,7 +195,7 @@ defmodule FrontmanServer.ToolsTest do
   end
 
   describe "GetToolResult.execute/2" do
-    test "returns the canonical tool result by tool call ID", %{
+    test "returns the sanitized tool result by tool call ID", %{
       task_id: task_id,
       scope: scope,
       turn_number: turn_number
@@ -209,9 +209,10 @@ defmodule FrontmanServer.ToolsTest do
         "unknownTopLevel" => "drop me"
       }
 
-      canonical_result = %{
-        "content" => [%{"type" => "text", "text" => "file contents"}],
-        "structuredContent" => %{},
+      sanitized_result = %{
+        "content" => [
+          %{"type" => "text", "text" => "file contents", "unknown" => "drop me"}
+        ],
         "isError" => false,
         "_meta" => %{}
       }
@@ -230,8 +231,8 @@ defmodule FrontmanServer.ToolsTest do
 
       result = GetToolResult.execute(%{"tool_call_id" => "tc-read"}, context)
 
-      assert result == canonical_result
-      assert interaction.result == canonical_result
+      assert result == sanitized_result
+      assert interaction.result == sanitized_result
       assert interaction.tool_call_id == "tc-read"
     end
 
@@ -263,43 +264,6 @@ defmodule FrontmanServer.ToolsTest do
 
       assert MCP.extract_content_text(result) ==
                "Stored tool result for tc-malformed is not a valid MCP tool result"
-    end
-
-    test "returns canonical errors for malformed submitted results", %{
-      scope: scope,
-      task_id: task_id,
-      turn_number: turn_number
-    } do
-      malformed_results = [
-        {"tc-invalid-error", %{"content" => [], "isError" => "false"}},
-        {"tc-invalid-content", %{"content" => [%{"type" => "text", "text" => 42}]}}
-      ]
-
-      for {tool_call_id, submitted_result} <- malformed_results do
-        assert {:ok, interaction, :no_executor} =
-                 Tasks.resolve_tool_request(
-                   scope,
-                   task_id,
-                   %{id: tool_call_id, name: "read_file"},
-                   submitted_result,
-                   turn_number: turn_number
-                 )
-
-        assert interaction.is_error == true
-        assert MCP.error?(interaction.result)
-        assert map_size(interaction.result) == 4
-      end
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      context = build_context(task)
-
-      for {tool_call_id, _submitted_result} <- malformed_results do
-        result = GetToolResult.execute(%{"tool_call_id" => tool_call_id}, context)
-
-        assert MCP.error?(result)
-        assert result["structuredContent"] == %{}
-        assert result["_meta"] == %{}
-      end
     end
   end
 end

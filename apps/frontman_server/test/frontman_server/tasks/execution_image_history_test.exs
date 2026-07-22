@@ -57,9 +57,13 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
     canonical_result = %{
       "content" => [
-        %{"type" => "image", "data" => Base.encode64(screenshot), "mimeType" => "image/png"}
+        %{
+          "type" => "image",
+          "data" => Base.encode64(screenshot),
+          "mimeType" => "image/png",
+          "unknown" => "drop me"
+        }
       ],
-      "structuredContent" => %{},
       "isError" => false,
       "_meta" => %{}
     }
@@ -189,7 +193,6 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
                  "mimeType" => "image/png"
                }
              ],
-             "structuredContent" => %{},
              "isError" => false,
              "_meta" => %{}
            }

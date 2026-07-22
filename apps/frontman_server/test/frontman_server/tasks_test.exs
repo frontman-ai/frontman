@@ -3,7 +3,6 @@ defmodule FrontmanServer.TasksTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
-  import ExUnit.CaptureLog
 
   alias Ecto.Migration.Runner
 
@@ -226,7 +225,6 @@ defmodule FrontmanServer.TasksTest do
 
       assert result == %{
                "content" => [%{"type" => "text", "text" => "Interrupted by restart"}],
-               "structuredContent" => %{},
                "isError" => true,
                "_meta" => %{}
              }
@@ -459,7 +457,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "tool-result metadata scrub migration" do
-    test "canonicalizes historical results without changing tool-owned payloads", %{scope: scope} do
+    test "scrubs historical result metadata without changing tool-owned payloads", %{scope: scope} do
       task_id = task_fixture(scope).id
       image_data = Base.encode64(<<0, 1, 2, 254, 255>>)
       structured_content = %{"items" => [%{"name" => "README.md"}], "count" => 1}
@@ -516,19 +514,19 @@ defmodule FrontmanServer.TasksTest do
                  %{"type" => "image", "data" => image_data, "mimeType" => "image/png"}
                ],
                "structuredContent" => structured_content,
-               "isError" => true,
+               "isError" => false,
+               "unknown" => "drop me",
                "_meta" => %{}
              }
 
       assert null_structured_content == %{
                "content" => [%{"type" => "text", "text" => "null structured content"}],
-               "isError" => false,
+               "structuredContent" => nil,
                "_meta" => %{}
              }
 
       assert absent_structured_content == %{
                "content" => [%{"type" => "text", "text" => "absent structured content"}],
-               "isError" => false,
                "_meta" => %{}
              }
 
@@ -613,7 +611,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "tool result persistence and Swarm message conversion" do
-    test "canonicalizes a tool result through its full round-trip", %{scope: scope} do
+    test "scrubs tool result metadata through its full round-trip", %{scope: scope} do
       task_id = task_fixture(scope).id
 
       tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
@@ -658,8 +656,8 @@ defmodule FrontmanServer.TasksTest do
         "unknownTopLevel" => "drop me"
       }
 
-      canonical_result = %{
-        "content" => [%{"type" => "text", "text" => "4"}],
+      sanitized_result = %{
+        "content" => [%{"type" => "text", "text" => "4", "audience" => ["assistant"]}],
         "structuredContent" => %{"answer" => 4},
         "isError" => false,
         "_meta" => %{}
@@ -674,7 +672,7 @@ defmodule FrontmanServer.TasksTest do
           turn_number
         )
 
-      assert persisted_result.result == canonical_result
+      assert persisted_result.result == sanitized_result
       assert persisted_result.is_error == false
 
       {:ok, _} = Tasks.agent_replied(scope, task_id, turn_number, "The answer is 4.")
@@ -712,82 +710,6 @@ defmodule FrontmanServer.TasksTest do
       assert [%{type: :text, text: "4"}] = tool_result_msg.content
 
       assert [%{type: :text, text: "The answer is 4."}] = final_assistant.content
-    end
-
-    test "derives error state from canonical result without logging raw values", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-      previous_level = Logger.level()
-      Logger.configure(level: :debug)
-
-      {log, interaction} =
-        try do
-          result = %{
-            "content" => [%{"type" => "text", "text" => "private-body-marker"}],
-            "isError" => true,
-            "_meta" => %{"envApiKey" => "sk-fake-log-marker"},
-            "unknownTopLevel" => "unknown-field-marker"
-          }
-
-          capture_log(fn ->
-            result =
-              resolve_tool(
-                scope,
-                task_id,
-                %{id: "safe-log", name: "test_tool"},
-                result,
-                turn_number
-              )
-
-            send(self(), {:resolved_tool_result, result})
-          end)
-          |> then(fn log ->
-            assert_receive {:resolved_tool_result, {:ok, interaction, :no_executor}}
-            {log, interaction}
-          end)
-        after
-          Logger.configure(level: previous_level)
-        end
-
-      assert interaction.is_error == true
-      assert interaction.result["isError"] == true
-      refute log =~ "private-body-marker"
-      refute log =~ "sk-fake-log-marker"
-      refute log =~ "unknown-field-marker"
-      refute log =~ "envApiKey"
-      refute log =~ "unknownTopLevel"
-    end
-
-    test "duplicate malformed historical result does not crash summary logging", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-
-      insert_legacy_interaction_row(task_id, Interaction.ToolResult, turn_number, %{
-        "tool_call_id" => "historical-malformed",
-        "tool_name" => "test_tool",
-        "result" => %{"content" => "historical-private-body"},
-        "is_error" => false
-      })
-
-      log =
-        capture_log(fn ->
-          result =
-            resolve_tool(
-              scope,
-              task_id,
-              %{id: "historical-malformed", name: "test_tool"},
-              MCP.tool_result_text("new result"),
-              turn_number
-            )
-
-          send(self(), {:resolved_historical_result, result})
-        end)
-
-      assert_receive {:resolved_historical_result,
-                      {:ok, %Interaction.ToolResult{} = interaction, :no_executor}}
-
-      assert interaction.result == %{"content" => "historical-private-body"}
-      refute log =~ "historical-private-body"
     end
   end
 
