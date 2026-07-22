@@ -2,7 +2,6 @@
 title: 'Why AI Coding Agents Need UI Context'
 pubDate: 2026-02-18T05:00:00Z
 description: "Designers and PMs know exactly what needs to change in the UI. They just can\u2019t change it without engineering. Framework-aware AI fixes that."
-author: 'Danni Friedland'
 image: '/blog/ai-coding-agents-blind-to-ui-cover.png'
 tags: ['design-systems', 'design-ops', 'cross-functional']
 updatedDate: 2026-03-20T00:00:00Z
@@ -33,6 +32,13 @@ faq:
       request that your engineering team reviews, approves, and merges through
       your existing workflow. Designers and PMs get to initiate changes;
       engineering keeps full control of what ships.
+author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Problem Diagnosis'
+imageAlt: 'AI coding agent connecting live UI context to frontend source code'
+imageWidth: 1200
+imageHeight: 450
 ---
 
 You spot a spacing issue on the pricing page. The cards feel too cramped — the padding inside each feature block needs to breathe. You know exactly what's wrong. You've known for two weeks.

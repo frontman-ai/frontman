@@ -348,7 +348,9 @@ All three packages inject the Frontman client UI into dev servers, establish Web
 
 Astro 7.1 at `apps/marketing/`. 94 components. Deployed to Cloudflare Pages.
 
-Content: 16 blog posts, 10 competitor comparison pages (`/vs/`), 3 integration guides (`/integrations/`), glossary, lighthouse audits. Blog cover images generated server-side via `satori` + `sharp`.
+Content: 40 blog posts, 10 competitor comparison pages (`/vs/`), four detailed framework guides at `/docs/integrations/astro/`, `/docs/integrations/nextjs/`, `/docs/integrations/vite/`, and `/docs/integrations/wordpress/`, plus glossary and lighthouse audits. `/integrations/` is the integration hub. Blog cover images are generated server-side via `satori` + `sharp`.
+
+Documentation pages reuse docs-owned snippets through `CodeFromFile`, which reads only from `apps/marketing/src/content/docs/snippets/`. This deduplicates examples across docs pages but does not verify synchronization with executable integrations, installers, README files, or fixtures.
 
 Uses `@frontman-ai/astro` integration for live product demo in dev mode.
 

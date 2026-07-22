@@ -29,9 +29,10 @@ type Props = {
   competitor: CompetitorInfo
   faqs: FAQ[]
   seo: SEOInfo
+  checkedAt: string
 }
 
-const { faqs, seo } = Astro.props
+const { faqs, seo, checkedAt } = Astro.props
 const pageUrl = Astro.url.href
 
 // FAQPage
@@ -55,6 +56,7 @@ const webPageJsonLd = {
   "name": seo.title,
   "description": seo.description,
   "url": pageUrl,
+  "dateModified": `${checkedAt}T00:00:00.000Z`,
   "reviewedBy": {
     "@type": "Organization",
     "name": "Frontman",

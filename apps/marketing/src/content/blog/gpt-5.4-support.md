@@ -3,7 +3,13 @@ title: 'GPT-5.4 Support in Frontman'
 pubDate: 2026-03-06T12:00:00Z
 description: 'GPT-5.4 brings a massive context window, native computer-use, and sharper reasoning to Frontman — so your design system gets implemented the way it was intended.'
 author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
 image: '/blog/gpt-5.4-support-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'GPT-5.4 support in Frontman'
+articleSection: 'Product Announcement'
 tags: ['announcement', 'models']
 updatedDate: 2026-03-10T00:00:00Z
 ---
@@ -14,7 +20,7 @@ If you're managing a design system across multiple teams, this model matters. GP
 
 ### What Changes for Your Workflow
 
-**Your full design system in context, all at once.** GPT-5.4 supports up to one million tokens — roughly 750,000 words. That's enough to hold your component library docs, spacing and typography tokens, brand guidelines, and the current task all in one session — while [keeping your code safe](/blog/security/) with Frontman's local-only architecture. No more re-explaining your system's conventions halfway through a build.
+**Your full design system in context, all at once.** GPT-5.4 supports up to one million tokens — roughly 750,000 words. That's enough to hold your component library docs, spacing and typography tokens, brand guidelines, and the current task all in one session. Frontman's [distributed architecture](/blog/security/) keeps filesystem operations on your machine through the framework integration while sending relevant context through the orchestration server to your selected provider. No more re-explaining your system's conventions halfway through a build.
 
 **It can see and operate your browser.** GPT-5.4 has built-in computer-use capabilities that complement Frontman's [runtime context](/blog/runtime-context-gap/). It navigates your app, clicks through flows, and visually verifies that implementations match your specs. When your team ships a new component, Frontman can check that it actually looks right — not just that the code compiles.
 

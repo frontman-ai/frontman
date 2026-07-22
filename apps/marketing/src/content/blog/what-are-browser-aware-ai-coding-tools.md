@@ -3,7 +3,13 @@ title: 'What Are Browser-Aware AI Coding Tools?'
 pubDate: 2026-03-17T10:00:00Z
 description: 'Browser-aware AI coding tools let you click on any element in your running app and describe what you want changed in plain language. They use runtime context, and the strongest tools also understand framework structure and source mapping.'
 author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Technical Explainer'
 image: '/blog/what-are-framework-aware-ai-coding-tools-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'Cover reading What Are Framework-Aware AI Coding Tools?'
 tags: ['ai', 'design-systems', 'product-tools', 'comparison']
 faq:
   - question: 'What is a browser-aware AI coding tool?'
@@ -96,9 +102,9 @@ Chrome DevTools MCP (Google) and Tidewave (Phoenix/Rails) use this approach. Dev
 
 ### Frontman
 
-[frontman.sh](https://frontman.sh) | Deep integration | Apache 2.0 / AGPL-3.0
+[frontman.sh](https://frontman.sh) | Deep integration | Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms
 
-Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter). Self-hosting remains available under the open-source licenses, while hosted Frontman plans are moving to paid subscriptions. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it ([Getting Started with Frontman](/blog/getting-started/) covers the process), and it only works with the three supported frameworks.
+Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter). Frontman is source-available, and self-hosting remains available under its package-specific licenses and terms. Hosted Frontman Pro is available now. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it ([Getting Started with Frontman](/blog/getting-started/) covers the process), and it only works with the three supported frameworks.
 
 *I built this.*
 
@@ -135,10 +141,10 @@ If your engineering team already uses Cursor, this is the lowest-friction option
 | Click-to-edit | Yes | Yes | No | No | Yes |
 | Usable by designers | After dev setup | Yes (standalone) | No | No | No |
 | Works with any framework | No (Next/Astro/Vite) | Yes | Yes | No (Phoenix) | No (React/Next) |
-| Cost for a team | Free self-hosting; paid hosted plans coming | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
+| Cost for a team | Free self-hosting; hosted Pro available now | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
 | Account required | No | Yes | No | Yes | Yes (Cursor) |
 | Component source mapping | Exact | Best-effort | No | No | Unknown |
-| Open source | Yes | Yes | Yes | Yes | No |
+| Open source / source-available | Source-available | Yes | Yes | Yes | No |
 | Setup required | Dev installs package | None | Dev configures MCP | Dev configures MCP | Cursor installed |
 
 ## Which Approach Fits Your Team

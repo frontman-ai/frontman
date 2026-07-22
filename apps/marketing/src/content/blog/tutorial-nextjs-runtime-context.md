@@ -3,7 +3,13 @@ title: 'Add Runtime Context to AI Coding in Next.js'
 pubDate: 2026-02-23T07:00:00Z
 description: 'Step-by-step: install Frontman in a Next.js project, connect your AI key, and fix a CSS layout bug by clicking the broken element instead of describing it.'
 author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Tutorial'
 image: '/blog/tutorial-nextjs-runtime-context-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'Next.js runtime context tutorial cover'
 tags: ['tutorial', 'getting-started', 'ai']
 updatedDate: 2026-03-10T00:00:00Z
 ---
@@ -30,7 +36,7 @@ That's it for setup. Start your dev server:
 npm run dev
 ```
 
-When you open your app in the browser, navigate to `localhost:3000/frontman`. You'll see the Frontman interface — chat on the left, your live app on the right. Enter your AI key (Claude, OpenAI, or OpenRouter). The key is stored locally in your browser and sent directly to your AI provider.
+When you open your app in the browser, navigate to `localhost:3000/frontman`. You'll see the Frontman interface — chat on the left, your live app on the right. Connect an AI provider such as Anthropic, OpenAI, or OpenRouter. Provider credentials are encrypted on the Frontman server and never exposed to the browser; relevant task context passes through the server to your selected provider.
 
 ### Step 2: The Bug
 

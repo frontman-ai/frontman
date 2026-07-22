@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button.astro'
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
 import type {
   ComparisonFeature,
+  ComparisonReview,
   CompetitorInfo,
   FAQ,
   SEOInfo,
@@ -19,11 +20,21 @@ const seo: SEOInfo = {
     'Copilot is for developers in the IDE. Frontman is for everyone who thinks in what they see: designers, PMs, and engineers doing visual work. No IDE required.',
 }
 
+const review: ComparisonReview = {
+  checkedAt: '2026-07-21',
+  sources: [
+    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
+    { label: 'Frontman source repository', url: 'https://github.com/frontman-ai/frontman' },
+    { label: 'GitHub Copilot documentation', url: 'https://docs.github.com/en/copilot' },
+    { label: 'GitHub Copilot official product page', url: 'https://github.com/features/copilot' },
+  ],
+}
+
 const frontmanPricingFeatures = [
   'Unlimited usage, no caps',
   'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
   'Or sign in with Claude/ChatGPT subscription via OAuth',
-  'Apache 2.0 (client) / AGPL-3.0 (server)',
+  'Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms',
   'You pay your LLM provider directly',
 ]
 
@@ -62,7 +73,7 @@ type Feature = {
 const features: Feature[] = [
   { name: 'Designer/PM friendly', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE needed; click elements in the browser', copilotNote: 'Requires IDE proficiency' },
   { name: 'Click-to-select elements', frontman: 'yes', copilot: 'no', frontmanNote: 'Point at any component to edit it', copilotNote: 'Must describe or find in file tree' },
-  { name: 'Works in the browser', frontman: 'yes', copilot: 'no', frontmanNote: 'No IDE or dev environment required', copilotNote: 'IDE extension (VS Code, JetBrains, etc.)' },
+  { name: 'Works in the browser', frontman: 'yes', copilot: 'no', frontmanNote: 'Browser UI; no IDE required', copilotNote: 'IDE extension (VS Code, JetBrains, etc.)' },
   { name: 'Sees live DOM & styles', frontman: 'yes', copilot: 'no', frontmanNote: 'Inspects the running page, not just source files', copilotNote: 'File-only context; no browser awareness' },
   { name: 'Sees computed CSS', frontman: 'yes', copilot: 'no', frontmanNote: 'Actual rendered values, not just class names', copilotNote: 'Reads source files only' },
   { name: 'Hot reload feedback loop', frontman: 'yes', copilot: 'partial', frontmanNote: 'Instant visual feedback in browser', copilotNote: 'Agent mode can trigger builds but does not see the result' },
@@ -72,8 +83,8 @@ const features: Feature[] = [
   { name: 'Coding agent (async)', frontman: 'no', copilot: 'yes', copilotNote: 'Assigns issues, creates PRs autonomously' },
   { name: 'Multi-file refactoring', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can edit multiple files, but not primary workflow', copilotNote: 'Full cross-file edits via agent mode' },
   { name: 'Code review', frontman: 'no', copilot: 'yes', copilotNote: 'PR reviews on GitHub, diff reviews in IDE' },
-  { name: 'Open source', frontman: 'yes', copilot: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', copilotNote: 'Proprietary (extension and service)' },
-  { name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'no', frontmanNote: 'Any LLM provider directly', copilotNote: "Uses GitHub's model pool; no custom API keys" },
+  { name: 'Source availability', frontman: 'yes', copilot: 'no', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', copilotNote: 'Proprietary (extension and service)' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'yes', frontmanNote: 'Any LLM provider directly', copilotNote: 'Supported in Copilot CLI and coding agent; Copilot apps can use external model keys' },
   { name: 'Self-hostable', frontman: 'yes', copilot: 'no', frontmanNote: 'Runs in your own infrastructure', copilotNote: 'Cloud service, GitHub-hosted' },
   { name: 'Backend coding', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', copilotNote: 'Any language, any framework' },
   { name: 'Multi-model choice', frontman: 'yes', copilot: 'yes', frontmanNote: 'BYOK: Claude, GPT, OpenRouter, any provider', copilotNote: 'Claude, GPT, Gemini, Grok through GitHub hosting' },
@@ -116,7 +127,7 @@ const faqs: FAQ[] = [
 	{
 		question: 'How does Frontman pricing compare to Copilot?',
 		answer:
-			'Copilot Free gives you 50 chat requests and 2,000 completions per month. Copilot Pro is $10/month per seat, Business is $19/user/month. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly.',
+			'Copilot Free gives you 50 chat requests and 2,000 completions per month. Copilot Pro is $10/month per seat, Business is $19/user/month. Frontman remains free to self-host under its source-available licensing terms. Hosted Frontman Pro is available now. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly.',
 	},
 ]
 ---
@@ -124,6 +135,7 @@ const faqs: FAQ[] = [
 <ComparisonLayout
   seo={seo}
   competitor={competitor}
+  review={review}
   heroTitle="Frontman vs GitHub Copilot"
   heroSubtitle="Your Whole Team Edits UI vs Developers Code Faster"
   features={comparisonFeatures}
@@ -132,7 +144,7 @@ const faqs: FAQ[] = [
 >
   <Fragment slot="hero-summary">
     <p>
-      <a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. Designers, PMs, and developers click elements in a running app, describe changes in plain English, and Frontman edits the actual source code, with hot reload showing results instantly. No IDE required. It integrates with your framework (Next.js, Astro, or Vite) as a plugin, using a browser-side MCP server to inspect the live DOM, computed styles, and component tree.
+      <a href="https://frontman.sh" class="text-link">Frontman</a> is a source-available AI coding agent with a distributed architecture. Browser tools inspect the live DOM and computed styles, the local framework integration (Next.js, Astro, or Vite) provides component and filesystem context, and the server orchestrates the agent loop and persists task history. Designers, PMs, and developers click elements in a running app, describe changes in plain English, and Frontman edits the actual source code through the local integration, with hot reload showing results instantly. No IDE required.
     </p>
     <p>
       <a href="https://github.com/features/copilot" class="text-link" rel="nofollow">GitHub Copilot</a> is an AI coding assistant built into your IDE. It provides inline autocomplete, agent mode with multi-file editing, code review, and terminal integration. Copilot makes your developers faster across any language and framework, but it requires IDE proficiency and does not see what the app actually renders in a browser.
@@ -146,17 +158,18 @@ const faqs: FAQ[] = [
     <p>GitHub Copilot is the most widely adopted AI coding tool in the world, and for real reasons. It is the right choice for your engineering team's day-to-day coding work.</p>
     <p><strong>Autocomplete accelerates developers.</strong> Copilot's inline suggestions predict what you are about to type, often multiple lines ahead. For raw coding speed, it is hard to beat. This is a developer productivity tool through and through.</p>
     <p><strong>Agentic coding and code review.</strong> Copilot's agent can plan multi-step changes across files, run terminal commands, and create pull requests from GitHub issues. It also reviews PRs directly on GitHub. For teams on GitHub, this integration is hard to match.</p>
+    <p><strong>BYOK on documented agent surfaces.</strong> GitHub documents bring-your-own-key support for Copilot CLI and the Copilot coding agent, while Copilot apps can use external model keys. Availability depends on the Copilot surface rather than applying uniformly to every IDE feature.</p>
     <p><strong>Any language, any framework.</strong> Python, Go, Rust, TypeScript, Java, SQL: Copilot handles your full stack. Frontman is focused on frontend frameworks (Next.js, Astro, Vite).</p>
     <p>If your goal is to make your developers faster in the IDE, Copilot is the proven tool. The question is what happens when the people who care most about UI quality, including designers, PMs, and design system leads, cannot use an IDE.</p>
   </Fragment>
 
   <Fragment slot="frontman-differentiators">
     <p>In most teams, the people closest to UI quality, including designers, PMs, and design system leads, cannot directly fix what they see. They file tickets, write specs, and wait. <strong>Frontman closes that gap.</strong></p>
-    <p><strong>Anyone on the team can edit UI.</strong> Frontman runs in the browser as an overlay on your running app. No IDE, no terminal, no dev environment. A designer spots a component that is off-brand, such as wrong spacing or an incorrect color token, clicks it, describes the fix, and Frontman edits the source code. Hot reload shows the result instantly. The change goes through your normal code review process.</p>
+    <p><strong>Anyone on the team can edit UI.</strong> Frontman provides a browser overlay on your running app, so users need no IDE or terminal. A designer spots a component that is off-brand, such as wrong spacing or an incorrect color token, clicks it, describes the fix, and Frontman's local framework integration edits the source code. Hot reload shows the result instantly. The change goes through your normal code review process.</p>
     <p><strong>The AI sees what is actually rendered.</strong> IDE-based tools like Copilot read source files but never see the browser. Frontman's browser-side MCP server inspects the live DOM, computed CSS (actual pixel values, not just class names), the component tree, and viewport behavior. When someone says "this card does not match the design system," Frontman can measure the gap between what is rendered and what should be.</p>
     <p><strong>Click-to-edit, not file-to-edit.</strong> Instead of knowing which file to open, you point at the element. Frontman resolves the source location via source maps: the exact file, component, and line. This is the interaction model that makes it accessible to non-developers.</p>
     <p><strong>Design system consistency at scale.</strong> When multiple teams ship UI against a shared design system, drift is inevitable. Frontman lets the people who own the system, not just the developers who implement it, spot and fix inconsistencies directly. No ticket, no sprint, no context loss.</p>
-	<p><strong>Open source and BYOK.</strong> Apache 2.0 client, AGPL-3.0 server. Self-hosting remains available, and you connect your own API keys to Claude, ChatGPT, or OpenRouter. Hosted Frontman plans are moving to paid subscriptions.</p>
+	<p><strong>Source-available and BYOK.</strong> The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and the server is AGPL-3.0-only with AI Supplementary Terms. Self-hosting remains available and moves server orchestration and persistence to your infrastructure, while relevant context may still go to your configured LLM provider. You connect your own API keys to Claude, ChatGPT, or OpenRouter. Hosted Frontman Pro is available now.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">

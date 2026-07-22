@@ -4,7 +4,12 @@ pubDate: 2026-04-25T05:00:00Z
 description: "WordPress 7 breaking changes: developer audit with what actually breaks, migration code for each issue, and rollback strategies nobody else covers."
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Operational Audit'
 image: '/blog/wordpress-7-breaking-changes-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'WordPress 7 breaking changes and fixes cover'
 tags: ['wordpress', 'tutorial']
 updatedDate: 2026-04-25T00:00:00Z
 faq:

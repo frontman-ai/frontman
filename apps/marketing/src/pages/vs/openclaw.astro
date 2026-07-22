@@ -9,6 +9,7 @@ import Button from '../../components/ui/Button.astro'
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
 import type {
   ComparisonFeature,
+  ComparisonReview,
   CompetitorInfo,
   FAQ,
   SEOInfo,
@@ -20,13 +21,24 @@ const seo: SEOInfo = {
     'OpenClaw is a general-purpose AI agent. Frontman is a browser-based visual frontend editor. See how they compare — and how they work together as an OpenClaw skill.',
 }
 
+const review: ComparisonReview = {
+  checkedAt: '2026-07-21',
+  sources: [
+    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
+    { label: 'Frontman source code', url: 'https://github.com/frontman-ai/frontman' },
+    { label: 'OpenClaw official website', url: 'https://openclaw.ai' },
+    { label: 'OpenClaw documentation', url: 'https://docs.openclaw.ai/' },
+    { label: 'OpenClaw source code', url: 'https://github.com/openclaw/openclaw' },
+  ],
+}
+
 const competitor: CompetitorInfo = {
   name: 'OpenClaw',
   slug: 'openclaw',
   url: 'https://openclaw.ai',
   category: 'DeveloperApplication',
   description:
-    'Open-source general-purpose AI agent with browser automation, shell access, messaging integrations, and a large skills ecosystem.',
+    'Open-source assistant that runs on your local machine, with browser automation, shell access, messaging integrations, and a large skills ecosystem.',
   pricing: {
     cost: 'Free',
     model: 'Open source (MIT)',
@@ -63,9 +75,9 @@ const features: Feature[] = [
   { name: 'File system management', frontman: 'partial', openclaw: 'yes', frontmanNote: 'Edits source files for frontend changes', openclawNote: 'Full file system access, any file type' },
   { name: 'Skills/plugin ecosystem', frontman: 'no', openclaw: 'yes', openclawNote: '5,400+ community skills on ClawHub' },
   { name: 'Works together', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Available as an OpenClaw skill', openclawNote: 'Can use Frontman via skill install' },
-  { name: 'Open source', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Apache 2.0 / AGPL-3.0', openclawNote: 'MIT' },
+  { name: 'Source availability', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', openclawNote: 'Open source (MIT)' },
   { name: 'BYOK (bring your own key)', frontman: 'yes', openclaw: 'yes', frontmanNote: 'OpenRouter, Anthropic, OpenAI', openclawNote: 'Any LLM provider' },
-  { name: 'Local-first / self-hostable', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Runs on your machine, code never leaves', openclawNote: 'All data stored locally as markdown' },
+  { name: 'Local-first / self-hostable', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Self-hostable server; local integration owns filesystem access; context may reach your LLM provider', openclawNote: 'All data stored locally as markdown' },
 ]
 
 const comparisonFeatures: ComparisonFeature[] = features.map((feature) => ({
@@ -103,9 +115,9 @@ const faqs: FAQ[] = [
       'Yes. Designers describe UI changes in whatever messaging app your team uses — Slack, Discord, Telegram. OpenClaw receives the message, uses the Frontman skill to open the app in the browser, click the relevant element, and make the edit. It posts a screenshot of the result back to the channel. The code diff goes through your normal review process. No IDE or terminal needed.',
   },
   {
-    question: 'Is this combination open source?',
+    question: 'Is this combination source-available?',
     answer:
-      'Yes. Frontman client libraries are Apache 2.0, the server is AGPL-3.0. OpenClaw is MIT licensed. The Frontman skill on ClawHub is MIT-0. Both tools run locally — your code and conversations never leave your machine. You bring your own API keys to both.',
+      'Frontman is source-available: its browser client and JavaScript integrations are Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and its server is AGPL-3.0-only with AI Supplementary Terms. OpenClaw is MIT licensed, and the Frontman skill on ClawHub is MIT-0. Frontman uses a distributed architecture: its local integration owns filesystem access, while its server orchestrates the agent loop and persists task history. Self-hosting places that server on your infrastructure, but relevant context may still be transmitted to your configured LLM provider. You bring your own API keys to both.',
   },
 ]
 ---
@@ -113,6 +125,7 @@ const faqs: FAQ[] = [
 <ComparisonLayout
   seo={seo}
   competitor={competitor}
+  review={review}
   heroTitle="Frontman vs OpenClaw"
   heroSubtitle="Specialized Frontend Editing Meets General-Purpose AI Agent"
   features={comparisonFeatures}
@@ -120,10 +133,10 @@ const faqs: FAQ[] = [
 >
   <Fragment slot="hero-summary">
     <p>
-      <a href="https://openclaw.ai" class="text-link" rel="nofollow">OpenClaw</a> is the most popular open-source AI agent in 2026 — 250,000+ GitHub stars, 5,400+ community skills, and support for every messaging platform from Slack to WhatsApp. It can control your browser, run shell commands, and automate workflows across your entire stack.
+      <a href="https://openclaw.ai" class="text-link" rel="nofollow">OpenClaw</a> is an open-source assistant that runs on your local machine, with 346,000+ GitHub stars, 5,400+ community skills, and support for messaging platforms from Slack to WhatsApp. It can control your browser, run shell commands, and automate workflows across your entire stack.
     </p>
     <p>
-      <a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent built specifically for frontend development. It installs as a plugin in your dev server (Next.js, Astro, or Vite) and creates a browser-side MCP server that sees your component tree, computed CSS, source maps, and rendered DOM. Click any element, describe a change, and Frontman edits the source file with instant hot reload.
+      <a href="https://frontman.sh" class="text-link">Frontman</a> is a source-available AI coding agent built specifically for frontend development. Browser tools inspect the rendered DOM and computed CSS, the local framework integration (Next.js, Astro, or Vite) provides component, source-map, and filesystem context, and the server orchestrates the agent loop and persists task history. Click any element, describe a change, and Frontman edits the source file with instant hot reload.
     </p>
     <p class="summary-emphasis">
       They are not competitors — they are complementary. Frontman is available as an OpenClaw skill. Use OpenClaw for general-purpose automation, and Frontman for precise visual frontend editing in your codebase.
@@ -142,7 +155,7 @@ const faqs: FAQ[] = [
   <Fragment slot="frontman-differentiators">
     <p><strong>It understands your component tree.</strong> OpenClaw's browser tool sees HTML elements. Frontman sees React components, Vue instances, Svelte blocks, and Astro islands. When you click a card on screen, Frontman knows it is your <code>Card</code> component from <code>@company/ui</code>, rendered at line 47 of <code>Card.tsx</code>, with specific props and token-derived styles.</p>
     <p><strong>It reads computed CSS, not class names.</strong> OpenClaw can read the page source and see <code>class="p-4 shadow-md"</code>. Frontman sees that <code>p-4</code> computes to <code>padding: 16px</code> and <code>shadow-md</code> renders as <code>box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1)</code>. When you say "make the shadow more subtle," Frontman knows the current runtime value.</p>
-    <p><strong>Source map resolution.</strong> Click a DOM element, and Frontman resolves it to the exact source file, component, and line number through the framework's source maps. No guessing which file to edit. This is possible because Frontman installs as a framework plugin inside your dev server — it has access to the build pipeline.</p>
+    <p><strong>Source map resolution.</strong> Click a DOM element, and Frontman's local framework integration resolves it to the exact source file, component, and line number through the framework's source maps. No guessing which file to edit. The server has no direct filesystem access; file operations run through that local integration.</p>
     <p><strong>Hot reload feedback loop.</strong> Frontman edits the source file, and the framework's HMR updates the browser instantly. Edit → see result → iterate. The AI verifies its own work by taking a screenshot after each edit. OpenClaw can edit files too, but it does not integrate with your dev server's hot reload pipeline.</p>
     <p><strong>Click-to-select workflow.</strong> Instead of describing which element to change in words, you click it in the browser. The AI already has full context — the component, its styles, its position in the layout, and the source file. "Make this button primary" is unambiguous because the AI knows which button you mean.</p>
     <p><strong>Real source file edits.</strong> Every change Frontman makes is a real edit to your source code — the same files your engineers write by hand. No CSS overrides, no separate layer. Changes go through your existing code review process.</p>
@@ -186,7 +199,7 @@ npx @frontman-ai/vite install       # Vite</code></pre>
     <section class="flex justify-center border-t border-zinc-800 bg-zinc-950 px-6 py-20 max-md:px-5 max-md:py-12">
       <div class="w-full max-w-[720px]">
         <h2 class="mb-2 !text-4xl !font-bold !tracking-tight !text-zinc-50 max-md:!text-[28px]">Add Visual Frontend Editing to Your AI Agent</h2>
-        <p class="mb-8 text-[17px] text-zinc-300">Install the Frontman skill in OpenClaw. Free, open source, BYOK.</p>
+        <p class="mb-8 text-[17px] text-zinc-300">Install the Frontman skill in OpenClaw. Free, source-available, BYOK.</p>
         <div class="mb-8 flex flex-col gap-3">
           <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
             <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> openclaw skill install frontman-dev</code>

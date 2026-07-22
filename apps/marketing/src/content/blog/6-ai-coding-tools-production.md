@@ -3,8 +3,6 @@ title: 'AI Coding Tools for Existing Codebases'
 seoTitle: '6 AI Coding Tools for Existing Codebases (2026)'
 pubDate: 2026-03-23T05:00:00Z
 description: 'Compare Cursor, Claude Code, Windsurf, GitHub Copilot, Cline, and Frontman for working inside existing production codebases.'
-author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
 image: '/blog/ai-coding-tools.png'
 tags: ['ai', 'tools', 'cursor', 'claude-code', 'windsurf', 'github-copilot', 'cline', 'production']
 updatedDate: 2026-06-17T00:00:00Z
@@ -14,11 +12,18 @@ faq:
   - question: 'Can I use more than one of these tools together?'
     answer: 'Yes. Frontman handles visual/UI changes in the browser, while an IDE tool like Cursor or Claude Code handles backend logic, refactors, and migrations. They complement each other.'
   - question: 'Which tool has the best free tier?'
-    answer: 'Cline and Frontman are both free and open-source. You pay for the AI model usage (BYOK), but the tools themselves cost nothing.'
+    answer: 'Cline is free and open-source; Frontman is free and source-available. You pay for the AI model usage (BYOK), but the tools themselves cost nothing.'
   - question: 'Do any of these tools work with my existing codebase?'
     answer: 'All of them do. That was the selection criteria for this list. They all handle existing, production codebases rather than only generating greenfield projects.'
   - question: 'How do framework-aware AI tools differ from general-purpose ones?'
     answer: 'Framework-aware tools like Frontman integrate at the framework level (Next.js, Astro, Vite), so they understand your routing, component tree, and build system. General-purpose tools treat your code as text files.'
+author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Comparison or Buyer Guide'
+imageAlt: 'Comparison of six AI coding tools for existing production codebases'
+imageWidth: 1200
+imageHeight: 450
 ---
 
 For existing production codebases, Cursor is the strongest AI IDE, Claude Code is best for terminal-native deep context, Windsurf is a cheaper IDE workflow, GitHub Copilot is the lowest-friction default, Cline is the open-source VS Code agent, and Frontman is best for browser-based visual UI edits.
@@ -47,7 +52,7 @@ If your search is specifically frontend UI work, start with the [best frontend c
 
 ## 1. Frontman
 
-Every other tool on this list lives in an IDE or terminal. [Frontman](https://frontman.sh) is the exception: it's an open-source AI agent that hooks into your dev server as middleware and runs alongside your application in the browser.
+Every other tool on this list lives in an IDE or terminal. [Frontman](https://frontman.sh) is the exception: it's a source-available AI agent that hooks into your dev server as middleware and runs alongside your application in the browser.
 
 The workflow:
 
@@ -61,7 +66,7 @@ The limitation: Frontman is scoped to frontend work. It won't help you refactor 
 
 The target user is a designer or product manager who needs to make visual changes without opening an IDE.
 
-It's open-source (Apache 2.0), free to self-host, and BYOK: you connect your own API key from Anthropic, OpenAI, or OpenRouter.
+It's source-available, free to self-host, and BYOK: you connect your own API key from Anthropic, OpenAI, or OpenRouter. The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.
 
 Get started in your project folder:
 
@@ -152,9 +157,9 @@ The trade-off is managing your own API costs. Cline shows real-time usage and es
 
 ## AI coding tools for existing codebases: comparison table
 
-| Tool | Type | Price | Browser access | Open source | Best for |
+| Tool | Type | Price | Browser access | Open source / source-available | Best for |
 |------|------|-------|---------------|-------------|----------|
-| [Frontman](https://frontman.sh) | Browser agent | Free self-hosting; paid hosted plans coming | Yes, full DOM | Yes (Apache 2.0) | Designers & PMs making visual changes |
+| [Frontman](https://frontman.sh) | Browser agent | Free self-hosting; hosted Pro available now | Yes, full DOM | Source-available (Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms) | Designers & PMs making visual changes |
 | [Cursor](https://cursor.sh) | VS Code fork | Credit-based | Limited | No | Deepest AI-native IDE experience |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | CLI | Usage-based | No | No | Terminal-native, massive context |
 | [Windsurf](https://windsurf.com) | VS Code fork | $15/mo | No | No | Flow awareness across sessions |

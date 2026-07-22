@@ -1,0 +1,72 @@
+---
+import Layout from '../../layouts/Layout.astro'
+
+const SEO = {
+	title: 'Itay Adler: Frontman Co-founder and Author',
+	description:
+		'Itay Adler writes about WordPress, product development, full-stack engineering, and AI tools that understand running applications.'
+}
+
+const personJsonLd = {
+	'@context': 'https://schema.org',
+	'@type': 'Person',
+	'@id': 'https://frontman.sh/authors/itay-adler/#person',
+	name: 'Itay Adler',
+	jobTitle: 'Co-founder, Frontman',
+	url: 'https://frontman.sh/authors/itay-adler/',
+	worksFor: {
+		'@type': 'Organization',
+		'@id': 'https://frontman.sh/#organization',
+		name: 'Frontman',
+		url: 'https://frontman.sh/'
+	},
+	knowsAbout: [
+		'WordPress',
+		'Full-stack engineering',
+		'Product development',
+		'AI-assisted development tools'
+	],
+	sameAs: [
+		'https://github.com/itayadler',
+		'https://www.linkedin.com/in/itay-adler-93a4bb6/',
+		'https://twitter.com/itayad'
+	]
+}
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(personJsonLd)} />
+	<main class="flex min-h-screen justify-center bg-zinc-950 px-5 py-12 text-zinc-50 sm:px-6 sm:py-20 md:pb-30">
+		<article class="w-full max-w-[720px]">
+			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-zinc-500">Author</p>
+			<h1 class="mb-3 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 sm:text-[42px]">Itay Adler</h1>
+			<p class="mb-12 text-[20px] font-medium leading-[1.4] text-zinc-400">Co-founder of Frontman</p>
+
+			<div class="space-y-10 text-[17px] leading-[1.75] text-zinc-300">
+				<section>
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Background</h2>
+					<p>Itay is a full-stack engineer and product developer focused on making AI tools understand running applications, not only source files.</p>
+				</section>
+
+				<section>
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Current work</h2>
+					<p>At Frontman, Itay works on product development and integrations that connect live application context with reviewable source changes.</p>
+				</section>
+
+				<section>
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Selected writing</h2>
+					<ul class="list-disc space-y-2 pl-6">
+						<li><a href="/blog/best-wordpress-ai-plugins-2026/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">Best WordPress AI plugins in 2026</a></li>
+						<li><a href="/blog/ai-agent-wordpress-plugin-comparison/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">AI agent WordPress plugin comparison</a></li>
+						<li><a href="/blog/frontman-wordpress-plugin-released/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">Frontman WordPress plugin release</a></li>
+					</ul>
+				</section>
+
+				<section class="border-t border-zinc-800 pt-8">
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Profiles and corrections</h2>
+					<p>Find Itay on <a href="https://github.com/itayadler" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">GitHub</a>, <a href="https://www.linkedin.com/in/itay-adler-93a4bb6/" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">LinkedIn</a>, and <a href="https://twitter.com/itayad" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">X</a>. Report article errors through Frontman's <a href="/editorial-policy/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">editorial and corrections policy</a>.</p>
+				</section>
+			</div>
+		</article>
+	</main>
+</Layout>

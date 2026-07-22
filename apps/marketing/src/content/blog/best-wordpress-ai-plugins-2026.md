@@ -4,10 +4,7 @@ seoTitle: 'WordPress AI Plugins 2026'
 pubDate: 2026-06-24T05:00:00Z
 updatedDate: 2026-06-24T00:00:00Z
 description: 'Compare the best WordPress AI plugins in 2026 for agents, chatbots, builders, SEO, forms, content, and site editing workflows.'
-author: 'Itay Adler'
-authorRole: 'Founder, Frontman'
 image: '/blog/best-wordpress-ai-plugins-2026-cover.png'
-imageAlt: 'Comparison board for WordPress AI plugins in 2026, grouped by agents, builders, SEO, content, chatbots, and automation.'
 tags: ['wordpress', 'comparison', 'ai']
 comparisonItems:
   - name: 'AI Engine'
@@ -36,6 +33,13 @@ faq:
     answer: 'AIOSEO appears in the source analysis as the main SEO-oriented entity. AI Engine also mentions SEO Engine and advisor-style recommendations. Pick based on whether you need SEO workflow, content generation, or an agent connected to broader WordPress tools.'
   - question: 'Should I use an AI plugin on a production WordPress site?'
     answer: 'Treat any AI plugin that can change content, settings, forms, menus, WooCommerce data, or templates as production-impacting software. Start on staging, keep backups, review changes, and prefer tools with visible review, permissions, logs, or rollback.'
+author: 'Itay Adler'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/itay-adler/'
+articleSection: 'Comparison or Buyer Guide'
+imageAlt: 'Comparison board for WordPress AI plugins in 2026, grouped by agents, builders, SEO, content, chatbots, and automation.'
+imageWidth: 1200
+imageHeight: 450
 ---
 
 You search for the best WordPress AI plugin in 2026 and get a pile of answers that are all technically true and still not useful.

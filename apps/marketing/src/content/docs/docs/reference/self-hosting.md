@@ -7,10 +7,10 @@ description: Run the Frontman server yourself — architecture, requirements, de
 
 Frontman uses a split architecture:
 
-- **Client libraries** (browser-side MCP servers) — bundled into your app via npm packages (`@frontman-ai/nextjs`, `@frontman-ai/astro`, `@frontman-ai/vite`)
-- **Server** (AI agent orchestration) — Elixir/Phoenix application that queries MCP tools, generates edits, and writes source files
+- **Browser client and JavaScript framework integrations** — bundled into your app via npm packages (`@frontman-ai/nextjs`, `@frontman-ai/astro`, `@frontman-ai/vite`) to run browser tools in the browser and filesystem tools on your machine
+- **Server** (AI agent orchestration) — Elixir/Phoenix application that queries MCP tools, sends relevant context to the selected LLM provider, generates edits, and persists task history. Filesystem tools execute on your machine through the framework integration; the server has no direct filesystem access.
 
-For local development, the server runs at `api.frontman.sh` (our hosted instance). **Self-hosting is only needed if you want to run your own instance of the orchestration server** — for data sovereignty, air-gapped environments, or custom modifications.
+For local development, the server runs at `api.frontman.sh` (our hosted instance). **Self-hosting is only needed if you want to run your own instance of the orchestration server** — for data sovereignty, deployments where every required service and model is locally available, or custom modifications.
 
 :::caution[Self-hosting does not disable authentication]
 Production users who open `/frontman` are redirected to your Frontman server's login page and must sign in with GitHub or Google through WorkOS. Configure WorkOS credentials and redirect URIs before inviting users. After sign-in, Frontman returns users to accepted project URLs; if a custom local hostname is not accepted, they can reopen `/frontman` after signing in.
@@ -19,10 +19,10 @@ Frontman account authentication is separate from model access. Each user must al
 :::
 
 :::note[When to self-host]
-**Most users don't need to self-host.** The client libraries are open source (Apache 2.0) and run entirely in your browser. Your source code never leaves your machine. The hosted server at `api.frontman.sh` only receives MCP tool calls (DOM queries, file reads/writes) and returns edits.
+**Most users don't need to self-host.** The Apache-2.0 client libraries run browser tools in your browser and filesystem tools on your machine through the framework integration. The hosted server at `api.frontman.sh` orchestrates the agent loop and persists task history. It has no direct filesystem access, but relevant file content, screenshots, logs, metadata, tool results, and generated output may pass through it to your selected LLM provider.
 
 Consider self-hosting if you:
-- Work in an air-gapped environment (no internet access)
+- Can provide every required service and model inside an air-gapped environment
 - Have strict data residency requirements
 - Want to fork and modify the server codebase
 - Need guaranteed uptime SLAs not covered by the hosted service
@@ -373,7 +373,9 @@ mix ecto.rollback --step 1
 ## Security Considerations
 
 ### Data Flow
-- **Source code:** Never uploaded to the server. The browser-side MCP server reads files locally and sends diffs to the server. The server writes patches back via MCP file write tools.
+- **Source code:** Filesystem tools read and write files on your machine through the framework integration; the Frontman server has no direct filesystem access. Relevant file content and tool results may pass through the orchestration server to your selected LLM provider.
+- **Browser context:** Browser tools capture DOM context, screenshots, logs, and metadata in the browser. Relevant results pass through the orchestration server to the selected LLM provider.
+- **Task history:** The hosted or self-hosted server persists task history in PostgreSQL.
 - **Secrets:** LLM API keys are encrypted at rest in PostgreSQL using Cloak Ecto (AES-256-GCM). The `CLOAK_KEY` env var decrypts them.
 - **OAuth tokens:** WorkOS handles GitHub/Google OAuth. Frontman receives an auth code, exchanges it for user info, and stores a session cookie (Phoenix signed sessions).
 
@@ -470,14 +472,17 @@ For production, use:
 ## Commercial Considerations
 
 ### Licensing
-- **Client libraries** (`libs/`) — Apache 2.0 (permissive, commercial use allowed)
-- **Server** (`apps/frontman_server/`) — AGPL-3.0 (copyleft, requires source disclosure if distributed)
+The combined product is source-available because the server's supplementary terms impose field-of-use restrictions.
+
+- **Browser client and JavaScript framework integrations** — Apache-2.0 (permissive, commercial use allowed)
+- **WordPress plugin** (`libs/frontman-wordpress/`) — GPL-2.0-or-later
+- **Server** (`apps/frontman_server/`) — AGPL-3.0-only plus [AI Supplementary Terms](https://github.com/frontman-ai/frontman/blob/main/AI-SUPPLEMENTARY-TERMS.md) restricting AI training and AI-assisted competitive reproduction
 
 If you self-host, you must:
 - Provide source code to users who interact with your modified server (AGPL network clause)
 - Disclose modifications if you distribute the server
 
-**Commercial licenses available** — contact us if AGPL doesn't fit your use case (e.g., SaaS white-label, proprietary forks). See [AI-SUPPLEMENTARY-TERMS.md](https://github.com/frontman-ai/frontman/blob/main/AI-SUPPLEMENTARY-TERMS.md) for AI training restrictions.
+**Commercial licenses available** — contact us if the server terms don't fit your use case (e.g., SaaS white-label, proprietary forks).
 
 ### Support
 Self-hosted deployments are community-supported via:
@@ -505,7 +510,7 @@ Multi-tenancy is implemented via `organization_id` foreign keys + Ecto query sco
 ### Cost Estimates
 
 #### Hosted (api.frontman.sh)
-- **Paid hosted service** — hosted plans are moving to paid subscriptions
+- **Paid hosted service** — Hosted Frontman Pro is available now
 - **BYOK** — you pay your LLM provider directly (Anthropic, OpenAI, OpenRouter) at standard API rates
 
 #### Self-Hosted (estimated monthly costs)
@@ -614,7 +619,7 @@ Rollback if needed: `/opt/frontman/rollback.sh`
 ## FAQ
 
 ### Do I need to self-host?
-**No** — most users should use `api.frontman.sh` (our hosted instance). Self-host only if you need data sovereignty, air-gapped environments, or custom server modifications.
+**No** — most users should use `api.frontman.sh` (our hosted instance). Self-host only if you need data sovereignty, can provide every required service and model in an air-gapped environment, or want custom server modifications. Self-hosting moves orchestration and persistence to your infrastructure; it does not by itself prevent transmission to your configured LLM provider.
 
 ### Can I run Frontman without a server?
 **No** — the server orchestrates AI agent execution. The client libraries (Next.js/Astro/Vite plugins) are just MCP servers that expose dev server context to the agent.

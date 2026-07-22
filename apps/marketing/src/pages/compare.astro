@@ -23,12 +23,12 @@ type Tool = {
 }
 
 const tools: Tool[] = [
-	{ name: 'Frontman', slug: '', category: 'Browser Middleware', description: 'Open-source AI agent in your browser' },
+	{ name: 'Frontman', slug: '', category: 'Browser Middleware', description: 'Source-available agent with browser-aware tools' },
 	{ name: 'Cursor', slug: 'cursor', category: 'AI IDE', description: 'VS Code fork with AI agent' },
 	{ name: 'Claude Code', slug: 'claude-code', category: 'Terminal Agent', description: 'Anthropic\'s agentic coding tool' },
-	{ name: 'GitHub Copilot', slug: 'copilot', category: 'IDE Assistant', description: 'GitHub\'s AI coding assistant' },
-	{ name: 'Windsurf', slug: 'windsurf', category: 'AI IDE', description: 'VS Code fork by Cognition' },
-	{ name: 'Stagewise', slug: 'stagewise', category: 'Browser Overlay', description: 'CLI overlay that bridges to IDE agents' },
+	{ name: 'GitHub Copilot', slug: 'copilot', category: 'IDE Assistant', description: 'GitHub assistant with BYOK on documented agent surfaces' },
+	{ name: 'Windsurf', slug: 'windsurf', category: 'Agent Command Center', description: 'Now Devin Desktop; full IDE for local and cloud agents' },
+	{ name: 'Stagewise', slug: 'stagewise', category: 'Agentic Desktop IDE', description: 'Open-source IDE with filesystem agents and browser engine' },
 ]
 
 type MatrixFeature = {
@@ -63,7 +63,7 @@ const matrixFeatures: MatrixFeature[] = [
 	},
 	{
 		name: 'Agent mode',
-		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'partial' }
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'yes' }
 	},
 	{
 		name: 'Terminal integration',
@@ -78,12 +78,12 @@ const matrixFeatures: MatrixFeature[] = [
 		values: { 'Frontman': 'partial', 'Cursor': 'yes', 'Claude Code': 'yes', 'GitHub Copilot': 'yes', 'Windsurf': 'yes', 'Stagewise': 'no' }
 	},
 	{
-		name: 'Open source',
+		name: 'Source-available',
 		values: { 'Frontman': 'yes', 'Cursor': 'no', 'Claude Code': 'no', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'yes' }
 	},
 	{
 		name: 'BYOK (bring your own key)',
-		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'partial', 'GitHub Copilot': 'no', 'Windsurf': 'no', 'Stagewise': 'partial' }
+		values: { 'Frontman': 'yes', 'Cursor': 'yes', 'Claude Code': 'partial', 'GitHub Copilot': 'yes', 'Windsurf': 'no', 'Stagewise': 'yes' }
 	},
 	{
 		name: 'Self-hostable',
@@ -105,7 +105,7 @@ const matrixFeatures: MatrixFeature[] = [
 
 // Pricing data
 const pricing = [
-	{ name: 'Frontman', price: 'Free', model: 'Open source, BYOK', detail: 'You pay your LLM provider only' },
+	{ name: 'Frontman', price: 'Free', model: 'Source-available, BYOK', detail: 'You pay your LLM provider only' },
 	{ name: 'Cursor', price: '$0–$200/mo', model: 'Freemium', detail: 'Free tier limited; Pro $20/mo' },
 	{ name: 'Claude Code', price: '$20–$200/mo', model: 'Subscription', detail: 'No free tier for Claude Code' },
 	{ name: 'GitHub Copilot', price: '$0–$39/mo', model: 'Freemium', detail: 'Free: 50 chats, 2k completions/mo' },
@@ -117,11 +117,11 @@ const pricing = [
 const faqs = [
 	{
 		question: 'What makes Frontman different from all these tools?',
-		answer: 'Frontman is the only tool on this list that runs as framework middleware inside your dev server. It hooks into Next.js, Astro, or Vite as a plugin, which gives the AI agent access to the live DOM, computed CSS, the framework component tree (React, Vue, Svelte), server-side routes, and compilation errors. Other tools either read source files from an IDE (Cursor, Copilot, Windsurf), work from a terminal (Claude Code), or see a shallow DOM snapshot (Stagewise). Frontman sees the full runtime context.'
+		answer: 'Frontman is the only tool on this list that combines framework middleware in your dev server with browser-side tools and a separate agent server. The integration gives the agent live DOM, computed CSS, framework component tree (React, Vue, Svelte), server-side routes, and compilation errors. Stagewise also combines filesystem agency with a full browser engine, but current sources do not establish equivalent framework runtime/component mapping. Frontman focuses that mapped runtime context on browser-led UI work.'
 	},
 	{
 		question: 'Can I use Frontman alongside these other tools?',
-		answer: 'Yes. Frontman runs in your browser and edits source files. You can use any IDE (Cursor, VS Code, Windsurf, JetBrains) and any terminal tool (Claude Code) alongside it. They all edit the same files, and hot reload keeps everything in sync. The typical workflow is: IDE-based tool for backend and refactoring, Frontman for visual frontend work.'
+		answer: 'Yes. Frontman provides its interface and runtime tools in your browser, while filesystem operations run through the local framework integration. You can use any IDE (Cursor, VS Code, Windsurf, JetBrains) and any terminal tool (Claude Code) alongside it. They all edit the same files, and hot reload keeps everything in sync. The typical workflow is: IDE-based tool for backend and refactoring, Frontman for visual frontend work.'
 	},
 	{
 		question: 'Which tool should I use if I only pick one?',
@@ -129,7 +129,7 @@ const faqs = [
 	},
 	{
 		question: 'Is Frontman free?',
-		answer: 'Self-hosting remains free under the open-source licenses. The client libraries are Apache 2.0 and the server is AGPL-3.0. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider and pay those providers directly. Hosted Frontman plans are moving to paid subscriptions.'
+		answer: 'Self-hosting remains free under the repository terms. The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider and pay those providers directly. Hosted Frontman Pro is available now.'
 	}
 ]
 
@@ -188,7 +188,7 @@ const linkCardClass =
 				How Frontman stacks up against Cursor, Claude Code, GitHub Copilot, Windsurf, and Stagewise. Feature matrix, pricing, and architecture differences.
 			</p>
 			<p class="text-[17px] leading-[1.7] text-zinc-300">
-				<a href="https://frontman.sh" class={textLinkClass}>Frontman</a> is an open-source AI coding agent that runs as framework middleware in your browser. It hooks into Next.js, Astro, or Vite, sees the live DOM and computed CSS via a browser-side MCP server, and lets you click elements to edit their source code with hot reload. The tools below approach AI-assisted coding from different directions. This page shows where they overlap and where they don't.
+				<a href="https://frontman.sh" class={textLinkClass}>Frontman</a> is a source-available AI coding agent with a distributed architecture. Browser-side tools inspect the live DOM and computed CSS, local Next.js, Astro, or Vite integrations handle filesystem operations, and a hosted or self-hosted server orchestrates the agent and persists task history. Relevant context is sent to your selected LLM provider. The tools below approach AI-assisted coding from different directions.
 			</p>
 		</div>
 	</section>
@@ -210,9 +210,9 @@ const linkCardClass =
 				</div>
 				<div class={categoryCardClass}>
 				<h3 class="mb-1 text-[14px] font-semibold uppercase tracking-[0.05em] text-zinc-300">AI IDEs</h3>
-					<p class="mb-2 text-[18px] font-bold text-zinc-50">Cursor, Windsurf</p>
+					<p class="mb-2 text-[18px] font-bold text-zinc-50">Cursor, Devin Desktop (formerly Windsurf)</p>
 				<p class="m-0 text-[15px] leading-[1.6] text-zinc-300">
-						VS Code forks with built-in AI agents, autocomplete, and terminal integration. Work from file context. Windsurf adds an embedded browser preview panel.
+						Cursor is an AI IDE. Devin Desktop retains Windsurf's full IDE foundation while adding local and cloud ACP-agent sessions, Spaces, worktrees, code review, terminals, extensions, and JetBrains support.
 					</p>
 				</div>
 				<div class={categoryCardClass}>
@@ -226,14 +226,14 @@ const linkCardClass =
 				<h3 class="mb-1 text-[14px] font-semibold uppercase tracking-[0.05em] text-zinc-300">IDE Assistant</h3>
 					<p class="mb-2 text-[18px] font-bold text-zinc-50">GitHub Copilot</p>
 				<p class="m-0 text-[15px] leading-[1.6] text-zinc-300">
-						IDE extension with inline autocomplete, agent mode, and code review. Works across any language. Integrated into the GitHub platform for PRs and issues.
+						IDE extension with inline autocomplete, agent mode, and code review. Integrated into GitHub for PRs and issues, with BYOK on documented CLI, coding-agent, and app surfaces.
 					</p>
 				</div>
 				<div class={categoryCardClass}>
-				<h3 class="mb-1 text-[14px] font-semibold uppercase tracking-[0.05em] text-zinc-300">Browser Overlay</h3>
+				<h3 class="mb-1 text-[14px] font-semibold uppercase tracking-[0.05em] text-zinc-300">Agentic Desktop IDE</h3>
 					<p class="mb-2 text-[18px] font-bold text-zinc-50">Stagewise</p>
 				<p class="m-0 text-[15px] leading-[1.6] text-zinc-300">
-						Zero-install CLI overlay injected into the browser. Bridges to IDE agents (Cursor, Copilot, etc.) or uses a built-in agent with prompt limits.
+						Open-source AGPL-3.0 desktop IDE with agents that edit files across workspaces, plus a full browser engine, terminals, diff review, skills, plugins, and flexible model providers.
 					</p>
 				</div>
 			</div>
@@ -391,7 +391,7 @@ const linkCardClass =
 	<section class="flex justify-center border-t border-zinc-800 bg-[#09090b] px-5 py-20 text-zinc-50 md:px-6 max-md:py-12">
 		<div class="w-full max-w-[720px]">
 			<h2 class="mb-2 text-[28px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[36px]">Try Frontman</h2>
-			<p class="mb-8 text-[17px] text-zinc-300">One command for self-hosted local development. Hosted plans are coming soon.</p>
+			<p class="mb-8 text-[17px] text-zinc-300">Self-host in one command or use hosted Frontman Pro now.</p>
 			<div class="mb-8 flex flex-col gap-3">
 				<div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
 					<code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>

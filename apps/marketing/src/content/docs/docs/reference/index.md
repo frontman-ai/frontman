@@ -23,7 +23,7 @@ Not sure if your runtime or framework version is supported? The **[Supported Fra
 
 ## Self-hosting
 
-Most users don't need to self-host — the client libraries are open source and run entirely in your browser. But if you need data sovereignty, air-gapped deployments, or custom server modifications, the **[Self-Hosting](/docs/reference/self-hosting/)** guide covers architecture, requirements, and deployment options.
+Most users don't need to self-host. Browser tools run in the browser, filesystem tools run on your machine through the Apache-2.0 framework integrations, and the hosted Frontman server orchestrates the agent loop and persists task history. If you need data sovereignty, can provide every required service and model in an air-gapped environment, or want custom server modifications, the **[Self-Hosting](/docs/reference/self-hosting/)** guide covers architecture, requirements, and deployment options.
 
 ## Troubleshooting
 

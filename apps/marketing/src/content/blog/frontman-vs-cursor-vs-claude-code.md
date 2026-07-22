@@ -3,7 +3,13 @@ title: 'Frontman vs Cursor vs Claude Code'
 pubDate: 2026-02-14T05:00:00Z
 description: 'You tried AI coding agents for visual work and hit a wall. Here is why — and what is actually built for designers and PMs who think visually.'
 author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Comparison or Buyer Guide'
 image: '/blog/frontman-vs-cursor-vs-claude-code-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'Frontman, Cursor, and Claude Code workflow comparison'
 tags: ['comparison', 'ai', 'design-systems']
 updatedDate: 2026-03-20T00:00:00Z
 faq:
@@ -122,4 +128,4 @@ You tried the AI coding agents. They are powerful, but they were not built for h
 
 Frontman is the tool that meets you where you are. Click what needs to change. Describe what you want. Review the result in the browser. Open a PR. Your engineering team stays focused on engineering. Your design system stays consistent. And you stop waiting three sprints for a padding fix.
 
-[Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon. [Install in one command](/blog/getting-started/), or read about [how designers and PMs can use it alongside your team](/blog/team-collaboration/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).
+[Try Frontman](https://frontman.sh) — self-host in one command or use hosted Frontman Pro now. The browser client and JavaScript integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. Read about [how designers and PMs can use it alongside your team](/blog/team-collaboration/). For a detailed feature-by-feature breakdown, see [Frontman vs Cursor](/vs/cursor/).

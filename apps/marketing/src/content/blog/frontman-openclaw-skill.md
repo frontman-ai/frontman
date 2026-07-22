@@ -4,7 +4,12 @@ pubDate: 2026-03-24T05:00:00Z
 description: 'Frontman is now available as an OpenClaw skill. Give your AI agent the ability to click elements in a running web app, describe changes in plain English, and get real source file edits with hot reload. No IDE required.'
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Product Announcement'
 image: '/blog/frontman-openclaw-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'Frontman skill connecting OpenClaw to browser-based UI editing'
 tags: ['openclaw', 'integration', 'ai-agents', 'open-source', 'browser-automation']
 faq:
   - question: 'What is the Frontman OpenClaw skill?'
@@ -15,8 +20,8 @@ faq:
     answer: 'No. OpenClaw browser automation is general-purpose — it can navigate any website, fill forms, and extract data. Frontman is specialized for frontend development: it understands your component tree, computed CSS, source maps, and design system. They are complementary. Use OpenClaw for general web tasks and Frontman for precise UI editing in your own codebase.'
   - question: 'What frameworks does Frontman support?'
     answer: 'Next.js (App Router and Pages Router, including Turbopack), Astro (Islands, SSR, hybrid mode, content collections), and Vite (React, Vue, Svelte, SolidJS, SvelteKit). Frontman installs as a framework plugin with a single command.'
-  - question: 'Is Frontman open source?'
-    answer: 'Yes. Client libraries and framework integrations are Apache 2.0. The server is AGPL-3.0. Self-hosting is always an option. Bring your own API keys to Anthropic, OpenAI, or OpenRouter.'
+  - question: 'Is Frontman source-available?'
+    answer: 'Yes. The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and the server is AGPL-3.0-only with AI Supplementary Terms restricting AI training and AI-assisted competitive reproduction. Self-hosting is always an option. Bring your own API keys to Anthropic, OpenAI, or OpenRouter.'
   - question: 'Can designers and PMs use Frontman through OpenClaw?'
     answer: 'Yes. Since OpenClaw supports messaging channels like Slack, Telegram, and Discord, non-technical team members can describe UI changes in those channels. The OpenClaw agent with the Frontman skill handles the browser interaction, element selection, and code editing. The resulting diff goes through your normal code review process.'
 ---
@@ -91,11 +96,11 @@ The combination is especially useful for product teams. Designers and PMs do not
 
 This turns "can you move this 4px to the left" from a three-day ticket lifecycle into a thirty-second conversation.
 
-### Open Source, All the Way Down
+### Source-Available Frontman, Open-Source Integrations
 
-Both projects are open source. Frontman is Apache 2.0 (client) / AGPL-3.0 (server). OpenClaw is MIT. The skill itself is published to ClawHub under MIT-0.
+Frontman's browser client and JavaScript framework integrations are Apache-2.0, and its WordPress plugin is GPL-2.0-or-later. Frontman Server is AGPL-3.0-only with [AI Supplementary Terms](https://github.com/frontman-ai/frontman/blob/main/AI-SUPPLEMENTARY-TERMS.md) restricting AI training and AI-assisted competitive reproduction, so the combined product is source-available. OpenClaw is MIT. The skill itself is published to ClawHub under MIT-0.
 
-Your code stays on your machine. Your conversations stay on your machine. You bring your own API keys. There is no vendor lock-in on either side.
+Browser tools run in your browser, and filesystem tools run on your machine through the framework integration. The hosted or self-hosted Frontman server orchestrates the loop and persists task history; relevant context passes through it to your selected LLM provider. You bring your own API keys. There is no vendor lock-in on either side.
 
 ---
 

@@ -4,7 +4,13 @@ seoTitle: 'Edit a Website Without a Developer'
 pubDate: 2026-04-17T05:00:00Z
 description: 'Edit website copy, spacing, CTAs, and UI polish without filing a developer ticket. Frontman turns browser feedback into reviewable code changes.'
 author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Tutorial'
 image: '/blog/edit-website-without-developer-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'Product manager editing a website directly in the browser'
 tags: ['product-management', 'design-ops', 'cross-functional']
 updatedDate: 2026-06-17T00:00:00Z
 faq:
@@ -111,4 +117,4 @@ After setup, you get access to the staging environment in your browser and start
 
 Read about [how the code review workflow protects your codebase](/blog/security/), see [how designers and PMs use Frontman alongside engineers](/blog/team-collaboration/), or compare the full [AI frontend editing feature set](/features/).
 
-[Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon.
+[Try Frontman](https://frontman.sh) — self-host in one command or use hosted Frontman Pro now. The browser client and JavaScript integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.

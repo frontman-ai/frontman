@@ -10,6 +10,7 @@ image: '/blog/puppeteer-mcp-alternatives-claude-code-cover.png'
 imageWidth: 1200
 imageHeight: 450
 imageAlt: 'Comparison of Puppeteer MCP alternatives for Claude Code browser debugging'
+articleSection: 'Comparison or Buyer Guide'
 tags: ['comparison', 'claude-code', 'browser-automation', 'developer-tools']
 comparisonItems:
   - name: 'Chrome DevTools MCP'

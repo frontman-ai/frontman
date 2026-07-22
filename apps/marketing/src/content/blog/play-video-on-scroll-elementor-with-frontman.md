@@ -9,6 +9,8 @@ imageHeight: 450
 imageAlt: 'Frontman cover reading Make an Elementor Video Play on Scroll With Frontman'
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Tutorial'
 tags: ['wordpress', 'elementor', 'tutorial', 'gsap']
 video:
   name: 'Play Video on Scroll in Elementor'

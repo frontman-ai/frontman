@@ -46,7 +46,17 @@ type FAQ = {
   answer: string
 }
 
-export type { ComparisonFeature, Alternative, CompetitorInfo, SEOInfo, FAQ }
+type ComparisonSource = {
+  label: string
+  url: string
+}
+
+type ComparisonReview = {
+  checkedAt: string
+  sources: ComparisonSource[]
+}
+
+export type { ComparisonFeature, Alternative, CompetitorInfo, SEOInfo, FAQ, ComparisonReview, ComparisonSource }
 
 type Props = {
   seo: SEOInfo
@@ -55,6 +65,7 @@ type Props = {
   heroSubtitle: string
   features: ComparisonFeature[]
   faqs: FAQ[]
+  review: ComparisonReview
   alternatives?: Alternative[]
   showArchitectureDiagram?: boolean
   showAlternatives?: boolean
@@ -72,11 +83,20 @@ const {
   heroSubtitle,
   features,
   faqs,
+  review,
   alternatives = [],
   showArchitectureDiagram,
   showAlternatives = true,
   frontmanPricing,
 } = Astro.props
+
+if (!/^\d{4}-\d{2}-\d{2}$/.test(review.checkedAt)) {
+  throw new Error(`Invalid comparison checkedAt date: ${review.checkedAt}`)
+}
+
+if (review.sources.length === 0) {
+  throw new Error(`Comparison for ${competitor.name} requires at least one source`)
+}
 
 const shouldShowArchitectureDiagram =
 	showArchitectureDiagram === undefined
@@ -97,6 +117,7 @@ const comparisonBreadcrumbs = [
     competitor={{ name: competitor.name, url: competitor.url, category: competitor.category, description: competitor.description, pricing: { cost: competitor.pricing.cost, model: competitor.pricing.model } }}
     faqs={faqs}
     seo={seo}
+    checkedAt={review.checkedAt}
   />
 
   <nav aria-label="Breadcrumb" class="mx-auto mt-28 flex w-full max-w-[900px] px-6 text-sm text-zinc-300 max-md:mt-24">
@@ -112,7 +133,7 @@ const comparisonBreadcrumbs = [
   <!-- Hero -->
   <ComparisonHero title={heroTitle} subtitle={heroSubtitle}>
     <slot name="hero-summary" />
-    <ComparisonDisclosure competitor={competitor.name} />
+    <ComparisonDisclosure competitor={competitor.name} checkedAt={review.checkedAt} sources={review.sources} />
   </ComparisonHero>
 
   <!-- Architecture Diagram -->

@@ -3,7 +3,13 @@ title: 'Frontman Quickstart: First UI Edit'
 pubDate: 2026-02-15T05:00:00Z
 description: 'Install the Frontman integration for Next.js, Vite, or Astro, open the /frontman workspace, connect an AI provider, and make your first UI edit.'
 author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
 image: '/blog/getting-started-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'Frontman quickstart guide for making a first UI edit'
+articleSection: 'Tutorial'
 tags: ['tutorial', 'getting-started']
 updatedDate: 2026-07-20T00:00:00Z
 ---

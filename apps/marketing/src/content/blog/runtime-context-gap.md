@@ -3,7 +3,13 @@ title: 'Runtime Context Gap in AI Coding Tools'
 pubDate: 2026-02-20T05:00:00Z
 description: 'AI coding tools read your source files but never see the running application. Here is what that means technically — on both the client and server side — and which tools are building the bridge.'
 author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Technical Explainer'
 image: '/blog/runtime-context-gap-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'Runtime Context Gap in AI Coding Tools cover'
 tags: ['ai', 'developer-tools']
 updatedDate: 2026-03-10T00:00:00Z
 ---
@@ -80,4 +86,4 @@ The rule should be the same as it's always been: **don't commit code you don't u
 
 Runtime-aware tools are better inputs to AI, not substitutes for engineering judgment. They reduce the guess-and-check cycle, which is real waste. They don't reduce the need to understand your own codebase.
 
-[Frontman](https://frontman.sh) is open source on [GitHub](https://github.com/frontman-ai/frontman). The runtime context gap is real regardless of which tool you use to address it.
+[Frontman](https://frontman.sh) is source-available on [GitHub](https://github.com/frontman-ai/frontman): the browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. The runtime context gap is real regardless of which tool you use to address it.
