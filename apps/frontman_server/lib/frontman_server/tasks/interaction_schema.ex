@@ -72,13 +72,16 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   def create_changeset(task_id, type, attrs, turn_number)
       when is_binary(task_id) and is_atom(type) and is_map(attrs) and
              (is_integer(turn_number) or is_nil(turn_number)) do
-    %__MODULE__{
-      task_id: task_id,
-      type: type,
-      sequence: generate_sequence(),
-      turn_number: turn_number
-    }
-    |> create_changeset(%{data: strip_null_bytes_from_value(attrs)})
+    changeset =
+      %__MODULE__{
+        task_id: task_id,
+        type: type,
+        sequence: generate_sequence(),
+        turn_number: turn_number
+      }
+      |> create_changeset(%{data: strip_null_bytes_from_value(attrs)})
+
+    scrub_tool_result_params(changeset, type)
   end
 
   def create_changeset(%__MODULE__{} = interaction, attrs) do
@@ -87,6 +90,12 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> cast_polymorphic_embed(:data, required: true, with: polymorphic_changesets())
     |> validate_create()
   end
+
+  defp scrub_tool_result_params(changeset, :tool_result) do
+    %{changeset | params: Map.put(changeset.params, "data", %{})}
+  end
+
+  defp scrub_tool_result_params(changeset, _type), do: changeset
 
   def for_task(query \\ __MODULE__, task_id) when is_binary(task_id) do
     from(i in query, where: i.task_id == ^task_id)

@@ -3,6 +3,10 @@ open Vitest
 module UIShell = FrontmanCore__UIShell
 module MiddlewareConfig = FrontmanCore__MiddlewareConfig
 
+afterEach(() => {
+  FrontmanBindings.Process.env->Dict.delete("OPENROUTER_API_KEY")
+})
+
 module Helpers = {
   let makeConfig = (
     ~clientUrl="http://localhost/client.js",
@@ -10,9 +14,11 @@ module Helpers = {
     ~entrypointUrl=None,
     ~frameworkId=MiddlewareConfig.Nextjs,
     ~traits=[],
+    ~projectRoot="/test/project",
+    ~sourceRoot="/test/project/apps/web",
   ): MiddlewareConfig.t => {
-    projectRoot: "/test/project",
-    sourceRoot: "/test/project",
+    projectRoot,
+    sourceRoot,
     basePath: "frontman",
     serverName: "test-server",
     serverVersion: "1.0.0",
@@ -165,6 +171,31 @@ describe("UIShell", _t => {
         let html = UIShell.generateHTML(Helpers.makeConfig(~traits=["react", "typescript"]))
 
         t->expect(html->String.includes("\"traits\":[\"react\",\"typescript\"]"))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "omits sourceRoot but retains projectRoot in runtime config",
+      t => {
+        let html = UIShell.generateHTML(
+          Helpers.makeConfig(~projectRoot="/workspace", ~sourceRoot="/workspace/apps/web"),
+        )
+
+        t->expect(html->String.includes("\"sourceRoot\""))->Expect.toBe(false)
+        t->expect(html->String.includes("/workspace/apps/web"))->Expect.toBe(false)
+        t->expect(html->String.includes("\"projectRoot\":\"/workspace\""))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "never exposes provider environment keys in runtime config",
+      t => {
+        FrontmanBindings.Process.env->Dict.set("OPENROUTER_API_KEY", "sk-secret-provider-key")
+
+        let html = UIShell.generateHTML(Helpers.makeConfig())
+
+        t->expect(html->String.includes("sk-secret-provider-key"))->Expect.toBe(false)
+        t->expect(html->String.includes("openrouterKeyValue"))->Expect.toBe(false)
       },
     )
 

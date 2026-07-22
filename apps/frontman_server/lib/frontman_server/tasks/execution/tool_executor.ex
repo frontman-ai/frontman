@@ -287,21 +287,24 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
          turn_number
        )
        when is_list(content) do
-    is_error = MCP.error?(result)
+    result = persist_tool_result(scope, task_id, turn_number, tool_call, result)
 
-    if is_error do
-      metadata = [
-        error_type: "tool_soft_error",
-        tool_name: tool_call.name,
-        tool_call_id: tool_call.id,
-        task_id: task_id,
-        reason: MCP.extract_content_text(result)
-      ]
+    case result["isError"] do
+      true ->
+        metadata = [
+          error_type: "tool_soft_error",
+          tool_name: tool_call.name,
+          tool_call_id: tool_call.id,
+          task_id: task_id
+        ]
 
-      Logger.error("Tool execution failed", metadata)
+        Logger.error("Tool execution failed", metadata)
+
+      false ->
+        :ok
     end
 
-    persist_tool_result(scope, task_id, turn_number, tool_call, result)
+    result
   end
 
   defp handle_backend_outcome(
@@ -336,11 +339,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp persist_tool_result(scope, task_id, turn_number, tool_call, result) do
-    {:ok, _interaction, _executor_status} =
-      Tasks.resolve_tool_request(scope, task_id, tool_call, result, MCP.error?(result),
-        turn_number: turn_number
-      )
+    {:ok, interaction, _executor_status} =
+      Tasks.resolve_tool_request(scope, task_id, tool_call, result, turn_number: turn_number)
 
-    result
+    interaction.result
   end
 end

@@ -210,7 +210,7 @@ class Frontman_Tools {
 		$text = is_string( $data ) ? $data : wp_json_encode( $data );
 		return [
 			'content' => [ [ 'type' => 'text', 'text' => $text ] ],
-			'_meta'   => self::meta(),
+			'isError' => false,
 		];
 	}
 
@@ -221,17 +221,7 @@ class Frontman_Tools {
 		return [
 			'content' => [ [ 'type' => 'text', 'text' => $message ] ],
 			'isError' => true,
-			'_meta'   => self::meta(),
 		];
-	}
-
-	/**
-	 * Build the _meta object for callToolResult.
-	 *
-	 * Uses stdClass for envApiKey so json_encode produces {} not [].
-	 */
-	private static function meta(): array {
-		return [ 'envApiKey' => new \stdClass() ];
 	}
 
 	/**

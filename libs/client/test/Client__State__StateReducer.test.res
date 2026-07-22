@@ -1176,13 +1176,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
       (Nvidia, "nvidia"),
     ]
 
-    test(
-      "keeps the Fireworks runtime config field stable",
-      t => {
-        t->expect(Reducer.apiKeyRuntimeKey(Fireworks))->Expect.toBe("fireworksKeyValue")
-      },
-    )
-
     let _settingsForProvider = (
       state: Client__State__Types.state,
       provider: Reducer.apiKeyProvider,
@@ -1303,11 +1296,11 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t => {
         let (nextState, _effects) = Reducer.next(
           Reducer.defaultState,
-          ApiKeySettingsReceived({provider: Anthropic, source: FromEnv}),
+          ApiKeySettingsReceived({provider: Anthropic, source: UserOverride}),
         )
 
         t->expect(nextState.openrouterKeySettings.source)->Expect.toEqual(Client__State__Types.None)
-        t->expect(nextState.anthropicKeySettings.source)->Expect.toEqual(FromEnv)
+        t->expect(nextState.anthropicKeySettings.source)->Expect.toEqual(UserOverride)
         t->expect(nextState.fireworksKeySettings.source)->Expect.toEqual(Client__State__Types.None)
         t->expect(nextState.nvidiaKeySettings.source)->Expect.toEqual(Client__State__Types.None)
       },

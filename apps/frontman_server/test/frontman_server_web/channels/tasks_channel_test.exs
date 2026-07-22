@@ -3,6 +3,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import ExUnit.CaptureLog
 
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Repo
@@ -19,6 +20,33 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   end
 
   describe "ACP initialize" do
+    test "does not log client metadata", %{socket: socket} do
+      version = ACP.protocol_version()
+
+      log =
+        capture_log([level: :info], fn ->
+          push(socket, "acp:message", %{
+            "jsonrpc" => "2.0",
+            "id" => 1,
+            "method" => "initialize",
+            "params" => %{
+              "protocolVersion" => version,
+              "clientInfo" => %{
+                "name" => "test-client",
+                "version" => "1.0.0",
+                "_meta" => %{"envApiKey" => "sk-fake-client-info-marker"}
+              }
+            }
+          })
+
+          assert_push("config_options_updated", %{})
+          assert_push("acp:message", %{"id" => 1})
+        end)
+
+      refute log =~ "sk-fake-client-info-marker"
+      refute log =~ "envApiKey"
+    end
+
     test "succeeds with matching protocol version", %{socket: socket} do
       version = ACP.protocol_version()
 

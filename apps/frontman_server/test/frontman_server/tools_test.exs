@@ -195,20 +195,33 @@ defmodule FrontmanServer.ToolsTest do
   end
 
   describe "GetToolResult.execute/2" do
-    test "returns the actual tool result by tool call ID", %{
+    test "returns the canonical tool result by tool call ID", %{
       task_id: task_id,
       scope: scope,
       turn_number: turn_number
     } do
-      stored_result = MCP.tool_result_text("file contents")
+      untrusted_result = %{
+        "content" => [
+          %{"type" => "text", "text" => "file contents", "unknown" => "drop me"}
+        ],
+        "isError" => false,
+        "_meta" => %{"envApiKey" => "sk-fake-stored-key"},
+        "unknownTopLevel" => "drop me"
+      }
+
+      canonical_result = %{
+        "content" => [%{"type" => "text", "text" => "file contents"}],
+        "structuredContent" => %{},
+        "isError" => false,
+        "_meta" => %{}
+      }
 
       {:ok, interaction, :no_executor} =
         Tasks.resolve_tool_request(
           scope,
           task_id,
           %{id: "tc-read", name: "read_file"},
-          stored_result,
-          false,
+          untrusted_result,
           turn_number: turn_number
         )
 
@@ -217,7 +230,8 @@ defmodule FrontmanServer.ToolsTest do
 
       result = GetToolResult.execute(%{"tool_call_id" => "tc-read"}, context)
 
-      assert result == stored_result
+      assert result == canonical_result
+      assert interaction.result == canonical_result
       assert interaction.tool_call_id == "tc-read"
     end
 
@@ -251,26 +265,41 @@ defmodule FrontmanServer.ToolsTest do
                "Stored tool result for tc-malformed is not a valid MCP tool result"
     end
 
-    test "returns an error when content is invalid type", %{task: task} do
-      malformed_result =
-        %ToolResult{
-          id: Ecto.UUID.generate(),
-          tool_call_id: "tc-invalid-content",
-          tool_name: "read_file",
-          result: %{"content" => [%{"type" => "text", "text" => "ok"}, "bad"], "isError" => false},
-          is_error: false,
-          timestamp: DateTime.utc_now()
-        }
+    test "returns canonical errors for malformed submitted results", %{
+      scope: scope,
+      task_id: task_id,
+      turn_number: turn_number
+    } do
+      malformed_results = [
+        {"tc-invalid-error", %{"content" => [], "isError" => "false"}},
+        {"tc-invalid-content", %{"content" => [%{"type" => "text", "text" => 42}]}}
+      ]
 
-      row = %InteractionSchema{id: Ecto.UUID.generate(), data: malformed_result}
-      context = build_context(%{task | interaction_rows: [row | task.interaction_rows]})
+      for {tool_call_id, submitted_result} <- malformed_results do
+        assert {:ok, interaction, :no_executor} =
+                 Tasks.resolve_tool_request(
+                   scope,
+                   task_id,
+                   %{id: tool_call_id, name: "read_file"},
+                   submitted_result,
+                   turn_number: turn_number
+                 )
 
-      result = GetToolResult.execute(%{"tool_call_id" => "tc-invalid-content"}, context)
+        assert interaction.is_error == true
+        assert MCP.error?(interaction.result)
+        assert map_size(interaction.result) == 4
+      end
 
-      assert MCP.error?(result)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      context = build_context(task)
 
-      assert MCP.extract_content_text(result) ==
-               "Stored tool result is invalid: content must be list of objects"
+      for {tool_call_id, _submitted_result} <- malformed_results do
+        result = GetToolResult.execute(%{"tool_call_id" => tool_call_id}, context)
+
+        assert MCP.error?(result)
+        assert result["structuredContent"] == %{}
+        assert result["_meta"] == %{}
+      end
     end
   end
 end

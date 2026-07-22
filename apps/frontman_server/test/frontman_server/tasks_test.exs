@@ -3,6 +3,7 @@ defmodule FrontmanServer.TasksTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import ExUnit.CaptureLog
 
   alias Ecto.Migration.Runner
 
@@ -10,7 +11,8 @@ defmodule FrontmanServer.TasksTest do
     BackfillInteractionTurnNumbers,
     BackfillToolResultPayloads,
     BackfillTurnStartedForUserMessages,
-    BackfillUserMessageModels
+    BackfillUserMessageModels,
+    ScrubToolResultMetadata
   }
 
   alias FrontmanServer.Tasks
@@ -222,7 +224,12 @@ defmodule FrontmanServer.TasksTest do
                }
              ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 
-      assert result == MCP.tool_result_error("Interrupted by restart")
+      assert result == %{
+               "content" => [%{"type" => "text", "text" => "Interrupted by restart"}],
+               "structuredContent" => %{},
+               "isError" => true,
+               "_meta" => %{}
+             }
 
       assert {:ok, ^turn_number, [%Interaction.ToolCall{tool_call_id: "question_1"}]} =
                Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
@@ -414,9 +421,11 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "tool-result payload backfill migration" do
-    test "wraps legacy strings as MCP text results and preserves canonical maps", %{scope: scope} do
+    test "wraps legacy strings as MCP text results and preserves existing MCP maps", %{
+      scope: scope
+    } do
       task_id = task_fixture(scope).id
-      canonical = MCP.tool_result_text("already canonical")
+      existing_mcp_result = MCP.tool_result_text("already canonical")
 
       insert_legacy_interaction_row(task_id, Interaction.ToolResult, 1, %{
         "tool_call_id" => "legacy-call",
@@ -426,7 +435,7 @@ defmodule FrontmanServer.TasksTest do
 
       insert_legacy_interaction_row(task_id, Interaction.ToolResult, 2, %{
         "tool_call_id" => "canonical-call",
-        "result" => canonical,
+        "result" => existing_mcp_result,
         "is_error" => false
       })
 
@@ -445,7 +454,93 @@ defmodule FrontmanServer.TasksTest do
                "isError" => true
              }
 
-      assert existing.data.result == canonical
+      assert existing.data.result == existing_mcp_result
+    end
+  end
+
+  describe "tool-result metadata scrub migration" do
+    test "canonicalizes historical results without changing tool-owned payloads", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      image_data = Base.encode64(<<0, 1, 2, 254, 255>>)
+      structured_content = %{"items" => [%{"name" => "README.md"}], "count" => 1}
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 1, %{
+        "tool_call_id" => "legacy-call",
+        "result" => %{
+          "content" => [
+            %{"type" => "image", "data" => image_data, "mimeType" => "image/png"}
+          ],
+          "structuredContent" => structured_content,
+          "isError" => false,
+          "_meta" => %{
+            "envApiKey" => "sk-fake-migration-secret",
+            "model" => "fake-provider:fake-model",
+            "unapproved" => %{"nested" => true}
+          },
+          "unknown" => "drop me"
+        },
+        "is_error" => true
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 2, %{
+        "tool_call_id" => "null-structured-content",
+        "result" => %{
+          "content" => [%{"type" => "text", "text" => "null structured content"}],
+          "structuredContent" => nil
+        },
+        "is_error" => false
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 3, %{
+        "tool_call_id" => "absent-structured-content",
+        "result" => %{
+          "content" => [%{"type" => "text", "text" => "absent structured content"}]
+        },
+        "is_error" => false
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.AgentCompleted, 1, %{
+        "result" => %{"unknown" => "leave me"}
+      })
+
+      run_tool_result_metadata_scrub_migration(:up)
+
+      assert [tool_result, null_structured_content, absent_structured_content] =
+               tool_results =
+               task_id
+               |> raw_interaction_data("tool_result")
+               |> Enum.map(& &1["result"])
+
+      assert tool_result == %{
+               "content" => [
+                 %{"type" => "image", "data" => image_data, "mimeType" => "image/png"}
+               ],
+               "structuredContent" => structured_content,
+               "isError" => true,
+               "_meta" => %{}
+             }
+
+      assert null_structured_content == %{
+               "content" => [%{"type" => "text", "text" => "null structured content"}],
+               "isError" => false,
+               "_meta" => %{}
+             }
+
+      assert absent_structured_content == %{
+               "content" => [%{"type" => "text", "text" => "absent structured content"}],
+               "isError" => false,
+               "_meta" => %{}
+             }
+
+      assert [%{"result" => %{"unknown" => "leave me"}}] =
+               raw_interaction_data(task_id, "agent_completed")
+
+      run_tool_result_metadata_scrub_migration(:down)
+
+      assert tool_results ==
+               task_id
+               |> raw_interaction_data("tool_result")
+               |> Enum.map(& &1["result"])
     end
   end
 
@@ -517,8 +612,8 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "Swarm message conversion" do
-    test "full tool_call + tool_result round-trip produces valid Swarm messages", %{scope: scope} do
+  describe "tool result persistence and Swarm message conversion" do
+    test "canonicalizes a tool result through its full round-trip", %{scope: scope} do
       task_id = task_fixture(scope).id
 
       tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
@@ -550,15 +645,37 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, tc)
 
-      {:ok, _, _} =
+      untrusted_result = %{
+        "content" => [
+          %{"type" => "text", "text" => "4", "audience" => ["assistant"]}
+        ],
+        "structuredContent" => %{"answer" => 4},
+        "_meta" => %{
+          "envApiKey" => "sk-fake-env-key",
+          "model" => %{"provider" => "openrouter", "value" => "fake/model"},
+          "unapproved" => true
+        },
+        "unknownTopLevel" => "drop me"
+      }
+
+      canonical_result = %{
+        "content" => [%{"type" => "text", "text" => "4"}],
+        "structuredContent" => %{"answer" => 4},
+        "isError" => false,
+        "_meta" => %{}
+      }
+
+      {:ok, persisted_result, _} =
         resolve_tool(
           scope,
           task_id,
           %{id: tool_call_id, name: "calculator"},
-          MCP.tool_result_text("4"),
-          false,
+          untrusted_result,
           turn_number
         )
+
+      assert persisted_result.result == canonical_result
+      assert persisted_result.is_error == false
 
       {:ok, _} = Tasks.agent_replied(scope, task_id, turn_number, "The answer is 4.")
 
@@ -595,6 +712,82 @@ defmodule FrontmanServer.TasksTest do
       assert [%{type: :text, text: "4"}] = tool_result_msg.content
 
       assert [%{type: :text, text: "The answer is 4."}] = final_assistant.content
+    end
+
+    test "derives error state from canonical result without logging raw values", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+      previous_level = Logger.level()
+      Logger.configure(level: :debug)
+
+      {log, interaction} =
+        try do
+          result = %{
+            "content" => [%{"type" => "text", "text" => "private-body-marker"}],
+            "isError" => true,
+            "_meta" => %{"envApiKey" => "sk-fake-log-marker"},
+            "unknownTopLevel" => "unknown-field-marker"
+          }
+
+          capture_log(fn ->
+            result =
+              resolve_tool(
+                scope,
+                task_id,
+                %{id: "safe-log", name: "test_tool"},
+                result,
+                turn_number
+              )
+
+            send(self(), {:resolved_tool_result, result})
+          end)
+          |> then(fn log ->
+            assert_receive {:resolved_tool_result, {:ok, interaction, :no_executor}}
+            {log, interaction}
+          end)
+        after
+          Logger.configure(level: previous_level)
+        end
+
+      assert interaction.is_error == true
+      assert interaction.result["isError"] == true
+      refute log =~ "private-body-marker"
+      refute log =~ "sk-fake-log-marker"
+      refute log =~ "unknown-field-marker"
+      refute log =~ "envApiKey"
+      refute log =~ "unknownTopLevel"
+    end
+
+    test "duplicate malformed historical result does not crash summary logging", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, turn_number, %{
+        "tool_call_id" => "historical-malformed",
+        "tool_name" => "test_tool",
+        "result" => %{"content" => "historical-private-body"},
+        "is_error" => false
+      })
+
+      log =
+        capture_log(fn ->
+          result =
+            resolve_tool(
+              scope,
+              task_id,
+              %{id: "historical-malformed", name: "test_tool"},
+              MCP.tool_result_text("new result"),
+              turn_number
+            )
+
+          send(self(), {:resolved_historical_result, result})
+        end)
+
+      assert_receive {:resolved_historical_result,
+                      {:ok, %Interaction.ToolResult{} = interaction, :no_executor}}
+
+      assert interaction.result == %{"content" => "historical-private-body"}
+      refute log =~ "historical-private-body"
     end
   end
 
@@ -692,7 +885,6 @@ defmodule FrontmanServer.TasksTest do
           task_id,
           tool_call_data,
           MCP.tool_result_text("result"),
-          false,
           turn_number
         )
 
@@ -944,6 +1136,32 @@ defmodule FrontmanServer.TasksTest do
              )
   end
 
+  defp run_tool_result_metadata_scrub_migration(direction) do
+    Code.require_file("priv/repo/migrations/20260721000000_scrub_tool_result_metadata.exs")
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               ScrubToolResultMetadata,
+               :forward,
+               direction,
+               direction,
+               log: false
+             )
+  end
+
+  defp raw_interaction_data(task_id, type) do
+    %{rows: rows} =
+      Repo.query!(
+        "SELECT data FROM interactions WHERE task_id = $1 AND type = $2 ORDER BY sequence",
+        [Ecto.UUID.dump!(task_id), type]
+      )
+
+    Enum.map(rows, fn [data] -> data end)
+  end
+
   defp named_swarm_tool_call(id, name, args \\ %{}) do
     %SwarmAi.ToolCall{id: id, name: name, arguments: Jason.encode!(args)}
   end
@@ -1110,7 +1328,6 @@ defmodule FrontmanServer.TasksTest do
         task_id,
         %{id: "c1", name: "todo_write"},
         MCP.tool_result_structured(write_result),
-        false,
         turn_number
       )
 
@@ -1146,7 +1363,6 @@ defmodule FrontmanServer.TasksTest do
         task_a,
         %{id: "c1", name: "todo_write"},
         MCP.tool_result_structured(write_result),
-        false,
         turn_number
       )
 
@@ -1206,9 +1422,7 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  defp resolve_tool(scope, task_id, tool_call_data, result, is_error, turn_number) do
-    Tasks.resolve_tool_request(scope, task_id, tool_call_data, result, is_error,
-      turn_number: turn_number
-    )
+  defp resolve_tool(scope, task_id, tool_call_data, result, turn_number) do
+    Tasks.resolve_tool_request(scope, task_id, tool_call_data, result, turn_number: turn_number)
   end
 end

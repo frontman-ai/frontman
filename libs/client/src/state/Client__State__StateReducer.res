@@ -200,15 +200,6 @@ let apiKeyProviderId = provider =>
 
 let apiKeyProviders: array<apiKeyProvider> = [OpenRouter, Anthropic, Fireworks, Nvidia]
 
-let apiKeyRuntimeKey = provider =>
-  switch provider {
-  | Fireworks => "fireworksKeyValue"
-  | provider => `${apiKeyProviderId(provider)}KeyValue`
-  }
-
-let hasRuntimeApiKey = (runtimeConfig, provider) =>
-  Client__RuntimeConfig.toEnvApiKeyDict(runtimeConfig)->Dict.has(apiKeyRuntimeKey(provider))
-
 let updateApiKeySettings = (state: state, provider, update) =>
   switch provider {
   | OpenRouter => {...state, openrouterKeySettings: update(state.openrouterKeySettings)}
@@ -233,7 +224,7 @@ let setAllApiKeySources = (state, source) =>
 
 let hasApiKeySource = (source: Client__State__Types.apiKeySource) =>
   switch source {
-  | UserOverride | FromEnv => true
+  | UserOverride => true
   | Loading | Client__State__Types.None => false
   }
 
@@ -602,17 +593,6 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   fetch()->ignore
 }
 
-let deriveApiKeySource = (~hasUserKey, ~hasEnvKey): Client__State__Types.apiKeySource => {
-  switch hasUserKey {
-  | true => UserOverride
-  | false =>
-    switch hasEnvKey {
-    | true => FromEnv
-    | false => Client__State__Types.None
-    }
-  }
-}
-
 let encodeUserApiKeySaveRequest = (~provider, ~key) => {
   let payload: Client__State__Types.userApiKeySaveRequest = {provider, key}
   payload
@@ -636,13 +616,13 @@ let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
         let json = await response->WebAPI.Response.json
         let apiKeysResponse =
           json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userApiKeysResponseSchema)
-        let runtimeConfig = Client__RuntimeConfig.read()
-
         apiKeyProviders->Array.forEach(provider => {
           let providerId = apiKeyProviderId(provider)
           let hasUserKey = apiKeysResponse.providers->Array.includes(providerId)
-          let hasEnvKey = hasRuntimeApiKey(runtimeConfig, provider)
-          let source = deriveApiKeySource(~hasUserKey, ~hasEnvKey)
+          let source = switch hasUserKey {
+          | true => Client__State__Types.UserOverride
+          | false => Client__State__Types.None
+          }
 
           dispatch(ApiKeySettingsReceived({provider, source}))
         })

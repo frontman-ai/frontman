@@ -42,12 +42,7 @@ type parsed = {
   basePath: option<string>,
   // WordPress injects a nonce for authenticated same-origin POSTs to /frontman/*.
   wpNonce: option<string>,
-  openrouterKeyValue: option<string>,
-  anthropicKeyValue: option<string>,
-  fireworksKeyValue: option<string>,
-  nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
-  sourceRoot: option<string>,
   traits: option<array<string>>,
 }
 
@@ -56,20 +51,9 @@ type t = {
   framework: frameworkId,
   basePath: string,
   wpNonce: option<string>,
-  openrouterKeyValue: option<string>,
-  anthropicKeyValue: option<string>,
-  fireworksKeyValue: option<string>,
-  nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
-  sourceRoot: option<string>,
   traits: option<array<string>>,
 }
-
-let normalizeOptionalString = value =>
-  switch value {
-  | Some("") | None => None
-  | Some(text) => Some(text)
-  }
 
 let read = (): t => {
   let getRuntime: unit => Nullable.t<JSON.t> = %raw(`
@@ -87,31 +71,9 @@ let read = (): t => {
     | Some(bp) => bp
     },
     wpNonce: config.wpNonce,
-    openrouterKeyValue: normalizeOptionalString(config.openrouterKeyValue),
-    anthropicKeyValue: normalizeOptionalString(config.anthropicKeyValue),
-    fireworksKeyValue: normalizeOptionalString(config.fireworksKeyValue),
-    nvidiaKeyValue: normalizeOptionalString(config.nvidiaKeyValue),
     projectRoot: config.projectRoot,
-    sourceRoot: config.sourceRoot,
     traits: config.traits,
   }
-}
-
-let toEnvApiKeyDict = (config: t): Dict.t<string> => {
-  let envApiKey = Dict.make()
-  [
-    ("openrouterKeyValue", config.openrouterKeyValue),
-    ("anthropicKeyValue", config.anthropicKeyValue),
-    ("fireworksKeyValue", config.fireworksKeyValue),
-    ("nvidiaKeyValue", config.nvidiaKeyValue),
-  ]->Array.forEach(((keyName, maybeKey)) =>
-    maybeKey->Option.forEach(key => envApiKey->Dict.set(keyName, key))
-  )
-  envApiKey
-}
-
-let hasAnyProviderKey = (config: t): bool => {
-  toEnvApiKeyDict(config)->Dict.valuesToArray->Array.length > 0
 }
 
 // Model update checks explicitly so WordPress doesn't silently pretend to have
@@ -125,16 +87,11 @@ let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
   }
 
 // Convert runtime config to _meta JSON for ACP requests
-// Includes framework and forwarded provider keys so the server knows
-// which framework the client is running in and can use the project's env keys
+// Includes framework metadata used by the server.
 let toMeta = (config: t): JSON.t => {
   let configObj = Dict.fromArray([
     ("framework", JSON.Encode.string(frameworkIdToString(config.framework))),
-    ("basePath", JSON.Encode.string(config.basePath)),
   ])
-  toEnvApiKeyDict(config)->Dict.forEachWithKey((keyValue, keyName) => {
-    configObj->Dict.set(keyName, JSON.Encode.string(keyValue))
-  })
   config.traits->Option.forEach(traits => {
     configObj->Dict.set("traits", traits->Array.map(JSON.Encode.string)->JSON.Encode.array)
   })

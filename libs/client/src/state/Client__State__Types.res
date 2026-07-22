@@ -71,7 +71,6 @@ type userApiKeySaveRequest = {
 type apiKeySource =
   | Loading //Still loading
   | None // No key configured
-  | FromEnv // Key loaded from environment variable
   | UserOverride // User has saved their own key (stored in DB)
 
 // API key save operation status

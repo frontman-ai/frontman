@@ -163,6 +163,45 @@ let _buildUnknownMethodPayload = (~id: int, ~method: string) => {
 }
 
 describe("handleToolsCall", () => {
+  test("accepts absent and generic tool result metadata", t => {
+    let parses = json => {
+      try {
+        json->JSON.parseOrThrow->S.parseOrThrow(~to=Types.callToolResultSchema)->ignore
+        true
+      } catch {
+      | _ => false
+      }
+    }
+
+    t->expect(parses(`{"content":[{"type":"text","text":"ok"}]}`))->Expect.toBe(true)
+
+    t
+    ->expect(
+      parses(`{"content":[{"type":"text","text":"ok"}],"_meta":{"vendor.example/context":{"nested":[1,true,null]}}}`),
+    )
+    ->Expect.toBe(true)
+
+    ["null", "[]", `"invalid"`]->Array.forEach(
+      meta => {
+        t
+        ->expect(parses(`{"content":[{"type":"text","text":"ok"}],"_meta":${meta}}`))
+        ->Expect.toBe(false)
+      },
+    )
+
+    let metadata = JSON.parseOrThrow(`{"vendor.example/context":{"nested":[1,true,null]}}`)
+
+    let serialized =
+      Types.CallToolResult.makeText("ok")
+      ->Types.CallToolResult.withMeta(metadata)
+      ->S.decodeOrThrow(~from=Types.callToolResultSchema, ~to=S.json->S.noValidation(true))
+
+    let serializedMeta =
+      serialized->JSON.Decode.object->Option.flatMap(result => result->Dict.get("_meta"))
+
+    t->expect(serializedMeta)->Expect.toEqual(Some(metadata))
+  })
+
   testAsync("sends MCP response when tool completes successfully", async t => {
     let (channel, calls) = MockChannel.make()
 
@@ -204,6 +243,14 @@ describe("handleToolsCall", () => {
         }
         // Verify it has a result (not an error)
         t->expect(obj->Dict.get("result")->Option.isSome)->Expect.toBe(true)
+
+        let meta =
+          obj
+          ->Dict.get("result")
+          ->Option.flatMap(JSON.Decode.object)
+          ->Option.flatMap(result => result->Dict.get("_meta"))
+
+        t->expect(meta->Option.isNone)->Expect.toBe(true)
       | None => t->expect("object")->Expect.toBe("parsed")
       }
     | None => t->expect("response push")->Expect.toBe("found")

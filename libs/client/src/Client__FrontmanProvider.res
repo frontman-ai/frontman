@@ -150,19 +150,6 @@ module Provider = {
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
 
-      // Wire up tool result metadata so the server can resume agent execution
-      // with the correct provider context (env API keys + model) after a restart.
-      MCPServer.setToolResultMetaProvider(mcpServer, () => {
-        let config = Client__RuntimeConfig.read()
-        let envApiKey = Client__RuntimeConfig.toEnvApiKeyDict(config)
-        let state = StateStore.getState(Client__State__Store.store)
-        let model =
-          Client__State.Selectors.selectedModelValue(state)->Option.flatMap(
-            FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId,
-          )
-        {model, envApiKey}
-      })
-
       // Wire up image ref resolver so write_file can save user-attached images.
       MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
         let state = StateStore.getState(Client__State__Store.store)

@@ -233,7 +233,7 @@ defmodule FrontmanServer.Tasks do
     Repo.transact(fn ->
       with {:ok, schema} <-
              InteractionSchema.create_changeset(task_schema.id, type, attrs, turn_number)
-             |> Repo.insert(),
+             |> Repo.insert(interaction_insert_options(type)),
            {1, _} <-
              TaskSchema
              |> TaskSchema.by_id(task_schema.id)
@@ -257,6 +257,9 @@ defmodule FrontmanServer.Tasks do
         {:error, reason}
     end
   end
+
+  defp interaction_insert_options(:tool_result), do: [log: false]
+  defp interaction_insert_options(_type), do: []
 
   defp topic(task_id), do: "task:#{task_id}"
 
@@ -357,7 +360,6 @@ defmodule FrontmanServer.Tasks do
         task_id,
         %{id: tool_call.tool_call_id, name: tool_call.tool_name},
         ModelContextProtocol.tool_result_error("Interrupted by restart"),
-        true,
         turn_number: turn_number
       )
     end)
@@ -384,7 +386,6 @@ defmodule FrontmanServer.Tasks do
       task_id,
       %{id: tool_call_id, name: tool_name},
       ModelContextProtocol.tool_result_error(reason),
-      true,
       turn_number: turn_number
     )
 
@@ -690,21 +691,48 @@ defmodule FrontmanServer.Tasks do
         task_id,
         %{id: tool_call_id, name: _} = tool_call_data,
         result,
-        is_error \\ false,
         opts \\ []
       )
-      when is_boolean(is_error) and is_list(opts) do
-    Logger.debug(fn -> "resolve_tool_result(#{inspect(result)})" end)
-
+      when is_list(opts) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
-      attrs = Interaction.ToolResult.attrs(tool_call_data, result, is_error)
+      attrs = Interaction.ToolResult.attrs(tool_call_data, result)
 
       schema
       |> record_interaction(:tool_result, attrs, turn_number)
       |> resolve_recorded_tool_result(task_id, turn_number, tool_call_id)
     end
   end
+
+  defp log_tool_result_summary(%Interaction.ToolResult{} = tool_result) do
+    result = tool_result.result
+    {content_block_count, content_block_types} = summarize_tool_result_content(result["content"])
+
+    Logger.debug(fn ->
+      "Resolving tool result " <>
+        "tool_name=#{inspect(tool_result.tool_name)} " <>
+        "tool_call_id=#{inspect(tool_result.tool_call_id)} " <>
+        "content_block_count=#{content_block_count} " <>
+        "content_block_types=#{inspect(content_block_types)} " <>
+        "structured_content_present=#{result["structuredContent"] != %{}} " <>
+        "is_error=#{tool_result.is_error}"
+    end)
+  end
+
+  defp summarize_tool_result_content(content) when is_list(content) do
+    types =
+      content
+      |> Enum.map(fn
+        %{"type" => "text"} -> "text"
+        %{"type" => "image"} -> "image"
+        _block -> "invalid"
+      end)
+      |> Enum.uniq()
+
+    {length(content), types}
+  end
+
+  defp summarize_tool_result_content(_content), do: {0, ["invalid"]}
 
   defp resolve_recorded_tool_result({:ok, interaction}, _task_id, _turn_number, _tool_call_id) do
     notify_recorded_tool_result(interaction)
@@ -735,6 +763,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp notify_recorded_tool_result(interaction) do
+    log_tool_result_summary(interaction)
     {:ok, interaction, Execution.notify_tool_result(interaction)}
   end
 

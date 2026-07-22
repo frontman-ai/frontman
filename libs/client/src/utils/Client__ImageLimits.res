@@ -7,8 +7,6 @@ type limits = {
 
 let conservative: limits = {maxDimension: 7680, quality: 0.8}
 
-let forProvider = (_provider: option<string>): limits => conservative
-
 @new external makeImage: unit => WebAPI.DOMAPI.htmlImageElement = "Image"
 
 let computeScale = (element: WebAPI.DOMAPI.element, maxDimension: int): float => {

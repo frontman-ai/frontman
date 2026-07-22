@@ -50,36 +50,10 @@
     },
     "_meta": {
       "type": "object",
-      "properties": {
-        "model": {
-          "type": "object",
-          "properties": {
-            "provider": {
-              "type": "string"
-            },
-            "value": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "provider",
-            "value"
-          ]
-        },
-        "envApiKey": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "envApiKey"
-      ]
+      "additionalProperties": true
     }
   },
   "required": [
-    "content",
-    "_meta"
+    "content"
   ]
 }

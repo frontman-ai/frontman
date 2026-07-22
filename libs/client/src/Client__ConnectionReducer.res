@@ -21,7 +21,7 @@ type initConfig = {
   clientName: string,
   clientVersion: string,
   onACPMessage: (ACP.messageDirection, JSON.t) => unit,
-  // _meta to pass in ACP clientInfo (framework, env key detection, etc.)
+  // _meta to pass in ACP clientInfo (framework and project traits)
   _meta: JSON.t,
   // Called when the server pushes a title update for a task
   onTitleUpdated: option<(string, string) => unit>,

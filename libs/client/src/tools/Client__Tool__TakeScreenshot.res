@@ -153,14 +153,7 @@ let execute = async (
           )
         } else {
           try {
-            let state = StateStore.getState(Client__State__Store.store)
-            let provider =
-              state.selectedModelValue
-              ->Option.flatMap(
-                FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId,
-              )
-              ->Option.map(FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.provider)
-            let limits = Client__ImageLimits.forProvider(provider)
+            let limits = Client__ImageLimits.conservative
             let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
 
             let captureResult = await FrontmanBindings.Bindings__Snapdom.snapdom(element)

@@ -85,22 +85,22 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   def handle_error(state, request_id, error) do
     cond do
       request_id == state.mcp_init_request_id ->
-        Logger.error("MCPInitializer: MCP initialization failed: #{inspect(error)}")
+        Logger.error("MCPInitializer: MCP initialization failed", error_code: error_code(error))
         state = %{state | status: :failed}
         {state, [{:initialization_failed, error["message"]}]}
 
       request_id == state.tools_request_id ->
-        Logger.warning("MCPInitializer: Tools list failed: #{inspect(error)}")
+        Logger.warning("MCPInitializer: Tools list failed", error_code: error_code(error))
         state = %{state | tools: [], tools_request_id: nil}
         maybe_request_project_context(state)
 
       request_id == state.project_rules_request_id ->
-        Logger.warning("MCPInitializer: Project rules failed: #{inspect(error)}")
+        Logger.warning("MCPInitializer: Project rules failed", error_code: error_code(error))
         state = %{state | project_rules_request_id: nil}
         request_project_structure(state)
 
       request_id == state.project_structure_request_id ->
-        Logger.warning("MCPInitializer: Project structure failed: #{inspect(error)}")
+        Logger.warning("MCPInitializer: Project structure failed", error_code: error_code(error))
         complete_initialization(state)
 
       true ->
@@ -190,8 +190,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       {:ok, _other} ->
         Logger.info("MCPInitializer: Unexpected project rules format (expected a list)")
 
-      {:error, reason} ->
-        Logger.warning("MCPInitializer: Failed to parse project rules: #{inspect(reason)}")
+      {:error, _reason} ->
+        Logger.warning("MCPInitializer: Failed to parse project rules")
     end
   end
 
@@ -251,8 +251,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       {:ok, _other} ->
         Logger.warning("MCPInitializer: Unexpected project structure format")
 
-      {:error, reason} ->
-        Logger.warning("MCPInitializer: Failed to parse project structure: #{inspect(reason)}")
+      {:error, _reason} ->
+        Logger.warning("MCPInitializer: Failed to parse project structure")
     end
   end
 
@@ -294,9 +294,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     {state, [{:push_acp, notification}, {:initialization_complete, initialization_data}]}
   end
 
-  defp report_tool_error(_state, init_step, tool_name, result) do
-    text = MCP.extract_content_text(result)
-
-    Logger.warning("MCPInitializer: Tool error loading #{init_step} with #{tool_name}: #{text}")
+  defp report_tool_error(_state, init_step, tool_name, _result) do
+    Logger.warning("MCPInitializer: Tool error loading #{init_step} with #{tool_name}")
   end
+
+  defp error_code(%{"code" => code}) when is_integer(code), do: code
+  defp error_code(_error), do: :unknown
 end

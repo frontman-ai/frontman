@@ -24,10 +24,10 @@ defmodule FrontmanServer.Application do
     :user_id,
     :user_name,
     :reason,
+    :error_code,
     :raw_arguments,
     :decode_error,
-    :loop_id,
-    :error_message
+    :loop_id
   ]
 
   @reqllm_finch_client_file "lib/req_llm/streaming/finch_client.ex"
