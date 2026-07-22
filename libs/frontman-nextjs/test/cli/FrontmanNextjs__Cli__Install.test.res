@@ -59,10 +59,10 @@ let setupFixtures = async () => {
     | None => ()
     }
 
-    // Create src/ directory for the with-src fixture
+    // Create src/app so the with-src fixtures model a src-based Next router.
     if name->String.includes("with-src") {
-      let srcDir = Path.join([dir, "src"])
-      let _ = await Fs.Promises.mkdir(srcDir, {recursive: true})
+      let srcAppDir = Path.join([dir, "src", "app"])
+      let _ = await Fs.Promises.mkdir(srcAppDir, {recursive: true})
     }
   })
   ->Promise.all
@@ -419,7 +419,7 @@ describe("Project Detection", _t => {
     )
 
     testAsync(
-      "detects src/ directory",
+      "detects src/app router directory",
       async t => {
         let dir = fixture("nextjs15-with-src")
         let result = await Detect.detect(dir)
@@ -428,6 +428,24 @@ describe("Project Detection", _t => {
         | Ok(info) => t->expect(info.hasSrcDir)->Expect.toBe(true)
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
+      },
+    )
+
+    testAsync(
+      "ignores src/ directory without app or pages router",
+      async t => {
+        let tempDir = await createTempFixture("nextjs15-clean")
+        let srcDir = Path.join([tempDir, "src"])
+        let _ = await Fs.Promises.mkdir(srcDir, {recursive: true})
+
+        let result = await Detect.detect(tempDir)
+
+        switch result {
+        | Ok(info) => t->expect(info.hasSrcDir)->Expect.toBe(false)
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+        }
+
+        await cleanupTempFixture(tempDir)
       },
     )
   })

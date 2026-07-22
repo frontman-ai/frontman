@@ -165,9 +165,13 @@ let analyzeFile = async (filePath: string): existingFile => {
   }
 }
 
-// Detect if src/ directory exists
+// Detect if the Next.js router lives under src/.
 let detectSrcDir = async (projectDir: string): bool => {
-  await FsUtils.dirExists(Path.join([projectDir, "src"]))
+  let hasSrcApp = await FsUtils.dirExists(Path.join([projectDir, "src", "app"]))
+  switch hasSrcApp {
+  | true => true
+  | false => await FsUtils.dirExists(Path.join([projectDir, "src", "pages"]))
+  }
 }
 
 // Check if package.json exists (validates this is a project root)

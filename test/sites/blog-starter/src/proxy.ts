@@ -1,16 +1,20 @@
-import { createMiddleware } from "@frontman-ai/nextjs";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-const frontman = createMiddleware({
-	isDev: true,
-	projectRoot: process.cwd(),
-	basePath: "frontman",
-	serverName: "blog-starter",
-	serverVersion: "1.0.0",
-});
-
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+	if (process.env.NODE_ENV !== "development") {
+		return NextResponse.next();
+	}
+
+	const { createMiddleware } = await import("@frontman-ai/nextjs");
+	const frontman = createMiddleware({
+		isDev: true,
+		projectRoot: process.cwd(),
+		basePath: "frontman",
+		serverName: "blog-starter",
+		serverVersion: "1.0.0",
+	});
+
 	const response = await frontman(request);
 	if (response) {
 		return response;
