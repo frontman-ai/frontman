@@ -3,12 +3,8 @@ title: 'Frontman vs Cursor vs Claude Code'
 pubDate: 2026-02-14T05:00:00Z
 description: 'You tried AI coding agents for visual work and hit a wall. Here is why — and what is actually built for designers and PMs who think visually.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Comparison or Buyer Guide'
 image: '/blog/frontman-vs-cursor-vs-claude-code-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Frontman, Cursor, and Claude Code workflow comparison'
 tags: ['comparison', 'ai', 'design-systems']
 updatedDate: 2026-03-20T00:00:00Z

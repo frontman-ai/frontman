@@ -3,6 +3,7 @@
 // Key angle: v0 handles end-to-end prompt-driven creation; Frontman edits a running app with browser/framework context.
 
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   Alternative,
   ComparisonFeature,
@@ -19,12 +20,9 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source code', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'v0 documentation', url: 'https://v0.dev/docs' },
-  ],
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -60,7 +58,7 @@ const features: ComparisonFeature[] = [
   { name: 'Backend integration', frontman: 'yes', competitor: 'yes', frontmanNote: 'Existing routes, server logs, and app data', competitorNote: 'Connects APIs and databases' },
   { name: 'Diagnostics and error fixing', frontman: 'yes', competitor: 'yes', frontmanNote: 'Uses running-app browser and framework context', competitorNote: 'Built into the creation and preview workflow' },
   { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'yes', frontmanNote: 'No IDE needed — works in your browser', competitorNote: 'No IDE needed — works in v0.dev' },
-  { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', competitorNote: 'Proprietary SaaS' },
+  { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: frontmanLicenseShort, competitorNote: 'Proprietary SaaS' },
   { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', frontmanNote: 'Any LLM provider', competitorNote: 'BYOK not documented in reviewed official sources' },
   { name: 'Self-hostable', frontman: 'yes', competitor: 'no', frontmanNote: 'Server runs on your infrastructure; local integration owns filesystem access', competitorNote: 'Cloud service only' },
   { name: 'Works offline (with local LLM)', frontman: 'yes', competitor: 'no', frontmanNote: 'Requires a local model and all required services to run locally', competitorNote: 'Requires internet' },

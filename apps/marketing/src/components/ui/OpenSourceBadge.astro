@@ -3,6 +3,8 @@
 // ------------
 // Description: A badge component to display source-available licensing.
 
+import { frontmanLicensePricingFeature } from '../../content/frontmanFacts'
+
 // Props
 type Props = {
 	classes?: string
@@ -11,7 +13,7 @@ const { classes } = Astro.props
 ---
 
 <a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class:list={['open-source-badge', { [`${classes}`]: classes }]}>
-	<span class="open-source-badge__text">Source-Available <span class="open-source-badge__bullet">•</span> Apache-2.0 Browser/JS <span class="open-source-badge__bullet">•</span> GPL-2.0-or-later WordPress <span class="open-source-badge__bullet">•</span> AGPL-3.0-Only Server + AI Supplementary Terms</span>
+	<span class="open-source-badge__text">Source-Available <span class="open-source-badge__bullet">•</span> {frontmanLicensePricingFeature}</span>
 </a>
 
 <style>

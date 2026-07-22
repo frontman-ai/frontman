@@ -5,6 +5,7 @@
 //            Frontman lets teams iterate on the real product with AI — no IDE needed.
 
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   ComparisonFeature,
   ComparisonReview,
@@ -20,13 +21,10 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source repository', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'Lovable official website', url: 'https://lovable.dev' },
     { label: 'Lovable welcome documentation', url: 'https://docs.lovable.dev/introduction/welcome' },
-  ],
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -140,7 +138,7 @@ const features: ComparisonFeature[] = [
     name: 'Source availability',
     frontman: 'yes',
     competitor: 'no',
-    frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms',
+    frontmanNote: frontmanLicenseShort,
     competitorNote: 'Proprietary',
   },
   {

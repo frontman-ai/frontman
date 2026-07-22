@@ -4,12 +4,8 @@ seoTitle: 'AI WordPress Editor Plugin'
 pubDate: 2026-03-31T05:00:00Z
 description: 'Use Frontman as an AI WordPress editor plugin for content, Elementor pages, menus, templates, widgets, settings, and live site preview.'
 author: 'Itay Adler'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/itay-adler/'
 articleSection: 'Product Announcement'
 image: '/blog/frontman-now-supports-wordpress-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Frontman AI editing for WordPress announcement cover'
 tags: ['announcement', 'wordpress']
 updatedDate: 2026-06-17T00:00:00Z

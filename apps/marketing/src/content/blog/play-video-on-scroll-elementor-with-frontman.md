@@ -4,12 +4,8 @@ seoTitle: 'How to Make a Video Play on Scroll in Elementor'
 description: 'Build a scroll-controlled Elementor video with GSAP, then use Frontman to inspect, edit, preview, and roll back the page safely.'
 pubDate: 2026-07-17T00:00:00Z
 image: '/blog/play-video-on-scroll-elementor-with-frontman-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Frontman cover reading Make an Elementor Video Play on Scroll With Frontman'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Tutorial'
 tags: ['wordpress', 'elementor', 'tutorial', 'gsap']
 video:

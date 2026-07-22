@@ -3,12 +3,8 @@ title: 'Edit Next.js Components in Your Browser'
 pubDate: 2026-04-14T05:00:00Z
 description: 'Frontman connects to your running Next.js app and lets you click any element to edit the source. No file hunting, no class name guessing — just click and describe.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Tutorial'
 image: '/blog/edit-nextjs-visually-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Next.js component selected for visual editing in the browser'
 tags: ['nextjs', 'tutorial', 'developer-tools']
 faq:

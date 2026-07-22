@@ -4,6 +4,7 @@
 
 import Button from '../../components/ui/Button.astro'
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   Alternative,
   ComparisonFeature,
@@ -20,16 +21,13 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source code', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'Windsurf official website', url: 'https://windsurf.com' },
     {
       label: 'Windsurf is now Devin Desktop announcement',
       url: 'https://windsurf.com/blog/windsurf-is-now-devin-desktop',
     },
-  ],
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -63,7 +61,7 @@ const features: ComparisonFeature[] = [
   { name: 'Terminal integration', frontman: 'no', competitor: 'yes', competitorNote: 'Full IDE with integrated terminals and agent command execution' },
   { name: 'Framework-aware', frontman: 'yes', competitor: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite — sees component tree', competitorNote: 'IDE-level file context, no framework runtime integration' },
   { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'no', frontmanNote: 'No IDE needed — works in the browser', competitorNote: 'Requires IDE proficiency' },
-  { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', competitorNote: 'Proprietary (VS Code fork, closed-source AI features)' },
+  { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: frontmanLicenseShort, competitorNote: 'Proprietary (VS Code fork, closed-source AI features)' },
   { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', frontmanNote: 'Any LLM provider directly', competitorNote: 'Uses Devin Desktop\'s managed model access' },
   { name: 'Self-hostable', frontman: 'yes', competitor: 'no', frontmanNote: 'Server runs on your infrastructure; local integration owns filesystem access', competitorNote: 'Cloud service; enterprise on-prem available' },
   { name: 'Works in the browser', frontman: 'yes', competitor: 'no', frontmanNote: 'No IDE required', competitorNote: 'Devin Desktop is a desktop command center with a full IDE' },
@@ -108,13 +106,6 @@ const alternatives: Alternative[] = [
   { name: 'Stagewise', slug: 'stagewise', oneLiner: 'Open-source agentic desktop IDE with filesystem agents, a browser engine, terminals, skills, and plugins.' },
 ]
 
-const frontmanPricingFeatures = [
-  'Unlimited usage, no caps',
-  'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
-  'Or sign in with Claude/ChatGPT subscription via OAuth',
-  'Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms',
-  'You pay your LLM provider directly',
-]
 ---
 
 <ComparisonLayout
@@ -126,7 +117,6 @@ const frontmanPricingFeatures = [
   features={features}
   faqs={faqs}
   alternatives={alternatives}
-  frontmanPricing={{ features: frontmanPricingFeatures }}
 >
   <Fragment slot="hero-summary">
     <p>

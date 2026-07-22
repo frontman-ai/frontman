@@ -4,11 +4,7 @@ seoTitle: 'Browser-Aware AI Coding Agent'
 pubDate: 2026-02-18T05:00:00Z
 description: 'What browser-aware AI coding agents can see that file-only agents miss: rendered DOM, computed CSS, layout, viewport state, and source context.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 image: '/blog/introducing-frontman-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Introducing Frontman browser-aware AI coding agent'
 articleSection: 'Product Announcement'
 tags: ['ai', 'frontend', 'developer-tools']

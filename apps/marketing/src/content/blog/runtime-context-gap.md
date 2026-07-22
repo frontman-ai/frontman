@@ -3,12 +3,8 @@ title: 'Runtime Context Gap in AI Coding Tools'
 pubDate: 2026-02-20T05:00:00Z
 description: 'AI coding tools read your source files but never see the running application. Here is what that means technically — on both the client and server side — and which tools are building the bridge.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Technical Explainer'
 image: '/blog/runtime-context-gap-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Runtime Context Gap in AI Coding Tools cover'
 tags: ['ai', 'developer-tools']
 updatedDate: 2026-03-10T00:00:00Z

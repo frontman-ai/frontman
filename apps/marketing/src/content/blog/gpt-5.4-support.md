@@ -3,11 +3,7 @@ title: 'GPT-5.4 Support in Frontman'
 pubDate: 2026-03-06T12:00:00Z
 description: 'GPT-5.4 brings a massive context window, native computer-use, and sharper reasoning to Frontman — so your design system gets implemented the way it was intended.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 image: '/blog/gpt-5.4-support-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'GPT-5.4 support in Frontman'
 articleSection: 'Product Announcement'
 tags: ['announcement', 'models']

@@ -4,12 +4,8 @@ seoTitle: 'Agent Client Protocol: Building an Agentic Harness'
 pubDate: 2026-06-28T18:00:00Z
 description: 'How Frontman uses Agent Client Protocol to connect browser UI, agent sessions, streaming updates, and tool calls in an agentic harness.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Technical Explainer'
 image: '/blog/agent-client-protocol-agentic-harness-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Agent Client Protocol cover showing Frontman agentic harness architecture'
 tags: ['ai', 'developer-tools', 'agent-protocols']
 faq:

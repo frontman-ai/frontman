@@ -3,12 +3,8 @@ title: 'What Are Browser-Aware AI Coding Tools?'
 pubDate: 2026-03-17T10:00:00Z
 description: 'Browser-aware AI coding tools let you click on any element in your running app and describe what you want changed in plain language. They use runtime context, and the strongest tools also understand framework structure and source mapping.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Technical Explainer'
 image: '/blog/what-are-framework-aware-ai-coding-tools-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Cover reading What Are Framework-Aware AI Coding Tools?'
 tags: ['ai', 'design-systems', 'product-tools', 'comparison']
 faq:

@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {readdir, readFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
+import {comparisonReviewCheckedAt} from './frontmanFacts.ts'
 
 const comparisonDirectory = resolve(import.meta.dirname, '../pages/vs')
 
@@ -13,11 +14,14 @@ describe('comparison review metadata', () => {
     for (const filename of filenames) {
       const content = await readFile(resolve(comparisonDirectory, filename), 'utf8')
       const review = content.match(/const review: ComparisonReview = \{([\s\S]*?)\n\}/)?.[1]
+      const reviewSources = content.match(/createComparisonReview\(\[([\s\S]*?)\]\)/)?.[1]
       const sourceUrls = review?.match(/url:\s*['"]https:\/\/[^'"]+['"]/g) ?? []
 
       expect(review, `${filename}: review`).toBeDefined()
-      expect(review, `${filename}: checkedAt`).toMatch(/checkedAt:\s*['"]\d{4}-\d{2}-\d{2}['"]/)
-      expect(sourceUrls.length, `${filename}: sources`).toBeGreaterThanOrEqual(2)
+      expect(content, `${filename}: shared checkedAt`).not.toContain(`checkedAt: '${comparisonReviewCheckedAt}'`)
+      expect(review, `${filename}: shared review helper`).toContain('createComparisonReview')
+      expect(sourceUrls.length, `${filename}: competitor sources`).toBeGreaterThanOrEqual(1)
+      expect(reviewSources, `${filename}: competitor source block`).toBeDefined()
       expect(content, `${filename}: layout review prop`).toMatch(/<ComparisonLayout[\s\S]*?review=\{review\}/)
     }
   })

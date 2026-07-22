@@ -2,6 +2,7 @@
 // /vs/stagewise — Frontman vs Stagewise Comparison Page
 
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   Alternative,
   ComparisonFeature,
@@ -18,14 +19,11 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source code', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'Stagewise official website', url: 'https://stagewise.io' },
     { label: 'Stagewise documentation', url: 'https://docs.stagewise.io' },
     { label: 'Stagewise source code', url: 'https://github.com/stagewise-io/stagewise' },
-  ],
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -61,7 +59,7 @@ const features: ComparisonFeature[] = [
   { name: 'Framework-agnostic', frontman: 'partial', competitor: 'yes', frontmanNote: 'Next.js, Astro, Vite', competitorNote: 'Filesystem agents work across project types' },
   { name: 'Server-side context', frontman: 'yes', competitor: 'partial', frontmanNote: 'Routes, server logs, query timing', competitorNote: 'Filesystem and terminal access; equivalent runtime mapping not established' },
   { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'partial', frontmanNote: 'No IDE needed', competitorNote: 'Visual selection inside a desktop IDE workflow' },
-  { name: 'Source availability', frontman: 'yes', competitor: 'yes', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', competitorNote: 'AGPL-3.0' },
+  { name: 'Source availability', frontman: 'yes', competitor: 'yes', frontmanNote: frontmanLicenseShort, competitorNote: 'AGPL-3.0' },
   { name: 'Self-hostable', frontman: 'yes', competitor: 'yes', frontmanNote: 'Server runs on your infrastructure; provider transmission still depends on configuration', competitorNote: 'AGPL-3.0 project supports self-hosting' },
   { name: 'Skills and plugins', frontman: 'no', competitor: 'yes', competitorNote: 'Extensible with skills and plugins' },
   { name: 'Integrated terminals', frontman: 'no', competitor: 'yes', competitorNote: 'Terminal workflows inside the IDE' },
@@ -110,13 +108,6 @@ const alternatives: Alternative[] = [
   { name: 'Claude Code', slug: 'claude-code', oneLiner: 'Terminal-first agent with shell and git automation.' },
 ]
 
-const frontmanPricingFeatures = [
-  'Unlimited prompts, no daily caps',
-  'Bring your own API keys',
-  'Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms',
-  'You pay your LLM provider directly',
-  'Self-hostable server; local integration owns filesystem access',
-]
 ---
 
 <ComparisonLayout
@@ -128,7 +119,6 @@ const frontmanPricingFeatures = [
   features={features}
   faqs={faqs}
   alternatives={alternatives}
-  frontmanPricing={{ features: frontmanPricingFeatures }}
 >
   <Fragment slot="hero-summary">
     <p>

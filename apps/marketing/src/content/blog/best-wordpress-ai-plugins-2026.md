@@ -34,12 +34,8 @@ faq:
   - question: 'Should I use an AI plugin on a production WordPress site?'
     answer: 'Treat any AI plugin that can change content, settings, forms, menus, WooCommerce data, or templates as production-impacting software. Start on staging, keep backups, review changes, and prefer tools with visible review, permissions, logs, or rollback.'
 author: 'Itay Adler'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/itay-adler/'
 articleSection: 'Comparison or Buyer Guide'
 imageAlt: 'Comparison board for WordPress AI plugins in 2026, grouped by agents, builders, SEO, content, chatbots, and automation.'
-imageWidth: 1200
-imageHeight: 450
 ---
 
 You search for the best WordPress AI plugin in 2026 and get a pile of answers that are all technically true and still not useful.

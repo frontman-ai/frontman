@@ -18,12 +18,8 @@ faq:
   - question: 'How do framework-aware AI tools differ from general-purpose ones?'
     answer: 'Framework-aware tools like Frontman integrate at the framework level (Next.js, Astro, Vite), so they understand your routing, component tree, and build system. General-purpose tools treat your code as text files.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Comparison or Buyer Guide'
 imageAlt: 'Comparison of six AI coding tools for existing production codebases'
-imageWidth: 1200
-imageHeight: 450
 ---
 
 For existing production codebases, Cursor is the strongest AI IDE, Claude Code is best for terminal-native deep context, Windsurf is a cheaper IDE workflow, GitHub Copilot is the lowest-friction default, Cline is the open-source VS Code agent, and Frontman is best for browser-based visual UI edits.

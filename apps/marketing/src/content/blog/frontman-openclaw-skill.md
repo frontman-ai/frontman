@@ -3,12 +3,8 @@ title: 'Use Frontman With OpenClaw'
 pubDate: 2026-03-24T05:00:00Z
 description: 'Frontman is now available as an OpenClaw skill. Give your AI agent the ability to click elements in a running web app, describe changes in plain English, and get real source file edits with hot reload. No IDE required.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Product Announcement'
 image: '/blog/frontman-openclaw-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Frontman skill connecting OpenClaw to browser-based UI editing'
 tags: ['openclaw', 'integration', 'ai-agents', 'open-source', 'browser-automation']
 faq:

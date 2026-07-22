@@ -3,12 +3,8 @@ title: 'Frontman Launch: UI Fixes From Browser'
 pubDate: 2026-02-23T05:00:00Z
 description: 'Frontman is a source-available AI agent that connects your browser, local framework integration, and orchestration server. Click any element, describe a change in plain English, and see it applied to your actual source code.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Product Announcement'
 image: '/blog/frontman-launch-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Frontman browser interface for selecting and editing live UI elements'
 tags: ['announcement', 'open-source', 'ai', 'design-systems', 'collaboration']
 updatedDate: 2026-04-14T00:00:00Z

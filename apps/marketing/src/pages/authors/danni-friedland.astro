@@ -1,37 +1,29 @@
 ---
 import Layout from '../../layouts/Layout.astro'
+import { getAuthor } from '../../content/authors'
+
+const author = getAuthor('Danni Friedland')
 
 const SEO = {
-	title: 'Danni Friedland: Frontman Co-founder and Author',
-	description:
-		'Danni Friedland writes about browser-aware AI agents, frontend engineering, developer tools, and runtime context at Frontman.'
+	title: author.title,
+	description: author.description
 }
 
 const personJsonLd = {
 	'@context': 'https://schema.org',
 	'@type': 'Person',
-	'@id': 'https://frontman.sh/authors/danni-friedland/#person',
-	name: 'Danni Friedland',
-	jobTitle: 'Co-founder, Frontman',
-	url: 'https://frontman.sh/authors/danni-friedland/',
+	'@id': `${author.absoluteUrl}#person`,
+	name: `${author.firstName} ${author.lastName}`,
+	jobTitle: author.role,
+	url: author.absoluteUrl,
 	worksFor: {
 		'@type': 'Organization',
 		'@id': 'https://frontman.sh/#organization',
 		name: 'Frontman',
 		url: 'https://frontman.sh/'
 	},
-	knowsAbout: [
-		'Browser-aware AI agents',
-		'Frontend engineering',
-		'Developer tools',
-		'Model Context Protocol',
-		'Web application analytics'
-	],
-	sameAs: [
-		'https://github.com/BlueHotDog',
-		'https://www.linkedin.com/in/dannifriedland/',
-		'https://twitter.com/dannifriedland'
-	]
+	knowsAbout: author.knowsAbout,
+	sameAs: [author.github, author.linkedin, author.twitter]
 }
 ---
 
@@ -40,8 +32,8 @@ const personJsonLd = {
 	<main class="flex min-h-screen justify-center bg-zinc-950 px-5 py-12 text-zinc-50 sm:px-6 sm:py-20 md:pb-30">
 		<article class="w-full max-w-[720px]">
 			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-zinc-500">Author</p>
-			<h1 class="mb-3 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 sm:text-[42px]">Danni Friedland</h1>
-			<p class="mb-12 text-[20px] font-medium leading-[1.4] text-zinc-400">Co-founder of Frontman</p>
+			<h1 class="mb-3 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 sm:text-[42px]">{author.firstName} {author.lastName}</h1>
+			<p class="mb-12 text-[20px] font-medium leading-[1.4] text-zinc-400">{author.shortRole}</p>
 
 			<div class="space-y-10 text-[17px] leading-[1.75] text-zinc-300">
 				<section>
@@ -77,7 +69,7 @@ const personJsonLd = {
 				<section class="border-t border-zinc-800 pt-8">
 					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Profiles and contact</h2>
 					<p>
-						Find Danni on <a href="https://github.com/BlueHotDog" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">GitHub</a>, <a href="https://www.linkedin.com/in/dannifriedland/" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">LinkedIn</a>, and <a href="https://twitter.com/dannifriedland" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">X</a>. Report article errors through Frontman's <a href="/editorial-policy/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">editorial and corrections policy</a>.
+						Find Danni on <a href={author.github} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">GitHub</a>, <a href={author.linkedin} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">LinkedIn</a>, and <a href={author.twitter} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">X</a>. Report article errors through Frontman's <a href="/editorial-policy/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">editorial and corrections policy</a>.
 					</p>
 				</section>
 			</div>

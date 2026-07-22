@@ -4,12 +4,8 @@ seoTitle: 'AI Coding Agent Security Model'
 pubDate: 2026-02-17T05:00:00Z
 description: "Frontman's AI coding agent security model: development-only runtime, scoped file edits, BYOK providers, encrypted API keys, and reviewable git diffs."
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Technical Explainer'
 image: '/blog/security-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Frontman AI coding agent security model cover'
 tags: ['security', 'open-source']
 updatedDate: 2026-06-17T00:00:00Z

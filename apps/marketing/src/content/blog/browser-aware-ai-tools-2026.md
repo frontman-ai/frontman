@@ -6,12 +6,8 @@ image: '/blog/browser-aware-ai-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools']
 updatedDate: 2026-03-10T00:00:00Z
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Comparison or Buyer Guide'
 imageAlt: 'Comparison of browser-aware AI coding tools and their runtime context'
-imageWidth: 1200
-imageHeight: 450
 ---
 
 There's a new category of AI coding tools emerging: ones that connect to your running application instead of just reading source files. The pitch is the same across all of them — give the AI runtime context so it stops guessing about what your app actually looks like and does.

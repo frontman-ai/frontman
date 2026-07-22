@@ -4,6 +4,7 @@
 
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
 import type { ComparisonFeature, ComparisonReview, Alternative, CompetitorInfo, SEOInfo, FAQ } from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 
 const seo: SEOInfo = {
   title: 'Frontman vs Cursor: Browser vs IDE AI Coding',
@@ -12,13 +13,10 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source repository', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'Cursor official features page', url: 'https://cursor.com/features' },
     { label: 'Cursor official documentation', url: 'https://cursor.com/docs' },
-  ],
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -54,7 +52,7 @@ const features: ComparisonFeature[] = [
   { name: 'Multi-file refactoring', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can edit multiple files, but not its primary workflow', competitorNote: 'Cross-file edits, Composer, agent mode' },
   { name: 'Terminal integration', frontman: 'no', competitor: 'yes', competitorNote: 'Built-in terminal, agent mode, cloud agents' },
   { name: 'Backend coding', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can read/write any project file, but frontend-focused', competitorNote: 'Any language, any framework' },
-  { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', competitorNote: 'Proprietary' },
+  { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: frontmanLicenseShort, competitorNote: 'Proprietary' },
   { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'yes', frontmanNote: 'OpenRouter, Anthropic, OpenAI', competitorNote: 'API key mode, bring your own models' },
   { name: 'Self-hostable', frontman: 'yes', competitor: 'no' },
 ]

@@ -5,6 +5,7 @@
 
 import Button from '../../components/ui/Button.astro'
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   ComparisonFeature,
   ComparisonReview,
@@ -20,22 +21,11 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source repository', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'Claude Code overview documentation', url: 'https://code.claude.com/docs/en/overview' },
     { label: 'Claude Code Chrome integration documentation', url: 'https://code.claude.com/docs/en/chrome' },
-  ],
+  ]),
 }
-
-const frontmanPricingFeatures = [
-  'Unlimited usage, no caps',
-  'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
-  'Or sign in with Claude/ChatGPT subscription via OAuth',
-  'Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms',
-  'You pay your LLM provider directly',
-]
 
 const competitorPricingFeatures = [
   'No free tier for Claude Code',
@@ -81,7 +71,7 @@ const features: Feature[] = [
   { name: 'Multi-file refactoring', frontman: 'partial', claudeCode: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', claudeCodeNote: 'Full codebase reasoning, cross-file edits' },
   { name: 'Framework-aware', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite', claudeCodeNote: 'Framework-agnostic; reads files, not runtime' },
   { name: 'Designer/PM friendly', frontman: 'yes', claudeCode: 'no', frontmanNote: 'No IDE or terminal needed', claudeCodeNote: 'Requires terminal or IDE proficiency' },
-  { name: 'Source availability', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', claudeCodeNote: 'Proprietary ("All rights reserved")' },
+  { name: 'Source availability', frontman: 'yes', claudeCode: 'no', frontmanNote: frontmanLicenseShort, claudeCodeNote: 'Proprietary ("All rights reserved")' },
   { name: 'BYOK (bring your own key)', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Any LLM provider directly', claudeCodeNote: 'Claude models only (via subscription or API key)' },
   { name: 'Self-hostable', frontman: 'yes', claudeCode: 'no', frontmanNote: 'Server runs on your infrastructure; local integration owns filesystem access', claudeCodeNote: 'Runs locally but requires Anthropic API' },
   { name: 'Works in the browser', frontman: 'yes', claudeCode: 'partial', frontmanNote: 'Primary interface is the browser', claudeCodeNote: 'claude.ai/code web interface exists; Chrome extension is beta' },
@@ -136,7 +126,6 @@ const faqs: FAQ[] = [
   heroSubtitle="Browser Middleware vs Terminal Agent"
   features={comparisonFeatures}
   faqs={faqs}
-  frontmanPricing={{ features: frontmanPricingFeatures }}
 >
   <Fragment slot="hero-summary">
     <p>

@@ -6,6 +6,7 @@
 
 import Button from '../../components/ui/Button.astro'
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   ComparisonFeature,
   ComparisonReview,
@@ -21,22 +22,11 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source repository', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'GitHub Copilot documentation', url: 'https://docs.github.com/en/copilot' },
     { label: 'GitHub Copilot official product page', url: 'https://github.com/features/copilot' },
-  ],
+  ]),
 }
-
-const frontmanPricingFeatures = [
-  'Unlimited usage, no caps',
-  'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
-  'Or sign in with Claude/ChatGPT subscription via OAuth',
-  'Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms',
-  'You pay your LLM provider directly',
-]
 
 const competitorPricingFeatures = [
   'Free: 50 chats/month, 2,000 completions/month',
@@ -83,7 +73,7 @@ const features: Feature[] = [
   { name: 'Coding agent (async)', frontman: 'no', copilot: 'yes', copilotNote: 'Assigns issues, creates PRs autonomously' },
   { name: 'Multi-file refactoring', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can edit multiple files, but not primary workflow', copilotNote: 'Full cross-file edits via agent mode' },
   { name: 'Code review', frontman: 'no', copilot: 'yes', copilotNote: 'PR reviews on GitHub, diff reviews in IDE' },
-  { name: 'Source availability', frontman: 'yes', copilot: 'no', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', copilotNote: 'Proprietary (extension and service)' },
+  { name: 'Source availability', frontman: 'yes', copilot: 'no', frontmanNote: frontmanLicenseShort, copilotNote: 'Proprietary (extension and service)' },
   { name: 'BYOK (bring your own key)', frontman: 'yes', copilot: 'yes', frontmanNote: 'Any LLM provider directly', copilotNote: 'Supported in Copilot CLI and coding agent; Copilot apps can use external model keys' },
   { name: 'Self-hostable', frontman: 'yes', copilot: 'no', frontmanNote: 'Runs in your own infrastructure', copilotNote: 'Cloud service, GitHub-hosted' },
   { name: 'Backend coding', frontman: 'partial', copilot: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', copilotNote: 'Any language, any framework' },
@@ -140,7 +130,6 @@ const faqs: FAQ[] = [
   heroSubtitle="Your Whole Team Edits UI vs Developers Code Faster"
   features={comparisonFeatures}
   faqs={faqs}
-  frontmanPricing={{ features: frontmanPricingFeatures }}
 >
   <Fragment slot="hero-summary">
     <p>

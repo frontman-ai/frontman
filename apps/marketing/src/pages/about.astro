@@ -6,6 +6,7 @@
 // Components
 import FounderCard from '../components/ui/cards/FounderCard.astro'
 import Layout from '../layouts/Layout.astro'
+import { authors } from '../content/authors'
 
 // Content
 const SEO = {
@@ -14,33 +15,16 @@ const SEO = {
 		'Frontman is built by Danni Friedland and Itay Adler — two co-founders who believe AI coding tools should see what developers see.'
 }
 
-const founders = [
-	{
-		firstName: 'Danni',
-		lastName: 'Friedland',
-		location: 'Berlin, Germany',
-		bio: 'Co-founder of Frontman. Previously founded Walnut Inc, a category leader in sales tech. Focused on developer tools and the intersection of AI and frontend engineering.',
-		github: 'https://github.com/BlueHotDog',
-		linkedin: 'https://www.linkedin.com/in/dannifriedland/',
-		twitter: 'https://twitter.com/dannifriedland',
-	},
-	{
-		firstName: 'Itay',
-		lastName: 'Adler',
-		location: 'Israel',
-		bio: 'Co-founder of Frontman. Background in full-stack engineering and product development. Focused on making AI tools that understand running applications, not just source files.',
-		github: 'https://github.com/itayadler',
-		linkedin: 'https://www.linkedin.com/in/itay-adler-93a4bb6/',
-		twitter: 'https://twitter.com/itayad',
-	},
-]
+const founders = Object.values(authors)
 
 // Person schema for each founder
 const personSchemas = founders.map((founder) => ({
 	'@context': 'https://schema.org',
 	'@type': 'Person',
+	'@id': `${founder.absoluteUrl}#person`,
 	name: `${founder.firstName} ${founder.lastName}`,
-	jobTitle: 'Co-founder',
+	jobTitle: founder.role,
+	url: founder.absoluteUrl,
 	worksFor: {
 		'@type': 'Organization',
 		name: 'Frontman',

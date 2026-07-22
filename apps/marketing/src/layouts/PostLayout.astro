@@ -4,6 +4,7 @@ const { frontmatter, body } = Astro.props
 
 //Layout Components
 import Layout from './Layout.astro'
+import { getAuthor } from '../content/authors'
 
 // Section Components
 import BlogPostHero from '../components/blocks/blog/BlogPostHero.astro'
@@ -18,7 +19,8 @@ const SEO = {
 // Dates
 const pubDateISO = frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate
 const updatedDateISO = frontmatter.updatedDate instanceof Date ? frontmatter.updatedDate.toISOString() : frontmatter.updatedDate
-const absoluteAuthorUrl = new URL(frontmatter.authorUrl, Astro.site).href
+const author = getAuthor(frontmatter.author)
+const absoluteAuthorUrl = new URL(author.url, Astro.site).href
 
 // Word count from markdown body (strip markdown syntax, count words)
 const wordCount = body
@@ -37,7 +39,7 @@ const blogPostJsonLd = {
 		"@type": "Person",
 		"@id": `${absoluteAuthorUrl}#person`,
 		"name": frontmatter.author,
-		"jobTitle": frontmatter.authorRole,
+		"jobTitle": author.role,
 		"url": absoluteAuthorUrl
 	},
 	...(frontmatter.image ? { "image": `https://frontman.sh${frontmatter.image}` } : {}),
@@ -138,8 +140,8 @@ const videoJsonLd = frontmatter.video
 		tags={frontmatter.tags}
 		title={frontmatter.title}
 		author={frontmatter.author}
-		authorRole={frontmatter.authorRole}
-		authorUrl={frontmatter.authorUrl}
+		authorRole={author.role}
+		authorUrl={author.url}
 		pubDate={frontmatter.pubDate}
 		updatedDate={frontmatter.updatedDate}
 	/>

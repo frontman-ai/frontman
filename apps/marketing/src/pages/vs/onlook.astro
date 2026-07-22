@@ -4,6 +4,7 @@
 // Frontman is a browser-first agent with framework runtime context.
 
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   ComparisonFeature,
   ComparisonReview,
@@ -19,13 +20,10 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source code', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'Onlook official website', url: 'https://onlook.dev' },
     { label: 'Onlook source code', url: 'https://github.com/onlook-dev/onlook' },
-  ],
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -59,7 +57,7 @@ const features: ComparisonFeature[] = [
   { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'partial', frontmanNote: 'Any LLM', competitorNote: 'Hosted AI chat; BYOK not documented in reviewed sources' },
   { name: 'Works on existing projects', frontman: 'yes', competitor: 'yes', frontmanNote: 'Designed for this', competitorNote: 'Imports existing React codebases' },
   { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'yes', frontmanNote: 'Click and describe', competitorNote: 'Figma-like interface' },
-  { name: 'Source availability', frontman: 'yes', competitor: 'yes', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', competitorNote: 'Open source (Apache 2.0)' },
+  { name: 'Source availability', frontman: 'yes', competitor: 'yes', frontmanNote: frontmanLicenseShort, competitorNote: 'Open source (Apache 2.0)' },
   { name: 'Publishing built-in', frontman: 'no', competitor: 'yes', competitorNote: 'Built-in publishing workflow' },
 ]
 

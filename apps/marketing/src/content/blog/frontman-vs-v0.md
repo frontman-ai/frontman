@@ -3,12 +3,8 @@ title: 'Frontman vs v0 for Existing Codebases'
 pubDate: 2026-04-16T05:00:00Z
 description: 'v0 generates new components from scratch. Frontman edits the components you already have. These solve different problems — here is which one you actually need.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Comparison or Buyer Guide'
 image: '/blog/frontman-vs-v0-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Frontman and v0 workflows for editing existing codebases'
 tags: ['comparison', 'ai', 'developer-tools']
 faq:

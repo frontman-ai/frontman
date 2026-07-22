@@ -10,6 +10,7 @@ import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 // - UI
 import { Icon } from 'astro-icon/components'
+import { frontmanLicensePricingFeature } from '../../../content/frontmanFacts'
 
 // Props
 type Props = {
@@ -22,7 +23,7 @@ const { classes } = Astro.props
 	<Row>
 		<Col span="12" align="center">
 			<h2 class="!mb-6 text-base font-normal text-neutral-400 dark:text-neutral-600">
-				<strong class="highlight">Source-Available</strong> · Apache-2.0 Browser/JS · GPL-2.0-or-later WordPress · AGPL-3.0-Only Server + AI Supplementary Terms
+				<strong class="highlight">Source-Available</strong> · {frontmanLicensePricingFeature}
 			</h2>
 		</Col>
 	</Row>

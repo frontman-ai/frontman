@@ -4,12 +4,8 @@ seoTitle: 'AI Agent Token Optimization'
 pubDate: 2026-06-29T13:00:00Z
 description: 'Why vertically integrated agents use fewer requests and fewer tokens by starting with runtime context, source mapping, and verification built into the workflow.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Technical Explainer'
 image: '/blog/vertically-integrated-agents-token-optimization-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Vertically integrated agent workflow showing browser runtime, dev server tools, and model token optimization'
 tags: ['ai-agents', 'developer-tools', 'token-optimization', 'frontend']
 faq:

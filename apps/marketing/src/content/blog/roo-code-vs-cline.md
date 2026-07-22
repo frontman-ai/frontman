@@ -4,11 +4,7 @@ seoTitle: 'Roo Code vs Cline 2026: Practical Comparison'
 pubDate: 2026-06-15T10:00:00Z
 description: 'Compare Roo Code vs Cline in 2026 for VS Code workflows, modes, approval flow, model support, context handling, security, and frontend editing.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Best Open-Source AI Coding Tools cover used for Roo Code vs Cline comparison'
 articleSection: 'Comparison or Buyer Guide'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']

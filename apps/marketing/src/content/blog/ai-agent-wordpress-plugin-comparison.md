@@ -33,12 +33,8 @@ faq:
   - question: 'Is it safe to let an AI agent edit WordPress?'
     answer: 'Treat it like any tool that can change production content. Start on staging, keep backups, review changes, and prefer tools that respect WordPress permissions and show you what changed before you trust the result.'
 author: 'Itay Adler'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/itay-adler/'
 articleSection: 'Comparison or Buyer Guide'
 imageAlt: 'Comparison board showing WordPress AI agent plugin categories and live preview workflow signals.'
-imageWidth: 1200
-imageHeight: 450
 ---
 
 You search for an AI agent plugin for WordPress because the admin screen has stopped being the workflow.

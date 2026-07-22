@@ -3,11 +3,7 @@ title: 'Run Lighthouse Audits Inside Frontman'
 pubDate: 2026-02-21T05:00:00Z
 description: 'Frontman now runs Google Lighthouse audits as a built-in tool. Your agent sees the scores, reads the issues, and fixes them — all inside the browser you are already working in.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 image: '/blog/lighthouse-audits-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Lighthouse audits inside Frontman'
 articleSection: 'Product Announcement'
 tags: ['performance', 'ai', 'developer-tools']

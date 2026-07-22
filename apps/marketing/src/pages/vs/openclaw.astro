@@ -7,6 +7,7 @@
 
 import Button from '../../components/ui/Button.astro'
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   ComparisonFeature,
   ComparisonReview,
@@ -22,14 +23,11 @@ const seo: SEOInfo = {
 }
 
 const review: ComparisonReview = {
-  checkedAt: '2026-07-21',
-  sources: [
-    { label: 'Frontman documentation', url: 'https://frontman.sh/docs/' },
-    { label: 'Frontman source code', url: 'https://github.com/frontman-ai/frontman' },
+  ...createComparisonReview([
     { label: 'OpenClaw official website', url: 'https://openclaw.ai' },
     { label: 'OpenClaw documentation', url: 'https://docs.openclaw.ai/' },
     { label: 'OpenClaw source code', url: 'https://github.com/openclaw/openclaw' },
-  ],
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -75,7 +73,7 @@ const features: Feature[] = [
   { name: 'File system management', frontman: 'partial', openclaw: 'yes', frontmanNote: 'Edits source files for frontend changes', openclawNote: 'Full file system access, any file type' },
   { name: 'Skills/plugin ecosystem', frontman: 'no', openclaw: 'yes', openclawNote: '5,400+ community skills on ClawHub' },
   { name: 'Works together', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Available as an OpenClaw skill', openclawNote: 'Can use Frontman via skill install' },
-  { name: 'Source availability', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms', openclawNote: 'Open source (MIT)' },
+  { name: 'Source availability', frontman: 'yes', openclaw: 'yes', frontmanNote: frontmanLicenseShort, openclawNote: 'Open source (MIT)' },
   { name: 'BYOK (bring your own key)', frontman: 'yes', openclaw: 'yes', frontmanNote: 'OpenRouter, Anthropic, OpenAI', openclawNote: 'Any LLM provider' },
   { name: 'Local-first / self-hostable', frontman: 'yes', openclaw: 'yes', frontmanNote: 'Self-hostable server; local integration owns filesystem access; context may reach your LLM provider', openclawNote: 'All data stored locally as markdown' },
 ]

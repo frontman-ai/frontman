@@ -33,12 +33,8 @@ faq:
       your existing workflow. Designers and PMs get to initiate changes;
       engineering keeps full control of what ships.
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Problem Diagnosis'
 imageAlt: 'AI coding agent connecting live UI context to frontend source code'
-imageWidth: 1200
-imageHeight: 450
 ---
 
 You spot a spacing issue on the pricing page. The cards feel too cramped — the padding inside each feature block needs to breathe. You know exactly what's wrong. You've known for two weeks.
