@@ -4,6 +4,8 @@
 // Shared pricing comparison section for /vs/ pages.
 // Tailwind utility classes only.
 
+import { frontmanPricingFeatures as defaultFrontmanPricingFeatures } from '../../../content/frontmanFacts'
+
 type Props = {
   competitorName: string
   competitorCost: string
@@ -19,15 +21,9 @@ const {
   competitorCost,
   competitorModel,
   competitorFeatures,
-  frontmanCost = 'Free',
-  frontmanModel = 'Open source, BYOK',
-  frontmanFeatures = [
-    'Unlimited usage, no caps or credits',
-    'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
-    'Or sign in with Claude/ChatGPT subscription via OAuth',
-    'Apache 2.0 (client) / AGPL-3.0 (server)',
-    'You pay your LLM provider directly',
-  ],
+	frontmanCost = 'Free',
+	frontmanModel = 'Source-available, BYOK',
+	frontmanFeatures = defaultFrontmanPricingFeatures,
 } = Astro.props
 ---
 

@@ -3,12 +3,7 @@ title: 'Best Open-Source AI Coding Tools in 2026: Agents, Assistants, CLI, and L
 seoTitle: 'Best Open-Source AI Coding Tools 2026'
 pubDate: 2026-03-03T10:00:00Z
 description: 'Compare open-source AI coding tools in 2026 by workflow: agents, assistants, CLI, BYOK, local models, and self-hosted options, with current licenses.'
-author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
-imageWidth: 1200
-imageHeight: 450
-imageAlt: 'Open-source AI coding tools compared by terminal, IDE, autonomous, self-hosted, and browser workflows'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
 updatedDate: 2026-07-20T00:00:00Z
 faq:
@@ -28,6 +23,9 @@ faq:
     answer: 'Aider is a terminal pair programmer with git integration. Cline is an active IDE and CLI agent with Plan and Act workflows plus configurable approvals. Roo Code was a VS Code agent organized around modes such as Architect, Code, Ask, and Debug, but it shut down and was archived in May 2026.'
   - question: 'What are the best BYOK AI coding tools in 2026?'
     answer: 'Choose OpenCode for terminal work, Cline or Kilo Code for IDE-centered work, Aider for git-native pair programming, Goose for CLI and desktop automation, OpenHands for autonomous tasks, and Stagewise for browser-centered frontend workflows. Model availability and provider charges still vary by tool.'
+author: 'Danni Friedland'
+articleSection: 'Comparison or Buyer Guide'
+imageAlt: 'Open-source AI coding tools compared by terminal, IDE, autonomous, self-hosted, and browser workflows'
 ---
 
 **Quick answer:** The best open-source AI coding tool depends on where you work. Choose OpenCode or Aider for terminal coding, Cline or Kilo Code for IDE and CLI agents, OpenHands for autonomous software tasks, Goose for desktop and CLI automation, Tabby for self-hosted completion, and Stagewise for browser-centered frontend work.
@@ -56,7 +54,7 @@ faq:
 | [Roo Code](https://github.com/RooCodeInc/Roo-Code) | Historical mode-based VS Code agent | 24k | [Apache-2.0](https://github.com/RooCodeInc/Roo-Code/blob/main/LICENSE) | BYOK and local models in final release | Archived May 2026 |
 | [bolt.diy](https://github.com/stackblitz-labs/bolt.diy) | Browser-based app generation and import | 20k | [MIT source; commercial WebContainers terms can apply](https://github.com/stackblitz-labs/bolt.diy/blob/main/LICENSE) | BYOK, custom endpoints, local models | Not archived |
 | [Stagewise](https://github.com/stagewise-io/stagewise) | Agentic IDE with browser and app previews | 6.7k | [AGPL-3.0](https://github.com/stagewise-io/stagewise/blob/main/LICENSE) | BYOK, custom providers, local models | Active |
-| [Frontman](https://github.com/frontman-ai/frontman) | Browser-based editing of existing frontend apps; included for disclosure and workflow comparison | 626 | [Source-available: Apache-2.0 client; AGPL server with field-of-use restrictions](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/LICENSE) | BYOK across documented cloud providers | Active |
+| [Frontman](https://github.com/frontman-ai/frontman) | Browser-based editing of existing frontend apps; included for disclosure and workflow comparison | 626 | [Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL server with field-of-use restrictions](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/LICENSE) | BYOK across documented cloud providers | Active |
 
 Stars show project visibility, not output quality or production readiness. License names also do not describe the entire commercial boundary: OpenHands and Tabby have separately licensed enterprise directories, Cline's JetBrains plugin is closed-source, bolt.diy depends on WebContainers terms for some commercial use, and Frontman's server includes supplementary AI restrictions.
 
@@ -151,7 +149,7 @@ The official repository lists Free, Pro, and Ultra hosted tiers alongside AGPL-3
 
 [Frontman](https://github.com/frontman-ai/frontman) runs in the browser beside an existing app and installs through Next.js, Astro, or Vite integrations. Those integrations cover Next.js App and Pages Router, React, Vue, Svelte, and SvelteKit. It uses selected DOM, computed CSS, framework context, routes, logs, and source mappings to produce reviewable source edits.
 
-Frontman supports documented provider keys for OpenAI, Anthropic, OpenRouter, Fireworks, NVIDIA, Google, and xAI. Self-hosting remains available, while hosted plans are moving to paid subscriptions. Client libraries use Apache-2.0; [server code uses AGPL-3.0-only plus supplementary restrictions](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/LICENSE) on AI training and AI-assisted competitive reproduction. Those field-of-use restrictions mean the combined product is source-available rather than Open Source Definition compliant.
+Frontman supports documented provider keys for OpenAI, Anthropic, OpenRouter, Fireworks, NVIDIA, Google, and xAI. Self-hosting remains available. Hosted Frontman Pro is available now. The browser client and JavaScript integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and [server code uses AGPL-3.0-only plus supplementary restrictions](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/LICENSE) on AI training and AI-assisted competitive reproduction. Those field-of-use restrictions mean the combined product is source-available rather than Open Source Definition compliant.
 
 Choose Frontman for visual edits to an existing frontend when runtime context matters. Skip it for backend features, broad autonomous issue work, autocomplete, or app generation. Its community remains much smaller than every general coding agent above. See [Getting Started](/blog/getting-started/) for installation or the [Cline review](/blog/cline-ai-coding-tool-review/) for a stronger general-purpose IDE-agent option.
 

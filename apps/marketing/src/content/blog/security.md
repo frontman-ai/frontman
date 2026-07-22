@@ -4,16 +4,18 @@ seoTitle: 'AI Coding Agent Security Model'
 pubDate: 2026-02-17T05:00:00Z
 description: "Frontman's AI coding agent security model: development-only runtime, scoped file edits, BYOK providers, encrypted API keys, and reviewable git diffs."
 author: 'Danni Friedland'
+articleSection: 'Technical Explainer'
 image: '/blog/security-cover.png'
+imageAlt: 'Frontman AI coding agent security model cover'
 tags: ['security', 'open-source']
 updatedDate: 2026-06-17T00:00:00Z
 faq:
   - question: 'Is Frontman safe to use?'
-    answer: 'Yes. Frontman runs exclusively in your local development environment as a dev dependency. It never ships to production — the code is removed at compile time by tree-shaking. Every change produces a standard git diff that goes through your normal PR review process. It cannot deploy code, run arbitrary shell commands, or modify files outside your project directory.'
+    answer: 'Yes. Frontman client integrations run exclusively in your local development environment as dev dependencies. They never ship to production — client code is removed at compile time by tree-shaking. Browser tools run in your browser, filesystem tools run locally through the framework integration, and the orchestration server has no direct filesystem access. Every change produces a standard git diff that goes through your normal PR review process. Frontman cannot deploy code, run arbitrary shell commands, or modify files outside your project directory.'
   - question: 'Does Frontman run in production?'
-    answer: 'No. Frontman activates only when NODE_ENV=development. In a production build, Frontman code is not included — not disabled, not present. The tree-shaker removes it because nothing imports it outside of dev mode. This is a compile-time guarantee.'
+    answer: 'No. Frontman client integrations activate only when NODE_ENV=development. In a production build, Frontman client code is not included — not disabled, not present. The tree-shaker removes it because nothing imports it outside of dev mode. This is a compile-time guarantee.'
   - question: 'What does the AI agent see when using Frontman?'
-    answer: 'The AI sees your code context — components, styles, and DOM information relevant to the current edit. This is sent directly to the AI provider you choose (Anthropic, OpenAI, or OpenRouter) using your own API key. Frontman does not proxy, store, or log the data. Your key is stored encrypted on Frontman server and never exposed to the browser.'
+    answer: 'The AI sees context relevant to the current edit, which may include file content, components, styles, DOM information, screenshots, logs, metadata, tool results, and generated output. This passes through the Frontman orchestration server to the AI provider you choose (Anthropic, OpenAI, or OpenRouter). The server persists task history, and your key is stored encrypted on the Frontman server and never exposed to the browser.'
   - question: 'Can Frontman edit any file on my system?'
     answer: 'No. Frontman edits source files in your project directory only. It does not touch node_modules, config files outside the project root, or files in .gitignore. It cannot run arbitrary shell commands, deploy code, or merge its own PRs.'
   - question: 'What if Frontman writes bad code?'
@@ -26,15 +28,15 @@ So when you hear "Frontman edits your source files," the question is not _whethe
 
 Here is every hard question you should ask, and our answers.
 
-> **TL;DR:** Frontman is a dev-only tool that produces git diffs. It runs locally, sends code context to your chosen AI provider with your own API key, edits your source files, and gets out of the way. It cannot run in production (compile-time guarantee), cannot deploy, cannot run shell commands, and cannot push code. Everything goes through your normal code review.
+> **TL;DR:** Frontman is a dev-only tool that produces git diffs. Browser tools run in your browser, filesystem tools run on your machine through the framework integration, and the hosted or self-hosted server orchestrates the agent loop and persists task history. Relevant context passes through that server to your chosen AI provider. Frontman cannot run in production (compile-time guarantee), deploy, run shell commands, or push code. Everything goes through your normal code review.
 
 ## Where Does It Run?
 
-Frontman runs exclusively in your local development environment. It is a dev dependency. It never ships to production. It never runs in CI. It never touches your deployed application.
+Frontman's client integrations run exclusively in your local development environment as dev dependencies. They never ship to production, run in CI, or touch your deployed application. The separate hosted or self-hosted server provides orchestration and task-history persistence during development.
 
 The framework integrations — Next.js, Astro, Vite — activate only when `NODE_ENV=development`. In a production build, Frontman's code is not included. Not disabled. Not present. The tree-shaker removes it because nothing imports it outside of dev mode.
 
-This is not a toggle. It is a compile-time guarantee. Frontman _cannot_ run in production because the code does not exist in the production bundle.
+This is not a toggle. It is a compile-time guarantee. Frontman client code _cannot_ run in production because it does not exist in the production bundle.
 
 ## What Can It Change?
 
@@ -59,7 +61,7 @@ That diff shows up in `git status`. It goes through your normal PR review. If it
 
 ## What Does the AI Agent See?
 
-Your code context — the components, styles, and DOM information that bridge [the runtime context gap](/blog/runtime-context-gap/) — is sent directly to the AI provider you choose. Frontman does not proxy this. It does not store it. It does not log it.
+Context that bridges [the runtime context gap](/blog/runtime-context-gap/) — including relevant file content, components, styles, DOM information, screenshots, logs, metadata, tool results, and generated output — passes through the Frontman orchestration server to the AI provider you choose. The server persists task history. It has no direct access to your filesystem; file reads and edits execute on your machine through the framework integration.
 
 You bring your own API key. You pick your provider:
 
@@ -82,14 +84,14 @@ This list matters more than the feature list:
 
 That last point is worth emphasizing. Cursor and Claude Code can both run `git push` if you let them. Frontman produces diffs. Humans review and ship those diffs. That boundary is not a limitation — it is the design.
 
-## Open Source and Auditable
+## Source-Available and Auditable
 
-Frontman is fully open source. Every prompt template, every tool call, every edit operation is visible in the repository. You can audit exactly what the agent sees and what actions it can take.
+Frontman is source-available. Every prompt template, every tool call, and every edit operation is visible in the repository, so you can audit what the agent sees and what actions it can take.
 
 - **Source**: [github.com/frontman-ai/frontman](https://github.com/frontman-ai/frontman)
-- **License**: Apache 2.0 (client libraries), AGPL v3 (server)
+- **License**: Apache-2.0 (browser client and JavaScript framework integrations), GPL-2.0-or-later (WordPress plugin), AGPL-3.0-only plus [AI Supplementary Terms](https://github.com/frontman-ai/frontman/blob/main/AI-SUPPLEMENTARY-TERMS.md) (server)
 
-If you do not trust a claim on this page, read the code. That is the point of open source.
+If you do not trust a claim on this page, read the code. That is the point of source availability.
 
 ## Common Objections
 
@@ -107,7 +109,7 @@ Yes. Frontman edits source files in your project directory. It does not touch `n
 
 ## The Security Model in One Sentence
 
-Frontman is a dev tool that produces diffs. It runs locally, sends context to your chosen AI provider, edits your source files, and gets out of the way. Everything else — review, testing, deployment — is your existing workflow, unchanged.
+Frontman is a dev tool that produces diffs. Browser tools run in your browser, filesystem tools run locally through the framework integration, and the server orchestrates the loop, persists task history, and sends relevant context to your chosen AI provider. Everything else — review, testing, deployment — is your existing workflow, unchanged.
 
 The better world looks like this: a designer changes the hero padding, a developer reviews a one-line diff in the PR, and nobody spent a single second worrying about whether the AI touched something it should not have. Because the constraints are structural, not behavioral. The agent _cannot_ deploy. It _cannot_ push. It produces a diff. You review it. Same as everything else.
 

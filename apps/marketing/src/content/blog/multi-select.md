@@ -4,6 +4,8 @@ pubDate: 2026-02-27T12:00:00Z
 description: 'Spot inconsistencies across teams? Shift-click every off-brand element, describe what it should look like, and Frontman fixes them all in one pass — real code changes, no tickets filed.'
 author: 'Danni Friedland'
 image: '/blog/multi-select-cover.png'
+imageAlt: 'Frontman multi-select for fixing design drift'
+articleSection: 'Product Announcement'
 tags: ['announcement', 'design-systems', 'ai']
 updatedDate: 2026-03-10T00:00:00Z
 video:

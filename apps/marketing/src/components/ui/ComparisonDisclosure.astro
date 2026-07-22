@@ -4,12 +4,26 @@
 
 type Props = {
 	competitor?: string
+	checkedAt: string
+	sources: Array<{ label: string; url: string }>
 }
 
-const { competitor } = Astro.props
+const { competitor, checkedAt, sources } = Astro.props
 const subject = competitor ? `Frontman and ${competitor}` : 'the tools on this page'
+const formattedCheckedAt = new Intl.DateTimeFormat('en-US', {
+	year: 'numeric',
+	month: 'long',
+	day: 'numeric',
+	timeZone: 'UTC'
+}).format(new Date(`${checkedAt}T00:00:00Z`))
 ---
 
-<p class="comparison-disclosure mt-6 border-t border-white/[0.08] pt-4 text-[13px] italic text-zinc-300">
-	Disclosure: This page is published by the Frontman team. We've done our best to present {subject} accurately and fairly, but we are naturally biased toward our own product. We encourage you to try both tools and decide for yourself.
-</p>
+<div class="comparison-disclosure mt-6 border-t border-white/[0.08] pt-4 text-[13px] text-zinc-300">
+	<p class="italic">Disclosure: This page is published by the Frontman team. We've done our best to present {subject} accurately and fairly, but we are naturally biased toward our own product. We encourage you to try both tools and decide for yourself.</p>
+	<p class="mt-2">
+		Capability and product-positioning facts last checked: <time datetime={checkedAt}>{formattedCheckedAt}</time>. Pricing figures retain their publication snapshots and are not covered by this review date. Sources:{' '}
+		{sources.map((source, index) => (
+			<><a href={source.url} class="underline decoration-zinc-600 underline-offset-2 transition-colors hover:text-white hover:decoration-zinc-400">{source.label}</a>{index < sources.length - 1 ? ', ' : ''}</>
+		))}
+	</p>
+</div>

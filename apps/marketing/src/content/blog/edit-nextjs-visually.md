@@ -3,7 +3,9 @@ title: 'Edit Next.js Components in Your Browser'
 pubDate: 2026-04-14T05:00:00Z
 description: 'Frontman connects to your running Next.js app and lets you click any element to edit the source. No file hunting, no class name guessing — just click and describe.'
 author: 'Danni Friedland'
+articleSection: 'Tutorial'
 image: '/blog/edit-nextjs-visually-cover.png'
+imageAlt: 'Next.js component selected for visual editing in the browser'
 tags: ['nextjs', 'tutorial', 'developer-tools']
 faq:
   - question: 'Do I need to eject from Next.js or change my build setup?'
@@ -120,4 +122,4 @@ Generated code from tools like v0 or Bolt creates a parallel codebase you have t
 
 If you have a Next.js project running locally, setup takes under two minutes. Follow the [Next.js integration guide](/docs/integrations/nextjs/) for the full walkthrough, or read about [how Frontman connects to your framework](/blog/frontman-launch/).
 
-[Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon.
+[Try Frontman](https://frontman.sh) — self-host in one command or use hosted Frontman Pro now. The browser client and JavaScript integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.

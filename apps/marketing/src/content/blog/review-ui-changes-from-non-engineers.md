@@ -4,9 +4,9 @@ seoTitle: 'How Teams Review UI Changes From Non-Engineers'
 pubDate: 2026-06-24T18:30:00Z
 description: 'A practical review process for UI changes from non-engineers: scope limits, pull requests, visual QA, CI, code owner review, and safe AI-agent guardrails.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
 image: '/blog/team-collaboration-cover.png'
 imageAlt: 'Designers, product managers, and engineers reviewing UI changes together.'
+articleSection: 'Operational Audit'
 tags: ['workflow', 'product-management', 'design-systems', 'ai']
 faq:
   - question: 'How should teams review UI changes from non-engineers?'

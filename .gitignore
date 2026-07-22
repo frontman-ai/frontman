@@ -36,6 +36,9 @@ yarn-error.log
 *.swp
 *.swo
 
+# Local private project notes
+.notes
+
 # OS
 .DS_Store
 Thumbs.db

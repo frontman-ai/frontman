@@ -4,12 +4,9 @@ seoTitle: 'Puppeteer MCP Alternatives for Claude Code'
 pubDate: 2026-07-16T00:00:00Z
 description: 'Compare Chrome DevTools MCP, Playwright MCP, Claude in Chrome, and Frontman for Claude Code browser debugging, DOM access, automation, and source mapping.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 image: '/blog/puppeteer-mcp-alternatives-claude-code-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Comparison of Puppeteer MCP alternatives for Claude Code browser debugging'
+articleSection: 'Comparison or Buyer Guide'
 tags: ['comparison', 'claude-code', 'browser-automation', 'developer-tools']
 comparisonItems:
   - name: 'Chrome DevTools MCP'

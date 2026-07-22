@@ -2,18 +2,28 @@
 // /vs/stagewise — Frontman vs Stagewise Comparison Page
 
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   Alternative,
   ComparisonFeature,
+  ComparisonReview,
   CompetitorInfo,
   FAQ,
   SEOInfo,
 } from '../../layouts/ComparisonLayout.astro'
 
 const seo: SEOInfo = {
-	title: 'Frontman vs Stagewise: Browser AI Coding Tools Compared',
+	title: 'Frontman vs Stagewise: AI Coding Agents Compared',
 	description:
-		'Compare Stagewise and Frontman. Stagewise is a zero-install IDE bridge; Frontman is self-hostable BYOK middleware with deeper framework context and no prompt caps.',
+		'Compare Stagewise and Frontman. Stagewise is an open-source agentic desktop IDE; Frontman is browser-first framework middleware with runtime context.',
+}
+
+const review: ComparisonReview = {
+  ...createComparisonReview([
+    { label: 'Stagewise official website', url: 'https://stagewise.io' },
+    { label: 'Stagewise documentation', url: 'https://docs.stagewise.io' },
+    { label: 'Stagewise source code', url: 'https://github.com/stagewise-io/stagewise' },
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -22,7 +32,7 @@ const competitor: CompetitorInfo = {
   url: 'https://stagewise.io',
   category: 'DeveloperApplication',
   description:
-    'CLI-based browser overlay for AI coding context, with built-in agent options and IDE-agent bridge workflows.',
+    'Open-source AGPL-3.0 agentic desktop IDE with filesystem agents, a full browser engine, terminals, diff review, skills, plugins, and flexible model providers.',
   pricing: {
     cost: '€0–€20/mo',
     model: 'Freemium, AGPL-3.0',
@@ -38,121 +48,116 @@ const competitor: CompetitorInfo = {
 
 const features: ComparisonFeature[] = [
   { name: 'Click-to-select elements', frontman: 'yes', competitor: 'yes', frontmanNote: 'In your running app', competitorNote: 'In your running app' },
-  { name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'yes', frontmanNote: 'Via framework middleware', competitorNote: 'Via CLI-injected toolbar' },
-  { name: 'Natural language code edits', frontman: 'yes', competitor: 'yes', frontmanNote: 'Self-contained agent', competitorNote: 'Built-in agent or IDE agent bridge' },
+  { name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'yes', frontmanNote: 'Via framework middleware', competitorNote: 'Full browser engine with DOM element context' },
+  { name: 'Natural language code edits', frontman: 'yes', competitor: 'yes', frontmanNote: 'Self-contained agent', competitorNote: 'Agent edits files directly across workspaces' },
   { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Instant via HMR', competitorNote: 'Instant via HMR' },
-  { name: 'Deep framework middleware', frontman: 'yes', competitor: 'no', frontmanNote: 'Component tree, props, server state', competitorNote: 'DOM-level only' },
-  { name: 'Free self-hosting', frontman: 'yes', competitor: 'yes', frontmanNote: 'Open-source self-hosting with BYOK', competitorNote: '10 prompts/day free, 100/day for €20/mo hosted plan' },
-  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'partial', frontmanNote: 'Any LLM provider directly', competitorNote: 'Via IDE agent bridge only' },
-  { name: 'Zero codebase install', frontman: 'no', competitor: 'yes', frontmanNote: 'Requires framework adapter', competitorNote: 'npx stagewise@latest — nothing installed' },
-  { name: 'IDE agent bridge', frontman: 'no', competitor: 'yes', competitorNote: 'Cursor, Copilot, Windsurf, Cline, etc.' },
-  { name: 'Framework-agnostic', frontman: 'partial', competitor: 'yes', frontmanNote: 'Next.js, Astro, Vite', competitorNote: 'Any framework including Angular' },
-  { name: 'Server-side context', frontman: 'yes', competitor: 'no', frontmanNote: 'Routes, server logs, query timing', competitorNote: 'Browser-only context' },
-  { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'yes', frontmanNote: 'No IDE needed', competitorNote: 'No IDE needed' },
-  { name: 'Open source', frontman: 'yes', competitor: 'yes', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0', competitorNote: 'AGPL-3.0' },
-  { name: 'Self-hostable (fully local)', frontman: 'yes', competitor: 'partial', frontmanNote: 'Everything runs locally', competitorNote: 'Built-in agent has SaaS dependency' },
-  { name: 'Plugin system', frontman: 'no', competitor: 'yes', competitorNote: 'Extensible via plugins' },
-  { name: 'VS Code extension', frontman: 'no', competitor: 'yes', competitorNote: 'Stagewise VSCode extension' },
+  { name: 'Framework runtime mapping', frontman: 'yes', competitor: 'no', frontmanNote: 'Component tree, props, server state', competitorNote: 'Current sources do not establish equivalent component/runtime mapping' },
+  { name: 'Free self-hosting', frontman: 'yes', competitor: 'yes', frontmanNote: 'Source-available self-hosting with BYOK', competitorNote: 'AGPL-3.0 and self-hostable' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'yes', frontmanNote: 'Any LLM provider directly', competitorNote: 'Direct keys, imported subscriptions, and custom/local providers' },
+  { name: 'Standalone desktop IDE', frontman: 'no', competitor: 'yes', frontmanNote: 'Runs with your browser and existing editor', competitorNote: 'Agentic desktop development environment' },
+  { name: 'External IDE integration', frontman: 'no', competitor: 'yes', competitorNote: 'Available in addition to the desktop product' },
+  { name: 'Framework-agnostic', frontman: 'partial', competitor: 'yes', frontmanNote: 'Next.js, Astro, Vite', competitorNote: 'Filesystem agents work across project types' },
+  { name: 'Server-side context', frontman: 'yes', competitor: 'partial', frontmanNote: 'Routes, server logs, query timing', competitorNote: 'Filesystem and terminal access; equivalent runtime mapping not established' },
+  { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'partial', frontmanNote: 'No IDE needed', competitorNote: 'Visual selection inside a desktop IDE workflow' },
+  { name: 'Source availability', frontman: 'yes', competitor: 'yes', frontmanNote: frontmanLicenseShort, competitorNote: 'AGPL-3.0' },
+  { name: 'Self-hostable', frontman: 'yes', competitor: 'yes', frontmanNote: 'Server runs on your infrastructure; provider transmission still depends on configuration', competitorNote: 'AGPL-3.0 project supports self-hosting' },
+  { name: 'Skills and plugins', frontman: 'no', competitor: 'yes', competitorNote: 'Extensible with skills and plugins' },
+  { name: 'Integrated terminals', frontman: 'no', competitor: 'yes', competitorNote: 'Terminal workflows inside the IDE' },
+  { name: 'Diff review', frontman: 'yes', competitor: 'yes', frontmanNote: 'Review source edits', competitorNote: 'Review agent changes before accepting' },
+  { name: 'Local/custom model providers', frontman: 'yes', competitor: 'yes', frontmanNote: 'OpenAI-compatible and local models', competitorNote: 'Ollama, LM Studio, OpenAI-compatible, and Anthropic-style APIs' },
 ]
 
 const faqs: FAQ[] = [
   {
     question: 'What is the difference between Frontman and Stagewise?',
     answer:
-      'Both tools let you click elements in your running app and describe changes in natural language. The key difference is architecture: Stagewise is a CLI overlay that injects a toolbar into your browser and can bridge to IDE agents like Cursor. Frontman installs as framework middleware (Next.js, Astro, Vite) and runs its own self-contained agent with deep access to the component tree, props, server state, and computed styles. Stagewise is faster to try (zero install), while Frontman gives deeper framework context and remains self-hostable.',
+      'Stagewise is a standalone open-source agentic desktop IDE. Its agents work directly on files across workspaces, with an integrated browser engine, terminals, diff review, skills, and plugins. Frontman runs alongside your existing editor and integrates with Next.js, Astro, or Vite to connect browser inspection with framework runtime context. Both can inspect rendered UI and edit source files; current Stagewise sources do not establish Frontman-equivalent framework component and runtime mapping.',
   },
   {
     question: 'Is Frontman a self-hostable alternative to Stagewise?',
     answer:
-      'Yes. Frontman can be self-hosted under its open-source licenses, and you bring your own API keys to Claude, ChatGPT, or OpenRouter. Hosted Frontman plans are moving to paid subscriptions, while self-hosting remains available.',
+      'Both are self-hostable, with different architectures and licenses. Stagewise is an AGPL-3.0 desktop IDE. Frontman can be self-hosted under its source-available licensing terms, and you bring your own API keys to Claude, ChatGPT, or OpenRouter. Self-hosting moves orchestration and task-history persistence to your infrastructure but does not prevent transmission to your configured LLM provider. Hosted Frontman Pro is available now, while self-hosting remains available.',
   },
   {
     question: 'Can I use Stagewise and Frontman together?',
     answer:
-      'In theory, yes — they operate differently. Stagewise injects a toolbar via CLI, while Frontman runs as framework middleware. However, using both simultaneously on the same dev server may cause conflicts. Most developers choose one based on their workflow: Stagewise if they want to bridge to an existing IDE agent, Frontman if they want a self-contained agent with deeper framework context.',
+      'Potentially. Stagewise is a standalone desktop IDE whose agent edits the workspace directly, while Frontman runs through browser tools, a local framework integration, and its own agent server. Because both can edit the same source files, coordinate tasks and review diffs to avoid overlapping changes.',
   },
   {
     question: 'Does Frontman work with Cursor like Stagewise does?',
     answer:
-      'Differently. Stagewise acts as a bridge — it sends browser context to Cursor\'s agent for code edits. Frontman is a self-contained agent that doesn\'t need Cursor or any IDE. It has its own AI agent that reads the browser context and generates code edits directly. You can still use Cursor for backend coding alongside Frontman for visual frontend editing — they edit the same source files.',
+      'Frontman is a self-contained agent that does not require Cursor or another IDE. You can still use Cursor alongside Frontman because both edit the same source files. Stagewise may integrate with external IDEs, but that integration is one option within its broader standalone desktop IDE rather than the whole product.',
   },
   {
     question: 'Which tool has deeper browser context?',
     answer:
-      'Frontman. Because it installs as framework middleware (not a CLI overlay), Frontman has access to the component tree at the framework level — React fiber nodes, Vue reactivity graph, or Svelte component tree. It also sees server-side context like routes, server logs, and query timing. Stagewise sees the DOM and computed styles but operates at a shallower level since it doesn\'t integrate into the framework\'s runtime.',
+      'They expose different context. Stagewise includes a full browser engine for app previews and DOM element context. Frontman combines live DOM and computed styles with framework integrations that map rendered elements to component-tree, props, routes, logs, and other runtime context. Current Stagewise sources do not establish equivalent framework runtime or component mapping, so the distinction is narrower than browser access versus no browser access.',
   },
   {
     question: 'Which tool is easier to set up?',
     answer:
-      'Stagewise. You run npx stagewise@latest in a second terminal and it works with any framework immediately — no changes to your codebase. Frontman requires installing a framework adapter (e.g., npx @frontman-ai/nextjs install for Next.js) which adds a small amount of middleware to your dev server. Frontman\'s setup takes about 60 seconds more but provides deeper integration in return.',
+      'Stagewise is installed as a standalone desktop IDE and works directly with local workspaces. Frontman requires installing a framework adapter (e.g., npx @frontman-ai/nextjs install for Next.js) which adds a small amount of middleware to your dev server. Setup choice depends on whether you want a complete agentic IDE or browser-first tooling integrated with your existing editor and framework runtime.',
   },
 ]
 
 const alternatives: Alternative[] = [
   { name: 'Frontman', slug: '', oneLiner: 'Framework-aware browser middleware with deep runtime context and no prompt caps.' },
   { name: 'Cursor', slug: 'cursor', oneLiner: 'General-purpose AI IDE with agent mode and autocomplete.' },
-  { name: 'Windsurf', slug: 'windsurf', oneLiner: 'AI IDE with embedded browser preview and Cascade agent.' },
-  { name: 'GitHub Copilot', slug: 'copilot', oneLiner: 'IDE-native assistant with strong GitHub workflow integration.' },
+  { name: 'Windsurf', slug: 'windsurf', oneLiner: 'Now Devin Desktop: full IDE and command center for local and cloud coding agents.' },
+  { name: 'GitHub Copilot', slug: 'copilot', oneLiner: 'IDE-native assistant with GitHub workflows and BYOK on documented agent surfaces.' },
   { name: 'Claude Code', slug: 'claude-code', oneLiner: 'Terminal-first agent with shell and git automation.' },
 ]
 
-const frontmanPricingFeatures = [
-  'Unlimited prompts, no daily caps',
-  'Bring your own API keys',
-  'Apache 2.0 (client) / AGPL-3.0 (server)',
-  'You pay your LLM provider directly',
-  'Self-hostable, fully local',
-]
 ---
 
 <ComparisonLayout
   seo={seo}
   competitor={competitor}
+  review={review}
   heroTitle="Frontman vs Stagewise"
-  heroSubtitle="Two Browser-Based AI Coding Tools, Different Architecture"
+  heroSubtitle="Agentic Desktop IDE vs Browser-First Framework Agent"
   features={features}
   faqs={faqs}
   alternatives={alternatives}
-  frontmanPricing={{ features: frontmanPricingFeatures }}
 >
   <Fragment slot="hero-summary">
     <p>
-      <a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://stagewise.io" class="text-link" rel="nofollow">Stagewise</a> both let you click elements in your running app, describe changes in natural language, and get real source code edits. They solve the same problem — AI coding tools that can't see the browser — but with fundamentally different architectures.
+      <a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://stagewise.io" class="text-link" rel="nofollow">Stagewise</a> both connect AI coding agents to rendered applications and real source files, but they package that workflow differently.
     </p>
     <p>
-      <strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It runs its own self-contained agent with deep access to the component tree, computed styles, server routes, and server logs. Free and unlimited — you bring your own API keys.
+      <strong>Frontman</strong> is a source-available AI coding agent with a distributed architecture. Browser tools inspect the page, the local framework integration (Next.js, Astro, Vite) provides component and filesystem context, and the server orchestrates the agent loop and persists task history. Free and unlimited — you bring your own API keys.
     </p>
     <p>
-      <strong>Stagewise</strong> is a YC-backed CLI tool that injects a toolbar into your browser. It captures DOM context and routes it to its own built-in agent or bridges to IDE agents like Cursor, Copilot, and Windsurf. Framework-agnostic with zero codebase changes, but limited to 10 free prompts/day (€20/month for 100/day).
+      <strong>Stagewise</strong> is a standalone open-source AGPL-3.0 agentic desktop IDE. Its agents operate directly on files across workspaces and pair a full browser engine for app previews and DOM element context with terminals, diff review, skills, plugins, and flexible provider configuration. External IDE integration may remain available, but it is not the whole product. Limited to 10 free prompts/day (€20/month for 100/day).
     </p>
 	<p class="summary-emphasis">
-		Choose Stagewise for zero-install setup and IDE-agent bridging. Choose Frontman for BYOK, no prompt caps, and deeper framework runtime context.
+		Choose Stagewise for an open-source agentic desktop IDE with broad workspace, browser, terminal, and extension tooling. Choose Frontman for browser-first collaboration, no prompt caps, and explicit framework runtime mapping.
 	</p>
   </Fragment>
 
   <Fragment slot="competitor-strengths">
-    <p>Stagewise has real traction — 6,500+ GitHub stars and YC backing. It deserves credit for popularizing the "click elements in the browser, describe changes" workflow.</p>
-    <p><strong>Zero installation friction.</strong> Run <code>npx stagewise@latest</code> in a terminal next to your dev server. No framework adapters, no config files, no changes to your codebase. You're editing visually in 30 seconds. This is the lowest barrier to entry of any browser-based AI coding tool.</p>
-    <p>Stagewise can route browser context to your existing IDE agent — Cursor, Copilot, Windsurf, Cline, and others. If you're already invested in an IDE agent's workflow, Stagewise adds browser awareness without switching tools.</p>
-    <p><strong>Framework-agnostic.</strong> Because Stagewise operates as a CLI overlay rather than framework middleware, it works with any framework — including Angular, which Frontman doesn't support. If your stack isn't Next.js, Astro, or Vite, Stagewise is the option that works today.</p>
-    <p><strong>Plugin system and VS Code extension.</strong> Stagewise has an extensibility layer and a dedicated VS Code extension. Frontman currently has neither.</p>
+    <p>Stagewise has evolved into a complete open-source agentic development environment rather than a browser toolbar accessory.</p>
+    <p><strong>Direct workspace agency.</strong> Agents operate on the filesystem across workspaces, with integrated terminals and a diff-review flow for inspecting changes before acceptance.</p>
+    <p><strong>Browser engine built in.</strong> App previews live inside the IDE, and DOM elements can be supplied as precise visual context instead of relying only on a textual description.</p>
+    <p><strong>Flexible models and deployment.</strong> Stagewise supports direct BYOK, imported subscriptions, custom providers, and local models through Ollama, LM Studio, OpenAI-compatible, and Anthropic-style APIs. The AGPL-3.0 project is self-hostable.</p>
+    <p><strong>Extensible environment.</strong> Skills and plugins expand the agent's workflows. External IDE integration can complement the desktop product for teams that keep another editor in their toolchain.</p>
   </Fragment>
 
   <Fragment slot="frontman-differentiators">
-    <p>Frontman and Stagewise look similar on the surface — both let you click elements and describe changes. The difference is depth. Stagewise injects a toolbar on top of your app. Frontman wires into the app itself.</p>
-    <p><strong>Framework middleware vs CLI overlay.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to information a CLI overlay can't reach: the React fiber tree, Vue reactivity graph, component props, server-side routes, server logs, and query timing. When you click a button, Frontman knows not just what DOM element it is, but which component rendered it, what props it received, and what server endpoint it calls.</p>
-	<p><strong>Self-hostable and BYOK.</strong> Stagewise's free tier caps you at 10 prompts per day. Their Pro plan is €20/month for 100 prompts/day. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys and pay your LLM provider directly.</p>
-    <p><strong>Self-contained agent.</strong> Frontman runs its own AI agent — it doesn't need Cursor, Copilot, or any IDE running alongside it. The agent has full access to the framework runtime context and generates code edits directly. This means faster iteration (no roundtrip through an IDE agent) and simpler architecture (one tool instead of two).</p>
-    <p>Because Frontman is framework middleware, it sees both sides: the client-side DOM and the server-side context. It knows your routes, sees server logs, and can access server-side state. Stagewise operates purely on the client side.</p>
-    <p><strong>True BYOK.</strong> Frontman connects directly to any LLM provider — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API. Stagewise's "bring your own model" works through IDE agent bridges, not direct API key input.</p>
+    <p>Frontman and Stagewise both combine browser context with source edits. The useful distinction is how they integrate that context into development.</p>
+    <p><strong>Framework runtime integration vs desktop workspace.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This explicitly maps rendered elements to the framework component tree, props, server-side routes, logs, and query timing. Stagewise has broad filesystem, terminal, preview, and DOM access, but its current sources do not establish equivalent framework runtime/component mapping.</p>
+	<p><strong>Self-hostable and BYOK.</strong> Stagewise's free tier caps you at 10 prompts per day. Their Pro plan is €20/month for 100 prompts/day. Frontman remains free to self-host under its source-available licensing terms. Hosted Frontman Pro is available now. Self-hosting places server orchestration and persistence on your infrastructure; context still goes to your configured LLM provider. You bring your own API keys and pay your LLM provider directly.</p>
+    <p><strong>Browser-first collaboration.</strong> Frontman does not require moving the team into a new IDE. Designers, PMs, and developers work from the running app in their normal browser while source edits flow through the local integration.</p>
+    <p><strong>Purpose-built runtime context.</strong> Frontman connects client-side DOM and computed styles to framework component metadata and server-side signals. Stagewise can inspect DOM elements and operate through files and terminals; only the Frontman-equivalent runtime mapping is not established by current sources.</p>
+    <p><strong>Provider choice on both sides.</strong> Frontman connects directly to Claude, ChatGPT, OpenRouter, or OpenAI-compatible APIs. Stagewise now also supports direct keys, imported subscriptions, and custom or local providers.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">
-    <p>Stagewise is the better choice when you want browser-based AI coding with minimal commitment:</p>
+    <p>Stagewise is the better choice when you want a complete open-source agentic desktop environment:</p>
     <ul>
-      <li><strong>Quick evaluation</strong> — want to try browser-aware AI editing in 30 seconds without installing anything into your project</li>
-      <li><strong>IDE agent users</strong> — already using Cursor, Copilot, or Windsurf and want to add browser context to your existing agent</li>
-      <li><strong>Angular or non-supported framework</strong> — your stack isn't Next.js, Astro, or Vite and you need something framework-agnostic</li>
+      <li><strong>Unified agent workspace</strong> — want filesystem edits, app previews, DOM context, terminals, and diff review in one desktop IDE</li>
+      <li><strong>Extensible workflows</strong> — want skills, plugins, and optional external IDE integration</li>
+      <li><strong>Custom or local models</strong> — want direct keys, imported subscriptions, Ollama, LM Studio, or compatible API endpoints</li>
       <li><strong>Occasional use</strong> — 10 prompts/day is enough for your workflow and you don't want to manage API keys</li>
     </ul>
   </Fragment>
@@ -161,12 +166,12 @@ const frontmanPricingFeatures = [
     <p>Frontman is the better choice when you need deeper integration and freedom from prompt limits:</p>
     <ul>
       <li><strong>Daily frontend development</strong> — 10 prompts/day isn't enough and you don't want to pay €20/month for a cap of 100</li>
-      <li><strong>Next.js, Astro, or Vite projects</strong> — Frontman's middleware gives you deeper context than any CLI overlay</li>
+      <li><strong>Next.js, Astro, or Vite projects</strong> — Frontman's middleware explicitly maps browser elements to framework runtime context</li>
       <li><strong>Teams with designers or PMs</strong> — non-technical team members can make visual changes without an IDE or a Cursor subscription</li>
-		<li><strong>Open-source and vendor-independent</strong> — you want full control, BYOK, and a self-hostable development workflow</li>
+		<li><strong>Source-available and vendor-independent</strong> — you want infrastructure control, BYOK, and a self-hostable development workflow</li>
       <li><strong>Server-side context matters</strong> — you need the AI to understand routes, server logs, and server-side state alongside the visual UI</li>
     </ul>
-    <p>If you hit Stagewise's prompt limits or need deeper framework context, Frontman is worth evaluating.</p>
+    <p>If you hit Stagewise's prompt limits or need explicit framework runtime/component mapping, Frontman is worth evaluating.</p>
     <p>Also see: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a> for a comparison with a full AI-powered IDE.</p>
   </Fragment>
 

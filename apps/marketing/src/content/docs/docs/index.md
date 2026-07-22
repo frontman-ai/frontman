@@ -3,7 +3,7 @@ title: Frontman Docs
 description: Frontman documentation for installation, framework integrations, API keys, usage guides, troubleshooting, and self-hosting.
 ---
 
-Frontman is an open-source AI coding agent that runs inside your development browser. You chat with it in natural language or point at elements on your page, and it edits your actual source files — with instant hot reload so you see changes immediately.
+Frontman is a source-available AI coding agent with a browser client, local framework integration, and hosted or self-hosted orchestration server. You chat with it in natural language or point at elements on your page, and the local integration edits your actual source files — with instant hot reload so you see changes immediately.
 
 :::tip[The 30-second mental model]
 You describe a change → the agent takes a screenshot of your running app → reads relevant source code → makes edits → your dev server hot-reloads → you see the result. No copy-pasting, no context-switching, no "refresh and check."

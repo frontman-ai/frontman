@@ -3,7 +3,9 @@ title: 'Design System Collaboration Without Tickets'
 pubDate: 2026-02-16T05:00:00Z
 description: 'You built the system. You maintain it across teams. But every token tweak still routes through a developer. Frontman changes that.'
 author: 'Danni Friedland'
+articleSection: 'Problem Diagnosis'
 image: '/blog/team-collaboration-cover.png'
+imageAlt: 'Design system collaboration without tickets cover'
 tags: ['collaboration', 'workflow', 'design-systems']
 updatedDate: 2026-03-20T00:00:00Z
 ---

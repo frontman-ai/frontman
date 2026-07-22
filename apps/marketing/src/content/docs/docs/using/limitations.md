@@ -3,7 +3,7 @@ title: Limitations & Workarounds
 description: What Frontman can't do, and practical workarounds for auth-gated pages, viewport limits, timeouts, and stuck loops.
 ---
 
-Frontman is opinionated about safety and scope. The [architecture](/docs/reference/architecture/) keeps your code local, ships only DOM context through the browser, and routes tools through the dev-server plugin. That design prevents entire classes of mistakes—but it also creates limits you should know about. This page collects the common "why can't it…" questions and shows how to work around them.
+Frontman is opinionated about safety and scope. In the [distributed architecture](/docs/reference/architecture/), browser tools run in the browser, filesystem tools run on your machine through the framework integration, and the server orchestrates the agent loop and persists task history. Relevant file content, DOM context, screenshots, logs, metadata, tool results, and generated output may pass through the server to your selected LLM provider. That design prevents entire classes of mistakes—but it also creates limits you should know about. This page collects the common "why can't it…" questions and shows how to work around them.
 
 ## What the agent can (and can’t) see
 

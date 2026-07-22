@@ -4,7 +4,9 @@ seoTitle: 'Why Vibe Coding Tools Break Production Apps'
 pubDate: 2026-04-15T05:00:00Z
 description: 'Why vibe coding tools often fail in production: verification debt, inconsistent architecture, missing edge cases, and how to use AI code safely.'
 author: 'Danni Friedland'
+articleSection: 'Problem Diagnosis'
 image: '/blog/vibe-coding-problems-cover.png'
+imageAlt: 'Why vibe coding breaks production apps cover'
 tags: ['ai', 'developer-tools', 'code-quality']
 updatedDate: 2026-06-17T00:00:00Z
 faq:

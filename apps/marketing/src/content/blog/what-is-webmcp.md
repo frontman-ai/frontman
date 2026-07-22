@@ -4,8 +4,9 @@ seoTitle: 'What Is WebMCP? Browser Tools for AI Agents'
 pubDate: 2026-06-25T18:00:00Z
 description: 'WebMCP lets AI agents call structured browser tools, reuse website functions, and act on pages with more reliable runtime context.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
+articleSection: 'Technical Explainer'
 image: '/blog/what-is-webmcp-cover.png'
+imageAlt: 'WebMCP browser tools for AI agents cover'
 tags: ['ai', 'developer-tools', 'browser-tools']
 faq:
   - question: 'What is WebMCP?'

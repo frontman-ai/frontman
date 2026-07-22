@@ -5,6 +5,8 @@ pubDate: 2026-02-18T05:00:00Z
 description: 'What browser-aware AI coding agents can see that file-only agents miss: rendered DOM, computed CSS, layout, viewport state, and source context.'
 author: 'Danni Friedland'
 image: '/blog/introducing-frontman-cover.png'
+imageAlt: 'Introducing Frontman browser-aware AI coding agent'
+articleSection: 'Product Announcement'
 tags: ['ai', 'frontend', 'developer-tools']
 updatedDate: 2026-06-17T00:00:00Z
 ---
@@ -61,4 +63,4 @@ Until coding agents can see what users see, frontend AI assistance will remain a
 
 ---
 
-*We built [Frontman](/blog/frontman-launch/) to close this gap — an open-source agent that connects to your browser and your dev server simultaneously. But whether you use Frontman or something else, the runtime context gap is the problem worth understanding. It explains why your AI agent keeps getting CSS wrong.*
+*We built [Frontman](/blog/frontman-launch/) to close this gap — a source-available agent with an Apache-2.0 browser client and JavaScript integrations, a GPL-2.0-or-later WordPress plugin, and an AGPL-3.0-only server plus AI Supplementary Terms. It connects to your browser and your dev server simultaneously. But whether you use Frontman or something else, the runtime context gap is the problem worth understanding. It explains why your AI agent keeps getting CSS wrong.*
