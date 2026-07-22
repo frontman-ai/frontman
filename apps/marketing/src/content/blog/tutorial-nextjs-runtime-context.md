@@ -88,8 +88,8 @@ The edit is applied to your source file. Hot reload shows the result immediately
 2. Frontman's client-side code identified the React component
    and resolved it to a source file:line via sourcemaps
 3. The click target + component info were sent to
-   Frontman middleware running inside the Next.js dev server
-4. The middleware gathered:
+   Frontman running inside the Next.js dev server
+4. The Next.js integration gathered:
    - Source code of the component
    - Computed styles from the browser
    - Component tree (parent/child relationships)

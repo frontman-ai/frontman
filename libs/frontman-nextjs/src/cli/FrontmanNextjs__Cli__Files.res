@@ -107,13 +107,20 @@ let getPendingAutoEdit = (~existingFile: Detect.existingFile, ~fileName: string)
 // Handle middleware file (Next.js 15 and earlier)
 let handleMiddleware = async (
   ~projectDir: string,
+  ~hasSrcDir: bool,
   ~host: string,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
   ~autoEdit: bool,
 ): result<fileResult, string> => {
-  let filePath = Path.join([projectDir, "middleware.ts"])
-  let fileName = "middleware.ts"
+  let filePath = switch hasSrcDir {
+  | true => Path.join([projectDir, "src", "middleware.ts"])
+  | false => Path.join([projectDir, "middleware.ts"])
+  }
+  let fileName = switch hasSrcDir {
+  | true => "src/middleware.ts"
+  | false => "middleware.ts"
+  }
 
   switch existingFile {
   | NotFound =>
@@ -162,13 +169,20 @@ let handleMiddleware = async (
 // Handle proxy file (Next.js 16+)
 let handleProxy = async (
   ~projectDir: string,
+  ~hasSrcDir: bool,
   ~host: string,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
   ~autoEdit: bool,
 ): result<fileResult, string> => {
-  let filePath = Path.join([projectDir, "proxy.ts"])
-  let fileName = "proxy.ts"
+  let filePath = switch hasSrcDir {
+  | true => Path.join([projectDir, "src", "proxy.ts"])
+  | false => Path.join([projectDir, "proxy.ts"])
+  }
+  let fileName = switch hasSrcDir {
+  | true => "src/proxy.ts"
+  | false => "proxy.ts"
+  }
 
   switch existingFile {
   | NotFound =>

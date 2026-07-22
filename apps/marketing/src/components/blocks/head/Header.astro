@@ -48,8 +48,6 @@ const {
 } = Astro.props
 ---
 
-<head>
-	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<meta name="color-scheme" content="dark light" />
 	<link rel="preload" href={interLatinUrl} as="font" type="font/woff2" crossorigin />
@@ -82,4 +80,3 @@ const {
 	<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
 	<meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
 	<StructuredData noindex={noindex} breadcrumbs={breadcrumbs} />
-</head>

@@ -4,9 +4,16 @@
 	"description": "Next.js integration for Frontman - AI-powered development tools and observability",
 	"type": "module",
 	"main": "./dist/index.js",
+	"types": "./types/index.d.ts",
 	"exports": {
-		".": "./dist/index.js",
-		"./Instrumentation": "./dist/instrumentation.js"
+		".": {
+			"types": "./types/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./Instrumentation": {
+			"types": "./types/instrumentation.d.ts",
+			"default": "./dist/instrumentation.js"
+		}
 	},
 	"bin": {
 		"frontman-nextjs": "dist/cli.js",
@@ -40,6 +47,7 @@
 	},
 	"files": [
 		"dist",
+		"types",
 		"README.md"
 	],
 	"scripts": {

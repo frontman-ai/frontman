@@ -54,7 +54,10 @@ const {
 
 <!doctype html>
 <html lang="en" class="relative">
-	<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} canonical={canonical} noindex={noindex} article={article} breadcrumbs={breadcrumbs} />
+	<head>
+		<meta charset="UTF-8" />
+		<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} canonical={canonical} noindex={noindex} article={article} breadcrumbs={breadcrumbs} />
+	</head>
 	<body class:list={[{ [`${classes}`]: classes }]}>
 		<a href="#main-content" class="skip-link">Skip to main content</a>
 		<NavigationBar />

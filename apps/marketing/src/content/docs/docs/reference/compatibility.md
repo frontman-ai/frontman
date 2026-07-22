@@ -54,7 +54,7 @@ See [Tool Capabilities](/docs/using/tool-capabilities/) for the shared file, log
 **Notes**
 - Frontman runs in development only.
 - App Router and Pages Router can coexist in the same project.
-- The integration works with both Webpack and Turbopack because it hooks at the middleware layer, not the bundler layer.
+- The integration works with both Webpack and Turbopack because it hooks at the Next.js request-entrypoint layer, not the bundler layer.
 
 See [Next.js integration](/docs/integrations/nextjs/).
 

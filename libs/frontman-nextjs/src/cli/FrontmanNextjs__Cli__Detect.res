@@ -165,9 +165,13 @@ let analyzeFile = async (filePath: string): existingFile => {
   }
 }
 
-// Detect if src/ directory exists
+// Detect if the Next.js router lives under src/.
 let detectSrcDir = async (projectDir: string): bool => {
-  await FsUtils.dirExists(Path.join([projectDir, "src"]))
+  let hasSrcApp = await FsUtils.dirExists(Path.join([projectDir, "src", "app"]))
+  switch hasSrcApp {
+  | true => true
+  | false => await FsUtils.dirExists(Path.join([projectDir, "src", "pages"]))
+  }
 }
 
 // Check if package.json exists (validates this is a project root)
@@ -185,12 +189,16 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
     switch await detectNextVersion(projectDir) {
     | Error(msg) => Error(msg)
     | Ok(nextVersion) =>
-      // Detect existing files
-      let middlewarePath = Path.join([projectDir, "middleware.ts"])
-      let proxyPath = Path.join([projectDir, "proxy.ts"])
+      // Next loads middleware/proxy from the same level as app/ or pages/.
+      let hasSrcDir = await detectSrcDir(projectDir)
+      let entrypointDir = switch hasSrcDir {
+      | true => Path.join([projectDir, "src"])
+      | false => projectDir
+      }
+      let middlewarePath = Path.join([entrypointDir, "middleware.ts"])
+      let proxyPath = Path.join([entrypointDir, "proxy.ts"])
 
       // Check for instrumentation in both root and src/
-      let hasSrcDir = await detectSrcDir(projectDir)
       let instrumentationPath = switch hasSrcDir {
       | true => Path.join([projectDir, "src", "instrumentation.ts"])
       | false => Path.join([projectDir, "instrumentation.ts"])

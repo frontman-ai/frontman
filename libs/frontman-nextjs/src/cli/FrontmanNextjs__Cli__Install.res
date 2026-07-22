@@ -84,12 +84,20 @@ let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): 
   // Check middleware or proxy
   switch isNext16Plus {
   | true =>
-    switch Files.getPendingAutoEdit(~existingFile=info.proxy, ~fileName="proxy.ts") {
+    let fileName = switch info.hasSrcDir {
+    | true => "src/proxy.ts"
+    | false => "proxy.ts"
+    }
+    switch Files.getPendingAutoEdit(~existingFile=info.proxy, ~fileName) {
     | Some(p) => pending->Array.push(p)->ignore
     | None => ()
     }
   | false =>
-    switch Files.getPendingAutoEdit(~existingFile=info.middleware, ~fileName="middleware.ts") {
+    let fileName = switch info.hasSrcDir {
+    | true => "src/middleware.ts"
+    | false => "middleware.ts"
+    }
+    switch Files.getPendingAutoEdit(~existingFile=info.middleware, ~fileName) {
     | Some(p) => pending->Array.push(p)->ignore
     | None => ()
     }
@@ -171,6 +179,7 @@ let run = async (options: installOptions): installResult => {
     | true =>
       await Files.handleProxy(
         ~projectDir,
+        ~hasSrcDir=info.hasSrcDir,
         ~host,
         ~existingFile=info.proxy,
         ~dryRun=options.dryRun,
@@ -179,6 +188,7 @@ let run = async (options: installOptions): installResult => {
     | false =>
       await Files.handleMiddleware(
         ~projectDir,
+        ~hasSrcDir=info.hasSrcDir,
         ~host,
         ~existingFile=info.middleware,
         ~dryRun=options.dryRun,

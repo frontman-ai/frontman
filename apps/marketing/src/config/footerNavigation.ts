@@ -86,7 +86,7 @@ export const footerNavigationData: FooterData = {
 					subCategoryLink: '/changelog/'
 				},
 				{
-					subCategory: 'FAQ',
+					subCategory: 'Frequently Asked Questions',
 					subCategoryLink: '/faq/'
 				},
 				{
@@ -216,7 +216,7 @@ export const footerNavigationData: FooterData = {
 			{ label: 'Editorial', href: '/editorial-policy/' },
 			{ label: 'Terms', href: '/terms/' },
 			{ label: 'Privacy', href: '/privacy/' },
-			{ label: 'DPA', href: '/dpa/' },
+			{ label: 'Data Processing Agreement', href: '/dpa/' },
 			{ label: 'Subprocessors', href: '/subprocessors/' },
 			{ label: 'TOMs', href: '/toms/' },
 			{ label: 'Impressum', href: '/impressum/' }
