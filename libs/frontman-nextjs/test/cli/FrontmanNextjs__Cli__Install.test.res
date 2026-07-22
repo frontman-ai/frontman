@@ -45,6 +45,7 @@ let fixtureNames = [
   "nextjs15-with-src",
   "nextjs15-devdep",
   "nextjs16-clean",
+  "nextjs16-with-src",
   "nextjs16-with-frontman",
   "nextjs16-with-proxy",
 ]
@@ -678,6 +679,44 @@ describe("Existing Files Without Frontman", _t => {
 })
 
 describe("src/ Directory Support", _t => {
+  testAsync("places middleware.ts in src/ for Next.js 15 when src/ is present", async t => {
+    let tempDir = await createTempFixture("nextjs15-with-src")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let srcMiddlewareExists = await tempFileExists(tempDir, "src/middleware.ts")
+    t->expect(srcMiddlewareExists)->Expect.toBe(true)
+
+    let rootMiddlewareExists = await tempFileExists(tempDir, "middleware.ts")
+    t->expect(rootMiddlewareExists)->Expect.toBe(false)
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("places proxy.ts in src/ for Next.js 16 when src/ is present", async t => {
+    let tempDir = await createTempFixture("nextjs16-with-src")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let srcProxyExists = await tempFileExists(tempDir, "src/proxy.ts")
+    t->expect(srcProxyExists)->Expect.toBe(true)
+
+    let rootProxyExists = await tempFileExists(tempDir, "proxy.ts")
+    t->expect(rootProxyExists)->Expect.toBe(false)
+
+    await cleanupTempFixture(tempDir)
+  })
+
   testAsync("places instrumentation.ts in src/ when present", async t => {
     let tempDir = await createTempFixture("nextjs15-with-src")
 
@@ -820,6 +859,34 @@ describe("Batched Auto-Edit Collection", _t => {
     let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=false)
     t->expect(pending->Array.length)->Expect.toBe(1)
     t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("src/instrumentation.ts")
+  })
+
+  test("collectPendingAutoEdits uses src/ path for middleware when hasSrcDir", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: {major: 15, minor: 0, raw: "15.0.0"},
+      middleware: Detect.NeedsManualEdit,
+      proxy: Detect.NotFound,
+      instrumentation: Detect.NotFound,
+      hasSrcDir: true,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=false)
+    t->expect(pending->Array.length)->Expect.toBe(1)
+    t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("src/middleware.ts")
+  })
+
+  test("collectPendingAutoEdits uses src/ path for proxy when hasSrcDir", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: {major: 16, minor: 0, raw: "16.0.0"},
+      middleware: Detect.NotFound,
+      proxy: Detect.NeedsManualEdit,
+      instrumentation: Detect.NotFound,
+      hasSrcDir: true,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=true)
+    t->expect(pending->Array.length)->Expect.toBe(1)
+    t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("src/proxy.ts")
   })
 
   test("collectPendingAutoEdits returns empty when no files need editing", t => {

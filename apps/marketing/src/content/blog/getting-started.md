@@ -43,16 +43,14 @@ These commands install the framework-specific package and wire Frontman into the
 
 | Framework | Files added or updated |
 |---|---|
-| Next.js 16 | `package.json`, your lockfile, `proxy.ts`, and `instrumentation.ts` or `src/instrumentation.ts` |
-| Next.js 13-15 | `package.json`, your lockfile, `middleware.ts`, and `instrumentation.ts` |
+| Next.js 16 | `package.json`, your lockfile, `proxy.ts` or `src/proxy.ts`, and `instrumentation.ts` or `src/instrumentation.ts` |
+| Next.js 13-15 | `package.json`, your lockfile, `middleware.ts` or `src/middleware.ts`, and `instrumentation.ts` or `src/instrumentation.ts` |
 | Vite | `package.json`, your lockfile, and `vite.config.ts`, `.js`, `.mts`, or `.mjs` |
 | Astro | `package.json`, your lockfile, and `astro.config.mjs` or equivalent |
 
 Run `git diff` after installation and review these changes before continuing.
 
 These compatibility ranges describe the current packages published to npm. Repository support can land before a new package release, so use the published package metadata as the source of truth.
-
-If your Next.js 16 project uses a `src/` directory, the current installer creates `proxy.ts` at the project root. Move it to `src/proxy.ts` before restarting the dev server. Next.js only loads the proxy from the same level as your `app/` or `pages/` directory.
 
 ### Step 2: Restart Your Dev Server
 

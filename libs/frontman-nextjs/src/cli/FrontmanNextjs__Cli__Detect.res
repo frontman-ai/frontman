@@ -185,12 +185,16 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
     switch await detectNextVersion(projectDir) {
     | Error(msg) => Error(msg)
     | Ok(nextVersion) =>
-      // Detect existing files
-      let middlewarePath = Path.join([projectDir, "middleware.ts"])
-      let proxyPath = Path.join([projectDir, "proxy.ts"])
+      // Next loads middleware/proxy from the same level as app/ or pages/.
+      let hasSrcDir = await detectSrcDir(projectDir)
+      let entrypointDir = switch hasSrcDir {
+      | true => Path.join([projectDir, "src"])
+      | false => projectDir
+      }
+      let middlewarePath = Path.join([entrypointDir, "middleware.ts"])
+      let proxyPath = Path.join([entrypointDir, "proxy.ts"])
 
       // Check for instrumentation in both root and src/
-      let hasSrcDir = await detectSrcDir(projectDir)
       let instrumentationPath = switch hasSrcDir {
       | true => Path.join([projectDir, "src", "instrumentation.ts"])
       | false => Path.join([projectDir, "instrumentation.ts"])
