@@ -54,7 +54,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c1", name: "todo_write"},
         MCP.tool_result_structured(write_result),
-        false,
         turn_number: turn_number
       )
 
@@ -101,7 +100,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c1", name: "todo_write"},
         MCP.tool_result_structured(first_result),
-        false,
         turn_number: turn_number
       )
 
@@ -110,7 +108,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c2", name: "todo_write"},
         MCP.tool_result_structured(second_result),
-        false,
         turn_number: turn_number
       )
 
@@ -147,7 +144,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c1", name: "todo_write"},
         MCP.tool_result_structured(good_result),
-        false,
         turn_number: turn_number
       )
 
@@ -157,7 +153,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c2", name: "todo_write"},
         MCP.tool_result_error("Invalid todo at index 0"),
-        true,
         turn_number: turn_number
       )
 
@@ -177,7 +172,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c1", name: "todo_write"},
         MCP.tool_result_structured(%{"todos" => []}),
-        false,
         turn_number: turn_number
       )
 
@@ -196,7 +190,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c1", name: "todo_add"},
         %{"id" => "fake", "content" => "Old todo"},
-        false,
         turn_number: turn_number
       )
 
@@ -205,7 +198,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c2", name: "todo_update"},
         %{"id" => "fake", "status" => "completed"},
-        false,
         turn_number: turn_number
       )
 

@@ -84,7 +84,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_in(@acp_message, payload, socket) do
     parsed = JsonRpc.parse(payload)
 
-    Logger.info(fn -> "Got ACP message #{inspect(parsed)}" end)
+    Logger.info("Received ACP message")
 
     case parsed do
       {:ok, {:request, id, @acp_method_session_prompt, params}} ->
@@ -125,7 +125,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         handle_mcp_error(id, error, socket)
 
       {:error, reason} ->
-        Logger.error("Invalid MCP response: #{inspect(reason)}, payload: #{inspect(payload)}")
+        Logger.error("Invalid MCP response")
 
         error_notification =
           JsonRpc.notification("error", %{
@@ -393,55 +393,51 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp unknown_mcp_response(id, socket) do
-    Logger.warning("Received MCP response for unknown request_id: #{inspect(id)}")
+  defp unknown_mcp_response(_id, socket) do
+    Logger.warning("Received MCP response for unknown request")
     {:noreply, socket}
   end
 
   defp handle_tool_call_response(tool_call, result, socket) do
-    task_id = socket.assigns.task_id
-    scope = socket.assigns.scope
-    is_error = MCP.error?(result)
-    meta = result["_meta"] || %{}
-
-    socket =
-      case Tasks.resolve_tool_request(
-             scope,
-             task_id,
-             %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-             result,
-             is_error
-           ) do
-        {:ok, interaction, executor_status} ->
-          status = ACP.tool_call_status(interaction.is_error)
-          content = ACP.Content.from_tool_result(interaction.result)
-          notification = ACP.tool_call_update(task_id, interaction.tool_call_id, status, content)
-          push(socket, @acp_message, notification)
-          Logger.info("Tool #{interaction.tool_name} #{status}")
-
-          resume_after_tool_result(executor_status, socket, scope, task_id, meta)
-
-        {:error, reason} ->
-          Logger.warning(
-            "Failed to store tool result for #{tool_call.tool_call_id}: #{inspect(reason)}"
-          )
-
-          socket
-      end
-
-    {:noreply, socket}
+    {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
 
-  defp resume_after_tool_result(:notified, socket, _scope, _task_id, _meta), do: socket
+  defp persist_tool_call_result(tool_call, result, socket) do
+    task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
 
-  defp resume_after_tool_result(:no_executor, socket, scope, task_id, meta) do
+    case Tasks.resolve_tool_request(
+           scope,
+           task_id,
+           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
+           result
+         ) do
+      {:ok, interaction, executor_status} ->
+        status = ACP.tool_call_status(interaction.is_error)
+        content = ACP.Content.from_tool_result(interaction.result)
+        notification = ACP.tool_call_update(task_id, interaction.tool_call_id, status, content)
+        push(socket, @acp_message, notification)
+        Logger.info("Tool #{interaction.tool_name} #{status}")
+
+        resume_after_tool_result(executor_status, socket, scope, task_id)
+
+      {:error, _reason} ->
+        Logger.warning("Failed to store tool result")
+
+        socket
+    end
+  end
+
+  defp resume_after_tool_result(:notified, socket, _scope, _task_id), do: socket
+
+  defp resume_after_tool_result(:no_executor, socket, scope, task_id) do
     case Tasks.get_active_run_unresolved_tool_calls(scope, task_id) do
       {:ok, _turn_number, []} ->
         Logger.info(
           "Active agent run has no unresolved tool calls for #{task_id}, resuming agent"
         )
 
-        resume_agent(socket, scope, task_id, meta)
+        resume_agent(socket, scope, task_id)
 
       {:ok, _turn_number, [_ | _]} ->
         socket
@@ -451,17 +447,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp resume_agent(socket, scope, task_id, meta) do
-    model =
-      case Providers.model_from_client_params(meta["model"]) do
-        {:ok, m} -> m
-        :error -> nil
-      end
-
+  defp resume_agent(socket, scope, task_id) do
     Tasks.resume_execution(scope, task_id, %{
-      model: model,
       mcp_tools: socket.assigns.mcp_tools,
-      project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
+      project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
     })
 
     socket
@@ -512,14 +501,13 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_tool_call_error_by_id(id, _error, socket), do: unknown_mcp_error(id, socket)
 
-  defp unknown_mcp_error(id, socket) do
-    Logger.warning("Received MCP error for unknown request_id: #{inspect(id)}")
+  defp unknown_mcp_error(_id, socket) do
+    Logger.warning("Received MCP error for unknown request")
     {:noreply, socket}
   end
 
   defp handle_tool_call_error(tool_call, error, socket) do
     task_id = socket.assigns.task_id
-    scope = socket.assigns.scope
     error_message = error["message"] || "Unknown MCP error"
 
     metadata = [
@@ -527,37 +515,13 @@ defmodule FrontmanServerWeb.TaskChannel do
       tool_name: tool_call.tool_name,
       tool_call_id: tool_call.tool_call_id,
       task_id: task_id,
-      error_message: error_message
+      error_code: mcp_error_code(error)
     ]
 
     Logger.error("MCP tool execution failed", metadata)
 
-    # Store error result and notify agent.
-    # :no_executor means the agent is dead (e.g. server restart). Unlike the
-    # success path in handle_tool_call_response/4, we don't auto-resume here because MCP
-    # error responses don't carry _meta with the model needed to restart.
-    # The error is persisted; the user can retry via a new prompt.
-    case Tasks.resolve_tool_request(
-           scope,
-           task_id,
-           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-           ModelContextProtocol.tool_result_error(error_message),
-           true
-         ) do
-      {:ok, interaction, _executor_status} ->
-        status = ACP.tool_call_status(interaction.is_error)
-        content = ACP.Content.from_tool_result(interaction.result)
-        notification = ACP.tool_call_update(task_id, interaction.tool_call_id, status, content)
-        push(socket, @acp_message, notification)
-        :ok
-
-      {:error, reason} ->
-        Logger.warning(
-          "Failed to store tool error result for #{tool_call.tool_call_id}: #{inspect(reason)}"
-        )
-    end
-
-    {:noreply, socket}
+    result = ModelContextProtocol.tool_result_error(error_message)
+    {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
 
   defp handle_prompt(id, params, socket) do
@@ -569,6 +533,9 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     process_prompt(id, params, socket)
   end
+
+  defp mcp_error_code(%{"code" => code}) when is_integer(code), do: code
+  defp mcp_error_code(_error), do: :unknown
 
   defp handle_cancel(_params, socket) do
     task_id = socket.assigns.task_id
@@ -794,10 +761,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp handle_invalid_acp_message(reason, payload, socket) do
-    Logger.error(
-      "Invalid ACP message in task channel: #{inspect(reason)}, payload: #{inspect(payload)}"
-    )
+  defp handle_invalid_acp_message(_reason, payload, socket) do
+    Logger.error("Invalid ACP message in task channel")
 
     case payload do
       %{"id" => id} ->
@@ -976,7 +941,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp apply_init_action(socket, {:initialization_failed, error}) do
-    Logger.error("MCP initialization failed: #{inspect(error)}")
+    Logger.error("MCP initialization failed")
 
     socket
     |> assign(:mcp_status, :failed)

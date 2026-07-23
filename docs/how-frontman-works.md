@@ -291,7 +291,7 @@ Each agent run tracks:
 - **Steps** — each LLM call-and-response is one step
 - **Status** — ready, running, waiting_for_tools, completed, failed, paused, max_steps
 - **Tool calls** — per-step, with results filled in as they complete
-- **Metadata** — task ID, API key info, user context (flows through all events)
+- **Metadata** — task ID and user context (flows through all events)
 
 ### Lifecycle Management
 

@@ -85,7 +85,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert metadata[:tool_call_id] == tool_call.id
       assert metadata[:task_id] == task_id
       assert metadata[:user_id] == scope.user.id
-      assert is_binary(metadata[:reason])
+      refute Map.has_key?(metadata, :reason)
     end
   end
 

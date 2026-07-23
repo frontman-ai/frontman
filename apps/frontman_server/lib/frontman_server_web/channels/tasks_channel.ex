@@ -54,7 +54,7 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   @impl true
   def handle_in(@acp_message, payload, socket) do
-    Logger.info(fn -> "Got ACP message: #{inspect(payload)}" end)
+    Logger.info("Received ACP message")
 
     case JsonRpc.parse(payload) do
       {:ok, message} -> handle_message(message, socket)
@@ -88,7 +88,7 @@ defmodule FrontmanServerWeb.TasksChannel do
           %{"protocolVersion" => @acp_protocol_version} = params},
          socket
        ) do
-    Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
+    Logger.info("ACP initialize received")
 
     case ACP.negotiate_agent_attribution_version(params["clientCapabilities"]) do
       {:ok, _version} ->
@@ -214,13 +214,13 @@ defmodule FrontmanServerWeb.TasksChannel do
   defp extract_framework(_), do: nil
 
   # Parse errors
-  defp handle_parse_error(reason, %{"id" => id}, socket) do
-    Logger.error("Invalid ACP message: #{inspect(reason)}")
+  defp handle_parse_error(_reason, %{"id" => id}, socket) do
+    Logger.error("Invalid ACP message")
     push_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
   end
 
-  defp handle_parse_error(reason, payload, socket) do
-    Logger.error("Invalid ACP message: #{inspect(reason)}, payload: #{inspect(payload)}")
+  defp handle_parse_error(_reason, _payload, socket) do
+    Logger.error("Invalid ACP message")
     {:noreply, socket}
   end
 

@@ -266,9 +266,9 @@ mix ecto.migrate
 # 3. Install assets (esbuild, tailwind)
 mix setup
 
-# 4. Configure environment
-cp envs/.dev.env envs/.dev.local.env
-# Edit .dev.local.env with your API keys
+# 4. Configure platform and authentication secrets
+# Update envs/.dev.secrets.env with your 1Password references
+# Provider credentials are configured per account in Frontman settings
 
 # 5. Start server
 mix phx.server
@@ -281,7 +281,7 @@ mix phx.server
 3. `envs/.dev.overrides.env` (local overrides, gitignored)
 4. System environment variables (highest precedence)
 
-Secrets (WorkOS keys, LLM API keys) are stored in `envs/.dev.secrets.env` as `op://` references (1Password CLI). The Makefile wraps `mix phx.server` with `op run --env-file=envs/.dev.secrets.env` to inject them at runtime. If you don't use 1Password, set them directly in `.dev.overrides.env`.
+Development platform and authentication secrets, such as WorkOS credentials, are stored in `envs/.dev.secrets.env` as `op://` references (1Password CLI). The Makefile wraps `mix phx.server` with `op run --env-file=envs/.dev.secrets.env` to inject them at runtime. If you don't use 1Password, provide those application secrets through your process environment. Configure model access per account with provider OAuth or a saved API key in Frontman settings; provider keys are not loaded from the server environment.
 
 ---
 

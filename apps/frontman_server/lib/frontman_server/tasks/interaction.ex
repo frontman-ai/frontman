@@ -861,13 +861,15 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def attrs(%SwarmAi.ToolCall{} = tc) do
+      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+
       case SwarmAi.ToolCall.parse_arguments(tc) do
         {:ok, arguments} ->
           {:ok,
            %{
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: SwarmAi.SchemaTransformer.strip_nulls(arguments)
+             arguments: arguments
            }}
 
         {:error, message} ->
@@ -882,6 +884,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     """
 
     use Ecto.Schema
+    import Ecto.Changeset
 
     embedded_schema do
       field :tool_call_id, :string
@@ -892,23 +895,51 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = tool_result, attrs) do
-      Interaction.cast_timestamped(tool_result, attrs, [
+      tool_result
+      |> Interaction.cast_timestamped(attrs, [
         :id,
         :tool_call_id,
         :tool_name,
         :result,
-        :is_error,
         :timestamp
       ])
+      |> scrub_result_metadata()
+      |> derive_is_error()
+      |> validate_required([:tool_call_id, :tool_name, :result, :is_error])
     end
 
-    def attrs(tool_call_data, result, is_error \\ false) do
+    @spec attrs(map(), term()) :: map()
+    def attrs(tool_call_data, result) do
       %{
         tool_call_id: tool_call_data.id,
         tool_name: tool_call_data.name,
-        result: result,
-        is_error: is_error
+        result: result
       }
+    end
+
+    defp scrub_result_metadata(changeset) do
+      case get_change(changeset, :result) do
+        %{} = result ->
+          put_change(changeset, :result, scrub_result_metadata_value(result))
+
+        _missing_or_invalid ->
+          changeset
+      end
+    end
+
+    defp scrub_result_metadata_value(result) do
+      result
+      |> Map.take(["content", "structuredContent", "isError"])
+      |> Map.put_new("isError", false)
+      |> Map.put("_meta", %{})
+    end
+
+    defp derive_is_error(changeset) do
+      case get_field(changeset, :result) do
+        %{"isError" => true} -> put_change(changeset, :is_error, true)
+        %{} -> put_change(changeset, :is_error, false)
+        _missing_or_invalid -> changeset
+      end
     end
   end
 

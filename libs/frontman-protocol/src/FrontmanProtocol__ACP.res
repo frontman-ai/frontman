@@ -140,7 +140,7 @@ type implementation = {
   name: string,
   version: string,
   title: option<string>,
-  // ACP spec extensibility: optional metadata for passing extra info (e.g., env key detection)
+  // ACP spec extensibility: optional metadata for implementation-specific context
   @as("_meta")
   _meta: option<JSON.t>,
 }

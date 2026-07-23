@@ -357,7 +357,6 @@ defmodule FrontmanServer.Tasks do
         task_id,
         %{id: tool_call.tool_call_id, name: tool_call.tool_name},
         ModelContextProtocol.tool_result_error("Interrupted by restart"),
-        true,
         turn_number: turn_number
       )
     end)
@@ -384,7 +383,6 @@ defmodule FrontmanServer.Tasks do
       task_id,
       %{id: tool_call_id, name: tool_name},
       ModelContextProtocol.tool_result_error(reason),
-      true,
       turn_number: turn_number
     )
 
@@ -690,15 +688,12 @@ defmodule FrontmanServer.Tasks do
         task_id,
         %{id: tool_call_id, name: _} = tool_call_data,
         result,
-        is_error \\ false,
         opts \\ []
       )
-      when is_boolean(is_error) and is_list(opts) do
-    Logger.debug(fn -> "resolve_tool_result(#{inspect(result)})" end)
-
+      when is_list(opts) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
-      attrs = Interaction.ToolResult.attrs(tool_call_data, result, is_error)
+      attrs = Interaction.ToolResult.attrs(tool_call_data, result)
 
       schema
       |> record_interaction(:tool_result, attrs, turn_number)

@@ -229,6 +229,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   defp execute_backend_tool(scope, module, tool_call, task_id, turn_number) do
     Logger.debug("ToolExecutor: Executing backend tool #{tool_call.name}")
     {:ok, task} = Tasks.get_task(scope, task_id)
+    tool_call = SwarmAi.ToolCall.strip_null_arguments(tool_call)
 
     context = %Backend.Context{
       task: task
@@ -259,7 +260,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         do_run_backend_tool(
           scope,
           module,
-          SwarmAi.SchemaTransformer.strip_nulls(args),
+          args,
           context,
           tool_call,
           task_id,
@@ -287,21 +288,23 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
          turn_number
        )
        when is_list(content) do
-    is_error = MCP.error?(result)
+    case result["isError"] do
+      true ->
+        metadata = [
+          error_type: "tool_soft_error",
+          tool_name: tool_call.name,
+          tool_call_id: tool_call.id,
+          task_id: task_id
+        ]
 
-    if is_error do
-      metadata = [
-        error_type: "tool_soft_error",
-        tool_name: tool_call.name,
-        tool_call_id: tool_call.id,
-        task_id: task_id,
-        reason: MCP.extract_content_text(result)
-      ]
+        Logger.error("Tool execution failed", metadata)
 
-      Logger.error("Tool execution failed", metadata)
+      _not_error ->
+        :ok
     end
 
     persist_tool_result(scope, task_id, turn_number, tool_call, result)
+    result
   end
 
   defp handle_backend_outcome(
@@ -337,9 +340,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp persist_tool_result(scope, task_id, turn_number, tool_call, result) do
     {:ok, _interaction, _executor_status} =
-      Tasks.resolve_tool_request(scope, task_id, tool_call, result, MCP.error?(result),
-        turn_number: turn_number
-      )
+      Tasks.resolve_tool_request(scope, task_id, tool_call, result, turn_number: turn_number)
 
     result
   end

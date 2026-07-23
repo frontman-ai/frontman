@@ -790,8 +790,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           scope,
           task_id,
           %{id: question_tc_id, name: "question"},
-          ModelContextProtocol.tool_result_json(%{"answers" => [%{"answer" => "A"}]}),
-          false
+          ModelContextProtocol.tool_result_json(%{"answers" => [%{"answer" => "A"}]})
         )
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)

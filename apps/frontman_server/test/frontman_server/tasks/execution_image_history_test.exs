@@ -45,7 +45,28 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     tool_defs = screenshot_tool_defs()
     parent = self()
 
-    client_result = client_mcp_image_result(screenshot)
+    client_result =
+      screenshot
+      |> client_mcp_image_result()
+      |> Map.put("unknownTopLevel", "drop me")
+      |> Map.put("_meta", %{
+        "envApiKey" => "sk-fake-image-key",
+        "model" => %{"provider" => "openrouter", "value" => "fake/model"}
+      })
+      |> update_in(["content", Access.at(0)], &Map.put(&1, "unknown", "drop me"))
+
+    canonical_result = %{
+      "content" => [
+        %{
+          "type" => "image",
+          "data" => Base.encode64(screenshot),
+          "mimeType" => "image/png",
+          "unknown" => "drop me"
+        }
+      ],
+      "isError" => false,
+      "_meta" => %{}
+    }
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
       send(parent, {:provider_messages, :turn1_before_screenshot, messages})
@@ -70,8 +91,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
         scope,
         task_id,
         %{id: screenshot_tool_call_id, name: "take_screenshot"},
-        client_result,
-        false
+        client_result
       )
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
@@ -83,7 +103,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
     {:ok, task} = Tasks.get_task(scope, task_id)
     persisted = tool_result!(Tasks.interactions(task), screenshot_tool_call_id)
-    assert persisted.result == client_result
+    assert persisted.result == canonical_result
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
       send(parent, {:provider_messages, :turn2_before_get_tool_result, messages})
@@ -121,7 +141,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     refute content_text([tool_message]) =~ "data:image"
   end
 
-  test "current turn screenshot reaches next LLM call as image and stays raw in DB", %{
+  test "current turn screenshot reaches next LLM call as image and stays lossless in DB", %{
     scope: scope,
     task_id: task_id
   } do
@@ -151,8 +171,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
         scope,
         task_id,
         %{id: tool_call_id, name: "take_screenshot"},
-        mcp_image_result(screenshot),
-        false
+        mcp_image_result(screenshot)
       )
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
@@ -166,7 +185,17 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     {:ok, task} = Tasks.get_task(scope, task_id)
     persisted = tool_result!(Tasks.interactions(task), tool_call_id)
 
-    assert persisted.result == mcp_image_result(screenshot)
+    assert persisted.result == %{
+             "content" => [
+               %{
+                 "type" => "image",
+                 "data" => Base.encode64(screenshot),
+                 "mimeType" => "image/png"
+               }
+             ],
+             "isError" => false,
+             "_meta" => %{}
+           }
   end
 
   test "Anthropic many-image requests do not include live images over 2000px", %{

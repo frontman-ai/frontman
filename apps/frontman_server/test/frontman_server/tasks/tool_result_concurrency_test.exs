@@ -71,7 +71,6 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
       task_id,
       %{id: "call_dedup", name: "some_tool"},
       MCP.tool_result_text(result),
-      false,
       turn_number: turn_number
     )
   end

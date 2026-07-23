@@ -147,7 +147,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       assert metadata[:tool_name] == "testMcpTool"
       assert metadata[:task_id] == task_id
       assert metadata[:user_id] == scope.user.id
-      assert metadata[:error_message] =~ "permission denied"
+      assert metadata[:error_code] == -32_000
+      refute Map.has_key?(metadata, :error_message)
     end
 
     @tag :capture_log
@@ -184,7 +185,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         end)
 
       assert [report] = mcp_error_reports
-      assert report.extra[:logger_metadata][:error_message] == "Unknown MCP error"
+      assert report.extra[:logger_metadata][:error_code] == -32_000
+      refute Map.has_key?(report.extra[:logger_metadata], :error_message)
     end
   end
 end
