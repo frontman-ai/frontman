@@ -188,18 +188,6 @@ describe("handleToolsCall", () => {
         ->Expect.toBe(false)
       },
     )
-
-    let metadata = JSON.parseOrThrow(`{"vendor.example/context":{"nested":[1,true,null]}}`)
-
-    let serialized =
-      Types.CallToolResult.makeText("ok")
-      ->Types.CallToolResult.withMeta(metadata)
-      ->S.decodeOrThrow(~from=Types.callToolResultSchema, ~to=S.json->S.noValidation(true))
-
-    let serializedMeta =
-      serialized->JSON.Decode.object->Option.flatMap(result => result->Dict.get("_meta"))
-
-    t->expect(serializedMeta)->Expect.toEqual(Some(metadata))
   })
 
   testAsync("sends MCP response when tool completes successfully", async t => {

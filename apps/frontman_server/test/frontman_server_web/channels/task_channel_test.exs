@@ -1199,64 +1199,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, task_id: task_id, scope: scope, tool_call_id: tool_call_id}
     end
 
-    test "e2e: restart → session/load → tools/call → answer → tool result persisted", %{
-      scope: scope,
-      task_id: task_id,
-      tool_call_id: tool_call_id
-    } do
-      expect_resumed_model()
-      turn_number = latest_turn_number(task_id)
-
-      Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
-
-      {:ok, _reply, socket} =
-        UserSocket
-        |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
-
-      complete_mcp_handshake(socket)
-
-      push(socket, "acp:message", build_acp_request("session/load", 1, %{"sessionId" => task_id}))
-      :sys.get_state(socket.channel_pid)
-
-      messages = collect_all_pushes()
-
-      tools_call =
-        Enum.find(messages, fn
-          {"mcp:message", %{"method" => "tools/call", "params" => %{"name" => "question"}}} ->
-            true
-
-          _ ->
-            false
-        end)
-
-      assert tools_call, "tools/call for question not found in #{length(messages)} messages"
-
-      {"mcp:message", %{"id" => mcp_request_id, "params" => %{"callId" => ^tool_call_id}}} =
-        tools_call
-
-      assert is_integer(mcp_request_id)
-
-      push(socket, "mcp:message", question_answer_response(mcp_request_id, "A"))
-
-      :sys.get_state(socket.channel_pid)
-
-      assert_receive {:resumed_model, @persisted_restart_model}, 1_000
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      tool_results =
-        Enum.filter(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
-
-      assert [%Tasks.Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false}] =
-               tool_results
-
-      assert_state_update_idle(task_id)
-    end
-
     test "restart ignores stale result model and scrubs legacy result metadata", %{
       scope: scope,
       task_id: task_id,
@@ -1265,6 +1207,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       expect_resumed_model()
       turn_number = latest_turn_number(task_id)
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       {:ok, _reply, socket} =
         UserSocket
@@ -1303,8 +1248,16 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
-      assert %Interaction.ToolResult{result: %{"_meta" => %{}}} =
-               Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+      tool_results =
+        Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+
+      assert [
+               %Interaction.ToolResult{
+                 tool_call_id: ^tool_call_id,
+                 is_error: false,
+                 result: %{"_meta" => %{}}
+               }
+             ] = tool_results
 
       assert_state_update_idle(task_id)
       assert resumed_model == @persisted_restart_model

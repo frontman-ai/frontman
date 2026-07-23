@@ -95,35 +95,6 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
     end
   end
 
-  describe "ToolResult" do
-    test "scrubs result metadata at the persistence boundary", %{task: task} do
-      attrs = %{
-        tool_call_id: "call_1",
-        tool_name: "read_file",
-        result: %{
-          "content" => [%{"type" => "text", "text" => "contents", "unknown" => true}],
-          "isError" => false,
-          "_meta" => %{"envApiKey" => "sk-fake-params-marker"}
-        },
-        is_error: true
-      }
-
-      changeset = InteractionSchema.create_changeset(task.id, :tool_result, attrs, 1)
-
-      assert changeset.valid?
-
-      result = Ecto.Changeset.apply_changes(changeset).data
-
-      assert result.result == %{
-               "content" => [%{"type" => "text", "text" => "contents", "unknown" => true}],
-               "isError" => false,
-               "_meta" => %{}
-             }
-
-      assert result.is_error == false
-    end
-  end
-
   describe "JSON encoding" do
     test "encodes persisted interaction type from the row", %{task: task} do
       row =

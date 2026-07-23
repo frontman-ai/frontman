@@ -10,19 +10,6 @@
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module RuntimeConfig = Client__RuntimeConfig
 
-let updatePrompt = (~npmPackage, ~installedVersion, ~latestVersion, ~projectRoot) => {
-  let projectRootHint = switch projectRoot {
-  | Some(root) => ` The project root is ${root}.`
-  | None => ""
-  }
-
-  `Update ${npmPackage} from ${installedVersion} to ${latestVersion}.` ++
-  projectRootHint ++
-  ` Find which package.json contains ${npmPackage} as a dependency,` ++
-  ` detect the package manager from the lock file` ++
-  ` (yarn.lock, package-lock.json, pnpm-lock.yaml, or bun.lock),` ++ ` and run the appropriate update command from that package's directory.`
-}
-
 @react.component
 let make = () => {
   let updateInfo = Client__State.useSelector(Client__State.Selectors.updateInfo)
@@ -59,12 +46,16 @@ let make = () => {
     | Some({npmPackage, latestVersion, installedVersion}) =>
       let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
       let runtimeConfig = RuntimeConfig.read()
-      let text = updatePrompt(
-        ~npmPackage,
-        ~installedVersion,
-        ~latestVersion,
-        ~projectRoot=runtimeConfig.projectRoot,
-      )
+      let projectRootHint = switch runtimeConfig.projectRoot {
+      | Some(root) => ` The project root is ${root}.`
+      | None => ""
+      }
+      let text =
+        `Update ${npmPackage} from ${installedVersion} to ${latestVersion}.` ++
+        projectRootHint ++
+        ` Find which package.json contains ${npmPackage} as a dependency,` ++
+        ` detect the package manager from the lock file` ++
+        ` (yarn.lock, package-lock.json, pnpm-lock.yaml, or bun.lock),` ++ ` and run the appropriate update command from that package's directory.`
       let content = [Client__State.UserContentPart.Text({text: text})]
       let sendMessage = (sessionId: string) => {
         Client__State.Actions.addUserMessage(~sessionId, ~content, ~agentId)

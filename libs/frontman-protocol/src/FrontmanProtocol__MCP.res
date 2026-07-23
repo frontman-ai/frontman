@@ -75,7 +75,6 @@ module CallToolResult: {
   let makeText: string => t
   let makeImage: (~data: string, ~mimeType: string) => t
   let makeError: string => t
-  let withMeta: (t, JSON.t) => t
 } = {
   type t = {
     content: array<toolResultContent>,
@@ -102,13 +101,6 @@ module CallToolResult: {
   let makeError = text => {
     content: [TextContent({text: text})],
     isError: true,
-  }
-
-  let withMeta = (result, meta) => {
-    ...result,
-    _meta: meta
-    ->JSON.Decode.object
-    ->Option.getOrThrow(~message="Tool result _meta must be an object"),
   }
 }
 
