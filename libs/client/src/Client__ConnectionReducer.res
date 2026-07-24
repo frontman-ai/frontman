@@ -10,6 +10,7 @@ module Log = FrontmanLogs.Logs.Make({
 
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 
@@ -108,7 +109,7 @@ type action =
   | CreateSession(createSessionRequest)
   | SendPrompt({
       text: string,
-      additionalBlocks: array<ACPTypes.contentBlock>,
+      additionalBlocks: array<ContentBlock.t>,
       onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
     })
@@ -136,7 +137,7 @@ type effect =
   | SendPromptEffect({
       session: ACP.session,
       text: string,
-      additionalBlocks: array<ACPTypes.contentBlock>,
+      additionalBlocks: array<ContentBlock.t>,
       onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
     })

@@ -1,6 +1,7 @@
 open Vitest
 
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 let parsesWith = (json, schema) => {
   try {
@@ -184,42 +185,29 @@ describe("ACP Types encoding/decoding", _t => {
     t->expect(Types.currentProtocolVersion)->Expect.toEqual(1)
   })
 
-  test("contentBlock round trips embedded text resource", t => {
-    let json = JSON.parseOrThrow(`{"type":"resource","_meta":{"current_page":true},"resource":{"uri":"page://localhost","mimeType":"text/plain","text":"Current page"}}`)
-    let block = json->S.parseOrThrow(~to=Types.contentBlockSchema)
-
-    switch block {
-    | Types.EmbeddedResource({resource: Types.TextResourceContents({uri, text})}) => {
-        t->expect(uri)->Expect.toEqual("page://localhost")
-        t->expect(text)->Expect.toEqual("Current page")
-      }
-    | _ => t->expect("EmbeddedResource")->Expect.toEqual("not matched")
-    }
-
-    t
-    ->expect(
-      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true)),
+  test("shared content blocks round trip every variant and reject invalid payloads", t => {
+    [
+      `{"type":"text","text":"hello"}`,
+      `{"type":"image","data":"base64-image","mimeType":"image/png"}`,
+      `{"type":"audio","data":"base64-audio","mimeType":"audio/wav"}`,
+      `{"type":"resource_link","name":"docs","uri":"https://example.com"}`,
+      `{"type":"resource","_meta":{"current_page":true},"resource":{"uri":"page://localhost","mimeType":"text/plain","text":"Current page"}}`,
+      `{"type":"resource","resource":{"uri":"annotation://a1/screenshot","mimeType":"image/png","blob":"base64-data"}}`,
+    ]->Array.forEach(
+      source => {
+        let json = JSON.parseOrThrow(source)
+        let block = json->S.parseOrThrow(~to=ContentBlock.schema)
+        t
+        ->expect(
+          block->S.decodeOrThrow(~from=ContentBlock.schema, ~to=S.json->S.noValidation(true)),
+        )
+        ->Expect.toEqual(json)
+      },
     )
-    ->Expect.toEqual(json)
-  })
-
-  test("contentBlock round trips embedded blob resource", t => {
-    let json = JSON.parseOrThrow(`{"type":"resource","resource":{"uri":"annotation://a1/screenshot","mimeType":"image/png","blob":"base64-data"}}`)
-    let block = json->S.parseOrThrow(~to=Types.contentBlockSchema)
-
-    switch block {
-    | Types.EmbeddedResource({resource: Types.BlobResourceContents({uri, blob})}) => {
-        t->expect(uri)->Expect.toEqual("annotation://a1/screenshot")
-        t->expect(blob)->Expect.toEqual("base64-data")
-      }
-    | _ => t->expect("EmbeddedResource blob")->Expect.toEqual("not matched")
-    }
-
-    t
-    ->expect(
-      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true)),
+    [`{"type":"video","data":"base64"}`, `{"type":"image","mimeType":"image/png"}`]->Array.forEach(
+      source =>
+        t->expect(JSON.parseOrThrow(source)->parsesWith(ContentBlock.schema))->Expect.toBe(false),
     )
-    ->Expect.toEqual(json)
   })
 })
 
@@ -282,7 +270,7 @@ describe("sessionUpdate schema parsing", () => {
     switch parsed {
     | Types.AgentMessageChunk({
         messageId,
-        content: Types.TextContent({text}),
+        content: ContentBlock.TextContent({text}),
         _meta: {agentId, timestamp},
       }) =>
       t->expect(messageId)->Expect.toBe("turn-123:0")
@@ -306,7 +294,7 @@ describe("sessionUpdate schema parsing", () => {
     switch parsed {
     | Types.UserMessageChunk({
         messageId,
-        content: Types.TextContent({text}),
+        content: ContentBlock.TextContent({text}),
         _meta: {agentId, timestamp},
       }) =>
       t->expect(messageId)->Expect.toBe("msg-123")

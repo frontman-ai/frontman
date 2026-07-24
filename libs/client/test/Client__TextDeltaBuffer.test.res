@@ -1,7 +1,7 @@
 open Vitest
 
 module Buffer = Client__TextDeltaBuffer
-module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 type flushEntry = {
   taskId: string,
@@ -52,8 +52,8 @@ describe("TextDeltaBuffer", () => {
 
   test("groups user blocks by message before flushing", t => {
     let flushed = ref(None)
-    let first = ACP.TextContent({text: "one", _meta: None, annotations: None})
-    let second = ACP.TextContent({text: "two", _meta: None, annotations: None})
+    let first = ContentBlock.TextContent({text: "one", _meta: None, annotations: None})
+    let second = ContentBlock.TextContent({text: "two", _meta: None, annotations: None})
     let buffer = makeBuffer(
       ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) =>
         flushed := Some((taskId, messageId, blocks, agentId)),

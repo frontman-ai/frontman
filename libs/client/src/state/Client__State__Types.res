@@ -6,6 +6,7 @@ module AssistantContentPart = Client__Task__Types.AssistantContentPart
 module Message = Client__Task__Types.Message
 module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
+module ContentBlock = Client__Task__Types.ContentBlock
 
 // Re-export content block builders
 let annotationToContentBlocks = Client__Task__Types.annotationToContentBlocks
@@ -14,7 +15,7 @@ let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsTo
 
 type sendPromptFn = (
   string,
-  ~additionalBlocks: array<ACPTypes.contentBlock>,
+  ~additionalBlocks: array<ContentBlock.t>,
   ~onComplete: result<ACPTypes.promptResult, string> => unit,
   ~_meta: option<JSON.t>,
 ) => unit

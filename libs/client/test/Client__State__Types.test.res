@@ -3,7 +3,7 @@ open Vitest
 module Types = Client__State__Types
 module ClientTypes = Client__Types
 module Annotation = Client__Annotation__Types
-module ACPTypes = Client__Task__Types.ACPTypes
+module ContentBlock = Client__Task__Types.ContentBlock
 
 // Helper to create a mock DOM element for testing
 // Using a raw JS object that satisfies the minimal interface
@@ -51,7 +51,7 @@ let makeTestAnnotation = (
 }
 
 // Helper to extract _meta from an EmbeddedResource content block
-let getMeta = (block: ACPTypes.contentBlock): JSON.t => {
+let getMeta = (block: ContentBlock.t): JSON.t => {
   switch block {
   | EmbeddedResource({_meta}) => _meta->Option.getOrThrow
   | TextContent(_) | ImageContent(_) | AudioContent(_) | ResourceLink(_) =>
@@ -60,7 +60,7 @@ let getMeta = (block: ACPTypes.contentBlock): JSON.t => {
 }
 
 // Helper to extract resource contents from an EmbeddedResource content block
-let getResource = (block: ACPTypes.contentBlock): ACPTypes.embeddedResourceResource => {
+let getResource = (block: ContentBlock.t): ContentBlock.embeddedResourceResource => {
   switch block {
   | EmbeddedResource({resource}) => resource
   | TextContent(_) | ImageContent(_) | AudioContent(_) | ResourceLink(_) =>

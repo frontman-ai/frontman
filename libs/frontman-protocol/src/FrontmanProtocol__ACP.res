@@ -474,152 +474,16 @@ let configOptionsUpdatedSchema = S.object(s => {
   configOptions: s.field("configOptions", S.array(sessionConfigOptionSchema)),
 })
 
-// Annotations for embedded resources
-@schema
-type annotations = {
-  @as("_meta")
-  _meta: option<JSON.t>,
-}
-
-// Text resource contents (for EmbeddedResourceResource)
-@schema
-type textResourceContents = {
-  uri: string,
-  @as("mimeType")
-  mimeType: option<string>,
-  text: string,
-}
-
-// Blob resource contents (for EmbeddedResourceResource)
-@schema
-type blobResourceContents = {
-  uri: string,
-  @as("mimeType")
-  mimeType: option<string>,
-  blob: string,
-}
-
-type embeddedResourceResource =
-  | TextResourceContents(textResourceContents)
-  | BlobResourceContents(blobResourceContents)
-
-let embeddedResourceResourceSchema = S.union([
-  S.object(s => {
-    TextResourceContents({
-      uri: s.field("uri", S.string),
-      mimeType: s.field("mimeType", S.option(S.string)),
-      text: s.field("text", S.string),
-    })
-  }),
-  S.object(s => {
-    BlobResourceContents({
-      uri: s.field("uri", S.string),
-      mimeType: s.field("mimeType", S.option(S.string)),
-      blob: s.field("blob", S.string),
-    })
-  }),
-])
-
-// Sury needs a transform boundary to reverse nested union fields correctly.
-let embeddedResourceContentSchema = embeddedResourceResourceSchema->S.transform(_ => {
-  parser: resource => resource,
-  serializer: resource => resource,
-})
-
-// Embedded resource for ContentBlock::Resource (per ACP spec)
-@schema
-type embeddedResource = {
-  @as("_meta")
-  _meta: option<JSON.t>,
-  annotations: option<annotations>,
-  resource: embeddedResourceResource,
-}
-
-// Content block for prompts and responses
-// Discriminated union on "type" field per ACP spec:
-// - TextContent (type="text"): text string
-// - ImageContent (type="image"): base64 data + mimeType
-// - AudioContent (type="audio"): base64 data + mimeType
-// - ResourceLink (type="resource_link"): name + uri
-// - EmbeddedResource (type="resource"): embedded resource
-type contentBlock =
-  | TextContent({text: string, _meta: option<JSON.t>, annotations: option<annotations>})
-  | ImageContent({
-      data: string,
-      mimeType: string,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
-  | AudioContent({
-      data: string,
-      mimeType: string,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
-  | ResourceLink({
-      name: string,
-      uri: string,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
-  | EmbeddedResource(embeddedResource)
-
-let contentBlockSchema = S.union([
-  S.object(s => {
-    s.tag("type", "text")
-    TextContent({
-      text: s.field("text", S.string),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-  S.object(s => {
-    s.tag("type", "image")
-    ImageContent({
-      data: s.field("data", S.string),
-      mimeType: s.field("mimeType", S.string),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-  S.object(s => {
-    s.tag("type", "audio")
-    AudioContent({
-      data: s.field("data", S.string),
-      mimeType: s.field("mimeType", S.string),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-  S.object(s => {
-    s.tag("type", "resource_link")
-    ResourceLink({
-      name: s.field("name", S.string),
-      uri: s.field("uri", S.string),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-  S.object(s => {
-    s.tag("type", "resource")
-    EmbeddedResource({
-      resource: s.field("resource", embeddedResourceContentSchema),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-])
-
 // Tool call content item (for tool_call_update)
 type toolCallContentItem = {
   @as("type")
   type_: string,
-  content: option<contentBlock>,
+  content: option<FrontmanProtocol__ContentBlock.t>,
 }
 
 let toolCallContentItemSchema = S.object(s => {
   type_: s.field("type", S.string),
-  content: s.field("content", S.option(contentBlockSchema)),
+  content: s.field("content", S.option(FrontmanProtocol__ContentBlock.schema)),
 })
 
 // Tool call status
@@ -699,16 +563,24 @@ let planEntrySchema = S.object(s => {
 
 // Session update variants - discriminated by sessionUpdate field
 type sessionUpdate =
-  | AgentMessageChunk({messageId: string, content: contentBlock, _meta: messageMetadata})
-  | UserMessageChunk({messageId: string, content: contentBlock, _meta: messageMetadata})
+  | AgentMessageChunk({
+      messageId: string,
+      content: FrontmanProtocol__ContentBlock.t,
+      _meta: messageMetadata,
+    })
+  | UserMessageChunk({
+      messageId: string,
+      content: FrontmanProtocol__ContentBlock.t,
+      _meta: messageMetadata,
+    })
   | GenericAgentMessageChunk({
       messageId: option<string>,
-      content: contentBlock,
+      content: FrontmanProtocol__ContentBlock.t,
       _meta: option<JSON.t>,
     })
   | GenericUserMessageChunk({
       messageId: option<string>,
-      content: contentBlock,
+      content: FrontmanProtocol__ContentBlock.t,
       _meta: option<JSON.t>,
     })
   | Unknown({sessionUpdate: string})
@@ -805,7 +677,7 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "agent_message_chunk")
     AgentMessageChunk({
       messageId: s.field("messageId", nonEmptyStringSchema),
-      content: s.field("content", contentBlockSchema),
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", messageMetadataSchema),
     })
   }),
@@ -813,7 +685,7 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "user_message_chunk")
     UserMessageChunk({
       messageId: s.field("messageId", nonEmptyStringSchema),
-      content: s.field("content", contentBlockSchema),
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", messageMetadataSchema),
     })
   }),
@@ -825,7 +697,7 @@ let genericSessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "agent_message_chunk")
     GenericAgentMessageChunk({
       messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
-      content: s.field("content", contentBlockSchema),
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", S.option(S.json)),
     })
   }),
@@ -833,7 +705,7 @@ let genericSessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "user_message_chunk")
     GenericUserMessageChunk({
       messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
-      content: s.field("content", contentBlockSchema),
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", S.option(S.json)),
     })
   }),

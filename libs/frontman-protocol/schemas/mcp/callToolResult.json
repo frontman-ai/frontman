@@ -13,6 +13,13 @@
               },
               "text": {
                 "type": "string"
+              },
+              "_meta": {},
+              "annotations": {
+                "type": "object",
+                "properties": {
+                  "_meta": {}
+                }
               }
             },
             "required": [
@@ -32,12 +39,133 @@
               },
               "mimeType": {
                 "type": "string"
+              },
+              "_meta": {},
+              "annotations": {
+                "type": "object",
+                "properties": {
+                  "_meta": {}
+                }
               }
             },
             "required": [
               "type",
               "data",
               "mimeType"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "audio"
+              },
+              "data": {
+                "type": "string"
+              },
+              "mimeType": {
+                "type": "string"
+              },
+              "_meta": {},
+              "annotations": {
+                "type": "object",
+                "properties": {
+                  "_meta": {}
+                }
+              }
+            },
+            "required": [
+              "type",
+              "data",
+              "mimeType"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "resource_link"
+              },
+              "name": {
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              },
+              "_meta": {},
+              "annotations": {
+                "type": "object",
+                "properties": {
+                  "_meta": {}
+                }
+              }
+            },
+            "required": [
+              "type",
+              "name",
+              "uri"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "resource"
+              },
+              "_meta": {},
+              "annotations": {
+                "type": "object",
+                "properties": {
+                  "_meta": {}
+                }
+              },
+              "resource": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "uri": {
+                        "type": "string"
+                      },
+                      "mimeType": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "uri",
+                      "text"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "uri": {
+                        "type": "string"
+                      },
+                      "mimeType": {
+                        "type": "string"
+                      },
+                      "blob": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "uri",
+                      "blob"
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "resource"
             ]
           }
         ]

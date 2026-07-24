@@ -3,6 +3,7 @@
 
 module ACP = FrontmanProtocol__ACP
 module MCP = FrontmanProtocol__MCP
+module ContentBlock = FrontmanProtocol__ContentBlock
 module Relay = FrontmanProtocol__Relay
 module JsonRpc = FrontmanProtocol__JsonRpc
 
@@ -55,7 +56,7 @@ let entries: array<schemaEntry> = [
     name: "sessionUpdateNotification",
     schema: ACP.sessionUpdateNotificationSchema->toUnknownSchema,
   },
-  {dir: "acp", name: "contentBlock", schema: ACP.contentBlockSchema->toUnknownSchema},
+  {dir: "acp", name: "contentBlock", schema: ContentBlock.schema->toUnknownSchema},
   {dir: "acp", name: "promptResult", schema: ACP.promptResultSchema->toUnknownSchema},
   {dir: "acp", name: "sessionSummary", schema: ACP.sessionSummarySchema->toUnknownSchema},
   {dir: "acp", name: "listSessionsResult", schema: ACP.listSessionsResultSchema->toUnknownSchema},
@@ -72,15 +73,18 @@ let entries: array<schemaEntry> = [
     name: "toolCallContentItem",
     schema: ACP.toolCallContentItemSchema->toUnknownSchema,
   },
-  {dir: "acp", name: "embeddedResource", schema: ACP.embeddedResourceSchema->toUnknownSchema},
+  {
+    dir: "acp",
+    name: "embeddedResource",
+    schema: ContentBlock.embeddedResourceSchema->toUnknownSchema,
+  },
   // MCP
   {dir: "mcp", name: "initializeParams", schema: MCP.initializeParamsSchema->toUnknownSchema},
   {dir: "mcp", name: "initializeResult", schema: MCP.initializeResultSchema->toUnknownSchema},
-  {dir: "mcp", name: "callToolResult", schema: MCP.callToolResultSchema->toUnknownSchema},
+  {dir: "mcp", name: "callToolResult", schema: MCP.CallToolResult.jsonSchema->toUnknownSchema},
   {dir: "mcp", name: "toolCallParams", schema: MCP.toolCallParamsSchema->toUnknownSchema},
   {dir: "mcp", name: "capabilities", schema: MCP.capabilitiesSchema->toUnknownSchema},
   {dir: "mcp", name: "info", schema: MCP.infoSchema->toUnknownSchema},
-  {dir: "mcp", name: "toolResultContent", schema: MCP.toolResultContentSchema->toUnknownSchema},
   {dir: "mcp", name: "toolError", schema: MCP.toolErrorSchema->toUnknownSchema},
   {dir: "mcp", name: "toolsListResult", schema: MCP.toolsListResultSchema->toUnknownSchema},
   // JsonRpc

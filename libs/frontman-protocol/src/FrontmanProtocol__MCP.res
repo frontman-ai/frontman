@@ -42,25 +42,6 @@ type toolCallParams = {
   arguments: option<Dict.t<JSON.t>>,
 }
 
-// Tool result content
-type textContent = {text: string}
-type imageContent = {data: string, mimeType: string}
-
-type toolResultContent =
-  | TextContent(textContent)
-  | ImageContent(imageContent)
-
-let toolResultContentSchema = S.union([
-  S.object(s => {
-    s.tag("type", "text")
-    TextContent({text: s.field("text", S.string)})
-  }),
-  S.object(s => {
-    s.tag("type", "image")
-    ImageContent({data: s.field("data", S.string), mimeType: s.field("mimeType", S.string)})
-  }),
-])
-
 // Tool error
 @schema
 type toolError = {
@@ -72,34 +53,37 @@ type toolError = {
 module CallToolResult: {
   type t
   let schema: S.t<t>
+  let jsonSchema: S.t<t>
   let makeText: string => t
   let makeImage: (~data: string, ~mimeType: string) => t
   let makeError: string => t
 } = {
+  @schema
   type t = {
-    content: array<toolResultContent>,
+    content: @s.matches(FrontmanProtocol__ContentBlock.arraySchema)
+    array<FrontmanProtocol__ContentBlock.t>,
     structuredContent?: JSON.t,
     isError?: bool,
     _meta?: Dict.t<JSON.t>,
   }
 
-  let schema = S.object(s => {
-    content: s.field("content", S.array(toolResultContentSchema)),
+  let jsonSchema = S.object(s => {
+    content: s.field("content", S.array(FrontmanProtocol__ContentBlock.schema)),
     structuredContent: ?s.field("structuredContent", S.option(S.json)),
     isError: ?s.field("isError", S.option(S.bool)),
     _meta: ?s.field("_meta", S.option(S.dict(S.json))),
   })
 
   let makeText = text => {
-    content: [TextContent({text: text})],
+    content: [TextContent({text, _meta: None, annotations: None})],
   }
 
   let makeImage = (~data, ~mimeType) => {
-    content: [ImageContent({data, mimeType})],
+    content: [ImageContent({data, mimeType, _meta: None, annotations: None})],
   }
 
   let makeError = text => {
-    content: [TextContent({text: text})],
+    content: [TextContent({text, _meta: None, annotations: None})],
     isError: true,
   }
 }

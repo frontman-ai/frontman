@@ -1,9 +1,9 @@
 open Vitest
 
-module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Codec = Client__ACP__MessageCodec
 
-let resource = (~meta, resource) => ACP.EmbeddedResource({
+let resource = (~meta, resource) => ContentBlock.EmbeddedResource({
   _meta: Some(JSON.parseOrThrow(meta)),
   annotations: None,
   resource,
@@ -11,14 +11,18 @@ let resource = (~meta, resource) => ACP.EmbeddedResource({
 
 test("parses flat annotation, screenshot, and image resources", t => {
   let blocks = [
-    ACP.TextContent({text: "Look", _meta: None, annotations: None}),
+    ContentBlock.TextContent({text: "Look", _meta: None, annotations: None}),
     resource(
       ~meta=`{"annotation":true,"annotation_index":0,"annotation_id":"annotation-1","tag_name":"button","selector":"#submit"}`,
-      ACP.TextResourceContents({uri: "annotation://annotation-1", mimeType: None, text: ""}),
+      ContentBlock.TextResourceContents({
+        uri: "annotation://annotation-1",
+        mimeType: None,
+        text: "",
+      }),
     ),
     resource(
       ~meta=`{"annotation_screenshot":true,"annotation_index":0,"annotation_id":"annotation-1"}`,
-      ACP.BlobResourceContents({
+      ContentBlock.BlobResourceContents({
         uri: "annotation://annotation-1/screenshot",
         mimeType: Some("image/png"),
         blob: "c2NyZWVuc2hvdA==",
@@ -26,7 +30,7 @@ test("parses flat annotation, screenshot, and image resources", t => {
     ),
     resource(
       ~meta=`{"user_image":true,"filename":"photo.png"}`,
-      ACP.BlobResourceContents({
+      ContentBlock.BlobResourceContents({
         uri: "attachment://photo.png",
         mimeType: Some("image/png"),
         blob: "aW1hZ2U=",

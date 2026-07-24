@@ -7,13 +7,14 @@ module Log = FrontmanLogs.Logs.Make({
 
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
 module RuntimeConfig = Client__RuntimeConfig
 
 // Extract text from a contentBlock (returns Some for TextContent, None for other variants)
-let getContentBlockText = (block: Types.contentBlock): option<string> =>
+let getContentBlockText = (block: ContentBlock.t): option<string> =>
   switch block {
   | TextContent({text}) => Some(text)
   | ImageContent(_) | AudioContent(_) | ResourceLink(_) | EmbeddedResource(_) => None
@@ -64,7 +65,7 @@ type contextValue = {
   clearSession: unit => unit,
   sendPrompt: (
     string,
-    ~additionalBlocks: array<Types.contentBlock>,
+    ~additionalBlocks: array<ContentBlock.t>,
     ~onComplete: result<Types.promptResult, string> => unit,
     ~_meta: option<JSON.t>,
   ) => unit,
