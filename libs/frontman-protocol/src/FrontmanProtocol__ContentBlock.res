@@ -45,20 +45,17 @@ type embeddedResource = {
   resource: embeddedResourceResource,
 }
 
+type mediaContent = {
+  data: string,
+  mimeType: string,
+  _meta: option<JSON.t>,
+  annotations: option<annotations>,
+}
+
 type t =
   | TextContent({text: string, _meta: option<JSON.t>, annotations: option<annotations>})
-  | ImageContent({
-      data: string,
-      mimeType: string,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
-  | AudioContent({
-      data: string,
-      mimeType: string,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
+  | ImageContent(mediaContent)
+  | AudioContent(mediaContent)
   | ResourceLink({
       name: string,
       uri: string,
