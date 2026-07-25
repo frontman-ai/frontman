@@ -69,7 +69,7 @@ type output = {
 }
 
 let emptyResult = (~message): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult({audits: [], message: Some(message)}, outputSchema)
+  Tool.structuredResult({audits: [], message: Some(message)}, outputSchema)
 
 // Typed externals for Astro dev toolbar custom element APIs.
 // The audit data lives behind two shadow DOM layers, all mode: "open".
@@ -179,7 +179,7 @@ let extractAudits = (doc: WebAPI.DOMAPI.document): Tool.MCP.CallToolResult.t => 
             switch rawAudits->Array.length {
             | 0 => emptyResult(~message="No audit results found. The audit may not have run yet.")
             | _ =>
-              Tool.jsonResult(
+              Tool.structuredResult(
                 {audits: rawAudits->Array.map(convertAudit), message: None},
                 outputSchema,
               )

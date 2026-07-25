@@ -68,7 +68,7 @@ let defaultMaxResults = 25
 let defaultContextChars = 80
 
 let errorResult = (~error: string): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: false,
       matches: None,
@@ -80,7 +80,7 @@ let errorResult = (~error: string): Tool.MCP.CallToolResult.t =>
   )
 
 let successResult = (~matches, ~totalCount, ~truncated): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: true,
       matches: Some(matches),

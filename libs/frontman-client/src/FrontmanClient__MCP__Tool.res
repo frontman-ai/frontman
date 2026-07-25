@@ -6,7 +6,10 @@ module type Tool = ProtocolTool.BrowserTool
 module ToolNames = ProtocolTool.ToolNames
 
 @@live
-let jsonResult = ProtocolTool.jsonResult
+let structuredResult = ProtocolTool.structuredResult
+
+@@live
+let unstructuredResult = ProtocolTool.unstructuredResult
 
 @@live
 let imageResult = ProtocolTool.imageResult

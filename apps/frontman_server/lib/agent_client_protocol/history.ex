@@ -92,7 +92,9 @@ defmodule AgentClientProtocol.History do
             session_id,
             result.tool_call_id,
             ACP.tool_call_status(result.is_error),
-            ACP.Content.from_tool_result(result.result)
+            ACP.Content.from_tool_result(result.result),
+            nil,
+            result.result["structuredContent"]
           )
         ]
 

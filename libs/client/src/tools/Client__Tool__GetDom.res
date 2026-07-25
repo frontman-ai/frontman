@@ -341,7 +341,7 @@ let errorResult = (
   ~hint: option<string>=?,
   ~nodeCount: option<int>=?,
 ): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: false,
       html: None,
@@ -358,7 +358,7 @@ let successResult = (
   ~nodeCount: option<int>,
   ~hint: option<string>=?,
 ): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: true,
       html: Some(html),

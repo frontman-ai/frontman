@@ -350,7 +350,10 @@ let make = (~onConfigureProvider: unit => unit) => {
     | TodoToolCall(tc) =>
       // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
-      let todos = TodoUtils.extractTodos(~input=tc.input, ~result=tc.result)
+      let todos = TodoUtils.extractTodosForDisplay(
+        ~input=tc.input,
+        ~result=tc.result->Option.flatMap(result => result.rawOutput),
+      )
       let isLoading = tc.state == InputStreaming || tc.state == InputAvailable
 
       <div key={messageId} className="frontman-content-auto">

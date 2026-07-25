@@ -12,6 +12,9 @@ module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
 module RuntimeConfig = Client__RuntimeConfig
+module Message = Client__State__Types.Message
+
+let makeToolResult = (~rawOutput, ~content): Message.toolResult => {rawOutput, content}
 
 // Extract text from a contentBlock (returns Some for TextContent, None for other variants)
 let getContentBlockText = (block: ContentBlock.t): option<string> =>
@@ -218,8 +221,12 @@ module Provider = {
       | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
         failwith("Frontman UI requires negotiated agent attribution")
       | Unknown(_) => ()
-      | ToolCall({toolCallId, title, rawInput, parentAgentId, spawningToolName, _}) =>
+      | ToolCall({toolCallId, title, rawInput, rawOutput, parentAgentId, spawningToolName, _}) =>
         Client__TextDeltaBuffer.flush()
+        let result =
+          rawOutput->Option.map(rawOutput =>
+            makeToolResult(~rawOutput=Some(rawOutput), ~content=[])
+          )
         Client__State.Actions.toolCallReceived(
           ~taskId,
           ~toolCall={
@@ -227,16 +234,18 @@ module Provider = {
             toolName: title,
             inputBuffer: "",
             input: rawInput,
-            result: None,
+            result,
             errorText: None,
-            state: rawInput->Option.mapOr(Client__State__Types.Message.InputStreaming, _ =>
-              Client__State__Types.Message.InputAvailable
-            ),
+            state: switch (result, rawInput) {
+            | (Some(_), _) => Client__State__Types.Message.OutputAvailable
+            | (None, Some(_)) => Client__State__Types.Message.InputAvailable
+            | (None, None) => Client__State__Types.Message.InputStreaming
+            },
             parentAgentId,
             spawningToolName,
           },
         )
-      | ToolCallUpdate({toolCallId, status, content, rawInput}) =>
+      | ToolCallUpdate({toolCallId, status, content, rawInput, rawOutput}) =>
         Client__TextDeltaBuffer.flush()
         let text = () =>
           content
@@ -249,11 +258,7 @@ module Provider = {
         switch status {
         | Some(Pending) => ()
         | Some(Completed) =>
-          let result = text()->Option.mapOr(JSON.Encode.null, t =>
-            try {JSON.parseOrThrow(t)} catch {
-            | _ => JSON.Encode.string(t)
-            }
-          )
+          let result = makeToolResult(~rawOutput, ~content=content->Option.getOr([]))
           Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
         | Some(Failed) =>
           Client__State.Actions.toolErrorReceived(

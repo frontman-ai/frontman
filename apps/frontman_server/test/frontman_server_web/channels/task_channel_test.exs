@@ -754,7 +754,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert is_integer(mcp_request_id)
 
       mcp_tool_result = %{
-        "content" => [%{"type" => "text", "text" => "Logged: hello"}]
+        "content" => [%{"type" => "text", "text" => "Logged: hello"}],
+        "structuredContent" => %{"logged" => true}
       }
 
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_tool_result))
@@ -769,6 +770,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "sessionUpdate" => "tool_call_update",
             "toolCallId" => "call_123",
             "status" => "completed",
+            "rawOutput" => %{"logged" => true},
             "content" => [
               %{
                 "type" => "content",

@@ -55,6 +55,7 @@ module CallToolResult: {
   let schema: S.t<t>
   let jsonSchema: S.t<t>
   let makeText: string => t
+  let makeStructured: Dict.t<JSON.t> => t
   let makeImage: (~data: string, ~mimeType: string) => t
   let makeError: string => t
 } = {
@@ -62,20 +63,27 @@ module CallToolResult: {
   type t = {
     content: @s.matches(FrontmanProtocol__ContentBlock.arraySchema)
     array<FrontmanProtocol__ContentBlock.t>,
-    structuredContent?: JSON.t,
+    structuredContent?: Dict.t<JSON.t>,
     isError?: bool,
     _meta?: Dict.t<JSON.t>,
   }
 
   let jsonSchema = S.object(s => {
     content: s.field("content", S.array(FrontmanProtocol__ContentBlock.schema)),
-    structuredContent: ?s.field("structuredContent", S.option(S.json)),
+    structuredContent: ?s.field("structuredContent", S.option(S.dict(S.json))),
     isError: ?s.field("isError", S.option(S.bool)),
     _meta: ?s.field("_meta", S.option(S.dict(S.json))),
   })
 
   let makeText = text => {
     content: [TextContent({text, _meta: None, annotations: None})],
+  }
+
+  let makeStructured = json => {
+    content: [
+      TextContent({text: JSON.stringify(JSON.Encode.object(json)), _meta: None, annotations: None}),
+    ],
+    structuredContent: json,
   }
 
   let makeImage = (~data, ~mimeType) => {

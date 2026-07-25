@@ -91,10 +91,10 @@ let makeOutput = (
 }
 
 let okOutput = (~success, ~error) =>
-  Tool.jsonResult(makeOutput(~success, ~error, ~presets=None), outputSchema)
+  Tool.structuredResult(makeOutput(~success, ~error, ~presets=None), outputSchema)
 
 let okOutputWithPresets = (~success, ~presets) =>
-  Tool.jsonResult(makeOutput(~success, ~error=None, ~presets=Some(presets)), outputSchema)
+  Tool.structuredResult(makeOutput(~success, ~error=None, ~presets=Some(presets)), outputSchema)
 
 let execute = async (
   input: input,

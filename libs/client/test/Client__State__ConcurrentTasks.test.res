@@ -174,12 +174,15 @@ describe("Concurrent Tasks Event Routing", () => {
     )
 
     // Act: Send tool result to Task A
-    let resultJson = JSON.parseOrThrow(`{"content": "file contents"}`)
+    let result: StateReducer.Message.toolResult = {
+      rawOutput: Some(JSON.Encode.object(Dict.make())),
+      content: [],
+    }
     let (finalState, _) = StateReducer.next(
       stateWithTool,
       TaskAction({
         target: ForTask(taskAId),
-        action: ToolResultReceived({id: "tool-1", result: resultJson}),
+        action: ToolResultReceived({id: "tool-1", result}),
       }),
     )
 

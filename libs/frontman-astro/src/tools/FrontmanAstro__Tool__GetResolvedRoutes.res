@@ -82,7 +82,7 @@ let make = (
       let inputSchema = inputSchema
       let outputSchema = outputSchema
       let execute = async (_ctx, _input) =>
-        Tool.jsonResult(getRoutes()->Array.map(toRouteEntry), outputSchema)
+        Tool.unstructuredResult(getRoutes()->Array.map(toRouteEntry), outputSchema)
     }
   )
 }

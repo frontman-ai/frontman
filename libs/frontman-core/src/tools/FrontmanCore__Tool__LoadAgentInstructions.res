@@ -133,7 +133,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
       // for finding CLAUDE.md files in parent directories
       let startPath = SafePath.toString(safePath)
       let results = await walkUpDirectories(startPath, [])
-      Tool.jsonResult(results, outputSchema)
+      Tool.unstructuredResult(results, outputSchema)
     } catch {
     | exn =>
       let msg =

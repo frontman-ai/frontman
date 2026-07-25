@@ -1249,7 +1249,7 @@ defmodule FrontmanServer.TasksTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(write_result),
+        %{"content" => [], "structuredContent" => write_result},
         turn_number
       )
 
@@ -1284,7 +1284,7 @@ defmodule FrontmanServer.TasksTest do
         scope,
         task_a,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(write_result),
+        %{"content" => [], "structuredContent" => write_result},
         turn_number
       )
 

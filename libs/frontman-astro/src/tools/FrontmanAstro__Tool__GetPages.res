@@ -189,7 +189,7 @@ let execute = async (
 
     let allPages = Array.concat(srcPages, rootPages)
 
-    Tool.jsonResult(allPages, outputSchema)
+    Tool.unstructuredResult(allPages, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")

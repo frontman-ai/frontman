@@ -157,10 +157,8 @@ describe("Task - Tool Call Lifecycle", () => {
     }
 
     // Receive result
-    let (task2, _) = TaskReducer.next(
-      task1,
-      ToolResultReceived({id: toolId, result: JSON.parseOrThrow(`{"result": "success"}`)}),
-    )
+    let result: Message.toolResult = {rawOutput: Some(JSON.Encode.object(Dict.make())), content: []}
+    let (task2, _) = TaskReducer.next(task1, ToolResultReceived({id: toolId, result}))
 
     // Verify OutputAvailable state
     let messages2 = TestHelpers.getMessages(task2)

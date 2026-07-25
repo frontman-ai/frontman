@@ -492,7 +492,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
   }
 
   switch result {
-  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Ok(output) => Tool.structuredResult(output, outputSchema)
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

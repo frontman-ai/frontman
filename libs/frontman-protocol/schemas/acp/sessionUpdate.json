@@ -435,6 +435,7 @@
           ]
         },
         "rawInput": {},
+        "rawOutput": {},
         "timestamp": {
           "type": "string"
         },
@@ -652,7 +653,8 @@
           },
           "type": "array"
         },
-        "rawInput": {}
+        "rawInput": {},
+        "rawOutput": {}
       },
       "required": [
         "sessionUpdate",

@@ -121,7 +121,7 @@ let execute = async (
     let allRoutes = Array.concat(allRoutes, pagesRoutes)
     let allRoutes = Array.concat(allRoutes, pagesRoutesAlt)
 
-    Tool.jsonResult(allRoutes, outputSchema)
+    Tool.unstructuredResult(allRoutes, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")

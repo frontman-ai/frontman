@@ -105,7 +105,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
 
         ToolPathHints.recordListAnchor(~sourceRoot=ctx.sourceRoot, ~path=relativePath)
 
-        Tool.jsonResult(entriesWithStats, outputSchema)
+        Tool.unstructuredResult(entriesWithStats, outputSchema)
       }
     } catch {
     | exn =>

@@ -394,7 +394,10 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let result = JSON.parseOrThrow("{\"content\": \"file contents\"}")
+    let result: Reducer.Message.toolResult = {
+      rawOutput: Some(JSON.Encode.object(Dict.make())),
+      content: [],
+    }
     let action = Reducer.TaskAction({
       target: ForTask(taskId),
       action: ToolResultReceived({id: "call-1", result}),

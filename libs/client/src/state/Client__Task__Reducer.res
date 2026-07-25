@@ -338,7 +338,7 @@ type action =
   | TextDeltaReceived({messageId: string, text: string, agentId: string})
   // Tool call actions
   | ToolInputReceived({id: string, input: JSON.t})
-  | ToolResultReceived({id: string, result: JSON.t})
+  | ToolResultReceived({id: string, result: Message.toolResult})
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
   // Content actions

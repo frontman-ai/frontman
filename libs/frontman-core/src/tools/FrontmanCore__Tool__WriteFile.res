@@ -95,7 +95,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
             ~mtimeMs=Fs.mtimeMs(stats),
             ~size=Fs.size(stats),
           )
-          Tool.jsonResult(
+          Tool.structuredResult(
             {
               _context: {
                 sourceRoot: resolved.sourceRoot,

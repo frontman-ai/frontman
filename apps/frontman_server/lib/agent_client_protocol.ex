@@ -393,7 +393,8 @@ defmodule AgentClientProtocol do
         kind,
         timestamp,
         status \\ @tool_call_status_pending,
-        raw_input \\ nil
+        raw_input \\ nil,
+        raw_output \\ nil
       )
       when status in @tool_call_statuses do
     update = %{
@@ -405,7 +406,8 @@ defmodule AgentClientProtocol do
       "timestamp" => DateTime.to_iso8601(timestamp)
     }
 
-    update = if raw_input, do: Map.put(update, "rawInput", raw_input), else: update
+    update = if is_nil(raw_input), do: update, else: Map.put(update, "rawInput", raw_input)
+    update = if is_nil(raw_output), do: update, else: Map.put(update, "rawOutput", raw_output)
 
     session_update_notification(session_id, update)
   end
@@ -413,10 +415,17 @@ defmodule AgentClientProtocol do
   @doc """
   Updates an existing tool call (sessionUpdate: "tool_call_update").
 
-  Content and raw input are included when provided.
+  Content, raw input, and raw output are included when provided.
   Per ACP spec: "All fields except toolCallId are optional in updates"
   """
-  def tool_call_update(session_id, tool_call_id, status, content \\ nil, raw_input \\ nil)
+  def tool_call_update(
+        session_id,
+        tool_call_id,
+        status,
+        content \\ nil,
+        raw_input \\ nil,
+        raw_output \\ nil
+      )
       when status in @tool_call_statuses do
     update = %{
       "sessionUpdate" => "tool_call_update",
@@ -425,7 +434,8 @@ defmodule AgentClientProtocol do
     }
 
     update = if content, do: Map.put(update, "content", content), else: update
-    update = if raw_input, do: Map.put(update, "rawInput", raw_input), else: update
+    update = if is_nil(raw_input), do: update, else: Map.put(update, "rawInput", raw_input)
+    update = if is_nil(raw_output), do: update, else: Map.put(update, "rawOutput", raw_output)
 
     session_update_notification(session_id, update)
   end

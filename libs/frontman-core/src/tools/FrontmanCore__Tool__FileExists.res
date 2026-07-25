@@ -25,6 +25,6 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   | Ok(safePath) =>
     let exists = await FsUtils.pathExists(SafePath.toString(safePath))
-    Tool.jsonResult(exists, outputSchema)
+    Tool.unstructuredResult(exists, outputSchema)
   }
 }

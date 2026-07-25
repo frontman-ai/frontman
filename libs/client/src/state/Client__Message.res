@@ -120,6 +120,11 @@ type toolCallState =
   | OutputAvailable
   | OutputError
 
+type toolResult = {
+  rawOutput: option<JSON.t>,
+  content: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.toolCallContentItem>,
+}
+
 type assistantMessage =
   | Streaming({id: string, textBuffer: string, agentId: string})
   | Completed({id: string, content: array<AssistantContentPart.t>, agentId: string})
@@ -130,7 +135,7 @@ type toolCall = {
   state: toolCallState,
   inputBuffer: string,
   input: option<JSON.t>,
-  result: option<JSON.t>,
+  result: option<toolResult>,
   errorText: option<string>,
   parentAgentId: option<string>,
   spawningToolName: option<string>,

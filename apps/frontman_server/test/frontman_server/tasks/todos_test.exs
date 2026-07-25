@@ -53,7 +53,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(write_result),
+        %{"content" => [], "structuredContent" => write_result},
         turn_number: turn_number
       )
 
@@ -99,7 +99,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(first_result),
+        %{"content" => [], "structuredContent" => first_result},
         turn_number: turn_number
       )
 
@@ -107,7 +107,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
-        MCP.tool_result_structured(second_result),
+        %{"content" => [], "structuredContent" => second_result},
         turn_number: turn_number
       )
 
@@ -143,7 +143,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(good_result),
+        %{"content" => [], "structuredContent" => good_result},
         turn_number: turn_number
       )
 
@@ -171,7 +171,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(%{"todos" => []}),
+        %{"content" => [], "structuredContent" => %{"todos" => []}},
         turn_number: turn_number
       )
 

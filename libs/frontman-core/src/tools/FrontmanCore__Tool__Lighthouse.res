@@ -348,7 +348,7 @@ let execute = async (
     })
 
     switch await runLighthouse(~chrome, ~url=input.url, ~preset) {
-    | Ok(output) => Tool.jsonResult(output, outputSchema)
+    | Ok(output) => Tool.structuredResult(output, outputSchema)
     | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
     }
   } catch {
