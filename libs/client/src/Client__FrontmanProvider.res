@@ -218,7 +218,7 @@ module Provider = {
       | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
         failwith("Frontman UI requires negotiated agent attribution")
       | Unknown(_) => ()
-      | ToolCall({toolCallId, title, parentAgentId, spawningToolName, _}) =>
+      | ToolCall({toolCallId, title, rawInput, parentAgentId, spawningToolName, _}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.toolCallReceived(
           ~taskId,
@@ -226,34 +226,30 @@ module Provider = {
             id: toolCallId,
             toolName: title,
             inputBuffer: "",
-            input: None,
+            input: rawInput,
             result: None,
             errorText: None,
-            state: Client__State__Types.Message.InputStreaming,
+            state: rawInput->Option.mapOr(Client__State__Types.Message.InputStreaming, _ =>
+              Client__State__Types.Message.InputAvailable
+            ),
             parentAgentId,
             spawningToolName,
           },
         )
-      | ToolCallUpdate({toolCallId, status, content}) =>
+      | ToolCallUpdate({toolCallId, status, content, rawInput}) =>
         Client__TextDeltaBuffer.flush()
-        let text =
+        let text = () =>
           content
           ->Option.flatMap(c => c->Array.get(0))
           ->Option.flatMap(i => i.content)
           ->Option.flatMap(getContentBlockText)
+        rawInput->Option.forEach(input => {
+          Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
+        })
         switch status {
-        | Some(Pending) =>
-          text
-          ->Option.flatMap(t =>
-            try {Some(JSON.parseOrThrow(t))} catch {
-            | _ => None
-            }
-          )
-          ->Option.forEach(input => {
-            Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
-          })
+        | Some(Pending) => ()
         | Some(Completed) =>
-          let result = text->Option.mapOr(JSON.Encode.null, t =>
+          let result = text()->Option.mapOr(JSON.Encode.null, t =>
             try {JSON.parseOrThrow(t)} catch {
             | _ => JSON.Encode.string(t)
             }
@@ -263,7 +259,7 @@ module Provider = {
           Client__State.Actions.toolErrorReceived(
             ~taskId,
             ~id=toolCallId,
-            ~error=text->Option.getOr("Unknown error"),
+            ~error=text()->Option.getOr("Unknown error"),
           )
         | Some(InProgress) => () // Normal transitional status for MCP tools
         | None => ()

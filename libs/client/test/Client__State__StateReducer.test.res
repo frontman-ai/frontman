@@ -451,7 +451,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     }
   })
 
-  test("ToolCallReceived with complete input creates tool with InputAvailable", t => {
+  test("ToolInputReceived makes streaming input available", t => {
     // Create a task with an assistant message first (tools belong to tasks)
     let state = TestHelpers.makeStateWithTask(
       ~isAgentRunning=true,
@@ -477,21 +477,11 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-    let toolCall: Reducer.Message.toolCall = {
-      id: "call-1",
-      toolName: "read_file",
-      inputBuffer: "",
-      input: Some(JSON.parseOrThrow("{\"path\": \"test.res\"}")),
-      result: None,
-      errorText: None,
-      state: Reducer.Message.InputAvailable,
-      parentAgentId: None,
-      spawningToolName: None,
-    }
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let expectedInput = JSON.parseOrThrow(`{"path":"test.res","range":{"start":12}}`)
     let action = Reducer.TaskAction({
       target: ForTask(taskId),
-      action: ToolCallReceived({toolCall: toolCall}),
+      action: ToolInputReceived({id: "call-1", input: expectedInput}),
     })
     let (nextState, _) = Reducer.next(state, action)
 
@@ -501,7 +491,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     switch messages->Array.get(1) {
     | Some(Reducer.Message.ToolCall({state, input, _})) => {
         t->expect(state)->Expect.toBe(Reducer.Message.InputAvailable)
-        t->expect(input->Option.isSome)->Expect.toBe(true)
+        t->expect(input)->Expect.toEqual(Some(expectedInput))
       }
     | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
     }

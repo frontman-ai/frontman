@@ -80,13 +80,9 @@ defmodule AgentClientProtocol.History do
             call.tool_call_id,
             call.tool_name,
             "other",
-            call.timestamp
-          ),
-          ACP.tool_call_update(
-            session_id,
-            call.tool_call_id,
+            call.timestamp,
             ACP.tool_call_status_pending(),
-            ACP.Content.from_tool_result(call.arguments)
+            call.arguments
           )
         ]
 
