@@ -45,12 +45,8 @@ type embeddedResource = {
   resource: embeddedResourceResource,
 }
 
-type mediaContent = {
-  data: string,
-  mimeType: string,
-  _meta: option<JSON.t>,
-  annotations: option<annotations>,
-}
+type meta = option<JSON.t>
+type mediaContent = {data: string, mimeType: string, _meta: meta, annotations: option<annotations>}
 
 type t =
   | TextContent({text: string, _meta: option<JSON.t>, annotations: option<annotations>})

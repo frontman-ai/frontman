@@ -12,7 +12,7 @@ module Message = Client__Message
 module Annotation = Client__Annotation__Types
 // Re-export ACP types for convenience
 module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
-module ProtocolContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 module Task = {
   // ============================================================================
@@ -694,19 +694,12 @@ let annotationResourceUriAndText = (annotation: annotationBlockData): (string, s
     }
   }
 
-let annotationTextResourceBlock = (
-  annotation: annotationBlockData,
-  ~index,
-): ProtocolContentBlock.t => {
+let annotationTextResourceBlock = (annotation: annotationBlockData, ~index): ContentBlock.t => {
   let (uri, text) = annotationResourceUriAndText(annotation)
   let _meta = makeAnnotationMeta(annotation, ~index)
 
-  ProtocolContentBlock.EmbeddedResource({
-    resource: ProtocolContentBlock.TextResourceContents({
-      uri,
-      mimeType: Some("text/plain"),
-      text,
-    }),
+  ContentBlock.EmbeddedResource({
+    resource: ContentBlock.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
     _meta: Some(_meta),
     annotations: None,
   })
@@ -735,7 +728,7 @@ let parseDataUrl = (dataUrl: string): (string, string) => {
 }
 
 let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): option<
-  ProtocolContentBlock.t,
+  ContentBlock.t,
 > =>
   annotation.screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
@@ -746,8 +739,8 @@ let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): 
       annotationId: annotation.id,
     }->S.decodeOrThrow(~from=screenshotMetaSchema, ~to=S.json->S.noValidation(true))
 
-    ProtocolContentBlock.EmbeddedResource({
-      resource: ProtocolContentBlock.BlobResourceContents({
+    ContentBlock.EmbeddedResource({
+      resource: ContentBlock.BlobResourceContents({
         uri: `annotation://${annotation.id}/screenshot`,
         mimeType: Some(mimeType),
         blob: base64Data,
@@ -758,7 +751,7 @@ let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): 
   })
 
 let annotationContentBlocks = (annotation: annotationBlockData, ~index: int): array<
-  ProtocolContentBlock.t,
+  ContentBlock.t,
 > => {
   [
     Some(annotationTextResourceBlock(annotation, ~index)),
@@ -793,9 +786,7 @@ let messageAnnotationToBlockData = (
 }
 
 // Build content blocks for a single annotation
-let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<
-  ProtocolContentBlock.t,
-> => {
+let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<ContentBlock.t> => {
   let blockData = annotation->Message.MessageAnnotation.fromAnnotation->messageAnnotationToBlockData
 
   annotationContentBlocks(blockData, ~index)
@@ -819,7 +810,7 @@ let getColorScheme: WebAPI.DOMAPI.window => string = %raw(`
 
 // Build a Resource ContentBlock from current page context
 // Contains page URL, viewport dimensions, DPR, title, color scheme, and scroll position
-let currentPageToContentBlock = (previewFrame: Task.previewFrame): ProtocolContentBlock.t => {
+let currentPageToContentBlock = (previewFrame: Task.previewFrame): ContentBlock.t => {
   let url = previewFrame.url
 
   // Read viewport and display info from iframe's contentWindow
@@ -962,8 +953,8 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ProtocolConte
 
   let summaryText = summaryParts->Array.filterMap(x => x)->Array.join(", ")
 
-  ProtocolContentBlock.EmbeddedResource({
-    resource: ProtocolContentBlock.TextResourceContents({
+  ContentBlock.EmbeddedResource({
+    resource: ContentBlock.TextResourceContents({
       uri: `page://${url}`,
       mimeType: Some("text/plain"),
       text: `Current page: ${summaryText}`,
@@ -978,7 +969,7 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ProtocolConte
 // ============================================================================
 
 // Build page context blocks from Task (no annotations — those come from the message)
-let taskToPageContextBlocks = (task: Task.t): array<ProtocolContentBlock.t> => {
+let taskToPageContextBlocks = (task: Task.t): array<ContentBlock.t> => {
   switch task {
   | Task.Unloaded(_) => []
   | Task.New({previewFrame})
@@ -1064,13 +1055,13 @@ let annotationMetaToMessageAnnotation = (
 let messageAnnotationToContentBlocks = (
   annotation: Message.MessageAnnotation.t,
   ~index: int,
-): array<ProtocolContentBlock.t> => {
+): array<ContentBlock.t> => {
   annotationContentBlocks(messageAnnotationToBlockData(annotation), ~index)
 }
 
 // Build content blocks from an array of MessageAnnotations
 let messageAnnotationsToContentBlocks = (annotations: array<Message.MessageAnnotation.t>): array<
-  ProtocolContentBlock.t,
+  ContentBlock.t,
 > => {
   annotations->Array.flatMapWithIndex((annotation, index) =>
     messageAnnotationToContentBlocks(annotation, ~index)
