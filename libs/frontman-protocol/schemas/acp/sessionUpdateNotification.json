@@ -451,6 +451,7 @@
                     "failed"
                   ]
                 },
+                "rawInput": {},
                 "timestamp": {
                   "type": "string"
                 },
@@ -667,7 +668,8 @@
                     ]
                   },
                   "type": "array"
-                }
+                },
+                "rawInput": {}
               },
               "required": [
                 "sessionUpdate",

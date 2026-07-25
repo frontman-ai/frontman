@@ -40,11 +40,13 @@ defmodule AgentClientProtocol.HistoryTest do
     assert {:ok, replay} = build(rows)
     updates = Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
 
-    assert [first, second, answer, _tool_create, _tool_update, error] = updates
+    assert [first, second, answer, tool_create, error] = updates
     assert first["messageId"] == "user-row"
     assert second["messageId"] == "user-row"
     assert answer["messageId"] == "turn-row:1"
     assert answer["_meta"]["frontman.dev/agentId"] == "executor-id"
+    assert tool_create["rawInput"] == %{"path" => "file"}
+    refute Map.has_key?(tool_create, "content")
     assert error["_meta"]["frontman.dev/agentErrorId"] == "error-id"
   end
 

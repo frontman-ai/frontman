@@ -224,30 +224,30 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     announced = socket.assigns[:announced_tool_calls] || MapSet.new()
 
-    unless MapSet.member?(announced, tool_call.tool_call_id) do
-      pending_notification =
-        ACP.tool_call_create(
-          task_id,
-          tool_call.tool_call_id,
-          tool_call.tool_name,
-          "other",
-          DateTime.utc_now()
-        )
+    notification =
+      case MapSet.member?(announced, tool_call.tool_call_id) do
+        false ->
+          ACP.tool_call_create(
+            task_id,
+            tool_call.tool_call_id,
+            tool_call.tool_name,
+            "other",
+            DateTime.utc_now(),
+            ACP.tool_call_status_pending(),
+            tool_call.arguments
+          )
 
-      push(socket, @acp_message, pending_notification)
-    end
+        true ->
+          ACP.tool_call_update(
+            task_id,
+            tool_call.tool_call_id,
+            ACP.tool_call_status_pending(),
+            nil,
+            tool_call.arguments
+          )
+      end
 
-    args_content = ACP.Content.from_tool_result(tool_call.arguments)
-
-    args_notification =
-      ACP.tool_call_update(
-        task_id,
-        tool_call.tool_call_id,
-        ACP.tool_call_status_pending(),
-        args_content
-      )
-
-    push(socket, @acp_message, args_notification)
+    push(socket, @acp_message, notification)
 
     case Tools.execution_target(tool_call.tool_name) do
       :backend ->
@@ -275,7 +275,9 @@ defmodule FrontmanServerWeb.TaskChannel do
     else
       content = ACP.Content.from_tool_result(tool_result.result)
       status = ACP.tool_call_status(tool_result.is_error)
+
       notification = ACP.tool_call_update(task_id, tool_result.tool_call_id, status, content)
+
       push(socket, @acp_message, notification)
     end
 
@@ -415,7 +417,9 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, interaction, executor_status} ->
         status = ACP.tool_call_status(interaction.is_error)
         content = ACP.Content.from_tool_result(interaction.result)
+
         notification = ACP.tool_call_update(task_id, interaction.tool_call_id, status, content)
+
         push(socket, @acp_message, notification)
         Logger.info("Tool #{interaction.tool_name} #{status}")
 

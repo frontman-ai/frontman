@@ -866,7 +866,15 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loading(_) | Task.Loaded(_), ToolInputReceived({id, input})) => (
       Lens.updateMessage(task, id, msg =>
         switch msg {
-        | Message.ToolCall(tool) => Message.ToolCall({...tool, input: Some(input)})
+        | Message.ToolCall(tool) =>
+          Message.ToolCall({
+            ...tool,
+            input: Some(input),
+            state: switch tool.state {
+            | Message.InputStreaming => Message.InputAvailable
+            | state => state
+            },
+          })
         | _ => failwith(`[TaskReducer] ToolInputReceived but message ${id} is not a ToolCall`)
         }
       ),

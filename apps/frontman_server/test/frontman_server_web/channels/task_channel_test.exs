@@ -1109,25 +1109,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
 
-      # Step 2: Send the full interaction (which normally would also send tool_call_create)
       tc =
         tool_call(tool_call_id, "write_file", %{"target_file" => "test.txt", "content" => "hello"})
 
       send(socket.channel_pid, interaction_event(tc, 1))
       :sys.get_state(socket.channel_pid)
 
-      # Should get a tool_call_update with args, but NOT a duplicate tool_call create
       assert_push("acp:message", %{
         "params" => %{
-          "update" => %{
-            "sessionUpdate" => "tool_call_update",
-            "toolCallId" => ^tool_call_id,
-            "status" => "pending"
-          }
+          "update" => update
         }
       })
 
-      # Verify no duplicate tool_call create was sent
+      assert update == %{
+               "sessionUpdate" => "tool_call_update",
+               "toolCallId" => tool_call_id,
+               "status" => "pending",
+               "rawInput" => %{"target_file" => "test.txt", "content" => "hello"}
+             }
+
       refute_push("acp:message", %{
         "params" => %{
           "update" => %{
@@ -1142,8 +1142,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
-      # Tool calls that arrive without a prior tool_call should still get
-      # the normal tool_call_create notification
       tool_call_id = "call_no_start_#{:rand.uniform(1_000_000)}"
 
       tc = tool_call(tool_call_id, "take_screenshot")
@@ -1151,26 +1149,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       send(socket.channel_pid, interaction_event(tc, 1))
       :sys.get_state(socket.channel_pid)
 
-      # Should get the standard tool_call create notification
       assert_push("acp:message", %{
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "tool_call",
-            "toolCallId" => ^tool_call_id
-          }
+          "update" => update
         }
       })
 
-      # And the tool_call_update with arguments
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "tool_call_update",
-            "toolCallId" => ^tool_call_id
-          }
-        }
-      })
+      assert update["sessionUpdate"] == "tool_call"
+      assert update["toolCallId"] == tool_call_id
+      assert update["rawInput"] == %{}
+      refute Map.has_key?(update, "content")
     end
   end
 
