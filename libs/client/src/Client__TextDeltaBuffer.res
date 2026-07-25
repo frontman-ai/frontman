@@ -16,7 +16,7 @@ type entry = {
 }
 
 type userEntry = {
-  blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
+  blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t>,
   agentId: string,
 }
 
@@ -25,7 +25,7 @@ type t = {
   addUserBlock: (
     ~taskId: string,
     ~messageId: string,
-    ~block: FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock,
+    ~block: FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t,
     ~agentId: string,
   ) => unit,
   flush: unit => unit,
@@ -48,7 +48,7 @@ let make = (
   ~onUserFlush: (
     ~taskId: string,
     ~messageId: string,
-    ~blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
+    ~blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t>,
     ~agentId: string,
   ) => unit,
 ): t => {

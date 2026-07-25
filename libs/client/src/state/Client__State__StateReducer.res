@@ -509,7 +509,7 @@ module Selectors = {
 // Build ACP content blocks for image/file attachments
 // Strips the data:mime;base64, prefix and creates resource blocks with BlobResourceContents
 let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
-  Client__State__Types.ACPTypes.contentBlock,
+  Client__State__Types.ContentBlock.t,
 > => {
   attachments->Array.map(att => {
     // Strip "data:mime;base64," prefix to get raw base64
@@ -523,8 +523,8 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
     metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
     let meta = JSON.Encode.object(metaObj)
 
-    Client__State__Types.ACPTypes.EmbeddedResource({
-      resource: Client__State__Types.ACPTypes.BlobResourceContents({
+    Client__State__Types.ContentBlock.EmbeddedResource({
+      resource: Client__State__Types.ContentBlock.BlobResourceContents({
         uri: `attachment://${att.id}/${att.filename}`,
         mimeType: Some(att.mediaType),
         blob: base64Data,

@@ -2,6 +2,7 @@
 // Thin orchestrator - delegates to Protocol for messaging, uses Constants for topics
 
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Client = FrontmanClient__ACP__Client
 module Protocol = FrontmanClient__ACP__Protocol
 module Channel = FrontmanClient__Phoenix__Channel
@@ -428,10 +429,10 @@ let createSession = async (
 let sendPrompt = async (
   session: session,
   text: string,
-  ~additionalBlocks: array<Types.contentBlock>=[],
+  ~additionalBlocks: array<ContentBlock.t>=[],
   ~_meta: option<JSON.t>=None,
 ): result<Types.promptResult, string> => {
-  let baseBlocks: array<Types.contentBlock> = switch text->String.trim != "" {
+  let baseBlocks: array<ContentBlock.t> = switch text->String.trim != "" {
   | true => [TextContent({text, _meta: None, annotations: None})]
   | false => []
   }
@@ -439,7 +440,7 @@ let sendPrompt = async (
   // Serialize through S.unknown to avoid strict JSON checks on option fields inside union arms.
   let allBlocks =
     Array.concat(baseBlocks, additionalBlocks)->Array.map(block =>
-      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
+      block->S.decodeOrThrow(~from=ContentBlock.schema, ~to=S.json->S.noValidation(true))
     )
 
   await Protocol.sendPrompt(

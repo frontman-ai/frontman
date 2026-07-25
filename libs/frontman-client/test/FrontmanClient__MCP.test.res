@@ -173,7 +173,13 @@ describe("handleToolsCall", () => {
       }
     }
 
-    t->expect(parses(`{"content":[{"type":"text","text":"ok"}]}`))->Expect.toBe(true)
+    let json = JSON.parseOrThrow(`{"content":[{"type":"text","text":"ok"},{"type":"image","data":"image","mimeType":"image/png"},{"type":"audio","data":"audio","mimeType":"audio/wav"},{"type":"resource_link","name":"docs","uri":"https://example.com"},{"type":"resource","resource":{"uri":"page://current","text":"Current page"}}]}`)
+    let result = json->S.parseOrThrow(~to=Types.callToolResultSchema)
+    t
+    ->expect(
+      result->S.decodeOrThrow(~from=Types.callToolResultSchema, ~to=S.json->S.noValidation(true)),
+    )
+    ->Expect.toEqual(json)
 
     t
     ->expect(

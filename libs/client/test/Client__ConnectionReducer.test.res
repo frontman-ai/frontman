@@ -2,7 +2,7 @@ open Vitest
 
 module Reducer = Client__ConnectionReducer
 module FtueState = Client__FtueState
-module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 // Helper to check if effect list contains a specific effect type
 let hasEffect = (effects, predicate) => effects->Array.some(predicate)
@@ -290,7 +290,7 @@ describe("Connection Reducer", () => {
         let mockSession = Obj.magic({"sessionId": "task-1"})
         let activeState = {...Reducer.initialState, session: SessionActive(mockSession)}
 
-        let emptyBlocks: array<ACPTypes.contentBlock> = []
+        let emptyBlocks: array<ContentBlock.t> = []
         let (nextPromptState, firstEffects) = Reducer.reduce(
           activeState,
           SendPrompt({
