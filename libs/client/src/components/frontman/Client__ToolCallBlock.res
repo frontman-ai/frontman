@@ -37,19 +37,21 @@ let getScreenshotSrc = (result: option<Message.toolResult>): option<string> => {
   ->Option.flatMap(s => s != "" ? Some(s) : None)
 }
 
-let getDisplayOutput = (result: option<Message.toolResult>): option<JSON.t> =>
+let getDisplayOutput = (result: option<Message.toolResult>): option<string> =>
   result->Option.flatMap(result =>
-    result.rawOutput->Option.orElse(
+    switch result.rawOutput {
+    | Some(json) => Some(JSON.stringify(json, ~space=2))
+    | None =>
       result.content
       ->Array.get(0)
       ->Option.flatMap(item => item.content)
       ->Option.flatMap(content =>
         switch content {
-        | TextContent({text}) => Some(JSON.Encode.string(text))
+        | TextContent({text}) => Some(text)
         | _ => None
         }
-      ),
-    )
+      )
+    }
   )
 
 // Extract target path/URL, defaulting to "./" for list/file operations
@@ -228,13 +230,13 @@ let make = (
               | _ => React.null
               }}
               {switch (getDisplayOutput(result), errorText) {
-              | (Some(json), _) =>
+              | (Some(output), _) =>
                 <div>
                   <div className="text-[11px] text-zinc-500 mb-1"> {React.string("Output:")} </div>
                   <pre
                     className="font-mono text-[11px] whitespace-pre-wrap break-words text-zinc-400"
                   >
-                    {React.string(JSON.stringify(json, ~space=2))}
+                    {React.string(output)}
                   </pre>
                 </div>
               | (None, Some(_)) => React.null // Error already shown inline in header
