@@ -186,6 +186,7 @@ describe("handleToolsCall", () => {
       parses(`{"content":[{"type":"text","text":"ok"}],"_meta":{"vendor.example/context":{"nested":[1,true,null]}}}`),
     )
     ->Expect.toBe(true)
+    t->expect(parses(`{"content":[],"structuredContent":[]}`))->Expect.toBe(false)
 
     ["null", "[]", `"invalid"`]->Array.forEach(
       meta => {

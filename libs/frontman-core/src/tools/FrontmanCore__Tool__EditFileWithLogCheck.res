@@ -28,14 +28,14 @@ let execute = async (
 
     let allErrors = getErrorLogsSince(beforeTimestamp)
     switch allErrors->Array.length > 0 {
-    | false => Tool.jsonResult(output, CoreEditFile.outputSchema)
+    | false => Tool.structuredResult(output, CoreEditFile.outputSchema)
     | true =>
       let errorMessages =
         allErrors
         ->Array.slice(~start=0, ~end=5)
         ->Array.map(entry => entry.message)
         ->Array.join("\n")
-      Tool.jsonResult(
+      Tool.structuredResult(
         {
           ...output,
           message: output.message ++

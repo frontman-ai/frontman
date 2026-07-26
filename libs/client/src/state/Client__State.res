@@ -35,9 +35,12 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ToolInputReceived({id, input})}),
     )
 
-  let toolResultReceived = (~taskId, ~id, ~result) =>
+  let toolResultReceived = (~taskId, ~id, ~rawOutput, ~content, ~complete) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: ToolResultReceived({id, result})}),
+      TaskAction({
+        target: ForTask(taskId),
+        action: ToolResultReceived({id, rawOutput, content, complete}),
+      }),
     )
 
   let toolErrorReceived = (~taskId, ~id, ~error) =>

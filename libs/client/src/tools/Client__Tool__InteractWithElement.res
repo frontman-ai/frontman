@@ -154,7 +154,7 @@ let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): 
   }
 
 let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: false,
       interactedElement: None,
@@ -190,7 +190,7 @@ let execute = async (
           )
         | Resolved({element: Some(el), matchCount}) =>
           performAction(el, action)
-          Tool.jsonResult(
+          Tool.structuredResult(
             {
               success: true,
               interactedElement: Some(Client__Tool__ElementResolver.describeElement(el)),

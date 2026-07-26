@@ -75,7 +75,7 @@ let execute = async (
 ): Tool.MCP.CallToolResult.t => {
   Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=() =>
-      Tool.jsonResult(
+      Tool.structuredResult(
         {
           success: false,
           elements: None,
@@ -115,7 +115,7 @@ let execute = async (
         })
 
         let count = elements->Array.length
-        Tool.jsonResult(
+        Tool.structuredResult(
           {
             success: true,
             elements: Some(elements),
@@ -127,7 +127,7 @@ let execute = async (
         )
       } catch {
       | exn =>
-        Tool.jsonResult(
+        Tool.structuredResult(
           {
             success: false,
             elements: None,

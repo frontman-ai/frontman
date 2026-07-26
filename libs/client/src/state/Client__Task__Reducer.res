@@ -338,7 +338,12 @@ type action =
   | TextDeltaReceived({messageId: string, text: string, agentId: string})
   // Tool call actions
   | ToolInputReceived({id: string, input: JSON.t})
-  | ToolResultReceived({id: string, result: JSON.t})
+  | ToolResultReceived({
+      id: string,
+      rawOutput: option<JSON.t>,
+      content: option<array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.toolCallContentItem>>,
+      complete: bool,
+    })
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
   // Content actions
@@ -881,11 +886,24 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loading(_) | Task.Loaded(_), ToolResultReceived({id, result})) => (
+  | (Task.Loading(_) | Task.Loaded(_), ToolResultReceived({id, rawOutput, content, complete})) => (
       Lens.updateMessage(task, id, msg =>
         switch msg {
-        | Message.ToolCall(tool) =>
-          Message.ToolCall({...tool, result: Some(result), state: Message.OutputAvailable})
+        | Message.ToolCall(tool) => {
+            let current: Message.toolResult = tool.result->Option.getOr({
+              rawOutput: None,
+              content: [],
+            })
+            let result: Message.toolResult = {
+              rawOutput: rawOutput->Option.orElse(current.rawOutput),
+              content: content->Option.getOr(current.content),
+            }
+            let state = switch complete {
+            | true => Message.OutputAvailable
+            | false => tool.state
+            }
+            Message.ToolCall({...tool, result: Some(result), state})
+          }
         | _ => failwith(`[TaskReducer] ToolResultReceived but message ${id} is not a ToolCall`)
         }
       ),

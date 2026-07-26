@@ -80,7 +80,7 @@ let execute = async (
   switch result {
   | Ok(json) =>
     try {
-      Tool.jsonResult(json->S.parseOrThrow(~to=outputSchema), outputSchema)
+      Tool.structuredResult(json->S.parseOrThrow(~to=outputSchema), outputSchema)
     } catch {
     | _ => Tool.MCP.CallToolResult.makeError("Failed to parse question tool output")
     }

@@ -172,7 +172,10 @@
       },
       "type": "array"
     },
-    "structuredContent": {},
+    "structuredContent": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "isError": {
       "type": "boolean"
     },

@@ -29,6 +29,16 @@ defmodule AgentClientProtocol.HistoryTest do
         arguments: %{"path" => "file"},
         timestamp: @timestamp
       }),
+      row("tool-result", :tool_result, 1, %Interaction.ToolResult{
+        tool_call_id: "call",
+        tool_name: "read_file",
+        result: %{
+          "content" => [%{"type" => "text", "text" => "{\"path\":\"file\"}"}],
+          "structuredContent" => %{"path" => "file"}
+        },
+        is_error: false,
+        timestamp: @timestamp
+      }),
       row("error", :agent_error, 1, %Interaction.AgentError{
         id: "error-id",
         error: "Failed",
@@ -40,13 +50,15 @@ defmodule AgentClientProtocol.HistoryTest do
     assert {:ok, replay} = build(rows)
     updates = Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
 
-    assert [first, second, answer, tool_create, error] = updates
+    assert [first, second, answer, tool_create, tool_result, error] = updates
     assert first["messageId"] == "user-row"
     assert second["messageId"] == "user-row"
     assert answer["messageId"] == "turn-row:1"
     assert answer["_meta"]["frontman.dev/agentId"] == "executor-id"
     assert tool_create["rawInput"] == %{"path" => "file"}
     refute Map.has_key?(tool_create, "content")
+    assert tool_result["rawOutput"] == %{"path" => "file"}
+    assert [%{"content" => %{"text" => "{\"path\":\"file\"}"}}] = tool_result["content"]
     assert error["_meta"]["frontman.dev/agentErrorId"] == "error-id"
   end
 

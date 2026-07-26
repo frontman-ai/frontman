@@ -151,7 +151,7 @@ let execute = async (
 ): Tool.MCP.CallToolResult.t => {
   await Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=async () =>
-      Tool.jsonResult(
+      Tool.structuredResult(
         {
           success: false,
           result: None,
@@ -169,7 +169,7 @@ let execute = async (
         timeout,
         maxOutputBytes,
       )
-      Tool.jsonResult(output, outputSchema)
+      Tool.structuredResult(output, outputSchema)
     },
   )
 }

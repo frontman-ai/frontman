@@ -12,6 +12,47 @@ module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
 module RuntimeConfig = Client__RuntimeConfig
+module Message = Client__State__Types.Message
+
+let makeToolResult = (~rawOutput, ~content): Message.toolResult => {rawOutput, content}
+
+let toolCallState = (
+  ~status: option<Types.toolCallStatus>,
+  ~rawInput: option<JSON.t>,
+): Message.toolCallState =>
+  switch status {
+  | Some(Completed) => Message.OutputAvailable
+  | Some(Failed) => Message.OutputError
+  | Some(Pending | InProgress) | None =>
+    rawInput->Option.mapOr(Message.InputStreaming, _ => Message.InputAvailable)
+  }
+
+let makeToolCall = (
+  ~id,
+  ~title,
+  ~status,
+  ~content,
+  ~rawInput,
+  ~rawOutput,
+  ~parentAgentId,
+  ~spawningToolName,
+): Message.toolCall => {
+  let result = switch (rawOutput, content) {
+  | (None, None) => None
+  | _ => Some(makeToolResult(~rawOutput, ~content=content->Option.getOr([])))
+  }
+  {
+    id,
+    toolName: title,
+    inputBuffer: "",
+    input: rawInput,
+    result,
+    errorText: status == Some(Failed) ? Some("Unknown error") : None,
+    state: toolCallState(~status, ~rawInput),
+    parentAgentId,
+    spawningToolName,
+  }
+}
 
 // Extract text from a contentBlock (returns Some for TextContent, None for other variants)
 let getContentBlockText = (block: ContentBlock.t): option<string> =>
@@ -218,25 +259,32 @@ module Provider = {
       | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
         failwith("Frontman UI requires negotiated agent attribution")
       | Unknown(_) => ()
-      | ToolCall({toolCallId, title, rawInput, parentAgentId, spawningToolName, _}) =>
+      | ToolCall({
+          toolCallId,
+          title,
+          status,
+          content,
+          rawInput,
+          rawOutput,
+          parentAgentId,
+          spawningToolName,
+          _,
+        }) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.toolCallReceived(
           ~taskId,
-          ~toolCall={
-            id: toolCallId,
-            toolName: title,
-            inputBuffer: "",
-            input: rawInput,
-            result: None,
-            errorText: None,
-            state: rawInput->Option.mapOr(Client__State__Types.Message.InputStreaming, _ =>
-              Client__State__Types.Message.InputAvailable
-            ),
-            parentAgentId,
-            spawningToolName,
-          },
+          ~toolCall=makeToolCall(
+            ~id=toolCallId,
+            ~title,
+            ~status,
+            ~content,
+            ~rawInput,
+            ~rawOutput,
+            ~parentAgentId,
+            ~spawningToolName,
+          ),
         )
-      | ToolCallUpdate({toolCallId, status, content, rawInput}) =>
+      | ToolCallUpdate({toolCallId, status, content, rawInput, rawOutput}) =>
         Client__TextDeltaBuffer.flush()
         let text = () =>
           content
@@ -246,15 +294,28 @@ module Provider = {
         rawInput->Option.forEach(input => {
           Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
         })
+        switch (rawOutput, content, status) {
+        | (None, None, Some(Completed)) =>
+          Client__State.Actions.toolResultReceived(
+            ~taskId,
+            ~id=toolCallId,
+            ~rawOutput,
+            ~content,
+            ~complete=true,
+          )
+        | (None, None, _) => ()
+        | _ =>
+          Client__State.Actions.toolResultReceived(
+            ~taskId,
+            ~id=toolCallId,
+            ~rawOutput,
+            ~content,
+            ~complete=status == Some(Completed),
+          )
+        }
         switch status {
         | Some(Pending) => ()
-        | Some(Completed) =>
-          let result = text()->Option.mapOr(JSON.Encode.null, t =>
-            try {JSON.parseOrThrow(t)} catch {
-            | _ => JSON.Encode.string(t)
-            }
-          )
-          Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
+        | Some(Completed) => ()
         | Some(Failed) =>
           Client__State.Actions.toolErrorReceived(
             ~taskId,

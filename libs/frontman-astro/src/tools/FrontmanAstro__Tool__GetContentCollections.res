@@ -123,7 +123,7 @@ let executeWith = async (
     | None => allEntries->Array.slice(~start=offset, ~end=offset + limit)
     }
 
-    Tool.jsonResult(
+    Tool.structuredResult(
       {
         collection: input.collection,
         totalEntries: allEntries->Array.length,

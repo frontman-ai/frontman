@@ -6,6 +6,7 @@ module Task = Client__State__Types.Task
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
@@ -394,19 +395,56 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let result = JSON.parseOrThrow("{\"content\": \"file contents\"}")
-    let action = Reducer.TaskAction({
+    let rawOutput = JSON.Encode.object(Dict.make())
+    let rawOutputAction = Reducer.TaskAction({
       target: ForTask(taskId),
-      action: ToolResultReceived({id: "call-1", result}),
+      action: ToolResultReceived({
+        id: "call-1",
+        rawOutput: Some(rawOutput),
+        content: None,
+        complete: false,
+      }),
     })
-    let (nextState, _) = Reducer.next(state, action)
+    let (partialState, _) = Reducer.next(state, rawOutputAction)
+    switch TestHelpers.getMessage(partialState, 0)->Option.getOrThrow {
+    | Reducer.Message.ToolCall({state, result: Some(result), _}) => {
+        t->expect(state)->Expect.toBe(Reducer.Message.InputAvailable)
+        t->expect(result.rawOutput)->Expect.toEqual(Some(rawOutput))
+      }
+    | _ => JsExn.throw("Expected partial ToolCall result")
+    }
+    let content: ACP.toolCallContentItem = {
+      type_: "content",
+      content: Some(ContentBlock.TextContent({text: "done", _meta: None, annotations: None})),
+    }
+    let contentAction = Reducer.TaskAction({
+      target: ForTask(taskId),
+      action: ToolResultReceived({
+        id: "call-1",
+        rawOutput: None,
+        content: Some([content]),
+        complete: false,
+      }),
+    })
+    let (contentState, _) = Reducer.next(partialState, contentAction)
+    let completedAction = Reducer.TaskAction({
+      target: ForTask(taskId),
+      action: ToolResultReceived({
+        id: "call-1",
+        rawOutput: None,
+        content: None,
+        complete: true,
+      }),
+    })
+    let (nextState, _) = Reducer.next(contentState, completedAction)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | Reducer.Message.ToolCall({state, result, _}) => {
+    | Reducer.Message.ToolCall({state, result: Some(result), _}) => {
         t->expect(state)->Expect.toBe(Reducer.Message.OutputAvailable)
-        t->expect(result->Option.isSome)->Expect.toBe(true)
+        t->expect(result.rawOutput)->Expect.toEqual(Some(rawOutput))
+        t->expect(result.content->Array.length)->Expect.toBe(1)
       }
     | _ => JsExn.throw("Expected ToolCall message")
     }

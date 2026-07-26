@@ -71,7 +71,7 @@ let execute = async (
 
     let bufferSize = LogCapture.getInstance().buffer.contents->CircularBuffer.length
 
-    Tool.jsonResult({logs, totalMatched, bufferSize, hasMore}, outputSchema)
+    Tool.structuredResult({logs, totalMatched, bufferSize, hasMore}, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")

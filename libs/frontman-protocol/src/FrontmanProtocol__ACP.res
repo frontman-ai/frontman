@@ -589,7 +589,9 @@ type sessionUpdate =
       title: string,
       kind: option<string>,
       status: option<toolCallStatus>,
+      content: option<array<toolCallContentItem>>,
       rawInput: option<JSON.t>,
+      rawOutput: option<JSON.t>,
       timestamp: string,
       parentAgentId: option<string>, // If present, this is a sub-agent tool call
       spawningToolName: option<string>,
@@ -599,6 +601,7 @@ type sessionUpdate =
       status: option<toolCallStatus>,
       content: option<array<toolCallContentItem>>,
       rawInput: option<JSON.t>,
+      rawOutput: option<JSON.t>,
     })
   | Plan({entries: array<planEntry>})
   | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
@@ -622,7 +625,9 @@ let commonSessionUpdateSchema = S.union([
       title: s.field("title", S.string),
       kind: s.field("kind", S.option(S.string)),
       status: s.field("status", S.option(toolCallStatusSchema)),
+      content: s.field("content", S.option(S.array(toolCallContentItemSchema))),
       rawInput: s.field("rawInput", S.option(S.json)),
+      rawOutput: s.field("rawOutput", S.option(S.json)),
       timestamp: s.field("timestamp", S.string),
       parentAgentId: s.field("parentAgentId", S.option(S.string)),
       spawningToolName: s.field("spawningToolName", S.option(S.string)),
@@ -635,6 +640,7 @@ let commonSessionUpdateSchema = S.union([
       status: s.field("status", S.option(toolCallStatusSchema)),
       content: s.field("content", S.option(S.array(toolCallContentItemSchema))),
       rawInput: s.field("rawInput", S.option(S.json)),
+      rawOutput: s.field("rawOutput", S.option(S.json)),
     })
   }),
   S.object(s => {

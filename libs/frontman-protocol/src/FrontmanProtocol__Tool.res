@@ -4,7 +4,12 @@ module MCP = FrontmanProtocol__MCP
 
 let textResult = MCP.CallToolResult.makeText
 
-let jsonResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
+let structuredResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
+  let json = value->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
+  MCP.CallToolResult.makeStructured(json->JSON.Decode.object->Option.getOrThrow)
+}
+
+let unstructuredResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
   let json = value->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
   MCP.CallToolResult.makeText(JSON.stringify(json))
 }

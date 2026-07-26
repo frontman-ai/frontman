@@ -350,8 +350,16 @@ let make = (~onConfigureProvider: unit => unit) => {
     | TodoToolCall(tc) =>
       // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
-      let todos = TodoUtils.extractTodos(~input=tc.input, ~result=tc.result)
       let isLoading = tc.state == InputStreaming || tc.state == InputAvailable
+      let todos = switch tc.state {
+      | OutputAvailable =>
+        tc.result
+        ->Option.flatMap(result => result.rawOutput)
+        ->Option.getOrThrow(~message="Completed todo tool is missing rawOutput")
+        ->TodoUtils.extractResult
+      | InputStreaming | InputAvailable | OutputError =>
+        tc.input->Option.mapOr([], TodoUtils.extractInput)
+      }
 
       <div key={messageId} className="frontman-content-auto">
         <TodoListBlock todos isLoading messageId />

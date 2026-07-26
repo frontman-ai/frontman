@@ -103,7 +103,7 @@ module QuestionList = {
 let make = (
   ~state: Client__State__Types.Message.toolCallState,
   ~input: option<JSON.t>,
-  ~result: option<JSON.t>,
+  ~result: option<Client__State__Types.Message.toolResult>,
   ~errorText: option<string>,
 ) => {
   switch (state, result) {
@@ -113,12 +113,8 @@ let make = (
       <QuestionList input />
     </Card>
 
-  | (OutputAvailable, Some(resultJson)) => {
-      let parsed = try {
-        Some(S.parseOrThrow(resultJson, ~to=toolOutputDisplaySchema))
-      } catch {
-      | _ => None
-      }
+  | (OutputAvailable, Some({rawOutput: Some(resultJson)})) => {
+      let parsed = Some(S.parseOrThrow(resultJson, ~to=toolOutputDisplaySchema))
       let (cancelled, skippedAll) = switch parsed {
       | Some(output) => (output.cancelled, output.skippedAll)
       | None => (false, false)
@@ -192,8 +188,7 @@ let make = (
       <HeaderRow color=Red text={errorText->Option.getOr("Question failed")} />
     </Card>
 
-  | (OutputAvailable, None) =>
-    // Defensive: shouldn't happen but handle gracefully
+  | (OutputAvailable, None | Some({rawOutput: None})) =>
     <Card compact=true>
       <HeaderRow color=Purple text="Question completed" />
     </Card>

@@ -159,7 +159,12 @@ describe("Task - Tool Call Lifecycle", () => {
     // Receive result
     let (task2, _) = TaskReducer.next(
       task1,
-      ToolResultReceived({id: toolId, result: JSON.parseOrThrow(`{"result": "success"}`)}),
+      ToolResultReceived({
+        id: toolId,
+        rawOutput: Some(JSON.Encode.object(Dict.make())),
+        content: None,
+        complete: true,
+      }),
     )
 
     // Verify OutputAvailable state
