@@ -161,7 +161,7 @@ let execute = async (
             switch viewportCrop {
             | Some((viewportW, viewportH, scrollX, scrollY)) =>
               // Viewport mode: render full page to canvas, then crop to visible area
-              let canvas = await captureResult.toCanvas({scale: scale})
+              let canvas = await captureResult.toCanvas({scale, dpr: 1.0})
               let dataUrl = _cropCanvasToViewport(
                 canvas,
                 ~scrollX,

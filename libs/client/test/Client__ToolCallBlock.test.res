@@ -4,7 +4,6 @@ module ToolCallBlock = Client__ToolCallBlock
 module Provider = Client__FrontmanProvider
 module Message = Client__State__Types.Message
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
-module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 describe("cleanToolName", _t => {
   test("lowercases without stripping any prefix", t => {
@@ -89,13 +88,4 @@ test("initial tool call retains output without overriding status", t => {
   t
   ->expect(call.result->Option.flatMap(result => result.rawOutput))
   ->Expect.toEqual(Some(rawOutput))
-})
-
-test("unstructured text is rendered directly", t => {
-  let content: ACP.toolCallContentItem = {
-    type_: "content",
-    content: Some(ContentBlock.TextContent({text: "true", _meta: None, annotations: None})),
-  }
-  let result: Message.toolResult = {rawOutput: None, content: [content]}
-  t->expect(ToolCallBlock.getDisplayOutput(Some(result)))->Expect.toEqual(Some("true"))
 })

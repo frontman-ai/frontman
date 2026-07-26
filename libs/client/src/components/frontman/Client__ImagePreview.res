@@ -224,5 +224,5 @@ let make = (~src: string, ~onClose: unit => unit) => {
       onDoubleClick={handleDoubleClick}
       onClick={e => ReactEvent.Mouse.stopPropagation(e)}
     />
-  </div>
+  </div>->ReactDOM.createPortal(WebAPI.Document.body(WebAPI.Global.document)->Obj.magic)
 }

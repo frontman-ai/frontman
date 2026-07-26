@@ -54,7 +54,6 @@ let makeToolCall = (
   }
 }
 
-// Extract text from a contentBlock (returns Some for TextContent, None for other variants)
 let getContentBlockText = (block: ContentBlock.t): option<string> =>
   switch block {
   | TextContent({text}) => Some(text)
@@ -287,10 +286,15 @@ module Provider = {
       | ToolCallUpdate({toolCallId, status, content, rawInput, rawOutput}) =>
         Client__TextDeltaBuffer.flush()
         let text = () =>
-          content
-          ->Option.flatMap(c => c->Array.get(0))
-          ->Option.flatMap(i => i.content)
-          ->Option.flatMap(getContentBlockText)
+          content->Option.flatMap(c =>
+            c->Array.findMap(
+              item =>
+                switch item {
+                | Content({content: TextContent({text})}) => Some(text)
+                | _ => None
+                },
+            )
+          )
         rawInput->Option.forEach(input => {
           Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
         })
