@@ -474,17 +474,36 @@ let configOptionsUpdatedSchema = S.object(s => {
   configOptions: s.field("configOptions", S.array(sessionConfigOptionSchema)),
 })
 
-// Tool call content item (for tool_call_update)
-type toolCallContentItem = {
-  @as("type")
-  type_: string,
-  content: option<FrontmanProtocol__ContentBlock.t>,
-}
+type toolCallContentItem =
+  | Content({content: FrontmanProtocol__ContentBlock.t, _meta: option<JSON.t>})
+  | Diff({path: string, oldText: option<string>, newText: string, _meta: option<JSON.t>})
+  | Terminal({terminalId: string, _meta: option<JSON.t>})
 
-let toolCallContentItemSchema = S.object(s => {
-  type_: s.field("type", S.string),
-  content: s.field("content", S.option(FrontmanProtocol__ContentBlock.schema)),
-})
+let toolCallContentItemSchema = S.union([
+  S.object(s => {
+    s.tag("type", "content")
+    Content({
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
+      _meta: s.field("_meta", S.option(S.json)),
+    })
+  }),
+  S.object(s => {
+    s.tag("type", "diff")
+    Diff({
+      path: s.field("path", S.string),
+      oldText: s.field("oldText", S.nullableAsOption(S.string)),
+      newText: s.field("newText", S.string),
+      _meta: s.field("_meta", S.option(S.json)),
+    })
+  }),
+  S.object(s => {
+    s.tag("type", "terminal")
+    Terminal({
+      terminalId: s.field("terminalId", S.string),
+      _meta: s.field("_meta", S.option(S.json)),
+    })
+  }),
+])
 
 // Tool call status
 type toolCallStatus =

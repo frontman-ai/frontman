@@ -413,10 +413,10 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       }
     | _ => JsExn.throw("Expected partial ToolCall result")
     }
-    let content: ACP.toolCallContentItem = {
-      type_: "content",
-      content: Some(ContentBlock.TextContent({text: "done", _meta: None, annotations: None})),
-    }
+    let content: ACP.toolCallContentItem = Content({
+      content: ContentBlock.TextContent({text: "done", _meta: None, annotations: None}),
+      _meta: None,
+    })
     let contentAction = Reducer.TaskAction({
       target: ForTask(taskId),
       action: ToolResultReceived({

@@ -2,6 +2,7 @@
 // See: https://github.com/zumerlab/snapdom#options
 type captureOptions = {
   scale?: float,
+  dpr?: float,
   quality?: float,
 }
 
