@@ -65,6 +65,8 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 // Dispatch hover events (mouseenter + mouseover) on an element
 let dispatchHoverEvents = (el: WebAPI.DOMAPI.element): unit => {
   let enterEvt = WebAPI.MouseEvent.make(

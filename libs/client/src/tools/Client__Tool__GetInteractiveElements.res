@@ -68,6 +68,8 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let execute = async (
   input: input,
   ~taskId as _taskId: string,

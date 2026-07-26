@@ -60,6 +60,8 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 // Find a preset by name (case-insensitive exact match)
 let findPresetByName = (name: string): option<Client__DeviceMode.devicePreset> => {
   let lowerName = name->String.toLowerCase
