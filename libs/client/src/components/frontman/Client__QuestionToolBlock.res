@@ -114,11 +114,7 @@ let make = (
     </Card>
 
   | (OutputAvailable, Some({rawOutput: Some(resultJson)})) => {
-      let parsed = try {
-        Some(S.parseOrThrow(resultJson, ~to=toolOutputDisplaySchema))
-      } catch {
-      | _ => None
-      }
+      let parsed = Some(S.parseOrThrow(resultJson, ~to=toolOutputDisplaySchema))
       let (cancelled, skippedAll) = switch parsed {
       | Some(output) => (output.cancelled, output.skippedAll)
       | None => (false, false)

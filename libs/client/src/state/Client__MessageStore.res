@@ -47,7 +47,7 @@ module T: {
       newList->Array.setUnsafe(idx, fn(msg))
       // Index stays the same since we're updating in place
       {list: newList, byId: store.byId}
-    | None => store
+    | None => failwith(`[MessageStore.update] Unknown message: ${id}`)
     }
   }
 
@@ -61,7 +61,7 @@ module T: {
 
   let map = (store, fn) => {
     let newList = store.list->Array.map(fn)
-    // Rebuild index in case IDs changed (defensive)
+    // Mapping may change message IDs, so rebuild the index.
     fromArray(newList)
   }
 }

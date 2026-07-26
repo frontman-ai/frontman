@@ -41,13 +41,11 @@ let parseStatus = (statusStr: string): [#pending | #in_progress | #completed | #
 
 let extractResult = json => {
   let {todos} = S.parseOrThrow(json, ~to=todoPayloadSchema)
-  Some(
-    todos->Array.map((todo): todoItem => {
-      id: todo.id->Option.getOrThrow,
-      content: todo.content,
-      status: parseStatus(todo.status),
-    }),
-  )
+  todos->Array.map((todo): todoItem => {
+    id: todo.id->Option.getOrThrow,
+    content: todo.content,
+    status: parseStatus(todo.status),
+  })
 }
 
 let extractInput = json => {
@@ -57,15 +55,4 @@ let extractInput = json => {
     content: todo.content,
     status: parseStatus(todo.status),
   })
-}
-
-/**
- * Extract todos from either input or result
- * Uses canonical output when available, then in-progress input
- */
-let extractTodosForDisplay = (~input: option<JSON.t>, ~result: option<JSON.t>): array<todoItem> => {
-  switch result->Option.flatMap(extractResult) {
-  | Some(todos) => todos
-  | None => input->Option.mapOr([], extractInput)
-  }
 }
