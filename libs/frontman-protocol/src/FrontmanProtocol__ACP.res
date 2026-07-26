@@ -491,7 +491,7 @@ let toolCallContentItemSchema = S.union([
     s.tag("type", "diff")
     Diff({
       path: s.field("path", S.string),
-      oldText: s.field("oldText", S.option(S.string)),
+      oldText: s.field("oldText", S.nullableAsOption(S.string)),
       newText: s.field("newText", S.string),
       _meta: s.field("_meta", S.option(S.json)),
     })

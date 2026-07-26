@@ -23,9 +23,7 @@ let isInlineTool = (toolName: string): bool => {
 let renderContent = (item, setPreviewSrc) =>
   switch item {
   | ACP.Content({content: TextContent({text})}) =>
-    <pre className="font-mono text-[11px] whitespace-pre-wrap break-words text-zinc-400">
-      {React.string(text)}
-    </pre>
+    <pre className="whitespace-pre-wrap break-words"> {React.string(text)} </pre>
   | Content({content: ImageContent({data, mimeType})}) => {
       let src = `data:${mimeType};base64,${data}`
       <button
@@ -44,11 +42,16 @@ let renderContent = (item, setPreviewSrc) =>
     <audio controls=true src={`data:${mimeType};base64,${data}`} className="max-w-full" />
   | Content({content: ResourceLink({name, uri})}) =>
     <div className="font-mono text-zinc-400"> {React.string(`${name}: ${uri}`)} </div>
-  | Content({content: EmbeddedResource(_)}) =>
-    <div className="font-mono text-zinc-400"> {React.string("Embedded resource")} </div>
+  | Content({content: EmbeddedResource({resource: TextResourceContents({uri, text})})}) =>
+    <pre> {React.string(`${uri}\n${text}`)} </pre>
+  | Content({
+      content: EmbeddedResource({resource: BlobResourceContents({uri, mimeType, blob})}),
+    }) => {
+      let src = `data:${mimeType->Option.getOr("application/octet-stream")};base64,${blob}`
+      <a href=src download=uri> {React.string(`Download ${uri}`)} </a>
+    }
   | Diff({path}) => <div className="font-mono text-zinc-400"> {React.string(`Diff: ${path}`)} </div>
-  | Terminal({terminalId}) =>
-    <div className="font-mono text-zinc-400"> {React.string(`Terminal ${terminalId}`)} </div>
+  | Terminal({terminalId}) => <div> {React.string(`Terminal ${terminalId}`)} </div>
   }
 
 // Extract target path/URL, defaulting to "./" for list/file operations
@@ -140,7 +143,6 @@ let make = (
           </span>
         </div>
 
-        // Target path as purple link, or shimmer placeholder while streaming
         {switch (target, state, input) {
         | (_, InputStreaming, None) if isLink => {
             let placeholder = "Waiting for file path..."
@@ -210,7 +212,7 @@ let make = (
               }}
               {switch result {
               | Some({content}) if content->Array.length > 0 =>
-                <div>
+                <div className="font-mono text-[11px] text-zinc-400">
                   <div className="text-[11px] text-zinc-500 mb-1"> {React.string("Output:")} </div>
                   {content
                   ->Array.mapWithIndex((item, index) =>

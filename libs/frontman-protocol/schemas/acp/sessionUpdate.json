@@ -630,7 +630,14 @@
                     "type": "string"
                   },
                   "oldText": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "newText": {
                     "type": "string"
@@ -897,7 +904,14 @@
                     "type": "string"
                   },
                   "oldText": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "newText": {
                     "type": "string"
