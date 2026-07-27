@@ -27,7 +27,7 @@
     "hc-starlight": "^0.0.8",
     "marked": "^18.0.4",
     "preact": "^10.27.2",
-    "prettier": "^3.8.4",
+    "prettier": "^3.8.5",
     "prettier-plugin-astro": "^0.14.0",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "satori": "^0.26.0",
