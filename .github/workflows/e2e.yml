@@ -113,14 +113,14 @@ jobs:
 
       # ── Caches ──────────────────────────────────────────────────────────
       - name: Cache Yarn
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
           restore-keys: yarn-
 
       - name: Cache Mix deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
@@ -130,7 +130,7 @@ jobs:
       # Keep a dedicated "build-e2e-" cache prefix so the two
       # environments never share compile artifacts.
       - name: Cache Mix _build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-e2e-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
@@ -162,7 +162,7 @@ jobs:
       # ReScript to skip recompilation, leaving tsup unable to resolve
       # imports like @frontman-ai/frontman-core/src/FrontmanCore__Hosts.res.mjs.
       - name: Cache JS build artifacts
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: js-build-cache
         with:
           path: libs/*/dist
@@ -199,7 +199,7 @@ jobs:
 
       # ── Install Playwright browser ──────────────────────────────────────
       - name: Cache Playwright browsers
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
