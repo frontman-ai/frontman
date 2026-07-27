@@ -97,22 +97,24 @@ let disconnect = (relay: t): unit => {
 let getToolsJson = (relay: t): array<JSON.t> => {
   switch relay.state.contents {
   | Connected({tools}) =>
-    tools->Array.map(tool =>
-      JSON.Encode.object(
-        dict{
-          "name": JSON.Encode.string(tool.name),
-          "description": JSON.Encode.string(tool.description),
-          "access": tool.access
-          ->Option.getOr(FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite)
-          ->S.decodeOrThrow(
-            ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.accessSchema,
-            ~to=S.json->S.noValidation(true),
-          ),
-          "inputSchema": tool.inputSchema,
-          "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
-        },
+    tools->Array.map(tool => {
+      let definition = dict{
+        "name": JSON.Encode.string(tool.name),
+        "description": JSON.Encode.string(tool.description),
+        "access": tool.access
+        ->Option.getOr(FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite)
+        ->S.decodeOrThrow(
+          ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.accessSchema,
+          ~to=S.json->S.noValidation(true),
+        ),
+        "inputSchema": tool.inputSchema,
+        "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
+      }
+      tool.outputSchema->Option.forEach(outputSchema =>
+        definition->Dict.set("outputSchema", outputSchema)
       )
-    )
+      JSON.Encode.object(definition)
+    })
   | Disconnected | Error(_) => []
   }
 }

@@ -14,7 +14,6 @@ module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.listTree
 let access = Tool.Read
-let visibleToAgent = true
 let description = `Returns a **recursive directory tree** of the project structure, with monorepo workspace detection.
 
 Use list_tree to get oriented in a codebase, understand the layout, or explore a subtree. Prefer this over chaining multiple list_files calls. For a flat listing of one directory, use list_files instead.
@@ -44,6 +43,8 @@ type output = {
   workspaces: array<workspace>,
   monorepoType: option<string>,
 }
+
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
 // Sury schemas for parsing package.json fields
 @schema

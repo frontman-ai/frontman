@@ -6,7 +6,6 @@ module FsUtils = FrontmanCore__FsUtils
 
 let name = Tool.ToolNames.fileExists
 let access = Tool.Read
-let visibleToAgent = true
 let description = `Checks if a file or directory exists.
 
 Parameters:
@@ -19,6 +18,8 @@ type input = {path: string}
 
 @schema
 type output = bool
+
+let (visibleToAgent, outputJsonSchema) = (true, None)
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {

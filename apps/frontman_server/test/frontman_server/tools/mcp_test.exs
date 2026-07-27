@@ -5,16 +5,20 @@ defmodule FrontmanServer.Tools.MCPTest do
 
   describe "from_map/1" do
     test "parses standard MCP tool fields" do
+      output_schema = %{"type" => "object"}
+
       tool =
         MCP.from_map(%{
           "name" => "navigate",
           "description" => "Navigate to a URL",
-          "inputSchema" => %{}
+          "inputSchema" => %{},
+          "outputSchema" => output_schema
         })
 
       assert tool.name == "navigate"
       assert tool.description == "Navigate to a URL"
       assert tool.access == :read_write
+      assert tool.output_schema == output_schema
     end
 
     test "parses access from wire format" do

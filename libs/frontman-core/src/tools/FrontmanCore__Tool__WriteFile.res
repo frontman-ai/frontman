@@ -9,7 +9,6 @@ module ExnUtils = FrontmanCore__ExnUtils
 
 let name = Tool.ToolNames.writeFile
 let access = Tool.Write
-let visibleToAgent = true
 let description = `Writes content to a file.
 
 Parameters:
@@ -50,6 +49,8 @@ type output = {
   @live @s.meta({description: "Path resolution context for debugging"})
   _context?: pathContext,
 }
+
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
 let writeContent = (resolvedPath: string, content: string, encoding: option<[#base64]>) => {
   switch encoding {

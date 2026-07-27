@@ -12,7 +12,6 @@ module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.readFile
 let access = Tool.Read
-let visibleToAgent = true
 let description = `Reads a file from the filesystem.
 
 Parameters:
@@ -56,6 +55,8 @@ type output = {
   @live @s.meta({description: "Path resolution context for debugging"})
   _context?: pathContext,
 }
+
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
 let sortStrings = (items: array<string>): array<string> => {
   items->Array.toSorted((a, b) => {

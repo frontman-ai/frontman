@@ -7,7 +7,6 @@ module PathStringUtils = FrontmanAiFrontmanCore.FrontmanCore__PathStringUtils
 
 let name = "get_routes"
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
-let visibleToAgent = true
 let description = `Lists Next.js routes from the app or pages directory.
 
 Parameters: None
@@ -32,6 +31,8 @@ type route = {
 
 @schema
 type output = array<route>
+
+let (visibleToAgent, outputJsonSchema) = (true, None)
 
 // Check if a segment is dynamic (contains [ ])
 let isDynamicSegment = (segment: string): bool => {

@@ -4,7 +4,6 @@ module CircularBuffer = FrontmanCore__CircularBuffer
 
 let name = "get_logs"
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
-let visibleToAgent = true
 let description = `Retrieves dev server logs from rotating 1024-entry buffer.
 
 Captures:
@@ -42,6 +41,8 @@ type output = {
   @live
   hasMore: bool,
 }
+
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
 let execute = async (
   _ctx: Tool.serverExecutionContext,
