@@ -16,7 +16,7 @@ publish: build ## Build and publish to npm (pass OTP=<code> for 2FA)
 	npm publish $(if $(OTP),--otp=$(OTP))
 
 test: build ## Run tests
-	yarn vitest run
+	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run
 
 test-watch: ## Run tests in watch mode
 	yarn vitest

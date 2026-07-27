@@ -15,6 +15,11 @@ import tailwindcss from "@tailwindcss/vite";
 import * as vite from "vite";
 
 const ReactCompilerConfig = {};
+const sentryDsn = process.env.SENTRY_DSN;
+
+if (!sentryDsn) {
+	throw new Error("SENTRY_DSN is required");
+}
 
 function reactCompilerPlugin(): vite.Plugin {
 	return {
@@ -41,6 +46,7 @@ export default vite.defineConfig({
 	// this automatically (unlike app mode). Without it, CJS-style React bundles
 	// crash with "process is not defined" when loaded in the browser.
 	define: {
+		"process.env.SENTRY_DSN": JSON.stringify(sentryDsn),
 		"process.env.NODE_ENV": JSON.stringify("production"),
 	},
 	resolve: {

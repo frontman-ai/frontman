@@ -83,7 +83,7 @@ help: ## Display available commands
 
 dev: ## Start all core services (client + server + nextjs)
 	@printf "$(YELLOW)Starting all services via mprocs...$(RESET)\n"
-	mprocs --config mprocs.yml
+	SENTRY_DSN=op://frontman/SENTRY_DSN/password op run -- mprocs --config mprocs.yml
 
 dev-client: ## Start development server for client app
 	@printf "$(YELLOW)Starting client dev server...$(RESET)\n"

@@ -16,7 +16,7 @@ dev: ## Build the project in watch mode
 	yarn rescript watch
 
 test: build ## Run test suite
-	yarn vitest run
+	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run
 
 test-watch: ## Run tests in watch mode
 	yarn vitest watch

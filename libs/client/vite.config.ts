@@ -4,6 +4,11 @@ import tailwindcss from "@tailwindcss/vite";
 import * as vite from "vite";
 
 const ReactCompilerConfig = {};
+const sentryDsn = process.env.SENTRY_DSN;
+
+if (!sentryDsn) {
+	throw new Error("SENTRY_DSN is required");
+}
 
 function reactCompilerPlugin(): vite.Plugin {
 	return {
@@ -26,6 +31,9 @@ function reactCompilerPlugin(): vite.Plugin {
 
 export default vite.defineConfig({
 	plugins: [reactCompilerPlugin(), tailwindcss()],
+	define: {
+		"process.env.SENTRY_DSN": JSON.stringify(sentryDsn),
+	},
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

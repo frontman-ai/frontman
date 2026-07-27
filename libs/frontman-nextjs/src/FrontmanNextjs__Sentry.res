@@ -16,7 +16,7 @@ let initialize = (~transport: option<Bindings.transport>=?) => {
     switch transport {
     | Some(t) =>
       Bindings.initWithTransport({
-        dsn: SentryConfig.dsn,
+        dsn: SentryConfig.dsn(),
         environment: %raw(`process.env.NODE_ENV || "development"`),
         release: %raw(`process.env.npm_package_version || "unknown"`),
         sampleRate: 1.0,
@@ -26,7 +26,7 @@ let initialize = (~transport: option<Bindings.transport>=?) => {
       })
     | None =>
       Bindings.init({
-        dsn: SentryConfig.dsn,
+        dsn: SentryConfig.dsn(),
         environment: %raw(`process.env.NODE_ENV || "development"`),
         release: %raw(`process.env.npm_package_version || "unknown"`),
         sampleRate: 1.0,

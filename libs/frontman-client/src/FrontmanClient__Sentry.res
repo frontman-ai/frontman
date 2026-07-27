@@ -11,7 +11,7 @@ let initialize = (~transport: option<Bindings.transport>=?) => {
   // Skip Sentry in Frontman internal dev; custom transport (tests) always initializes
   if !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
     Bindings.init({
-      dsn: SentryConfig.dsn,
+      dsn: SentryConfig.dsn(),
       environment: %raw(`typeof window !== 'undefined' && window.location?.hostname === 'localhost' ? 'development' : 'production'`),
       sampleRate: 1.0,
       ?transport,
