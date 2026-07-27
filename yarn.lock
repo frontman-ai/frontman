@@ -348,7 +348,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/markdown-remark@npm:7.2.1, @astrojs/markdown-remark@npm:^7.2.0":
+"@astrojs/markdown-remark@npm:7.2.1":
   version: 7.2.1
   resolution: "@astrojs/markdown-remark@npm:7.2.1"
   dependencies:
@@ -383,34 +383,6 @@ __metadata:
     hast-util-from-html: "npm:^2.0.3"
     satteri: "npm:^0.9.1"
   checksum: 10c0/b6df9043068f5e54a7e673f5ba724f7e9ee1334a30fdbeef16c644763a445fc8d34cb904095eda7acecbb3b471a25602c5a805031b756264d4e878895ba5e035
-  languageName: node
-  linkType: hard
-
-"@astrojs/mdx@npm:^6.0.2":
-  version: 6.0.3
-  resolution: "@astrojs/mdx@npm:6.0.3"
-  dependencies:
-    "@astrojs/internal-helpers": "npm:0.10.0"
-    "@astrojs/markdown-remark": "npm:7.2.0"
-    "@mdx-js/mdx": "npm:^3.1.1"
-    acorn: "npm:^8.16.0"
-    es-module-lexer: "npm:^2.0.0"
-    estree-util-visit: "npm:^2.0.0"
-    hast-util-to-html: "npm:^9.0.5"
-    piccolore: "npm:^0.1.3"
-    rehype-raw: "npm:^7.0.0"
-    remark-gfm: "npm:^4.0.1"
-    remark-smartypants: "npm:^3.0.2"
-    source-map: "npm:^0.7.6"
-    unist-util-visit: "npm:^5.1.0"
-    vfile: "npm:^6.0.3"
-  peerDependencies:
-    "@astrojs/markdown-satteri": 0.3.0
-    astro: ^6.4.0
-  peerDependenciesMeta:
-    "@astrojs/markdown-satteri":
-      optional: true
-  checksum: 10c0/465a22ed07325e7dc84e926ec24d0f1f5b9b2770342e6cb1746ccf752f1bcdcd46e8beb4ecbee6f298a4bbe535ace02fdbd0ae29c1c81aa1e5201e252be9917f
   languageName: node
   linkType: hard
 
@@ -510,51 +482,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/starlight@npm:0.40.0":
-  version: 0.40.0
-  resolution: "@astrojs/starlight@npm:0.40.0"
-  dependencies:
-    "@astrojs/markdown-remark": "npm:^7.2.0"
-    "@astrojs/mdx": "npm:^6.0.2"
-    "@astrojs/sitemap": "npm:^3.7.2"
-    "@pagefind/default-ui": "npm:^1.3.0"
-    "@types/hast": "npm:^3.0.4"
-    "@types/js-yaml": "npm:^4.0.9"
-    "@types/mdast": "npm:^4.0.4"
-    astro-expressive-code: "npm:^0.43.1"
-    bcp-47: "npm:^2.1.0"
-    hast-util-from-html: "npm:^2.0.3"
-    hast-util-select: "npm:^6.0.4"
-    hast-util-to-string: "npm:^3.0.1"
-    hastscript: "npm:^9.0.1"
-    i18next: "npm:^26.0.7"
-    js-yaml: "npm:^4.1.1"
-    klona: "npm:^2.0.6"
-    magic-string: "npm:^0.30.21"
-    mdast-util-directive: "npm:^3.1.0"
-    mdast-util-to-markdown: "npm:^2.1.2"
-    mdast-util-to-string: "npm:^4.0.0"
-    pagefind: "npm:^1.5.2"
-    rehype: "npm:^13.0.2"
-    rehype-format: "npm:^5.0.1"
-    remark-directive: "npm:^4.0.0"
-    ultrahtml: "npm:^1.6.0"
-    unified: "npm:^11.0.5"
-    unist-util-visit: "npm:^5.1.0"
-    vfile: "npm:^6.0.3"
-  peerDependencies:
-    "@astrojs/markdown-satteri": ^0.2.0
-    astro: ^6.4.5
-  peerDependenciesMeta:
-    "@astrojs/markdown-satteri":
-      optional: true
-  checksum: 10c0/44082139a7e1ee32e23588b92d566a6f3e155469803eda23418e993c42b67aa73b79f610532c898648d1fc495df7c83ee464ac7d74c35ceeffba4326f63d5a28
-  languageName: node
-  linkType: hard
-
-"@astrojs/starlight@npm:0.41.3":
-  version: 0.41.3
-  resolution: "@astrojs/starlight@npm:0.41.3"
+"@astrojs/starlight@npm:0.41.1":
+  version: 0.41.1
+  resolution: "@astrojs/starlight@npm:0.41.1"
   dependencies:
     "@astrojs/markdown-satteri": "npm:^0.3.2"
     "@astrojs/mdx": "npm:^7.0.0"
@@ -591,7 +521,7 @@ __metadata:
   peerDependenciesMeta:
     "@astrojs/markdown-remark":
       optional: true
-  checksum: 10c0/25a6103efe964aef156c26156552a6f75cf896afdae4154f728660f2b9441981a9adc50de7639d89c64407eb53d72f00daea42c310fcac88e92cf696ad00e192
+  checksum: 10c0/f66acde3fb4dbd1e87cf553b3c8448f80c7c88aac21cbfd6198bcaa2d99923683a9e2e59656a2e566050ef1769ddf999de2413e4ca3ff25eb221d54aa81e4b67
   languageName: node
   linkType: hard
 
@@ -2240,23 +2170,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@expressive-code/core@npm:^0.43.1":
-  version: 0.43.1
-  resolution: "@expressive-code/core@npm:0.43.1"
-  dependencies:
-    "@ctrl/tinycolor": "npm:^4.0.4"
-    hast-util-select: "npm:^6.0.2"
-    hast-util-to-html: "npm:^9.0.1"
-    hast-util-to-text: "npm:^4.0.1"
-    hastscript: "npm:^9.0.0"
-    postcss: "npm:^8.4.38"
-    postcss-nested: "npm:^6.0.1"
-    unist-util-visit: "npm:^5.0.0"
-    unist-util-visit-parents: "npm:^6.0.1"
-  checksum: 10c0/28674a657842c8e36dbcee1247726fe0c86ce083ccaadf5def95b72d9a273cd7fe13cc13cf6576b10826048bb2c0cc47c7d4f9b8280042cf6254cd1f747bbfc1
-  languageName: node
-  linkType: hard
-
 "@expressive-code/core@npm:^0.44.0":
   version: 0.44.0
   resolution: "@expressive-code/core@npm:0.44.0"
@@ -2274,31 +2187,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@expressive-code/plugin-frames@npm:^0.43.1":
-  version: 0.43.1
-  resolution: "@expressive-code/plugin-frames@npm:0.43.1"
-  dependencies:
-    "@expressive-code/core": "npm:^0.43.1"
-  checksum: 10c0/801d60840e4921355a48e75a36545d8081d1181c12e61725df259cf37776af87888584b20efd76cc06b2dee50652065d03e1984ccb6a252beccab7a13318708d
-  languageName: node
-  linkType: hard
-
 "@expressive-code/plugin-frames@npm:^0.44.0":
   version: 0.44.0
   resolution: "@expressive-code/plugin-frames@npm:0.44.0"
   dependencies:
     "@expressive-code/core": "npm:^0.44.0"
   checksum: 10c0/d47b9b84c4f9ee50e2e24ade89fb6d7ad4316664c2b3092ef0ac6e4cfd580cc706ec609d1fdc8b9038310d8581886b06357d7796d78666544f360269b8b439b7
-  languageName: node
-  linkType: hard
-
-"@expressive-code/plugin-shiki@npm:^0.43.1":
-  version: 0.43.1
-  resolution: "@expressive-code/plugin-shiki@npm:0.43.1"
-  dependencies:
-    "@expressive-code/core": "npm:^0.43.1"
-    shiki: "npm:^4.0.2"
-  checksum: 10c0/ea9b9b9d36dfebe2ed984b90e1f165add23931ad75316fbc5293be3d9d144f6eda43b2c145a47a3abdfeb452181d881665d11079942db74a7c57943189369d24
   languageName: node
   linkType: hard
 
@@ -2309,15 +2203,6 @@ __metadata:
     "@expressive-code/core": "npm:^0.44.0"
     shiki: "npm:^4.0.2"
   checksum: 10c0/d422141e196023166e16fdfc3d7da0ec111587fa8302228f25353172622c1041f8ee51c91654d00553d69ae93fc3e930c83c5215c2dc581e6faee146e1418e42
-  languageName: node
-  linkType: hard
-
-"@expressive-code/plugin-text-markers@npm:^0.43.1":
-  version: 0.43.1
-  resolution: "@expressive-code/plugin-text-markers@npm:0.43.1"
-  dependencies:
-    "@expressive-code/core": "npm:^0.43.1"
-  checksum: 10c0/16ce7a0b2bcd5cd2dde0f3d830546d5a15c02121dc71f3b4fe8a61425f1eb198bc52de469b22df0ea011f746992461b0fb5329acdb52ce2fb3cd71dd2a865239
   languageName: node
   linkType: hard
 
@@ -5485,7 +5370,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rescript/webapi@workspace:libs/experimental-rescript-webapi"
   dependencies:
-    "@astrojs/starlight": "npm:0.40.0"
+    "@astrojs/starlight": "npm:0.41.1"
     astro: "npm:^6.4.8"
     micromark: "npm:^4.0.1"
     oxfmt: "npm:^0.57.0"
@@ -8421,17 +8306,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"astro-expressive-code@npm:^0.43.1":
-  version: 0.43.1
-  resolution: "astro-expressive-code@npm:0.43.1"
-  dependencies:
-    rehype-expressive-code: "npm:^0.43.1"
-  peerDependencies:
-    astro: ^4.0.0-beta || ^5.0.0-beta || ^3.3.0 || ^6.0.0-beta
-  checksum: 10c0/cff38b4d2331a468cc8c8c32d1562e27ddc81b258b77a2a90ff801dfaffe529ae499389eca73abbfaec8a079c2d219c8b08ff5dc0cd10b4669b42aa52b28ce02
-  languageName: node
-  linkType: hard
-
 "astro-expressive-code@npm:^0.44.0":
   version: 0.44.0
   resolution: "astro-expressive-code@npm:0.44.0"
@@ -11075,18 +10949,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"expressive-code@npm:^0.43.1":
-  version: 0.43.1
-  resolution: "expressive-code@npm:0.43.1"
-  dependencies:
-    "@expressive-code/core": "npm:^0.43.1"
-    "@expressive-code/plugin-frames": "npm:^0.43.1"
-    "@expressive-code/plugin-shiki": "npm:^0.43.1"
-    "@expressive-code/plugin-text-markers": "npm:^0.43.1"
-  checksum: 10c0/2cf68d9fc7736d90e823ea2d68ed636bf1cbdf8e2f82fe99c5ff5640e9e365ca8f83252a86c37c8a41692a968c610e5df48601821c9cb6c77ba023024ec193bd
-  languageName: node
-  linkType: hard
-
 "expressive-code@npm:^0.44.0":
   version: 0.44.0
   resolution: "expressive-code@npm:0.44.0"
@@ -13409,7 +13271,7 @@ __metadata:
     "@astrojs/preact": "npm:6.0.1"
     "@astrojs/rss": "npm:4.0.19"
     "@astrojs/sitemap": "npm:^3.7.3"
-    "@astrojs/starlight": "npm:0.41.3"
+    "@astrojs/starlight": "npm:0.41.1"
     "@astrojs/starlight-tailwind": "npm:^5.0.0"
     "@fontsource-variable/inter": "npm:^5.0.18"
     "@fontsource-variable/outfit": "npm:^5.0.13"
@@ -16349,15 +16211,6 @@ __metadata:
   dependencies:
     regex-utilities: "npm:^2.3.0"
   checksum: 10c0/687b3e063d4ca19b0de7c55c24353f868a0fb9ba21512692470d2fb412e3a410894dd5924c91ea49d8cb8fa865e36ec956e52436ae0a256bdc095ff136c30aba
-  languageName: node
-  linkType: hard
-
-"rehype-expressive-code@npm:^0.43.1":
-  version: 0.43.1
-  resolution: "rehype-expressive-code@npm:0.43.1"
-  dependencies:
-    expressive-code: "npm:^0.43.1"
-  checksum: 10c0/e6735a2e307b1ea13fd2d097d6a2d00fdacbc56595b42352b244f737629705dd5d4b21363babded39313a0bfba4096d71aa178038402766a5cfbc25568e35345
   languageName: node
   linkType: hard
 

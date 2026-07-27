@@ -45,7 +45,7 @@
     "build:docs": "astro build"
   },
   "devDependencies": {
-    "@astrojs/starlight": "0.40.0",
+    "@astrojs/starlight": "0.41.1",
     "astro": "^6.4.8",
     "micromark": "^4.0.1",
     "oxfmt": "^0.57.0",
