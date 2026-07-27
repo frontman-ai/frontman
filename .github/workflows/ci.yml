@@ -41,7 +41,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -76,7 +76,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -115,7 +115,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -154,7 +154,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -193,7 +193,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -232,7 +232,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -283,7 +283,7 @@ jobs:
 
       - name: Cache dependencies
         if: steps.changes.outputs.client == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -329,7 +329,7 @@ jobs:
 
       - name: Cache dependencies
         if: steps.changes.outputs.protocol == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -371,7 +371,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -409,7 +409,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -465,14 +465,14 @@ jobs:
         run: make setup-elixir-tools
 
       - name: Cache deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/swarm_ai/deps
           key: ${{ runner.os }}-swarm-mix-${{ hashFiles('apps/swarm_ai/mix.lock') }}
           restore-keys: ${{ runner.os }}-swarm-mix-
 
       - name: Cache _build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/swarm_ai/_build
           key: ${{ runner.os }}-swarm-build-test-${{ hashFiles('apps/swarm_ai/mix.lock') }}
@@ -551,7 +551,7 @@ jobs:
         run: make setup-elixir-tools
 
       - name: Cache deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
@@ -562,7 +562,7 @@ jobs:
       # stale _build/dev artifacts with the wrong compile-time config.
       # v2: bust stale caches after E2E cache key split (build-e2e- vs build-dev-)
       - name: Cache _build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-test-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
@@ -638,7 +638,7 @@ jobs:
         run: make setup-elixir-tools
 
       - name: Cache deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
@@ -646,7 +646,7 @@ jobs:
 
       # v2: bust stale caches after E2E cache key split (build-e2e- vs build-dev-)
       - name: Cache _build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
