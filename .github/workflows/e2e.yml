@@ -234,6 +234,7 @@ jobs:
         env:
           # Accept self-signed mkcert certificates (scoped to test step only)
           NODE_TLS_REJECT_UNAUTHORIZED: "0"
+          SENTRY_DSN: https://public@example.invalid/1
         run: ${{ steps.test-cmd.outputs.cmd }}
 
       # ── Cleanup ─────────────────────────────────────────────────────────

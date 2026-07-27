@@ -22,7 +22,7 @@ test-watch: ## Run tests in watch mode
 	yarn vitest watch
 
 test-coverage: build ## Run tests with coverage
-	yarn vitest run --coverage
+	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run --coverage
 
 lint: ## Check code formatting
 	yarn rescript format --check
