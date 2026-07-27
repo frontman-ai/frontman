@@ -7,7 +7,6 @@ module PathContext = FrontmanCore__PathContext
 
 let name = Tool.ToolNames.grep
 let access = Tool.Read
-let visibleToAgent = true
 let description = `Searches **file contents** for text or regex patterns. Returns matching lines with file paths and line numbers.
 
 Use grep to find where code is *used* — function calls, variable references, imports, error messages, string literals. If you need to find a file by *name* instead, use search_files.
@@ -64,6 +63,8 @@ type output = {
   totalMatches: int,
   truncated: bool,
 }
+
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
 // Get ripgrep path from @vscode/ripgrep package
 let getRipgrepPath = (): option<string> => {

@@ -90,9 +90,8 @@ module type ServerTool = {
   let description: string
   let access: access
   type input
-  type output
   let inputSchema: S.t<input>
-  let outputSchema: S.t<output>
+  let outputJsonSchema: option<JSONSchema.t>
   let execute: (serverExecutionContext, input) => promise<MCP.CallToolResult.t>
   //some tools we want to execute manually, and never have the llm see them
   let visibleToAgent: bool

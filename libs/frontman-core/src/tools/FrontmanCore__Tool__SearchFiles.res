@@ -10,7 +10,6 @@ module FilenamePattern = FrontmanCore__FilenamePattern
 
 let name = Tool.ToolNames.searchFiles
 let access = Tool.Read
-let visibleToAgent = true
 let description = `Searches **file names** across the project. Returns file paths whose name matches a pattern.
 
 Use search_files to locate files by name — "find the Button component", "where are the test files". This does NOT search file contents; use grep for that. Use list_tree for a structural overview of the project.
@@ -46,6 +45,8 @@ type output = {
   totalResults: int,
   truncated: bool,
 }
+
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
 type backendError = {
   backend: string,

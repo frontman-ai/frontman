@@ -9,7 +9,6 @@ module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.listFiles
 let access = Tool.Read
-let visibleToAgent = true
 let description = `Lists the **immediate contents** of a single directory — names, paths, and whether each entry is a file or directory.
 
 Use list_files to inspect one directory before reading or editing files. For a recursive multi-level tree, use list_tree instead. To find files by name across the project, use search_files.
@@ -33,6 +32,8 @@ type fileEntry = {
 
 @schema
 type output = array<fileEntry>
+
+let (visibleToAgent, outputJsonSchema) = (true, None)
 
 // Get entries that are ignored by git (respects .gitignore)
 let getIgnoredEntries = async (~cwd: string, entries: array<string>): result<

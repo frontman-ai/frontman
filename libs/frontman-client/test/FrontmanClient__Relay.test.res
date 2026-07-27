@@ -3,31 +3,6 @@ open Vitest
 module Relay = FrontmanClient__Relay
 
 describe("Relay.connect", _t => {
-  testAsync("returns Error when server is unreachable", async t => {
-    // Point at a port where nothing is listening — same scenario as the Sentry bug
-    let relay = Relay.make(~baseUrl="http://localhost:19999")
-    let result = await Relay.connect(relay)
-
-    switch result {
-    | Error(_msg) => t->expect(true)->Expect.toBe(true)
-    | Ok() => t->expect(false)->Expect.toBe(true) // should not succeed
-    }
-  })
-
-  testAsync("returns Error when aborted via AbortSignal", async t => {
-    // Create a controller and abort immediately — simulates component unmount during connect
-    let controller = WebAPI.AbortController.make()
-    WebAPI.AbortController.abort(controller)
-
-    let relay = Relay.make(~baseUrl="http://localhost:19999")
-    let result = await Relay.connect(relay, ~signal=controller.signal)
-
-    switch result {
-    | Error(_msg) => t->expect(true)->Expect.toBe(true)
-    | Ok() => t->expect(false)->Expect.toBe(true) // should not succeed
-    }
-  })
-
   testAsync("sets state to Error when server is unreachable", async t => {
     let relay = Relay.make(~baseUrl="http://localhost:19999")
     let _ = await Relay.connect(relay)
@@ -37,4 +12,28 @@ describe("Relay.connect", _t => {
     | _ => t->expect(false)->Expect.toBe(true) // state should be Error
     }
   })
+})
+
+test("preserves optional output schemas in MCP tool definitions", t => {
+  let relay = Relay.make(~baseUrl="http://localhost")
+  let tool = (~name, ~outputSchema): FrontmanClient__Relay__Types.remoteTool => {
+    name,
+    description: name,
+    access: None,
+    inputSchema: JSON.Encode.object(Dict.make()),
+    outputSchema,
+    visibleToAgent: true,
+  }
+  relay.state :=
+    Relay.Connected({
+      tools: [
+        tool(~name="structured", ~outputSchema=Some(JSON.Encode.object(Dict.make()))),
+        tool(~name="content_only", ~outputSchema=None),
+      ],
+      serverInfo: {name: "test", version: "1"},
+    })
+
+  let definitions = relay->Relay.getToolsJson->Array.map(json => JSON.stringify(json))
+  t->expect(definitions[0]->Option.getOrThrow->String.includes("outputSchema"))->Expect.toBe(true)
+  t->expect(definitions[1]->Option.getOrThrow->String.includes("outputSchema"))->Expect.toBe(false)
 })

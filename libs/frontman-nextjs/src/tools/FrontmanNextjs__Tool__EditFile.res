@@ -6,14 +6,12 @@ module LogCapture = FrontmanNextjs__LogCapture
 
 let name = "edit_file"
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
-let visibleToAgent = true
 let description = CoreEditFile.description
 
 type input = CoreEditFile.input
-type output = CoreEditFile.output
 
 let inputSchema = CoreEditFile.inputSchema
-let outputSchema = CoreEditFile.outputSchema
+let (visibleToAgent, outputJsonSchema) = (true, CoreEditFile.outputJsonSchema)
 
 let getErrorLogsSince = (beforeTimestamp: float): array<EditFileWithLogCheck.logEntry> => {
   let recentLogs = LogCapture.getLogs(~since=beforeTimestamp, ~level=Error)

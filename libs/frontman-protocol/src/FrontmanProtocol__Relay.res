@@ -12,6 +12,7 @@ type remoteTool = {
   description: string,
   access: option<FrontmanProtocol__Tool.access>,
   inputSchema: JSON.t,
+  outputSchema: option<JSON.t>,
   visibleToAgent: bool,
 }
 

@@ -16,7 +16,6 @@ module Bindings = FrontmanBindings.Astro
 
 let name = "get_client_pages"
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
-let visibleToAgent = true
 
 let description = `Lists all routes resolved by Astro's router.
 
@@ -75,12 +74,10 @@ let make = (
     {
       let name = name
       let access = access
-      let visibleToAgent = visibleToAgent
+      let (visibleToAgent, outputJsonSchema) = (true, None)
       let description = description
       type input = input
-      type output = output
       let inputSchema = inputSchema
-      let outputSchema = outputSchema
       let execute = async (_ctx, _input) =>
         Tool.unstructuredResult(getRoutes()->Array.map(toRouteEntry), outputSchema)
     }

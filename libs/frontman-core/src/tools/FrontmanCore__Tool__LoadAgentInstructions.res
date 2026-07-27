@@ -7,7 +7,6 @@ module SafePath = FrontmanCore__SafePath
 
 let name = Tool.ToolNames.loadAgentInstructions
 let access = Tool.Read
-let visibleToAgent = false
 let description = `Discovers and loads agent instruction files (Agents.md or CLAUDE.md) following Claude Code's discovery algorithm.
 
 Parameters:
@@ -32,6 +31,8 @@ type instructionFile = {
 
 @schema
 type output = array<instructionFile>
+
+let (visibleToAgent, outputJsonSchema) = (false, None)
 
 // File variants to check at each directory level
 let agentsVariants = ["Agents.md", ".claude/Agents.md", "Agents.local.md"]

@@ -15,6 +15,7 @@
       ]
     },
     "inputSchema": {},
+    "outputSchema": {},
     "visibleToAgent": {
       "type": "boolean"
     }

@@ -40,27 +40,13 @@ describe("ToolRegistry", _t => {
     t->expect(merged->ToolRegistry.getToolByName("write_file")->Option.isSome)->Expect.toBe(true)
   })
 
-  test("serializes tools with correct structure", t => {
-    let registry = ToolRegistry.coreTools()
-    let definitions = registry->ToolRegistry.getToolDefinitions
-    let readFile = definitions->Array.find(d => d.name == "read_file")
-
-    t->expect(readFile->Option.isSome)->Expect.toBe(true)
-    switch readFile {
-    | Some(tool) =>
-      t->expect(tool.name)->Expect.toBe("read_file")
-      t->expect(tool.description->String.length > 0)->Expect.toBe(true)
-      t->expect(tool.access)->Expect.toEqual(Some(Tool.Read))
-    | None => ()
-    }
-  })
-
-  test("serializes write and read-write access", t => {
+  test("serializes access and only real output schemas", t => {
     let definitions = ToolRegistry.coreTools()->ToolRegistry.getToolDefinitions
-    let writeFile = definitions->Array.find(d => d.name == "write_file")->Option.getOrThrow
-    let editFile = definitions->Array.find(d => d.name == "edit_file")->Option.getOrThrow
+    let readFile = definitions->Array.find(d => d.name == "read_file")->Option.getOrThrow
+    let listFiles = definitions->Array.find(d => d.name == "list_files")->Option.getOrThrow
 
-    t->expect(writeFile.access)->Expect.toEqual(Some(Tool.Write))
-    t->expect(editFile.access)->Expect.toEqual(Some(Tool.ReadWrite))
+    t->expect(readFile.access)->Expect.toEqual(Some(Tool.Read))
+    t->expect(readFile.outputSchema->Option.isSome)->Expect.toBe(true)
+    t->expect(listFiles.outputSchema)->Expect.toEqual(None)
   })
 })

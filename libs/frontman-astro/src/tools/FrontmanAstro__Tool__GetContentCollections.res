@@ -6,7 +6,6 @@ module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext
 
 let name = "get_content_collections"
 let access = Tool.Read
-let visibleToAgent = true
 
 let description = `Queries Astro content collections through astro:content.
 
@@ -58,6 +57,8 @@ type output = {
   @live
   entries: array<contentEntry>,
 }
+
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
 type runtimeEntry = {
   id: string,
@@ -159,9 +160,8 @@ let make = (~loadContentApi: unit => promise<contentApi>): module(Tool.ServerToo
       let visibleToAgent = visibleToAgent
       let description = description
       type input = input
-      type output = output
       let inputSchema = inputSchema
-      let outputSchema = outputSchema
+      let outputJsonSchema = outputJsonSchema
 
       let execute = (ctx, input) => executeWith(~loadContentApi, ctx, input)
     }
