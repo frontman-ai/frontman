@@ -76,9 +76,8 @@ module type BrowserTool = {
   let description: string
   let access: access
   type input
-  type output
   let inputSchema: S.t<input>
-  let outputSchema: S.t<output>
+  let outputJsonSchema: option<JSONSchema.t>
   let execute: (input, ~taskId: string, ~toolCallId: string) => promise<MCP.CallToolResult.t>
   //some tools we want to execute manually, and never have the llm see them
   let visibleToAgent: bool

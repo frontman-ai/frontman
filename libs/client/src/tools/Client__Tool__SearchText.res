@@ -64,6 +64,8 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let defaultMaxResults = 25
 let defaultContextChars = 80
 

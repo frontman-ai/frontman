@@ -75,6 +75,8 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 // ============================================================================
 // Constants
 // ============================================================================

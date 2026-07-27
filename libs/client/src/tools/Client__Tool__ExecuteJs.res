@@ -45,6 +45,8 @@ type output = {
   logs: array<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 // ---------------------------------------------------------------------------
 // Raw JS helper — console capture + eval must stay in raw JS because it
 // monkey-patches the iframe's window.console and uses `new win.Function`.

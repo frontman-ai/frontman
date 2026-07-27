@@ -48,6 +48,8 @@ type output = {
   cancelled: bool,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let execute = async (
   input: input,
   ~taskId: string,

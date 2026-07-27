@@ -7,7 +7,8 @@ let name = Tool.ToolNames.takeScreenshot
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
-let description = "Take a screenshot of the current web preview page. By default captures only the visible viewport. Set fullPage to true to capture the entire scrollable page. Returns a base64-encoded JPEG image data URL."
+let description = "Take a screenshot of the current web preview page. By default captures only the visible viewport. Set fullPage to true to capture the entire scrollable page."
+let outputJsonSchema = None
 
 @schema
 type input = {
@@ -17,14 +18,6 @@ type input = {
     "When true, captures the entire scrollable page instead of just the visible viewport. Defaults to false."
   )
   fullPage: option<bool>,
-}
-
-@schema
-type output = {
-  @s.describe("Base64-encoded JPEG image data URL (data:image/jpeg;base64,...)") @live
-  screenshot: option<string>,
-  @s.describe("Error message if the screenshot could not be taken") @live
-  error: option<string>,
 }
 
 // Image limits and scale computation are shared via Client__ImageLimits

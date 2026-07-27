@@ -200,9 +200,8 @@ let make = (~getPreviewDoc: unit => option<Tool.previewContext>): module(Tool.Br
       let executionMode = executionMode
       let description = description
       type input = input
-      type output = output
       let inputSchema = inputSchema
-      let outputSchema = outputSchema
+      let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
       let execute = async (_input, ~taskId as _, ~toolCallId as _) =>
         switch getPreviewDoc() {
         | None => emptyResult(~message="Preview iframe is not available")

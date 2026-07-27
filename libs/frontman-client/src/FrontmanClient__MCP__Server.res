@@ -61,29 +61,21 @@ let executionModeSchema = S.union([
   S.literal(ToolTypes.Interactive),
 ])
 
-// Tool wire format schema - serialized directly to JSON
-let toolWireSchema = S.object(s => {
-  {
-    "name": s.field("name", S.string),
-    "description": s.field("description", S.string),
-    "access": s.field("access", ToolTypes.accessSchema),
-    "inputSchema": s.field("inputSchema", S.json),
-    "visibleToAgent": s.field("visibleToAgent", S.bool),
-    "executionMode": s.field("executionMode", executionModeSchema),
-  }
-})
-
 // Serialize a tool module to JSON
 let serializeTool = (m: module(Tool.Tool)): JSON.t => {
   module T = unpack(m)
-  {
-    "name": T.name,
-    "description": T.description,
-    "access": T.access,
+  let definition = dict{
+    "name": JSON.Encode.string(T.name),
+    "description": JSON.Encode.string(T.description),
+    "access": T.access->S.decodeOrThrow(~from=ToolTypes.accessSchema, ~to=S.json),
     "inputSchema": T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
-    "visibleToAgent": T.visibleToAgent,
-    "executionMode": T.executionMode,
-  }->S.decodeOrThrow(~from=toolWireSchema, ~to=S.json->S.noValidation(true))
+    "visibleToAgent": JSON.Encode.bool(T.visibleToAgent),
+    "executionMode": T.executionMode->S.decodeOrThrow(~from=executionModeSchema, ~to=S.json),
+  }
+  T.outputJsonSchema->Option.forEach(schema =>
+    definition->Dict.set("outputSchema", jsonSchemaAsJson(schema))
+  )
+  JSON.Encode.object(definition)
 }
 
 // Get tools as JSON array for MCP tools/list response
