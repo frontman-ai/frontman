@@ -159,6 +159,10 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'AI Releases',
 					subCategoryLink: '/open-source-ai-releases/'
+				},
+				{
+					subCategory: 'Blog Topics',
+					subCategoryLink: '/blog/tags/'
 				}
 			]
 		},

@@ -46,6 +46,7 @@ export const navigationBarData: NavData = {
 			link: '/vs/',
 			submenu: [
 				{ name: 'All comparisons', link: '/vs/' },
+				{ name: 'vs OpenClaw', link: '/vs/openclaw/' },
 				{ name: 'vs Cursor', link: '/vs/cursor/' },
 				{ name: 'vs Copilot', link: '/vs/copilot/' },
 				{ name: 'vs Stagewise', link: '/vs/stagewise/' },

@@ -57,12 +57,13 @@ const pageJsonLd = {
 	'@context': 'https://schema.org',
 	'@graph': [
 		{
-			'@type': 'SoftwareApplication',
+			'@type': 'SoftwareSourceCode',
 			name: 'Frontman for WordPress',
-			applicationCategory: 'WordPress Plugin',
-			operatingSystem: 'WordPress',
 			description: SEO.description,
 			url: 'https://frontman.sh/wordpress/',
+			codeRepository: 'https://github.com/frontman-ai/frontman',
+			license: 'https://spdx.org/licenses/GPL-2.0-or-later.html',
+			runtimePlatform: 'WordPress',
 			sameAs: [pluginUrl, 'https://github.com/frontman-ai/frontman']
 		},
 		{

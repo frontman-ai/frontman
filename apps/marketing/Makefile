@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test dev build deploy blog-cover
+.PHONY: help install test dev build deploy indexnow blog-cover
 
 PORT ?= 4321
 
@@ -20,6 +20,9 @@ build: ## Build for production
 
 deploy: build ## Build and deploy to Cloudflare Pages
 	op run --env-file=../../.env -- npx wrangler pages deploy dist --project-name=frontman-marketing --branch=main
+
+indexnow: build ## Submit sitemap URLs through IndexNow
+	node scripts/indexnow.mjs
 
 blog-cover: ## Generate blog cover image — usage: make blog-cover TITLE="Your Title" [FILE=output-name]
 	@test -n "$(TITLE)" || (echo "Usage: make blog-cover TITLE=\"Your Title\" [FILE=output-name]" && exit 1)
