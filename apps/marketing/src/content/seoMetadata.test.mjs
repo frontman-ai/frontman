@@ -31,7 +31,7 @@ describe('site audit regressions', () => {
 
     expect(blogIndex).toContain('/blog/tags/')
     expect(footer).toContain("subCategoryLink: '/blog/tags/'")
-    expect(footer).toContain("subCategoryLink: '/pricing/'")
+    expect(footer).not.toContain("subCategoryLink: '/pricing/'")
     expect(navigation).toContain("link: '/vs/openclaw/'")
     expect(releasesRoute).toContain('relatedReleases')
   })
