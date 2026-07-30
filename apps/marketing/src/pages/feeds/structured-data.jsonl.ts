@@ -18,13 +18,6 @@ const records = [
 	},
 	{
 		'@context': 'https://schema.org',
-		'@type': 'SoftwareApplication',
-		name: 'Frontman',
-		applicationCategory: 'DeveloperApplication',
-		operatingSystem: 'Web, macOS, Windows, Linux',
-	},
-	{
-		'@context': 'https://schema.org',
 		'@type': 'Service',
 		name: 'Frontman Pro',
 		serviceType: 'AI frontend coding agent',

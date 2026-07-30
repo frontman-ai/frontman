@@ -1,6 +1,6 @@
 ---
 title: Models & Providers
-description: Complete list of AI providers, authentication methods, and available model IDs in Frontman.
+description: Compare AI providers supported by Frontman, including authentication methods, available model IDs, configuration details, and provider-specific limits.
 ---
 
 Frontman supports multiple AI providers. The available models depend on your provider and how you authenticate. See **[API Keys & Providers](/docs/api-keys/)** for setup instructions.

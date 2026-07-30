@@ -1,5 +1,5 @@
 ---
-const { frontmatter, body } = Astro.props
+const { frontmatter, body, relatedReleases = [] } = Astro.props
 
 import Layout from './Layout.astro'
 import BlogPostHero from '../components/blocks/blog/BlogPostHero.astro'
@@ -78,6 +78,13 @@ const faqJsonLd = frontmatter.faq?.length
 		<slot />
 	</div>
 
+	<nav class="release-navigation" aria-label="Release archive navigation">
+		<a href="/open-source-ai-releases/">All open-source AI releases</a>
+		{relatedReleases.map((release: { id: string; title: string }) => (
+			<a href={`/open-source-ai-releases/${release.id}/`}>{release.title}</a>
+		))}
+	</nav>
+
 	{frontmatter.faq?.length && (
 		<section class="post-faq">
 			<div class="post-faq__container">
@@ -104,6 +111,12 @@ const faqJsonLd = frontmatter.faq?.length
 	@reference "../styles/global.css";
 	.post-body {
 		@apply mx-auto max-w-3xl px-6 py-12 lg:py-24;
+	}
+	.release-navigation {
+		@apply mx-auto flex max-w-3xl flex-col gap-3 border-t border-neutral-800 px-6 pb-12 pt-8 text-sm lg:pb-20;
+	}
+	.release-navigation a {
+		@apply text-primary-400 underline underline-offset-4 hover:text-primary-300;
 	}
 
 	.post-faq {

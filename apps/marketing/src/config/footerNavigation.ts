@@ -66,6 +66,10 @@ export const footerNavigationData: FooterData = {
 					subCategoryLink: '/marketing-teams/'
 				},
 				{
+					subCategory: 'Pricing',
+					subCategoryLink: '/pricing/'
+				},
+				{
 					subCategory: 'About',
 					subCategoryLink: '/about/'
 				},
@@ -159,6 +163,10 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'AI Releases',
 					subCategoryLink: '/open-source-ai-releases/'
+				},
+				{
+					subCategory: 'Blog Topics',
+					subCategoryLink: '/blog/tags/'
 				}
 			]
 		},
