@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { countPostsByTag, isIndexableTagCount } from '../utils/tagIndexability.mjs'
+import {
+	countPostsByTag,
+	isIndexableTagCount,
+	parseFrontmatterTags
+} from '../utils/tagIndexability.mjs'
 
 describe('tag indexability', () => {
 	it('keeps archives with fewer than three posts out of search', () => {
@@ -25,6 +29,14 @@ describe('tag indexability', () => {
 		expect(counts.get('ai')).toBe(3)
 		expect(counts.get('tutorial')).toBe(1)
 		expect(counts.get('workflow')).toBe(1)
+	})
+
+	it('parses inline and block-list frontmatter tags identically', () => {
+		expect(parseFrontmatterTags("---\ntags: ['ai', 'tutorial']\n---")).toEqual(['ai', 'tutorial'])
+		expect(parseFrontmatterTags('---\ntags:\n  - ai\n  - tutorial\n---')).toEqual([
+			'ai',
+			'tutorial'
+		])
 	})
 
 	it('applies the policy to rendered robots directives and sitemap entries', async () => {

@@ -1,7 +1,9 @@
+export const getWebPageId = (url) => `${url}#webpage`
+
 export const createWebPageSchema = ({ url, title, description }) => {
 	const schema = {
 		'@type': 'WebPage',
-		'@id': `${url}#webpage`,
+		'@id': getWebPageId(url),
 		url,
 		name: title,
 		description

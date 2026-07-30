@@ -9,7 +9,10 @@ import fs from "node:fs";
 import hcStarlight from "hc-starlight";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
-import { isIndexableTagCount } from "./src/utils/tagIndexability.mjs";
+import {
+  isIndexableTagCount,
+  parseFrontmatterTags,
+} from "./src/utils/tagIndexability.mjs";
 
 const appRoot = path.resolve(import.meta.dirname);
 
@@ -43,11 +46,7 @@ for (const file of fs
     "utf-8",
   );
   const postDate = blogDateMap.get(file.replace(/\.md$/, ""));
-  const tags =
-    raw
-      .match(/^tags:\s*\[([^\]]*)\]/m)?.[1]
-      .split(",")
-      .map((tag) => tag.trim().replace(/^['"]|['"]$/g, "")) ?? [];
+  const tags = parseFrontmatterTags(raw);
   for (const tag of tags) {
     blogTagCounts.set(tag, (blogTagCounts.get(tag) ?? 0) + 1);
     if (

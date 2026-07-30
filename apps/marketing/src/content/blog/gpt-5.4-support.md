@@ -21,6 +21,7 @@ Frontman's provider catalog currently contains these entries:
 | Frontman provider | Picker label | Model ID sent by Frontman |
 | ----------------- | ------------ | ------------------------- |
 | OpenAI            | GPT-5.4      | `gpt-5.4`                 |
+| OpenAI            | GPT-5.4 Mini | `gpt-5.4-mini`            |
 | OpenRouter        | GPT-5.4      | `openai/gpt-5.4`          |
 | OpenRouter        | GPT-5.4 Pro  | `openai/gpt-5.4-pro`      |
 
