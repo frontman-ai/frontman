@@ -6,9 +6,10 @@ import brokenLinksChecker from "astro-broken-links-checker";
 import consent from "./src/integrations/consent.mjs";
 import path from "node:path";
 import fs from "node:fs";
-import hcStarlight from 'hc-starlight';
+import hcStarlight from "hc-starlight";
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
+import { isIndexableTagCount } from "./src/utils/tagIndexability.mjs";
 
 const appRoot = path.resolve(import.meta.dirname);
 
@@ -18,7 +19,8 @@ function buildDateMap(dir) {
   const map = new Map();
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".md"))) {
     const raw = fs.readFileSync(path.join(dir, file), "utf-8");
-    const match = raw.match(/^updatedDate:\s*(.+)$/m) ?? raw.match(/^pubDate:\s*(.+)$/m);
+    const match =
+      raw.match(/^updatedDate:\s*(.+)$/m) ?? raw.match(/^pubDate:\s*(.+)$/m);
     if (match) {
       const slug = file.replace(/\.md$/, "");
       map.set(slug, new Date(match[1].trim()));
@@ -28,8 +30,43 @@ function buildDateMap(dir) {
 }
 
 const blogDateMap = buildDateMap(path.resolve(appRoot, "src/content/blog"));
-const releasesDateMap = buildDateMap(path.resolve(appRoot, "src/content/releases"));
-const staticContentLastmod = new Date("2026-07-07T00:00:00Z");
+const releasesDateMap = buildDateMap(
+  path.resolve(appRoot, "src/content/releases"),
+);
+const blogTagCounts = new Map();
+const blogTagDates = new Map();
+for (const file of fs
+  .readdirSync(path.resolve(appRoot, "src/content/blog"))
+  .filter((entry) => entry.endsWith(".md"))) {
+  const raw = fs.readFileSync(
+    path.resolve(appRoot, "src/content/blog", file),
+    "utf-8",
+  );
+  const postDate = blogDateMap.get(file.replace(/\.md$/, ""));
+  const tags =
+    raw
+      .match(/^tags:\s*\[([^\]]*)\]/m)?.[1]
+      .split(",")
+      .map((tag) => tag.trim().replace(/^['"]|['"]$/g, "")) ?? [];
+  for (const tag of tags) {
+    blogTagCounts.set(tag, (blogTagCounts.get(tag) ?? 0) + 1);
+    if (
+      postDate &&
+      (!blogTagDates.has(tag) || postDate > blogTagDates.get(tag))
+    )
+      blogTagDates.set(tag, postDate);
+  }
+}
+const comparisonReviewSource = fs.readFileSync(
+  path.resolve(appRoot, "src/content/frontmanFacts.ts"),
+  "utf-8",
+);
+const comparisonReviewDateMatch = comparisonReviewSource.match(
+  /comparisonReviewCheckedAt\s*=\s*['"]([^'"]+)['"]/,
+);
+const comparisonReviewDate = comparisonReviewDateMatch
+  ? new Date(comparisonReviewDateMatch[1])
+  : undefined;
 const monorepoRoot = path.resolve(appRoot, "../..");
 
 function validateDocsDescriptions() {
@@ -73,11 +110,14 @@ function validateDocsDescriptions() {
     throw new Error(
       `[SEO] The following docs pages are missing a description in their frontmatter:\n${details}\n\n` +
         `Every docs page needs a description for SEO meta tags. Add one to the frontmatter:\n` +
-        `---\ntitle: My Page\ndescription: A short summary of this page for search engines.\n---`
+        `---\ntitle: My Page\ndescription: A short summary of this page for search engines.\n---`,
     );
   }
 
-  return { name: "validate-docs-descriptions", hooks: { "astro:config:done": () => {} } };
+  return {
+    name: "validate-docs-descriptions",
+    hooks: { "astro:config:done": () => {} },
+  };
 }
 
 // https://astro.build/config
@@ -130,22 +170,33 @@ export default defineConfig({
             { label: "Introduction", slug: "docs" },
             { label: "Installation", slug: "docs/installation" },
             { label: "API Keys & Providers", slug: "docs/api-keys" },
-
           ],
         },
         {
           label: "Using Frontman",
           collapsed: true,
           items: [
-            { label: "How the Agent Works", slug: "docs/using/how-the-agent-works" },
+            {
+              label: "How the Agent Works",
+              slug: "docs/using/how-the-agent-works",
+            },
             { label: "Sending Prompts", slug: "docs/using/sending-prompts" },
             { label: "Annotations", slug: "docs/using/annotations" },
             { label: "The Web Preview", slug: "docs/using/web-preview" },
-            { label: "Tool Capabilities", slug: "docs/using/tool-capabilities" },
+            {
+              label: "Tool Capabilities",
+              slug: "docs/using/tool-capabilities",
+            },
             { label: "The Question Flow", slug: "docs/using/question-flow" },
             { label: "Plans & Todo Lists", slug: "docs/using/plans-and-todos" },
-            { label: "Prompt Strategies", slug: "docs/using/prompt-strategies" },
-            { label: "Limitations & Workarounds", slug: "docs/using/limitations" },
+            {
+              label: "Prompt Strategies",
+              slug: "docs/using/prompt-strategies",
+            },
+            {
+              label: "Limitations & Workarounds",
+              slug: "docs/using/limitations",
+            },
           ],
         },
         {
@@ -162,17 +213,32 @@ export default defineConfig({
           label: "Reference",
           collapsed: true,
           items: [
-            { label: "Configuration Options", slug: "docs/reference/configuration" },
+            {
+              label: "Configuration Options",
+              slug: "docs/reference/configuration",
+            },
             { label: "Environment Variables", slug: "docs/reference/env-vars" },
             { label: "Models & Providers", slug: "docs/reference/models" },
-            { label: "Supported Frameworks", slug: "docs/reference/compatibility" },
-            { label: "Architecture Overview", slug: "docs/reference/architecture" },
-            { label: "Troubleshooting", slug: "docs/reference/troubleshooting" },
+            {
+              label: "Supported Frameworks",
+              slug: "docs/reference/compatibility",
+            },
+            {
+              label: "Architecture Overview",
+              slug: "docs/reference/architecture",
+            },
+            {
+              label: "Troubleshooting",
+              slug: "docs/reference/troubleshooting",
+            },
             { label: "Self-Hosting", slug: "docs/reference/self-hosting" },
           ],
         },
       ],
-      customCss: ["./src/styles/starlight.css", "./src/cookiebanner/styles.css"],
+      customCss: [
+        "./src/styles/starlight.css",
+        "./src/cookiebanner/styles.css",
+      ],
       editLink: {
         baseUrl:
           "https://github.com/frontman-ai/frontman/edit/main/apps/marketing/",
@@ -183,74 +249,98 @@ export default defineConfig({
     }),
     consent(),
     frontman({
-    projectRoot: appRoot,
-    sourceRoot: monorepoRoot,
-    basePath: "frontman",
-    serverName: "marketing",
-  }), icon(), brokenLinksChecker({ throwError: true, checkExternalLinks: false }), sitemap({
-    serialize: (item) => {
-      // Exclude integration redirect pages — they 301 to /docs/integrations/*,
-      // which are already in the sitemap.
-      if (/(?<!\/docs)\/integrations\/(astro|nextjs|vite)\/?$/.test(item.url)) return undefined;
-      // Exclude noindexed stub pages that exist only for sidebar navigation.
-      if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
-      // Exclude explicit noindex pages from sitemap output.
-      if (/\/404\/?$/.test(item.url)) return undefined;
+      projectRoot: appRoot,
+      sourceRoot: monorepoRoot,
+      basePath: "frontman",
+      serverName: "marketing",
+    }),
+    icon(),
+    brokenLinksChecker({ throwError: true, checkExternalLinks: false }),
+    sitemap({
+      serialize: (item) => {
+        const tagMatch = item.url.match(/\/blog\/tags\/([^/]+)\/?$/);
+        if (
+          tagMatch &&
+          !isIndexableTagCount(blogTagCounts.get(tagMatch[1]) ?? 0)
+        )
+          return undefined;
+        // Exclude integration redirect pages — they 301 to /docs/integrations/*,
+        // which are already in the sitemap.
+        if (/(?<!\/docs)\/integrations\/(astro|nextjs|vite)\/?$/.test(item.url))
+          return undefined;
+        // Exclude noindexed stub pages that exist only for sidebar navigation.
+        if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
+        // Exclude explicit noindex pages from sitemap output.
+        if (/\/404\/?$/.test(item.url)) return undefined;
 
-      // Use real publication dates where available. Static pages share a
-      // manual source date so child sitemap indexes do not appear undated.
-      const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
-      const releasesMatch = item.url.match(/\/open-source-ai-releases\/([^/]+)\/?$/);
-      if (blogMatch && blogDateMap.has(blogMatch[1])) {
-        item.lastmod = blogDateMap.get(blogMatch[1]);
-      } else if (releasesMatch && releasesDateMap.has(releasesMatch[1])) {
-        item.lastmod = releasesDateMap.get(releasesMatch[1]);
-      } else {
-        item.lastmod = staticContentLastmod;
-      }
+        // Use real content dates where available; omit unknown dates rather than
+        // presenting one synthetic modification date for unrelated pages.
+        const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
+        const releasesMatch = item.url.match(
+          /\/open-source-ai-releases\/([^/]+)\/?$/,
+        );
+        if (tagMatch && blogTagDates.has(tagMatch[1])) {
+          item.lastmod = blogTagDates.get(tagMatch[1]);
+        } else if (blogMatch && blogDateMap.has(blogMatch[1])) {
+          item.lastmod = blogDateMap.get(blogMatch[1]);
+        } else if (releasesMatch && releasesDateMap.has(releasesMatch[1])) {
+          item.lastmod = releasesDateMap.get(releasesMatch[1]);
+        } else if (/\/vs\/[^/]+\/?$/.test(item.url) && comparisonReviewDate) {
+          item.lastmod = comparisonReviewDate;
+        }
 
-      // Assign priority and changefreq by page type.
-      if (item.url === 'https://frontman.sh/') {
-        item.priority = 1.0;
-        item.changefreq = 'weekly';
-      } else if (/\/(pricing|features|how-it-works)\/?$/.test(item.url) || /\/use-cases\//.test(item.url)) {
-        item.priority = 0.9;
-        item.changefreq = 'monthly';
-      } else if (/\/vs\//.test(item.url) || /(?<!\/docs)\/integrations\//.test(item.url)) {
-        item.priority = 0.8;
-        item.changefreq = 'monthly';
-      } else if (/\/blog\/(?!tags\/)/.test(item.url) || /\/open-source-ai-releases\//.test(item.url)) {
-        item.priority = 0.7;
-        item.changefreq = 'never';
-      } else if (/\/docs\//.test(item.url)) {
-        item.priority = 0.7;
-        item.changefreq = 'monthly';
-      } else {
-        item.priority = 0.5;
-        item.changefreq = 'monthly';
-      }
+        // Assign priority and changefreq by page type.
+        if (item.url === "https://frontman.sh/") {
+          item.priority = 1.0;
+          item.changefreq = "weekly";
+        } else if (
+          /\/(pricing|features|how-it-works)\/?$/.test(item.url) ||
+          /\/use-cases\//.test(item.url)
+        ) {
+          item.priority = 0.9;
+          item.changefreq = "monthly";
+        } else if (
+          /\/vs\//.test(item.url) ||
+          /(?<!\/docs)\/integrations\//.test(item.url)
+        ) {
+          item.priority = 0.8;
+          item.changefreq = "monthly";
+        } else if (
+          /\/blog\/(?!tags\/)/.test(item.url) ||
+          /\/open-source-ai-releases\//.test(item.url)
+        ) {
+          item.priority = 0.7;
+          item.changefreq = "never";
+        } else if (/\/docs\//.test(item.url)) {
+          item.priority = 0.7;
+          item.changefreq = "monthly";
+        } else {
+          item.priority = 0.5;
+          item.changefreq = "monthly";
+        }
 
-      return item;
-    },
-    // Split sitemap into content-grouped child sitemaps instead of a
-    // single flat sitemap-0.xml. URLs that don't match any chunk land
-    // in the default sitemap-pages-0.xml.
-    chunks: {
-      posts: (item) => {
-        if (/\/blog\/(?!tags\/)/.test(item.url)) return item;
+        return item;
       },
-      releases: (item) => {
-        if (/\/open-source-ai-releases\//.test(item.url)) return item;
+      // Split sitemap into content-grouped child sitemaps instead of a
+      // single flat sitemap-0.xml. URLs that don't match any chunk land
+      // in the default sitemap-pages-0.xml.
+      chunks: {
+        posts: (item) => {
+          if (/\/blog\/(?!tags\/)/.test(item.url)) return item;
+        },
+        releases: (item) => {
+          if (/\/open-source-ai-releases\//.test(item.url)) return item;
+        },
+        comparisons: (item) => {
+          if (/\/vs\//.test(item.url)) return item;
+        },
+        integrations: (item) => {
+          if (/(?<!\/docs)\/integrations\//.test(item.url)) return item;
+        },
+        docs: (item) => {
+          if (/\/docs\//.test(item.url)) return item;
+        },
       },
-      comparisons: (item) => {
-        if (/\/vs\//.test(item.url)) return item;
-      },
-      integrations: (item) => {
-        if (/(?<!\/docs)\/integrations\//.test(item.url)) return item;
-      },
-      docs: (item) => {
-        if (/\/docs\//.test(item.url)) return item;
-      },
-    },
-  })],
+    }),
+  ],
 });

@@ -1,658 +1,235 @@
 ---
-title: Self-Hosting
-description: Run the Frontman server yourself — architecture, requirements, deployment options, and commercial considerations.
+title: Self-Host the Frontman Server
+description: Build, configure, migrate, and verify your own Frontman orchestration server using repository-supported deployment paths.
 ---
 
-## Overview
+Self-hosting runs Frontman's Phoenix orchestration server and PostgreSQL persistence in your infrastructure. It does not replace the framework integration in your app or the browser client that executes preview tools.
 
-Frontman uses a split architecture:
+This page owns server deployment. [Architecture Overview](/docs/reference/architecture/) owns component and data flow, [Configuration Options](/docs/reference/configuration/) owns framework integration settings, and [Configure Frontman API Keys & Providers](/docs/api-keys/) owns per-account model credentials.
 
-- **Browser client and JavaScript framework integrations** — bundled into your app via npm packages (`@frontman-ai/nextjs`, `@frontman-ai/astro`, `@frontman-ai/vite`) to run browser tools in the browser and filesystem tools on your machine
-- **Server** (AI agent orchestration) — Elixir/Phoenix application that queries MCP tools, sends relevant context to the selected LLM provider, generates edits, and persists task history. Filesystem tools execute on your machine through the framework integration; the server has no direct filesystem access.
-
-For local development, the server runs at `api.frontman.sh` (our hosted instance). **Self-hosting is only needed if you want to run your own instance of the orchestration server** — for data sovereignty, deployments where every required service and model is locally available, or custom modifications.
-
-:::caution[Self-hosting does not disable authentication]
-Production users who open `/frontman` are redirected to your Frontman server's login page and must sign in with GitHub or Google through WorkOS. Configure WorkOS credentials and redirect URIs before inviting users. After sign-in, Frontman returns users to accepted project URLs; if a custom local hostname is not accepted, they can reopen `/frontman` after signing in.
-
-Frontman account authentication is separate from model access. Each user must also connect a supported AI provider with OAuth or add an API key before sending a prompt. Email/password login is available only in development and test environments.
+:::caution[Review licensing before deployment]
+The server under `apps/frontman_server/` is licensed under AGPL-3.0-only with the repository's [AI Supplementary Terms](https://github.com/frontman-ai/frontman/blob/main/AI-SUPPLEMENTARY-TERMS.md). Client and JavaScript framework libraries use Apache-2.0, while the WordPress plugin uses GPL-2.0-or-later. Review the actual license files for your use case; this page is not legal advice.
 :::
 
-:::note[When to self-host]
-**Most users don't need to self-host.** The Apache-2.0 client libraries run browser tools in your browser and filesystem tools on your machine through the framework integration. The hosted server at `api.frontman.sh` orchestrates the agent loop and persists task history. It has no direct filesystem access, but relevant file content, screenshots, logs, metadata, tool results, and generated output may pass through it to your selected LLM provider.
+## What self-hosting changes
 
-Consider self-hosting if you:
-- Can provide every required service and model inside an air-gapped environment
-- Have strict data residency requirements
-- Want to fork and modify the server codebase
-- Need guaranteed uptime SLAs not covered by the hosted service
-:::
+With hosted Frontman, `api.frontman.sh` orchestrates the agent loop and stores account and task data. With self-hosting, your server deployment performs those jobs.
 
----
+Self-hosting does **not** move every operation into the Phoenix container:
 
-## Architecture
+- Browser tools still run in the user's Frontman browser session.
+- File tools still run through the framework integration on the machine serving the development app.
+- Relevant prompts, file content, screenshots, logs, metadata, tool results, and generated output can pass through your Frontman server to the selected LLM provider.
+- Users still need model access through a supported OAuth connection or saved API key.
 
-```
-┌─────────────────────────────────────────────────┐
-│ Your Machine                                    │
-│ ┌─────────────────┐  ┌────────────────────────┐ │
-│ │ Dev Server      │  │ Browser                 │ │
-│ │ (Next/Astro/    │  │ (Frontman overlay)      │ │
-│ │  Vite)          │  │                         │ │
-│ │                 │  │ Browser-side MCP Server │ │
-│ │ Server-side     │  │ (DOM, CSS, screenshots) │ │
-│ │ MCP tools       │  └───────────┬─────────────┘ │
-│ │ (routes, logs,  │              │               │
-│ │  build errors)  │              │               │
-│ └────────┬────────┘              │               │
-└──────────┼───────────────────────┼───────────────┘
-           │                       │
-           │    WebSocket/HTTPS    │
-           └───────────┬───────────┘
-                       │
-┌──────────────────────┼───────────────────────────┐
-│ Frontman Server      │  (Elixir/Phoenix)         │
-│  ┌───────────────────▼──────────────────────┐    │
-│  │ AI Agent Orchestrator                    │    │
-│  │ - Queries MCP tools (browser + server)   │    │
-│  │ - Calls LLM (Claude/GPT/OpenRouter)      │    │
-│  │ - Generates code edits                   │    │
-│  │ - Writes to source files via MCP         │    │
-│  │ - Triggers hot reload                    │    │
-│  └──────────────────────────────────────────┘    │
-│                                                   │
-│  PostgreSQL (user accounts, task history)        │
-│  Oban (background jobs: email, webhooks)         │
-│  Phoenix/Ecto telemetry metrics                  │
-└───────────────────────────────────────────────────┘
-```
-
-The server is stateless except for PostgreSQL. Horizontal scaling is supported via Elixir's distributed runtime (RELEASE_DISTRIBUTION=name).
-
----
+The server has no direct access to the user's project filesystem. See [Architecture Overview](/docs/reference/architecture/) for the request and tool relay.
 
 ## Requirements
 
-### Runtime
-- **Elixir** 1.19+ and **Erlang/OTP** 28+ (BEAM VM)
-- **PostgreSQL** 17+ (for user accounts and task history)
-- **Node.js** 24+ (for building assets — not needed in production)
-- **Linux** x86_64 or ARM64 (Ubuntu 24.04 LTS recommended)
+Choose infrastructure that provides:
 
-### Build-time (optional, for Docker or releases)
-- **Yarn** 4+ (monorepo dependency management)
-- **ReScript** 12+ (client library compilation)
+- A PostgreSQL database reachable by the Frontman server
+- An HTTPS endpoint with WebSocket support
+- GitHub and Google sign-in configured through WorkOS for production users
+- Outbound HTTPS access to WorkOS, whichever LLM providers users connect, and the built-in Sentry endpoint unless you modify the server source
+- Persistent PostgreSQL backups appropriate for your environment
 
-### Resources (production)
-- **Minimum:** 1 vCPU, 2GB RAM, 20GB disk
-- **Recommended:** 2 vCPU, 4GB RAM, 50GB disk (allows PostgreSQL tuning and room for logs)
-- **Storage:** Database grows with task history. Plan ~1GB/month for 100 active users. Backups require 2x database size.
+The repository's production image builds with Elixir 1.20, Erlang/OTP 29, and Node.js 24, then runs on Debian Bookworm without build tools. If you use the supplied Dockerfile, those build versions are already defined in the image.
 
-### Network
-- Outbound HTTPS to LLM APIs (Anthropic, OpenAI, OpenRouter)
-- Inbound HTTPS (443) for client connections
-- WebSocket support required (Phoenix Channels)
+No repository source establishes universal CPU, memory, disk, user-capacity, monthly-storage, uptime, or cost requirements. Size and monitor your deployment from observed workload rather than using fixed estimates.
 
----
+## Required production configuration
 
-## Deployment Options
+The production runtime reads these values:
 
-### Option 1: Bare Metal / VM (Recommended for Production)
+| Variable           | Purpose                                                                |
+| ------------------ | ---------------------------------------------------------------------- |
+| `DATABASE_URL`     | PostgreSQL connection string, such as `ecto://user:pass@host/database` |
+| `SECRET_KEY_BASE`  | Phoenix cookie and application secret                                  |
+| `CLOAK_KEY`        | Key used by Cloak for stored provider credentials                      |
+| `WORKOS_API_KEY`   | WorkOS API credential for hosted sign-in                               |
+| `WORKOS_CLIENT_ID` | WorkOS client ID                                                       |
+| `PHX_HOST`         | Public hostname used in generated server URLs                          |
+| `PHX_SERVER=true`  | Starts the Phoenix HTTP endpoint outside the supplied image            |
 
-This is how we run `api.frontman.sh` — a single Hetzner server with blue/green deploys.
+Common deployment settings:
 
-**Prerequisites:**
-- Ubuntu 24.04 LTS server
-- DNS A record pointing to server IP (we use Cloudflare DNS-only mode)
-- SSH access as root
+| Variable                        | Default              | Purpose                                                          |
+| ------------------------------- | -------------------- | ---------------------------------------------------------------- |
+| `PORT`                          | `4000`               | HTTP port inside the runtime                                     |
+| `DATABASE_SSL`                  | `true` in production | Set `false` only when the database connection should not use SSL |
+| `POOL_SIZE`                     | `10`                 | Ecto database connection pool size                               |
+| `ECTO_IPV6`                     | `false`              | Enables IPv6 socket options when set to a supported true value   |
+| `DNS_CLUSTER_QUERY`             | unset                | DNS query used by the included cluster configuration             |
+| `RESEND_API_KEY`                | unset                | Enables welcome-email and contact-sync workers when non-empty    |
+| `DISCORD_NEW_USERS_WEBHOOK_URL` | unset                | Enables new-user notification worker when non-empty              |
 
-**Setup:**
-```bash
-# 1. Run server setup script (installs PostgreSQL, Caddy, systemd services)
-ssh root@<server-ip> 'bash -s' < infra/production/server-setup.sh
+Generate `SECRET_KEY_BASE` with `mix phx.gen.secret`. The repository environment template uses `openssl rand -base64 32` for `CLOAK_KEY`. Store both outside source control. Changing `CLOAK_KEY` without a credential migration prevents existing encrypted provider credentials from being decrypted.
 
-# 2. Fill in environment secrets
-ssh deploy@<server-ip>
-nano /opt/frontman/blue/env
-# Set CLOAK_KEY, WORKOS_API_KEY, WORKOS_CLIENT_ID, etc.
+Production registration is disabled; users sign in through configured OAuth providers. Configure matching callback and redirect URLs in WorkOS before testing sign-in.
 
-# 3. Deploy first release (GitHub Actions workflow builds and deploys on push to main)
-# Or manually:
-git clone https://github.com/frontman-ai/frontman.git
-cd frontman
-make -C apps/frontman_server release
-scp apps/frontman_server/_build/prod/frontman_server-*.tar.gz deploy@<server>:/tmp/
-ssh deploy@<server> '/opt/frontman/deploy.sh /tmp/frontman_server-*.tar.gz'
-```
+## Built-in telemetry egress
 
-**What the setup script does:**
-- Installs PostgreSQL 17 with production tuning (auto-detects RAM)
-- Creates `frontman` database user and `frontman_server_prod` database
-- Installs Caddy reverse proxy (auto TLS via Let's Encrypt)
-- Creates `/opt/frontman/{blue,green}` directories for blue/green deploys
-- Installs systemd services (`frontman-blue.service`, `frontman-green.service`)
-- Sets up nightly PostgreSQL backups (cron at 3:00 AM)
-- Configures UFW firewall (22, 80, 443) and fail2ban
+Self-hosting does not make the supplied source telemetry-free:
 
-**Blue/Green Deployment:**
-The deploy script (`/opt/frontman/deploy.sh`) extracts the release to the inactive slot, runs migrations, smoke tests the new version, then swaps Caddy's upstream. Zero-downtime deploys. Rollback via `/opt/frontman/rollback.sh`.
+- In production, [`config/runtime.exs`](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/config/runtime.exs) assigns the server Sentry DSN directly to Frontman's `o4510512511320064.ingest.de.sentry.io` project. Server exceptions and reported errors can therefore leave the deployment for that Sentry project. The runtime source does not read a Sentry DSN or disable flag from the environment.
+- The browser client calls `Client__Heap.init()` at startup. [`Client__Heap.res`](https://github.com/frontman-ai/frontman/blob/main/libs/client/src/Client__Heap.res) loads `https://cdn.us.heap-api.com/config/<env-id>/heap_config.js` and uses Heap environment `349428408` when `import.meta.env.DEV` is true (or unavailable, because [`Client__Env.isDev`](https://github.com/frontman-ai/frontman/blob/main/libs/client/src/Client__Env.res) falls back to `true`) and `218974947` in a production Vite build. The source provides no runtime setting to replace the Heap environment or disable initialization.
 
-**Monitoring (optional):**
-```bash
-# Install Prometheus, Alertmanager, Blackbox Exporter
-ssh root@<server> 'bash -s' < infra/production/monitoring/setup-monitoring.sh
-```
+The documented environment variables cannot disable either integration. If policy forbids this egress, modify and rebuild the relevant server/client source before deployment and enforce outbound network policy as defense in depth. Blocking the destinations without rebuilding can produce failed telemetry requests in server or browser logs; it is not a supported disable control.
 
----
+## Deploy with Railway
 
-### Option 2: Railway
+The repository root includes `railway.json`. It points Railway at `apps/frontman_server/Dockerfile`, runs database migrations before deployment, checks `/health`, and restarts the service on failure.
 
-Use Railway when you want the fastest managed self-hosted Frontman server: one Phoenix service, one PostgreSQL service, automatic HTTPS, and migrations before each deploy.
-
-Railway does not replace the Docker path. Use Railway for managed hosting, or use Docker directly when you want to run the same server image on your own infrastructure.
-
-**Deploy from GitHub:**
-1. Create a new Railway project from `https://github.com/frontman-ai/frontman`.
+1. Create a Railway project from the Frontman repository.
 2. Add a PostgreSQL service.
-3. Set the Frontman service build config to use `apps/frontman_server/Dockerfile`. The repository includes `railway.json` with this setting.
-4. Add the required Frontman service variables below.
-5. Deploy. Railway runs `/app/bin/frontman_server eval "FrontmanServer.Release.migrate()"` before starting the server and checks `/health` after deploy.
+3. Configure the Frontman service with `apps/frontman_server/Dockerfile` if Railway does not apply `railway.json` automatically.
+4. Set the required production variables above, using Railway references for the public hostname and PostgreSQL URL where appropriate.
+5. Deploy and inspect the pre-deploy migration and health-check results.
+6. Open `/health/ready` to verify that the running application can query PostgreSQL.
 
-**Required Frontman service variables:**
-```dotenv
-PHX_SERVER=true
-PHX_HOST=${{Frontman.RAILWAY_PUBLIC_DOMAIN}}
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-DATABASE_SSL=true
-SECRET_KEY_BASE=<generate a 64+ character secret>
-CLOAK_KEY=<generate with: openssl rand -base64 32>
-WORKOS_API_KEY=<your WorkOS API key>
-WORKOS_CLIENT_ID=<your WorkOS client ID>
-```
+Railway is one supported configuration path, not a published one-click template in this repository.
 
-Use the exact Railway service names from your project when referencing variables. If your app service is named `Frontman Server`, use `${{Frontman Server.RAILWAY_PUBLIC_DOMAIN}}`. If your database service is named `Postgres`, `${{Postgres.DATABASE_URL}}` works as shown.
+## Deploy with Docker
 
-**Optional Frontman service variables:**
-```dotenv
-RESEND_API_KEY=<enables welcome emails and contact sync>
-DISCORD_NEW_USERS_WEBHOOK_URL=<enables new-user signup notifications>
-POOL_SIZE=10
-```
+Build from the repository root so the Dockerfile can copy monorepo workspaces:
 
-`RESEND_API_KEY` and `DISCORD_NEW_USERS_WEBHOOK_URL` are optional. Frontman disables those background workers when the values are not present.
-
-**Publishing a one-click Railway template:**
-1. Create the Railway project above and confirm deploy succeeds.
-2. In Railway, publish the project as a template.
-3. Mark `SECRET_KEY_BASE` and `CLOAK_KEY` as generated secret variables.
-4. Mark `WORKOS_API_KEY` and `WORKOS_CLIENT_ID` as required user-provided variables with descriptions.
-5. Set category to developer tools or productivity.
-6. Use this template description:
-
-   `Self-host Frontman, the browser-native AI frontend agent. Includes the Phoenix orchestration server, PostgreSQL, automatic migrations, OAuth via WorkOS, and optional Resend/Discord integrations.`
-
-After publishing, Railway generates a page like `https://railway.com/deploy/frontman` and a deploy URL like `https://railway.com/new/template/<template-id>`.
-
----
-
-### Option 3: Docker
-
-**Build the image:**
 ```bash
-cd apps/frontman_server
-docker build -t frontman-server .
+docker build -f apps/frontman_server/Dockerfile -t frontman-server .
 ```
 
-**Run (single instance):**
+Run the image with production variables supplied by your deployment system:
+
 ```bash
-docker run -d \
+docker run --rm \
   --name frontman-server \
-  -p 4000:4000 \
+  -p 127.0.0.1:4000:4000 \
   -e DATABASE_URL='ecto://user:pass@postgres-host/frontman_server_prod' \
-  -e SECRET_KEY_BASE='<generate via: mix phx.gen.secret>' \
-  -e CLOAK_KEY='<generate via: openssl rand -base64 32>' \
-  -e WORKOS_API_KEY='<your-workos-api-key>' \
-  -e WORKOS_CLIENT_ID='<your-workos-client-id>' \
+  -e DATABASE_SSL=false \
+  -e PHX_HOST='frontman.example.com' \
+  -e SECRET_KEY_BASE='<generated-secret>' \
+  -e CLOAK_KEY='<generated-key>' \
+  -e WORKOS_API_KEY='<workos-api-key>' \
+  -e WORKOS_CLIENT_ID='<workos-client-id>' \
   frontman-server
 ```
 
-**Environment variables:** See `infra/production/env.template` for full list. Required:
-- `DATABASE_URL` — PostgreSQL connection string
-- `SECRET_KEY_BASE` — Session encryption (generate: `mix phx.gen.secret`)
-- `CLOAK_KEY` — API key encryption at rest (generate: `openssl rand -base64 32`)
-- `WORKOS_API_KEY`, `WORKOS_CLIENT_ID` — OAuth (GitHub, Google login)
+The example publishes the container port only on host loopback. Put a TLS-terminating reverse proxy with WebSocket support in front of it, and restrict proxy and host-network access to intended users and networks. Do not publish port 4000 on every host interface. The database hostname and TLS setting are placeholders; use a hostname reachable from the container, and set `DATABASE_SSL` to match that database.
 
-Optional:
-- `DISCORD_NEW_USERS_WEBHOOK_URL` — New user signup notifications
-- `RESEND_API_KEY` — Email delivery (welcome emails, password resets)
+Run migrations against the same environment before directing users to a new release:
 
-**PostgreSQL setup:**
 ```bash
-# Run postgres container
-docker run -d \
-  --name frontman-postgres \
-  -e POSTGRES_DB=frontman_server_prod \
-  -e POSTGRES_USER=frontman \
-  -e POSTGRES_PASSWORD='<random-password>' \
-  -v frontman-pg-data:/var/lib/postgresql/data \
-  postgres:17-alpine
-
-# Run migrations (first time only)
-docker exec frontman-server /app/bin/frontman_server eval "FrontmanServer.Release.migrate()"
+docker run --rm \
+  -e DATABASE_URL='ecto://user:pass@postgres-host/frontman_server_prod' \
+  -e DATABASE_SSL=false \
+  -e SECRET_KEY_BASE='<generated-secret>' \
+  -e CLOAK_KEY='<generated-key>' \
+  -e WORKOS_API_KEY='<workos-api-key>' \
+  -e WORKOS_CLIENT_ID='<workos-client-id>' \
+  frontman-server \
+  /app/bin/frontman_server eval "FrontmanServer.Release.migrate()"
 ```
 
----
+How the database hostname resolves depends on your Docker network or hosting platform. The repository does not provide a complete Docker Compose production stack.
 
-### Option 4: From Source (Development)
+## Deploy with repository VM scripts
 
-**Prerequisites:**
-- Elixir 1.19+, Erlang 28+, Node.js 24+, PostgreSQL 17+
-- Yarn 4+ (enable via `corepack enable`)
+`infra/production/` contains the scripts used for Frontman's VM deployment layout:
 
-**Setup:**
+- `server-setup.sh` installs PostgreSQL, Caddy, systemd units, firewall rules, fail2ban, and a daily database-backup cron.
+- `deploy.sh` deploys a release tarball to the inactive blue/green slot, runs migrations, checks health, and changes the Caddy upstream.
+- `rollback.sh` checks the previous slot before changing Caddy back to it.
+- `backup-pg.sh` writes daily PostgreSQL dumps and prunes backups according to the script's configured retention.
+
+These scripts assume their documented Ubuntu host layout, paths under `/opt/frontman`, privileged package installation, and local PostgreSQL. Read and adapt them before running them on an existing server. Their presence does not establish an uptime or recovery-time guarantee.
+
+## Run from source for development
+
+Repository development uses Elixir 1.20, Node.js 24, Yarn, and PostgreSQL. From the repository root:
+
 ```bash
-git clone https://github.com/frontman-ai/frontman.git
-cd frontman
-
-# 1. Install dependencies
 yarn install
 cd apps/frontman_server
-mix deps.get
-
-# 2. Create database
-mix ecto.create
-mix ecto.migrate
-
-# 3. Install assets (esbuild, tailwind)
-mix setup
-
-# 4. Configure platform and authentication secrets
-# Update envs/.dev.secrets.env with your 1Password references
-# Provider credentials are configured per account in Frontman settings
-
-# 5. Start server
-mix phx.server
-# Visit http://localhost:4000
+make setup
+make dev
 ```
 
-**Configuration:** Uses Dotenvy to load env files in this order:
-1. `envs/.env` (base config, checked into git)
-2. `envs/.dev.env` (dev defaults)
-3. `envs/.dev.overrides.env` (local overrides, gitignored)
-4. System environment variables (highest precedence)
+The server Makefile starts Phoenix through `op run` and `envs/.dev.secrets.env`, whose values are 1Password `op://` references. If you do not use that workflow, supply required application secrets through your process environment and run the appropriate Mix server command directly.
 
-Development platform and authentication secrets, such as WorkOS credentials, are stored in `envs/.dev.secrets.env` as `op://` references (1Password CLI). The Makefile wraps `mix phx.server` with `op run --env-file=envs/.dev.secrets.env` to inject them at runtime. If you don't use 1Password, provide those application secrets through your process environment. Configure model access per account with provider OAuth or a saved API key in Frontman settings; provider keys are not loaded from the server environment.
+Development environment files load in this order, with later values taking precedence:
 
----
+1. `envs/.env`
+2. `envs/.dev.env`
+3. `envs/.dev.overrides.env`
+4. Process environment variables
 
-## Configuration
+This source path is for development. Use a release image or release tarball for production.
 
-### Required Environment Variables
+## Connect an app to your server
 
-#### Application
-- `PHX_HOST` — Public hostname (e.g., `api.frontman.sh`)
-- `PHX_SERVER=true` — Start Phoenix HTTP endpoint
-- `PORT` — HTTP port (default: 4000)
+Set the framework integration's `host` option or `FRONTMAN_HOST` to your server hostname. Restart the app's development server, open `/frontman`, and complete sign-in against your deployment.
 
-#### Database
-- `DATABASE_URL` — PostgreSQL connection string
-  - Format: `ecto://user:pass@host/database`
-  - Example: `ecto://frontman:secretpass@localhost/frontman_server_prod`
-- `DATABASE_SSL` — Enable SSL (default: true in prod)
-  - Set to `false` for local PostgreSQL without SSL
-
-#### Security
-- `SECRET_KEY_BASE` — Phoenix session encryption
-  - Generate: `mix phx.gen.secret`
-  - Must be 64+ characters
-- `CLOAK_KEY` — API key encryption at rest (Cloak Ecto)
-  - Generate: `openssl rand -base64 32`
+Do not change `clientUrl`, `clientCssUrl`, or `entrypointUrl` unless your deployment serves those assets or endpoints from custom locations. [Configuration Options](/docs/reference/configuration/) owns those integration settings.
 
-#### Authentication (WorkOS)
-Frontman uses WorkOS for OAuth (GitHub, Google login). Required for production:
-- `WORKOS_API_KEY` — WorkOS API secret
-- `WORKOS_CLIENT_ID` — WorkOS OAuth client ID
+## Verify a deployment
 
-Get these from [WorkOS Dashboard](https://dashboard.workos.com/).
+1. Request `GET /health`; it should return `{"status":"ok"}` when the application process is serving requests.
+2. Request `GET /health/ready`; it should return `{"status":"ready","database":"connected"}` when PostgreSQL is reachable.
+3. Open the server root and complete GitHub or Google sign-in.
+4. Point a supported framework integration at the server and open `/frontman` in the development app.
+5. Connect a model provider, send a small prompt, and confirm browser and file tool calls return through the integration.
+6. Restart the browser session and confirm task history can be loaded from PostgreSQL.
 
-### Optional Environment Variables
+Health endpoints prove process and database readiness only. They do not test WorkOS, provider credentials, browser tools, file relay, backups, or external LLM availability.
 
-#### Notifications
-- `DISCORD_NEW_USERS_WEBHOOK_URL` — Discord webhook for new user signups (omit to disable)
+## Updates and rollback
 
-#### Email (Resend)
-- `RESEND_API_KEY` — Required for welcome emails and password resets in production
+Before updating:
 
-#### Database Tuning
-- `POOL_SIZE` — Ecto connection pool size (default: 10)
-- `ECTO_IPV6` — Set to `true` or `1` to use IPv6
+1. Read the repository [changelog](https://github.com/frontman-ai/frontman/blob/main/CHANGELOG.md).
+2. Back up PostgreSQL and verify that the backup can be restored in your environment.
+3. Build the target commit or image.
+4. Run `FrontmanServer.Release.migrate()` with the new release environment.
+5. Check `/health/ready`, sign-in, and one end-to-end agent task before completing rollout.
 
-#### Clustering (Distributed Elixir)
-- `RELEASE_NODE` — Node name (e.g., `frontman@localhost`)
-- `RELEASE_COOKIE` — Erlang distribution cookie (shared secret for clustering)
-- `RELEASE_DISTRIBUTION=name` — Enable distributed mode
-- `DNS_CLUSTER_QUERY` — DNS SRV query for node discovery (e.g., `_frontman._tcp.internal.local`)
-
----
+Database migrations do not imply automatic downgrade compatibility. Use the supplied rollback script only with the VM layout it expects, and review migrations before attempting an application or database rollback.
 
-## Database Management
+## Security boundaries
 
-### Migrations
-```bash
-# Production (inside release)
-/app/bin/frontman_server eval "FrontmanServer.Release.migrate()"
+- Terminate HTTPS in front of production HTTP and WebSocket traffic.
+- Restrict inbound access at the reverse proxy, firewall, private network, or identity-aware access layer. The production endpoint binds all interfaces inside its runtime, and the Docker example relies on host-loopback publishing to keep that HTTP listener off external interfaces.
+- Production [`runtime.exs`](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/config/runtime.exs) hard-codes Phoenix `check_origin: false`. This disables Phoenix socket Origin validation; it does not mean “same origin only.” There is no environment variable in current source to enable or configure allowed origins. Treat authentication, TLS, and network access controls as required, and modify the endpoint configuration if your threat model requires socket Origin enforcement.
+- Protect `SECRET_KEY_BASE`, `CLOAK_KEY`, WorkOS credentials, database credentials, and optional integration secrets outside source control.
+- Back up PostgreSQL; it stores users, task history, OAuth records, and encrypted provider credentials.
+- The `CLOAK_KEY` protects stored provider credentials at the application layer. Database encryption does not remove the need to protect that key and restrict server access.
+- Self-hosting controls the orchestration and persistence environment. It does not prevent data from reaching a user-selected LLM provider.
 
-# Development
-mix ecto.migrate
-```
-
-### Backups
-The setup script installs a daily backup cron (3:00 AM) that dumps PostgreSQL to `/opt/frontman/backups/daily/`. Retention: 7 days. Adjust in `/opt/frontman/backup-pg.sh`.
-
-**Manual backup:**
-```bash
-pg_dump -U frontman frontman_server_prod | gzip > backup-$(date +%Y%m%d).sql.gz
-```
-
-**Restore:**
-```bash
-gunzip < backup-YYYYMMDD.sql.gz | psql -U frontman frontman_server_prod
-```
-
-### Rollback
-```bash
-# Via deploy script (rolls back to previous release)
-ssh deploy@<server> '/opt/frontman/rollback.sh'
-
-# Manual Ecto rollback (dev)
-mix ecto.rollback --step 1
-```
-
----
-
-## Security Considerations
-
-### Data Flow
-- **Source code:** Filesystem tools read and write files on your machine through the framework integration; the Frontman server has no direct filesystem access. Relevant file content and tool results may pass through the orchestration server to your selected LLM provider.
-- **Browser context:** Browser tools capture DOM context, screenshots, logs, and metadata in the browser. Relevant results pass through the orchestration server to the selected LLM provider.
-- **Task history:** The hosted or self-hosted server persists task history in PostgreSQL.
-- **Secrets:** LLM API keys are encrypted at rest in PostgreSQL using Cloak Ecto (AES-256-GCM). The `CLOAK_KEY` env var decrypts them.
-- **OAuth tokens:** WorkOS handles GitHub/Google OAuth. Frontman receives an auth code, exchanges it for user info, and stores a session cookie (Phoenix signed sessions).
-
-### Transport Security
-- **HTTPS required in production.** Caddy auto-provisions Let's Encrypt TLS certificates.
-- **WebSocket encryption:** Phoenix Channels run over WSS (WebSocket Secure) in production.
-
-### Authentication
-- **OAuth via WorkOS** — GitHub and Google SSO
-- **Session-based** — Phoenix signed cookies (`SECRET_KEY_BASE`)
-- **No password storage** — OAuth-only (no email/password login)
-
-### Firewall
-The setup script configures UFW to allow only SSH (22), HTTP (80), HTTPS (443). PostgreSQL (5432) is bound to localhost only.
-
-### Secrets Management
-**Never commit secrets to git.** Use:
-- Environment files (`.env`) for non-sensitive config (gitignored)
-- Secret managers (1Password CLI, AWS Secrets Manager, HashiCorp Vault) for production
-
-Example with 1Password CLI (used in our dev workflow):
-```bash
-# .dev.secrets.env
-WORKOS_API_KEY=op://vault/WorkOS/API_Key
-
-# Run server with secrets injected
-op run --env-file=envs/.dev.secrets.env mix phx.server
-```
-
----
-
-## Monitoring & Observability
-
-### Health Checks
-- **HTTP:** `GET /health` → `{"status": "ok"}`
-- **Readiness:** `GET /health/ready` checks database connectivity
-- **Database:** Phoenix Dashboard at `/dashboard` (dev only)
-
-### Logs
-- **Development:** Console output (colorized via Phoenix Logger)
-- **Production:** Systemd journal (`journalctl -u frontman-blue -f`)
-- **Structured logging:** JSON format via Logger (configurable in `config/prod.exs`)
-
-### Metrics (Prometheus)
-Optional setup script installs Prometheus + Alertmanager + Blackbox Exporter. Scrapes:
-- System metrics via Node Exporter (CPU, memory, disk, network)
-- PostgreSQL metrics via Postgres Exporter
-- Health endpoint uptime via Blackbox Exporter
-- Prometheus self-monitoring metrics
-
-Alerts fire to Alertmanager → Discord webhook on:
-- Active Frontman service down for 2 minutes
-- Health endpoint unreachable for 2 minutes
-- Database backup stale for more than 25 hours
-- PostgreSQL connection count above threshold
-
----
-
-## Scaling & High Availability
-
-### Horizontal Scaling
-Frontman is stateless except for PostgreSQL. To scale horizontally:
-
-1. **Run multiple instances** behind a load balancer (e.g., Caddy with `lb_policy round_robin`)
-2. **Shared PostgreSQL** — all instances connect to the same database
-3. **Distributed Elixir** — set `RELEASE_NODE`, `RELEASE_COOKIE`, `RELEASE_DISTRIBUTION=name`, and `DNS_CLUSTER_QUERY` for node discovery
-
-Example (3 nodes):
-```bash
-# Node 1
-RELEASE_NODE=frontman1@node-a RELEASE_COOKIE=<cookie> /app/bin/server
-
-# Node 2
-RELEASE_NODE=frontman2@node-b RELEASE_COOKIE=<cookie> /app/bin/server
-
-# Node 3
-RELEASE_NODE=frontman3@node-c RELEASE_COOKIE=<cookie> /app/bin/server
-```
-
-Nodes will form a cluster. Phoenix PubSub messages (task updates, hot reload triggers) are distributed across all nodes.
-
-### Database HA
-For production, use:
-- **PostgreSQL replication** (streaming replication + failover via Patroni or Stolon)
-- **Managed databases** (AWS RDS, GCP Cloud SQL, Azure PostgreSQL)
-
-### Backup Strategy
-- **Automated daily backups** (setup script installs cron)
-- **Offsite storage** (rsync to S3, GCS, or Backblaze B2)
-- **Test restores regularly** (quarterly is recommended)
-
----
-
-## Commercial Considerations
-
-### Licensing
-The combined product is source-available because the server's supplementary terms impose field-of-use restrictions.
-
-- **Browser client and JavaScript framework integrations** — Apache-2.0 (permissive, commercial use allowed)
-- **WordPress plugin** (`libs/frontman-wordpress/`) — GPL-2.0-or-later
-- **Server** (`apps/frontman_server/`) — AGPL-3.0-only plus [AI Supplementary Terms](https://github.com/frontman-ai/frontman/blob/main/AI-SUPPLEMENTARY-TERMS.md) restricting AI training and AI-assisted competitive reproduction
-
-If you self-host, you must:
-- Provide source code to users who interact with your modified server (AGPL network clause)
-- Disclose modifications if you distribute the server
-
-**Commercial licenses available** — contact us if the server terms don't fit your use case (e.g., SaaS white-label, proprietary forks).
-
-### Support
-Self-hosted deployments are community-supported via:
-- [GitHub Issues](https://github.com/frontman-ai/frontman/issues) (bug reports, feature requests)
-- [Discord](https://discord.gg/xk8uXJSvhC) (community help)
-
-**Enterprise support** available (SLA-backed, private Slack channel, dedicated engineer). Includes:
-- Custom deployment consulting
-- Priority bug fixes and backports
-- Security patches with 24-hour SLA
-- Performance tuning and database optimization
-
-Contact us through the [contact page](/contact/) for enterprise support details.
-
-### Cloud Marketplaces
-Not currently available on AWS/GCP/Azure marketplaces. Roadmap item for 2025. Track progress in [issue #123](https://github.com/frontman-ai/frontman/issues/123).
-
-### Multi-Tenancy
-The hosted `api.frontman.sh` runs a single instance serving all users. Self-hosted deployments can run:
-- **Single-tenant** (one org, one database)
-- **Multi-tenant** (multiple orgs, shared database with row-level security)
-
-Multi-tenancy is implemented via `organization_id` foreign keys + Ecto query scoping. See `apps/frontman_server/lib/frontman_server/organizations.ex` for details.
-
-### Cost Estimates
-
-#### Hosted (api.frontman.sh)
-- **Paid hosted service** — Hosted Frontman Pro is available now
-- **BYOK** — you pay your LLM provider directly (Anthropic, OpenAI, OpenRouter) at standard API rates
-
-#### Self-Hosted (estimated monthly costs)
-- **Hetzner CCX13** (2 vCPU, 8GB RAM, 80GB NVMe) — €15/month (~$16 USD)
-- **PostgreSQL** (included on VM)
-- **Backups** (Hetzner Backup +20%) — €3/month (~$3 USD)
-- **Total:** ~€18/month (~$19 USD)
-
-Compare to:
-- **Cursor Pro** — $20/month/user
-- **GitHub Copilot Pro** — $10/month/user
-- **v0 Premium** — $20/month/user
-
-Self-hosting is cost-effective for teams of 2+ users.
-
----
+Review [Frontman Limitations & Workarounds](/docs/using/limitations/) for client and tool boundaries and the [Privacy Policy](/privacy/) for hosted-service data handling.
 
 ## Troubleshooting
 
-### Server won't start
-```bash
-# Check systemd logs
-journalctl -u frontman-blue -f
+**The container exits during startup.**
+Check logs for a missing `DATABASE_URL`, `SECRET_KEY_BASE`, or `CLOAK_KEY`, an invalid boolean environment value, or database connection failure.
 
-# Common issues:
-# 1. DATABASE_URL incorrect → check /opt/frontman/blue/env
-# 2. SECRET_KEY_BASE missing → generate: mix phx.gen.secret
-# 3. Port already in use → check: sudo lsof -i :4000
-```
+**`/health` works but `/health/ready` returns 503.**
+The application is running but its `SELECT 1` database check failed. Verify database hostname, credentials, network access, and `DATABASE_SSL`.
 
-### Database connection errors
-```bash
-# Test PostgreSQL connection
-psql -U frontman -h localhost frontman_server_prod
+**Users cannot sign in.**
+Verify WorkOS API credentials and callback/redirect configuration for the public `PHX_HOST`. Production does not expose public registration as an alternative.
 
-# Check PostgreSQL status
-systemctl status postgresql
+**The app's `/frontman` still uses the hosted server.**
+Set `host` or `FRONTMAN_HOST` in the framework integration and restart the app's development server.
 
-# Check pg_hba.conf auth
-sudo cat /etc/postgresql/17/main/pg_hba.conf | grep frontman
-```
+**A provider model is unavailable.**
+Provider access is configured per Frontman account. Follow [Configure Frontman API Keys & Providers](/docs/api-keys/) on the self-hosted instance.
 
-### Migrations fail
-```bash
-# Run manually with debug output
-/app/bin/frontman_server eval "FrontmanServer.Release.migrate()" --verbose
+For non-deployment failures, continue with [Troubleshooting](/docs/reference/troubleshooting/).
 
-# Rollback and retry
-mix ecto.rollback --step 1
-mix ecto.migrate
-```
+## Repository references
 
-### WebSocket connections drop
-- **Caddy timeout:** Increase `timeout` in Caddyfile (default: 5 minutes)
-- **Firewall:** Ensure TCP 443 allows long-lived connections (disable stateful inspection if needed)
-
-### Out of memory (OOM)
-```bash
-# Check BEAM memory usage
-/app/bin/frontman_server remote
-
-# In IEx console:
-:erlang.memory()
-# Look for 'total' — should be < 80% of available RAM
-
-# Tune VM (add to env):
-ERL_AFLAGS="+MBas aoffcbf +MBac false +MBlmbcs 512"
-```
-
-### High database load
-```bash
-# Check slow queries (inside psql):
-SELECT * FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10;
-
-# Add indexes (migrations in apps/frontman_server/priv/repo/migrations/)
-# Run: mix ecto.gen.migration add_index_to_tasks
-```
-
----
-
-## Upgrade Guide
-
-### Minor Versions (0.x.y → 0.x.z)
-Safe to deploy without downtime (backward-compatible migrations):
-```bash
-# Deploy via GitHub Actions (push to main)
-git push origin main
-
-# Or manually:
-ssh deploy@<server> '/opt/frontman/deploy.sh /tmp/new-release.tar.gz'
-```
-
-### Major Versions (0.x → 1.0)
-May require manual migration steps:
-1. **Read CHANGELOG.md** for breaking changes
-2. **Backup database** (`/opt/frontman/backup-pg.sh`)
-3. **Deploy to green slot** (test before swapping)
-4. **Run migrations** (deploy script does this automatically)
-5. **Smoke test** (deploy script checks health endpoint)
-6. **Swap Caddy upstream** (deploy script updates Caddyfile)
-
-Rollback if needed: `/opt/frontman/rollback.sh`
-
----
-
-## FAQ
-
-### Do I need to self-host?
-**No** — most users should use `api.frontman.sh` (our hosted instance). Self-host only if you need data sovereignty, can provide every required service and model in an air-gapped environment, or want custom server modifications. Self-hosting moves orchestration and persistence to your infrastructure; it does not by itself prevent transmission to your configured LLM provider.
-
-### Can I run Frontman without a server?
-**No** — the server orchestrates AI agent execution. The client libraries (Next.js/Astro/Vite plugins) are just MCP servers that expose dev server context to the agent.
-
-### Is the database required?
-**Yes** — stores user accounts, OAuth tokens, task history, and encrypted API keys.
-
-### Can I use MySQL instead of PostgreSQL?
-**No** — Ecto migrations use PostgreSQL-specific features (JSONB, UUID extensions). MySQL support is not planned.
-
-### How do I change the domain?
-1. Update `PHX_HOST` in `/opt/frontman/blue/env` and `/opt/frontman/green/env`
-2. Update Caddy config: `/etc/caddy/Caddyfile`
-3. Reload Caddy: `sudo systemctl reload caddy`
-4. Update DNS A record to point to your server
-
-### Can I disable OAuth and use email/password?
-**Not currently supported.** OAuth via WorkOS is the only auth method. Email/password login is a roadmap item for 2025 (track in [issue #456](https://github.com/frontman-ai/frontman/issues/456)).
-
-### How do I add a new LLM provider?
-See the [Models & Providers](/docs/reference/models/) reference for currently supported providers. To add a new provider in a self-hosted fork:
-1. Add provider config to `apps/frontman_server/config/config.exs`
-2. Implement API adapter in `apps/frontman_server/lib/frontman_server/providers/`
-3. Add OAuth flow if needed (WorkOS or custom)
-
----
-
-## Resources
-
-- [GitHub Repository](https://github.com/frontman-ai/frontman)
-- [Production Deployment Scripts](https://github.com/frontman-ai/frontman/tree/main/infra/production)
-- [Dockerfile](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/Dockerfile)
-- [Environment Template](https://github.com/frontman-ai/frontman/blob/main/infra/production/env.template)
-- [Discord Community](https://discord.gg/xk8uXJSvhC)
-
-For enterprise support or commercial licensing questions, contact us through the [contact page](/contact/).
+- [Frontman server Dockerfile](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/Dockerfile)
+- [Railway configuration](https://github.com/frontman-ai/frontman/blob/main/railway.json)
+- [Production scripts](https://github.com/frontman-ai/frontman/tree/main/infra/production)
+- [Production environment template](https://github.com/frontman-ai/frontman/blob/main/infra/production/env.template)
+- [Server license](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/LICENSE)
+- [AI Supplementary Terms](https://github.com/frontman-ai/frontman/blob/main/AI-SUPPLEMENTARY-TERMS.md)

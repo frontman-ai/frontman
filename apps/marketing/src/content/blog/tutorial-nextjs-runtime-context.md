@@ -1,126 +1,152 @@
 ---
 title: 'Add Runtime Context to AI Coding in Next.js'
 pubDate: 2026-02-23T07:00:00Z
-description: 'Step-by-step: install Frontman in a Next.js project, connect your AI key, and fix a CSS layout bug by clicking the broken element instead of describing it.'
+description: 'Build a reproducible mobile-overflow bug in a Next.js page, select it in Frontman, apply a scoped CSS Module fix, and verify the result.'
 author: 'Danni Friedland'
 articleSection: 'Tutorial'
 image: '/blog/tutorial-nextjs-runtime-context-cover.png'
 imageAlt: 'Next.js runtime context tutorial cover'
 tags: ['tutorial', 'getting-started', 'ai']
-updatedDate: 2026-03-10T00:00:00Z
+updatedDate: 2026-07-30T00:00:00Z
 ---
 
-This is a practical walkthrough. We'll take a Next.js app with a layout bug, install Frontman - one of the [browser-aware AI tools](/blog/what-are-browser-aware-ai-coding-tools/) - and fix the bug by clicking the broken element in the browser instead of describing it to an AI that cannot see it.
+This tutorial starts after installation. You will create a deliberate mobile overflow bug, point Frontman at the rendered element, request a constrained fix, and verify the result in the browser and source diff. For installation details, use the [Next.js integration guide](/docs/integrations/nextjs/).
 
-By the end you'll know whether runtime-aware AI coding actually saves time or is just a debugger with extra steps. Spoiler: it's both.
+The example uses a CSS Module, an officially supported Next.js styling method. See the [Next.js CSS documentation](https://nextjs.org/docs/app/getting-started/css#css-modules).
 
-### Prerequisites
+## Prerequisites
 
-- A Next.js 14 or 15 project (or `npx create-next-app@latest` to create one)
-- An API key from Claude, OpenAI, or OpenRouter
-- 5 minutes
+- A Next.js 15 or 16 project using the App Router
+- Frontman installed with `npx @frontman-ai/nextjs install`
+- Your development server running
+- An AI provider connected in Frontman
+- A root layout that imports `app/globals.css`
 
-### Step 1: Install Frontman
+Open `http://localhost:3000/frontman` and confirm that your application loads in the preview before continuing.
 
-```bash
-npx @frontman-ai/nextjs install
+## 1. Create a page with a known bug
+
+First, make the viewport assumptions explicit. Ensure `app/globals.css`, imported by your root layout, contains:
+
+```css
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
 ```
 
-That's it for setup. Start your dev server:
+These rules remove browser body spacing. The route styles below explicitly set box sizing, so an existing project-wide `border-box` reset cannot prevent the reproduction.
 
-```bash
-npm run dev
-```
-
-When you open your app in the browser, navigate to `localhost:3000/frontman`. You'll see the Frontman interface — chat on the left, your live app on the right. Connect an AI provider such as Anthropic, OpenAI, or OpenRouter. Provider credentials are encrypted on the Frontman server and never exposed to the browser; relevant task context passes through the server to your selected provider.
-
-### Step 2: The Bug
-
-Here's a card grid component with a subtle problem:
+Create `app/runtime-context/page.tsx`:
 
 ```tsx
-// src/components/CardGrid.tsx
-export function CardGrid({ items }: { items: Item[] }) {
+import styles from './page.module.css'
+
+export default function RuntimeContextPage() {
 	return (
-		<div className="grid grid-cols-3 gap-6 p-8">
-			{items.map((item) => (
-				<div key={item.id} className="rounded-lg bg-white p-6 shadow-sm">
-					<h3 className="text-lg font-semibold">{item.title}</h3>
-					{item.featured && (
-						<span className="mt-2 inline-block rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800">
-							Featured
-						</span>
-					)}
-					<p className="mt-4 text-gray-600">{item.description}</p>
-				</div>
-			))}
-		</div>
+		<main className={styles.page}>
+			<section className={styles.panel}>
+				<p className={styles.eyebrow}>Runtime context exercise</p>
+				<h1>Ship the page, not the guess</h1>
+				<p>
+					This panel is intentionally wider than a mobile viewport. Select it in Frontman and ask
+					for a scoped fix.
+				</p>
+				<button type="button">Review change</button>
+			</section>
+		</main>
 	)
 }
 ```
 
-Looks fine in source code. But when 2 of 6 items are `featured`, the cards with the badge are taller than the ones without. The bottom row doesn't align. The `gap-6` interacts with the conditional badge in a way that isn't obvious from reading the JSX.
+Create `app/runtime-context/page.module.css`:
 
-### What Cursor Would Do
+```css
+.page {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 100vh;
+	padding: 24px;
+	background: #f2f0e8;
+}
 
-You'd describe the bug: "The cards in CardGrid aren't aligning properly — some are taller than others."
+.panel {
+	box-sizing: content-box;
+	width: 520px;
+	padding: 32px;
+	border: 1px solid #222;
+	background: #fff;
+}
 
-The AI reads the source, sees `grid-cols-3 gap-6`, and suggests `h-full` on the cards (might work, might cause other issues), `min-h-[200px]` (arbitrary, fragile), or restructures the component entirely (overkill). It can't see that the actual problem is the conditional featured badge pushing content down. The AI is guessing because it doesn't see the rendered layout — this is [why coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/).
-
-### Step 3: Fix It With Runtime Context
-
-With Frontman running, open the page in your browser. You can see the misaligned cards.
-
-**Click the misaligned card.** Frontman highlights it and shows you the component location (`CardGrid` at `src/components/CardGrid.tsx:5`), the computed styles (actual padding, dimensions, flex/grid properties), the parent layout (grid container with resolved gap, column widths, and row heights), and the children (including the conditional badge).
-
-Now describe the fix:
-
-> "Make all cards the same height and align the description text at the bottom, regardless of whether the Featured badge is present."
-
-Frontman sends the AI your description, the source code, the computed layout showing actual height differences, and the component tree context. The AI generates a targeted edit — adding `flex flex-col` to the card wrapper and `mt-auto` to the description paragraph. It knows this is the right fix because it can see the _actual_ height difference.
-
-The edit is applied to your source file. Hot reload shows the result immediately. Cards align.
-
-### What Happened Under the Hood
-
-```text
-1. You clicked an element in the browser
-2. Frontman's client-side code identified the React component
-   and resolved it to a source file:line via sourcemaps
-3. The click target + component info were sent to
-   Frontman running inside the Next.js dev server
-4. The Next.js integration gathered:
-   - Source code of the component
-   - Computed styles from the browser
-   - Component tree (parent/child relationships)
-   - Server-side context (routes, module graph)
-5. All packaged as MCP tool responses alongside your description
-6. The AI generated a source code edit
-7. The edit was written to disk
-8. Next.js HMR hot-reloaded the change
-9. The browser updated — you see the fix immediately
+.eyebrow {
+	font-size: 0.75rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
 ```
 
-The AI didn't guess what the layout looks like. It _knew_ — because Frontman gave it the computed layout data from the browser.
+Visit `http://localhost:3000/runtime-context`. At a 390-pixel viewport, the border-box page has 342 pixels of content width after 24-pixel padding on each side. The panel explicitly declares a 520-pixel content-box width, and its padding and border make the rendered box wider still. Horizontal overflow is therefore expected regardless of starter-template reset styles.
 
-### Beyond CSS
+## 2. Capture runtime context
 
-The card grid example is simple. More realistic scenarios where runtime context helps:
+In Frontman:
 
-**Debugging a 404.** Your page returns a 404 but the file exists. Ask Frontman "Why is /api/users/me returning 404?" — it gives the AI access to the registered route table and middleware state. The AI can see that a middleware redirect is firing before the route matches.
+1. Navigate the preview to `/runtime-context`.
+2. Switch to a mobile viewport, such as 390 pixels wide.
+3. Select the overflowing white panel as an annotation.
+4. Send this prompt:
 
-**Fixing a hydration mismatch.** A component renders differently on server and client. Click the component — Frontman shows the server-rendered HTML vs the client-rendered DOM, plus the source location. The AI sees the mismatch directly.
+> Fix horizontal overflow for the selected panel at a 390px viewport. Keep 24px page padding, keep the current markup, and edit only `app/runtime-context/page.module.css`. Explain the CSS sizing cause, then show the diff. Do not change typography or colors.
 
-**Understanding an unfamiliar codebase.** Click the dashboard sidebar. Frontman tells you: `DashboardLayout > Sidebar` at `src/layouts/DashboardLayout.tsx:23`. Answer in 2 seconds instead of grepping through the component tree.
+The annotation gives the task a concrete rendered target. Depending on framework and source-map availability, Frontman can attach a selector, screenshot, component metadata, and source location. The agent can also use browser tools for the DOM and screenshot, then use dev-server tools to read and edit the project file. See [How the Agent Works](/docs/using/how-the-agent-works/) for the verified tool flow.
 
-### When NOT to Use This
+## 3. Review the fix
 
-Runtime-aware AI coding is not a silver bullet:
+One minimal valid result is:
 
-- **Complex state logic** — the visual output doesn't tell you if your reducer is correct
-- **Performance optimization** — Frontman sees the DOM, not your render cycles or bundle size
-- **As a substitute for understanding your code** — if you can't explain the AI's diff to a colleague, don't commit it
+```css
+.panel {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 520px;
+	padding: 32px;
+	border: 1px solid #222;
+	background: #fff;
+}
+```
 
-[The runtime context gap](/blog/runtime-context-gap/) is real, and closing it saves time on a specific class of problems. It doesn't replace engineering judgment. It just means the AI guesses less.
+Why it works:
 
-[Get started with Frontman](https://frontman.sh) — works with Next.js, Astro, and Vite. Or [see how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). For a broader buyer guide to build frontend with AI, read the [best frontend coding agent comparison](/blog/best-frontend-coding-agent/).
+- `width: 100%` lets the panel use available content width instead of forcing 520 pixels.
+- `max-width: 520px` preserves the intended desktop limit.
+- `box-sizing: border-box` includes padding and border inside that width.
+
+Do not accept the edit only because it resembles this snippet. Check the actual diff. The prompt limits file scope, but model output still requires review.
+
+## 4. Verify browser and build behavior
+
+Verify all of these before keeping the change:
+
+1. At 390 pixels, no horizontal scrollbar appears and 24-pixel outer padding remains visible.
+2. At desktop width, the panel stops growing at 520 pixels.
+3. Button, heading, copy, colors, and markup remain unchanged.
+4. `git diff -- app/runtime-context/page.module.css` contains only the intended sizing edit.
+5. Run your project's normal lint, test, and `next build` checks.
+
+Next.js applies CSS updates immediately during development through Fast Refresh, but its documentation recommends checking the production build because CSS output and ordering can differ between development and production.
+
+## What runtime context contributed
+
+This bug is solvable from source alone. Runtime context reduces ambiguity about which rendered element, route, and viewport the request concerns. Frontman's distributed flow is:
+
+1. Browser tools inspect the selected element and current page.
+2. The Frontman server sends relevant task context to your selected AI provider and orchestrates tool calls.
+3. File reads and edits execute on your machine through the Next.js integration.
+4. Next.js refreshes the preview after the edit.
+5. You inspect the rendered result and git diff.
+
+Frontman does not prove the edit is correct, run every project check, or replace code review. It supplies runtime evidence to a normal development workflow.
+
+Continue with [annotations](/docs/using/annotations/) or review [Frontman's limitations](/docs/using/limitations/) before using it on larger changes.
