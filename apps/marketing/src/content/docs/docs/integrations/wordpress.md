@@ -1,11 +1,11 @@
 ---
-title: WordPress (Beta)
-description: Install the Frontman WordPress plugin to edit posts, blocks, Elementor pages, menus, templates, widgets, and settings through an AI interface.
+title: Install and Use Frontman for WordPress (Beta)
+description: Install the Frontman WordPress plugin, connect model access, verify the editor, and troubleshoot supported site changes.
 ---
 
 The Frontman WordPress plugin adds an AI agent directly to your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow inside the site preview — no code editor or terminal required for those supported changes.
 
-For the product overview, see [Frontman for WordPress](/wordpress/).
+This guide owns WordPress installation and use. For the cross-platform support matrix, see [Frontman Framework Compatibility](/docs/reference/compatibility/). For the product overview, see [Frontman for WordPress](/wordpress/).
 
 > **Beta:** This is experimental software. Start on a staging site, keep backups, and review changes before deploying to production.
 
@@ -34,7 +34,7 @@ Install Frontman from the [WordPress Plugin Directory](https://wordpress.org/plu
 2. Navigate to `/frontman` on your site (e.g. `https://yoursite.com/frontman`).
 3. If prompted, sign in to Frontman at `api.frontman.sh` with GitHub or Google. This is separate from your WordPress admin login.
 4. Once signed in, return to `/frontman` on your site. Frontman redirects back automatically when the site URL is accepted.
-5. Connect a supported AI provider with OAuth or add an API key.
+5. Connect a supported AI provider with OAuth or add an API key by following [Configure Frontman API Keys & Providers](/docs/api-keys/).
 6. Describe what you want to change in the chat interface beside the live preview.
 
 Frontman attempts to return you to the same site URL after hosted sign-in. If the hosted page remains open instead, reopen `/frontman` on your site after signing in. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
@@ -43,14 +43,25 @@ You can also open Frontman while browsing any page — just append `/frontman` t
 
 ## What the Agent Can Do
 
-- Create, edit, and delete posts and pages
-- Insert, update, move, and delete Gutenberg blocks
-- Edit Elementor pages with Elementor-aware tools
-- Add and update navigation menu items
-- Read and change site options (title, tagline, permalinks, etc.)
-- Browse and update block templates and template parts
-- Manage widgets
-- Flush the WordPress cache
+This inventory reflects Frontman WordPress plugin 2.0.0 source, verified July 30, 2026. WordPress uses dedicated `wp_*` tools, not the file and Lighthouse tools provided by Astro, Next.js, and Vite. For shared browser and backend tools, see [Frontman Agent Tool Capabilities](/docs/using/tool-capabilities/).
+
+- **Posts, pages, and Gutenberg:** list, read, create, duplicate, update, and delete posts or pages; list, read, insert, update, move, and delete blocks.
+- **Elementor, when active:** inspect page data and widgets; add, update, duplicate, move, remove, or generate elements; replace complete page data; flush generated CSS; list and restore Frontman rollback snapshots.
+- **Navigation, templates, and widgets:** manage classic menus, menu items, menu locations, block-theme navigation menus, block templates, template parts, widget areas, and supported widget types.
+- **Site settings:** read and update allowlisted core options such as title, tagline, front-page selection, permalink structure, and comment settings. Arbitrary option access is not available.
+- **Additional CSS:** read active-theme Additional CSS and replace its complete contents with `wp_update_custom_css`. This site-wide write requires explicit confirmation and returns before/after CSS.
+- **Theme settings:** list active-theme Customizer/theme mods or read one mod. Plugin 2.0.0 does not expose a generic theme-mod write tool.
+- **Media:** upload a user-attached image into Media Library with optional title, alt text, caption, description, and parent post. Maximum decoded upload size is 20 MB. Plugin does not expose general media browsing, editing, or deletion tools.
+- **WooCommerce, when active:** `wc_*` tools cover products, categories, tags, attributes and terms, variations, reviews, orders, notes, refunds, customers, shipping, taxes, coupons, payment gateways, reports, settings, system status, store data, and product/order/customer metadata.
+- **Cache:** inspect supported cache plugins and request cache clearing.
+
+## Confirmation and Rollback
+
+- Frontman must ask for approval before calling plugin tools whose schema requires `confirm=true`. This includes WordPress delete tools, complete Elementor page replacement, Elementor element removal and rollback restoration, Additional CSS replacement, and WooCommerce `PUT`/`DELETE` mutations plus metadata updates/deletes.
+- Post and page deletion moves content to trash by default; `force=true` permanently deletes it. Other delete tools do not promise trash or automatic restoration.
+- Many mutation results include before/after state for review, but those snapshots are not a general undo system.
+- Elementor content mutation tools save private rollback snapshots and return rollback IDs. `wp_elementor_list_rollbacks` finds them; `wp_elementor_restore_rollback` restores one after separate confirmation.
+- No plugin-wide one-click rollback exists for Gutenberg, menus, templates, widgets, options, Additional CSS, media, or WooCommerce. Use WordPress revisions/trash where applicable and maintain site backups.
 
 ## Security
 
@@ -80,4 +91,4 @@ A WordPress login screen means you must log in as an administrator first. A Fron
 Use the `wp_clear_cache` tool in the chat, or flush your caching plugin manually (WP Rocket, W3 Total Cache, etc.).
 
 **Something went wrong and I want to undo a change.**
-Many WordPress mutation tools return before/after snapshots in tool history, but Frontman does not guarantee one-click undo for every WordPress change. Keep normal site backups and review changes before relying on them.
+Use Elementor's Frontman rollback tools only for Elementor changes. For posts and pages, check WordPress revisions or trash when applicable. Other mutations have no plugin-managed rollback; use your site backup or manually restore the recorded before state.

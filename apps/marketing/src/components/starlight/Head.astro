@@ -2,71 +2,80 @@
 // Starlight Head component override
 // Adds OG image, breadcrumb structured data, and ensures description is set
 
-import type { StarlightRouteData } from '@astrojs/starlight/route-data';
-import StarlightHead from '@astrojs/starlight/components/Head.astro';
+import type { StarlightRouteData } from '@astrojs/starlight/route-data'
+import StarlightHead from '@astrojs/starlight/components/Head.astro'
+import { createWebPageSchema } from '../../utils/structuredData.mjs'
 
-type Props = StarlightRouteData;
+type Props = StarlightRouteData
 
-const ogImage = new URL('/og.png', Astro.site).href;
-const ogImageAlt = 'Frontman — The AI agent that lives inside your framework';
+const ogImage = new URL('/og.png', Astro.site).href
+const ogImageAlt = 'Frontman — The AI agent that lives inside your framework'
 
 // Build breadcrumb structured data
-const routeData = Astro.locals.starlightRoute ?? Astro.props;
-const entry = routeData.entry;
-const breadcrumbItems = [];
+const routeData = Astro.locals.starlightRoute ?? Astro.props
+const entry = routeData.entry
+const breadcrumbItems = []
+const pathname = Astro.url.pathname.replace(/\/$/, '')
+const slug = pathname.split('/').pop() ?? ''
+const fallbackTitle = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+const entryTitle = typeof entry?.data?.title === 'string' ? entry.data.title.trim() : ''
+const routeTitle = typeof routeData.title === 'string' ? routeData.title.trim() : ''
+const pageTitle = entryTitle || routeTitle || fallbackTitle
+const entryDescription =
+	typeof entry?.data?.description === 'string' ? entry.data.description.trim() : ''
+const routeDescription =
+	typeof routeData.description === 'string' ? routeData.description.trim() : ''
+const pageDescription = entryDescription || routeDescription
+const pageUrl = new URL(Astro.url.pathname, Astro.site).href
 
 // Always add Home
 breadcrumbItems.push({
-  "@type": "ListItem",
-  "position": 1,
-  "name": "Home",
-  "item": {
-    "@type": "WebPage",
-    "@id": new URL('/', Astro.site).href,
-    "name": "Home"
-  }
-});
+	'@type': 'ListItem',
+	position: 1,
+	name: 'Home',
+	item: {
+		'@type': 'WebPage',
+		'@id': new URL('/', Astro.site).href,
+		name: 'Home'
+	}
+})
 
 // Add Docs root
 breadcrumbItems.push({
-  "@type": "ListItem",
-  "position": 2,
-  "name": "Docs",
-  "item": {
-    "@type": "WebPage",
-    "@id": new URL('/docs/', Astro.site).href,
-    "name": "Docs"
-  }
-});
+	'@type': 'ListItem',
+	position: 2,
+	name: 'Docs',
+	item: {
+		'@type': 'WebPage',
+		'@id': new URL('/docs/', Astro.site).href,
+		name: 'Docs'
+	}
+})
 
 // Add current page if it's a docs subpage (not the docs index itself)
-const pathname = Astro.url.pathname.replace(/\/$/, '');
-const isDocsIndex = pathname === '/docs' || pathname === '';
+const isDocsIndex = pathname === '/docs' || pathname === ''
 if (!isDocsIndex) {
-  // Starlight exposes the page title as entry.data.title, but also passes
-  // it via the top-level props. Fall back to capitalising the URL slug.
-  const slug = pathname.split('/').pop() ?? '';
-  const fallbackTitle = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  const entryTitle = typeof entry?.data?.title === 'string' ? entry.data.title.trim() : '';
-  const routeTitle = typeof routeData.title === 'string' ? routeData.title.trim() : '';
-  const pageTitle = entryTitle || routeTitle || fallbackTitle;
-  breadcrumbItems.push({
-    "@type": "ListItem",
-    "position": 3,
-    "name": pageTitle,
-    "item": {
-      "@type": "WebPage",
-      "@id": new URL(Astro.url.pathname, Astro.site).href,
-      "name": pageTitle
-    }
-  });
+	breadcrumbItems.push({
+		'@type': 'ListItem',
+		position: 3,
+		name: pageTitle,
+		item: {
+			'@type': 'WebPage',
+			'@id': new URL(Astro.url.pathname, Astro.site).href,
+			name: pageTitle
+		}
+	})
 }
 
 const breadcrumbSchema = {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": breadcrumbItems
-};
+	'@context': 'https://schema.org',
+	'@type': 'BreadcrumbList',
+	itemListElement: breadcrumbItems
+}
+const pageSchema = {
+	'@context': 'https://schema.org',
+	...createWebPageSchema({ url: pageUrl, title: pageTitle, description: pageDescription })
+}
 ---
 
 <StarlightHead {...Astro.props} />
@@ -84,4 +93,5 @@ const breadcrumbSchema = {
 <meta name="twitter:image:alt" content={ogImageAlt} />
 
 <!-- Breadcrumb Structured Data -->
+<script is:inline type="application/ld+json" set:html={JSON.stringify(pageSchema)} />
 <script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />

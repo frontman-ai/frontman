@@ -10,7 +10,7 @@ install: ## Install dependencies
 	yarn install
 
 test: ## Run marketing tests
-	yarn run -T vitest run src/integrations/*.test.mjs src/content/*Metadata.test.mjs
+	yarn run -T vitest run src/integrations/*.test.mjs src/content/*.test.mjs
 
 dev: ## Start development server
 	yarn dev --port $(PORT)
