@@ -28,7 +28,7 @@ describe('blog metadata', () => {
   it('uses canonical authors and explicit article sections', async () => {
     const posts = await loadPosts()
 
-    expect(posts).toHaveLength(40)
+    expect(posts).toHaveLength(41)
     for (const {filename, frontmatter} of posts) {
       const author = scalar(frontmatter, 'author')
       const canonicalAuthor = authors[author]
