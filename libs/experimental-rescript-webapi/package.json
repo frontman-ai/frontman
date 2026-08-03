@@ -52,7 +52,7 @@
     "prettier": "^3.9.4",
     "prettier-plugin-astro": "^0.14.1",
     "rescript": "catalog:",
-    "sharp": "^0.35.2"
+    "sharp": "^0.35.3"
   },
   "peerDependencies": {
     "rescript": ">=12"
