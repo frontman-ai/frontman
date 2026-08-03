@@ -21,7 +21,7 @@
     "@fontsource-variable/outfit": "^5.0.13",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "7.0.3",
+    "astro": "7.0.6",
     "astro-broken-links-checker": "^1.1.0",
     "astro-icon": "^1.1.5",
     "hc-starlight": "^0.0.8",
