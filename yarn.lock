@@ -579,9 +579,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/starlight@npm:0.41.1":
-  version: 0.41.1
-  resolution: "@astrojs/starlight@npm:0.41.1"
+"@astrojs/starlight@npm:0.41.3":
+  version: 0.41.3
+  resolution: "@astrojs/starlight@npm:0.41.3"
   dependencies:
     "@astrojs/markdown-satteri": "npm:^0.3.2"
     "@astrojs/mdx": "npm:^7.0.0"
@@ -618,7 +618,7 @@ __metadata:
   peerDependenciesMeta:
     "@astrojs/markdown-remark":
       optional: true
-  checksum: 10c0/f66acde3fb4dbd1e87cf553b3c8448f80c7c88aac21cbfd6198bcaa2d99923683a9e2e59656a2e566050ef1769ddf999de2413e4ca3ff25eb221d54aa81e4b67
+  checksum: 10c0/25a6103efe964aef156c26156552a6f75cf896afdae4154f728660f2b9441981a9adc50de7639d89c64407eb53d72f00daea42c310fcac88e92cf696ad00e192
   languageName: node
   linkType: hard
 
@@ -5467,7 +5467,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@rescript/webapi@workspace:libs/experimental-rescript-webapi"
   dependencies:
-    "@astrojs/starlight": "npm:0.41.1"
+    "@astrojs/starlight": "npm:0.41.3"
     astro: "npm:^7.0.3"
     micromark: "npm:^4.0.1"
     oxfmt: "npm:^0.57.0"
@@ -13325,7 +13325,7 @@ __metadata:
     "@astrojs/preact": "npm:6.0.1"
     "@astrojs/rss": "npm:4.0.19"
     "@astrojs/sitemap": "npm:^3.7.3"
-    "@astrojs/starlight": "npm:0.41.1"
+    "@astrojs/starlight": "npm:0.41.3"
     "@astrojs/starlight-tailwind": "npm:^5.0.0"
     "@fontsource-variable/inter": "npm:^5.0.18"
     "@fontsource-variable/outfit": "npm:^5.0.13"
