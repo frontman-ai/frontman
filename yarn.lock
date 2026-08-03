@@ -2567,7 +2567,7 @@ __metadata:
     lighthouse: "npm:^13.4.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.8"
+    sury: "npm:11.0.0-alpha.9"
     vite: "catalog:"
     vitest: "catalog:"
   dependenciesMeta:
@@ -2582,7 +2582,7 @@ __metadata:
   dependencies:
     "@rescript/webapi": "npm:*"
     rescript: "catalog:"
-    sury: "npm:11.0.0-alpha.8"
+    sury: "npm:11.0.0-alpha.9"
   languageName: unknown
   linkType: soft
 
@@ -2609,7 +2609,7 @@ __metadata:
     react-dom: "npm:^19.2.7"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.8"
+    sury: "npm:11.0.0-alpha.9"
     tsup: "npm:^8.0.0"
     vite: "catalog:"
     vitest: "catalog:"
@@ -2668,7 +2668,7 @@ __metadata:
     lighthouse: "npm:^13.4.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.8"
+    sury: "npm:11.0.0-alpha.9"
     tsup: "npm:^8.0.0"
     vite: "catalog:"
     vitest: "catalog:"
@@ -18144,6 +18144,18 @@ __metadata:
     rescript:
       optional: true
   checksum: 10c0/97fdf345ad11b7103bf9d26d9d9ce47f1dc7338e379e51de7febf8a9d483ba95c3bff3aaf5cd542b7265a3eb09168af113817324a0b3bf3c51a07b950e5446f4
+  languageName: node
+  linkType: hard
+
+"sury@npm:11.0.0-alpha.9":
+  version: 11.0.0-alpha.9
+  resolution: "sury@npm:11.0.0-alpha.9"
+  peerDependencies:
+    rescript: 12.x
+  peerDependenciesMeta:
+    rescript:
+      optional: true
+  checksum: 10c0/09e104745cc7a119af6dfc4738d75d5ba0b35ccb8db81cdf773ab9c082755193352a617bdf8165768c23a19ad63ca648f3187670db13bed3b5463b25cd9a842d
   languageName: node
   linkType: hard
 

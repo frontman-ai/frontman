@@ -68,7 +68,7 @@
 		"dom-element-to-component-source": "0.5.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"sury": "11.0.0-alpha.8",
+		"sury": "11.0.0-alpha.9",
 		"tsup": "^8.0.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"
