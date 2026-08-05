@@ -33,7 +33,7 @@
 	},
 	"dependencies": {
 		"@frontman/logs": "workspace:*",
-		"@sentry/browser": "^10.55.0",
+		"@sentry/browser": "^10.63.0",
 		"phoenix": "^1.8.8"
 	},
 	"devDependencies": {
