@@ -19,7 +19,7 @@ test: build ## Run test suite
 	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run
 
 test-watch: ## Run tests in watch mode
-	yarn vitest watch
+	SENTRY_DSN=https://public@example.invalid/1 yarn vitest watch
 
 test-coverage: build ## Run tests with coverage
 	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run --coverage

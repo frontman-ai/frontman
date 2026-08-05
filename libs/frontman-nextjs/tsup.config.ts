@@ -2,6 +2,16 @@ import { defineConfig } from 'tsup';
 import { readFileSync } from 'fs';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
+const sentryDsn = process.env.SENTRY_DSN;
+
+if (!sentryDsn) {
+  throw new Error('SENTRY_DSN is required');
+}
+
+const define = {
+  '__PACKAGE_VERSION__': JSON.stringify(pkg.version),
+  'process.env.SENTRY_DSN': JSON.stringify(sentryDsn),
+};
 
 export default defineConfig([
   // Main entry point
@@ -10,7 +20,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: true,
-    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
+    define,
     // Bundle internal workspace dependencies
     noExternal: [
       '@frontman-ai/frontman-core',
@@ -64,7 +74,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: false, // Don't clean, we already did in first build
-    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
+    define,
     noExternal: [
       '@frontman-ai/frontman-core',
       '@frontman-ai/frontman-protocol',
@@ -116,7 +126,7 @@ export default defineConfig([
     format: ['esm'],
     outDir: 'dist',
     clean: false,
-    define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
+    define,
     noExternal: [
       '@frontman-ai/frontman-core',
       '@frontman-ai/frontman-protocol',
