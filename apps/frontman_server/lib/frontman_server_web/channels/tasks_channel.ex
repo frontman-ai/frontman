@@ -1,4 +1,11 @@
 defmodule FrontmanServerWeb.TasksChannel do
+  @moduledoc """
+  Channel for Tasks management.
+
+  Handles protocol initialization and session creation.
+  Clients join this channel first, then join session-specific
+  channels after creating a session.
+  """
   use FrontmanServerWeb, :channel
   use FrontmanServerWeb, :verified_routes
   require Logger

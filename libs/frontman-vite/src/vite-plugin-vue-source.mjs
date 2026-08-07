@@ -1,6 +1,9 @@
 
 import { readFileSync } from 'node:fs';
 
+/**
+ * @returns {import('vite').Plugin}
+ */
 export function frontmanVueSourcePlugin() {
   return {
     name: 'frontman:vue-source',

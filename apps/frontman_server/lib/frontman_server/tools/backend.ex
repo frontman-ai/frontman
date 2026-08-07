@@ -1,5 +1,16 @@
 defmodule FrontmanServer.Tools.Backend do
+  @moduledoc """
+  Behaviour for backend tools that execute server-side.
+  """
+
   defmodule Context do
+    @moduledoc """
+    Execution context passed to backend tools.
+
+    Tools receive all needed data through this context rather than calling back into
+    contexts.
+    """
+
     @enforce_keys [:task]
     defstruct task: nil
   end

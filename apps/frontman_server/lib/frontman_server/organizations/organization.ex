@@ -1,4 +1,8 @@
 defmodule FrontmanServer.Organizations.Organization do
+  @moduledoc """
+  Schema for organizations - workspaces that group users together.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query

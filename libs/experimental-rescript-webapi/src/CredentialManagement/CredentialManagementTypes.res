@@ -35,11 +35,23 @@ type attestationConveyancePreference =
   | @as("indirect") Indirect
   | @as("none") None
 
+/**
+[See CredentialsContainer on MDN](https://developer.mozilla.org/docs/Web/API/CredentialsContainer)
+*/
 @editor.completeFrom(CredentialsContainer)
 type credentialsContainer = private {}
 
+/**
+[See Credential on MDN](https://developer.mozilla.org/docs/Web/API/Credential)
+*/
 type credential = {
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Credential/id)
+    */
   id: string,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Credential/type)
+    */
   @as("type")
   type_: string,
 }

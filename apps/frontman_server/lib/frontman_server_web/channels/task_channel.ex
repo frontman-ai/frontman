@@ -1,4 +1,11 @@
 defmodule FrontmanServerWeb.TaskChannel do
+  @moduledoc """
+  Channel for task-specific ACP events.
+
+  Clients join this channel after creating a task via the
+  tasks channel. Handles prompt messages and streams
+  agent responses back to the client.
+  """
   use FrontmanServerWeb, :channel
   require Logger
 

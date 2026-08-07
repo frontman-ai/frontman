@@ -1,3 +1,10 @@
+/**
+ * Client__PromptInput - Main chat input component
+ *
+ * Prompt composer shell. Tiptap owns editor content, pills, paste/drop, and file picker.
+ * This component keeps app-level controls around it: model selector, selected-element
+ * button, submit/stop button, provider CTA, error toast, and image preview.
+ */
 module Icons = Client__ToolIcons
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 

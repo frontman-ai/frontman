@@ -1,3 +1,18 @@
+/**
+ * ToolGroupUtils - Logic for grouping consecutive tool calls
+ *
+ * Groups consecutive "exploration" tools (read, list, search, grep)
+ * into collapsible "Explored" summaries while keeping "action" tools separate.
+ *
+ * Uses substring-based pattern matching to handle various tool naming conventions
+ * (MCP tools, backend tools, etc.)
+ *
+ * Key rules:
+ * - Read-only operations are grouped → Reduces noise
+ * - Mutations break groups → Important changes are always visible
+ * - Error states are NOT grouped → Failures should be visible
+ * - Single items are NOT grouped → No grouping overhead for singles
+ */
 module Message = Client__State__Types.Message
 module Types = Client__ToolGroupTypes
 module ToolLabels = Client__ToolLabels
@@ -52,11 +67,19 @@ let definitionToolNeedles = ["definition", "symbol"]
 let directoryToolNeedles = ["list", "dir"]
 let browserSnapshotNeedles = ["snapshot", "screenshot"]
 
+/**
+ * Check if tool is browser exploration (not action)
+ * Snapshots, console logs, network requests are read-only
+ */
 let isBrowserExploration = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
   includesAny(name, browserExplorationNeedles)
 }
 
+/**
+ * Groupable tools (Read-Only/Exploratory)
+ * Uses substring matching to handle various naming conventions.
+ */
 let isGroupableTool = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
 
@@ -65,6 +88,10 @@ let isGroupableTool = (toolName: string): bool => {
   isBrowserExploration(name)
 }
 
+/**
+ * Non-Groupable tools (Mutations / Group Breakers)
+ * When any of these are encountered, the current group closes.
+ */
 let breaksGrouping = (toolName: string): bool => {
   let name = String.toLowerCase(toolName)
 
@@ -73,10 +100,16 @@ let breaksGrouping = (toolName: string): bool => {
   (String.includes(name, "fix") && !String.includes(name, "prefix"))
 }
 
+/**
+ * Check if tool call is from a subagent
+ */
 let isSubagentToolCall = (tc: Message.toolCall): bool => {
   Option.isSome(tc.parentAgentId)
 }
 
+/**
+ * Determine the group type for a tool
+ */
 let getGroupType = (toolName: string): Types.groupType => {
   let name = String.toLowerCase(toolName)
   if String.includes(name, "browser") || String.includes(name, "snapshot") {
@@ -88,6 +121,9 @@ let getGroupType = (toolName: string): Types.groupType => {
   }
 }
 
+/**
+ * Extract file path from tool input
+ */
 let extractFilePath = (input: option<JSON.t>): option<string> => {
   ToolLabels.extractTargetFromInput(input)
 }
@@ -100,6 +136,9 @@ let incrementIf = (count, condition) =>
   | false => count
   }
 
+/**
+ * Calculate summary statistics from grouped tool calls
+ */
 let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
   tools->Array.reduce(Types.emptySummary, (acc, tool) => {
     let name = String.toLowerCase(tool.toolName)
@@ -137,6 +176,9 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
   })
 }
 
+/**
+ * Get unique items from an array
+ */
 let unique = (arr: array<string>): array<string> => {
   arr->Array.reduce([], (acc, item) => {
     if acc->Array.includes(item) {
@@ -147,6 +189,17 @@ let unique = (arr: array<string>): array<string> => {
   })
 }
 
+/**
+ * Generate summary labels from statistics
+ * Returns an array like ["1 directory", "2 files", "3 searches"]
+ *
+ * Activity Order:
+ * 1. list → "N director(y|ies)"
+ * 2. file → "N file(s)"
+ * 3. search → "N search(es)"
+ * 4. definition → "found N definition(s)"
+ * 5. snapshot → "N snapshot(s)"
+ */
 let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
   let labels = []
 
@@ -203,10 +256,28 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
   }
 }
 
+/**
+ * Check if a tool call has an error state
+ * Error states should NOT be grouped - failures should be visible
+ */
 let hasError = (tc: Message.toolCall): bool => {
   tc.state == Message.OutputError || Option.isSome(tc.errorText)
 }
 
+/**
+ * Group consecutive tool calls into display items
+ *
+ * Algorithm:
+ * 1. For each message, check if it's groupable
+ * 2. If groupable AND no error → add to current group
+ * 3. If not groupable OR has error → close current group, render individually
+ * 4. At end, close any remaining group
+ * 5. Single-item groups are expanded to individuals (no grouping overhead)
+ * 6. Subagent tool calls (identified by parentAgentId) are grouped separately with "Processed" prefix
+ *
+ * @param toolCalls Array of tool calls to group
+ * @param minGroupSize Minimum tools needed to form a group (default: 2)
+ */
 let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): array<
   Types.displayItem,
 > => {
@@ -299,6 +370,11 @@ let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): a
   result
 }
 
+/**
+ * Get prefix for current group based on loading state and open state
+ * Returns "Exploring" if any tool is still loading OR if group is still open
+ * A group is "open" when it's the last group and the agent is still running
+ */
 let getGroupPrefix = (group: Types.toolGroup, ~isOpen: bool): string => {
   let isLoading = group.toolCalls->Array.some(tc => {
     switch tc.state {
@@ -319,6 +395,10 @@ let getGroupPrefix = (group: Types.toolGroup, ~isOpen: bool): string => {
   }
 }
 
+/**
+ * Generate a summary label for subagent grouped tools
+ * Shows tool types executed by the subagent
+ */
 let generateSubagentSummaryLabel = (summary: Types.toolsSummary): string => {
   let count = Array.length(summary.tools)
   if count == 1 {

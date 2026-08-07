@@ -1,4 +1,11 @@
 defmodule FrontmanServer.Tasks.RetryCoordinator do
+  @moduledoc """
+  Manages retry state for transient LLM errors.
+
+  A plain module — state is stored as a struct in socket assigns,
+  timers are owned by the calling process (the channel).
+  """
+
   @enforce_keys [
     :attempt,
     :max_attempts,
@@ -22,6 +29,12 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
   @default_base_delay_ms 2_000
   @default_max_delay_ms 60_000
 
+  @doc """
+  Handles a transient error. Creates or advances retry state.
+
+  Returns `{:retry_scheduled, state, notification_data}` or `{:exhausted, error_info}`.
+  Schedules a `{:fire_retry, token}` message in the calling process when retrying.
+  """
   def handle_error(state, error_info, opts \\ [])
 
   def handle_error(nil, %{retryable: false} = error_info, _opts) do
@@ -66,6 +79,9 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
     end
   end
 
+  @doc """
+  Clears retry state. Cancels any pending timer. Returns nil.
+  """
   def clear(nil), do: nil
 
   def clear(%__MODULE__{timer_ref: ref}) do
@@ -73,6 +89,9 @@ defmodule FrontmanServer.Tasks.RetryCoordinator do
     nil
   end
 
+  @doc """
+  Computes the delay for attempt N with exponential backoff and jitter.
+  """
   def compute_delay(attempt, base_delay_ms, max_delay_ms) do
     base = trunc(base_delay_ms * :math.pow(2, attempt - 1))
     jitter = :rand.uniform(max(1, div(base, 4)))

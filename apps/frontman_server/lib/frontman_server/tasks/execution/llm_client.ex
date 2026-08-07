@@ -1,4 +1,14 @@
 defmodule FrontmanServer.Tasks.Execution.LLMClient do
+  @moduledoc """
+  SwarmAi.LLM implementation using ReqLLM.
+
+  Stream-first design: returns a lazy stream of chunks that can be
+  consumed with callbacks or collected into a Response.
+
+  Provider auth resolution happens at the domain layer (Tasks context) before
+  this client is created. The resolved ReqLLM options are passed via `llm_opts`.
+  """
+
   alias SwarmAi.SchemaTransformer
 
   @enforce_keys [:model]
@@ -6,10 +16,23 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
             tools: [],
             llm_opts: []
 
+  @doc """
+  Creates a new LLMClient.
+
+  ## Options
+
+  - `:model` - Required ReqLLM model spec from `Providers.prepare_llm_args/3`
+  - `:tools` - List of SwarmAi.Tool structs
+  - `:llm_opts` - Options for ReqLLM, including resolved provider auth
+  """
   def new(opts \\ []) do
     struct!(__MODULE__, opts)
   end
 
+  @doc """
+  Converts SwarmAi.Tool to ReqLLM.Tool format.
+  Normalizes schemas for OpenAI-compatible providers that require strict mode.
+  """
   def to_reqllm_tool(%SwarmAi.Tool{} = tool, model, _opts \\ []) do
     provider = SchemaTransformer.provider_for_model(model)
     schema = SchemaTransformer.transform(tool.parameter_schema, provider)

@@ -1,4 +1,8 @@
 defmodule FrontmanServer.Release do
+  @moduledoc """
+  Used for executing DB release tasks when run in production without Mix
+  installed.
+  """
   @app :frontman_server
 
   def migrate do

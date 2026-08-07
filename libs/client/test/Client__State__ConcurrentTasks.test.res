@@ -1,5 +1,11 @@
 open Vitest
 
+/**
+ * Tests for concurrent task event routing
+ *
+ * These tests verify that SSE events are routed to the correct task
+ * based on the taskId in the event, not the currently selected task.
+ */
 module StateReducer = Client__State__StateReducer
 module Task = Client__State__Types.Task
 

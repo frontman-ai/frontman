@@ -1,4 +1,13 @@
 defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
+  @moduledoc """
+  Integration tests verifying Sentry error reporting for tool execution failures.
+
+  Tests the following gaps identified in issue #474:
+  - Gap 2: Soft tool errors ({:error, reason}) reported to Sentry
+  - Gap 4: MCP tool timeouts reported to Sentry
+  - Gap 5: JSON argument parse failures reported to Sentry
+  """
+
   use SwarmAi.Testing, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts

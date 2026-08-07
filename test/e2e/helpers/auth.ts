@@ -1,3 +1,8 @@
+/**
+ * Playwright helpers for authentication.
+ *
+ * Uses the dev-only email+password form on /users/log-in.
+ */
 
 import type { Page } from "playwright";
 
@@ -6,6 +11,15 @@ const E2E_PASSWORD = "e2epassword123!";
 
 const PHOENIX_ORIGIN = "https://localhost:4002";
 
+/**
+ * Log in the e2e test user via the dev email/password form.
+ *
+ * Navigates to the Phoenix login page, fills the form, and submits.
+ * After success, the server redirects back to `returnTo`.
+ *
+ * Retries once on failure — CI runners can be slow and the first
+ * attempt sometimes times out waiting for the redirect.
+ */
 export async function login(
   page: Page,
   opts?: { returnTo?: string },
@@ -54,6 +68,10 @@ async function loginOnce(
   });
 }
 
+/**
+ * Ensure the user is authenticated by checking if we can access a protected page.
+ * If not authenticated, performs login.
+ */
 export async function ensureLoggedIn(page: Page): Promise<void> {
   await page.goto(`${PHOENIX_ORIGIN}/users/settings`);
   const url = page.url();

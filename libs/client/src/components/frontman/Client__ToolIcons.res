@@ -1,3 +1,8 @@
+/**
+ * ToolIcons - SVG icon components for the UI
+ *
+ * Icons are 14x14 by default and use currentColor for theming.
+ */
 let defaultSize = 14
 
 module FileIcon = {

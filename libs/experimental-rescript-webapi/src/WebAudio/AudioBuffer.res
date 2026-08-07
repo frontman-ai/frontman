@@ -1,9 +1,18 @@
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioBuffer)
+*/
 @new
 external make: WebAudioTypes.audioBufferOptions => WebAudioTypes.audioBuffer = "AudioBuffer"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioBuffer/getChannelData)
+*/
 @send
 external getChannelData: (WebAudioTypes.audioBuffer, int) => array<float> = "getChannelData"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioBuffer/copyFromChannel)
+*/
 @send
 external copyFromChannel: (
   WebAudioTypes.audioBuffer,
@@ -12,6 +21,9 @@ external copyFromChannel: (
   ~bufferOffset: int=?,
 ) => unit = "copyFromChannel"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioBuffer/copyToChannel)
+*/
 @send
 external copyToChannel: (
   WebAudioTypes.audioBuffer,

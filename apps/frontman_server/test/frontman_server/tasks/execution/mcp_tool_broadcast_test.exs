@@ -1,4 +1,11 @@
 defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
+  @moduledoc """
+  Tests for agent execution flow.
+
+  These tests exercise the full agent execution using test LLM implementations
+  from SwarmCase, catching issues like duplicate tool call broadcasts.
+  """
+
   use FrontmanServer.ExecutionCase
 
   import FrontmanServer.InteractionCase.Helpers,

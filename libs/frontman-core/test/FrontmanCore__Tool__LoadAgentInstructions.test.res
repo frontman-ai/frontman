@@ -21,15 +21,18 @@ let makeCtx = (sourceRoot: string): Protocol.serverExecutionContext => {
 let execute = (ctx, input) =>
   FrontmanCore__ToolTestHelpers.execute(Tool.execute, ctx, input, Tool.outputSchema)
 
+/** Filter results to only files within a specific directory (tool walks up to /) */
 let filterWithinDir = (files: array<Tool.instructionFile>, dir: string) =>
   files->Array.filter(f => String.startsWith(f.fullPath, dir))
 
+/** Execute tool and filter results to fixture directory */
 let executeAndFilter = async (dir, ~startPath=?) => {
   let ctx = makeCtx(dir)
   let result = await execute(ctx, {startPath: ?startPath})
   result->Result.map(files => filterWithinDir(files, dir))
 }
 
+/** Assert result is Ok and run assertions on the filtered files */
 let assertOk = (t, result, assertions) => {
   switch result {
   | Ok(files) => assertions(files)
@@ -37,9 +40,11 @@ let assertOk = (t, result, assertions) => {
   }
 }
 
+/** Check if any file path contains the given substring */
 let hasPathContaining = (files: array<Tool.instructionFile>, substring) =>
   files->Array.some(f => String.includes(f.fullPath, substring))
 
+/** Check if a file path contains one string but not another */
 let hasPathWith = (files: array<Tool.instructionFile>, ~containing, ~excluding) =>
   files->Array.some(f =>
     String.includes(f.fullPath, containing) && !String.includes(f.fullPath, excluding)

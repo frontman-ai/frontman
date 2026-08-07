@@ -1,3 +1,11 @@
+/**
+ * Client__UseResizableWidth - Hook for resizable width with localStorage persistence
+ *
+ * Provides drag-to-resize functionality for panels with:
+ * - Mouse drag handling (mousedown/mousemove/mouseup)
+ * - Min/max width constraints
+ * - localStorage persistence of user preference
+ */
 let defaultWidth = 384
 let minWidth = 280
 let maxWidth = 600

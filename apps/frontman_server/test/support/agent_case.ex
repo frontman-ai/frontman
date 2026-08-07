@@ -1,4 +1,41 @@
 defmodule FrontmanServer.AgentCase do
+  @moduledoc """
+  Test case template for agent-related tests.
+
+  Provides automatic fixture setup via tags and imports helper functions
+  for state manipulation and assertions.
+
+  ## Usage
+
+      use FrontmanServer.AgentCase, async: true
+
+      describe "some feature" do
+        @tag fixtures: [:event_collector]
+        test "does something", %{on_event: on_event} do
+          # on_event callback sends events to test process
+        end
+      end
+
+  ## Available fixtures
+
+  - `:event_collector` - Creates `on_event` callback that sends to test process
+
+  ## LLM Integration Tests (VCR-style fixtures)
+
+  Tests using AgentCase automatically get VCR-style fixture support.
+  Fixture paths are auto-generated based on module and test name:
+
+      test/support/fixtures/llm/{module_name}/{test_name}.json
+
+  Tests run normally using recorded cassettes. To record new fixtures:
+
+      REQ_LLM_FIXTURES_MODE=record mix test
+
+  Override fixture path with:
+
+      @tag llm_fixture: "custom/path/to/fixture"
+  """
+
   use ExUnit.CaseTemplate
 
   alias ReqLLM.Test.FixturePath
@@ -19,6 +56,12 @@ defmodule FrontmanServer.AgentCase do
     end
   end
 
+  @doc """
+  Build LLM options with fixture support included (when available).
+
+  Intended for tests that call ReqLLM directly and want to reuse the
+  automatically computed `:fixture_path` from this case template.
+  """
   def fixture_opts(context) when is_map(context), do: fixture_opts(context, [])
 
   def fixture_opts(context, opts) when is_map(context) and is_list(opts) do

@@ -1,7 +1,17 @@
 defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
+  @moduledoc """
+  Classifies execution error reasons for persistence and client retry behavior.
+  """
+
   alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.StreamStallTimeout
 
+  @doc """
+  Classifies an error reason into `{message, category, retryable}`.
+
+  `category` is one of: "auth", "billing", "quota", "rate_limit", "overload",
+  "payload_too_large", "output_truncated", "unknown".
+  """
   def classify_error(%LLMError{message: msg, category: cat, retryable: r}), do: {msg, cat, r}
 
   def classify_error(%ReqLLM.Error.API.Stream{cause: %ReqLLM.Error.API.Request{} = cause}) do

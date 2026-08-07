@@ -12,7 +12,9 @@ type ColorSchemePreference = "system" | "dark" | "light";
 const STORAGE_KEY = "nextjs-blog-starter-theme";
 const modes: ColorSchemePreference[] = ["system", "dark", "light"];
 
+/** to reuse updateDOM function defined inside injected script */
 
+/** function to be injected in script tag for avoiding FOUC (Flash of Unstyled Content) */
 export const NoFOUCScript = (storageKey: string) => {
   const [SYSTEM, DARK, LIGHT] = ["system", "dark", "light"];
 
@@ -46,6 +48,9 @@ export const NoFOUCScript = (storageKey: string) => {
 
 let updateDOM: () => void;
 
+/**
+ * Switch button to quickly toggle user preference.
+ */
 const Switch = () => {
   const [mode, setMode] = useState<ColorSchemePreference>("system");
 
@@ -60,6 +65,7 @@ const Switch = () => {
     }
 
     updateDOM = window.updateDOM;
+    /** Sync the tabs */
     addEventListener("storage", (e: StorageEvent): void => {
       e.key === STORAGE_KEY && setMode(e.newValue as ColorSchemePreference);
     });
@@ -70,6 +76,7 @@ const Switch = () => {
     updateDOM();
   }, [mode]);
 
+  /** toggle mode */
   const handleModeSwitch = () => {
     const index = modes.indexOf(mode);
     setMode(modes[(index + 1) % modes.length]);
@@ -91,6 +98,9 @@ const Script = memo(() => (
   />
 ));
 
+/**
+ * This component wich applies classes and transitions.
+ */
 export const ThemeSwitcher = () => {
   return (
     <>

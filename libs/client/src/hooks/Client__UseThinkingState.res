@@ -1,3 +1,9 @@
+/**
+ * useThinkingState - Hook for determining when to show thinking indicator
+ *
+ * Encapsulates the logic for showing/hiding the thinking indicator
+ * based on message state, streaming state, and connection status.
+ */
 module Message = Client__State__Types.Message
 
 type thinkingState = {
@@ -5,6 +11,9 @@ type thinkingState = {
   thinkingContext: option<string>,
 }
 
+/**
+ * Determine the thinking context based on the last message
+ */
 let getThinkingContext = (lastMessage: option<Message.t>): option<string> => {
   switch lastMessage {
   | Some(Message.User(_)) => Some("Thinking...")
@@ -19,6 +28,9 @@ let getThinkingContext = (lastMessage: option<Message.t>): option<string> => {
   }
 }
 
+/**
+ * Check if the last message indicates the turn has ended
+ */
 let isTurnEnded = (lastMessage: option<Message.t>): bool => {
   switch lastMessage {
   | Some(Message.Assistant(Completed(_))) => true
@@ -26,6 +38,9 @@ let isTurnEnded = (lastMessage: option<Message.t>): bool => {
   }
 }
 
+/**
+ * Check if the last message is currently streaming
+ */
 let isLastMessageStreaming = (lastMessage: option<Message.t>): bool => {
   switch lastMessage {
   | Some(Message.Assistant(Streaming(_))) => true
@@ -34,6 +49,9 @@ let isLastMessageStreaming = (lastMessage: option<Message.t>): bool => {
   }
 }
 
+/**
+ * Check if the last message is a completed tool call that might need a response
+ */
 let isAwaitingResponse = (lastMessage: option<Message.t>): bool => {
   switch lastMessage {
   | Some(Message.User(_)) => true
@@ -43,6 +61,9 @@ let isAwaitingResponse = (lastMessage: option<Message.t>): bool => {
   }
 }
 
+/**
+ * Main hook - determines thinking state based on all relevant factors
+ */
 let use = (
   ~messages: array<Message.t>,
   ~isStreaming: bool,
@@ -70,6 +91,9 @@ let use = (
   {showThinking, thinkingContext}
 }
 
+/**
+ * Hook variant that also provides stable messageId for animations
+ */
 let useWithMessageId = (
   ~messages: array<Message.t>,
   ~isStreaming: bool,

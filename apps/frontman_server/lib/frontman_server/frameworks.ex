@@ -1,4 +1,8 @@
 defmodule FrontmanServer.Frameworks do
+  @moduledoc """
+  Single source of truth for adapter framework identity.
+  """
+
   use Boundary
 
   @catalog [
@@ -46,22 +50,27 @@ defmodule FrontmanServer.Frameworks do
 
   @ids Enum.map(@catalog, &Map.fetch!(&1, :id))
 
+  @doc "Returns all known framework ids."
   def ids, do: @ids
 
+  @doc "Build a framework id from a DB-stored string identifier."
   def from_string(stored_id) when is_binary(stored_id) do
     stored_id
     |> record_by_stored_id!()
     |> Map.fetch!(:id)
   end
 
+  @doc "Serialize a framework id to the string stored in the database."
   def to_string(id), do: id |> record_by_id!() |> Map.fetch!(:stored_id)
 
+  @doc "Returns the display label for a known framework."
   def display_name(stored_id) when is_binary(stored_id) do
     stored_id
     |> record_by_stored_id!()
     |> Map.fetch!(:display_name)
   end
 
+  @doc "Returns whether a signup framework id is canonical and allowed."
   def valid_signup_id?(stored_id) when is_binary(stored_id) do
     case find_by_stored_id(stored_id) do
       {:ok, _record} -> true
@@ -69,6 +78,7 @@ defmodule FrontmanServer.Frameworks do
     end
   end
 
+  @doc "NPM adapter packages with registry version endpoints."
   def npm_packages do
     Enum.flat_map(@catalog, fn
       %{npm_package: nil} -> []
@@ -76,32 +86,43 @@ defmodule FrontmanServer.Frameworks do
     end)
   end
 
+  @doc "Returns whether MCP initialization should load project rules and structure."
   def load_project_context?(id) do
     id |> record_by_id!() |> Map.fetch!(:load_project_context?)
   end
 
+  @doc "Runtime tool execution mode for framework sessions."
   def tool_execution_mode(id) do
     id |> record_by_id!() |> Map.fetch!(:tool_execution_mode)
   end
 
+  @doc "Returns framework-specific prompt guidance sections."
   def framework_guidance_sections(nil), do: []
 
   def framework_guidance_sections(id) do
     id |> record_by_id!() |> Map.fetch!(:framework_guidance_sections)
   end
 
+  @doc "Returns whether code-project attachment guidance should be included."
   def code_attachment_guidance?(nil), do: true
 
   def code_attachment_guidance?(id) do
     id |> record_by_id!() |> Map.fetch!(:code_attachment_guidance?)
   end
 
+  @doc "Normalizes project trait values from runtime metadata."
   def normalize_project_traits(traits) when is_list(traits) do
     traits
     |> Enum.map(&project_trait!/1)
     |> Enum.uniq()
   end
 
+  @doc """
+  Extracts project traits from prompt metadata.
+
+  Existing installed clients do not send `traits` yet. For that absent-key case,
+  keep old Next.js TypeScript/React behavior. If the key exists, client value wins.
+  """
   def project_traits_from_meta(%{} = meta, framework) do
     case Map.fetch(meta, "traits") do
       {:ok, traits} -> normalize_project_traits(traits)

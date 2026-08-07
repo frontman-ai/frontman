@@ -1,4 +1,14 @@
 defmodule FrontmanServer.Accounts.WorkOS do
+  @moduledoc """
+  Handles OAuth authentication via WorkOS for social logins (GitHub, Google).
+
+  This module provides functions to:
+  - Generate authorization URLs for OAuth providers
+  - Authenticate users with OAuth codes
+  - Link/unlink OAuth providers to existing accounts
+  - Handle email verification for providers that don't auto-verify
+  """
+
   alias Ecto.Multi
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Accounts.UserIdentity
@@ -16,6 +26,15 @@ defmodule FrontmanServer.Accounts.WorkOS do
   @workos_auth_connect_timeout_ms 5_000
   @workos_auth_receive_timeout_ms 30_000
 
+  @doc """
+  Generates a WorkOS authorization URL for the given provider.
+
+  ## Examples
+
+      iex> get_authorization_url("github", "http://localhost:4000/auth/github/callback")
+      {:ok, "https://api.workos.com/..."}
+
+  """
   def get_authorization_url(provider, redirect_uri, state \\ nil)
 
   def get_authorization_url(provider, redirect_uri, state)
@@ -36,6 +55,21 @@ defmodule FrontmanServer.Accounts.WorkOS do
      "Unsupported provider: #{provider}. Supported: #{Enum.join(@supported_providers, ", ")}"}
   end
 
+  @doc """
+  Authenticates a user with an OAuth authorization code.
+
+  This function:
+  1. Exchanges the code with WorkOS for user profile data
+  2. Extracts the provider from the authentication_method in the response
+  3. Checks if an identity already exists for this provider+provider_id → logs in
+  4. Checks if a user exists with matching email → links identity and logs in
+  5. Creates a new user + identity → logs in
+
+  Returns `{:ok, user}` on success or `{:error, reason}` on failure.
+
+  Note: We use a raw HTTP call instead of the SDK to capture the full error
+  response, including `pending_authentication_token` for email verification.
+  """
   def authenticate_with_code(code, signup_framework \\ nil)
 
   def authenticate_with_code(code, nil) when is_binary(code) and code != "" do
@@ -62,6 +96,13 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
+  @doc """
+  Completes authentication after email verification.
+
+  Used when the initial OAuth returns `email_verification_required`. The user
+  receives a verification code via email, which is then submitted along with
+  the pending authentication token to complete the flow.
+  """
   def authenticate_with_email_verification(
         code,
         pending_authentication_token,
@@ -125,6 +166,11 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
+  @doc """
+  Links an OAuth provider to an existing user account.
+
+  Returns `{:ok, identity}` on success or `{:error, changeset}` on failure.
+  """
   def link_provider(%User{} = user, code) when is_binary(code) and code != "" do
     with {:ok, auth_response} <- authenticate_with_code_raw(code),
          {:ok, profile} <- extract_profile(auth_response) do
@@ -135,6 +181,11 @@ defmodule FrontmanServer.Accounts.WorkOS do
   def link_provider(%User{}, ""), do: {:error, {:invalid_argument, :code}}
   def link_provider(%User{}, _code), do: {:error, {:invalid_argument, :code}}
 
+  @doc """
+  Unlinks an OAuth provider from a user account.
+
+  Returns `{:ok, identity}` on success or `{:error, :not_found}` if the identity doesn't exist.
+  """
   def unlink_provider(%User{} = user, provider) when provider in @supported_providers do
     case get_identity_by_provider(user, provider) do
       nil -> {:error, :not_found}
@@ -146,12 +197,18 @@ defmodule FrontmanServer.Accounts.WorkOS do
     {:error, "Unsupported provider: #{provider}"}
   end
 
+  @doc """
+  Lists all OAuth identities for a user.
+  """
   def list_identities(%User{} = user) do
     UserIdentity
     |> UserIdentity.for_user(user.id)
     |> Repo.all()
   end
 
+  @doc """
+  Gets a specific identity by provider for a user.
+  """
   def get_identity_by_provider(%User{} = user, provider) when is_binary(provider) do
     UserIdentity
     |> UserIdentity.for_user_and_provider(user.id, provider)

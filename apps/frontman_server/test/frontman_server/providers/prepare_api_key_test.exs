@@ -1,4 +1,10 @@
 defmodule FrontmanServer.Providers.PrepareApiKeyTest do
+  @moduledoc """
+  Integration tests for the full `Providers.prepare_llm_args/3` resolution chain.
+
+  Tests the priority order: OAuth > user key.
+  This is the primary entry point for all LLM key resolution in the system.
+  """
   use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.Test.Fixtures.Accounts

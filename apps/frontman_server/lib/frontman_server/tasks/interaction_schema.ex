@@ -1,4 +1,11 @@
 defmodule FrontmanServer.Tasks.InteractionSchema do
+  @moduledoc """
+  Ecto schema for persisted interactions.
+
+  Interactions are stored with a type discriminator and JSONB data field.
+  The `type` field indicates which interaction struct to deserialize to.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
@@ -52,6 +59,9 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   def types, do: @types
   def task_scoped_types, do: @task_scoped_types
 
+  @doc """
+  Changesets for creating interaction rows from payload attrs.
+  """
   def create_changeset(task_id, type, attrs, turn_number)
       when is_binary(task_id) and is_atom(type) and is_map(attrs) and
              (is_integer(turn_number) or is_nil(turn_number)) do
@@ -79,6 +89,9 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.turn_number == ^turn_number)
   end
 
+  @doc """
+  Filters interactions to those at or before the given turn number.
+  """
   def up_to_turn(query \\ __MODULE__, turn_number)
       when is_integer(turn_number) and turn_number > 0 do
     from(i in query, where: i.turn_number <= ^turn_number)

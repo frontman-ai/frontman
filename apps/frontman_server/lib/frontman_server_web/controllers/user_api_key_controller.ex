@@ -3,12 +3,18 @@ defmodule FrontmanServerWeb.UserApiKeyController do
 
   alias FrontmanServer.Providers
 
+  @doc """
+  Lists saved provider API key metadata for the current user without exposing key values.
+  """
   def index(conn, _params) do
     scope = conn.assigns.current_scope
 
     json(conn, %{"providers" => Providers.list_api_key_providers(scope)})
   end
 
+  @doc """
+  Stores a provider API key for the current user.
+  """
   def create(conn, %{"provider" => provider, "key" => key}) do
     scope = conn.assigns.current_scope
 

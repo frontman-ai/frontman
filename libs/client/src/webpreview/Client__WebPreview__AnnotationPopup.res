@@ -1,3 +1,13 @@
+/**
+ * Client__WebPreview__AnnotationPopup - Non-blocking comment input for annotations
+ *
+ * Appears near a newly-annotated element. The annotation already exists in state;
+ * this popup is purely an optional comment-entry convenience.
+ * - Typing updates the annotation's comment via UpdateAnnotationComment
+ * - Enter closes the popup (comment is already saved)
+ * - Escape closes the popup (annotation remains, no comment)
+ * - Clicking another element auto-closes this popup (handled by parent)
+ */
 module Annotation = Client__Annotation__Types
 module Icons = Client__UI__Icons
 

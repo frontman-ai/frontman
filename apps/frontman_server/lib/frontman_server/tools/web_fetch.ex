@@ -1,4 +1,11 @@
 defmodule FrontmanServer.Tools.WebFetch do
+  @moduledoc """
+  Fetches web page content and returns it as markdown.
+
+  Complements WebSearch (which finds URLs) by retrieving and processing
+  content from known URLs. Supports line-based pagination for large pages.
+  """
+
   @behaviour FrontmanServer.Tools.Backend
 
   alias ModelContextProtocol, as: MCP

@@ -1,3 +1,6 @@
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioParam/setValueAtTime)
+*/
 @send
 external setValueAtTime: (
   WebAudioTypes.audioParam,
@@ -5,6 +8,9 @@ external setValueAtTime: (
   ~startTime: float,
 ) => WebAudioTypes.audioParam = "setValueAtTime"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioParam/linearRampToValueAtTime)
+*/
 @send
 external linearRampToValueAtTime: (
   WebAudioTypes.audioParam,
@@ -12,6 +18,9 @@ external linearRampToValueAtTime: (
   ~endTime: float,
 ) => WebAudioTypes.audioParam = "linearRampToValueAtTime"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioParam/exponentialRampToValueAtTime)
+*/
 @send
 external exponentialRampToValueAtTime: (
   WebAudioTypes.audioParam,
@@ -19,6 +28,9 @@ external exponentialRampToValueAtTime: (
   ~endTime: float,
 ) => WebAudioTypes.audioParam = "exponentialRampToValueAtTime"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioParam/setTargetAtTime)
+*/
 @send
 external setTargetAtTime: (
   WebAudioTypes.audioParam,
@@ -27,6 +39,9 @@ external setTargetAtTime: (
   ~timeConstant: float,
 ) => WebAudioTypes.audioParam = "setTargetAtTime"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioParam/setValueCurveAtTime)
+*/
 @send
 external setValueCurveAtTime: (
   WebAudioTypes.audioParam,
@@ -35,10 +50,16 @@ external setValueCurveAtTime: (
   ~duration: float,
 ) => WebAudioTypes.audioParam = "setValueCurveAtTime"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioParam/cancelScheduledValues)
+*/
 @send
 external cancelScheduledValues: (WebAudioTypes.audioParam, float) => WebAudioTypes.audioParam =
   "cancelScheduledValues"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioParam/cancelAndHoldAtTime)
+*/
 @send
 external cancelAndHoldAtTime: (WebAudioTypes.audioParam, float) => WebAudioTypes.audioParam =
   "cancelAndHoldAtTime"

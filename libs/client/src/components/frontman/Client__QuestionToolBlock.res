@@ -1,3 +1,11 @@
+/**
+ * QuestionToolBlock - Compact summary card for question tool calls
+ *
+ * Displays the question tool state:
+ * - Streaming/awaiting answer: shimmer "Asking a question..."
+ * - Answered: per-question summary with check/skip icons
+ * - Cancelled/error: red-tinted card
+ */
 module Icons = Client__UI__Icons
 
 @schema

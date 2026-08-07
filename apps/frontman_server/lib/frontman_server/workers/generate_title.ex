@@ -1,4 +1,10 @@
 defmodule FrontmanServer.Workers.GenerateTitle do
+  @moduledoc """
+  Oban worker that generates a short task title from the first user prompt.
+
+  Resolves the API key through the standard priority chain (OAuth > user key).
+  """
+
   use Oban.Worker,
     queue: :default,
     max_attempts: 3,

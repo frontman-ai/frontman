@@ -1,6 +1,34 @@
 defmodule ReqLLM.Test.Fixtures do
+  @moduledoc """
+  Fixture support for ReqLLM streaming tests.
+
+  This module provides the interface that ReqLLM.Streaming expects
+  for recording and replaying fixtures.
+
+  ## Modes
+
+  Controlled by `REQ_LLM_FIXTURES_MODE` environment variable:
+  - `"replay"` (default) - Load from cached fixtures, skip API calls
+  - `"record"` - Make real API calls and save responses
+
+  ## Usage
+
+  Pass fixture options to ReqLLM calls:
+
+      # Explicit path
+      ReqLLM.stream_text(model, messages, fixture_path: "path/to/fixture.json")
+
+      # Or use LLMIntegrationCase for automatic path generation
+  """
+
   require Logger
 
+  @doc """
+  Returns the fixture path for capture (recording) if in record mode.
+  Otherwise returns nil to indicate replay mode.
+
+  Called by ReqLLM.Streaming to determine if it should save fixtures.
+  """
   def capture_path(_model, opts) do
     fixture_path = Keyword.get(opts, :fixture_path)
 
@@ -13,6 +41,12 @@ defmodule ReqLLM.Test.Fixtures do
     end
   end
 
+  @doc """
+  Returns the fixture path for replay if the file exists.
+  Otherwise returns :no_fixture to trigger real API call.
+
+  Called by ReqLLM.Streaming.FinchClient to check for fixtures.
+  """
   def replay_path(_model, opts) do
     fixture_path = Keyword.get(opts, :fixture_path)
 
@@ -41,6 +75,9 @@ defmodule ReqLLM.Test.Fixtures do
     end
   end
 
+  @doc """
+  Returns the current fixture mode.
+  """
   def mode do
     case System.get_env("REQ_LLM_FIXTURES_MODE") do
       "record" -> :record
@@ -48,7 +85,13 @@ defmodule ReqLLM.Test.Fixtures do
     end
   end
 
+  @doc """
+  Check if currently in record mode.
+  """
   def recording?, do: mode() == :record
 
+  @doc """
+  Check if currently in replay mode.
+  """
   def replaying?, do: mode() == :replay
 end

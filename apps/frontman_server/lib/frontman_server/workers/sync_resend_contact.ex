@@ -1,4 +1,16 @@
 defmodule FrontmanServer.Workers.SyncResendContact do
+  @moduledoc """
+  Oban worker that adds a newly registered user to the Resend Contacts list.
+
+  Enqueued atomically inside the Ecto transaction that creates the user
+  (via `Ecto.Multi`), so the job only exists if the user was persisted.
+
+  Idempotency: uses Oban's unique constraint on `user_id` to guarantee
+  at-most-once sync even if the job is retried. The Resend Contacts API
+  is itself idempotent on email — re-adding an existing contact just
+  updates their info.
+  """
+
   use Oban.Worker,
     queue: :mailers,
     max_attempts: 5,

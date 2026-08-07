@@ -1,6 +1,26 @@
 defmodule FrontmanServer.Image do
+  @moduledoc """
+  Shared image utilities for the FrontmanServer domain.
+
+  Pure functions for image binary inspection, data URL decoding, and
+  provider-specific constraint constants. This module has **no dependency**
+  on message content part types (`SwarmAi.Message.ContentPart`,
+  `ReqLLM.Message.ContentPart`) — callers wrap results in their own types.
+
+  Used by both the Agents and Tasks contexts.
+  """
+
   @max_dimension 7680
 
+  @doc """
+  Checks whether a binary image exceeds a dimension limit on either axis.
+
+  Returns `:ok` when the image is within limits or the format is
+  unrecognised (fail-open). Returns `{:too_large, width, height}` when
+  either dimension exceeds the limit.
+
+  The optional second argument overrides the default `max_dimension/0`.
+  """
   def check_dimensions(data, max \\ @max_dimension) when is_binary(data) and is_integer(max) do
     case parse_dimensions(data) do
       {:ok, width, height} when width > max or height > max ->
@@ -11,6 +31,12 @@ defmodule FrontmanServer.Image do
     end
   end
 
+  @doc """
+  Decodes a `data:<mime>;base64,<payload>` URL into raw binary.
+
+  Returns `{:ok, binary, mime_type}` on success, `:error` on malformed
+  input or base64 decode failure.
+  """
   def decode_data_url(data_url) when is_binary(data_url) do
     with [_, mime_type, base64] <- Regex.run(~r/^data:([^;]+);base64,(.+)$/s, data_url),
          {:ok, binary} <- Base.decode64(base64) do
@@ -19,6 +45,13 @@ defmodule FrontmanServer.Image do
       _ -> :error
     end
   end
+
+  @doc """
+  Parse image dimensions from binary headers.
+
+  Supports JPEG, PNG, GIF (87a/89a), and WebP (VP8, VP8L, VP8X).
+  Returns `{:ok, width, height}` or `:unknown` for unrecognised formats.
+  """
 
   def parse_dimensions(<<0xFF, 0xD8, rest::binary>>), do: jpeg_scan_for_sof(rest)
 

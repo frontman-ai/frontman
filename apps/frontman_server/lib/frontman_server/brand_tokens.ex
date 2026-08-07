@@ -1,4 +1,8 @@
 defmodule FrontmanServer.BrandTokens do
+  @moduledoc """
+  Frontman brand design tokens shared by browser UI and email templates.
+  """
+
   @font_sans "Inter Variable, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
 
   @colors %{

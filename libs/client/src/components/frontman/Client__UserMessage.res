@@ -1,3 +1,10 @@
+/**
+ * UserMessage - Renders user messages (text, images, files, annotations)
+ *
+ * Displays user messages in a purple/violet bubble style.
+ * Images render as thumbnails with lightbox preview.
+ * Annotations render as compact chips with numbered badges.
+ */
 module UserContentPart = Client__State__Types.UserContentPart
 module MessageAnnotation = Client__Message.MessageAnnotation
 module AgentChip = Client__AgentChip

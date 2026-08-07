@@ -1,4 +1,21 @@
 defmodule FrontmanServer.Organizations do
+  @moduledoc """
+  Manages organizations and team membership.
+
+  Organizations are workspaces that group users together. Each user can belong
+  to multiple organizations with different roles (owner, member).
+
+  ## Organization Lifecycle
+  - Users create organizations and become the owner
+  - Owners can invite other users as members
+  - Organizations are accessed via URL slug (e.g., /orgs/my-team)
+
+  ## Authorization
+  All functions require a Scope. Functions operating on a specific organization
+  expect the organization to be set in the scope (via FetchOrganization plug).
+  Owner-only operations will raise MatchError if the scoped user lacks permission.
+  """
+
   use Boundary,
     deps: [FrontmanServer],
     exports: [Organization]
@@ -6,6 +23,15 @@ defmodule FrontmanServer.Organizations do
   alias FrontmanServer.Organizations.{Membership, Organization}
   alias FrontmanServer.Repo
 
+  @doc """
+  Returns the list of organizations the scoped user belongs to.
+
+  ## Examples
+
+      iex> list_organizations(scope)
+      [%Organization{}, ...]
+
+  """
   def list_organizations(scope) do
     user_id = scope_user_id(scope)
 
@@ -15,6 +41,20 @@ defmodule FrontmanServer.Organizations do
     |> Repo.all()
   end
 
+  @doc """
+  Gets a single organization by ID.
+
+  Raises `Ecto.NoResultsError` if the Organization does not exist or user is not a member.
+
+  ## Examples
+
+      iex> get_organization!(scope, 123)
+      %Organization{}
+
+      iex> get_organization!(scope, 456)
+      ** (Ecto.NoResultsError)
+
+  """
   def get_organization!(scope, id) do
     user_id = scope_user_id(scope)
 
@@ -23,6 +63,20 @@ defmodule FrontmanServer.Organizations do
     |> Repo.get!(id)
   end
 
+  @doc """
+  Gets an organization by slug if the scoped user is a member.
+
+  Returns nil if not found or user is not a member.
+
+  ## Examples
+
+      iex> get_organization_by_slug(scope, "my-org")
+      %Organization{}
+
+      iex> get_organization_by_slug(scope, "unknown-org")
+      nil
+
+  """
   def get_organization_by_slug(scope, slug) do
     user_id = scope_user_id(scope)
 
@@ -32,6 +86,18 @@ defmodule FrontmanServer.Organizations do
     |> Repo.one()
   end
 
+  @doc """
+  Creates an organization with the scoped user as owner.
+
+  ## Examples
+
+      iex> create_organization(scope, %{name: "My Org"})
+      {:ok, %Organization{}}
+
+      iex> create_organization(scope, %{})
+      {:error, %Ecto.Changeset{}}
+
+  """
   def create_organization(scope, attrs) do
     user_id = scope_user_id(scope)
 
@@ -60,6 +126,20 @@ defmodule FrontmanServer.Organizations do
     end
   end
 
+  @doc """
+  Updates the organization in the current scope.
+
+  Requires the scoped user to be an owner.
+
+  ## Examples
+
+      iex> update_organization(scope, %{name: "New Name"})
+      {:ok, %Organization{}}
+
+      iex> update_organization(scope, %{name: nil})
+      {:error, %Ecto.Changeset{}}
+
+  """
   def update_organization(%{organization: %Organization{} = organization} = scope, attrs) do
     with :ok <- authorize_owner(scope),
          {:ok, organization} <- organization |> Organization.changeset(attrs) |> Repo.update() do
@@ -68,6 +148,20 @@ defmodule FrontmanServer.Organizations do
     end
   end
 
+  @doc """
+  Deletes the organization in scope.
+
+  Requires the scoped user to be an owner.
+
+  ## Examples
+
+      iex> delete_organization(scope)
+      {:ok, %Organization{}}
+
+      iex> delete_organization(scope)
+      {:error, %Ecto.Changeset{}}
+
+  """
   def delete_organization(%{organization: %Organization{} = organization} = scope) do
     with :ok <- authorize_owner(scope),
          {:ok, organization} <- Repo.delete(organization) do
@@ -76,6 +170,17 @@ defmodule FrontmanServer.Organizations do
     end
   end
 
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking organization changes.
+
+  Requires the scoped user to be an owner.
+
+  ## Examples
+
+      iex> change_organization(scope)
+      %Ecto.Changeset{data: %Organization{}}
+
+  """
   def change_organization(
         %{organization: %Organization{} = organization} = scope,
         attrs \\ %{}
@@ -85,6 +190,9 @@ defmodule FrontmanServer.Organizations do
     end
   end
 
+  @doc """
+  Returns the list of members for the organization in scope.
+  """
   def list_members(%{organization: %Organization{id: org_id}}) do
     Membership
     |> Membership.for_organization(org_id)
@@ -92,6 +200,9 @@ defmodule FrontmanServer.Organizations do
     |> Repo.all()
   end
 
+  @doc """
+  Gets the membership for a user in the organization in scope.
+  """
   def get_membership(%{organization: %Organization{id: org_id}}, %{id: user_id}) do
     Membership
     |> Membership.for_organization(org_id)
@@ -99,6 +210,9 @@ defmodule FrontmanServer.Organizations do
     |> Repo.one()
   end
 
+  @doc """
+  Returns `true` if the scoped user is an owner of the organization in scope.
+  """
   def owner?(%{organization: %Organization{id: org_id}} = scope) do
     user_id = scope_user_id(scope)
 
@@ -109,6 +223,9 @@ defmodule FrontmanServer.Organizations do
     |> Repo.exists?()
   end
 
+  @doc """
+  Returns `true` if the scoped user is a member of the organization in scope (any role).
+  """
   def member?(%{organization: %Organization{id: org_id}} = scope) do
     user_id = scope_user_id(scope)
 
@@ -118,6 +235,11 @@ defmodule FrontmanServer.Organizations do
     |> Repo.exists?()
   end
 
+  @doc """
+  Adds a user to the organization in scope with the given role.
+
+  Requires the scoped user to be an owner.
+  """
   def add_member(
         %{organization: %Organization{id: org_id}} = scope,
         target_user,
@@ -137,6 +259,11 @@ defmodule FrontmanServer.Organizations do
     end
   end
 
+  @doc """
+  Removes a user from the organization in scope.
+
+  Requires the scoped user to be an owner.
+  """
   def remove_member(%{organization: %Organization{}} = scope, target_user) do
     with :ok <- authorize_owner(scope),
          %Membership{} = membership <- get_membership(scope, target_user) || {:error, :not_found},
@@ -146,6 +273,11 @@ defmodule FrontmanServer.Organizations do
     end
   end
 
+  @doc """
+  Updates a member's role in the organization in scope.
+
+  Requires the scoped user to be an owner.
+  """
   def update_member_role(%{organization: %Organization{}} = scope, target_user, role) do
     with :ok <- authorize_owner(scope),
          %Membership{} = membership <- get_membership(scope, target_user) || {:error, :not_found},
@@ -155,6 +287,16 @@ defmodule FrontmanServer.Organizations do
     end
   end
 
+  @doc """
+  Subscribes to scoped notifications about any organization changes.
+
+  The broadcasted messages match the pattern:
+
+    * {:created, %Organization{}}
+    * {:updated, %Organization{}}
+    * {:deleted, %Organization{}}
+
+  """
   def subscribe_organizations(scope) do
     key = scope_user_id(scope)
 

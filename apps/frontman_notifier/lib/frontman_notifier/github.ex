@@ -1,4 +1,8 @@
 defmodule FrontmanNotifier.GitHub do
+  @moduledoc """
+  GitHub API client for repository stargazers and user profiles.
+  """
+
   alias FrontmanNotifier.Config
 
   @timeout_ms 15_000

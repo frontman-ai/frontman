@@ -1,3 +1,13 @@
+/**
+ * ToolLabels - Progressive label generation for tool operations
+ *
+ * Generates context-aware labels like "Reading...", "Read", etc.
+ * based on tool name and current state.
+ */
+/**
+ * Convert snake_case tool name to Title Case for display
+ * e.g., "get_routes" -> "Get Routes", "write_file" -> "Write File"
+ */
 let toTitleCase = (str: string): string => {
   str
   ->String.split("_")
@@ -13,6 +23,11 @@ let toTitleCase = (str: string): string => {
   ->Array.join(" ")
 }
 
+/**
+ * Extract target from tool input. Renderers handle display truncation so
+ * tooltips and grouping still have the full value.
+ * Attempts to find common fields like "path", "file", "query", "command"
+ */
 let extractTargetFromInput = (input: option<JSON.t>): option<string> => {
   switch input {
   | None => None

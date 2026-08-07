@@ -1,7 +1,27 @@
 defmodule SwarmAi.Telemetry do
+  @moduledoc """
+  Telemetry instrumentation for SwarmAi executions.
+
+  Events use the `[:swarm_ai, ...]` prefix and the start/stop/exception shape.
+  Run metadata identifies the run by `loop_id`, `task_id`, and `turn_number`.
+  Dispatcher context is not copied into telemetry.
+
+      :telemetry.attach_many(
+        "my-swarm-handler",
+        SwarmAi.Telemetry.Events.all(),
+        &MyHandler.handle_event/4,
+        nil
+      )
+
+  Run events carry `loop_id`, `task_id`, `turn_number`, `status`,
+  `step_count`, `result`, `error`, and `output` as applicable.
+  Step, LLM, and tool events carry `loop_id`, `step`, and their local fields.
+  """
+
   require Logger
   alias SwarmAi.Telemetry.Events
 
+  @doc "Emit run start event."
   @spec run_start(String.t(), String.t(), pos_integer()) :: :ok
   def run_start(loop_id, task_id, turn_number) do
     emit(Events.run_start(), %{
@@ -11,6 +31,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit run stop event."
   @spec run_stop(String.t(), keyword()) :: :ok
   def run_stop(loop_id, opts \\ []) do
     emit(Events.run_stop(), %{
@@ -24,6 +45,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit run exception event."
   @spec run_exception(String.t(), atom(), term(), list(), keyword()) :: :ok
   def run_exception(loop_id, kind, reason, stacktrace, opts \\ []) do
     emit(Events.run_exception(), %{
@@ -36,6 +58,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit step start event."
   def step_start(loop_id, step) do
     emit(Events.step_start(), %{
       loop_id: loop_id,
@@ -43,6 +66,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit step stop event."
   def step_stop(loop_id, step) do
     emit(Events.step_stop(), %{
       loop_id: loop_id,
@@ -50,6 +74,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit step exception event."
   def step_exception(loop_id, step, kind, reason, stacktrace) do
     emit(Events.step_exception(), %{
       loop_id: loop_id,
@@ -60,6 +85,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit LLM call start event."
   def llm_call_start(loop_id, step, model) do
     emit(Events.llm_call_start(), %{
       loop_id: loop_id,
@@ -68,6 +94,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit LLM call stop event."
   @spec llm_call_stop(String.t(), pos_integer(), keyword()) :: :ok
   def llm_call_stop(loop_id, step, opts \\ []) do
     emit(Events.llm_call_stop(), %{
@@ -81,6 +108,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit LLM call exception event."
   def llm_call_exception(loop_id, step, kind, reason, stacktrace) do
     emit(Events.llm_call_exception(), %{
       loop_id: loop_id,
@@ -91,6 +119,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit tool execution start event."
   def tool_execute_start(loop_id, step, tool_id, tool_name) do
     emit(Events.tool_execute_start(), %{
       loop_id: loop_id,
@@ -100,6 +129,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit tool execution stop event."
   def tool_execute_stop(loop_id, step, tool_id, tool_name, opts \\ []) do
     emit(Events.tool_execute_stop(), %{
       loop_id: loop_id,
@@ -110,6 +140,7 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc "Emit tool execution exception event."
   def tool_execute_exception(
         loop_id,
         step,
@@ -130,22 +161,84 @@ defmodule SwarmAi.Telemetry do
     })
   end
 
+  @doc """
+  Execute a function within a run telemetry span.
+
+  Automatically emits `[:swarm_ai, :run, :start/:stop/:exception]` events with timing.
+
+  ## Example
+
+        SwarmAi.Telemetry.run_span(%{loop_id: id, task_id: task_id, turn_number: 1}, fn ->
+          result = do_run()
+          {result, %{loop_id: id, task_id: task_id, turn_number: 1, status: :completed, step_count: 3}}
+        end)
+  """
   def run_span(%{} = metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :run], metadata, fun)
   end
 
+  @doc """
+  Execute a function within a step telemetry span.
+
+  Automatically emits `[:swarm_ai, :step, :start/:stop/:exception]` events with timing.
+
+  ## Example
+
+      SwarmAi.Telemetry.step_span(%{loop_id: id, step: 1}, fn ->
+        result = do_step_work()
+        {result, %{}}
+      end)
+  """
   def step_span(%{} = metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :step], metadata, fun)
   end
 
+  @doc """
+  Execute a function within an LLM call telemetry span.
+
+  Automatically emits `[:swarm_ai, :llm, :call, :start/:stop/:exception]` events.
+
+  ## Example
+
+      SwarmAi.Telemetry.llm_span(%{loop_id: id, step: 1, model: "claude"}, fn ->
+        response = call_llm()
+        {response, %{input_tokens: 100, output_tokens: 50, tool_call_count: 2}}
+      end)
+  """
   def llm_span(%{} = metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :llm, :call], metadata, fun)
   end
 
+  @doc """
+  Execute a function within a tool execution telemetry span.
+
+  Automatically emits `[:swarm_ai, :tool, :execute, :start/:stop/:exception]` events.
+
+  ## Example
+
+      SwarmAi.Telemetry.tool_span(%{loop_id: id, step: 1, tool_id: tc.id, tool_name: "search"}, fn ->
+        result = execute_tool(tc)
+        {result, %{is_error: false}}
+      end)
+  """
   def tool_span(metadata, fun) when is_function(fun, 0) do
     :telemetry.span([:swarm_ai, :tool, :execute], metadata, fun)
   end
 
+  @doc """
+  Attaches a default logger that logs all Swarm telemetry events.
+
+  Useful for development and debugging. Uses Elixir's Logger.
+
+  ## Options
+
+  - `:level` - Log level (default: `:info`)
+
+  ## Example
+
+      SwarmAi.Telemetry.attach_default_logger()
+      SwarmAi.Telemetry.attach_default_logger(level: :debug)
+  """
   def attach_default_logger(opts \\ []) do
     level = Keyword.get(opts, :level, :info)
 
@@ -157,6 +250,9 @@ defmodule SwarmAi.Telemetry do
     )
   end
 
+  @doc """
+  Detaches the default logger.
+  """
   def detach_default_logger do
     :telemetry.detach("swarm-default-logger")
   end

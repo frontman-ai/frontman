@@ -1,3 +1,9 @@
+/**
+ * TodoListBlock - Renders a TODO list within the chat stream
+ *
+ * Shows todos in a compact inline format with status icons and content.
+ * Completed/cancelled items have strikethrough text.
+ */
 module Icons = Client__ToolIcons
 module TodoUtils = Client__TodoUtils
 

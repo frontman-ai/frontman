@@ -1,4 +1,9 @@
 <?php
+/**
+ * Elementor tools for reading and editing Elementor page data.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;

@@ -1,3 +1,8 @@
+/** 🌼
+ *  @license MIT
+ *  daisyUI bundle
+ *  https://daisyui.com/
+ */
 
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;

@@ -161,6 +161,13 @@ function typescriptReferenceEnd(source, index) {
   return new RegExp(`^/// <reference (?:${attribute}[ \\t]*)+/>[ \\t]*$`).test(line) ? end : index
 }
 
+function documentationLineEnd(source, index) {
+  const lineStart = source.lastIndexOf("\n", index - 1) + 1
+  if (!/^[ \t]*$/.test(source.slice(lineStart, index))) return index
+  const end = source.indexOf("\n", index)
+  return end < 0 ? source.length : end
+}
+
 function scanCLikeInternal(source, options, start = 0, braceDepth = 0) {
   const results = []
   const nested = options.nested === true
@@ -180,6 +187,9 @@ function scanCLikeInternal(source, options, start = 0, braceDepth = 0) {
       i = consumeTemplateLiteral(source, i, options, results)
     } else if (rescript && char === "{" && consumeRescriptQuoted(source, i) !== i) {
       i = consumeRescriptQuoted(source, i)
+    } else if (source.startsWith("/**", i)) {
+      const end = source.indexOf("*/", i + 3)
+      i = end < 0 ? source.length : end + 2
     } else if (source.startsWith("/*", i)) {
       const start = i
       i += 2
@@ -196,6 +206,15 @@ function scanCLikeInternal(source, options, start = 0, braceDepth = 0) {
         }
       }
       results.push(span(start, i, "block"))
+    } else if (lineComments && source.startsWith("///", i)) {
+      const end = documentationLineEnd(source, i)
+      if (end === i) {
+        const lineEnd = source.indexOf("\n", i)
+        results.push(span(i, lineEnd < 0 ? source.length : lineEnd, "line"))
+        i = lineEnd < 0 ? source.length : lineEnd
+      } else {
+        i = end
+      }
     } else if (lineComments && source.startsWith("//", i)) {
       const directiveEnd = typescriptDirectives ? typescriptReferenceEnd(source, i) : i
       if (directiveEnd !== i) {
@@ -318,11 +337,6 @@ function scanPython(source) {
       const quote = triple[1]
       const quoteStart = i + triple[0].length - quote.length
       const end = consumeQuoted(source, quoteStart, quote)
-      const lineStart = source.lastIndexOf("\n", i - 1) + 1
-      const previous = source.slice(0, lineStart).split(/\r?\n/).filter(line => line.trim() && !line.startsWith("#!")).at(-1)
-      if (/^[ \t]*$/.test(source.slice(lineStart, i)) && (!previous || /^(?:async\s+)?(?:def|class)\b.*:\s*$/.test(previous.trim()))) {
-        results.push({...span(i, end, "docblock"), replacement: "pass"})
-      }
       i = end
     } else if (source[i] === '"' || source[i] === "'") {
       i = consumeQuoted(source, i, source[i])
@@ -383,35 +397,34 @@ function consumeElixirSigil(source, sigil, results) {
   return {...sigil, bodyEnd: end - sigil.closer.length, end}
 }
 
-function elixirDocAttribute(source, start, results) {
+function elixirDocAttribute(source, start) {
   const match = source.slice(start).match(/^@(moduledoc|typedoc|doc)\b[ \t]+/)
   if (!match) return null
   const valueStart = start + match[0].length
-  if (/^false\b/.test(source.slice(valueStart))) return {end: valueStart + 5, prohibited: false}
+  if (/^false\b/.test(source.slice(valueStart))) return {end: valueStart + 5}
   let end
   if (source.startsWith('"""', valueStart) || source.startsWith("'''", valueStart)) {
     const quote = source.slice(valueStart, valueStart + 3)
-    end = consumeElixirQuoted(source, valueStart, quote, quote, true, results)
+    end = consumeElixirQuoted(source, valueStart, quote, quote, true, [])
   } else if (source[valueStart] === '"' || source[valueStart] === "'") {
-    end = consumeElixirQuoted(source, valueStart, source[valueStart], source[valueStart], true, results)
+    end = consumeElixirQuoted(source, valueStart, source[valueStart], source[valueStart], true, [])
   } else if (source[valueStart] === "~") {
     const parsed = elixirSigil(source, valueStart)
-    end = parsed ? consumeElixirSigil(source, parsed, results).end : valueStart
+    end = parsed ? consumeElixirSigil(source, parsed, []).end : valueStart
   }
   if (!end || end === valueStart) {
     const newline = source.indexOf("\n", valueStart)
     end = newline < 0 ? source.length : newline
   }
-  return {end, prohibited: true}
+  return {end}
 }
 
 function scanElixirInternal(source, start = 0, braceDepth = 0) {
   const results = []
   let i = start
   while (i < source.length) {
-    const doc = source[i] === "@" ? elixirDocAttribute(source, i, results) : null
+    const doc = source[i] === "@" ? elixirDocAttribute(source, i) : null
     if (doc) {
-      if (doc.prohibited) results.push(span(i, doc.end, "docblock"))
       i = doc.end
     } else if (source.startsWith('"""', i) || source.startsWith("'''", i)) {
       const quote = source.slice(i, i + 3)
@@ -615,24 +628,9 @@ function scanTemplate(source, extension) {
   return results.sort((a, b) => a.start - b.start)
 }
 
-function wordpressPluginMetadata(file, source) {
-  if (file.replaceAll("\\", "/") !== "libs/frontman-wordpress/frontman.php") return null
-  if (!source.startsWith("<?php")) return null
-  const start = source.indexOf("/**", 5)
-  if (start < 0 || !/^[\s]*$/.test(source.slice(5, start))) return null
-  const close = source.indexOf("*/", start + 3)
-  if (close < 0) return null
-  const end = close + 2
-  const block = source.slice(start, end)
-  if (!/^\s*\*\s+Plugin Name:\s*\S.*$/m.test(block)) return null
-  if (!/^\s*\*\s+Version:\s*\S.*$/m.test(block)) return null
-  return {start, end}
-}
-
-function scanPhp(file, source) {
+function scanPhp(source) {
   const results = []
   const ignoredRanges = []
-  const metadata = wordpressPluginMetadata(file, source)
   const region = /<\?(?:php|=)?([\s\S]*?)(?:\?>|$)/gi
   for (const match of source.matchAll(region)) {
     const bodyOffset = match.index + match[0].indexOf(match[1])
@@ -640,7 +638,7 @@ function scanPhp(file, source) {
     results.push(...offsetSpans(scanCLike(match[1], {hash: true}), bodyOffset))
   }
   results.push(...scanHtmlMarkers(source, ignoredRanges))
-  return results.filter(item => !metadata || item.start < metadata.start || item.end > metadata.end).sort((a, b) => a.start - b.start)
+  return results.sort((a, b) => a.start - b.start)
 }
 
 function uniqueSpans(spans) {
@@ -692,15 +690,14 @@ export function scanSource(file, source) {
   const kind = classifyFile(file, source)
   const extension = extname(file).toLowerCase()
   if (kind === "clike") {
-    const typescriptDirectives = extension === ".ts" || extension === ".tsx"
-    const spans = scanCLike(source, {nested: extension === ".res" || extension === ".resi", regex: true, rescript: extension === ".res" || extension === ".resi", typescriptDirectives})
+    const spans = scanCLike(source, {nested: extension === ".res" || extension === ".resi", regex: true, rescript: extension === ".res" || extension === ".resi"})
     return uniqueSpans([...spans, ...scanGeneratedTemplates(file, source)]).sort((a, b) => a.start - b.start)
   }
   if (kind === "css") return scanCLike(source, {lineComments: false})
   if (kind === "elixir") return scanElixir(source)
   if (kind === "python") return scanPython(source)
   if (kind === "hash") return scanHash(source, {semicolon: extension === ".ini" || extension === ".service", shell: extension === ".sh" || source.startsWith("#!"), yaml: extension === ".yaml" || extension === ".yml"})
-  if (kind === "php") return scanPhp(file, source)
+  if (kind === "php") return scanPhp(source)
   if (kind === "batch") return scanBatch(source)
   if (kind === "sql") return scanSql(source)
   if (kind === "template") return scanTemplate(source, extension)

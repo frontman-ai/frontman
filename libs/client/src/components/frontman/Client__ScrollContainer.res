@@ -1,3 +1,10 @@
+/**
+ * Client__ScrollContainer - Scrollable container with stick-to-bottom behavior
+ *
+ * Uses CSS overflow-anchor for zero-JS stick-to-bottom during streaming,
+ * and IntersectionObserver for passive isAtBottom tracking.
+ * Replaces use-stick-to-bottom to eliminate layout thrashing (see #177).
+ */
 type scrollContext = {
   isAtBottom: bool,
   scrollToBottom: unit => unit,

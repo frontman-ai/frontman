@@ -1,4 +1,12 @@
 defmodule FrontmanServerWeb.TaskChannelSentryTest do
+  @moduledoc """
+  Integration tests verifying Sentry error reporting for tool failures in TaskChannel.
+
+  Tests from issue #474:
+  - Gap 1: Backend tool results send "failed" status (not "error") to client
+  - Gap 4: MCP tool errors are reported to Sentry
+  """
+
   use FrontmanServerWeb.ChannelCase, async: false
 
   import FrontmanServer.InteractionCase.Helpers,

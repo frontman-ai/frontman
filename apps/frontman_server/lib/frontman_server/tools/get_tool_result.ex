@@ -1,4 +1,8 @@
 defmodule FrontmanServer.Tools.GetToolResult do
+  @moduledoc """
+  Retrieves a persisted tool result by tool call ID.
+  """
+
   @behaviour FrontmanServer.Tools.Backend
 
   alias FrontmanServer.Tasks.Interaction.ToolResult

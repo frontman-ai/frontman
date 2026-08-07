@@ -1,3 +1,12 @@
+/**
+ * Playwright helpers for interacting with the Frontman chat UI.
+ *
+ * The Frontman UI is a React app mounted directly into <div id="root">.
+ * Key selectors:
+ *   - Message input: div[role="textbox"] (contentEditable)
+ *   - Send button: button[type="submit"]
+ *   - Stop button: button[title="Stop generation"]
+ */
 
 import type { Page, Response } from "playwright";
 
@@ -7,6 +16,7 @@ interface OpenFrontmanUIOptions {
   assertHealthy?: () => void;
 }
 
+/** Elapsed time since a reference timestamp, formatted as "Xs". */
 function elapsed(since: number): string {
   return `${((Date.now() - since) / 1000).toFixed(1)}s`;
 }
@@ -47,6 +57,19 @@ async function waitForTextbox(
   throw new Error(`[e2e] Frontman textbox did not become visible within ${timeoutMs}ms`);
 }
 
+/**
+ * Navigate to the Frontman UI within a framework dev server.
+ * Handles the authentication flow:
+ *   1. Navigate to /frontman on the dev server
+ *   2. The Frontman client JS loads and tries to connect via WebSocket
+ *   3. If not authenticated, it redirects to the Phoenix login page
+ *   4. We intercept that and log in first, then re-navigate
+ *
+ * NOTE: We use waitUntil:"load" / waitForLoadState("load") instead of
+ * "networkidle" — HMR WebSockets and long-poll connections keep the network
+ * busy indefinitely, making "networkidle" unreliable on slow CI runners.
+ * The actual UI readiness check is the textbox locator at the end.
+ */
 export async function openFrontmanUI(
   page: Page,
   devServerPort: number,
@@ -125,6 +148,14 @@ export async function openFrontmanUI(
   console.log(`  [e2e] Textbox visible — UI ready (${elapsed(t0)})`);
 }
 
+/**
+ * Send a prompt in the Frontman chat UI and wait for the AI response to complete.
+ *
+ * The input is a contentEditable div with role="textbox".
+ * After typing, we press Enter to submit.
+ * We wait for the agent to finish by watching for the stop button to appear
+ * then disappear (replaced by the submit button again).
+ */
 export async function sendPrompt(
   page: Page,
   prompt: string,

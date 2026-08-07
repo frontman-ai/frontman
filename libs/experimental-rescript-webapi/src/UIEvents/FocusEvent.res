@@ -1,3 +1,6 @@
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/FocusEvent)
+*/
 @new
 external make: (
   ~type_: string,

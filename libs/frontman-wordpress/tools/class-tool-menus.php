@@ -1,4 +1,15 @@
 <?php
+/**
+ * WordPress Menu tools — list and modify navigation menus.
+ *
+ * Tools: wp_list_menus, wp_list_menu_locations, wp_read_menu, wp_create_menu,
+ * wp_delete_menu, wp_assign_menu_location, wp_create_menu_item,
+ * wp_update_menu_item, wp_delete_menu_item, and block-theme wp_navigation tools
+ *
+ * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -6,6 +17,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 
 class Frontman_Tool_Menus {
+	/**
+	 * Register all menu tools.
+	 */
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_menus',
@@ -365,6 +379,9 @@ class Frontman_Tool_Menus {
 		return $result;
 	}
 
+	/**
+	 * Serialize a menu item for output.
+	 */
 	private function serialize_menu_item( \WP_Post $item ): array {
 		return [
 			'id'        => $item->ID,
@@ -378,6 +395,9 @@ class Frontman_Tool_Menus {
 		];
 	}
 
+	/**
+	 * wp_list_menus handler.
+	 */
 	public function list_menus( array $input ): array {
 		$menus  = wp_get_nav_menus();
 		$result = [];
@@ -399,10 +419,16 @@ class Frontman_Tool_Menus {
 		return $result;
 	}
 
+	/**
+	 * wp_list_menu_locations handler.
+	 */
 	public function list_menu_locations( array $input ): array {
 		return $this->get_menu_locations_snapshot();
 	}
 
+	/**
+	 * wp_read_menu handler.
+	 */
 	public function read_menu( array $input ): array {
 		$id   = absint( $input['id'] ?? 0 );
 		$menu = wp_get_nav_menu_object( $id );
@@ -432,6 +458,9 @@ class Frontman_Tool_Menus {
 		];
 	}
 
+	/**
+	 * wp_create_menu handler.
+	 */
 	public function create_menu( array $input ): array {
 		$name   = sanitize_text_field( $input['name'] ?? '' );
 		$before = $this->list_menus( [] );
@@ -454,6 +483,9 @@ class Frontman_Tool_Menus {
 		];
 	}
 
+	/**
+	 * wp_delete_menu handler.
+	 */
 	public function delete_menu( array $input ): array {
 		$id = absint( $input['id'] ?? 0 );
 		if ( empty( $input['confirm'] ) ) {
@@ -486,6 +518,9 @@ class Frontman_Tool_Menus {
 		];
 	}
 
+	/**
+	 * wp_assign_menu_location handler.
+	 */
 	public function assign_menu_location( array $input ): array {
 		$menu_id  = absint( $input['menu_id'] ?? 0 );
 		$location = sanitize_key( $input['location'] ?? '' );
@@ -514,6 +549,9 @@ class Frontman_Tool_Menus {
 		];
 	}
 
+	/**
+	 * wp_create_menu_item handler.
+	 */
 	public function create_menu_item( array $input ): array {
 		$menu_id = absint( $input['menu_id'] ?? 0 );
 		$menu    = wp_get_nav_menu_object( $menu_id );
@@ -587,6 +625,9 @@ class Frontman_Tool_Menus {
 		];
 	}
 
+	/**
+	 * wp_update_menu_item handler.
+	 */
 	public function update_menu_item( array $input ): array {
 		$menu_item_id = absint( $input['menu_item_id'] ?? 0 );
 		$item         = get_post( $menu_item_id );
@@ -651,6 +692,9 @@ class Frontman_Tool_Menus {
 		];
 	}
 
+	/**
+	 * wp_delete_menu_item handler.
+	 */
 	public function delete_menu_item( array $input ): array {
 		$menu_item_id = absint( $input['menu_item_id'] ?? 0 );
 		if ( empty( $input['confirm'] ) ) {

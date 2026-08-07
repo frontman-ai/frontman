@@ -1,4 +1,14 @@
 <?php
+/**
+ * WordPress Options tools — read and modify site options.
+ *
+ * Tools: wp_get_option, wp_update_option, wp_list_options,
+ * wp_get_custom_css, wp_update_custom_css, wp_list_theme_mods, wp_get_theme_mod
+ *
+ * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -6,6 +16,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 
 class Frontman_Tool_Options {
+	/**
+	 * Options that are safe to read/modify.
+	 * We deliberately exclude sensitive options like auth keys, salts, etc.
+	 */
 	private const READABLE_OPTIONS = [
 		'blogname',
 		'blogdescription',
@@ -66,6 +80,9 @@ class Frontman_Tool_Options {
 		'template',
 	];
 
+	/**
+	 * Register all options tools.
+	 */
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_option',
@@ -171,14 +188,23 @@ class Frontman_Tool_Options {
 		) );
 	}
 
+	/**
+	 * Check if an option is in the allowlist.
+	 */
 	private function is_readable( string $name ): bool {
 		return in_array( $name, self::READABLE_OPTIONS, true );
 	}
 
+	/**
+	 * Check if an option can be updated.
+	 */
 	private function is_writable( string $name ): bool {
 		return in_array( $name, self::WRITABLE_OPTIONS, true );
 	}
 
+	/**
+	 * wp_get_option handler.
+	 */
 	public function get_option( array $input ): array {
 		$name = sanitize_key( $input['name'] ?? '' );
 
@@ -194,6 +220,9 @@ class Frontman_Tool_Options {
 		];
 	}
 
+	/**
+	 * wp_update_option handler.
+	 */
 	public function update_option( array $input ): array {
 		$name = sanitize_key( $input['name'] ?? '' );
 
@@ -218,6 +247,9 @@ class Frontman_Tool_Options {
 		];
 	}
 
+	/**
+	 * wp_list_options handler.
+	 */
 	public function list_options( array $input ): array {
 		$result = [];
 
@@ -235,6 +267,9 @@ class Frontman_Tool_Options {
 		return $result;
 	}
 
+	/**
+	 * wp_get_custom_css handler.
+	 */
 	public function get_custom_css( array $input ): array {
 		if ( ! function_exists( 'wp_get_custom_css' ) ) {
 			throw new Frontman_Tool_Error( 'WordPress custom CSS API is unavailable.' );
@@ -248,6 +283,9 @@ class Frontman_Tool_Options {
 		];
 	}
 
+	/**
+	 * wp_update_custom_css handler.
+	 */
 	public function update_custom_css( array $input ): array {
 		if ( true !== ( $input['confirm'] ?? false ) ) {
 			throw new Frontman_Tool_Error( 'Additional CSS update requires confirm=true after user approval.' );
@@ -277,6 +315,9 @@ class Frontman_Tool_Options {
 		];
 	}
 
+	/**
+	 * wp_list_theme_mods handler.
+	 */
 	public function list_theme_mods( array $input ): array {
 		if ( ! function_exists( 'get_theme_mods' ) ) {
 			throw new Frontman_Tool_Error( 'WordPress theme mod API is unavailable.' );
@@ -290,6 +331,9 @@ class Frontman_Tool_Options {
 		];
 	}
 
+	/**
+	 * wp_get_theme_mod handler.
+	 */
 	public function get_theme_mod( array $input ): array {
 		if ( ! function_exists( 'get_theme_mod' ) ) {
 			throw new Frontman_Tool_Error( 'WordPress theme mod API is unavailable.' );

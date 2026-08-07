@@ -1,3 +1,13 @@
+/**
+ * Client__ImagePreview - Full-size image lightbox with zoom & pan
+ *
+ * Shows an image in a modal overlay.
+ * - Scroll wheel to zoom in/out
+ * - Drag to pan when zoomed in
+ * - +/- buttons for zoom control
+ * - Double-click to reset zoom
+ * - Click overlay or press Escape to close
+ */
 let minScale = 0.5
 let maxScale = 8.0
 let zoomStep = 1.3
@@ -122,7 +132,7 @@ let make = (~src: string, ~onClose: unit => unit) => {
         onClose()
       }}
       className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full
-                 bg-zinc-800/80 border border-zinc-600 
+                 bg-zinc-800/80 border border-zinc-600
                  flex items-center justify-center
                  text-zinc-300 hover:text-white hover:bg-zinc-700
                  transition-colors"

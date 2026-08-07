@@ -1,7 +1,26 @@
 defmodule FrontmanServer.Tasks.StreamStallTimeout do
+  @moduledoc """
+  Detects silent LLM stream stalls by enforcing a per-chunk deadline.
+
+  When an LLM provider silently stalls (no chunks, no TCP error), the
+  downstream `StreamServer.next/2` GenServer.call eventually times out
+  with an unhandled EXIT. This module fires before that happens, raising
+  a clear `StreamStallTimeout.Error` that can be caught and surfaced
+  to the user.
+
+  ## How it works
+
+  A linked feeder process consumes the inner stream and sends chunks
+  via messages. The consumer pulls chunks with `receive ... after timeout`.
+  If no chunk arrives within the deadline, `StreamStallTimeout.Error` is
+  raised. The feeder is killed on timeout or when the stream completes. ReqLLM
+  owns upstream stream cleanup when its consumer exits.
+  """
+
   require Logger
 
   defmodule Error do
+    @moduledoc "Raised when no LLM stream chunk arrives within the stall timeout."
     defexception [:timeout_ms]
 
     @impl true
@@ -10,6 +29,16 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
     end
   end
 
+  @doc """
+  Wraps a stream with per-chunk stall detection.
+
+  Returns a new stream that behaves identically to the input but raises
+  `StreamStallTimeout.Error` if no chunk arrives within `stall_timeout_ms`.
+
+  ## Options
+
+    - `:stall_timeout_ms` — required, max time to wait for a chunk (ms)
+  """
   def wrap_stream(stream, opts) when is_list(opts) do
     stall_timeout_ms = Keyword.fetch!(opts, :stall_timeout_ms)
 

@@ -1,4 +1,14 @@
 defmodule FrontmanServer.Tasks do
+  @moduledoc """
+  Public API for task management.
+
+  Tasks are containers for interactions in a conversation with agents.
+  Each task represents a conversation thread with an AI agent.
+
+  This context provides the boundary for all task-related operations,
+  delegating to the domain layer and infrastructure as appropriate.
+  """
+
   @exports [
     TaskSchema,
     History,
@@ -63,6 +73,11 @@ defmodule FrontmanServer.Tasks do
     |> Repo.one()
   end
 
+  @doc """
+  Lists all tasks for a user (lightweight, no interactions loaded).
+
+  Returns task schemas ordered by most recently updated.
+  """
   @max_tasks 20
 
   def list_tasks(scope) do
@@ -78,17 +93,29 @@ defmodule FrontmanServer.Tasks do
     {:ok, tasks}
   end
 
+  @doc """
+  Gets a task by ID. Returns the task with interactions loaded.
+
+  Requires authorization - scope.user.id must match task.user_id.
+  """
   def get_task(scope, task_id) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       {:ok, hydrate_task(schema)}
     end
   end
 
+  @doc "Projects canonical interaction rows into their domain payloads."
   def interactions(%TaskSchema{interaction_rows: rows}) when is_list(rows) do
     {:ok, history} = History.new(rows)
     Enum.map(history.rows, & &1.data)
   end
 
+  @doc """
+  Deletes a task and all its interactions.
+
+  Requires authorization - scope.user.id must match task.user_id.
+  Cascade deletes configured in migration handle interaction cleanup.
+  """
   def delete_task(scope, task_id) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          {:ok, _} <- Repo.delete(schema) do
@@ -96,6 +123,13 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Creates a new task and stores it.
+
+  The task_id must be provided by the client.
+  Requires a scope with a user.
+  Returns `{:ok, task}` on success.
+  """
   def create_task(scope, task_id, framework) do
     user_id = Accounts.scope_user_id(scope)
 
@@ -120,6 +154,11 @@ defmodule FrontmanServer.Tasks do
     |> Repo.all()
   end
 
+  @doc """
+  Adds a discovered project rule to the task.
+
+  Deduplicates by path - returns `{:ok, :already_loaded}` if already present.
+  """
   def add_discovered_project_rule(scope, task_id, path, content) do
     with {:ok, schema} <- get_task_by_id(scope, task_id) do
       interactions = task_id |> load_interaction_rows() |> Enum.map(& &1.data)
@@ -140,6 +179,10 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Stores the discovered project structure summary for a task.
+  Called during MCP initialization after `list_tree` returns.
+  """
   def add_discovered_project_structure(scope, task_id, summary) do
     with {:ok, %TaskSchema{} = task} <- get_task_by_id(scope, task_id) do
       interactions = task.id |> load_interaction_rows() |> Enum.map(& &1.data)
@@ -207,6 +250,12 @@ defmodule FrontmanServer.Tasks do
     Phoenix.PubSub.broadcast(FrontmanServer.PubSub, topic(task_id), message)
   end
 
+  @doc """
+  Handles a SwarmAi execution event for a task.
+
+  Durable events are persisted first from the SwarmAi task process. Streaming
+  chunks are then broadcast for live subscribers.
+  """
   def handle_swarm_event(scope, task_id, turn_number, event)
       when is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
@@ -374,6 +423,11 @@ defmodule FrontmanServer.Tasks do
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{tool_name: "question"}), do: true
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{}), do: false
 
+  @doc """
+  Accepts a user prompt into session history.
+
+  Starting execution is handled separately by `run_next_turn/3`.
+  """
   def submit_user_message(
         %Scope{} = scope,
         %{
@@ -540,6 +594,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc "Records how the given agent run ended."
   def record_agent_run_result(scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
@@ -589,6 +644,7 @@ defmodule FrontmanServer.Tasks do
      }}
   end
 
+  @doc "Records a client-handled tool request in the given turn."
   def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
@@ -597,6 +653,16 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Resolves a tool request.
+
+  Routes the result to the waiting executor so the agent can continue.
+  Duplicate tool results for the same tool_call_id are prevented by a
+  unique partial index on the interactions table.
+
+  Returns `{:ok, interaction, :notified}` when a live executor received the result,
+  and `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
+  """
   def resolve_tool_request(
         scope,
         task_id,
@@ -665,6 +731,13 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Returns unresolved tool calls and turn number for the active agent run.
+
+  `TurnStarted` starts a normal agent run. `AgentRetry` starts a new agent run
+  in the same turn. Agent completed, error, and paused interactions close only
+  the active run attempt for their turn number.
+  """
   def get_active_run_unresolved_tool_calls(scope, task_id) do
     with {:ok, _schema} <- get_task_by_id(scope, task_id),
          rows = load_interaction_rows(task_id),
@@ -687,6 +760,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
          rows = load_interaction_rows(task_id),
@@ -701,6 +775,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc "Starts and runs the next accepted-message turn when work is available."
   def run_next_turn(%Scope{} = scope, task_id, execution) when is_binary(task_id) do
     case start_next_turn(scope, task_id) do
       {:ok, task, turn_number, turn_model, agent} ->
@@ -753,6 +828,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc "Resumes execution for the active agent run."
   def resume_execution(scope, task_id, execution) do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- History.new(task.interaction_rows),
@@ -794,6 +870,11 @@ defmodule FrontmanServer.Tasks do
     {:ok, Map.put(execution, :model, turn_model)}
   end
 
+  @doc """
+  Cancels a running execution for the given task.
+
+  Verifies the task exists and belongs to the user before cancelling.
+  """
   def cancel_execution(scope, task_id) do
     with {:ok, _schema} <- get_task_by_id(scope, task_id) do
       SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
@@ -871,6 +952,11 @@ defmodule FrontmanServer.Tasks do
     :ok
   end
 
+  @doc """
+  Applies a suggested title while the task still has its default title.
+
+  Called by the `GenerateTitle` Oban worker after the LLM suggests a title.
+  """
   def apply_title_suggestion(scope, task_id, title) do
     default_title = TaskSchema.default_title()
 
@@ -886,6 +972,12 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Lists all todos for a task.
+
+  Todos are managed through tool calls, not direct API calls.
+  This function is for reading the current todos only.
+  """
   def list_todos(scope, task_id) do
     with {:ok, task} <- get_task(scope, task_id) do
       todos =

@@ -1,4 +1,13 @@
 defmodule FrontmanServer.Observability.ConsoleHandler do
+  @moduledoc """
+  Telemetry handler that logs events to console.
+
+  Useful for development to see timing info without needing a tracing backend.
+  Uses ETS to track start times for duration calculation.
+
+  Handles Swarm events: run, llm, and tool lifecycle.
+  """
+
   require Logger
 
   alias FrontmanServer.Providers

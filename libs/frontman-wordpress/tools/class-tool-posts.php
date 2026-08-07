@@ -1,4 +1,14 @@
 <?php
+/**
+ * WordPress Post tools — CRUD operations on posts/pages/CPTs.
+ *
+ * Tools: wp_list_posts, wp_read_post, wp_create_post, wp_duplicate_post, wp_update_post, wp_delete_post
+ *
+ * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
+ * The registry (Frontman_Tools::call) wraps results into MCP format with _meta.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -6,6 +16,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 
 class Frontman_Tool_Posts {
+	/**
+	 * Register all post tools.
+	 */
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_posts',
@@ -187,6 +200,9 @@ class Frontman_Tool_Posts {
 		) );
 	}
 
+	/**
+	 * wp_list_posts handler.
+	 */
 	public function list_posts( array $input ): array {
 		$args = [
 			'post_type'      => sanitize_key( $input['post_type'] ?? 'post' ),
@@ -224,6 +240,9 @@ class Frontman_Tool_Posts {
 		];
 	}
 
+	/**
+	 * wp_read_post handler.
+	 */
 	public function read_post( array $input ): array {
 		$id   = absint( $input['id'] ?? 0 );
 		$post = get_post( $id );
@@ -247,6 +266,9 @@ class Frontman_Tool_Posts {
 		];
 	}
 
+	/**
+	 * wp_create_post handler.
+	 */
 	public function create_post( array $input ): array {
 		$post_data = [
 			'post_title'   => sanitize_text_field( $input['title'] ),
@@ -271,6 +293,9 @@ class Frontman_Tool_Posts {
 		];
 	}
 
+	/**
+	 * wp_duplicate_post handler.
+	 */
 	public function duplicate_post( array $input ): array {
 		$source_id = absint( $input['source_id'] ?? 0 );
 		$source    = get_post( $source_id );
@@ -310,6 +335,9 @@ class Frontman_Tool_Posts {
 		];
 	}
 
+	/**
+	 * wp_update_post handler.
+	 */
 	public function update_post( array $input ): array {
 		$id   = absint( $input['id'] ?? 0 );
 		$post = get_post( $id );
@@ -352,6 +380,9 @@ class Frontman_Tool_Posts {
 		];
 	}
 
+	/**
+	 * wp_delete_post handler.
+	 */
 	public function delete_post( array $input ): array {
 		$id    = absint( $input['id'] ?? 0 );
 		$force = (bool) ( $input['force'] ?? false );

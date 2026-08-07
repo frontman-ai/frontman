@@ -1,4 +1,15 @@
 defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
+  @moduledoc """
+  Integration test for the error propagation chain.
+
+  Tests that LLM stream errors are caught by try/rescue in execute_llm_call
+  and surfaced as graceful {:failed, ...} events (not {:crashed, ...}).
+
+  This verifies that when an LLM API returns an error (e.g., HTTP 400 for
+  oversized images), the error reaches the client as a clean error message
+  instead of crashing the task process.
+  """
+
   use FrontmanServer.ExecutionCase
 
   import FrontmanServer.InteractionCase.Helpers,

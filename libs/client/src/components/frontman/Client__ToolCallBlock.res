@@ -1,3 +1,8 @@
+/**
+ * ToolCallBlock - Main tool call display component
+ *
+ * Supports compact mode for grouped display and expand/collapse for details.
+ */
 module Message = Client__State__Types.Message
 module ToolLabels = Client__ToolLabels
 module ToolNames = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool.ToolNames

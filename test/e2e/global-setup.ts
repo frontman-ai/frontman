@@ -1,3 +1,12 @@
+/**
+ * Vitest global setup — runs once before all e2e tests.
+ *
+ * 1. Creates + migrates the e2e database
+ * 2. Seeds the test user + ChatGPT OAuth token
+ * 3. Starts the Phoenix server (MIX_ENV=e2e)
+ * 4. Starts the client Vite dev server (for serving the Frontman UI JS)
+ * 5. Waits for both to be ready
+ */
 
 import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
@@ -12,6 +21,7 @@ const CLIENT_DIR = resolve(ROOT, "libs/client");
 const PHOENIX_PORT = 4002;
 const CLIENT_PORT = 5173;
 
+/** Resolve a CLI binary by walking up node_modules/.bin from startDir. */
 function resolveBin(startDir: string, name: string): string {
   let dir = startDir;
   while (true) {

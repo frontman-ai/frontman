@@ -1,4 +1,10 @@
 defmodule FrontmanServer.Tasks.TaskSchema do
+  @moduledoc """
+  Ecto schema for persisted tasks.
+
+  Tasks are client-provided (UUID comes from the client), so we disable autogenerate.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
@@ -22,10 +28,14 @@ defmodule FrontmanServer.Tasks.TaskSchema do
     timestamps(type: :utc_datetime)
   end
 
+  @doc "Returns the default short description for a new task."
   def default_title do
     "New Task"
   end
 
+  @doc """
+  Changeset for creating a new task.
+  """
   def create_changeset(attrs) do
     %__MODULE__{}
     |> cast(attrs, [:id, :short_desc, :framework, :user_id])
@@ -34,6 +44,9 @@ defmodule FrontmanServer.Tasks.TaskSchema do
     |> foreign_key_constraint(:user_id)
   end
 
+  @doc """
+  Changeset for updating a task's short description.
+  """
   def update_changeset(task, attrs) do
     task
     |> cast(attrs, [:short_desc])

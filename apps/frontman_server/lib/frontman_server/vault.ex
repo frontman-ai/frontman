@@ -1,4 +1,11 @@
 defmodule FrontmanServer.Vault do
+  @moduledoc """
+  Vault module for encrypting sensitive data at rest using Cloak.
+
+  Configuration requires setting the cloak_key in runtime config.
+  Generate a key with: `:crypto.strong_rand_bytes(32) |> Base.encode64()`
+  """
+
   use Cloak.Vault, otp_app: :frontman_server
 
   @impl GenServer

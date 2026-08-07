@@ -14,12 +14,24 @@ type permissionState =
   | @as("granted") Granted
   | @as("prompt") Prompt
 
+/**
+[See WebApiPermissions on MDN](https://developer.mozilla.org/docs/Web/API/Permissions)
+*/
 @editor.completeFrom(WebApiPermissions)
 type permissions = private {}
 
+/**
+[See PermissionStatus on MDN](https://developer.mozilla.org/docs/Web/API/PermissionStatus)
+*/
 type permissionStatus = {
   ...EventTypes.eventTarget,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/PermissionStatus/state)
+    */
   state: permissionState,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/PermissionStatus/name)
+    */
   name: string,
 }
 

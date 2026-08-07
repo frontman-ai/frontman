@@ -1,3 +1,12 @@
+/**
+ * UpdateBanner - Shows a persistent, dismissible banner when a newer
+ * integration package version is available on npm.
+ *
+ * Reads the relay's serverInfo for the installed version, maps the
+ * framework to the npm package name, and fetches latest versions from
+ * the Phoenix server endpoint.  The "Update" button sends a prompt
+ * to the LLM asking it to perform the upgrade.
+ */
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module RuntimeConfig = Client__RuntimeConfig
 

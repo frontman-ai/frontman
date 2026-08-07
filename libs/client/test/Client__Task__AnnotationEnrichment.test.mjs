@@ -1,3 +1,21 @@
+/**
+ * Integration tests for the FetchAnnotationDetails effect handler.
+ *
+ * Tests the async promise chain that enriches annotations with:
+ *   - CSS selector (via @medv/finder)
+ *   - Screenshot (via @zumer/snapdom)
+ *   - Source location (via Client__SourceDetection)
+ *
+ * Uses vi.mock to stub external dependencies and captures dispatch calls
+ * to verify the AnnotationDetailsResolved action payload.
+ *
+ * NOTE: Assertions reference ReScript's compiled variant representation
+ * (TAG/Ok/Error/_0 fields). This couples tests to the compiler's output
+ * format. If a compiler upgrade changes the encoding, these tests break —
+ * but there's no typed alternative for testing the JS effect handler from
+ * a plain .mjs test file. The reducer unit tests in Client__Task.test.res
+ * cover the same logic with full type safety.
+ */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleEffect } from "../src/state/Client__Task__Reducer.res.mjs";
 
@@ -31,6 +49,7 @@ import { snapdom } from "@zumer/snapdom";
 import { getElementSourceLocation } from "../src/Client__SourceDetection.res.mjs";
 import { resolve as resolveSourceLocation } from "../src/Client__SourceLocationResolver.res.mjs";
 
+/** Create a minimal mock DOM element that satisfies the sync enrichment reads */
 function makeMockElement() {
 	return {
 		tagName: "BUTTON",
@@ -53,6 +72,7 @@ function makeMockDocument() {
 	};
 }
 
+/** Create the FetchAnnotationDetails effect object matching ReScript's compiled shape */
 function makeEffect(overrides = {}) {
 	return {
 		TAG: "FetchAnnotationDetails",
@@ -64,6 +84,11 @@ function makeEffect(overrides = {}) {
 	};
 }
 
+/**
+ * Wait until the dispatch callback has been called at least once.
+ * Uses vi.waitFor for deterministic async resolution instead of
+ * a fragile fixed-count microtask loop.
+ */
 async function waitForDispatch(dispatched, { timeout = 1000 } = {}) {
 	await vi.waitFor(
 		() => {

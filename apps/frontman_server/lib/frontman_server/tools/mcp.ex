@@ -1,4 +1,8 @@
 defmodule FrontmanServer.Tools.MCP do
+  @moduledoc """
+  Utilities for MCP tools from external clients.
+  """
+
   @enforce_keys [:name, :description, :input_schema, :timeout_ms, :on_timeout]
   defstruct name: nil,
             description: nil,

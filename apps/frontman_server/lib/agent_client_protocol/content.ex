@@ -1,4 +1,6 @@
 defmodule AgentClientProtocol.Content do
+  @moduledoc "Builders for ACP content blocks."
+
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
 

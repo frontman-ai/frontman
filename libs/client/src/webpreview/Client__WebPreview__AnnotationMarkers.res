@@ -1,3 +1,12 @@
+/**
+ * Client__WebPreview__AnnotationMarkers - Numbered markers for annotations
+ *
+ * Renders a border highlight and numbered badge for each annotation,
+ * positioned over the annotated element using getBoundingClientRect.
+ * Re-queries position on scroll/mutation changes.
+ * Number badge top-left: click to deselect.
+ * Tree nav control top-right: ↑/↓ to walk to parent/first-child.
+ */
 module Annotation = Client__Annotation__Types
 module Icons = Client__UI__Icons
 

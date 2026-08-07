@@ -1,4 +1,11 @@
 defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
+  @moduledoc """
+  Integration tests for task execution flow.
+
+  Tests the full lifecycle: cancel, tool result routing, consecutive messages,
+  and terminal events through the channel layer. These exercise the Tasks
+  facade, SwarmAi loop dispatch, and TaskChannel together.
+  """
   use FrontmanServer.ExecutionCase
   use Oban.Testing, repo: FrontmanServer.Repo
 

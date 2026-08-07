@@ -1,4 +1,9 @@
 <?php
+/**
+ * WordPress Media Library tools.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;

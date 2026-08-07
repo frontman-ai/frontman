@@ -124,6 +124,11 @@ chmod +x /usr/local/bin/alertmanager /usr/local/bin/amtool
 echo ">>> Installing alertmanager-discord (Python bridge)..."
 cat > /usr/local/bin/alertmanager-discord <<'PYBRIDGE'
 #!/usr/bin/env python3
+"""Minimal Alertmanager -> Discord webhook bridge.
+
+Receives Alertmanager webhook POSTs on port 9095 and forwards them
+as Discord embeds with color-coded severity levels.
+"""
 import http.server
 import json
 import os

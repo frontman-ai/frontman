@@ -1,3 +1,14 @@
+/**
+ * Vite config for standalone production build.
+ *
+ * Unlike the library build (vite.config.ts) which externalizes React,
+ * this config bundles everything into a single self-contained ES module
+ * that can be loaded directly via <script type="module"> in any page.
+ *
+ * Output: dist/frontman.es.js (+ dist/frontman.css if CSS is extracted)
+ *
+ * Used by: CI deploy workflow → Cloudflare Pages (app.frontman.sh)
+ */
 import path from "node:path";
 import { transformAsync } from "@babel/core";
 import tailwindcss from "@tailwindcss/vite";

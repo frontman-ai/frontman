@@ -1,3 +1,9 @@
+/**
+ * Client__PlanList - Plan entries display component
+ *
+ * Pure ReScript replacement for Queue components.
+ * Displays a collapsible list of plan entries with status indicators.
+ */
 module Icons = Client__ToolIcons
 module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
@@ -73,7 +79,7 @@ let make = (~entries: array<ACPTypes.planEntry>) => {
       <button
         type_="button"
         onClick={_ => setIsExpanded(prev => !prev)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 
+        className="w-full flex items-center justify-between gap-2 px-3 py-2
                    hover:bg-zinc-700/30 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">

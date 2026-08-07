@@ -9,35 +9,91 @@ type mediaStreamTrackState =
   | @as("ended") Ended
   | @as("live") Live
 
+/**
+Provides access to connected media input devices like cameras and microphones, as well as screen sharing. In essence, it lets you obtain access to any hardware source of media data.
+[See MediaDevices on MDN](https://developer.mozilla.org/docs/Web/API/MediaDevices)
+*/
 @editor.completeFrom(MediaDevices)
 type mediaDevices = private {
   ...EventTypes.eventTarget,
 }
 
+/**
+The MediaDevicesInfo interface contains information that describes a single media input or output device.
+[See MediaDeviceInfo on MDN](https://developer.mozilla.org/docs/Web/API/MediaDeviceInfo)
+*/
 @editor.completeFrom(MediaDeviceInfo)
 type mediaDeviceInfo = private {
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaDeviceInfo/deviceId)
+    */
   deviceId: string,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaDeviceInfo/kind)
+    */
   kind: mediaDeviceKind,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaDeviceInfo/label)
+    */
   label: string,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaDeviceInfo/groupId)
+    */
   groupId: string,
 }
 
+/**
+A stream of media content. A stream consists of several tracks such as video or audio tracks. Each track is specified as an instance of MediaStreamTrack.
+[See MediaStream on MDN](https://developer.mozilla.org/docs/Web/API/MediaStream)
+*/
 @editor.completeFrom(MediaStream)
 type mediaStream = private {
   ...EventTypes.eventTarget,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStream/id)
+    */
   id: string,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStream/active)
+    */
   active: bool,
 }
 
+/**
+A single media track within a stream; typically, these are audio or video tracks, but other track types may exist as well.
+[See MediaStreamTrack on MDN](https://developer.mozilla.org/docs/Web/API/MediaStreamTrack)
+TODO: mark as private once mutating fields of private records is allowed
+*/
 @editor.completeFrom(MediaStreamTrack)
 type mediaStreamTrack = {
   ...EventTypes.eventTarget,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStreamTrack/kind)
+    */
   kind: string,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStreamTrack/id)
+    */
   id: string,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStreamTrack/label)
+    */
   label: string,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStreamTrack/enabled)
+    */
   mutable enabled: bool,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStreamTrack/muted)
+    */
   muted: bool,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStreamTrack/readyState)
+    */
   readyState: mediaStreamTrackState,
+  /**
+    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaStreamTrack/contentHint)
+    */
   mutable contentHint: string,
 }
 

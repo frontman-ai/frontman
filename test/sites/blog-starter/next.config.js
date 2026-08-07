@@ -1,3 +1,4 @@
+/** @type {import('next').NextConfig} */
 const nextConfig = {
 	transpilePackages: ["@frontman-ai/nextjs"],
 	turbopack: {

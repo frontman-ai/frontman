@@ -1,4 +1,12 @@
 defmodule FrontmanServer.Repo.Migrations.NormalizeFrameworks do
+  @moduledoc """
+  Normalize framework display labels to internal identifiers.
+
+  The framework middleware used to send display labels like "Next.js" which were
+  stored directly in the database. Now we normalize to lowercase identifiers
+  ("nextjs", "vite", "astro") at the channel ingestion boundary, and this
+  migration cleans up existing rows.
+  """
   use Ecto.Migration
 
   def up do

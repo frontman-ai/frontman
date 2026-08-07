@@ -1,4 +1,19 @@
 defmodule ModelContextProtocol do
+  @moduledoc """
+  MCP (Model Context Protocol) message builders and parsers.
+
+  Provides MCP-specific request building and response parsing, composing
+  the JsonRpc module for wire format. Similar to how the ACP module handles
+  Agent Client Protocol messages.
+
+  This module:
+  - Builds MCP requests (initialize, tools/call)
+  - Extracts data from MCP-specific response formats
+  - Handles MCP content arrays and error flags
+
+  Use with JsonRpc for complete message handling.
+  """
+
   use Boundary, deps: [JsonRpc], exports: :all
 
   require Logger
@@ -8,6 +23,10 @@ defmodule ModelContextProtocol do
   @client_version "1.0.0"
 
   defmodule ToolCallParams do
+    @moduledoc """
+    Parameters for building an MCP tools/call request.
+    """
+
     @enforce_keys [:request_id, :tool_name, :arguments, :call_id]
     defstruct request_id: nil,
               tool_name: nil,
@@ -47,6 +66,11 @@ defmodule ModelContextProtocol do
     %{"content" => [%{"type" => "text", "text" => text}], "isError" => true}
   end
 
+  @doc """
+  Returns params for an MCP initialize request.
+
+  Use with `JsonRpc.request(id, "initialize", MCPProtocol.initialize_params())`.
+  """
   def initialize_params do
     %{
       "protocolVersion" => @protocol_version,
@@ -55,6 +79,12 @@ defmodule ModelContextProtocol do
     }
   end
 
+  @doc """
+  Extracts text content from MCP content array.
+
+  MCP responses contain a content array with text blocks:
+  %{"content" => [%{"type" => "text", "text" => "..."}]}
+  """
   def extract_content_text(%{"content" => content}) do
     Enum.map_join(content, "\n", fn
       %{"text" => text} -> text
@@ -64,9 +94,18 @@ defmodule ModelContextProtocol do
 
   def extract_content_text(_), do: ""
 
+  @doc """
+  Checks if MCP result indicates an error.
+  """
   def error?(%{"isError" => is_error}), do: is_error
   def error?(_), do: false
 
+  @doc """
+  Builds an MCP tool execution request.
+
+  Uses an integer JSON-RPC request id for protocol correlation. The durable
+  tool call id remains in params.callId for agent/tool-result correlation.
+  """
   def build_tool_execution(%ToolCallParams{} = params) do
     Logger.info("MCP tool call: #{params.tool_name} arguments=#{inspect(params.arguments)}")
 

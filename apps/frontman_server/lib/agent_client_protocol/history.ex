@@ -1,4 +1,6 @@
 defmodule AgentClientProtocol.History do
+  @moduledoc "Encodes projected task row contexts as ACP notifications."
+
   alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Agents
   alias FrontmanServer.Tasks.History, as: TaskHistory

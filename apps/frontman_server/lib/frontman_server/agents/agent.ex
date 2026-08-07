@@ -1,4 +1,8 @@
 defmodule FrontmanServer.Agents.Agent do
+  @moduledoc """
+  Backend-owned product agent definition.
+  """
+
   @enforce_keys [:id, :name, :display_name, :description, :color, :system]
   defstruct [
     :id,

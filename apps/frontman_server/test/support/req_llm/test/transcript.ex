@@ -1,4 +1,19 @@
 defmodule ReqLLM.Test.Transcript do
+  @moduledoc """
+  Universal HTTP transcript format for fixture recording and replay.
+
+  Test-only module for capturing and replaying HTTP interactions.
+  Represents a complete HTTP request/response cycle as a series of events.
+  Both streaming and non-streaming responses use the same event structure.
+
+  ## Event Types
+
+  - `{:status, code}` - HTTP status code received
+  - `{:headers, headers}` - HTTP headers received
+  - `{:data, binary}` - Response body chunk
+  - `{:done, :ok}` - Response complete
+  """
+
   @enforce_keys [:provider, :model_spec, :captured_at, :request, :response_meta, :events]
   defstruct provider: nil,
             model_spec: nil,
@@ -32,19 +47,23 @@ defmodule ReqLLM.Test.Transcript do
     t |> data_chunks() |> IO.iodata_to_binary()
   end
 
+  @doc "Encode transcript to pretty JSON"
   def to_json(%__MODULE__{} = t) do
     t |> to_map() |> Jason.encode!(pretty: true)
   end
 
+  @doc "Decode transcript from JSON"
   def from_json!(json) do
     json |> Jason.decode!() |> from_map()
   end
 
+  @doc "Write transcript to file as JSON"
   def write!(%__MODULE__{} = t, path) do
     json = to_json(t)
     File.write!(path, json)
   end
 
+  @doc "Read transcript from JSON file"
   def read!(path) do
     if !File.exists?(path) do
       raise ArgumentError, """

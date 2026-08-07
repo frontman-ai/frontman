@@ -1,4 +1,12 @@
 defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
+  @moduledoc """
+  LLM request preflight pipeline.
+
+  Runs in `LLMClient` before each provider request. Each pass is a pure
+  function over a list of `SwarmAi.Message` structs.
+
+  """
+
   use Boundary,
     deps: [FrontmanServer],
     check: [apps: [:req_llm]]
@@ -12,6 +20,11 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
 
   @default_tool_result_max_bytes 51_200
 
+  @doc """
+  Run the full request preflight pipeline over a list of messages.
+
+  Returns the preflighted message list.
+  """
   def run(messages, opts \\ []) do
     messages
     |> strip_unsupported_images(opts)

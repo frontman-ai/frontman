@@ -68,28 +68,28 @@ test("ReScript regular expressions are not line comments", () => {
   assert.equal(scanSource("value.res", source).length, 0)
 })
 
-test("TypeScript reference directives are preserved narrowly", () => {
+test("triple-slash documentation comments are preserved only on their own line", () => {
   const directive = '/// <reference types="vite/client" />\n'
   for (const file of ["env.ts", "env.tsx", "env.d.ts"]) {
     assert.equal(scanSource(file, directive).length, 0, file)
     assert.equal(fixSource(directive, scanSource(file, directive)), directive, file)
   }
-  assert.equal(scanSource("env.js", directive).length, 1)
-  assert.equal(scanSource("env.mts", directive).length, 1)
-  assert.equal(scanSource("env.ts", "/// ordinary prose\n").length, 1)
+  assert.equal(scanSource("env.js", directive).length, 0)
+  assert.equal(scanSource("env.mts", directive).length, 0)
+  assert.equal(scanSource("env.ts", "/// ordinary prose\n").length, 0)
   assert.equal(scanSource("env.ts", 'const value = 1 /// <reference types="vite/client" />\n').length, 1)
-  assert.equal(scanSource("env.ts", '/// <reference unknown="vite/client" />\n').length, 1)
+  assert.equal(scanSource("env.ts", '/// <reference unknown="vite/client" />\n').length, 0)
 })
 
-test("WordPress plugin metadata is preserved only at the plugin entry path", () => {
+test("PHP documentation comments and WordPress plugin metadata are preserved", () => {
   const file = "libs/frontman-wordpress/frontman.php"
   const metadata = "<?php\n/**\n * Plugin Name: Frontman\n * Version: 2.0.0\n */\n"
   assert.equal(scanSource(file, metadata).length, 0)
   assert.equal(fixSource(metadata, scanSource(file, metadata)), metadata)
-  assert.equal(scanSource("plugin.php", metadata).length, 1)
-  assert.equal(scanSource(file, "<?php\n/** Ordinary leading docblock. */\n").length, 1)
-  assert.equal(scanSource(file, "<?php\n/**\n * Plugin Name: Frontman\n */\n").length, 1)
-  assert.equal(scanSource(file, `${metadata}/** Later docblock. */\n`).length, 1)
+  assert.equal(scanSource("plugin.php", metadata).length, 0)
+  assert.equal(scanSource(file, "<?php\n/** Ordinary leading docblock. */\n").length, 0)
+  assert.equal(scanSource(file, "<?php\n/**\n * Plugin Name: Frontman\n */\n").length, 0)
+  assert.equal(scanSource(file, `${metadata}/** Later docblock. */\n`).length, 0)
 })
 
 test("Elixir template sigils scan template and expression comments only", () => {
@@ -102,7 +102,13 @@ test("Elixir strings recursively scan interpolation expressions", () => {
   assert.equal(scanSource("example.ex", fixture("reject", "interpolation-comment.ex")).length, 1)
 })
 
-test("Elixir documentation attributes are docblocks while false remains metadata", () => {
+test("documentation comments are preserved", () => {
+  const jsdoc = "/** Function docs. */\n/// Property docs.\nconst value = 1\n"
+  const python = `"""Module docs."""
+def run():
+    """Function docs."""
+    return 1
+`
   const source = `defmodule Example do
   @moduledoc "Module docs"
   @typedoc """
@@ -113,11 +119,10 @@ test("Elixir documentation attributes are docblocks while false remains metadata
   def hidden, do: :ok
 end
 `
-  const spans = scanSource("example.ex", source)
-  assert.equal(spans.length, 3)
-  const fixed = fixSource(source, spans)
-  assert.match(fixed, /@doc false/)
-  assert.equal(scanSource("example.ex", fixed).length, 0)
+  for (const [file, documented] of [["example.ts", jsdoc], ["example.py", python], ["example.ex", source]]) {
+    assert.equal(scanSource(file, documented).length, 0, file)
+    assert.equal(fixSource(documented, scanSource(file, documented)), documented, file)
+  }
 })
 
 test("installer generated-source bindings are scanned narrowly", () => {
@@ -161,7 +166,7 @@ NODE
   assert.equal(scanSource("setup.sh", fixSource(source, scanSource("setup.sh", source))).length, 0)
 })
 
-test("Python files and shebang scripts distinguish docblocks, comments, and data", () => {
+test("Python files and shebang scripts distinguish comments and data", () => {
   const source = `#!/usr/bin/env python3
 r"""Module docs."""
 value = "# data"
@@ -172,11 +177,11 @@ def execute():
 `
   assert.equal(classifyFile("example.py", source), "python")
   assert.equal(classifyFile("bin/example", source), "python")
-  assert.equal(scanSource("example.py", source).length, 3)
+  assert.equal(scanSource("example.py", source).length, 1)
   const fixed = fixSource(source, scanSource("example.py", source))
   assert.equal(scanSource("example.py", fixed).length, 0)
-  assert.match(fixed, /^pass$/m)
-  assert.match(fixed, /^    pass$/m)
+  assert.match(fixed, /^r"""Module docs\."""$/m)
+  assert.match(fixed, /^    """Function docs\."""$/m)
 })
 
 test("fix removes comments and trailing whitespace", () => {

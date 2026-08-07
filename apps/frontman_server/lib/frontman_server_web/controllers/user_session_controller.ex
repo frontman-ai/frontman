@@ -82,6 +82,12 @@ defmodule FrontmanServerWeb.UserSessionController do
     end
   end
 
+  @doc """
+  GET /users/log-out — renders a CSRF-protected confirmation page that auto-submits
+  a DELETE form. This prevents forced-logout via `<img src="/users/log-out">` since
+  the GET only returns HTML; the actual session destruction requires the DELETE with
+  a valid CSRF token.
+  """
   def confirm_logout(conn, params) do
     render(conn, :confirm_logout, return_to: params["return_to"])
   end

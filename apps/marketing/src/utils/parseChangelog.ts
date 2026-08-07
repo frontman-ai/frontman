@@ -7,6 +7,10 @@ export interface ChangelogEntry {
   text: string
 }
 
+/**
+ * Enhance link accessibility by adding aria-labels to non-descriptive links
+ * and fix incorrectly auto-linked email addresses
+ */
 function enhanceLinkAccessibility(html: string): string {
   html = html.replace(
     /<a href="(https:\/\/github\.com\/[^"]+\/pull\/(\d+))">#(\d+)<\/a>/g,
@@ -33,6 +37,15 @@ function preventCloudflareEmailObfuscation(html: string): string {
   )
 }
 
+/**
+ * Adjust heading levels for proper hierarchy.
+ * Since feed item header is h2, markdown h3 becomes h3, h4 becomes h4, etc.
+ * The changeset markdown has ### for "Minor Changes" and #### for package names.
+ * We swap h3 <-> h4 so package names become h3 (first) and categories become h4.
+ *
+ * Also converts nested headings (inside list items) like "### Added" and "### Changed"
+ * to strong tags to avoid heading hierarchy issues.
+ */
 function normalizeHeadingLevels(html: string): string {
   html = html.replace(/<h3>(Added|Changed|Fixed|Removed|Deprecated|Security)<\/h3>/g, '<p><strong>$1</strong></p>')
 

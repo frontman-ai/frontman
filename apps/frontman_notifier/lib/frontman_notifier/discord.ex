@@ -1,4 +1,8 @@
 defmodule FrontmanNotifier.Discord do
+  @moduledoc """
+  Discord webhook client.
+  """
+
   @timeout_ms 15_000
 
   @spec post_embed(String.t(), map()) :: :ok | {:error, term()}

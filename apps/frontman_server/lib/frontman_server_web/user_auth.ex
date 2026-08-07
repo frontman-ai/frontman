@@ -1,4 +1,8 @@
 defmodule FrontmanServerWeb.UserAuth do
+  @moduledoc """
+  Handles user authentication via session tokens and remember-me cookies.
+  """
+
   use FrontmanServerWeb, :verified_routes
 
   import Plug.Conn
@@ -17,6 +21,12 @@ defmodule FrontmanServerWeb.UserAuth do
 
   @session_reissue_age_in_days 7
 
+  @doc """
+  Logs the user in.
+
+  Redirects to the session's `:user_return_to` path
+  or falls back to the `signed_in_path/1`.
+  """
   def log_in_user(conn, user, params \\ %{}) do
     user_return_to = get_session(conn, :user_return_to)
 
@@ -68,6 +78,14 @@ defmodule FrontmanServerWeb.UserAuth do
       String.ends_with?(host, ".frontman.local")
   end
 
+  @doc """
+  Logs the user out.
+
+  It clears all session data for safety. See renew_session.
+
+  Accepts an optional `return_to` URL that is forwarded to the login page
+  so the user is redirected back after re-authenticating.
+  """
   def log_out_user(conn, return_to \\ nil) do
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
@@ -88,6 +106,11 @@ defmodule FrontmanServerWeb.UserAuth do
     |> redirect(to: redirect_url)
   end
 
+  @doc """
+  Authenticates the user by looking into the session and remember me token.
+
+  Will reissue the session token if it is older than the configured age.
+  """
   def fetch_current_scope_for_user(conn, _opts) do
     case ensure_user_token(conn) do
       {token, conn} ->
@@ -262,6 +285,9 @@ defmodule FrontmanServerWeb.UserAuth do
     put_session(conn, :user_token, token)
   end
 
+  @doc """
+  Plug for routes that require sudo mode.
+  """
   def require_sudo_mode(conn, _opts) do
     if Accounts.sudo_mode?(conn.assigns.current_scope.user, -10) do
       conn
@@ -274,6 +300,12 @@ defmodule FrontmanServerWeb.UserAuth do
     end
   end
 
+  @doc """
+  Plug for routes that require the user to not be authenticated.
+
+  If a `return_to` query parameter is present and the user is authenticated,
+  redirects to that URL instead of the default signed-in path.
+  """
   def redirect_if_user_is_authenticated(conn, _opts) do
     if conn.assigns.current_scope do
       return_to = conn.params["return_to"]
@@ -288,6 +320,9 @@ defmodule FrontmanServerWeb.UserAuth do
 
   defp signed_in_path(_conn), do: ~p"/"
 
+  @doc """
+  Plug for routes that require the user to be authenticated.
+  """
   def require_authenticated_user(conn, _opts) do
     if conn.assigns.current_scope && conn.assigns.current_scope.user do
       conn
@@ -300,6 +335,10 @@ defmodule FrontmanServerWeb.UserAuth do
     end
   end
 
+  @doc """
+  Plug for API routes that require the user to be authenticated.
+  Returns JSON error instead of redirect.
+  """
   def require_authenticated_user_api(conn, _opts) do
     if conn.assigns.current_scope && conn.assigns.current_scope.user do
       conn

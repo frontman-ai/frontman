@@ -1,3 +1,6 @@
+/**
+ * MessageContainer - Base wrapper for chat messages with animations
+ */
 @react.component
 let make = (
   ~isNew: bool=false,

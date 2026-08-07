@@ -1,4 +1,8 @@
 defmodule FrontmanServer.Organizations.Membership do
+  @moduledoc """
+  Schema for organization memberships - the join between users and organizations with role.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query

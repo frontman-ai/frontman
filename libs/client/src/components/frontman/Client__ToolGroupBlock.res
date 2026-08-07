@@ -1,3 +1,18 @@
+/**
+ * ToolGroupBlock - Grouped tool calls with "Explored" summary
+ *
+ * Displays a collapsible group of tool calls with a summary header.
+ * When collapsed, shows "Explored 3 files · 2 searches".
+ * When expanded, shows individual tool call blocks.
+ *
+ * Subagent groups show with "Processed" prefix and distinct styling.
+ *
+ * Auto-expand/collapse behavior:
+ * - If isLastToolGroup=true, the group auto-expands
+ * - When a group is no longer the last (new group created), it auto-collapses
+ * - If user manually toggles, their preference is preserved
+ * - Shows "Exploring..." while isLastToolGroup && isAgentRunning
+ */
 module Icons = Client__ToolIcons
 module Types = Client__ToolGroupTypes
 module Utils = Client__ToolGroupUtils

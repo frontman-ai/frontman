@@ -1,4 +1,10 @@
 defmodule SwarmAi.LLM.Response do
+  @moduledoc """
+  Normalized response from an LLM call.
+
+  Adapters convert provider-specific responses to this canonical format.
+  Can be built from a ReqLLM stream via `from_stream/1`.
+  """
   use TypedStruct
 
   require Logger
@@ -26,10 +32,17 @@ defmodule SwarmAi.LLM.Response do
     field(:raw, term())
   end
 
+  @doc "Returns `true` if the response contains any tool calls."
   @spec has_tool_calls?(t()) :: boolean()
   def has_tool_calls?(%__MODULE__{tool_calls: []}), do: false
   def has_tool_calls?(%__MODULE__{tool_calls: _}), do: true
 
+  @doc """
+  Build a Response from a stream of ReqLLM chunks.
+
+  This is the batch-style convenience for when you don't need real-time
+  token emission. Consumes the entire stream and returns the collected response.
+  """
   @spec from_stream(Enumerable.t(StreamChunk.t())) :: t()
   def from_stream(stream) do
     result = Enum.reduce(stream, initial_stream_state(), &accumulate_chunk/2)

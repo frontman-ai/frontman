@@ -1,3 +1,12 @@
+/**
+ * Client__Chatbox - Main chat interface component
+ *
+ * Renders the conversation with Frontman-style UI components:
+ * - User and assistant messages
+ * - Tool call blocks with icons and status
+ * - TODO list integration
+ * - Thinking indicators
+ */
 module Log = FrontmanLogs.Logs.Make({
   let component = #Chatbox
 })
@@ -31,6 +40,15 @@ type displayItem =
   | TodoToolCall(Message.toolCall)
   | ErrorMsg(Message.ErrorMessage.t)
 
+/**
+ * Transform messages into display items, grouping consecutive tool calls
+ *
+ * Algorithm:
+ * 1. Iterate through messages in order
+ * 2. Collect consecutive tool calls
+ * 3. Let the grouping utility handle them - it will group exploration tools
+ * 4. Todo tools will be rendered as singles (they break groups naturally via breaksGrouping)
+ */
 let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   let result: array<displayItem> = []
   let pendingToolCalls: ref<array<Message.toolCall>> = ref([])

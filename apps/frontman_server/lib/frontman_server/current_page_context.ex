@@ -1,4 +1,11 @@
 defmodule FrontmanServer.CurrentPageContext do
+  @moduledoc """
+  Shared current-page context formatting and parsing.
+
+  This is the single server-side source of truth for the ACP metadata shape,
+  LLM prompt section, and preflight extraction logic.
+  """
+
   @marker_key "current_page"
   @header "[Current Page Context]"
   @unchanged_placeholder "[Page context unchanged]"
@@ -7,15 +14,20 @@ defmodule FrontmanServer.CurrentPageContext do
                                    "\\n.*?(?=\\n\\[[^\\]\\n]+\\]\\n|\\z)"
   @prompt_section_pattern Regex.compile!(@prompt_section_pattern_source, "s")
 
+  @doc "Returns the prompt section header."
   def header, do: @header
 
+  @doc "Returns the interaction/ACP data key for current-page context."
   def data_key, do: @marker_key
 
+  @doc "Returns the placeholder used when page context repeats."
   def unchanged_placeholder, do: @unchanged_placeholder
 
+  @doc "Extracts normalized fields from metadata marked as current-page context."
   def fields_from_current_page_meta(%{@marker_key => true} = meta), do: fields_from_meta(meta)
   def fields_from_current_page_meta(_), do: nil
 
+  @doc "Extracts normalized fields from ACP/DB metadata."
   def fields_from_meta(nil), do: nil
 
   def fields_from_meta(meta) when is_map(meta) do
@@ -41,6 +53,7 @@ defmodule FrontmanServer.CurrentPageContext do
   defp device_pixel_ratio(nil), do: nil
   defp device_pixel_ratio(value) when is_number(value), do: value / 1
 
+  @doc "Appends current-page prompt context to user text when present."
   def append_prompt_section(text, nil), do: text
 
   def append_prompt_section(text, page) when is_binary(text) do
@@ -50,6 +63,7 @@ defmodule FrontmanServer.CurrentPageContext do
     end
   end
 
+  @doc "Formats page context as the LLM-visible prompt section."
   def to_prompt_section(nil), do: ""
 
   def to_prompt_section(page) when is_map(page) do
@@ -65,6 +79,7 @@ defmodule FrontmanServer.CurrentPageContext do
 
   def to_prompt_section(_), do: ""
 
+  @doc "Extracts and removes only the current-page prompt section from text."
   def extract_prompt_section(text) when is_binary(text) do
     case Regex.run(@prompt_section_pattern, text, return: :index) do
       [{start, length}] ->
@@ -83,6 +98,7 @@ defmodule FrontmanServer.CurrentPageContext do
 
   def extract_prompt_section(_), do: nil
 
+  @doc "Returns system-prompt guidance for current-page context."
   def guidance do
     """
     ## Current Page Context
@@ -95,6 +111,7 @@ defmodule FrontmanServer.CurrentPageContext do
     """
   end
 
+  @doc "Builds ACP history content blocks for current-page context."
   def to_content_blocks(nil), do: []
 
   def to_content_blocks(page) when is_map(page) do

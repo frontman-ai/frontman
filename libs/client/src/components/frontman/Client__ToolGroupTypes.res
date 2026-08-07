@@ -1,3 +1,9 @@
+/**
+ * ToolGroupTypes - Types for tool grouping and collapse behavior
+ *
+ * Defines the data structures used to group consecutive tool calls
+ * into collapsible "Explored" summaries.
+ */
 module Message = Client__State__Types.Message
 
 type toolsSummary = {

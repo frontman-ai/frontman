@@ -1,5 +1,8 @@
 include Event.Impl({type t = WebSocketsTypes.closeEvent})
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/CloseEvent)
+*/
 @new
 external make: (
   ~type_: string,

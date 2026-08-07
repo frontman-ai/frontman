@@ -1,4 +1,13 @@
 <?php
+/**
+ * WooCommerce tools backed by WooCommerce's own REST API routes.
+ *
+ * The tool set mirrors the WooCommerce methods exposed by
+ * https://github.com/techspawn/woocommerce-mcp-server, with Frontman-local
+ * namespacing (`wc_*`) and cookie-authenticated in-process REST dispatch.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -8,6 +17,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Frontman_Tool_WooCommerce {
 	private const REST_NAMESPACE = '/wc/v3';
 
+	/**
+	 * Register all WooCommerce tools.
+	 */
 	public function register( Frontman_Tools $tools ): void {
 		$this->register_products( $tools );
 		$this->register_product_taxonomies( $tools );

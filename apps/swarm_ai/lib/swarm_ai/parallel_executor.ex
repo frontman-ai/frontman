@@ -1,4 +1,22 @@
 defmodule SwarmAi.ParallelExecutor do
+  @moduledoc """
+  Runs tool executions with per-task deadlines.
+
+  Accepts a list of `ToolExecution.t()` structs. PE is the sole execution
+  authority — executors build descriptions, PE runs them.
+
+  - `Sync` executions are spawned as supervised tasks.
+  - `Await` executions call their start MFA in PE's own process, then wait
+    for `{:tool_result, tool_call_id, content, is_error}` in PE's receive loop.
+
+  ## Return values
+
+  - `{:ok, [ToolResult.t()]}` — all tools completed; results in original call order
+  - `{:halt, {:timeout, tool_call_id, tool_name, timeout_ms}}` — a deadline fired
+    for a tool with `on_timeout: :pause_agent`; all remaining tasks cancelled;
+    first deadline wins
+  """
+
   alias SwarmAi.{ToolCall, ToolExecution, ToolResult}
 
   @type halt_reason :: {:timeout, String.t(), String.t(), pos_integer()}
@@ -20,6 +38,9 @@ defmodule SwarmAi.ParallelExecutor do
   @typep pending :: %{reference() => pending_entry()}
   @typep awaiting :: %{term() => reference()}
 
+  @doc """
+  Runs all executions concurrently and collects results with per-tool deadlines.
+  """
   @spec run([ToolExecution.t()], pid() | atom()) :: result()
   def run(executions, task_supervisor) do
     {pending, awaiting} = spawn_all(executions, task_supervisor)
@@ -32,6 +53,9 @@ defmodule SwarmAi.ParallelExecutor do
     end
   end
 
+  @doc """
+  Runs executions one at a time and preserves original call order.
+  """
   @spec run_serial([ToolExecution.t()], pid() | atom()) :: result()
   def run_serial(executions, task_supervisor) do
     Enum.reduce_while(executions, {:ok, []}, fn exec, {:ok, results} ->

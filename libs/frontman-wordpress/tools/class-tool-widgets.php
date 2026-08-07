@@ -1,4 +1,14 @@
 <?php
+/**
+ * WordPress Widget tools — list widget areas and update widgets.
+ *
+ * Tools: wp_list_widget_areas, wp_read_widget, wp_create_widget,
+ * wp_update_widget, wp_move_widget, wp_delete_widget
+ *
+ * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -8,6 +18,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Frontman_Tool_Widgets {
 	private const SUPPORTED_MUTATION_WIDGET_BASES = [ 'text' ];
 
+	/**
+	 * Register all widget tools.
+	 */
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_widget_areas',
@@ -160,10 +173,16 @@ class Frontman_Tool_Widgets {
 		return $this->sanitize_value_recursive( $settings );
 	}
 
+	/**
+	 * WordPress core stores widget instances in widget_{base} options.
+	 */
 	private function core_widget_option_name( string $widget_base ): string {
 		return 'widget_' . sanitize_key( $widget_base );
 	}
 
+	/**
+	 * WordPress core stores sidebar assignments in this built-in option.
+	 */
 	private function core_sidebars_widgets_option_name(): string {
 		return 'sidebars_widgets';
 	}
@@ -184,6 +203,9 @@ class Frontman_Tool_Widgets {
 		return sanitize_text_field( (string) $value );
 	}
 
+	/**
+	 * wp_list_widget_areas handler.
+	 */
 	public function list_widget_areas( array $input ): array {
 		global $wp_registered_sidebars;
 
@@ -205,6 +227,9 @@ class Frontman_Tool_Widgets {
 		return $result;
 	}
 
+	/**
+	 * wp_read_widget handler.
+	 */
 	public function read_widget( array $input ): array {
 		$widget_id = sanitize_text_field( $input['widget_id'] ?? '' );
 		$parts = $this->parse_widget_id( $widget_id );
@@ -223,6 +248,9 @@ class Frontman_Tool_Widgets {
 		];
 	}
 
+	/**
+	 * wp_create_widget handler.
+	 */
 	public function create_widget( array $input ): array {
 		$sidebar_id  = sanitize_key( $input['sidebar_id'] ?? '' );
 		$widget_base = sanitize_key( $input['widget_base'] ?? '' );
@@ -260,6 +288,9 @@ class Frontman_Tool_Widgets {
 		];
 	}
 
+	/**
+	 * wp_update_widget handler.
+	 */
 	public function update_widget( array $input ): array {
 		$sidebar_id = sanitize_key( $input['sidebar_id'] ?? '' );
 		$widget_id  = sanitize_text_field( $input['widget_id'] ?? '' );
@@ -294,6 +325,9 @@ class Frontman_Tool_Widgets {
 		];
 	}
 
+	/**
+	 * wp_move_widget handler.
+	 */
 	public function move_widget( array $input ): array {
 		$widget_id     = sanitize_text_field( $input['widget_id'] ?? '' );
 		$to_sidebar_id = sanitize_key( $input['to_sidebar_id'] ?? '' );
@@ -335,6 +369,9 @@ class Frontman_Tool_Widgets {
 		];
 	}
 
+	/**
+	 * wp_delete_widget handler.
+	 */
 	public function delete_widget( array $input ): array {
 		$widget_id = sanitize_text_field( $input['widget_id'] ?? '' );
 		if ( empty( $input['confirm'] ) ) {

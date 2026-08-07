@@ -1,3 +1,11 @@
+/**
+ * Frontman Theme - Minimal CSS
+ *
+ * Only contains animations and effects that cannot be achieved with pure Tailwind.
+ * All other styling uses Tailwind utility classes directly in components.
+ */
+
+
 @keyframes frontman-shimmer {
 	0% {
 		background-position: 200% 0;

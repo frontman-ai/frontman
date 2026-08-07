@@ -1,4 +1,18 @@
 defmodule SwarmAi.Loop do
+  @moduledoc """
+  Runtime execution state for one task turn.
+
+  A loop owns complete initial LLM input messages, executes LLM/tool steps,
+  and reaches a terminal status. Each step stores the exact messages sent for
+  that LLM call.
+
+  The loop continues until a terminal condition is met:
+  - No more tool calls (LLM responds without requesting tools)
+  - Max steps reached
+  - LLM returns an error
+  - Tool execution pauses the loop
+  """
+
   alias SwarmAi.Effect
   alias SwarmAi.LLM
   alias SwarmAi.Loop.Config
@@ -52,6 +66,9 @@ defmodule SwarmAi.Loop do
     field(:result, term())
   end
 
+  @doc """
+  Creates a loop for one task turn.
+  """
   def new(attrs) do
     %__MODULE__{
       id: generate_id("loop"),
@@ -74,6 +91,9 @@ defmodule SwarmAi.Loop do
     "#{prefix}_#{uuid}"
   end
 
+  @doc """
+  Completes the loop with LLM response data.
+  """
   def complete(%__MODULE__{status: :running, steps: steps} = loop, response)
       when steps != [] do
     updated_steps = List.update_at(steps, -1, &Step.record_response(&1, response))
@@ -81,20 +101,32 @@ defmodule SwarmAi.Loop do
     %{loop | status: :completed, steps: updated_steps, result: response.content}
   end
 
+  @doc """
+  Marks the loop as failed with the given reason.
+  """
   def fail(%__MODULE__{} = loop, reason) do
     %{loop | status: {:failed, reason}}
   end
 
+  @doc """
+  Pauses the loop with the given reason.
+  """
   def pause(%__MODULE__{} = loop, reason) do
     %{loop | status: {:paused, reason}}
   end
 
+  @doc """
+  Transitions to waiting for tools with tool calls from the response.
+  """
   def wait_for_tools(%__MODULE__{status: :running, steps: steps} = loop, response)
       when steps != [] do
     updated_steps = List.update_at(steps, -1, &Step.record_response(&1, response))
     %{loop | status: :waiting_for_tools, steps: updated_steps}
   end
 
+  @doc """
+  Adds a tool result to the current step.
+  """
   def add_tool_result(%__MODULE__{status: :waiting_for_tools, steps: steps} = loop, result)
       when steps != [] do
     current_step = List.last(steps)
@@ -113,9 +145,15 @@ defmodule SwarmAi.Loop do
     {:error, {:invalid_status, status}}
   end
 
+  @doc """
+  Returns the most recent step, or nil when no steps exist.
+  """
   def current_step(%__MODULE__{steps: []}), do: nil
   def current_step(%__MODULE__{steps: steps}), do: List.last(steps)
 
+  @doc """
+  Starts execution and returns initial effects.
+  """
   def execute(%__MODULE__{status: :ready} = loop) do
     step_number = length(loop.steps) + 1
     step = Step.new(step_number, loop.messages)
@@ -130,14 +168,23 @@ defmodule SwarmAi.Loop do
     {loop, [Effect.call_llm(loop.llm, loop.messages)]}
   end
 
+  @doc """
+  Handles successful LLM response and returns effects.
+  """
   def handle_response(%__MODULE__{status: :running} = loop, response) do
     Runner.handle_llm_response(loop, response)
   end
 
+  @doc """
+  Handles LLM error and returns effects.
+  """
   def handle_error(%__MODULE__{} = loop, error) do
     Runner.handle_llm_error(loop, error)
   end
 
+  @doc """
+  Handles a tool result and returns effects.
+  """
   def handle_tool_result(%__MODULE__{status: :waiting_for_tools} = loop, result) do
     Runner.handle_tool_result(loop, result)
   end

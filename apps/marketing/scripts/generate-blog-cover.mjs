@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 
+/**
+ * Blog cover image generator using Satori + Sharp.
+ *
+ * Usage:
+ *   node scripts/generate-blog-cover.mjs "Your Blog Title Here" [output-filename]
+ *
+ * Output lands in public/blog/<output-filename>.png (defaults to slugified title).
+ */
 
 import satori from "satori";
 import sharp from "sharp";

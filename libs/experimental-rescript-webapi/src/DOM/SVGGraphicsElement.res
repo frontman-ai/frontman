@@ -2,6 +2,9 @@ include Element.Impl({type t = DomTypes.svgGraphicsElement})
 
 external asSVGElement: DomTypes.svgGraphicsElement => DomTypes.svgElement = "%identity"
 
+/**
+[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SVGGraphicsElement/getBBox)
+*/
 @send
 external getBBox: (
   DomTypes.svgGraphicsElement,

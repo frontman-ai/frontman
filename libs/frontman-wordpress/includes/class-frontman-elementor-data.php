@@ -1,4 +1,9 @@
 <?php
+/**
+ * Elementor data helpers used by Frontman Elementor tools.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;

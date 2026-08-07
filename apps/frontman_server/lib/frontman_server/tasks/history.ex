@@ -1,4 +1,6 @@
 defmodule FrontmanServer.Tasks.History do
+  @moduledoc "Projects ordered task interactions into shared row and turn context."
+
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 

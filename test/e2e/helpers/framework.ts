@@ -1,3 +1,6 @@
+/**
+ * Helpers for spawning framework dev servers and managing fixture projects.
+ */
 
 import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { relative, resolve } from "node:path";
@@ -5,6 +8,10 @@ import { readFileSync, existsSync } from "node:fs";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 
+/**
+ * Resolve a CLI binary by walking up the node_modules/.bin tree from `startDir`.
+ * This avoids relying on `npx` which can hang in CI trying to download packages.
+ */
 function resolveBin(startDir: string, name: string): string {
   let dir = startDir;
   const checked: string[] = [];
@@ -25,13 +32,19 @@ function resolveBin(startDir: string, name: string): string {
 }
 
 export interface FrameworkServer {
+  /** Dev server process */
   proc: ChildProcess;
+  /** Port the dev server is listening on */
   port: number;
+  /** Absolute path to the fixture directory */
   fixtureDir: string;
+  /** The file that contains the heading text (for assertion) */
   headingFile: string;
+  /** Throws if the dev server logged a known-fatal error. */
   assertHealthy?: () => void;
 }
 
+/** Kill any process listening on the given port (works on macOS and Linux). */
 function killPort(port: number): void {
   try {
     const pids = execSync(`lsof -ti:${port}`, { stdio: "pipe" })
@@ -51,6 +64,10 @@ function killPort(port: number): void {
   }
 }
 
+/**
+ * Wait until HTTP responds on the given URL.
+ * Fails fast if the child process exits before becoming ready.
+ */
 async function waitForReady(
   proc: ChildProcess,
   url: string,
@@ -85,6 +102,7 @@ async function waitForReady(
   );
 }
 
+/** Pipe child process output to console for debugging. */
 function logOutput(
   proc: ChildProcess,
   label: string,
@@ -228,6 +246,7 @@ export async function startVueVite(port: number): Promise<FrameworkServer> {
 }
 
 
+/** Kill the dev server and restore any modified fixture files. */
 export async function stopFramework(
   server: FrameworkServer | undefined,
 ): Promise<void> {
@@ -253,6 +272,7 @@ export async function stopFramework(
   }
 }
 
+/** Read the heading file and check if it contains the expected text. */
 export function headingFileContains(
   server: FrameworkServer,
   text: string,

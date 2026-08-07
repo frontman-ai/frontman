@@ -1,4 +1,13 @@
 <?php
+/**
+ * WordPress Template tools — site info and template listing.
+ *
+ * Tools: wp_get_site_info, wp_list_templates, wp_read_template, wp_update_template
+ *
+ * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
+ *
+ * @package Frontman
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -6,6 +15,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 
 class Frontman_Tool_Templates {
+	/**
+	 * Register all template tools.
+	 */
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_site_info',
@@ -102,6 +114,9 @@ class Frontman_Tool_Templates {
 		];
 	}
 
+	/**
+	 * Get active plugin filesystem paths using WordPress' validated plugin list.
+	 */
 	private function get_active_plugin_paths(): array {
 		$plugin_paths = [];
 
@@ -135,6 +150,9 @@ class Frontman_Tool_Templates {
 		];
 	}
 
+	/**
+	 * wp_get_site_info handler.
+	 */
 	public function get_site_info( array $input ): array {
 		$theme = wp_get_theme();
 
@@ -183,6 +201,9 @@ class Frontman_Tool_Templates {
 		];
 	}
 
+	/**
+	 * wp_list_templates handler.
+	 */
 	public function list_templates( array $input ): array {
 		$type = sanitize_key( $input['type'] ?? 'wp_template' );
 
@@ -212,6 +233,9 @@ class Frontman_Tool_Templates {
 		];
 	}
 
+	/**
+	 * wp_read_template handler.
+	 */
 	public function read_template( array $input ): array {
 		$type     = sanitize_key( $input['type'] ?? 'wp_template' );
 		$slug     = sanitize_title( $input['slug'] ?? '' );
@@ -224,6 +248,9 @@ class Frontman_Tool_Templates {
 		return $this->serialize_template( $template );
 	}
 
+	/**
+	 * wp_update_template handler.
+	 */
 	public function update_template( array $input ): array {
 		$type     = sanitize_key( $input['type'] ?? 'wp_template' );
 		$slug     = sanitize_title( $input['slug'] ?? '' );

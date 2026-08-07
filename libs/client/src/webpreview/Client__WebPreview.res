@@ -1,3 +1,8 @@
+/**
+ * Client__WebPreview - Web preview panel
+ *
+ * Renders the iframe viewport. Nav controls have moved to Client__TopBar.
+ */
 let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
   let (size, setSize) = React.useState(() => (0, 0))
 

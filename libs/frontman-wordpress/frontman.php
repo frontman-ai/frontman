@@ -18,6 +18,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! function_exists( 'frontman_plugin_dir_path' ) ) {
+	/**
+	 * Resolve the plugin directory path.
+	 */
 	function frontman_plugin_dir_path( string $file ): string {
 		if ( function_exists( 'plugin_dir_path' ) ) {
 			return call_user_func( 'plugin_dir_path', $file );
@@ -28,6 +31,9 @@ if ( ! function_exists( 'frontman_plugin_dir_path' ) ) {
 }
 
 if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
+	/**
+	 * Resolve the plugin directory URL.
+	 */
 	function frontman_plugin_dir_url( string $file ): string {
 		if ( function_exists( 'plugin_dir_url' ) ) {
 			return call_user_func( 'plugin_dir_url', $file );
@@ -57,6 +63,9 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-templates.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-widgets.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
 
+/**
+ * Main plugin bootstrap.
+ */
 function frontman_init(): void {
 	$tools = Frontman_Tools::instance();
 	( new Frontman_Tool_Posts() )->register( $tools );
@@ -87,6 +96,9 @@ function frontman_init(): void {
 }
 add_action( 'init', 'frontman_init' );
 
+/**
+ * Clear transient edit-tracking state on plugin deactivation.
+ */
 function frontman_deactivate(): void {
 	delete_transient( 'frontman_file_tracker_' . (int) get_current_user_id() );
 }

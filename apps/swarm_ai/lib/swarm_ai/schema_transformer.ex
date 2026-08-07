@@ -1,10 +1,64 @@
 defmodule SwarmAi.SchemaTransformer do
+  @moduledoc """
+  Transforms tool parameter schemas for different LLM providers.
+
+  Different providers have different requirements for tool schemas:
+  - OpenAI (strict mode): Requires all properties in `required` array,
+    uses nullable types for optional fields, requires `additionalProperties: false`
+  - Anthropic/Google/Others: Flexible schemas, optional properties can be omitted
+
+  ## OpenAI Structured Outputs Requirements
+
+  OpenAI's strict mode has specific requirements:
+  - `additionalProperties: false` on all object types
+  - ALL fields must be in `required` array (no optional fields allowed)
+  - To make a field semantically "optional", use nullable types:
+    `anyOf: [{"type": "actual_type"}, {"type": "null"}]`
+  - Model will always provide every field, but nullable ones can be `null`
+
+  ## Example
+
+      iex> schema = %{
+      ...>   "type" => "object",
+      ...>   "properties" => %{
+      ...>     "name" => %{"type" => "string"},
+      ...>     "age" => %{"type" => "integer"}
+      ...>   },
+      ...>   "required" => ["name"]
+      ...> }
+      iex> SwarmAi.SchemaTransformer.transform(schema, :openai_strict)
+      %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string"},
+          "age" => %{"anyOf" => [%{"type" => "integer"}, %{"type" => "null"}]}
+        },
+        "required" => ["name", "age"],
+        "additionalProperties" => false
+      }
+  """
+
   @type provider :: :openai_strict | :flexible
 
+  @doc """
+  Transforms a schema for the target provider.
+
+  For `:flexible` providers (Anthropic, Google, etc.), returns schema unchanged.
+  For `:openai_strict`, normalizes schema for OpenAI's structured outputs requirements.
+  """
   @spec transform(map(), provider()) :: map()
   def transform(schema, :flexible), do: schema
   def transform(schema, :openai_strict), do: transform_for_openai_strict(schema)
 
+  @doc """
+  Strips null values from tool call arguments.
+
+  This is the inverse of the strict mode transformation: `transform/2` makes optional
+  fields nullable so the model can provide `null`, and `strip_nulls/1` removes those
+  nulls before passing arguments to tools that expect missing keys rather than null values.
+
+  Recursively strips null values from nested objects.
+  """
   @spec strip_nulls(map()) :: map()
   def strip_nulls(args) when is_map(args) do
     args
@@ -14,6 +68,13 @@ defmodule SwarmAi.SchemaTransformer do
 
   def strip_nulls(value), do: value
 
+  @doc """
+  Determines the provider type from a model identifier string.
+
+  Model strings follow the format `"provider:model_name"` or `"provider:org/model_name"`.
+  Returns `:openai_strict` for OpenAI and Azure models (via OpenRouter or direct),
+  `:flexible` for all others.
+  """
   @spec provider_for_model(String.t() | %{provider: atom()}) :: provider()
   def provider_for_model(model) when is_binary(model) do
     if openai_model?(model), do: :openai_strict, else: :flexible

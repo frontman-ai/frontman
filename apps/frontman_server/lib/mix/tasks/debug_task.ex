@@ -1,5 +1,42 @@
 defmodule Mix.Tasks.DebugTask do
   @shortdoc "Debug task interactions from the database"
+  @moduledoc """
+  Query tasks and interactions for debugging agent behavior.
+
+  ## Usage
+
+      # List recent tasks with error counts
+      mix debug_task list
+      mix debug_task list --limit 10
+
+      # Show all interactions for the most recent task
+      mix debug_task show
+
+      # Show a specific task by full UUID or prefix (min 8 chars)
+      mix debug_task show 3f5167ad
+      mix debug_task show 3f5167ad-56e7-45d3-ba95-6b8aba383d8f
+
+      # Filter by errors only
+      mix debug_task show --errors
+
+      # Filter by tool name
+      mix debug_task show --tool edit_file
+
+      # Filter by interaction type
+      mix debug_task show --type tool_call
+
+      # Show full detail for a specific interaction by sequence number
+      mix debug_task show --seq 280
+
+      # Combine filters
+      mix debug_task show --tool edit_file --errors
+
+  ## Interaction types
+
+  user_message, agent_response, tool_call, tool_result,
+  agent_completed, discovered_project_rule,
+  discovered_project_structure
+  """
 
   use Boundary, classify_to: FrontmanServer.Tasks
   use Mix.Task
