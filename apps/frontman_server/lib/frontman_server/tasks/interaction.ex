@@ -1,18 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Tasks.Interaction do
-  @moduledoc """
-  Domain interaction types for the LLM agent system.
-
-  Interactions represent domain events that occur during a task's lifecycle.
-  These are stored as the source of truth, while streaming tokens are ephemeral
-  transport mechanisms for real-time UX.
-  """
-
   @interaction_modules [
     __MODULE__.UserMessage,
     __MODULE__.TurnStarted,
@@ -47,24 +33,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule FigmaNode do
-    @moduledoc """
-    Represents a selected Figma node with its associated data.
-
-    Contains:
-    - `id` - the Figma node ID extracted from the resource URI (e.g., "123:456")
-    - `node` - the DSL text representation OR full node JSON data
-    - `image` - base64 encoded screenshot of the Figma node
-    - `is_dsl` - true if `node` contains DSL text, false if it contains full node JSON data
-
-    When `is_dsl` is true:
-    - The `node` field contains a compact DSL text representation for design breakdown
-    - Used by `breakdown_figma_design` tool to analyze design structure
-
-    When `is_dsl` is false:
-    - The `node` field contains full JSON node data from get_figma_node
-    - Used by `implement_component`, `visual_compare_component_to_figma`, etc. for detailed implementation
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -82,10 +50,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule Screenshot do
-    @moduledoc """
-    Base64-encoded screenshot with MIME type.
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -102,10 +66,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule BoundingBox do
-    @moduledoc """
-    Bounding box of an element in viewport coordinates.
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -124,12 +84,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule ParentLocation do
-    @moduledoc """
-    Source location of a parent component in the React tree.
-
-    Forms a recursive chain via the `parent` field.
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -152,10 +106,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule UserImage do
-    @moduledoc """
-    A user-uploaded image or PDF attachment.
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -174,10 +124,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule CurrentPage do
-    @moduledoc """
-    Page context from the client: URL, viewport, DPR, title, color scheme, scroll position.
-    """
-
     alias FrontmanServer.CurrentPageContext
 
     use Ecto.Schema
@@ -229,12 +175,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule Annotation do
-    @moduledoc """
-    Represents a single annotated element from the client.
-
-    Contains source location, screenshot, and enrichment data.
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -338,14 +278,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp drop_known_metadata(_), do: %{}
 
-    @doc """
-    Builds an Annotation from an ACP `_meta` block, pairing with a separate
-    screenshot map keyed by annotation_id.
-
-    The _meta block contains all annotation fields inline. Screenshots are
-    sent as separate content blocks and collected into `screenshot_map` by
-    the caller.
-    """
     def from_meta(meta, screenshot_map \\ %{}) when is_map(meta) do
       attrs = attrs_from_acp_meta(meta)
       %{attrs | screenshot: Map.get(screenshot_map, attrs.annotation_id)}
@@ -353,16 +285,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule UserMessage do
-    @moduledoc """
-    Represents a message sent by the user.
-
-    All fields are extracted from content blocks at creation time:
-    - `agent_id` - selected product agent id
-    - `messages` - array of text messages from the user
-    - `annotations` - list of annotated elements (replaces selected_component)
-    - `current_page` - page context (URL, viewport, DPR, title, color scheme, scroll)
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -401,7 +323,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    # Extract text messages from content blocks
     defp extract_messages(content_blocks) do
       content_blocks
       |> Enum.reduce_while({:ok, []}, fn
@@ -423,9 +344,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    # Extract annotations from content blocks.
-    # Annotations are resource blocks with _meta.annotation: true.
-    # Screenshots are paired by annotation_id via _meta.annotation_screenshot: true.
     defp extract_annotations(content_blocks) do
       screenshot_map = extract_screenshot_map(content_blocks)
 
@@ -445,7 +363,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp annotation_block?(_), do: false
 
-    # Collect screenshot blobs indexed by annotation_id
     defp extract_screenshot_map(content_blocks) do
       content_blocks
       |> Enum.filter(&annotation_screenshot_block?/1)
@@ -498,7 +415,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end)
     end
 
-    # Extract Figma image blob from content blocks
     defp extract_figma_image_blob(content_blocks) do
       Enum.find_value(content_blocks, fn
         %{
@@ -547,12 +463,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule AgentResponse do
-    @moduledoc """
-    Represents a complete response from an agent.
-
-    This is the final, stored interaction after streaming is complete.
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -718,13 +628,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule TurnStarted do
-    @moduledoc """
-    Represents a normal agent turn starting from accepted user messages.
-
-    The persisted row turn_number identifies the execution turn; user_message_ids
-    records the accepted messages included in that turn in order.
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -745,10 +648,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule AgentCompleted do
-    @moduledoc """
-    Represents an agent finishing its work.
-    """
-
     use Ecto.Schema
 
     embedded_schema do
@@ -762,13 +661,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule AgentError do
-    @moduledoc """
-    Represents an agent execution ending with an error (failed, crashed, or cancelled).
-
-    Persisted so that reconnecting clients see the terminal interaction for every agent run,
-    even when the channel process was dead when the error occurred.
-    """
-
     use Ecto.Schema
 
     embedded_schema do
@@ -792,11 +684,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule AgentRetry do
-    @moduledoc """
-    Records a user-initiated retry after an AgentError.
-    Persisted for observability — lets you measure retry success rates.
-    """
-
     use Ecto.Schema
 
     embedded_schema do
@@ -810,12 +697,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule AgentPaused do
-    @moduledoc """
-    Recorded when the agent loop is paused due to a tool timeout with
-    `on_timeout: :pause_agent`. Stored as an interaction so reconnecting
-    clients and the debug-task tool can see why the agent stopped.
-    """
-
     use Ecto.Schema
 
     embedded_schema do
@@ -837,10 +718,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule ToolCall do
-    @moduledoc """
-    Represents an LLM requesting a tool execution.
-    """
-
     use Ecto.Schema
 
     embedded_schema do
@@ -879,10 +756,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule ToolResult do
-    @moduledoc """
-    Represents the result of a tool execution.
-    """
-
     use Ecto.Schema
     import Ecto.Changeset
 
@@ -944,13 +817,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule DiscoveredProjectRule do
-    @moduledoc """
-    Represents a discovered project rule file (e.g., AGENTS.md, CLAUDE.md).
-
-    These are task-scoped (not agent-scoped) and accumulate as the agent
-    explores the codebase. They are injected into LLM messages as context.
-    """
-
     use Ecto.Schema
 
     @primary_key false
@@ -966,13 +832,6 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   defmodule DiscoveredProjectStructure do
-    @moduledoc """
-    Represents a discovered project structure summary (from list_tree during MCP init).
-
-    Stored once per task during initialization. Injected into the system prompt
-    so the agent always has structural awareness of the project.
-    """
-
     use Ecto.Schema
 
     @primary_key false
@@ -1080,18 +939,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     DateTime.utc_now()
   end
 
-  @doc """
-  Converts interactions to Swarm message format.
-
-  This is the boundary translation from Tasks domain (Interactions)
-  to Agents domain (Swarm messages). Conversation messages include
-  UserMessage, AgentResponse, and ToolResult.
-  ToolCall interactions are excluded as they're embedded in AgentResponse metadata.
-
-  Interactions are expected to be ordered by the persisted sequence column,
-  which guarantees correct conversation structure (assistant messages before their
-  tool results) regardless of database insertion timing.
-  """
   def to_swarm_messages(interactions) when is_list(interactions) do
     Enum.flat_map(interactions, &to_swarm_message/1)
   end

@@ -16,5 +16,4 @@ type t = [
   | #BrowserUrl
 ]
 
-// Accepts any poly variant (open) — tags are strings at runtime
 external componentToString: [> t] => string = "%identity"

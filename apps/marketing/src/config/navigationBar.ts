@@ -1,6 +1,3 @@
-// Navigation Bar
-// ------------
-// Description: The navigation bar data for the website.
 export interface Logo {
 	src: string
 	alt: string

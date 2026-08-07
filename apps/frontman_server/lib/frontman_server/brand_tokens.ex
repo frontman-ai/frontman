@@ -1,14 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.BrandTokens do
-  @moduledoc """
-  Frontman brand design tokens shared by browser UI and email templates.
-  """
-
   @font_sans "Inter Variable, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
 
   @colors %{

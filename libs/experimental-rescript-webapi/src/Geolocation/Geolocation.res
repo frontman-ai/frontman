@@ -1,6 +1,3 @@
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/Geolocation/getCurrentPosition)
-*/
 @send
 external getCurrentPosition: (
   GeolocationTypes.geolocation,
@@ -9,9 +6,6 @@ external getCurrentPosition: (
   ~options: GeolocationTypes.positionOptions=?,
 ) => unit = "getCurrentPosition"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/Geolocation/watchPosition)
-*/
 @send
 external watchPosition: (
   GeolocationTypes.geolocation,
@@ -20,9 +14,6 @@ external watchPosition: (
   ~options: GeolocationTypes.positionOptions=?,
 ) => int = "watchPosition"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/Geolocation/clearWatch)
-*/
 @send
 external clearWatch: (GeolocationTypes.geolocation, int) => unit = "clearWatch"
 

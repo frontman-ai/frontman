@@ -1,41 +1,4 @@
 defmodule FrontmanServer.InteractionCase do
-  @moduledoc """
-  Test case template for tests that work with `FrontmanServer.Tasks.Interaction` structs.
-
-  Provides factory functions for building Interaction structs and content block
-  maps without reaching into the database. Tests that only exercise pure
-  Interaction logic (parsing, encoding, LLM conversion) should `use` this case
-  directly. Tests that also need the DB can combine it with `DataCase` or
-  `ChannelCase` by importing the helpers module instead:
-
-      import FrontmanServer.InteractionCase.Helpers
-
-  ## Provided helpers
-
-  ### Content block builders (raw maps matching the ACP wire format)
-
-    * `text_block/1`         — `%{"type" => "text", "text" => text}`
-    * `annotation_block/5,6` — annotation resource block with optional enrichment
-    * `screenshot_block/2,3` — screenshot resource block paired to an annotation
-    * `current_page_block/2`  — current page context resource block
-
-  ### Interaction struct builders
-
-    * `user_msg/1,2`         — `%UserMessage{}`
-    * `agent_resp/1,2`       — `%AgentResponse{}`
-    * `tool_call/2,3`        — `%ToolCall{}`
-    * `tool_result/3,4`      — `%ToolResult{}`
-
-  ### DB wire-format tool call maps
-
-    * `db_tool_call/2,3`     — OpenAI nested format (string keys)
-    * `flat_tool_call/3`     — flat format (string keys, no nested function)
-
-  ### Assertion helpers
-
-    * `extract_text/1`       — pull text from an LLM message (handles string + ContentPart list)
-  """
-
   use ExUnit.CaseTemplate
 
   using do
@@ -45,15 +8,6 @@ defmodule FrontmanServer.InteractionCase do
   end
 
   defmodule Helpers do
-    @moduledoc """
-    Factory functions and assertion helpers for Interaction structs.
-
-    Import this module directly in tests that already `use` another case
-    template (e.g. DataCase, ChannelCase):
-
-        import FrontmanServer.InteractionCase.Helpers
-    """
-
     alias FrontmanServer.Tasks.Interaction
 
     alias FrontmanServer.Tasks.Interaction.{
@@ -63,27 +17,8 @@ defmodule FrontmanServer.InteractionCase do
       UserMessage
     }
 
-    # -------------------------------------------------------------------
-    # Content block builders (raw maps matching ACP wire format)
-    # -------------------------------------------------------------------
-
-    @doc "Build a text content block map."
     def text_block(text), do: %{"type" => "text", "text" => text}
 
-    @doc """
-    Build an annotation resource block with optional enrichment fields.
-
-    Accepted keys in `extra`:
-      * `:index`          — annotation_index (defaults to 0)
-      * `:component_name` — React/component name
-      * `:css_classes`    — CSS class string
-      * `:nearby_text`    — visible text near the element
-      * `:comment`        — user comment
-      * `:component_props` — component props map
-      * `:metadata`       — extra annotation `_meta` fields to preserve generically
-      * `:bounding_box`   — `%{"x" => …, "y" => …, "width" => …, "height" => …}`
-      * `:parent`         — parent location map
-    """
     def annotation_block(id, tag, file, line, col, extra \\ %{}) do
       base_meta =
         %{
@@ -118,7 +53,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Build a screenshot resource block paired to an annotation by id."
     def screenshot_block(annotation_id, blob, mime \\ "image/png") do
       %{
         "type" => "resource",
@@ -135,7 +69,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Build a current-page context resource block."
     def current_page_block(url, extra \\ %{}) do
       meta = Map.merge(extra, %{"current_page" => true, "url" => url})
 
@@ -150,11 +83,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    # -------------------------------------------------------------------
-    # DB wire-format tool call maps
-    # -------------------------------------------------------------------
-
-    @doc "Build a tool_call map in DB wire format (string keys, OpenAI shape)."
     def db_tool_call(id, name, args \\ "{}") do
       %{
         "id" => id,
@@ -163,16 +91,10 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Build a tool_call map in flat format (string keys, no nested function)."
     def flat_tool_call(id, name, args) do
       %{"id" => id, "name" => name, "arguments" => args}
     end
 
-    # -------------------------------------------------------------------
-    # Interaction struct builders
-    # -------------------------------------------------------------------
-
-    @doc "Build a `%UserMessage{}` struct."
     def user_msg(messages, annotations \\ []) do
       %UserMessage{
         id: Ecto.UUID.generate(),
@@ -182,7 +104,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Build an `%AgentResponse{}` struct."
     def agent_resp(content, metadata \\ %{}) do
       AgentResponse.attrs(content, metadata)
       |> Map.put(:id, Ecto.UUID.generate())
@@ -190,7 +111,6 @@ defmodule FrontmanServer.InteractionCase do
       |> then(&struct!(AgentResponse, &1))
     end
 
-    @doc "Build a `%TurnStarted{}` struct."
     def turn_started(user_message_ids) do
       %Interaction.TurnStarted{
         id: Ecto.UUID.generate(),
@@ -200,7 +120,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Build an `%AgentError{}` struct."
     def agent_error(message, kind \\ "failed", retryable \\ false, category \\ "unknown") do
       %Interaction.AgentError{
         id: Ecto.UUID.generate(),
@@ -212,7 +131,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Build an `%AgentPaused{}` struct."
     def agent_paused(tool_name, timeout_ms) do
       %Interaction.AgentPaused{
         id: Ecto.UUID.generate(),
@@ -223,12 +141,10 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Build an `%AgentCompleted{}` struct."
     def agent_completed do
       %Interaction.AgentCompleted{id: Ecto.UUID.generate(), timestamp: Interaction.now()}
     end
 
-    @doc "Build a `%ToolCall{}` struct."
     def tool_call(call_id, name, args \\ %{}) do
       %ToolCall{
         id: Ecto.UUID.generate(),
@@ -239,7 +155,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Build a `%ToolResult{}` struct."
     def tool_result(call_id, name, result, opts \\ []) do
       %ToolResult{
         id: Ecto.UUID.generate(),
@@ -251,11 +166,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    # -------------------------------------------------------------------
-    # SwarmAi struct builders
-    # -------------------------------------------------------------------
-
-    @doc "Build a `%SwarmAi.ToolCall{}` struct with an auto-generated id."
     def swarm_tool_call(name, args \\ "{}") do
       %SwarmAi.ToolCall{
         id: "tc_#{System.unique_integer([:positive])}",
@@ -264,12 +174,10 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    @doc "Wrap an interaction struct like Tasks PubSub broadcasts do."
     def interaction_event(interaction, turn_number) do
       {:interaction, interaction_row(interaction, turn_number)}
     end
 
-    @doc "Build an `%InteractionSchema{}` row wrapper for interaction tests."
     def interaction_row(interaction, turn_number) do
       schema = Module.concat([FrontmanServer, Tasks, InteractionSchema])
 
@@ -286,10 +194,6 @@ defmodule FrontmanServer.InteractionCase do
       })
     end
 
-    # -------------------------------------------------------------------
-    # Assertion / extraction helpers
-    # -------------------------------------------------------------------
-
     defmacro assert_receive_interaction(data_pattern, turn_pattern, timeout \\ 5_000) do
       quote do
         assert_receive {:interaction,
@@ -298,7 +202,6 @@ defmodule FrontmanServer.InteractionCase do
       end
     end
 
-    @doc "Extract text content from an LLM message (handles string + ContentPart list)."
     def extract_text(msg) do
       case msg.content do
         content when is_binary(content) -> content
@@ -307,12 +210,6 @@ defmodule FrontmanServer.InteractionCase do
       end
     end
 
-    @doc """
-    Extract and concatenate all text from an LLM message's content parts.
-
-    Unlike `extract_text/1` which returns only the first text part, this
-    joins all text parts together.
-    """
     def extract_content_text(content) when is_binary(content), do: content
 
     def extract_content_text(content) when is_list(content) do
@@ -321,10 +218,6 @@ defmodule FrontmanServer.InteractionCase do
         _ -> ""
       end)
     end
-
-    # -------------------------------------------------------------------
-    # Internal helpers
-    # -------------------------------------------------------------------
 
     defp maybe_put(map, _key, nil), do: map
     defp maybe_put(map, key, val), do: Map.put(map, key, val)

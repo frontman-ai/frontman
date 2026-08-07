@@ -1,21 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Tasks.Todos do
-  @moduledoc """
-  Atomic todo projection module.
-
-  Rebuilds current todos from the last `todo_write` ToolResult interaction.
-  No incremental mutations — the LLM sends the complete list every time,
-  eliminating hallucinated IDs and todo drift between turns.
-
-  This is a subcontext under Tasks — it accepts interactions as parameters
-  and never calls back to the parent Tasks context.
-  """
-
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools.TodoWrite
@@ -94,11 +77,6 @@ defmodule FrontmanServer.Tasks.Todos do
     end
   end
 
-  @doc """
-  Lists all current todos from the last `todo_write` result.
-
-  Finds the most recent successful `todo_write` ToolResult and parses its todos array.
-  """
   def list_todos(interactions) do
     interactions
     |> Enum.filter(&todo_write_result?/1)

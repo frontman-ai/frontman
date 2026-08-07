@@ -1,9 +1,4 @@
 <?php
-/**
- * Elementor data helpers used by Frontman Elementor tools.
- *
- * @package Frontman
- */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
@@ -72,7 +67,6 @@ class Frontman_Elementor_Data {
             update_post_meta( $post_id, '_elementor_edit_mode', 'builder' );
             update_post_meta( $post_id, '_elementor_template_type', self::template_type_for_post( $post ) );
 
-            // Save only the element tree; Elementor document saves also sync page-level templates.
             $json = wp_json_encode( $data );
             if ( ! is_string( $json ) || '' === $json ) {
                 throw new \RuntimeException( 'Failed to encode Elementor data.' );

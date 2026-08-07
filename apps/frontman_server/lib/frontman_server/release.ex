@@ -1,14 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Release do
-  @moduledoc """
-  Used for executing DB release tasks when run in production without Mix
-  installed.
-  """
   @app :frontman_server
 
   def migrate do
@@ -29,7 +19,6 @@ defmodule FrontmanServer.Release do
   end
 
   defp load_app do
-    # Many platforms require SSL when connecting to the database
     Application.ensure_all_started(:ssl)
     Application.ensure_loaded(@app)
   end

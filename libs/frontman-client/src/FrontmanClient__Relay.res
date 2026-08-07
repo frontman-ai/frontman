@@ -1,5 +1,3 @@
-// Framework Tool Relay - connects to local dev server for tool discovery and execution
-
 module Types = FrontmanClient__Relay__Types
 module MCPTypes = FrontmanClient__MCP__Types
 module SSE = FrontmanClient__SSE
@@ -35,7 +33,6 @@ let isConnected = (relay: t): bool => {
 
 let getState = (relay: t): relayState => relay.state.contents
 
-// Connect to dev server and fetch tools
 let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
   unit,
   string,
@@ -87,13 +84,11 @@ let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): 
   }
 }
 
-// Disconnect (reset state)
 @@live
 let disconnect = (relay: t): unit => {
   relay.state := Disconnected
 }
 
-// Get tools as JSON (for MCP tools/list)
 let getToolsJson = (relay: t): array<JSON.t> => {
   switch relay.state.contents {
   | Connected({tools}) =>
@@ -119,7 +114,6 @@ let getToolsJson = (relay: t): array<JSON.t> => {
   }
 }
 
-// Check if relay has a specific tool
 let hasTool = (relay: t, name: string): bool => {
   switch relay.state.contents {
   | Connected({tools}) => tools->Array.some(tool => tool.name == name)
@@ -127,7 +121,6 @@ let hasTool = (relay: t, name: string): bool => {
   }
 }
 
-// Execute a tool via relay with SSE streaming
 let executeTool = async (
   relay: t,
   ~name: string,

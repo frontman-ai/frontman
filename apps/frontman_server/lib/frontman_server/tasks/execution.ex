@@ -1,19 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Tasks.Execution do
-  @moduledoc """
-  Orchestrates agent execution for tasks.
-
-  This module handles the mechanics of running an LLM agent loop:
-  - Building root agents from task data
-  - Submitting agents to SwarmAi
-  - Routing tool result notifications to waiting executors
-  """
-
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
@@ -27,21 +12,6 @@ defmodule FrontmanServer.Tasks.Execution do
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.Message.Tool
 
-  @doc """
-  Runs an agent execution for a task.
-
-  Resolves provider auth, builds the root agent from the task,
-  and submits the agent to SwarmAi.
-
-  ## Params
-  - `:model` - LLM model spec
-  - `:mcp_tools` - client MCP tool definitions for this turn
-
-  ## Returns
-  - `{:ok, pid}` - Execution started successfully
-  - `{:error, {:start_failed, reason}}` - Execution worker failed to start
-  - `{:error, :no_api_key}` - No API key available
-  """
   def run(
         %Scope{} = scope,
         %TaskSchema{} = task,
@@ -132,13 +102,6 @@ defmodule FrontmanServer.Tasks.Execution do
     }
   end
 
-  @doc """
-  Notifies that a tool result has arrived.
-
-  Routes the result to the blocking executor via Registry metadata.
-  Returns `:notified` when the result was delivered to a live executor,
-  `:no_executor` when no executor was waiting (e.g., server restarted).
-  """
   def notify_tool_result(%Interaction.ToolResult{
         tool_call_id: tool_call_id,
         result: %{"content" => [_ | _] = content},
@@ -169,7 +132,6 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  # --- Private ---
   defp prompt_messages(rows, turn_number)
        when is_list(rows) and is_integer(turn_number) and turn_number > 0 do
     user_messages_by_row_id = user_messages_by_row_id(rows)
@@ -220,7 +182,6 @@ defmodule FrontmanServer.Tasks.Execution do
     row
     |> Map.fetch!(:data)
     |> List.wrap()
-    # FIXME(Danni) - why not get rid of swarm messages? lets it just work with reqllm messages
     |> Interaction.to_swarm_messages()
   end
 

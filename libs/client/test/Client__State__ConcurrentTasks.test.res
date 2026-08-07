@@ -1,15 +1,8 @@
 open Vitest
 
-/**
- * Tests for concurrent task event routing
- *
- * These tests verify that SSE events are routed to the correct task
- * based on the taskId in the event, not the currently selected task.
- */
 module StateReducer = Client__State__StateReducer
 module Task = Client__State__Types.Task
 
-// Helper to create a state with multiple loaded tasks
 module TestSetup = {
   let createStateWithLoadedTasks = (
     ~taskIds: array<string>,
@@ -48,7 +41,6 @@ let textDeltaAction = (~taskId, ~messageId, ~text) => StateReducer.TaskAction({
 
 describe("Concurrent Tasks Event Routing", () => {
   test("Multiple concurrent tasks streaming simultaneously", t => {
-    // Setup: Three tasks
     let taskAId = "task-a"
     let taskBId = "task-b"
     let taskCId = "task-c"
@@ -57,7 +49,6 @@ describe("Concurrent Tasks Event Routing", () => {
       ~isAgentRunning=true,
     )
 
-    // Act: Stream to all three tasks
     let (state1, _) = StateReducer.next(
       state,
       textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text="A"),
@@ -71,7 +62,6 @@ describe("Concurrent Tasks Event Routing", () => {
       textDeltaAction(~taskId=taskCId, ~messageId="assistant-c", ~text="C"),
     )
 
-    // Assert: Each task has its own message with correct content
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
     let taskC = finalState.tasks->Dict.get(taskCId)->Option.getOrThrow
@@ -93,7 +83,6 @@ describe("Concurrent Tasks Event Routing", () => {
   })
 
   test("ExecutionStateIdle routes to correct task", t => {
-    // Setup: Task A with streaming message, Task B is current
     let taskAId = "task-a"
     let taskBId = "task-b"
     let state = TestSetup.createStateWithLoadedTasks(
@@ -101,7 +90,6 @@ describe("Concurrent Tasks Event Routing", () => {
       ~isAgentRunning=true,
     )
 
-    // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
     t->expect(StateReducer.Selectors.currentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
 
@@ -110,17 +98,14 @@ describe("Concurrent Tasks Event Routing", () => {
       textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text="Complete message"),
     )
 
-    // Act: Complete the message in Task A
     let (finalState, _) = StateReducer.next(
       stateWithText,
       TaskAction({target: ForTask(taskAId), action: ExecutionStateIdle}),
     )
 
-    // Assert: Message in Task A should be completed
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 
-    // Find the completed message (there should be exactly one)
     let completedMessages = Task.getMessages(taskA)->Array.filter(
       msg =>
         switch msg {
@@ -145,7 +130,6 @@ describe("Concurrent Tasks Event Routing", () => {
   })
 
   test("Tool result events route to correct task", t => {
-    // Setup: Task A with tool call, Task B is current
     let taskAId = "task-a"
     let taskBId = "task-b"
     let state = TestSetup.createStateWithLoadedTasks(
@@ -153,10 +137,8 @@ describe("Concurrent Tasks Event Routing", () => {
       ~isAgentRunning=true,
     )
 
-    // Switch to task B
     let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
 
-    // Create tool call in Task A via ToolCallReceived
     let toolCall: StateReducer.Message.toolCall = {
       id: "tool-1",
       toolName: "ReadFile",
@@ -173,7 +155,6 @@ describe("Concurrent Tasks Event Routing", () => {
       TaskAction({target: ForTask(taskAId), action: ToolCallReceived({toolCall: toolCall})}),
     )
 
-    // Act: Send tool result to Task A
     let (finalState, _) = StateReducer.next(
       stateWithTool,
       TaskAction({
@@ -187,7 +168,6 @@ describe("Concurrent Tasks Event Routing", () => {
       }),
     )
 
-    // Assert: Tool result should be in Task A
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
     let toolMessage =
@@ -205,7 +185,6 @@ describe("Concurrent Tasks Event Routing", () => {
   })
 
   test("Switching current task mid-stream doesn't affect event routing", t => {
-    // Setup: Start with Task A
     let taskAId = "task-a"
     let taskBId = "task-b"
     let state = TestSetup.createStateWithLoadedTasks(
@@ -218,17 +197,14 @@ describe("Concurrent Tasks Event Routing", () => {
       textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text="Part 1. "),
     )
 
-    // Switch to Task B mid-stream
     let (stateWithB, _) = StateReducer.next(stateWithText1, SwitchTask({taskId: taskBId}))
     t->expect(StateReducer.Selectors.currentTaskId(stateWithB))->Expect.toEqual(Some(taskBId))
 
-    // Continue receiving text for Task A
     let (finalState, _) = StateReducer.next(
       stateWithB,
       textDeltaAction(~taskId=taskAId, ~messageId="assistant-a", ~text="Part 2."),
     )
 
-    // Assert: All text should be in Task A, Task B should be empty
     let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
     let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
 

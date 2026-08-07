@@ -1,6 +1,3 @@
-// ACP Client - handles Agent Client Protocol communication
-// Uses pure state reducer pattern
-
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
@@ -77,7 +74,6 @@ let parseAgentAttributionConfiguration = (result: Types.initializeResult) => {
   }
 }
 
-// Pure reducer function
 let reduce = (state: state, action: action): state => {
   switch action {
   | RequestSent(id, pending) =>
@@ -103,7 +99,6 @@ let reduce = (state: state, action: action): state => {
   }
 }
 
-// Handle incoming JSON-RPC response - returns new state
 let handleResponse = (state: state, payload: JSON.t): state => {
   try {
     let response = payload->JsonRpc.Response.fromJsonExn
@@ -133,7 +128,6 @@ let handleResponse = (state: state, payload: JSON.t): state => {
   }
 }
 
-// Build initialize params JSON
 let advertiseAgentAttribution = metadata => {
   let merged =
     metadata->Option.mapOr(Dict.make(), metadata =>
@@ -172,7 +166,6 @@ let ensureSupportedProtocolVersion = ({protocolVersion} as result: Types.initial
   }
 }
 
-// Parse initialize result and enforce ACP base-version agreement before extension negotiation.
 let parseInitializeResult = json =>
   json
   ->Decoders.parseSchema(Types.initializeResultSchema)
@@ -181,16 +174,12 @@ let parseInitializeResult = json =>
     result->parseAgentAttributionConfiguration->Result.map(_configuration => result)
   )
 
-// Parse session/new result
 let parseSessionNewResult = json => json->Decoders.parseSchema(Types.sessionNewResultSchema)
 
-// Parse session/load result
 let parseSessionLoadResult = json => json->Decoders.parseSchema(Types.sessionLoadResultSchema)
 
-// Parse session/prompt result
 let parsePromptResult = json => json->Decoders.parseSchema(Types.promptResultSchema)
 
-// Parse session/update notification under the negotiated extension contract.
 let sessionUpdateName = json =>
   json
   ->JSON.Decode.object
@@ -225,7 +214,6 @@ let parseSessionUpdateNotification = (state, json) => {
   json->Decoders.parseSchema(schema)
 }
 
-// Check if initialized
 let isInitialized = (state: state): bool => {
   switch state.acpState {
   | Initialized(_) => true
@@ -233,7 +221,6 @@ let isInitialized = (state: state): bool => {
   }
 }
 
-// Get connection state
 let getACPState = (state: state): acpState => state.acpState
 
 type messageRole = Assistant | User

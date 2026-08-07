@@ -1,30 +1,11 @@
 <?php
-/**
- * Tool registry — holds WP tool definitions and dispatches calls.
- *
- * Architecture mirrors the ReScript core server (FrontmanCore__Server):
- * - Tool handlers return plain data arrays on success, throw Frontman_Tool_Error on failure
- * - The registry wraps results into MCP-compliant format with _meta
- * - Individual handlers never construct MCP wire format directly
- *
- * @package Frontman
- */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Exception for tool execution errors.
- *
- * Throw this from handlers to signal a tool-level error.
- * The registry catches it and wraps it into an MCP error result.
- */
 class Frontman_Tool_Error extends \RuntimeException {}
 
-/**
- * Represents a single tool definition.
- */
 class Frontman_Tool_Definition {
 	public string $name;
 	public string $description;
@@ -32,18 +13,8 @@ class Frontman_Tool_Definition {
 	public array  $input_schema;
 	public bool   $visible_to_agent;
 	public bool   $preserve_input_strings;
-	/** @var callable(array): array */
 	public $handler;
 
-	/**
-	 * @param string   $name             Tool name (e.g. "wp_list_posts").
-	 * @param string   $description      Human-readable description.
-	 * @param array    $input_schema     JSON Schema for input (as PHP array).
-	 * @param callable $handler          fn(array $input): array — returns plain data (JSON-serializable).
-	 * @param string|null $access              Tool access level: read, write, or read-write. Inferred from name when omitted.
-	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
-	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
-	 */
 	public function __construct(
 		string $name,
 		string $description,
@@ -62,9 +33,6 @@ class Frontman_Tool_Definition {
 		$this->preserve_input_strings = $preserve_input_strings;
 	}
 
-	/**
-	 * Serialize to relay protocol format.
-	 */
 	public function to_array(): array {
 		return [
 			'name'           => $this->name,
@@ -100,14 +68,7 @@ class Frontman_Tool_Definition {
 	}
 }
 
-/**
- * Singleton tool registry.
- *
- * Mirrors FrontmanCore__Server.executeTool() — handlers return plain data,
- * the registry wraps into MCP callToolResult with _meta.
- */
 class Frontman_Tools {
-	/** @var Frontman_Tool_Definition[] */
 	private array $tools = [];
 
 	private static ?self $instance = null;
@@ -119,25 +80,14 @@ class Frontman_Tools {
 		return self::$instance;
 	}
 
-	/**
-	 * Register a tool definition.
-	 */
 	public function add( Frontman_Tool_Definition $tool ): void {
 		$this->tools[ $tool->name ] = $tool;
 	}
 
-	/**
-	 * Look up a tool by name.
-	 */
 	public function get( string $name ): ?Frontman_Tool_Definition {
 		return $this->tools[ $name ] ?? null;
 	}
 
-	/**
-	 * Return all tool definitions as serializable arrays.
-	 *
-	 * @return array[]
-	 */
 	public function all_definitions(): array {
 		return array_values(
 			array_map(
@@ -147,9 +97,6 @@ class Frontman_Tools {
 		);
 	}
 
-	/**
-	 * Sanitize tool input against the registered JSON schema before dispatch.
-	 */
 	public function sanitize_input( string $name, array $input ): array {
 		$tool = $this->get( $name );
 		if ( ! $tool ) {
@@ -160,18 +107,6 @@ class Frontman_Tools {
 		return is_array( $sanitized ) ? $sanitized : [];
 	}
 
-	/**
-	 * Execute a tool by name and return an MCP-compliant callToolResult.
-	 *
-	 * Mirrors FrontmanCore__Server.executeTool():
-	 * - Ok(output) → { content: [{type: "text", text: json}], _meta }
-	 * - Error(msg) → { content: [{type: "text", text: msg}], isError: true, _meta }
-	 *
-	 * @param string $name  Tool name.
-	 * @param array  $input Tool input arguments.
-	 * @return array MCP callToolResult.
-	 * @throws \RuntimeException If tool not found (not a tool-level error).
-	 */
 	public function call( string $name, array $input ): array {
 		$tool = $this->get( $name );
 		if ( ! $tool ) {
@@ -179,7 +114,6 @@ class Frontman_Tools {
 
 			throw new \RuntimeException(
 				sprintf(
-					/* translators: %s: tool name */
 					esc_html__( 'Unknown tool: %s', 'frontman-agentic-ai-editor' ),
 					esc_html( $tool_name ),
 				)
@@ -194,18 +128,10 @@ class Frontman_Tools {
 		}
 	}
 
-	/**
-	 * Check if a tool name is a WP tool (handled locally).
-	 */
 	public function is_wp_tool( string $name ): bool {
 		return isset( $this->tools[ $name ] );
 	}
 
-	/**
-	 * Build a success callToolResult.
-	 *
-	 * @param array|string $data JSON-serializable data (array) or pre-encoded string.
-	 */
 	public static function success_result( $data ): array {
 		$text = is_string( $data ) ? $data : wp_json_encode( $data );
 		return [
@@ -214,9 +140,6 @@ class Frontman_Tools {
 		];
 	}
 
-	/**
-	 * Build an error callToolResult.
-	 */
 	public static function error_result( string $message ): array {
 		return [
 			'content' => [ [ 'type' => 'text', 'text' => $message ] ],
@@ -224,9 +147,6 @@ class Frontman_Tools {
 		];
 	}
 
-	/**
-	 * Sanitize a value using a JSON-schema fragment.
-	 */
 	private function sanitize_value_for_schema( $value, array $schema, string $tool_name, string $field_name, bool $preserve_input_strings = false ) {
 		$type = $schema['type'] ?? null;
 
@@ -281,9 +201,6 @@ class Frontman_Tools {
 		return sanitize_text_field( (string) $value );
 	}
 
-	/**
-	 * Sanitize object properties and drop unexpected fixed-schema fields.
-	 */
 	private function sanitize_object_for_schema( array $value, array $schema, string $tool_name, bool $preserve_input_strings = false ): array {
 		$properties            = isset( $schema['properties'] ) && is_array( $schema['properties'] ) ? $schema['properties'] : [];
 		$allow_extra_properties = ! empty( $schema['additionalProperties'] );
@@ -312,9 +229,6 @@ class Frontman_Tools {
 		return $sanitized;
 	}
 
-	/**
-	 * Sanitize arrays whose schema permits dynamic keys.
-	 */
 	private function sanitize_untyped_array( array $value, string $tool_name, bool $preserve_input_strings = false ): array {
 		$sanitized = [];
 		foreach ( $value as $key => $item ) {
@@ -324,9 +238,6 @@ class Frontman_Tools {
 		return $sanitized;
 	}
 
-	/**
-	 * Apply the narrowest safe string sanitizer available for each tool field.
-	 */
 	private function sanitize_string_value( string $value, string $tool_name, string $field_name, bool $preserve_input_strings = false ): string {
 		$value = wp_check_invalid_utf8( $value );
 		if ( $preserve_input_strings ) {

@@ -1,19 +1,9 @@
-/**
- * Client__Chatbox - Main chat interface component
- *
- * Renders the conversation with Frontman-style UI components:
- * - User and assistant messages
- * - Tool call blocks with icons and status
- * - TODO list integration
- * - Thinking indicators
- */
 module Log = FrontmanLogs.Logs.Make({
   let component = #Chatbox
 })
 
 module Message = Client__State__Types.Message
 
-// Import Frontman UI components
 module UserMessage = Client__UserMessage
 module AssistantMessage = Client__AssistantMessage
 module ToolCallBlock = Client__ToolCallBlock
@@ -28,7 +18,6 @@ module ScrollContainer = Client__ScrollContainer
 module PromptInput = Client__PromptInput
 module ErrorBanner = Client__ErrorBanner
 
-// Display item for grouped rendering
 type displayItem =
   | UserMsg({
       id: string,
@@ -42,30 +31,18 @@ type displayItem =
   | TodoToolCall(Message.toolCall)
   | ErrorMsg(Message.ErrorMessage.t)
 
-/**
- * Transform messages into display items, grouping consecutive tool calls
- *
- * Algorithm:
- * 1. Iterate through messages in order
- * 2. Collect consecutive tool calls
- * 3. Let the grouping utility handle them - it will group exploration tools
- * 4. Todo tools will be rendered as singles (they break groups naturally via breaksGrouping)
- */
 let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   let result: array<displayItem> = []
   let pendingToolCalls: ref<array<Message.toolCall>> = ref([])
 
-  // Flush pending tool calls by grouping them
   let flushToolCalls = () => {
     let pending = pendingToolCalls.contents
     if Array.length(pending) > 0 {
-      // Use the grouping utility - it handles what to group vs not
       let grouped = ToolGroupUtils.groupToolCalls(pending, ~minGroupSize=1)
 
       grouped->Array.forEach(item => {
         switch item {
         | ToolGroupTypes.SingleTool(tc) =>
-          // Check if it's a TODO tool - render with special component
           switch TodoUtils.isTodoTool(tc.toolName) {
           | true => result->Array.push(TodoToolCall(tc))
           | false => result->Array.push(SingleToolCall(tc))
@@ -93,7 +70,6 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
     }
   })
 
-  // Flush any remaining tool calls
   flushToolCalls()
 
   result
@@ -145,12 +121,10 @@ let make = (~onConfigureProvider: unit => unit) => {
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
-    // Snapshot live annotations into serializable MessageAnnotation records
     let messageAnnotations =
       annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
 
     let sendWithContent = content => {
-      // Allow send if there's content OR annotations (annotations are first-class message content)
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
       | true =>
@@ -220,11 +194,6 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   }
 
-  // Group messages for display, with referential stability for tool groups.
-  // MessageStore.update does a shallow Array.copy, so unchanged toolCall records
-  // keep the same reference. We cache previous groups by ID and reuse them when
-  // all constituent tool calls are reference-equal — this lets React skip
-  // re-rendering groups that haven't actually changed during streaming.
   let groupCacheRef: React.ref<Dict.t<ToolGroupTypes.toolGroup>> = React.useRef(Dict.make())
   let displayItems = React.useMemo1(() => {
     let items = groupMessages(messages)
@@ -255,8 +224,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   }, [messages])
   let totalItems = Array.length(displayItems)
 
-  // Find the index of the last ToolGroup in displayItems
-  // This is used to determine which group should show "Exploring..." state
   let lastToolGroupIndex = displayItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
     switch item {
     | ToolGroup(_) => idx
@@ -264,21 +231,18 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   })
 
-  // Render a single display item
   let renderDisplayItem = (item: displayItem, itemIndex: int) => {
     let isLastItem = itemIndex == totalItems - 1
     let isLastToolGroup = itemIndex == lastToolGroupIndex
 
     switch item {
     | UserMsg({id, content, annotations, agentId}) =>
-      // Use stable message ID for key
       let messageId = `user-${id}`
       <UserMessage
         key={messageId} content annotations messageId agent={agentForId(agentId)} isNew={isLastItem}
       />
 
     | AssistantMsg(Streaming({id, textBuffer, agentId, _})) =>
-      // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
         <AssistantMessage
@@ -290,7 +254,6 @@ let make = (~onConfigureProvider: unit => unit) => {
       </div>
 
     | AssistantMsg(Completed({id, content, agentId, _})) =>
-      // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
         {content
@@ -308,7 +271,6 @@ let make = (~onConfigureProvider: unit => unit) => {
             />
 
           | Client__State__Types.AssistantContentPart.ToolCall({toolCallId: _, toolName, input}) =>
-            // Embedded tool calls in completed messages (legacy format)
             <ToolCallBlock
               key={partKey}
               toolName
@@ -325,7 +287,6 @@ let make = (~onConfigureProvider: unit => unit) => {
       </div>
 
     | SingleToolCall(tc) =>
-      // Use stable tool call ID for key
       let messageId = `tool-${tc.id}`
       <div key={messageId} className="frontman-content-auto">
         <ToolCallBlock
@@ -340,15 +301,11 @@ let make = (~onConfigureProvider: unit => unit) => {
       </div>
 
     | ToolGroup(group) =>
-      // group.id is now stable (based on first tool call's ID)
-      // Pass both isLastToolGroup and isLastItem - group is "open" only if both are true
-      // This ensures groups close when items (like assistant messages) appear after them
       <div key={group.id} className="frontman-content-auto">
         <ToolGroupBlock group isLastToolGroup isLastItem isAgentRunning />
       </div>
 
     | TodoToolCall(tc) =>
-      // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
       let isLoading = tc.state == InputStreaming || tc.state == InputAvailable
       let todos = switch tc.state {
@@ -394,12 +351,10 @@ let make = (~onConfigureProvider: unit => unit) => {
           </div>
         }}
 
-        // Render grouped messages
         {displayItems
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
 
-        // Error banner (shows when there's a turn error, or retry banner during countdown)
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
         | (None, Some({id, message, category}), Some(taskId)) =>
@@ -412,7 +367,6 @@ let make = (~onConfigureProvider: unit => unit) => {
         | _ => React.null
         }}
 
-        // Thinking indicator (shows after last message when waiting for response)
         <ThinkingIndicator
           show={thinkingState.showThinking}
           context=?{thinkingState.thinkingContext}

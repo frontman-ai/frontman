@@ -1,12 +1,5 @@
 import Config
 
-# Provider config. Client model options and custom LLMDB model metadata are
-# derived from this ordered list.
-#
-# Fields:
-#   :display_name        – human-readable label for the UI
-#   :max_image_dimension – hard pixel-per-side limit (nil = provider auto-resizes)
-# Model tuple shape: {display_name, model_id, llm_db_metadata | :packaged}
 providers = [
   {:openai_codex,
    %{
@@ -26,7 +19,6 @@ providers = [
   {:anthropic,
    %{
      display_name: "Anthropic (Claude Pro/Max)",
-     # Anthropic hard-rejects images > 8000px per side; 7680 leaves margin.
      max_image_dimension: 7680,
      llm_db_provider: [],
      models: [
@@ -56,7 +48,6 @@ providers = [
        {"GPT-5.4", "openai/gpt-5.4", :packaged},
        {"GPT-5.4 Pro", "openai/gpt-5.4-pro", :packaged},
        {"GPT-5.3 Codex", "openai/gpt-5.3-codex", :packaged},
-       # --------------
        {"Claude Fable 5", "anthropic/claude-fable-5", :packaged},
        {"Claude Sonnet 5", "anthropic/claude-sonnet-5", :packaged},
        {"Claude Opus 4.8", "anthropic/claude-opus-4.8", :packaged},
@@ -67,10 +58,8 @@ providers = [
        {"Claude Haiku Latest", "~anthropic/claude-haiku-latest", :packaged},
        {"Claude Sonnet 4.6", "anthropic/claude-sonnet-4.6", :packaged},
        {"Claude Haiku 4.5", "anthropic/claude-haiku-4.5", :packaged},
-       # --------------
        {"Gemini 3.1 Pro Preview", "google/gemini-3.1-pro-preview", :packaged},
        {"Gemini Flash Latest", "~google/gemini-flash-latest", :packaged},
-       # --------------
        {"Kimi Latest", "~moonshotai/kimi-latest", :packaged},
        {"MiniMax M2.7", "minimax/minimax-m2.7", :packaged}
      ]

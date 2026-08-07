@@ -1,8 +1,3 @@
-// Shared middleware configuration type used by all framework adapters
-//
-// Each adapter has its own Config type with framework-specific fields,
-// but the middleware layer only needs this subset.
-
 type frameworkId = Nextjs | Vite | Astro
 
 let frameworkIdToString = (id: frameworkId): string =>
@@ -12,8 +7,6 @@ let frameworkIdToString = (id: frameworkId): string =>
   | Astro => "astro"
   }
 
-// Map a framework ID to a human-readable display name.
-// Used by the client UI to show "Framework detected: Next.js" etc.
 @@live
 let frameworkDisplayName = (id: frameworkId): string =>
   switch id {

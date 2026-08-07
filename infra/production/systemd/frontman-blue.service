@@ -14,11 +14,9 @@ ExecStop=/opt/frontman/blue/current/bin/frontman_server stop
 Restart=on-failure
 RestartSec=5
 
-# BEAM handles SIGTERM gracefully - drains connections, stops supervision tree
 KillMode=process
 TimeoutStopSec=30
 
-# Security hardening
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

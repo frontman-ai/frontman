@@ -1,15 +1,9 @@
 <?php
-/**
- * Elementor tools for reading and editing Elementor page data.
- *
- * @package Frontman
- */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Elementor {
 	public function register( Frontman_Tools $tools ): void {

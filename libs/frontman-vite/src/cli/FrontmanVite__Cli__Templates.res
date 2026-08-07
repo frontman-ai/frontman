@@ -1,7 +1,5 @@
-// Templates for generated/modified files
 module Style = FrontmanVite__Cli__Style
 
-// ASCII art banner for the installer
 let banner = () => {
   let l1 = Style.purpleBold("   ___              _                       ")
   let l2 = Style.purpleBold("  | __| _ ___ _ _ | |_ _ __  __ _ _ _  ")
@@ -19,13 +17,10 @@ ${tagline}
 `
 }
 
-// The import line to inject into vite.config
 let importLine = `import { frontmanPlugin } from '@frontman-ai/vite';`
 
-// The plugin call with host option
 let pluginCall = (~server: string) => `frontmanPlugin({ host: '${server}' })`
 
-// Manual instructions shown when user has an existing config and skips auto-edit
 module ManualInstructions = {
   let viteConfig = (~server: string, fileName: string) => {
     let h = Style.yellowBold
@@ -54,7 +49,6 @@ module ManualInstructions = {
   }
 }
 
-// Success messages
 module SuccessMessages = {
   let fileCreated = (fileName: string) => `  ${Style.check} Created ${Style.bold(fileName)}`
 

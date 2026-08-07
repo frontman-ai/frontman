@@ -1,14 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Tools do
-  @moduledoc """
-  Backend tool aggregator.
-  """
-
   alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tools.MCP
 
@@ -35,12 +25,6 @@ defmodule FrontmanServer.Tools do
     end
   end
 
-  @doc """
-  Returns the execution target for a tool.
-
-  Backend tools are executed server-side by ToolExecutor.
-  MCP tools are routed to the browser client for execution.
-  """
   def execution_target(tool_name) do
     case find_tool(tool_name) do
       {:ok, _module} -> :backend

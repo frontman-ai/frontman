@@ -1,6 +1,3 @@
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/encrypt)
-*/
 @send
 external encrypt: (
   WebCryptoTypes.subtleCrypto,
@@ -9,9 +6,6 @@ external encrypt: (
   ~data: ArrayBufferTypedArrayOrDataView.t,
 ) => promise<ArrayBuffer.t> = "encrypt"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/decrypt)
-*/
 @send
 external decrypt: (
   WebCryptoTypes.subtleCrypto,
@@ -20,9 +14,6 @@ external decrypt: (
   ~data: ArrayBufferTypedArrayOrDataView.t,
 ) => promise<ArrayBuffer.t> = "decrypt"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/sign)
-*/
 @send
 external sign: (
   WebCryptoTypes.subtleCrypto,
@@ -31,9 +22,6 @@ external sign: (
   ~data: ArrayBufferTypedArrayOrDataView.t,
 ) => promise<JSON.t> = "sign"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/verify)
-*/
 @send
 external verify: (
   WebCryptoTypes.subtleCrypto,
@@ -43,9 +31,6 @@ external verify: (
   ~data: ArrayBufferTypedArrayOrDataView.t,
 ) => promise<JSON.t> = "verify"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/digest)
-*/
 @send
 external digest: (
   WebCryptoTypes.subtleCrypto,
@@ -53,9 +38,6 @@ external digest: (
   ~data: ArrayBufferTypedArrayOrDataView.t,
 ) => promise<JSON.t> = "digest"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/generateKey)
-*/
 @send
 external generateKey: (
   WebCryptoTypes.subtleCrypto,
@@ -64,9 +46,6 @@ external generateKey: (
   ~keyUsages: array<WebCryptoTypes.keyUsage>,
 ) => promise<JSON.t> = "generateKey"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/generateKey)
-*/
 @send
 external generateKey2: (
   WebCryptoTypes.subtleCrypto,
@@ -75,9 +54,6 @@ external generateKey2: (
   ~keyUsages: array<WebCryptoTypes.keyUsage>,
 ) => promise<JSON.t> = "generateKey"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/deriveKey)
-*/
 @send
 external deriveKey: (
   WebCryptoTypes.subtleCrypto,
@@ -88,9 +64,6 @@ external deriveKey: (
   ~keyUsages: array<WebCryptoTypes.keyUsage>,
 ) => promise<JSON.t> = "deriveKey"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/deriveBits)
-*/
 @send
 external deriveBits: (
   WebCryptoTypes.subtleCrypto,
@@ -99,9 +72,6 @@ external deriveBits: (
   ~length: int=?,
 ) => promise<ArrayBuffer.t> = "deriveBits"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/deriveBits)
-*/
 @send
 external deriveBits2: (
   WebCryptoTypes.subtleCrypto,
@@ -110,9 +80,6 @@ external deriveBits2: (
   ~length: int=?,
 ) => promise<ArrayBuffer.t> = "deriveBits"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/importKey)
-*/
 @send
 external importKey: (
   WebCryptoTypes.subtleCrypto,
@@ -123,9 +90,6 @@ external importKey: (
   ~keyUsages: array<WebCryptoTypes.keyUsage>,
 ) => promise<WebCryptoTypes.cryptoKey> = "importKey"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/exportKey)
-*/
 @send
 external exportKey: (
   WebCryptoTypes.subtleCrypto,
@@ -133,9 +97,6 @@ external exportKey: (
   ~key: WebCryptoTypes.cryptoKey,
 ) => promise<JSON.t> = "exportKey"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/wrapKey)
-*/
 @send
 external wrapKey: (
   WebCryptoTypes.subtleCrypto,
@@ -145,9 +106,6 @@ external wrapKey: (
   ~wrapAlgorithm: WebCryptoTypes.algorithm,
 ) => promise<JSON.t> = "wrapKey"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/wrapKey)
-*/
 @send
 external wrapKey2: (
   WebCryptoTypes.subtleCrypto,
@@ -157,9 +115,6 @@ external wrapKey2: (
   ~wrapAlgorithm: string,
 ) => promise<JSON.t> = "wrapKey"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/SubtleCrypto/unwrapKey)
-*/
 @send
 external unwrapKey: (
   WebCryptoTypes.subtleCrypto,

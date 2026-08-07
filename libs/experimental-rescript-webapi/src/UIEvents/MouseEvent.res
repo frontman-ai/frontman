@@ -1,6 +1,3 @@
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/MouseEvent)
-*/
 @new
 external make: (
   ~type_: string,
@@ -16,9 +13,6 @@ module Impl = (
 
   include UIEvent.Impl({type t = T.t})
 
-  /**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/MouseEvent/getModifierState)
-*/
   @send
   external getModifierState: (T.t, string) => bool = "getModifierState"
 }

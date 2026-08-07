@@ -1,17 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServerWeb.TasksChannel do
-  @moduledoc """
-  Channel for Tasks management.
-
-  Handles protocol initialization and session creation.
-  Clients join this channel first, then join session-specific
-  channels after creating a session.
-  """
   use FrontmanServerWeb, :channel
   use FrontmanServerWeb, :verified_routes
   require Logger
@@ -39,7 +26,6 @@ defmodule FrontmanServerWeb.TasksChannel do
 
       user_id = socket.assigns.scope.user.id
 
-      # Subscribe to config option updates (triggered by key saves/OAuth)
       Phoenix.PubSub.subscribe(
         FrontmanServer.PubSub,
         Providers.config_pubsub_topic(user_id)
@@ -62,7 +48,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     end
   end
 
-  # Non-ACP channel event for listing sessions
   @impl true
   def handle_in(@acp_list_sessions, _payload, socket) do
     scope = socket.assigns.scope
@@ -71,7 +56,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:reply, {:ok, %{"sessions" => sessions}}, socket}
   end
 
-  # Non-ACP channel event for deleting a session
   @impl true
   def handle_in(@acp_delete_session, %{"sessionId" => session_id}, socket) do
     case Tasks.delete_task(socket.assigns.scope, session_id) do
@@ -80,9 +64,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     end
   end
 
-  # No catch-all handler - let it crash on malformed requests (zero silent failures)
-
-  # Initialize with correct protocol version
   defp handle_message(
          {:request, id, @acp_method_initialize,
           %{"protocolVersion" => @acp_protocol_version} = params},
@@ -94,8 +75,6 @@ defmodule FrontmanServerWeb.TasksChannel do
       {:ok, _version} ->
         socket = assign(socket, :acp_client_info, params["clientInfo"])
 
-        # Push config options immediately so the model selector is populated
-        # before any session is created.
         push(
           socket,
           @acp_config_updated,
@@ -128,7 +107,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     )
   end
 
-  # Create new session (client provides sessionId)
   defp handle_message(
          {:request, id, @acp_method_session_new, %{"sessionId" => session_id}},
          socket
@@ -174,7 +152,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     push_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
   end
 
-  # Unknown method
   defp handle_message({:request, id, method, _params}, socket) do
     Logger.info("ACP unknown method: #{method}")
     push_error(socket, id, JsonRpc.error_method_not_found(), "Method not found")
@@ -184,7 +161,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  # Handle config option updates (triggered by key saves/OAuth)
   @impl true
   def handle_info(:config_options_changed, socket) do
     push(
@@ -202,7 +178,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     |> ACP.build_model_config_options()
   end
 
-  # UUID v4 format: 8-4-4-4-12 hex digits with dashes
   @uuid_regex ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
   defp validate_uuid_format(string) do
     if Regex.match?(@uuid_regex, string), do: :ok, else: :error
@@ -213,7 +188,6 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp extract_framework(_), do: nil
 
-  # Parse errors
   defp handle_parse_error(_reason, %{"id" => id}, socket) do
     Logger.error("Invalid ACP message")
     push_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")

@@ -18,7 +18,7 @@ jobs:
     steps:
       - name: CLA Assistant
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
-        uses: rdkcentral/contributor-assistant_github-action@2c505e3cbfadaa766a7dd6e00e9b22c26509c13c # master (node24 runtime)
+        uses: rdkcentral/contributor-assistant_github-action@2c505e3cbfadaa766a7dd6e00e9b22c26509c13c
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PERSONAL_ACCESS_TOKEN: ${{ secrets.CLA_ASSISTANT_PAT }}

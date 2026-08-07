@@ -1,5 +1,3 @@
-// Tests for the Grep tool
-
 open Vitest
 
 module Grep = FrontmanCore__Tool__Grep
@@ -9,22 +7,18 @@ module Fs = FrontmanBindings.Fs
 module Os = FrontmanBindings.Os
 module ChildProcess = FrontmanCore__ChildProcess
 
-// Helper to create directory recursively
 let mkdirRecursive = async (dir: string) => {
   let _ = await Fs.Promises.mkdir(dir, {recursive: true})
 }
 
-// Helper to remove directory recursively
 let rmRecursive = async (dir: string) => {
   let _ = await ChildProcess.exec(`rm -rf ${dir}`)
 }
 
-// Helper to create a temporary test directory with files
 let createTestFixture = async () => {
   let tempDir = Path.join([Os.tmpdir(), `grep-test-${Date.now()->Float.toString}`])
   await mkdirRecursive(tempDir)
 
-  // Create test files
   await Fs.Promises.writeFile(
     Path.join([tempDir, "test1.js"]),
     `function hello() {
@@ -58,7 +52,6 @@ This is a test file.
 PRICING information available.`,
   )
 
-  // Create a subdirectory with files
   let subDir = Path.join([tempDir, "src"])
   await mkdirRecursive(subDir)
 
@@ -71,7 +64,6 @@ export const formatPricing = (price) => \`$\${price}\`;`,
   tempDir
 }
 
-// Helper to clean up test directory
 let cleanupTestFixture = async (dir: string) => {
   await rmRecursive(dir)
 }
@@ -114,7 +106,6 @@ other.js:5:line five`
   })
 
   test("should respect maxResults", t => {
-    // maxResults caps number of files, not individual matches
     let output = `a.js:1:one
 b.js:2:two
 c.js:3:three
@@ -122,7 +113,6 @@ d.js:4:four`
 
     let result = Grep.parseGrepOutput(output, ~maxResults=2)
 
-    // All 4 matches counted, but only 2 files returned
     t->expect(result.totalMatches)->Expect.toBe(4)
     t->expect(Array.length(result.files))->Expect.toBe(2)
     t->expect(result.truncated)->Expect.toBe(true)
@@ -231,7 +221,6 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
     t->expect(args->Array.includes("-n"))->Expect.toBe(true)
     t->expect(args->Array.includes("-H"))->Expect.toBe(true)
     t->expect(args->Array.includes("test"))->Expect.toBe(true)
-    // No pathspec separator when no glob/type
     t->expect(args->Array.includes("--"))->Expect.toBe(false)
   })
 
@@ -261,7 +250,6 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
     t->expect(args->Array.includes("--"))->Expect.toBe(true)
     t->expect(args->Array.includes("*.astro"))->Expect.toBe(true)
 
-    // Verify order: pattern before --, glob after --
     let patternIdx = args->Array.indexOf("demo")
     let separatorIdx = args->Array.indexOf("--")
     let globIdx = args->Array.indexOf("*.astro")
@@ -293,7 +281,6 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
       ~type_=Some("js"),
     )
 
-    // glob should be present, type-derived glob should not
     t->expect(args->Array.includes("*.tsx"))->Expect.toBe(true)
     t->expect(args->Array.includes("*.js"))->Expect.toBe(false)
   })
@@ -308,8 +295,6 @@ describe("Grep Tool - buildGitGrepArgs", _t => {
       ~type_=None,
     )
 
-    // The pattern should be a single element in the array, not split on spaces.
-    // This is what caused the original bug when args were joined into a shell string.
     t->expect(args->Array.includes("Frontman demo video"))->Expect.toBe(true)
   })
 })
@@ -359,7 +344,6 @@ describe("Grep Tool - execute (integration)", _t => {
           t->expect(output.totalMatches > 0)->Expect.toBe(true)
           t->expect(Array.length(output.files) > 0)->Expect.toBe(true)
 
-          // Verify we found pricing in the test files
           let hasPricing =
             output.files->Array.some(
               file =>
@@ -391,7 +375,6 @@ describe("Grep Tool - execute (integration)", _t => {
         sourceRoot: tempDir,
       }
 
-      // Search for "PRICING" (uppercase) with case sensitive
       let input: Grep.input = {
         pattern: "PRICING",
         caseInsensitive: false,
@@ -402,10 +385,8 @@ describe("Grep Tool - execute (integration)", _t => {
       switch result {
       | Ok(output) => {
           Console.log2("Case sensitive results:", output)
-          // Should only find "PRICING" in readme.md
           t->expect(output.totalMatches > 0)->Expect.toBe(true)
 
-          // All matches should be uppercase PRICING
           let allUppercase =
             output.files->Array.every(
               file => file.matches->Array.every(m => m.lineText->String.includes("PRICING")),
@@ -445,7 +426,6 @@ describe("Grep Tool - execute (integration)", _t => {
           Console.log2("Subdirectory search results:", output)
           t->expect(output.totalMatches > 0)->Expect.toBe(true)
 
-          // Should find the file in src/utils.js
           let foundInSrc = output.files->Array.some(file => file.path->String.includes("src"))
           t->expect(foundInSrc)->Expect.toBe(true)
         }
@@ -471,8 +451,6 @@ describe("Grep Tool - execute (integration)", _t => {
         sourceRoot: tempDir,
       }
 
-      // Pass a specific file path (not a directory) — this is what the LLM
-      // does when it wants to search within a single file.
       let input: Grep.input = {
         pattern: "pricing",
         path: "test1.js",
@@ -483,7 +461,6 @@ describe("Grep Tool - execute (integration)", _t => {
 
       switch result {
       | Ok(output) => {
-          // Should find "pricing" in test1.js without ENOTDIR
           t->expect(output.totalMatches > 0)->Expect.toBe(true)
           t->expect(Array.length(output.files) > 0)->Expect.toBe(true)
         }

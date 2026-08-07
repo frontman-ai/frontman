@@ -20,7 +20,6 @@ const compiledRuntimeTests = runtimeTests.map((testFile) =>
   testFile.replace(/\.res$/, ".res.mjs"),
 );
 
-// Compile all tests
 execSync("npm run build", { cwd: repoRoot, stdio: "inherit" });
 
 const successGreen = "\x1b[32m";

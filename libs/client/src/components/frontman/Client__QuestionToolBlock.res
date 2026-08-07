@@ -1,14 +1,3 @@
-// Display-only types for parsing the tool result JSON.
-// The server sends this format in tool_call_update completed notifications.
-
-/**
- * QuestionToolBlock - Compact summary card for question tool calls
- *
- * Displays the question tool state:
- * - Streaming/awaiting answer: shimmer "Asking a question..."
- * - Answered: per-question summary with check/skip icons
- * - Cancelled/error: red-tinted card
- */
 module Icons = Client__UI__Icons
 
 @schema
@@ -61,11 +50,9 @@ module HeaderRow = {
   }
 }
 
-// Schema for parsing tool input (the questions the agent is asking)
 @schema
 type toolInputDisplay = {questions: array<Client__Question__Types.questionItem>}
 
-// Render question headers from tool input (for pending/unanswered states)
 module QuestionList = {
   @react.component
   let make = (~input: option<JSON.t>) => {

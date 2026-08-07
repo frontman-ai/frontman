@@ -1,8 +1,4 @@
 defmodule FrontmanNotifier.State do
-  @moduledoc """
-  Durable state for notification de-duplication.
-  """
-
   use GenServer
 
   alias FrontmanNotifier.Config

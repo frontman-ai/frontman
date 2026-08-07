@@ -1,0 +1,8 @@
+let middlewareTemplate = host =>
+  `const endpoint = "https://frontman.sh";
+const marker = "// string";
+// generated middleware comment
+export const host = '${host}';
+`
+
+let prose = `// prose outside generated bindings`

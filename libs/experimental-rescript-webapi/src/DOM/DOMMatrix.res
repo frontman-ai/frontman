@@ -1,42 +1,9 @@
-/**
-`make()`
-
-Creates a new identity `DOMMatrix`.
-
-```res
-let matrix = DOMMatrix.make()
-```
-
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMMatrix)
-*/
 @new
 external make: unit => DomTypes.domMatrix = "DOMMatrix"
 
-/**
-`fromString(string)`
-
-Creates a new `DOMMatrix` from a transform string.
-
-```res
-let matrix = DOMMatrix.fromString("matrix(1, 0, 0, 1, 0, 0)")
-```
-
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMMatrix)
-*/
 @new
 external fromString: string => DomTypes.domMatrix = "DOMMatrix"
 
-/**
-`fromArray(array<float>)`
-
-Creates a new `DOMMatrix` from an array of matrix component values.
-
-```res
-let matrix = DOMMatrix.fromArray([1., 0., 0., 1., 0., 0.])
-```
-
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMMatrix)
-*/
 @new
 external fromArray: array<float> => DomTypes.domMatrix = "DOMMatrix"
 
@@ -50,9 +17,6 @@ external fromFloat32Array: array<float> => DomTypes.domMatrixReadOnly = "fromFlo
 @scope("DOMMatrix")
 external fromFloat64Array: Float64Array.t => DomTypes.domMatrixReadOnly = "fromFloat64Array"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMMatrixReadOnly/translate)
-*/
 @send
 external translate: (
   DomTypes.domMatrix,
@@ -61,9 +25,6 @@ external translate: (
   ~tz: float=?,
 ) => DomTypes.domMatrix = "translate"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMMatrixReadOnly/scale)
-*/
 @send
 external scale: (
   DomTypes.domMatrix,
@@ -115,9 +76,6 @@ external skewY: (DomTypes.domMatrix, ~sy: float=?) => DomTypes.domMatrix = "skew
 external multiply: (DomTypes.domMatrix, ~other: DomTypes.domMatrixInit=?) => DomTypes.domMatrix =
   "multiply"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMMatrixReadOnly/flipX)
-*/
 @send
 external flipX: DomTypes.domMatrix => DomTypes.domMatrix = "flipX"
 

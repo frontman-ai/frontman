@@ -1,0 +1,9 @@
+def render(assigns) do
+  ~H"""
+  <%!-- template comment --%>
+  <p>{@value # executable interpolation
+  }</p>
+  <p><%= @other # executable EEx
+  %></p>
+  """
+end

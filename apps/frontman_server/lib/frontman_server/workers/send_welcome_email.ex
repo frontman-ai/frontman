@@ -1,20 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Workers.SendWelcomeEmail do
-  @moduledoc """
-  Oban worker that sends a welcome email to a newly registered user.
-
-  Enqueued atomically inside the Ecto transaction that creates the user
-  (via `Ecto.Multi`), so the job only exists if the user was persisted.
-
-  Idempotency: uses Oban's unique constraint on `user_id` to guarantee
-  at-most-once delivery even if the job is retried.
-  """
-
   use Oban.Worker,
     queue: :mailers,
     max_attempts: 5,
@@ -34,7 +18,6 @@ defmodule FrontmanServer.Workers.SendWelcomeEmail do
           :ok
 
         nil ->
-          # User was deleted between enqueue and execution — nothing to do.
           :discard
       end
     else

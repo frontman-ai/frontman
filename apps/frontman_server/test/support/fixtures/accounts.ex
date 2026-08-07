@@ -1,9 +1,4 @@
 defmodule FrontmanServer.Test.Fixtures.Accounts do
-  @moduledoc """
-  This module defines test helpers for creating
-  entities via the `FrontmanServer.Accounts` context.
-  """
-
   use Boundary,
     top_level?: true,
     check: [in: false, out: false]

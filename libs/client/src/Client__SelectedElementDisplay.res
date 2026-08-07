@@ -2,7 +2,6 @@ module Icons = Client__ToolIcons
 module Annotation = Client__Annotation__Types
 module UIIcons = Client__UI__Icons
 
-// Single annotation row with inline comment editing
 module AnnotationRow = {
   @react.component
   let make = (~annotation: Annotation.t, ~index: int) => {
@@ -20,17 +19,14 @@ module AnnotationRow = {
       ->String.trim,
     )
 
-    // Truncate text display
     let displayText = switch textContent->String.length > 60 {
     | true => textContent->String.slice(~start=0, ~end=60) ++ "..."
     | false => textContent
     }
 
-    // Re-sync draft and auto-focus when entering edit mode
     React.useEffect(() => {
       switch isEditingComment {
       | true =>
-        // Re-init from current reducer state to avoid stale draft
         setCommentDraft(_ => annotation.comment->Option.getOr(""))
         switch inputRef.current->Nullable.toOption {
         | Some(input) => (input->Obj.magic)["focus"]()
@@ -60,15 +56,12 @@ module AnnotationRow = {
     }
 
     <div className="flex items-start gap-2 group">
-      // Number badge
       <div
         className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-white/10 text-zinc-300 text-[10px] font-bold mt-0.5"
       >
         {React.int(index + 1)}
       </div>
-      // Content
       <div className="flex-1 min-w-0">
-        // Component name (if available) — unwrap result for display
         {annotation.sourceLocation
         ->Result.getOr(None)
         ->Option.mapOr(React.null, loc =>
@@ -78,7 +71,6 @@ module AnnotationRow = {
             </div>
           )
         )}
-        // Element tag + text with enrichment status indicator
         <div className="font-mono text-xs text-zinc-400 truncate flex items-center gap-1">
           {React.string(
             if displayText->String.length > 0 {
@@ -116,7 +108,6 @@ module AnnotationRow = {
             {React.string(`${kind} (${target})`)}
           </div>
         })}
-        // Comment display / edit
         {switch isEditingComment {
         | true =>
           <input
@@ -152,7 +143,6 @@ module AnnotationRow = {
           }
         }}
       </div>
-      // Remove button (visible on hover)
       <button
         type_="button"
         onClick={_ => Client__State.Actions.removeAnnotation(~id=annotation.id)}
@@ -174,7 +164,6 @@ let make = () => {
 
   let count = Array.length(annotations)
   let hasOverflow = count > _collapsedLimit
-  // Reverse so the most recently added annotation is on top
   let reversed = annotations->Array.toReversed
   let visibleAnnotations = switch (hasOverflow, isExpanded) {
   | (true, false) => reversed->Array.slice(~start=0, ~end=_collapsedLimit)
@@ -185,7 +174,6 @@ let make = () => {
   | false => React.null
   | true =>
     <div className="mx-3 mb-1 overflow-hidden">
-      // Header row
       <div className="flex items-center gap-2 px-0.5 py-1.5">
         <Icons.CursorClickIcon size=14 className="text-zinc-400 flex-shrink-0" />
         <span className="text-xs font-medium text-zinc-400 flex-grow">
@@ -193,7 +181,6 @@ let make = () => {
             count == 1 ? "Annotated Element" : `Annotated Elements (${Int.toString(count)})`,
           )}
         </span>
-        // Clear all button
         <button
           onClick={_ => Client__State.Actions.clearAnnotations()}
           className="px-2 py-0.5 rounded text-xs text-zinc-500 hover:text-zinc-300 hover:bg-white/6 transition-colors flex-shrink-0"
@@ -202,20 +189,17 @@ let make = () => {
           {React.string("Clear")}
         </button>
       </div>
-      // Annotation rows — scrollable when expanded with many items
       <div
         className={`px-3.5 pb-3 flex flex-col gap-2 min-w-0
                    ${isExpanded && hasOverflow ? "max-h-48 overflow-y-auto" : ""}`}
       >
         {visibleAnnotations
         ->Array.map(annotation => {
-          // Find original index so badge numbers match the preview markers
           let originalIndex = annotations->Array.findIndex(a => a.id == annotation.id)
           <AnnotationRow key={annotation.id} annotation index={originalIndex} />
         })
         ->React.array}
       </div>
-      // Show more / less toggle
       {switch hasOverflow {
       | true =>
         <button

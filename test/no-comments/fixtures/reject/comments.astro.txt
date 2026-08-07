@@ -1,0 +1,6 @@
+---
+const value = 1 // frontmatter
+---
+<!-- markup -->
+<script>const next = 2 /* embedded */</script>
+<style>.thing { color: red; /* style */ }</style>

@@ -1,5 +1,3 @@
-// List files tool - lists directory contents
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module ChildProcess = FrontmanCore__ChildProcess
@@ -35,7 +33,6 @@ type output = array<fileEntry>
 
 let (visibleToAgent, outputJsonSchema) = (true, None)
 
-// Get entries that are ignored by git (respects .gitignore)
 let getIgnoredEntries = async (~cwd: string, entries: array<string>): result<
   array<string>,
   string,
@@ -50,7 +47,7 @@ let getIgnoredEntries = async (~cwd: string, entries: array<string>): result<
 
       switch result {
       | Ok({stdout}) => Ok(stdout->String.trim->String.split("\n")->Array.filter(s => s !== ""))
-      | Error({code: Some(1), _}) => Ok([]) // Exit code 1 = no files ignored
+      | Error({code: Some(1), _}) => Ok([])
       | Error({code: Some(128), stderr}) => Error(`Not a git repository: ${stderr}`)
       | Error({stderr}) => Error(`git check-ignore failed: ${stderr}`)
       }
@@ -70,7 +67,6 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
   | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
   | Ok(result) =>
     try {
-      // If the agent passed a file path, use its parent directory instead.
       let (fullPath, relativePath) = try {
         let stats = await Fs.Promises.stat(result.resolvedPath)
         switch Fs.isFile(stats) {

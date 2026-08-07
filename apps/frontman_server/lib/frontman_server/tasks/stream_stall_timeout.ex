@@ -1,32 +1,7 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Tasks.StreamStallTimeout do
-  @moduledoc """
-  Detects silent LLM stream stalls by enforcing a per-chunk deadline.
-
-  When an LLM provider silently stalls (no chunks, no TCP error), the
-  downstream `StreamServer.next/2` GenServer.call eventually times out
-  with an unhandled EXIT. This module fires before that happens, raising
-  a clear `StreamStallTimeout.Error` that can be caught and surfaced
-  to the user.
-
-  ## How it works
-
-  A linked feeder process consumes the inner stream and sends chunks
-  via messages. The consumer pulls chunks with `receive ... after timeout`.
-  If no chunk arrives within the deadline, `StreamStallTimeout.Error` is
-  raised. The feeder is killed on timeout or when the stream completes. ReqLLM
-  owns upstream stream cleanup when its consumer exits.
-  """
-
   require Logger
 
   defmodule Error do
-    @moduledoc "Raised when no LLM stream chunk arrives within the stall timeout."
     defexception [:timeout_ms]
 
     @impl true
@@ -35,16 +10,6 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
     end
   end
 
-  @doc """
-  Wraps a stream with per-chunk stall detection.
-
-  Returns a new stream that behaves identically to the input but raises
-  `StreamStallTimeout.Error` if no chunk arrives within `stall_timeout_ms`.
-
-  ## Options
-
-    - `:stall_timeout_ms` — required, max time to wait for a chunk (ms)
-  """
   def wrap_stream(stream, opts) when is_list(opts) do
     stall_timeout_ms = Keyword.fetch!(opts, :stall_timeout_ms)
 
@@ -55,13 +20,8 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
     )
   end
 
-  # Max time to wait for the feeder process ready handshake.
   @feeder_ready_timeout_ms 5_000
 
-  # Spawns a linked feeder process that consumes the inner stream and
-  # forwards chunks to the caller via messages.
-  #
-  # Uses a ready handshake to guarantee the feeder is set up before we return.
   defp start_feeder(stream) do
     caller = self()
 

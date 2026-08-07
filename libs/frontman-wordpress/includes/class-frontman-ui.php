@@ -1,15 +1,4 @@
 <?php
-/**
- * UI — serves the Frontman client at /frontman.
- *
- * This page is served directly by the router's parse_request interception,
- * not via wp-admin. The client JS fetches /frontman/tools and
- * /frontman/tools/call at the same origin as the WordPress site.
- *
- * Auth is already verified by the router before render_page() is called.
- *
- * @package Frontman
- */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -22,30 +11,16 @@ class Frontman_UI {
 	private const CLIENT_STYLE_HANDLE     = 'frontman-agentic-ai-editor-client';
 	private const CLIENT_SCRIPT_HANDLE    = 'frontman-agentic-ai-editor-client';
 
-	/**
-	 * Register admin menu items.
-	 *
-	 * We keep a menu entry so admins can find Frontman in the sidebar,
-	 * but it links to /frontman (the direct path) rather than a wp-admin page.
-	 */
 	public function register(): void {
 		add_action( 'admin_menu', [ $this, 'add_admin_menu_link' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
 	}
 
-	/**
-	 * Load branded admin menu icon styling.
-	 *
-	 * @param string $hook_suffix Current admin page hook suffix.
-	 */
 	public function enqueue_admin_assets( string $hook_suffix ): void {
 		unset( $hook_suffix );
 		$this->enqueue_admin_menu_icon_style();
 	}
 
-	/**
-	 * Add a menu link that points to /frontman (external to wp-admin).
-	 */
 	public function add_admin_menu_link(): void {
 		$menu_icon_url = esc_url( FRONTMAN_PLUGIN_URL . 'assets/frontman-menu-icon.svg' );
 
@@ -54,22 +29,17 @@ class Frontman_UI {
 			__( 'Frontman', 'frontman-agentic-ai-editor' ),
 			'manage_options',
 			'frontman',
-			'__return_null', // Callback unused — we redirect below.
+			'__return_null',
 			$menu_icon_url,
 			81,
 		);
 
-		// Redirect the wp-admin menu click to /frontman.
 		add_action( 'load-toplevel_page_frontman', function (): void {
 			wp_safe_redirect( home_url( '/frontman' ) );
 			exit;
 		} );
 	}
 
-	/**
-	 * Enqueue admin menu icon styling so the Frontman icon matches
-	 * the native WordPress admin menu color scheme without raw style tags.
-	 */
 	private function enqueue_admin_menu_icon_style(): void {
 		wp_enqueue_style(
 			self::ADMIN_MENU_STYLE_HANDLE,
@@ -79,24 +49,12 @@ class Frontman_UI {
 		);
 	}
 
-	/**
-	 * Render the full Frontman client page.
-	 *
-	 * Called directly by the router — this outputs a complete HTML document
-	 * (no wp-admin chrome). The client is loaded from the production CDN.
-	 *
-	 * @param string|null $preview_path Path to load in the web preview iframe.
-	 *                                  null or '/' means homepage. '/about' previews /about.
-	 *                                  Set by suffix-based routing: /about/frontman → '/about'.
-	 */
 	public function render_page( ?string $preview_path = null ): void {
 		$logo_url    = FRONTMAN_PLUGIN_URL . 'assets/frontman-logo.svg';
 		$host        = 'api.frontman.sh';
 		$base_js_url = 'https://app.frontman.sh/frontman.es.js';
 		$client_css  = 'https://app.frontman.sh/frontman.css';
 
-		// The client reads host + clientName from import.meta.url query params.
-		// This is how all Frontman adapters pass the Frontman server host to the client bundle.
 		$client_url = add_query_arg(
 			[
 				'host'       => $host,
@@ -105,19 +63,12 @@ class Frontman_UI {
 			$base_js_url
 		);
 
-		// Runtime config — same shape as FrontmanCore__UIShell produces
-		// for Frontman browser clients. The page script reads this into window.__frontmanRuntime.
-		// basePath is used by Client__BrowserUrl.syncBrowserUrl() to keep the
-		// browser URL in sync as the user navigates within the preview iframe.
 		$runtime = [
 			'framework' => 'wordpress',
 			'basePath'  => 'frontman',
 			'wpNonce'   => Frontman_Auth::create_nonce(),
 		];
 
-		// Build the entrypoint URL for the web preview iframe.
-		// When suffix routing is used (e.g. /about/frontman), this points the
-		// preview at /about. The client reads this from the DOM via getInitialUrl().
 		$entrypoint_url = null;
 		if ( $preview_path !== null && $preview_path !== '/' ) {
 			$entrypoint_url = home_url( $preview_path );
@@ -170,9 +121,6 @@ class Frontman_UI {
 		<?php
 	}
 
-	/**
-	 * Enqueue the standalone Frontman page assets before printing them manually.
-	 */
 	private function enqueue_frontman_page_assets( string $client_url, string $client_css ): void {
 		wp_enqueue_style(
 			self::PAGE_STYLE_HANDLE,
@@ -197,9 +145,6 @@ class Frontman_UI {
 		add_filter( 'script_loader_tag', [ $this, 'add_module_type_to_client_script' ], 10, 3 );
 	}
 
-	/**
-	 * Mark the Frontman client bundle as a JavaScript module.
-	 */
 	public function add_module_type_to_client_script( string $tag, string $handle, string $src ): string {
 		if ( self::CLIENT_SCRIPT_HANDLE !== $handle ) {
 			return $tag;

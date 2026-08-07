@@ -1,20 +1,10 @@
 <?php
-/**
- * Optional plugin dependency checks for tool registration.
- *
- * @package Frontman
- */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 class Frontman_Plugin_Dependencies {
-	/**
-	 * Check whether an optional plugin is available for runtime tool use.
-	 *
-	 * Availability means the plugin is already loaded or is active in WordPress.
-	 */
 	public static function is_available( string $plugin_file, string $class_name = '' ): bool {
 		if ( '' !== $class_name && class_exists( ltrim( $class_name, '\\' ) ) ) {
 			return true;

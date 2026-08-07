@@ -1,18 +1,10 @@
 <?php
-/**
- * WordPress cache tools.
- *
- * @package Frontman
- */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 class Frontman_Tool_Cache {
-	/**
-	 * Register cache tools.
-	 */
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_cache_plugins',
@@ -37,9 +29,6 @@ class Frontman_Tool_Cache {
 		) );
 	}
 
-	/**
-	 * wp_list_cache_plugins handler.
-	 */
 	public function list_cache_plugins( array $input ): array {
 		$active_plugins = get_option( 'active_plugins', [] );
 		$known = [
@@ -93,9 +82,6 @@ class Frontman_Tool_Cache {
 		];
 	}
 
-	/**
-	 * wp_clear_cache handler.
-	 */
 	public function clear_cache( array $input ): array {
 		$before  = $this->list_cache_plugins( [] );
 		$cleared = [];
@@ -115,7 +101,6 @@ class Frontman_Tool_Cache {
 					}
 					break;
 				case 'litespeed-cache':
-					// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- This intentionally calls LiteSpeed Cache's public hook name so Frontman can purge that plugin's cache when it is active.
 					do_action( 'litespeed_purge_all' );
 					$cleared[] = $plugin['slug'];
 					break;

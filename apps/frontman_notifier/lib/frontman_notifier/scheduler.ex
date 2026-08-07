@@ -1,8 +1,4 @@
 defmodule FrontmanNotifier.Scheduler do
-  @moduledoc """
-  Periodic scheduler for notifier jobs.
-  """
-
   use GenServer
 
   require Logger

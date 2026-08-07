@@ -1,14 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Accounts.UserNotifier do
-  @moduledoc """
-  Delivers account-related emails to users (login links, email change confirmations, welcome).
-  """
-
   import Swoosh.Email
 
   alias FrontmanServer.Accounts.User
@@ -23,7 +13,6 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     |> Phoenix.HTML.safe_to_string()
   end
 
-  # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
     email =
       new()
@@ -37,12 +26,6 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     end
   end
 
-  @doc """
-  Deliver a welcome email to a newly registered user.
-
-  Sent once on first OAuth signup. Includes a personal greeting,
-  a brief intro to Frontman, and a link to the docs.
-  """
   def deliver_welcome(%User{email: email, name: name}) do
     html_body = welcome_html(name)
     text_body = welcome_text(name)
@@ -60,9 +43,6 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     end
   end
 
-  @doc """
-  Deliver instructions to update a user email.
-  """
   def deliver_update_email_instructions(user, url) do
     deliver(user.email, "Update email instructions", """
 
@@ -80,9 +60,6 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     """)
   end
 
-  @doc """
-  Deliver instructions to log in with a magic link.
-  """
   def deliver_login_instructions(user, url) do
     case user do
       %User{confirmed_at: nil} -> deliver_confirmation_instructions(user, url)
@@ -123,8 +100,6 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     ==============================
     """)
   end
-
-  # -- Welcome email templates ------------------------------------------------
 
   defp welcome_text(name) do
     """

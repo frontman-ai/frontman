@@ -1,13 +1,3 @@
-/**
- * Client__ImagePreview - Full-size image lightbox with zoom & pan
- * 
- * Shows an image in a modal overlay.
- * - Scroll wheel to zoom in/out
- * - Drag to pan when zoomed in
- * - +/- buttons for zoom control
- * - Double-click to reset zoom
- * - Click overlay or press Escape to close
- */
 let minScale = 0.5
 let maxScale = 8.0
 let zoomStep = 1.3
@@ -42,7 +32,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
     snapped
   }
 
-  // Close on Escape key
   React.useEffect0(() => {
     let handleKeyDown = (e: Dom.event) => {
       let key: string = (e->Obj.magic)["key"]
@@ -57,7 +46,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
     )
   })
 
-  // Mouse wheel zoom
   let handleWheel = (e: ReactEvent.Wheel.t) => {
     ReactEvent.Wheel.preventDefault(e)
     ReactEvent.Wheel.stopPropagation(e)
@@ -68,7 +56,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
     })
   }
 
-  // Drag-to-pan handlers
   let handlePointerDown = (e: ReactEvent.Pointer.t) => {
     if isZoomed {
       ReactEvent.Pointer.stopPropagation(e)
@@ -79,7 +66,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
         "y": ReactEvent.Pointer.clientY(e)->Int.toFloat,
       }
       translateStart.current = {"x": translateX, "y": translateY}
-      // Capture pointer for smooth dragging outside the element
       let target: {..} = ReactEvent.Pointer.currentTarget(e)->Obj.magic
       let pointerId = ReactEvent.Pointer.pointerId(e)
       target["setPointerCapture"](pointerId)
@@ -103,7 +89,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
     }
   }
 
-  // Double-click to reset
   let handleDoubleClick = (e: ReactEvent.Mouse.t) => {
     ReactEvent.Mouse.stopPropagation(e)
     resetTransform()
@@ -115,7 +100,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
 
   let zoomPercent = Math.round(scale *. 100.0)->Float.toInt
 
-  // Overlay — only close when clicking the backdrop itself (not when zoomed and panning)
   <div
     role="dialog"
     ariaModal=true
@@ -123,7 +107,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
     className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm
                animate-in fade-in duration-150 select-none"
     onClick={e => {
-      // Only close if clicking the backdrop directly (not the image or controls)
       let target: {..} = ReactEvent.Mouse.target(e)->Obj.magic
       let currentTarget: {..} = ReactEvent.Mouse.currentTarget(e)->Obj.magic
       if target === currentTarget {
@@ -131,7 +114,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
       }
     }}
   >
-    // Close button
     <button
       type_="button"
       ariaLabel="Close preview"
@@ -147,7 +129,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
     >
       <Client__ToolIcons.XIcon size=20 />
     </button>
-    // Zoom controls (bottom center)
     <div
       className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10
                  flex items-center gap-1 px-2 py-1.5 rounded-full
@@ -200,7 +181,6 @@ let make = (~src: string, ~onClose: unit => unit) => {
         </svg>
       </button>
     </div>
-    // Image with zoom/pan transform
     <img
       src
       alt="Preview"

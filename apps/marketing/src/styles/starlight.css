@@ -4,13 +4,11 @@
 @import 'tailwindcss/utilities.css' layer(utilities);
 
 @theme {
-  /* Fonts — match marketing site (from global.css) */
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   --font-heading: 'Outfit Variable', ui-sans-serif, system-ui, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
-  /* Starlight accent = Frontman primary purple (from global.css --color-primary-*) */
   --color-accent-50: #faf5ff;
   --color-accent-100: #f3e8ff;
   --color-accent-200: #e9d5ff;
@@ -23,7 +21,6 @@
   --color-accent-900: #3c1f66;
   --color-accent-950: #23123d;
 
-  /* Starlight gray = Frontman neutral/slate (from global.css --color-neutral-*) */
   --color-gray-50: #f8fafc;
   --color-gray-100: #f1f5f9;
   --color-gray-200: #e2e8f0;

@@ -143,7 +143,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "creates task and returns sessionId", %{socket: socket, scope: scope} do
       version = ACP.protocol_version()
 
-      # Initialize first to set clientInfo with framework in metadata
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -160,7 +159,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("acp:message", %{"id" => 1, "result" => %{}})
 
-      # Now create session with client-generated sessionId
       client_session_id = Ecto.UUID.generate()
 
       push(socket, "acp:message", %{
@@ -178,7 +176,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      # Verify task was created with the client-provided ID
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
       assert task.id == client_session_id
       assert task.framework == :nextjs
@@ -210,7 +207,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      # Then create a session with client-generated sessionId
       client_session_id = Ecto.UUID.generate()
 
       push(socket, "acp:message", %{
@@ -270,7 +266,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "returns error when session/new called without sessionId", %{socket: socket} do
       version = ACP.protocol_version()
 
-      # Initialize first
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -287,7 +282,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("acp:message", %{"id" => 1, "result" => %{}})
 
-      # Create session without sessionId - should fail
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 2,
@@ -308,7 +302,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "returns error when session/new called with invalid UUID", %{socket: socket} do
       version = ACP.protocol_version()
 
-      # Initialize first
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -325,7 +318,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("acp:message", %{"id" => 1, "result" => %{}})
 
-      # Create session with non-UUID string - should fail gracefully
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 2,
@@ -349,7 +341,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     } do
       version = ACP.protocol_version()
 
-      # Initialize first
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -366,10 +357,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("acp:message", %{"id" => 1, "result" => %{}})
 
-      # Pre-create a task with a known ID
       existing_id = task_fixture(scope).id
 
-      # Try to create session with the same ID - should fail gracefully
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 2,
@@ -388,7 +377,6 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "returns error when session/new called without clientInfo", %{socket: socket} do
-      # Create session without initializing first - should fail
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
         "id" => 1,
@@ -474,31 +462,23 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "deletes session and returns empty result", %{socket: socket, scope: scope} do
       task_id = task_fixture(scope).id
 
-      # Verify task exists
       assert {:ok, _task} = FrontmanServer.Tasks.get_task(scope, task_id)
 
-      # Delete session
       ref = push(socket, "delete_session", %{"sessionId" => task_id})
       assert_reply(ref, :ok, %{})
 
-      # Verify task is deleted
       assert {:error, :not_found} = FrontmanServer.Tasks.get_task(scope, task_id)
     end
 
     test "only deletes own sessions", %{socket: socket, scope: scope} do
-      # Create task for current user
       _my_task_id = task_fixture(scope).id
 
-      # Create another user and their task
       other_scope = user_scope_fixture()
       other_task_id = task_fixture(other_scope, framework: "vite").id
 
-      # Trying to delete other user's task should fail (crashes the handler)
-      # The channel will crash and the test process will receive an error
       ref = push(socket, "delete_session", %{"sessionId" => other_task_id})
       assert_reply(ref, :error, _)
 
-      # Other user's task should still exist
       assert {:ok, _task} = FrontmanServer.Tasks.get_task(other_scope, other_task_id)
     end
   end

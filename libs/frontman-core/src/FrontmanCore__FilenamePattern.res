@@ -1,6 +1,3 @@
-// Case-insensitive filename matching used by search/listing guardrail helpers.
-// Supports a minimal glob-style wildcard `*` syntax.
-
 let matchesPattern = (~pattern: string, ~text: string): bool => {
   let patternLower = pattern->String.toLowerCase
   let textLower = text->String.toLowerCase

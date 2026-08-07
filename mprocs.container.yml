@@ -1,11 +1,3 @@
-# mprocs config for containerized worktrees.
-#
-# Differences from mprocs.yml:
-# - No postgres process (runs as a sibling container in the pod)
-# - Server waits on pg_isready -h localhost (pod-local postgres)
-# - Server uses make dev-container (secrets pre-resolved via env vars)
-# - FRONTMAN_CLIENT_URL and FRONTMAN_HOST are derived from $WORKTREE_HASH
-#   so the browser connects through Caddy (not localhost)
 procs:
   rescript:
     cmd: ["bash", "-c", "rm -f lib/bs/.compiler.log && make clean && make rescript-build && make rescript-watch"]

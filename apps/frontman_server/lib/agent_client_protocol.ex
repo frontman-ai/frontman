@@ -1,21 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule AgentClientProtocol do
-  @moduledoc """
-  ACP (Agent Client Protocol) translation layer.
-
-  Translates between domain events and ACP wire format (JSON-RPC 2.0).
-  This is the boundary where domain concepts (Tasks) become transport
-  concepts (Sessions).
-
-  ACP is used for chat communication between the browser client and
-  the agent server, separate from MCP which handles tool invocation.
-  """
-
   use Boundary,
     deps: [JsonRpc, FrontmanServer],
     exports: :all
@@ -31,14 +14,12 @@ defmodule AgentClientProtocol do
   @agent_error_id_metadata_key "#{@extension_namespace}/agentErrorId"
   @timestamp_metadata_key "#{@extension_namespace}/timestamp"
 
-  # Channel event names — the single source of truth for Phoenix channel events.
   @event_acp_message "acp:message"
   @event_config_options_updated "config_options_updated"
   @event_title_updated "title_updated"
   @event_list_sessions "list_sessions"
   @event_delete_session "delete_session"
 
-  # ACP method names — the single source of truth for JSON-RPC method strings.
   @method_initialize "initialize"
   @method_session_new "session/new"
   @method_session_load "session/load"
@@ -46,7 +27,6 @@ defmodule AgentClientProtocol do
   @method_session_cancel "session/cancel"
   @method_session_update "session/update"
 
-  # Tool call status constants — the single source of truth for ACP wire values.
   @tool_call_status_pending "pending"
   @tool_call_status_in_progress "in_progress"
   @tool_call_status_completed "completed"
@@ -59,21 +39,18 @@ defmodule AgentClientProtocol do
     @tool_call_status_failed
   ]
 
-  # Plan entry priority constants
   @plan_priority_high "high"
   @plan_priority_medium "medium"
   @plan_priority_low "low"
 
   @plan_priorities [@plan_priority_high, @plan_priority_medium, @plan_priority_low]
 
-  # Plan entry status constants
   @plan_status_pending "pending"
   @plan_status_in_progress "in_progress"
   @plan_status_completed "completed"
 
   @plan_statuses [@plan_status_pending, @plan_status_in_progress, @plan_status_completed]
 
-  # Stop reason constants — the single source of truth for ACP wire values.
   @stop_reason_end_turn "end_turn"
   @stop_reason_max_tokens "max_tokens"
   @stop_reason_max_turn_requests "max_turn_requests"
@@ -95,14 +72,12 @@ defmodule AgentClientProtocol do
 
   def protocol_version, do: @protocol_version
 
-  # Channel event accessors
   def event_acp_message, do: @event_acp_message
   def event_config_options_updated, do: @event_config_options_updated
   def event_title_updated, do: @event_title_updated
   def event_list_sessions, do: @event_list_sessions
   def event_delete_session, do: @event_delete_session
 
-  # Method name accessors
   def method_initialize, do: @method_initialize
   def method_session_new, do: @method_session_new
   def method_session_load, do: @method_session_load
@@ -153,9 +128,6 @@ defmodule AgentClientProtocol do
 
   def negotiate_agent_attribution_version(_invalid), do: @invalid_agent_attribution_capability
 
-  @doc """
-  Builds the initialize response result.
-  """
   def build_initialize_result(agents, default_agent_id)
       when is_list(agents) and is_binary(default_agent_id) do
     %{
@@ -174,14 +146,6 @@ defmodule AgentClientProtocol do
     end
   end
 
-  @doc """
-  Translates domain model config data into ACP SessionConfigOption format.
-
-  Receives the output of `Providers.model_config_data/1` — a domain DTO
-  containing model groups — and serializes it into the ACP wire format.
-  This function has no knowledge of provider
-  internals; all domain logic is encapsulated in the Providers context.
-  """
   def build_model_config_options(%{groups: groups}) do
     [
       %{
@@ -204,22 +168,15 @@ defmodule AgentClientProtocol do
     ]
   end
 
-  @doc "Encodes the resolved agent catalog for ACP metadata."
   def build_agent_catalog(agents) when is_list(agents) do
     Enum.map(agents, &agent_entry/1)
   end
 
-  @doc """
-  Builds session/new result payload with config options.
-  """
   def build_session_new_result(session_id, config_options) when is_list(config_options) do
     %{"sessionId" => session_id}
     |> put_config_options(config_options)
   end
 
-  @doc """
-  Builds session/load result payload with optional config options.
-  """
   def build_session_load_result(config_options) when is_list(config_options) do
     %{}
     |> put_config_options(config_options)
@@ -240,12 +197,6 @@ defmodule AgentClientProtocol do
   defp put_config_options(result, config_options),
     do: Map.put(result, "configOptions", config_options)
 
-  @doc """
-  Builds a session summary for the list_sessions channel response.
-
-  Translates a task schema into ACP wire format. The channel should not
-  build this map directly.
-  """
   def build_session_summary(task) do
     %{
       "sessionId" => task.id,
@@ -255,29 +206,14 @@ defmodule AgentClientProtocol do
     }
   end
 
-  @doc """
-  Builds the payload for a config_options_updated channel push.
-  """
   def build_config_options_updated_payload(config_options) when is_list(config_options) do
     %{"configOptions" => config_options}
   end
 
-  @doc """
-  Generates ACP session ID.
-
-  Session IDs are UUIDs. In ACP, sessions map 1:1 with tasks.
-  """
   def generate_session_id do
     Ecto.UUID.generate()
   end
 
-  @doc """
-  Builds a session/update notification for agent_message_chunk.
-
-  Translates a text chunk into ACP wire format.
-  Per ACP spec: The first agent_message_chunk implicitly signals message start.
-  Message end is signaled by the session/prompt response with stopReason.
-  """
   def build_agent_message_chunk_notification(
         session_id,
         text,
@@ -295,11 +231,6 @@ defmodule AgentClientProtocol do
 
   def agent_message_id(turn_started_id, ordinal), do: "#{turn_started_id}:#{ordinal}"
 
-  @doc """
-  Builds a canonical accepted user_message_chunk session/update notification.
-
-  Used when a user message is persisted as accepted session history. `message_id` is server-owned.
-  """
   def build_user_message_chunk_notification(session_id, message_id, content, agent_id, timestamp)
       when is_binary(agent_id) and agent_id != "" do
     session_update_notification(session_id, %{
@@ -321,9 +252,6 @@ defmodule AgentClientProtocol do
     JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
   end
 
-  @doc """
-  Builds a state_update session/update notification.
-  """
   def build_state_update_notification(session_id, state, stop_reason \\ nil) do
     update = %{
       "sessionUpdate" => "state_update",
@@ -339,17 +267,6 @@ defmodule AgentClientProtocol do
     session_update_notification(session_id, update)
   end
 
-  @doc """
-  Builds an error session/update notification.
-
-  Sent when the agent encounters an error. Always delivered as a notification
-  so the client can display it regardless of whether a pending prompt exists.
-
-  Pass `retry_opts` when the server is scheduling an automatic retry. The client
-  uses `retryAt` to show a countdown and infers retry state from its presence.
-
-    retry_opts: [category: "rate_limit", agent_error_id: "err_...", retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
-  """
   def build_error_notification(session_id, message, timestamp, retry_opts \\ []) do
     update = %{
       "sessionUpdate" => "error",
@@ -374,18 +291,10 @@ defmodule AgentClientProtocol do
     session_update_notification(session_id, update)
   end
 
-  @doc """
-  Builds a session/prompt acceptance response.
-  """
   def build_prompt_accepted_result do
     %{}
   end
 
-  @doc """
-  Creates a new tool call notification (sessionUpdate: "tool_call").
-
-  Used when the LLM first requests a tool invocation.
-  """
   def tool_call_create(
         session_id,
         tool_call_id,
@@ -412,12 +321,6 @@ defmodule AgentClientProtocol do
     session_update_notification(session_id, update)
   end
 
-  @doc """
-  Updates an existing tool call (sessionUpdate: "tool_call_update").
-
-  Content, raw input, and raw output are included when provided.
-  Per ACP spec: "All fields except toolCallId are optional in updates"
-  """
   def tool_call_update(
         session_id,
         tool_call_id,
@@ -440,30 +343,6 @@ defmodule AgentClientProtocol do
     session_update_notification(session_id, update)
   end
 
-  @doc """
-  Creates or updates a plan notification (sessionUpdate: "plan").
-
-  Sends a complete list of all plan entries to the client. Per ACP spec,
-  the Agent MUST send a complete list of all plan entries in each update,
-  and the Client MUST replace the current plan completely.
-
-  ## Parameters
-    - `session_id` - The ACP session ID
-    - `entries` - List of plan entry maps with required fields:
-      - `content` (string): Human-readable description
-      - `priority` (string): "high", "medium", or "low"
-      - `status` (string): "pending", "in_progress", or "completed"
-
-  ## Example
-      entries = [
-        %{
-          "content" => "Analyze the existing codebase structure",
-          "priority" => "high",
-          "status" => "pending"
-        }
-      ]
-      ACP.plan_update(session_id, entries)
-  """
   def plan_update(session_id, entries) do
     validate_plan_entries!(entries)
 
@@ -488,17 +367,6 @@ defmodule AgentClientProtocol do
     :ok
   end
 
-  # ---------------------------------------------------------------------------
-  # Elicitation (session/elicitation)
-  # ---------------------------------------------------------------------------
-
-  @doc """
-  Builds a form-mode `session/elicitation` JSON-RPC request.
-
-  The server sends this to the client when an interactive tool (e.g. `question`)
-  needs user input. The client renders a form from `requested_schema` and responds
-  with a standard JSON-RPC response containing `{action, content}`.
-  """
   def build_form_elicitation_request(id, session_id, message, requested_schema) do
     JsonRpc.request(id, "session/elicitation", %{
       "sessionId" => session_id,
@@ -508,16 +376,6 @@ defmodule AgentClientProtocol do
     })
   end
 
-  @doc """
-  Builds a URL-mode `session/elicitation` JSON-RPC request.
-
-  Used for out-of-band flows (OAuth, payments, credential collection) where
-  sensitive data must bypass the agent. The client opens the URL in a secure
-  browser context; the user's interaction happens entirely out-of-band.
-
-  `elicitation_id` correlates with a later `notifications/elicitation/complete`
-  notification so the client knows when the flow finished.
-  """
   def build_url_elicitation_request(id, session_id, message, elicitation_id, url) do
     JsonRpc.request(id, "session/elicitation", %{
       "sessionId" => session_id,
@@ -528,35 +386,12 @@ defmodule AgentClientProtocol do
     })
   end
 
-  @doc """
-  Builds a `notifications/elicitation/complete` notification.
-
-  Sent by the agent when an out-of-band URL-mode interaction has completed.
-  The client may use this to retry a previously failed request or update the UI.
-  """
   def build_elicitation_complete_notification(elicitation_id) do
     JsonRpc.notification("notifications/elicitation/complete", %{
       "elicitationId" => elicitation_id
     })
   end
 
-  @doc """
-  Converts question tool arguments into a flat JSON Schema object suitable
-  for `session/elicitation`'s `requestedSchema`.
-
-  Each question `i` produces two schema properties:
-  - `q{i}_answer` — an enum (single-select) or array-of-enums (multi-select)
-  - `q{i}_custom` — a free-text string for "Type your own answer"
-
-  ## Examples
-
-      questions = [
-        %{"header" => "Framework", "question" => "Which?", "multiple" => false,
-          "options" => [%{"label" => "React", "description" => "A UI library"}]}
-      ]
-      ACP.question_to_elicitation_schema(questions)
-      #=> %{"type" => "object", "properties" => %{...}, "required" => []}
-  """
   def question_to_elicitation_schema(questions) when is_list(questions) do
     properties =
       questions
@@ -616,12 +451,6 @@ defmodule AgentClientProtocol do
     %{"const" => label, "title" => title}
   end
 
-  @doc """
-  Parses the `result` field from a `session/elicitation` JSON-RPC response.
-
-  Returns `{action, content}` where action is `"accept"`, `"decline"`, or `"cancel"`,
-  and content is the form data map (or `nil` for decline/cancel).
-  """
   def parse_elicitation_response(%{"action" => action, "content" => content}) do
     {action, content}
   end
@@ -630,19 +459,6 @@ defmodule AgentClientProtocol do
     {action, nil}
   end
 
-  @doc """
-  Maps flat elicitation answer properties back to the `toolOutput` format
-  expected by the LLM.
-
-  Given the `content` map from the client response (e.g. `%{"q0_answer" => "React"}`)
-  and the original questions list, produces:
-
-      %{
-        "answers" => [%{"question" => "...", "answer" => [...]}],
-        "skippedAll" => false,
-        "cancelled" => false
-      }
-  """
   def elicitation_content_to_tool_output("accept", content, questions)
       when is_map(content) and is_list(questions) do
     answers =
@@ -659,7 +475,6 @@ defmodule AgentClientProtocol do
             _ -> []
           end
 
-        # Append custom answer if provided
         answer_values =
           case custom_answer do
             val when is_binary(val) and val != "" -> answer_values ++ [val]

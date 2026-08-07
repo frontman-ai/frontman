@@ -4,34 +4,47 @@
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help install build dev test test-watch test-coverage lint format check clean
+HELP_help := Display this help message
+HELP_install := Install project dependencies
+HELP_build := Build the project
+HELP_dev := Build the project in watch mode
+HELP_test := Run test suite
+HELP_test-watch := Run tests in watch mode
+HELP_test-coverage := Run tests with coverage
+HELP_lint := Check code formatting
+HELP_format := Format code
+HELP_check := Run all checks (lint + test)
+HELP_clean := Clean build artifacts and temporary files
 
-install: ## Install project dependencies
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+install:
 	yarn install
 
-build: ## Build the project
+build:
 	yarn rescript build
 
-dev: ## Build the project in watch mode
+dev:
 	yarn rescript watch
 
-test: build ## Run test suite
+test: build
 	yarn vitest run
 
-test-watch: ## Run tests in watch mode
+test-watch:
 	yarn vitest watch
 
-test-coverage: build ## Run tests with coverage
+test-coverage: build
 	yarn vitest run --coverage
 
-lint: ## Check code formatting
+lint:
 	yarn rescript format --check
 
-format: ## Format code
+format:
 	yarn rescript format
 
-check: lint test ## Run all checks (lint + test)
+check: lint test
 
-clean: ## Clean build artifacts and temporary files
+clean:
 	rm -rf src/*.res.mjs src/*.res.mjs.map test/*.res.mjs test/*.res.mjs.map

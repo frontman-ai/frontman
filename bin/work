@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
-# Set up a containerized worktree from a GitHub issue or PR reference.
-# Called by: make work REF=<number|url>
-#
-# Required env: REF, DEV_IMAGE, MD5CMD
 
 set -euo pipefail
 
-# ── Colors ──────────────────────────────────────────────
 CYAN='\033[36m'
 GREEN='\033[32m'
 YELLOW='\033[33m'
@@ -19,7 +14,6 @@ REF="${REF:?REF is required}"
 DEV_IMAGE="${DEV_IMAGE:?DEV_IMAGE is required}"
 WORKTREE_BASE_BRANCH=""
 
-# ── Portable MD5 (same logic as Makefile / wt-dashboard) ──
 md5_short() {
   if command -v md5sum >/dev/null 2>&1; then
     echo -n "$1" | md5sum | cut -c1-4
@@ -28,11 +22,9 @@ md5_short() {
   fi
 }
 
-# ── Parse REF into type + number ────────────────────────
 parse_ref() {
   local ref="$1"
 
-  # URL form: https://github.com/.../issues/123 or .../pull/123
   if [[ "$ref" =~ /issues/([0-9]+) ]]; then
     REF_TYPE="issue"
     REF_NUMBER="${BASH_REMATCH[1]}"
@@ -44,7 +36,6 @@ parse_ref() {
     return
   fi
 
-  # Bare number: auto-detect (try PR first, fall back to issue)
   if [[ "$ref" =~ ^[0-9]+$ ]]; then
     REF_NUMBER="$ref"
     local is_pr
@@ -62,12 +53,8 @@ parse_ref() {
   exit 1
 }
 
-# ── Resolve branch name ────────────────────────────────
 resolve_branch() {
   if [[ "$REF_TYPE" == "issue" ]]; then
-    # Issue worktrees should start from the currently checked out branch in the
-    # source repo. This keeps issue-based worktrees aligned with your current
-    # local context.
     WORKTREE_BASE_BRANCH=$(git branch --show-current)
     if [[ -z "$WORKTREE_BASE_BRANCH" ]]; then
       printf "${RED}Error: Could not determine current branch for issue refs.${RESET}\n"
@@ -83,7 +70,6 @@ resolve_branch() {
       printf "${RED}Error: Could not resolve branch for PR #%s${RESET}\n" "$REF_NUMBER"
       exit 1
     fi
-    # Fetch the branch from origin and ensure a local tracking branch exists
     printf "${DIM}Fetching origin/%s...${RESET}\n" "$BRANCH"
     git fetch origin "$BRANCH" 2>/dev/null || true
     if ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
@@ -91,7 +77,6 @@ resolve_branch() {
     fi
   else
     printf "${DIM}Resolving issue #%s...${RESET}\n" "$REF_NUMBER"
-    # Check for existing branch matching issue-<NUMBER>-*
     local existing
     existing=$(git branch -a --list "*issue-${REF_NUMBER}-*" 2>/dev/null | head -1 | sed 's|.*remotes/origin/||; s|^[+* ]*||' || true)
     if [[ -n "$existing" ]]; then
@@ -102,7 +87,6 @@ resolve_branch() {
         git branch --track "$BRANCH" "origin/$BRANCH" 2>/dev/null || true
       fi
     else
-      # Generate slug from issue title
       local title
       title=$(gh issue view "$REF_NUMBER" --json title --jq '.title')
       if [[ -z "$title" ]]; then
@@ -120,7 +104,6 @@ resolve_branch() {
   fi
 }
 
-# ── Ensure infrastructure is ready ─────────────────────
 ensure_infra() {
   local need_infra=false
 
@@ -143,7 +126,6 @@ ensure_infra() {
   fi
 }
 
-# ── Ensure pod is ready ────────────────────────────────
 ensure_pod() {
   local hash
   hash=$(md5_short "$BRANCH")
@@ -157,7 +139,6 @@ ensure_pod() {
   case "$pod_status" in
     Running)
       printf "${GREEN}Pod %s is already running.${RESET}\n" "$pod_name"
-      # Pod exists but worktree dir may have been removed — recreate it
       if [ ! -d "$wt_dir" ]; then
         printf "${YELLOW}Worktree dir missing. Recreating git worktree...${RESET}\n"
         make worktree-create BRANCH="$BRANCH" WORKTREE_BASE_BRANCH="$WORKTREE_BASE_BRANCH"
@@ -186,7 +167,6 @@ ensure_pod() {
   esac
 }
 
-# ── Final output ───────────────────────────────────────
 print_summary() {
   echo ""
   printf "${GREEN}${BOLD}Ready!${RESET}\n"
@@ -198,7 +178,6 @@ print_summary() {
   echo ""
 }
 
-# ── Main ───────────────────────────────────────────────
 main() {
   echo ""
   printf "${BOLD}Setting up worktree from ref: %s${RESET}\n" "$REF"

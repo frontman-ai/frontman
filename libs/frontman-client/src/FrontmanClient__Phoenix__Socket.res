@@ -1,5 +1,3 @@
-// Low-level bindings to Phoenix Socket class
-
 type t
 
 type channel

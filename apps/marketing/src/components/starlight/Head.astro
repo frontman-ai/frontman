@@ -1,6 +1,4 @@
 ---
-// Starlight Head component override
-// Adds OG image, breadcrumb structured data, and ensures description is set
 
 import type { StarlightRouteData } from '@astrojs/starlight/route-data'
 import StarlightHead from '@astrojs/starlight/components/Head.astro'
@@ -11,7 +9,6 @@ type Props = StarlightRouteData
 const ogImage = new URL('/og.png', Astro.site).href
 const ogImageAlt = 'Frontman — The AI agent that lives inside your framework'
 
-// Build breadcrumb structured data
 const routeData = Astro.locals.starlightRoute ?? Astro.props
 const entry = routeData.entry
 const breadcrumbItems = []
@@ -28,7 +25,6 @@ const routeDescription =
 const pageDescription = entryDescription || routeDescription
 const pageUrl = new URL(Astro.url.pathname, Astro.site).href
 
-// Always add Home
 breadcrumbItems.push({
 	'@type': 'ListItem',
 	position: 1,
@@ -40,7 +36,6 @@ breadcrumbItems.push({
 	}
 })
 
-// Add Docs root
 breadcrumbItems.push({
 	'@type': 'ListItem',
 	position: 2,
@@ -52,7 +47,6 @@ breadcrumbItems.push({
 	}
 })
 
-// Add current page if it's a docs subpage (not the docs index itself)
 const isDocsIndex = pathname === '/docs' || pathname === ''
 if (!isDocsIndex) {
 	breadcrumbItems.push({
@@ -80,7 +74,6 @@ const pageSchema = {
 
 <StarlightHead {...Astro.props} />
 
-<!-- OG Image (same as main site) -->
 <meta property="og:image" content={ogImage} />
 <meta property="og:image:secure_url" content={ogImage} />
 <meta property="og:image:type" content="image/png" />
@@ -88,10 +81,8 @@ const pageSchema = {
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content={ogImageAlt} />
 
-<!-- Twitter Image -->
 <meta name="twitter:image" content={new URL('/og-twitter.png', Astro.site).href} />
 <meta name="twitter:image:alt" content={ogImageAlt} />
 
-<!-- Breadcrumb Structured Data -->
 <script is:inline type="application/ld+json" set:html={JSON.stringify(pageSchema)} />
 <script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />

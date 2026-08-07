@@ -1,12 +1,3 @@
-// --- Scroll context ---
-
-/**
- * Client__ScrollContainer - Scrollable container with stick-to-bottom behavior
- *
- * Uses CSS overflow-anchor for zero-JS stick-to-bottom during streaming,
- * and IntersectionObserver for passive isAtBottom tracking.
- * Replaces use-stick-to-bottom to eliminate layout thrashing (see #177).
- */
 type scrollContext = {
   isAtBottom: bool,
   scrollToBottom: unit => unit,
@@ -20,15 +11,11 @@ module Provider = {
 
 let useScrollContext = () => React.useContext(context)
 
-// --- Cached classNames ---
-
 let scrollButtonBaseClassName = "sticky bottom-4 left-[50%] translate-x-[-50%] z-10 rounded-full w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-600 text-zinc-200 hover:bg-zinc-700 transition-colors"
 
 let containerBaseClassName = "relative flex-1 overflow-y-auto frontman-contain-strict"
 
 let contentBaseClassName = "p-4"
-
-// --- ScrollButton ---
 
 module ScrollButton = {
   @react.component
@@ -64,8 +51,6 @@ module ScrollButton = {
   }
 }
 
-// --- Main ScrollContainer ---
-
 @react.component
 let make = (~className: option<string>=?, ~children: React.element) => {
   let containerClassName = React.useMemo1(() => {
@@ -80,9 +65,6 @@ let make = (~className: option<string>=?, ~children: React.element) => {
   let contentRef = React.useRef(Nullable.null)
   let (isAtBottom, setIsAtBottom) = React.useState(() => true)
 
-  // IntersectionObserver: passively track whether the sentinel is visible.
-  // When visible the user is "at the bottom"; overflow-anchor on the sentinel
-  // keeps them pinned there as content grows — zero layout reads.
   React.useEffect0(() => {
     switch (sentinelRef.current->Nullable.toOption, containerRef.current->Nullable.toOption) {
     | (Some(sentinel), Some(container)) =>
@@ -107,11 +89,6 @@ let make = (~className: option<string>=?, ~children: React.element) => {
     }
   })
 
-  // Auto-scroll fallback (#718): two cases to handle —
-  // 1. Content grows (new messages/streaming): check if near bottom, snap down.
-  // 2. Container shrinks (todo list opens): check if was at bottom using
-  //    previous clientHeight, snap down.
-  // Both use a single ResizeObserver, fires once per frame.
   React.useEffect0(() => {
     switch (contentRef.current->Nullable.toOption, containerRef.current->Nullable.toOption) {
     | (Some(content), Some(container)) =>
@@ -159,19 +136,13 @@ let make = (~className: option<string>=?, ~children: React.element) => {
   <Provider value={contextValue}>
     <div ref={ReactDOM.Ref.domRef(containerRef)} className={containerClassName} role="log">
       <div ref={ReactDOM.Ref.domRef(contentRef)}> {children} </div>
-      // ScrollButton lives here — outside contentRef — so its show/hide does not
-      // affect the ResizeObserver-watched div and cannot trigger the snap feedback loop.
       <ScrollButton />
-      // Sentinel: overflow-anchor keeps it in view while the user is at the bottom.
-      // All message wrappers have overflow-anchor: none (via .frontman-content-auto).
       <div
         ref={ReactDOM.Ref.domRef(sentinelRef)} className="frontman-scroll-anchor" ariaHidden=true
       />
     </div>
   </Provider>
 }
-
-// --- ContentWrapper ---
 
 module ContentWrapper = {
   @react.component

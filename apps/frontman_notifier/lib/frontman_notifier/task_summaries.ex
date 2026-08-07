@@ -1,8 +1,4 @@
 defmodule FrontmanNotifier.TaskSummaries do
-  @moduledoc """
-  Posts summaries for recently idle production tasks.
-  """
-
   require Logger
 
   alias FrontmanNotifier.Config

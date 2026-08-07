@@ -1,25 +1,8 @@
 #!/usr/bin/env bash
-# Garbage-collect worktrees whose branches have been merged into main.
-#
-# A branch is considered merged if EITHER:
-#   a) It is an ancestor of origin/main (regular merge / fast-forward)
-#   b) Its remote tracking branch has been deleted (squash-merge via PR —
-#      GitHub auto-deletes the branch after merge)
-#
-# For each worktree in .worktrees/:
-#   1. Checks if its branch is merged (see above)
-#   2. If merged: tears down pod + containers + volumes + secrets,
-#      removes the worktree, and deletes the local branch
-#   3. If unmerged or has uncommitted changes: skips with a warning
-#
-# Called by: make wt-gc
-#
-# Required env: MD5CMD (set by Makefile)
 
 set -euo pipefail
 trap '' PIPE
 
-# ── Colors ──────────────────────────────────────────────
 GREEN='\033[32m'
 YELLOW='\033[33m'
 RED='\033[31m'
@@ -28,11 +11,9 @@ DIM='\033[2m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# ── Resolve main repo root (works from any worktree) ────
 MAIN_REPO=$(git worktree list --porcelain | { IFS= read -r line; echo "${line#worktree }"; })
 WORKTREES_DIR="${MAIN_REPO}/.worktrees"
 
-# Portable MD5 (same logic as Makefile / dashboard)
 md5_short() {
   if command -v md5sum >/dev/null 2>&1; then
     echo -n "$1" | md5sum | cut -c1-4
@@ -41,14 +22,12 @@ md5_short() {
   fi
 }
 
-# MD5CMD for wt-pod-remove (eval-able pipe expression)
 if command -v md5sum >/dev/null 2>&1; then
   MD5CMD_RESOLVED='md5sum | cut -c1-4'
 else
   MD5CMD_RESOLVED='md5 | cut -c1-4'
 fi
 
-# ── Preflight ───────────────────────────────────────────
 if [[ ! -d "$WORKTREES_DIR" ]]; then
   printf "${DIM}No .worktrees/ directory — nothing to clean.${RESET}\n"
   exit 0
@@ -57,15 +36,12 @@ fi
 printf "${BOLD}Worktree garbage collection${RESET}\n"
 echo ""
 
-# Fetch latest remote state so merge-base checks are accurate
 printf "${DIM}Fetching origin...${RESET}\n"
 git fetch --prune origin --quiet
 echo ""
 
-# ── Collect worktree branches ───────────────────────────
 branches=()
 
-# Single-level: .worktrees/my-branch
 for wt in "$WORKTREES_DIR"/*; do
   [[ -d "$wt" ]] || continue
   if [[ -f "$wt/.git" ]] || [[ -d "$wt/.git" ]]; then
@@ -73,7 +49,6 @@ for wt in "$WORKTREES_DIR"/*; do
   fi
 done
 
-# Nested: .worktrees/feature/my-branch
 for wt in "$WORKTREES_DIR"/*/*; do
   [[ -d "$wt" ]] || continue
   if [[ -f "$wt/.git" ]] || [[ -d "$wt/.git" ]]; then
@@ -93,7 +68,6 @@ for branch in "${branches[@]}"; do
   wt_dir="${WORKTREES_DIR}/${branch}"
   hash=$(md5_short "$branch")
 
-  # Resolve the actual branch the worktree is on
   wt_branch=$(git -C "$wt_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
   if [[ -z "$wt_branch" ]] || [[ "$wt_branch" == "HEAD" ]]; then
     printf "  ${YELLOW}skip${RESET}  %-40s  (detached HEAD or unreadable)\n" "$branch"
@@ -101,16 +75,10 @@ for branch in "${branches[@]}"; do
     continue
   fi
 
-  # Don't gc main/master
   if [[ "$wt_branch" == "main" ]] || [[ "$wt_branch" == "master" ]]; then
     continue
   fi
 
-  # Check if branch is merged into origin/main.
-  # Two detection methods:
-  #   1. Ancestor check — catches regular merges and fast-forwards
-  #   2. Remote-gone check — catches squash merges (GitHub deletes the
-  #      remote branch after merge, so origin/<branch> disappears)
   merged=false
   merge_reason=""
 
@@ -128,7 +96,6 @@ for branch in "${branches[@]}"; do
     continue
   fi
 
-  # Branch is merged — check for uncommitted changes as a safety net
   if ! git -C "$wt_dir" diff --quiet 2>/dev/null ||
      ! git -C "$wt_dir" diff --cached --quiet 2>/dev/null; then
     printf "  ${YELLOW}skip${RESET}  %-40s  (merged but has uncommitted changes)\n" "$branch"
@@ -136,25 +103,18 @@ for branch in "${branches[@]}"; do
     continue
   fi
 
-  # ── Clean it up ─────────────────────────────────────
   printf "  ${RED}clean${RESET} %-40s  ${DIM}(%s)${RESET}\n" "$branch" "$merge_reason"
 
-  # Delegate full teardown (pod + containers + volumes + secrets + worktree)
-  # to wt-pod-remove, which is the single source of truth for cleanup.
   BRANCH="$branch" MD5CMD="${MD5CMD:-$MD5CMD_RESOLVED}" \
     bash "${MAIN_REPO}/bin/wt-pod-remove" 2>&1 | sed 's/^/        /'
 
-  # Delete the local branch. Use -D because squash-merged branches
-  # aren't recognized as merged by git's -d safety check.
   git branch -D "$wt_branch" 2>/dev/null || true
 
   cleaned=$((cleaned + 1))
 done
 
-# Prune any dangling worktree refs
 git worktree prune 2>/dev/null || true
 
-# Regenerate Caddy config if any pods were removed
 if [[ $cleaned -gt 0 ]] && [[ -x ./infra/local/caddy-regen.sh ]]; then
   bash ./infra/local/caddy-regen.sh 2>/dev/null || true
 fi

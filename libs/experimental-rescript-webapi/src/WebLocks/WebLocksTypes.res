@@ -4,23 +4,11 @@ type lockMode =
   | @as("exclusive") Exclusive
   | @as("shared") Shared
 
-/**
-[See LockManager on MDN](https://developer.mozilla.org/docs/Web/API/LockManager)
-*/
 @editor.completeFrom(LockManager)
 type lockManager = private {}
 
-/**
-[See Lock on MDN](https://developer.mozilla.org/docs/Web/API/Lock)
-*/
 type lock = {
-  /**
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Lock/name)
-    */
   name: string,
-  /**
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Lock/mode)
-    */
   mode: lockMode,
 }
 

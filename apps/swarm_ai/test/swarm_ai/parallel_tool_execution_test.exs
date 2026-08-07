@@ -3,11 +3,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
   alias SwarmAi.{ToolExecution, ToolResult}
 
-  # --- MFA callbacks ---
-
-  # Sends :ready to coordinator, then blocks until coordinator sends :go.
-  # All N tasks must be alive simultaneously for the coordinator to release them.
-  # Sequential execution deadlocks (coordinator never sees N :ready signals).
   def run_rendezvous(coordinator, tool_call) do
     send(coordinator, {:ready, self()})
 
@@ -54,9 +49,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           {:complete, "All done"}
         ])
 
-      # Collects :ready from all `total` tasks before releasing any.
-      # If tools run sequentially, task 1 blocks on receive :go forever,
-      # task 2 never starts, coordinator never gets total signals → timeout.
       coordinator =
         spawn(fn ->
           pids =
@@ -173,8 +165,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       assert_receive {:test_event, "task-serial", :completed}, 2_000
     end
   end
-
-  # --- Helpers ---
 
   defp start_runtime! do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"

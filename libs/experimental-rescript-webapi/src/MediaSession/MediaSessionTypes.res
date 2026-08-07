@@ -22,43 +22,17 @@ type mediaImage = {
   @as("type") mutable type_?: string,
 }
 
-/**
-[See MediaMetadata on MDN](https://developer.mozilla.org/docs/Web/API/MediaMetadata)
-TODO: mark as private once mutating fields of private records is allowed
-*/
 @editor.completeFrom(MediaMetadata)
 type mediaMetadata = {
-  /**
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaMetadata/title)
-    */
   mutable title: string,
-  /**
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaMetadata/artist)
-    */
   mutable artist: string,
-  /**
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaMetadata/album)
-    */
   mutable album: string,
-  /**
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaMetadata/artwork)
-    */
   mutable artwork: array<mediaImage>,
 }
 
-/**
-[See WebApiMediaSession on MDN](https://developer.mozilla.org/docs/Web/API/MediaSession)
-TODO: mark as private once mutating fields of private records is allowed
-*/
 @editor.completeFrom(WebApiMediaSession)
 type mediaSession = {
-  /**
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaSession/metadata)
-    */
   mutable metadata: Null.t<mediaMetadata>,
-  /**
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/MediaSession/playbackState)
-    */
   mutable playbackState: mediaSessionPlaybackState,
 }
 

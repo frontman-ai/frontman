@@ -1,13 +1,3 @@
-/**
- * Client__WebPreview__AnnotationPopup - Non-blocking comment input for annotations
- *
- * Appears near a newly-annotated element. The annotation already exists in state;
- * this popup is purely an optional comment-entry convenience.
- * - Typing updates the annotation's comment via UpdateAnnotationComment
- * - Enter closes the popup (comment is already saved)
- * - Escape closes the popup (annotation remains, no comment)
- * - Clicking another element auto-closes this popup (handled by parent)
- */
 module Annotation = Client__Annotation__Types
 module Icons = Client__UI__Icons
 
@@ -24,14 +14,12 @@ let make = (
   let inputRef = React.useRef(Nullable.null)
   let (rect, setRect) = React.useState(() => None)
 
-  // Position popup relative to the annotated element
   React.useEffect(() => {
     let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
     setRect(_ => Some(boundingRect))
     None
   }, (annotation.element, scrollTimestamp, mutationTimestamp))
 
-  // Auto-focus the input once it renders (rect must be Some for the input to exist)
   React.useEffect(() => {
     switch (rect, inputRef.current->Nullable.toOption) {
     | (Some(_), Some(input)) => (input->Obj.magic)["focus"]()
@@ -70,12 +58,10 @@ let make = (
           left: `clamp(8px, ${Float.toString(left)}px, calc(100vw - 328px))`,
         }
       >
-        // Popup card
         <div
           className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 min-w-[240px] max-w-[320px]"
         >
           <div className="flex items-center gap-1.5 mb-1">
-            // Number badge
             <div
               className="flex items-center justify-center w-4 h-4 rounded-full bg-violet-600 text-white text-[9px] font-bold"
             >

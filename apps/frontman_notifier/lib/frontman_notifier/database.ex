@@ -1,8 +1,4 @@
 defmodule FrontmanNotifier.Database do
-  @moduledoc """
-  Small Postgrex wrapper for local production database reads.
-  """
-
   alias FrontmanNotifier.Config
 
   @query_timeout_ms 15_000

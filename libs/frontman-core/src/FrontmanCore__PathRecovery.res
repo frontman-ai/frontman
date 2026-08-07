@@ -1,5 +1,3 @@
-// Path-recovery helpers for resilient tool execution on missing paths.
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module FsUtils = FrontmanCore__FsUtils

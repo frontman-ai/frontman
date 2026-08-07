@@ -1,19 +1,12 @@
 ---
-// Final CTA Section
-// ------------
-// Description: Final call-to-action section with logo and button
 
-// Components
-// - UI
 import Button from '../../ui/Button.astro'
 
-// Props
 type Props = {
 	link?: string
 }
 const { link = '#install' } = Astro.props
 
-// Logo
 const logoImage = { src: '/logo.svg' }
 ---
 
@@ -97,7 +90,6 @@ const logoImage = { src: '/logo.svg' }
 		color: #ffffff;
 	}
 
-	/* Responsive adjustments */
 	@media (max-width: 1024px) {
 		.cta-logo {
 			width: 154px;

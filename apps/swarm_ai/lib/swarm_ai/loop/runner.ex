@@ -1,44 +1,9 @@
 defmodule SwarmAi.Loop.Runner do
-  @moduledoc """
-  Pure functional loop runner. No side effects.
-
-  Takes loop state in, returns updated loop + effects to execute.
-  `SwarmAi.Executor` interprets effects.
-
-  ## Flow
-
-      start/2
-        → Effect.call_llm(llm, messages)
-
-      handle_llm_response/2
-        → if no tool calls: Effect.complete(result)
-        → if tool calls: [Effect.execute_tool(call), ...]
-
-      handle_tool_result/2
-        → if all complete: Effect.call_llm(llm, messages)
-        → if pending: [] (wait for more)
-  """
-
   alias SwarmAi.{Effect, LLM, Loop, Message}
 
-  @doc """
-  Handles successful LLM response.
-
-  If the response contains tool calls, emits `Effect.execute_tool/1` effects.
-  Otherwise completes the loop.
-
-  ## Example
-
-      response = %LLM.Response{content: "Hello!", usage: %{...}}
-      {loop, effects} = Runner.handle_llm_response(loop, response)
-      loop.status  # => :completed
-      loop.result  # => "Hello!"
-  """
   def handle_llm_response(%Loop{status: :running} = loop, %LLM.Response{} = response) do
     cond do
       truncated_tool_calls?(response) ->
-        # Model hit max_tokens mid-tool-use — tool call JSON is truncated.
-        # Fail immediately rather than executing a malformed tool call.
         handle_truncation_error(loop)
 
       LLM.Response.has_tool_calls?(response) ->
@@ -75,12 +40,6 @@ defmodule SwarmAi.Loop.Runner do
     {loop, [Effect.fail(:output_truncated)]}
   end
 
-  @doc """
-  Continues execution after all tool results have been added to the loop.
-
-  Returns effects to call LLM with the accumulated tool results.
-  If not all tools are complete, returns empty effects.
-  """
   @spec continue(Loop.t()) :: {Loop.t(), [Effect.t()]}
   def continue(%Loop{status: :waiting_for_tools} = loop) do
     step = Loop.current_step(loop)
@@ -92,10 +51,6 @@ defmodule SwarmAi.Loop.Runner do
     end
   end
 
-  @doc """
-  Handles a tool result. Adds it to the current step.
-  If all tools complete, starts a new LLM call with tool results.
-  """
   @spec handle_tool_result(Loop.t(), SwarmAi.ToolResult.t()) :: {Loop.t(), [Effect.t()]}
   def handle_tool_result(
         %Loop{status: :waiting_for_tools, steps: [_ | _]} = loop,
@@ -135,7 +90,6 @@ defmodule SwarmAi.Loop.Runner do
     new_step = Loop.Step.new(length(steps) + 1, messages)
     loop = %{loop | status: :running, steps: steps ++ [new_step], current_step: new_step.number}
 
-    # Emit step_ended before starting the new LLM call
     {loop, [Effect.step_ended(completed_step), Effect.call_llm(llm, messages)]}
   end
 
@@ -151,16 +105,6 @@ defmodule SwarmAi.Loop.Runner do
     Message.tool_result(name, id, content, metadata)
   end
 
-  @doc """
-  Handles LLM errors.
-
-  Marks loop as failed and returns effects to fail the execution.
-
-  ## Example
-
-      {loop, effects} = Runner.handle_llm_error(loop, :timeout)
-      loop.status # => {:failed, :timeout}
-  """
   @spec handle_llm_error(Loop.t(), term()) :: {Loop.t(), [Effect.t()]}
   def handle_llm_error(%Loop{} = loop, error) do
     loop = Loop.fail(loop, error)

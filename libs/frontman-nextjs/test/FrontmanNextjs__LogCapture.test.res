@@ -2,7 +2,6 @@ open Vitest
 
 module LogCapture = FrontmanNextjs__LogCapture
 
-// Initialize log capture once before all tests
 beforeAll(() => {
   LogCapture.initialize()
 })
@@ -15,7 +14,6 @@ describe("LogCapture", _t => {
         let instance1 = LogCapture.getInstance()
         let instance2 = LogCapture.getInstance()
 
-        // Should return same instance (reference equality)
         t->expect(instance1 === instance2)->Expect.toBe(true)
       },
     )
@@ -27,7 +25,6 @@ describe("LogCapture", _t => {
         LogCapture.initialize()
         LogCapture.initialize()
 
-        // Should not crash or cause issues
         t->expect(true)->Expect.toBe(true)
       },
     )
@@ -40,7 +37,6 @@ describe("LogCapture", _t => {
         Console.log("test message unique 123")
 
         let logs = LogCapture.getLogs()
-        // Just check if the message was captured, don't check level yet
         let found = logs->Array.some(log => log.message->String.includes("test message unique 123"))
 
         t->expect(found)->Expect.toBe(true)
@@ -88,8 +84,6 @@ describe("LogCapture", _t => {
     test(
       "raw JavaScript console.log with multiple arguments",
       t => {
-        // This tests the variadic arguments bug fix
-        // Raw JS console.log must use ...args, not args
         ignore(%raw(`console.log("raw", "javascript", "test", 42)`))
 
         let logs = LogCapture.getLogs()
@@ -233,7 +227,6 @@ describe("LogCapture", _t => {
         test(
           "tail limits returned results",
           t => {
-            // Generate multiple logs
             Console.log("log 1")
             Console.log("log 2")
             Console.log("log 3")
@@ -242,7 +235,6 @@ describe("LogCapture", _t => {
 
             let logs = LogCapture.getLogs(~tail=2)
 
-            // Should return at most 2 logs
             t->expect(logs->Array.length <= 2)->Expect.toBe(true)
           },
         )
@@ -256,7 +248,6 @@ describe("LogCapture", _t => {
 
             let logs = LogCapture.getLogs(~tail=1)
 
-            // Should include the newest log
             let hasNewest = logs->Array.some(log => log.message == "newest")
             t->expect(hasNewest)->Expect.toBe(true)
           },
@@ -272,14 +263,12 @@ describe("LogCapture", _t => {
           t => {
             let allLogs = LogCapture.getLogs()
 
-            // Get a timestamp in the middle of existing logs
             if allLogs->Array.length > 0 {
               let midLog = allLogs[allLogs->Array.length / 2]->Option.getOrThrow
               let midTime = midLog.timestamp->Date.fromString->Date.getTime
 
               let recentLogs = LogCapture.getLogs(~since=midTime)
 
-              // All returned logs should be after or equal to the timestamp
               let allRecent = recentLogs->Array.every(
                 log => {
                   let logTime = log.timestamp->Date.fromString->Date.getTime
@@ -289,7 +278,6 @@ describe("LogCapture", _t => {
 
               t->expect(allRecent)->Expect.toBe(true)
             } else {
-              // No logs to test with, just pass
               t->expect(true)->Expect.toBe(true)
             }
           },
@@ -307,7 +295,6 @@ describe("LogCapture", _t => {
         let logs = LogCapture.getLogs()
         let hasISOTimestamp = logs->Array.some(
           log => {
-            // ISO 8601 format check (basic validation)
             log.timestamp->String.includes("T") && log.timestamp->String.includes("Z")
           },
         )
@@ -362,7 +349,6 @@ describe("LogCapture", _t => {
         let bufferSize =
           LogCapture.getInstance().buffer.contents->FrontmanNextjs__CircularBuffer.length
 
-        // Buffer size should be <= 1024
         t->expect(bufferSize <= 1024)->Expect.toBe(true)
       },
     )
@@ -447,10 +433,8 @@ describe("LogCapture", _t => {
     test(
       "invalid regex returns empty array silently",
       t => {
-        // Invalid regex pattern
         let logs = LogCapture.getLogs(~pattern="[invalid(regex")
 
-        // Should not crash, returns empty array
         t->expect(Array.isArray(logs))->Expect.toBe(true)
       },
     )
@@ -458,7 +442,6 @@ describe("LogCapture", _t => {
     test(
       "log capture errors don't crash app",
       t => {
-        // Calling getLogs should never throw
         let logs = LogCapture.getLogs()
         t->expect(Array.isArray(logs))->Expect.toBe(true)
       },

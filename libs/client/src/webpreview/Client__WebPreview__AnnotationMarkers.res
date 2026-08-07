@@ -1,16 +1,6 @@
-/**
- * Client__WebPreview__AnnotationMarkers - Numbered markers for annotations
- *
- * Renders a border highlight and numbered badge for each annotation,
- * positioned over the annotated element using getBoundingClientRect.
- * Re-queries position on scroll/mutation changes.
- * Number badge top-left: click to deselect.
- * Tree nav control top-right: ↑/↓ to walk to parent/first-child.
- */
 module Annotation = Client__Annotation__Types
 module Icons = Client__UI__Icons
 
-// Walk to parent element, stopping at body/html
 let getParentEl = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element> =>
   element.parentElement
   ->Null.toOption
@@ -21,7 +11,6 @@ let getParentEl = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element
     }
   })
 
-// Single annotation marker: border + badge (top-left) + tree nav (top-right)
 module Marker = {
   @react.component
   let make = (
@@ -43,7 +32,6 @@ module Marker = {
     let parentEl = getParentEl(annotation.element)
     let firstChildEl = annotation.element.firstElementChild->Null.toOption
 
-    // Border and badge color vary based on enrichment status
     let (borderClass, badgeColorClass) = switch annotation.enrichmentStatus {
     | Annotation.Enriching => (
         "absolute inset-0 border-2 border-[#985DF7] rounded-sm box-border ring-1 ring-[#985DF7]/30",
@@ -70,9 +58,7 @@ module Marker = {
           height: `${Float.toString(rect.height)}px`,
         }
       >
-        // Border highlight
         <div className={borderClass} />
-        // Number badge — top-left, click to deselect
         <div
           className={`absolute -top-3 -left-3 flex items-center justify-center w-6 h-6 rounded-full ${badgeColorClass} text-white text-[10px] font-bold shadow-sm border-2 border-white pointer-events-auto cursor-pointer hover:bg-red-500 transition-colors`}
           onClick={e => {
@@ -83,11 +69,9 @@ module Marker = {
         >
           {React.int(index + 1)}
         </div>
-        // Tree nav control — top-right, stacked ↑/↓ chevrons
         <div
           className="absolute -top-3 -right-3 flex flex-col items-center bg-violet-600 text-white shadow-sm border-2 border-white rounded-full pointer-events-auto overflow-hidden"
         >
-          // Up — navigate to parent
           {switch parentEl {
           | Some(parent) =>
             <button
@@ -107,7 +91,6 @@ module Marker = {
               <Icons.ChevronUpIcon className="size-2.5" />
             </div>
           }}
-          // Down — navigate to first child
           {switch firstChildEl {
           | Some(child) =>
             <button

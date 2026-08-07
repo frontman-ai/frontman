@@ -1,6 +1,3 @@
-// Message types - extracted to break circular dependency with MessageStore
-
-// Data for file/image attachments extracted from user content parts
 type fileAttachmentData = {
   id: string,
   dataUrl: string,
@@ -8,13 +5,11 @@ type fileAttachmentData = {
   filename: string,
 }
 
-// Raw base64 + mediaType extracted from a fileAttachmentData's data URL
 type resolvedImageData = {
   base64: string,
   mediaType: string,
 }
 
-// Strip the "data:mime;base64," prefix from a data URL to get raw base64
 let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
   let base64 = switch att.dataUrl->String.indexOf(";base64,") {
   | -1 => att.dataUrl
@@ -23,8 +18,6 @@ let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
   {base64, mediaType: att.mediaType}
 }
 
-// Serializable annotation snapshot — stored on user messages.
-// Captures all annotation metadata at send time, dropping the live DOM element ref.
 module MessageAnnotation = {
   type boundingBox = {
     x: float,
@@ -46,7 +39,6 @@ module MessageAnnotation = {
 
   type t = {
     id: string,
-    // Async enrichment fields — result captures per-field success/failure
     selector: result<option<string>, string>,
     tagName: string,
     cssClasses: option<string>,
@@ -58,7 +50,6 @@ module MessageAnnotation = {
     elementorContext: option<Client__ElementorDetection.t>,
   }
 
-  // Convert a SourceLocation.t to the local sourceLocation type (same shape, just decoupled)
   let rec sourceLocationFromClientTypes = (loc: Client__Types.SourceLocation.t): sourceLocation => {
     componentName: loc.componentName,
     tagName: loc.tagName,
@@ -69,10 +60,6 @@ module MessageAnnotation = {
     componentProps: loc.componentProps,
   }
 
-  // Snapshot a live Annotation.t into a serializable MessageAnnotation.t
-  // Drops the live DOM element reference.
-  // sourceLocation needs conversion from Client__Types.SourceLocation.t to the local type;
-  // selector and screenshot are pass-through (same result<option<string>, string> shape).
   let fromAnnotation = (annotation: Client__Annotation__Types.t): t => {
     id: annotation.id,
     selector: annotation.selector,
@@ -94,7 +81,6 @@ module MessageAnnotation = {
   }
 }
 
-// Content part types for messages (simplified from Vercel AI SDK)
 module UserContentPart = {
   @@live
   type t =

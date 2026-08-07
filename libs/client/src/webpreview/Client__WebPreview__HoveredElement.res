@@ -19,12 +19,9 @@ let make = (~element: option<Null.t<WebAPI.EventAPI.eventTarget>>, ~scrollTimest
       let rect = info.rect
       let label = Client__WebPreview__Utils.formatLabel(info)
 
-      // Calculate label position - prefer top-left outside, but adjust if near edges
       let labelTop = rect.top > 24.0 ? rect.top -. 24.0 : rect.top +. rect.height +. 4.0
       let opacity = hasElement ? "1" : "0"
 
-      // Highlight overlay with label
-      // Note: position/size must remain inline styles since they're dynamic values
       <>
         <div
           className="absolute bg-[#985DF7]/[0.08] border-[1.5px] border-[#985DF7]/70 rounded-sm pointer-events-none z-[9998] box-border transition-all duration-100 ease-out"

@@ -1,9 +1,3 @@
-// Shared per-sourceRoot path hints for tool-call guardrails.
-//
-// The cache stores high-confidence anchors discovered during a session
-// (list_tree/list_files/search_files/read_file) plus recent zero-result
-// search patterns so read_file can block deterministic guess-reads.
-
 module Path = FrontmanBindings.Path
 module PathContext = FrontmanCore__PathContext
 module FilenamePattern = FrontmanCore__FilenamePattern

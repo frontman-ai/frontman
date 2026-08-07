@@ -1,16 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Workers.GenerateTitle do
-  @moduledoc """
-  Oban worker that generates a short task title from the first user prompt.
-
-  Resolves the API key through the standard priority chain (OAuth > user key).
-  """
-
   use Oban.Worker,
     queue: :default,
     max_attempts: 3,

@@ -1,8 +1,4 @@
 defmodule FrontmanNotifier do
-  @moduledoc """
-  Hourly production notifier for GitHub stargazers and completed Frontman tasks.
-  """
-
   require Logger
 
   alias FrontmanNotifier.Stargazers

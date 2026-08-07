@@ -1,6 +1,3 @@
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMImplementation/createDocumentType)
-*/
 @send
 external createDocumentType: (
   DomTypes.domImplementation,
@@ -9,9 +6,6 @@ external createDocumentType: (
   ~systemId: string,
 ) => DomTypes.documentType = "createDocumentType"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMImplementation/createDocument)
-*/
 @send
 external createDocument: (
   DomTypes.domImplementation,
@@ -20,9 +14,6 @@ external createDocument: (
   ~doctype: DomTypes.documentType=?,
 ) => DomTypes.xmlDocument = "createDocument"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DOMImplementation/createHTMLDocument)
-*/
 @send
 external createHTMLDocument: (DomTypes.domImplementation, ~title: string=?) => DomTypes.document =
   "createHTMLDocument"

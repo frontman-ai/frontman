@@ -9,7 +9,7 @@ describe("Relay.connect", _t => {
 
     switch Relay.getState(relay) {
     | Error(_) => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect(false)->Expect.toBe(true) // state should be Error
+    | _ => t->expect(false)->Expect.toBe(true)
     }
   })
 })

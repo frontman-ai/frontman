@@ -1,0 +1,5 @@
+url = "https://frontman.sh/path#fragment"
+regex = ~r/#(?:TODO|FIXME)/
+text = """
+# immutable text
+"""

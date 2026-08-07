@@ -130,7 +130,6 @@ defmodule FrontmanServer.ToolsTest do
       assert is_binary(first["id"])
 
       assert second["content"] == "Write tests"
-      # default priority
       assert second["priority"] == "medium"
       assert second["status"] == "in_progress"
     end

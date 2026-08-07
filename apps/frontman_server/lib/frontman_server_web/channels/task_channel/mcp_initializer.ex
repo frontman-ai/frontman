@@ -1,27 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
-  @moduledoc """
-  Pure functional state machine for MCP initialization.
-
-  Manages browser-side MCP setup:
-  1. Initialize MCP connection
-  2. Load tool definitions
-  3. Optionally load project rules and structure for code projects
-  4. Signal completion
-
-  State is stored in socket assigns by TaskChannel. Functions return
-  `{new_state, actions}` tuples where actions are instructions for the
-  channel to execute synchronously (push messages, update assigns, etc).
-
-  This design eliminates async process hops — every MCP response is
-  processed within the channel's own `handle_in` callback, making the
-  initialization flow deterministic and race-free.
-  """
   require Logger
 
   alias FrontmanServer.Frameworks
@@ -30,9 +7,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   alias JsonRpc
   alias ModelContextProtocol, as: MCP
 
-  @doc """
-  Creates the initial state and returns the MCP initialize request to send.
-  """
   def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
     request = JsonRpc.request(request_id, "initialize", MCP.initialize_params())
@@ -56,9 +30,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     {state, [{:push_mcp, request}]}
   end
 
-  @doc """
-  Handle a successful MCP response. Returns updated state and actions.
-  """
   def handle_response(state, request_id, result) do
     cond do
       request_id == state.mcp_init_request_id ->
@@ -79,9 +50,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  @doc """
-  Handle an MCP error response. Returns updated state and actions.
-  """
   def handle_error(state, request_id, error) do
     cond do
       request_id == state.mcp_init_request_id ->

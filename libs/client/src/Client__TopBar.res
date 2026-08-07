@@ -31,7 +31,6 @@ let make = (
 
   let {clearSession} = Client__FrontmanProvider.useFrontman()
 
-  // URL editing local state (moved here from Client__WebPreview)
   let (editableUrl, setEditableUrl) = React.useState(() => previewUrl)
   let (isEditingUrl, setIsEditingUrl) = React.useState(() => false)
 
@@ -101,7 +100,6 @@ let make = (
 
   <Tooltip.Provider>
     <div className="h-8 flex items-center shrink-0 bg-[#130d20] border-b border-[#1e1538]">
-      // LEFT ZONE — width tracks the resizable chat panel
       <div
         style={{
           width: chatOpen ? `${Int.toString(chatboxWidth >= 240 ? chatboxWidth : 240)}px` : "auto",
@@ -122,9 +120,7 @@ let make = (
         }}
         <Client__ChatToggle chatOpen onToggle=onToggleChat isAgentRunning />
       </div>
-      // Vertical divider — visually continues the panel border below
       <div className="w-px h-full bg-[#1e1538] shrink-0" />
-      // RIGHT ZONE — takes remaining space
       <div className="flex items-center h-full flex-1 min-w-0 px-1 gap-1">
         {renderToolbarButton(
           ~label="Reload",
@@ -142,7 +138,6 @@ let make = (
             )->ignore,
           ~children=<Icons.OpenInNewWindowIcon />,
         )}
-        // URL bar
         <input
           type_="text"
           value={displayedUrl}
@@ -169,7 +164,6 @@ let make = (
             )->ignore,
           ~children=<Icons.QuestionMarkCircledIcon />,
         )}
-        // Settings gear
         <div className="relative">
           {renderToolbarButton(
             ~label="Settings",

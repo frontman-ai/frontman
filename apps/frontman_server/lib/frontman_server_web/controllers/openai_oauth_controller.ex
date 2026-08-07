@@ -1,46 +1,10 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServerWeb.OpenAIOAuthController do
-  @moduledoc """
-  Handles the OpenAI OAuth flow using the Device Auth flow.
-
-  Flow:
-  1. Client calls `POST /api/oauth/openai/initiate`
-     → Server requests a device code from OpenAI,
-       returns device_auth_id + user_code + verification_url to the client
-  2. Client shows the user_code and opens the verification URL
-  3. User enters the code at auth.openai.com/codex/device
-  4. Client polls `POST /api/oauth/openai/poll` with device_auth_id + user_code
-     → Server polls OpenAI on each request. When authorized, exchanges code for tokens,
-       extracts chatgpt_account_id from JWT, stores tokens, returns success
-  5. Client can also check `GET /api/oauth/openai/status` for connection state
-
-  The flow is fully stateless on the server — the client holds the device_auth_id
-  and user_code and passes them back on each poll request.
-
-  The device auth flow is required because the OpenAI public client_id
-  (app_EMoamEEZ73f0CkXaXp7hrann) only allows http://localhost:* redirect URIs.
-  """
-
   use FrontmanServerWeb, :controller
 
   require Logger
 
   alias FrontmanServer.Providers
 
-  @doc """
-  Initiates the device auth flow by requesting a device code from OpenAI.
-
-  Returns the device_auth_id, user_code, and verification_url for the client
-  to store and display. The client must pass device_auth_id and user_code back
-  when polling.
-
-  POST /api/oauth/openai/initiate
-  """
   def initiate(conn, _params) do
     case Providers.start_openai_oauth() do
       {:ok, device_auth} ->
@@ -60,16 +24,6 @@ defmodule FrontmanServerWeb.OpenAIOAuthController do
     end
   end
 
-  @doc """
-  Polls OpenAI to check if the user has completed authorization.
-
-  The client passes the device_auth_id and user_code received from initiate.
-  On each call, the server polls OpenAI's device token endpoint.
-  If authorized, exchanges the code for tokens and stores them.
-
-  POST /api/oauth/openai/poll
-  Expects: {"device_auth_id": "...", "user_code": "..."}
-  """
   def poll(conn, %{"device_auth_id" => device_auth_id, "user_code" => user_code})
       when is_binary(device_auth_id) and is_binary(user_code) do
     case Providers.poll_openai_oauth(conn.assigns.current_scope, device_auth_id, user_code) do
@@ -113,11 +67,6 @@ defmodule FrontmanServerWeb.OpenAIOAuthController do
     |> json(%{error: "Missing required parameters: device_auth_id, user_code"})
   end
 
-  @doc """
-  Disconnects the OpenAI OAuth connection by removing stored tokens.
-
-  DELETE /api/oauth/openai/disconnect
-  """
   def disconnect(conn, _params) do
     scope = conn.assigns.current_scope
 
@@ -126,16 +75,10 @@ defmodule FrontmanServerWeb.OpenAIOAuthController do
         json(conn, %{status: "ok"})
 
       {:error, :not_found} ->
-        # Token didn't exist, but that's fine - user is disconnected either way
         json(conn, %{status: "ok"})
     end
   end
 
-  @doc """
-  Returns the current OpenAI OAuth connection status.
-
-  GET /api/oauth/openai/status
-  """
   def status(conn, _params) do
     json(conn, Providers.oauth_connection_status(conn.assigns.current_scope, "openai_codex"))
   end

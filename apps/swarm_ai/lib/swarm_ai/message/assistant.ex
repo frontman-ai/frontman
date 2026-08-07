@@ -1,8 +1,4 @@
 defmodule SwarmAi.Message.Assistant do
-  @moduledoc """
-  Assistant message with text content, tool calls, and provider metadata.
-  """
-
   use TypedStruct
   alias SwarmAi.Message.ContentPart
 

@@ -1,0 +1,3 @@
+<template><a href="https://frontman.sh/path#fragment" data-marker="<!-- string -->">Hello</a></template>
+<script setup lang="ts">const marker = "<!-- string --> // string"</script>
+<style>.hero { background: url("https://frontman.sh/a/*b*/"); }</style>

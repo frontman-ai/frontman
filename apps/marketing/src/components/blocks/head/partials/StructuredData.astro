@@ -1,7 +1,4 @@
 ---
-// Structured Data (JSON-LD)
-// ------------
-// Description: Injects Organization and BreadcrumbList schema markup for SEO.
 
 import { legalInfo } from '../../../../data/legalInfo'
 import { createWebPageSchema } from '../../../../utils/structuredData.mjs'
@@ -20,7 +17,6 @@ type Props = {
 
 const { title, description, noindex = false, breadcrumbs } = Astro.props
 
-// Generate breadcrumb structured data from the current URL
 const url = new URL(Astro.request.url)
 url.search = ''
 url.hash = ''

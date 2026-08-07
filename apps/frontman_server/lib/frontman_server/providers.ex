@@ -1,12 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Providers do
-  @moduledoc "Manages API keys, OAuth tokens, and model provider access."
-
   use Boundary,
     deps: [FrontmanServer, FrontmanServer.Accounts]
 
@@ -27,22 +19,6 @@ defmodule FrontmanServer.Providers do
 
   @provider_configs Map.new(@providers)
 
-  ## High-Level API (Domain Entry Points)
-
-  @doc """
-  Prepares ReqLLM arguments for a request. Resolves model and provider auth.
-
-  This is the primary entry point for provider auth resolution at the domain layer.
-  Call this before making LLM calls, not inside LLM implementations.
-
-  ## Parameters
-    - scope: The user scope (or nil for anonymous).
-    - model: The model string (e.g., "openrouter:openai/gpt-4")
-
-  ## Returns
-    - `{:ok, {model_spec, llm_opts}}` - Ready to use for LLM calls
-    - `{:error, :no_api_key}` - No API key available
-  """
   def prepare_llm_args(scope, model, opts \\ [])
 
   def prepare_llm_args(_scope, nil, _opts), do: {:error, :missing_model}
@@ -187,22 +163,13 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  @doc """
-  Returns the provider-specific maximum image dimension when constrained.
-  """
   def max_image_dimension(provider) when is_binary(provider) do
     provider_config(provider).max_image_dimension
   end
 
-  @doc """
-  Returns a human-friendly model name for logs and telemetry.
-  """
   def display_model_name(model_ref) when is_binary(model_ref), do: model_ref
   def display_model_name(%{id: id}) when is_binary(id), do: id
 
-  @doc """
-  Returns the provider name from a model reference.
-  """
   def model_provider_name(model_ref) when is_binary(model_ref) do
     {provider, _name} = model_parts(model_ref)
     provider
@@ -211,9 +178,6 @@ defmodule FrontmanServer.Providers do
   def model_provider_name(%{provider: provider}) when is_atom(provider),
     do: Atom.to_string(provider)
 
-  @doc """
-  Returns the underlying LLM vendor from a model reference.
-  """
   def model_llm_vendor_name(model_ref) when is_binary(model_ref) do
     {provider, name} = model_parts(model_ref)
     llm_vendor_name(provider, name)
@@ -226,18 +190,9 @@ defmodule FrontmanServer.Providers do
   def model_llm_vendor_name(%{provider: provider}) when is_atom(provider),
     do: Atom.to_string(provider)
 
-  ## API Key Management
-
-  @doc """
-  Stores or updates a user API key for a provider.
-
-  On success, broadcasts a config change notification so subscribers
-  (e.g. the tasks channel) can push updated config options to the client.
-  """
   def upsert_api_key(%Scope{user: %User{} = user}, provider, key) do
     user_id = user.id
     provider = String.downcase(provider)
-    # Build struct with user_id set explicitly (not via changeset for security)
     api_key = %ApiKey{user_id: user_id}
     changeset = ApiKey.changeset(api_key, %{provider: provider, key: key})
 
@@ -255,9 +210,6 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  @doc """
-  Lists providers with saved API keys for the user.
-  """
   def list_api_key_providers(%Scope{user: %User{} = user}) do
     user.id
     |> ApiKey.provider_names_for_user()
@@ -280,9 +232,6 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  ## OAuth Token Management
-
-  @doc "Stores or updates an OAuth token for a provider without broadcasting."
   def upsert_oauth_token(
         %Scope{user: %User{} = user},
         provider,
@@ -292,7 +241,6 @@ defmodule FrontmanServer.Providers do
         metadata \\ %{}
       ) do
     provider = String.downcase(provider)
-    # Build struct with user_id set explicitly (not via changeset for security)
     oauth_token = %OAuthToken{user_id: user.id}
 
     changeset =
@@ -312,9 +260,6 @@ defmodule FrontmanServer.Providers do
     )
   end
 
-  @doc """
-  Fetches an OAuth token for a provider (may be expired).
-  """
   def get_oauth_token(%Scope{user: %User{} = user}, provider) do
     OAuthToken
     |> OAuthToken.for_user_and_provider(user.id, provider)
@@ -374,12 +319,6 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  @doc """
-  Deletes an OAuth token for a provider.
-
-  On success, broadcasts a config change notification so subscribers
-  can push updated config options to the client.
-  """
   def delete_oauth_token(%Scope{user: %User{} = user}, provider) do
     user_id = user.id
     query = OAuthToken.for_user_and_provider(OAuthToken, user_id, provider)
@@ -394,24 +333,10 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  ## Config Change Notifications
-
-  @doc """
-  Returns the PubSub topic for config option updates for a given user.
-
-  Subscribe to this topic to receive `:config_options_changed` messages
-  when API keys or OAuth tokens are added/removed.
-  """
   def config_pubsub_topic(user_id) when is_binary(user_id) do
     "config_update:user:#{user_id}"
   end
 
-  @doc """
-  Broadcasts a config options changed event for the given user.
-
-  Called after API key saves or OAuth token changes so that subscribers
-  (e.g. the tasks channel) can push updated config options to the client.
-  """
   def broadcast_config_changed(user_id) when is_binary(user_id) do
     Phoenix.PubSub.broadcast(
       FrontmanServer.PubSub,
@@ -420,25 +345,6 @@ defmodule FrontmanServer.Providers do
     )
   end
 
-  ## Model Config (ACP-ready domain data)
-
-  @doc """
-  Returns model selection data for a user, ready for ACP serialization.
-
-  Resolves which providers the user can access, then builds model groups.
-  Returns a domain DTO that ACP translates to `SessionConfigOption` wire format.
-
-  ## Parameters
-
-    * `scope` – the user's `%Scope{}` struct.
-
-  ## Returns
-
-  A map with:
-    * `:groups` – list of model group maps, each with `:id`, `:name`, and
-      `:options` (list of `%{name: name, value: value}` maps where
-      `value` is a serialized `"provider:model"` string)
-  """
   def model_config_data(scope) do
     api_key_providers = list_api_key_providers(scope)
 

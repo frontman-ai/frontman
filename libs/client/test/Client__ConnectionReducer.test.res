@@ -4,7 +4,6 @@ module Reducer = Client__ConnectionReducer
 module FtueState = Client__FtueState
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
-// Helper to check if effect list contains a specific effect type
 let hasEffect = (effects, predicate) => effects->Array.some(predicate)
 let hasLogInfo = effects =>
   hasEffect(effects, e =>
@@ -141,7 +140,6 @@ describe("Connection Reducer", () => {
         | Reducer.RelayError(_) => t->expect(true)->Expect.toBe(true)
         | _ => t->expect(false)->Expect.toBe(true)
         }
-        // Non-fatal, so LogInfo not LogError
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
       },
     )
@@ -340,8 +338,6 @@ describe("Connection Reducer", () => {
   })
 
   describe("Connection Lifecycle - Session Creation Trigger", () => {
-    // This test documents the critical flow: App.res should create session when
-    // connectionStatus becomes Connected (not SessionActive)
     test(
       "CreateSession action works when connectionStatus is Connected",
       t => {
@@ -357,7 +353,6 @@ describe("Connection Reducer", () => {
 
         t->expect(Reducer.Selectors.getConnectionStatus(state))->Expect.toBe(Connected)
 
-        // CreateSession should work from this state
         let (nextState, effects) = Reducer.reduce(
           state,
           CreateSession({

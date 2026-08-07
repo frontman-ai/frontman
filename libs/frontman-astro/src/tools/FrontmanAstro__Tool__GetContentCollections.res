@@ -1,5 +1,3 @@
-// Exposes Astro content collection entries through Astro's runtime API.
-
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module Path = FrontmanBindings.Path
 module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext

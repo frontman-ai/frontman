@@ -1,16 +1,9 @@
 ---
-// Footer
-// ------------
-// Description: the website footer is the section of content
-// Reference: https://wind-ui.com/components/footers/
 
-// Components
-// - UI
 import { Icon } from 'astro-icon/components'
 import { Image } from 'astro:assets'
 import logoSvg from '../../assets/logo.svg'
 
-// Data
 import { socialLinks } from '../../config/socialLinks'
 import { footerNavigationData } from '../../config/footerNavigation'
 
@@ -19,7 +12,6 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 
 <footer class="footer" role="contentinfo">
 	<div class="footer__container">
-		<!-- Top row: brand + nav columns -->
 		<div class="footer__top">
 			<a class="footer__brand" href="/">
 				<Image src={logoSvg} alt={footerAbout.logo.alt} width={24} height={24} loading="lazy" />
@@ -49,7 +41,6 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 			</div>
 		</div>
 
-		<!-- Bottom row: copyright + legal + social -->
 		<div class="footer__bottom">
 			<div class="footer__bottom-left">
 				<span>{subFooter.copywriteText}</span>
@@ -92,7 +83,6 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 		max-width: 1100px;
 	}
 
-	/* Top row */
 	.footer__top {
 		@apply flex flex-col gap-8;
 	}
@@ -111,7 +101,6 @@ const { footerAbout, footerColumns, subFooter } = footerNavigationData
 		@apply space-y-2;
 	}
 
-	/* Bottom row */
 	.footer__bottom {
 		@apply mt-8 flex flex-col items-center justify-between gap-4 border-t border-neutral-200 pt-6 text-xs text-neutral-600
 			dark:border-neutral-800 dark:text-neutral-400

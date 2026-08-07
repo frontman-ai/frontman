@@ -1,6 +1,3 @@
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/LockManager/request)
-*/
 @send
 external request: (
   WebLocksTypes.lockManager,
@@ -8,9 +5,6 @@ external request: (
   ~callback: WebLocksTypes.lockGrantedCallback,
 ) => promise<JSON.t> = "request"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/LockManager/request)
-*/
 @send
 external request2: (
   WebLocksTypes.lockManager,
@@ -19,8 +13,5 @@ external request2: (
   ~callback: WebLocksTypes.lockGrantedCallback,
 ) => promise<JSON.t> = "request"
 
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/LockManager/query)
-*/
 @send
 external query: WebLocksTypes.lockManager => promise<WebLocksTypes.lockManagerSnapshot> = "query"

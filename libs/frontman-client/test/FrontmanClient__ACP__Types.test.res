@@ -211,10 +211,6 @@ describe("ACP Types encoding/decoding", _t => {
   })
 })
 
-// ============================================================================
-// Session Update Parsing Tests
-// ============================================================================
-
 module Fixtures = {
   let makeMessageChunk = (
     ~sessionUpdate: string,

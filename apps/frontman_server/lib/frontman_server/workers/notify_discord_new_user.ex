@@ -1,18 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
-  @moduledoc """
-  Oban worker that posts a new-user signup alert to a Discord webhook.
-
-  Enqueued inside the Ecto.Multi that creates the user, so the job only
-  exists if the user was persisted. Replaces the old PG NOTIFY → GenServer
-  pipeline.
-  """
-
   use Oban.Worker,
     queue: :notifications,
     max_attempts: 3,

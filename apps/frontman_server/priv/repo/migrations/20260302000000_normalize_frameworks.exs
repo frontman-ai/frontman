@@ -1,23 +1,12 @@
 defmodule FrontmanServer.Repo.Migrations.NormalizeFrameworks do
-  @moduledoc """
-  Normalize framework display labels to internal identifiers.
-
-  The framework middleware used to send display labels like "Next.js" which were
-  stored directly in the database. Now we normalize to lowercase identifiers
-  ("nextjs", "vite", "astro") at the channel ingestion boundary, and this
-  migration cleans up existing rows.
-  """
   use Ecto.Migration
 
   def up do
-    # Normalize known display labels to IDs
     execute("UPDATE tasks SET framework = 'nextjs'    WHERE framework = 'Next.js'")
     execute("UPDATE tasks SET framework = 'vite'      WHERE framework = 'Vite'")
     execute("UPDATE tasks SET framework = 'astro'     WHERE framework = 'Astro'")
     execute("UPDATE tasks SET framework = 'wordpress' WHERE framework = 'wordpress'")
 
-    # Verify no unknown frameworks remain — crash the migration if so.
-    # If this fails, investigate what unexpected values exist before proceeding.
     execute("""
     DO $$
     BEGIN

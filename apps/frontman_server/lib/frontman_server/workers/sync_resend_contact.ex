@@ -1,22 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Workers.SyncResendContact do
-  @moduledoc """
-  Oban worker that adds a newly registered user to the Resend Contacts list.
-
-  Enqueued atomically inside the Ecto transaction that creates the user
-  (via `Ecto.Multi`), so the job only exists if the user was persisted.
-
-  Idempotency: uses Oban's unique constraint on `user_id` to guarantee
-  at-most-once sync even if the job is retried. The Resend Contacts API
-  is itself idempotent on email — re-adding an existing contact just
-  updates their info.
-  """
-
   use Oban.Worker,
     queue: :mailers,
     max_attempts: 5,
@@ -32,7 +14,6 @@ defmodule FrontmanServer.Workers.SyncResendContact do
     if enabled?() do
       case Accounts.get_user(user_id) do
         nil ->
-          # User was deleted between enqueue and execution — nothing to do.
           :discard
 
         %User{} = user ->
@@ -74,13 +55,10 @@ defmodule FrontmanServer.Workers.SyncResendContact do
     end
   end
 
-  # Extra Req options — overridden in tests to inject Req.Test as the adapter.
   defp req_options do
     Application.get_env(:frontman_server, :sync_resend_contact_req_options, [])
   end
 
-  # Extract the first word of the full name as first_name, falling back to the
-  # full string if there's no space (or nil if name is nil).
   defp first_name(nil), do: nil
 
   defp first_name(name) do

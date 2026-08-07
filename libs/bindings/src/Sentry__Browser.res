@@ -1,5 +1,3 @@
-// Sentry SDK bindings for browser clients.
-
 module Types = Sentry__Types
 
 type severity = Types.severity

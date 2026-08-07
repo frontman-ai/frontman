@@ -1,25 +1,11 @@
 <?php
-/**
- * WordPress Block tools — read and manipulate Gutenberg blocks within posts.
- *
- * Tools: wp_list_blocks, wp_read_block, wp_update_block, wp_insert_block,
- * wp_move_block, wp_delete_block
- *
- * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
- *
- * @package Frontman
- */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Blocks {
-	/**
-	 * Register all block tools.
-	 */
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_blocks',
@@ -156,9 +142,6 @@ class Frontman_Tool_Blocks {
 		];
 	}
 
-	/**
-	 * Parse all blocks from a post, preserving freeform/null-name content.
-	 */
 	private function get_all_blocks( int $post_id ): array {
 		$post = get_post( $post_id );
 		if ( ! $post ) {
@@ -168,11 +151,6 @@ class Frontman_Tool_Blocks {
 		return parse_blocks( $post->post_content );
 	}
 
-	/**
-	 * Return visible named blocks with their raw indices preserved.
-	 *
-	 * @return array<int, array{path:array, block:array, index?:int}>
-	 */
 	private function get_visible_blocks( int $post_id ): array {
 		$visible = [];
 		$this->append_visible_blocks( $this->get_all_blocks( $post_id ), [], $visible );
@@ -198,9 +176,6 @@ class Frontman_Tool_Blocks {
 		}
 	}
 
-	/**
-	 * Resolve a visible block index to the raw parsed block array.
-	 */
 	private function resolve_visible_block( int $post_id, int $index ): array {
 		$visible = array_values( array_filter( $this->get_visible_blocks( $post_id ), static function( array $entry ) {
 			return 1 === count( $entry['path'] );
@@ -356,16 +331,10 @@ class Frontman_Tool_Blocks {
 		return $path;
 	}
 
-	/**
-	 * Serialize blocks back to post content string.
-	 */
 	private function serialize_blocks( array $blocks ): string {
 		return implode( "\n\n", array_map( 'serialize_block', $blocks ) );
 	}
 
-	/**
-	 * Summarize a block for listing.
-	 */
 	private function summarize_block( array $entry ): array {
 		$summary = [
 			'path'       => $entry['path'],
@@ -379,9 +348,6 @@ class Frontman_Tool_Blocks {
 		return $summary;
 	}
 
-	/**
-	 * wp_list_blocks handler.
-	 */
 	public function list_blocks( array $input ): array {
 		$post_id = absint( $input['post_id'] ?? 0 );
 		$post    = get_post( $post_id );
@@ -403,9 +369,6 @@ class Frontman_Tool_Blocks {
 		];
 	}
 
-	/**
-	 * wp_read_block handler.
-	 */
 	public function read_block( array $input ): array {
 		$post_id = absint( $input['post_id'] ?? 0 );
 		$entry  = $this->resolve_block( $post_id, $input );
@@ -425,9 +388,6 @@ class Frontman_Tool_Blocks {
 		return $result;
 	}
 
-	/**
-	 * wp_update_block handler.
-	 */
 	public function update_block( array $input ): array {
 		$post_id      = absint( $input['post_id'] ?? 0 );
 		$block_markup = $input['block_markup'] ?? '';
@@ -473,9 +433,6 @@ class Frontman_Tool_Blocks {
 		];
 	}
 
-	/**
-	 * wp_insert_block handler.
-	 */
 	public function insert_block( array $input ): array {
 		$post_id      = absint( $input['post_id'] ?? 0 );
 		$block_markup = $input['block_markup'] ?? '';
@@ -532,9 +489,6 @@ class Frontman_Tool_Blocks {
 		];
 	}
 
-	/**
-	 * wp_move_block handler.
-	 */
 	public function move_block( array $input ): array {
 		$post_id    = absint( $input['post_id'] ?? 0 );
 		$to_index   = absint( $input['to_index'] ?? 0 );
@@ -596,9 +550,6 @@ class Frontman_Tool_Blocks {
 		];
 	}
 
-	/**
-	 * wp_delete_block handler.
-	 */
 	public function delete_block( array $input ): array {
 		$post_id = absint( $input['post_id'] ?? 0 );
 		$post    = get_post( $post_id );
@@ -641,5 +592,3 @@ class Frontman_Tool_Blocks {
 		];
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

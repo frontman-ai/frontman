@@ -1,12 +1,4 @@
 defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
-  @moduledoc """
-  Tests Swarm execution event Sentry reporting for agent execution failures.
-
-  Tests Gap 3 from issue #474:
-  - Failed event triggers Sentry report at :error level
-  - Stream-consumption errors are reported as failed executions, not crashes
-  """
-
   use ExUnit.Case, async: false
 
   import FrontmanServer.InteractionCase.Helpers,

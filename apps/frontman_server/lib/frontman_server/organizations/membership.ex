@@ -1,14 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Organizations.Membership do
-  @moduledoc """
-  Schema for organization memberships - the join between users and organizations with role.
-  """
-
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
@@ -26,8 +16,6 @@ defmodule FrontmanServer.Organizations.Membership do
 
     timestamps(type: :utc_datetime)
   end
-
-  # Queries
 
   def for_organization(query \\ __MODULE__, organization_id) do
     from m in query, where: m.organization_id == ^organization_id

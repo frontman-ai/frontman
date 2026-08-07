@@ -1,15 +1,4 @@
 #!/bin/bash
-# wt-resolve — Resolve branch to worktree hash, container name, and pod name.
-#
-# Validates that the target resource (pod or container) exists.
-#
-# Usage:
-#   bin/wt-resolve pod        — prints POD name, exits 1 if missing
-#   bin/wt-resolve container  — prints CONTAINER name, exits 1 if missing
-#   bin/wt-resolve hash       — prints 4-char hash only (no validation)
-#
-# Environment:
-#   BRANCH (required) — branch name to resolve
 
 set -euo pipefail
 

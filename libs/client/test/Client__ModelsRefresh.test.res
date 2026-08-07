@@ -4,7 +4,6 @@ module Reducer = Client__State__StateReducer
 module Types = Client__State__Types
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-// Dummy callbacks for AcpSessionActive (reducer only checks the variant, not the callbacks)
 let _dummySendPrompt: Types.sendPromptFn = (
   _,
   ~additionalBlocks as _,
@@ -18,7 +17,6 @@ let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 
 let _apiBaseUrl = "http://localhost:4000"
 
-// Helper: base state with an active ACP session (needed to emit effects)
 let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
   {
     tasks: Dict.make(),
@@ -54,12 +52,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
   }
 }
 
-// ============================================================================
-// Sample ACP SessionConfigOption data (replaces old providerConfig/modelsConfig)
-// ============================================================================
-
 module SampleConfig = {
-  // Helper to build a grouped model config option
   let _makeModelConfigOption = (
     ~groups: array<ACP.sessionConfigSelectGroup>,
   ): ACP.sessionConfigOption => {

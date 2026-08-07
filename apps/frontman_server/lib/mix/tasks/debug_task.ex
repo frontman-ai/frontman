@@ -1,48 +1,5 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule Mix.Tasks.DebugTask do
   @shortdoc "Debug task interactions from the database"
-  @moduledoc """
-  Query tasks and interactions for debugging agent behavior.
-
-  ## Usage
-
-      # List recent tasks with error counts
-      mix debug_task list
-      mix debug_task list --limit 10
-
-      # Show all interactions for the most recent task
-      mix debug_task show
-
-      # Show a specific task by full UUID or prefix (min 8 chars)
-      mix debug_task show 3f5167ad
-      mix debug_task show 3f5167ad-56e7-45d3-ba95-6b8aba383d8f
-
-      # Filter by errors only
-      mix debug_task show --errors
-
-      # Filter by tool name
-      mix debug_task show --tool edit_file
-
-      # Filter by interaction type
-      mix debug_task show --type tool_call
-
-      # Show full detail for a specific interaction by sequence number
-      mix debug_task show --seq 280
-
-      # Combine filters
-      mix debug_task show --tool edit_file --errors
-
-  ## Interaction types
-
-  user_message, agent_response, tool_call, tool_result,
-  agent_completed, discovered_project_rule,
-  discovered_project_structure
-  """
 
   use Boundary, classify_to: FrontmanServer.Tasks
   use Mix.Task
@@ -62,7 +19,6 @@ defmodule Mix.Tasks.DebugTask do
   @discovered_project_rule_type :discovered_project_rule
   @discovered_project_structure_type :discovered_project_structure
 
-  # ANSI helpers
   defp cyan(text), do: IO.ANSI.cyan() <> text <> IO.ANSI.reset()
   defp red(text), do: IO.ANSI.red() <> text <> IO.ANSI.reset()
   defp bold(text), do: IO.ANSI.bright() <> text <> IO.ANSI.reset()
@@ -103,8 +59,6 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  # ── list ──────────────────────────────────────────────────────
-
   defp cmd_list(opts) do
     limit = Keyword.get(opts, :limit, 10)
 
@@ -135,8 +89,6 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  # ── show ──────────────────────────────────────────────────────
-
   defp cmd_show(positional, opts) do
     task = resolve_task_from_args(positional)
 
@@ -154,8 +106,6 @@ defmodule Mix.Tasks.DebugTask do
       show_list(task.id, opts)
     end
   end
-
-  # ── show_list ─────────────────────────────────────────────────
 
   defp show_list(task_id, opts) do
     limit = Keyword.get(opts, :limit, 100)
@@ -176,8 +126,6 @@ defmodule Mix.Tasks.DebugTask do
 
     Mix.shell().info("\n#{dim("  Tip: --seq NUMBER for full detail on any interaction")}")
   end
-
-  # ── show_detail ───────────────────────────────────────────────
 
   defp show_detail(task_id, seq) do
     interaction =
@@ -200,12 +148,10 @@ defmodule Mix.Tasks.DebugTask do
 
         Mix.shell().info(format_json(data))
 
-        # For error tool_results, show the originating tool_call
         if i.type == @tool_result_type and is_error do
           show_originating_call(task_id, data["tool_call_id"])
         end
 
-        # For tool_results, always show the originating call if not an error too
         if i.type == @tool_result_type and not is_error and data["tool_call_id"] do
           show_originating_call(task_id, data["tool_call_id"])
         end
@@ -291,8 +237,6 @@ defmodule Mix.Tasks.DebugTask do
 
   defp decode_embedded_tool_arguments(arguments), do: arguments
 
-  # ── query filters ─────────────────────────────────────────────
-
   defp apply_filters(query, opts) do
     query
     |> maybe_filter_errors(opts[:errors])
@@ -321,10 +265,7 @@ defmodule Mix.Tasks.DebugTask do
     where(query, [i], fragment("?->>'tool_name' = ?", i.data, ^tool))
   end
 
-  # ── task resolution ───────────────────────────────────────────
-
   defp resolve_task_from_args([]) do
-    # No task specified — use the most recent
     task =
       TaskSchema
       |> TaskSchema.ordered_by_updated()
@@ -340,7 +281,6 @@ defmodule Mix.Tasks.DebugTask do
 
   defp resolve_task(id) do
     cond do
-      # Full UUID
       String.match?(id, ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ->
         TaskSchema
         |> TaskSchema.by_id(id)
@@ -350,7 +290,6 @@ defmodule Mix.Tasks.DebugTask do
           task -> task
         end
 
-      # Prefix (at least 8 hex chars)
       String.match?(id, ~r/^[0-9a-f]{8,}$/i) ->
         like_pattern = "#{String.downcase(id)}%"
 
@@ -381,8 +320,6 @@ defmodule Mix.Tasks.DebugTask do
         )
     end
   end
-
-  # ── formatting helpers ────────────────────────────────────────
 
   defp print_interaction_line(i) do
     seq_str = String.pad_leading(to_string(i.sequence || 0), 6)
@@ -561,8 +498,6 @@ defmodule Mix.Tasks.DebugTask do
     id |> String.split("-") |> hd()
   end
 
-  # Start only the Repo (and its dependencies) instead of the full app.
-  # This avoids needing Vault/CLOAK_KEY, WorkOS, Phoenix, etc.
   defp ensure_repo_started do
     {:ok, _} = Application.ensure_all_started(:postgrex)
     {:ok, _} = Application.ensure_all_started(:ecto_sql)

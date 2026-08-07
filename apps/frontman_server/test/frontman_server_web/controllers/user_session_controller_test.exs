@@ -13,7 +13,6 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       conn = get(conn, ~p"/users/log-in")
       response = html_response(conn, 200)
       assert response =~ "Sign in to Frontman"
-      # OAuth-only login now - shows GitHub and Google options
       assert response =~ "Login with GitHub"
       assert response =~ "Login with Google"
     end
@@ -52,8 +51,6 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
     end
 
     test "redirects to home when already logged in", %{conn: conn, user: user} do
-      # The login route has redirect_if_user_is_authenticated plug,
-      # so authenticated users are redirected away from the login page
       conn =
         conn
         |> log_in_user(user)
@@ -232,9 +229,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   describe "GET /users/log-out" do
     test "renders a confirmation page instead of directly logging out", %{conn: conn, user: user} do
       conn = conn |> log_in_user(user) |> get(~p"/users/log-out")
-      # GET should render the interstitial page, NOT destroy the session
       assert html_response(conn, 200) =~ "Signing out"
-      # Session should still be intact — only DELETE destroys it
       assert get_session(conn, :user_token)
     end
 

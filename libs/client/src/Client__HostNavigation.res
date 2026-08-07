@@ -1,6 +1,3 @@
-// Navigate the host page, escaping an embedding iframe when needed.
-// This keeps hosted auth flows working in shells like WordPress Playground.
-
 let useTopWindow = (~currentWindow: WebAPI.DOMAPI.window, ~topWindow: WebAPI.DOMAPI.window): bool =>
   currentWindow !== topWindow
 

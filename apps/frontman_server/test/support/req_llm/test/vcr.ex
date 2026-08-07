@@ -1,71 +1,14 @@
 defmodule ReqLLM.Test.VCR do
-  @moduledoc """
-  Record and replay HTTP transcripts for fixture-based testing.
-
-  Test-only module that combines recording (from live API calls) and
-  playback (from cached fixtures) in a unified interface. Uses the
-  Transcript format for storage.
-
-  ## Recording
-
-      :ok = VCR.record(path,
-        provider: provider,
-        model: model,
-        request: request,
-        response: response,
-        body: body
-      )
-
-  ## Playback
-
-      # Read transcript
-      {:ok, transcript} = VCR.load(path)
-
-      # Replay as single body
-      body = VCR.replay_body(transcript)
-
-      # Replay as stream
-      stream = VCR.replay_stream(transcript)
-  """
-
   alias ReqLLM.Test.Transcript
 
-  @doc """
-  Load a transcript from a fixture file.
-
-  ## Examples
-
-      {:ok, transcript} = VCR.load("test/fixtures/openai/basic.json")
-      {:error, :enoent} = VCR.load("nonexistent.json")
-  """
   def load(path) do
     {:ok, Transcript.read!(path)}
   rescue
     e -> {:error, e}
   end
 
-  @doc """
-  Load a transcript from a fixture file, raising on error.
-
-  ## Examples
-
-      transcript = VCR.load!("test/fixtures/openai/basic.json")
-  """
   def load!(path), do: Transcript.read!(path)
 
-  @doc """
-  Record a transcript from a response body.
-
-  ## Examples
-
-      :ok = VCR.record("fixtures/response.json",
-        provider: :openai,
-        model: "gpt-4",
-        request: %{method: "POST", url: "...", headers: [], canonical_json: %{}},
-        response: %{status: 200, headers: []},
-        body: ~s({"content": "Hello"})
-      )
-  """
   def record(path, opts) do
     provider = Keyword.fetch!(opts, :provider)
     model = Keyword.fetch!(opts, :model)
@@ -98,45 +41,14 @@ defmodule ReqLLM.Test.VCR do
     e -> {:error, e}
   end
 
-  @doc """
-  Replay a transcript as a single concatenated body.
-
-  Joins all :data events into a single binary.
-
-  ## Examples
-
-      transcript = VCR.load!("fixtures/response.json")
-      body = VCR.replay_body(transcript)
-  """
   def replay_body(%Transcript{} = transcript) do
     Transcript.joined_data(transcript)
   end
 
-  @doc """
-  Replay a transcript as a stream of data chunks.
-
-  Returns an Enumerable that yields each :data event's binary content.
-
-  ## Examples
-
-      transcript = VCR.load!("fixtures/stream.json")
-      stream = VCR.replay_stream(transcript)
-
-      Enum.each(stream, fn chunk ->
-        IO.puts("Received: \#{chunk}")
-      end)
-  """
   def replay_stream(%Transcript{} = transcript) do
     Stream.map(Transcript.data_chunks(transcript), & &1)
   end
 
-  @doc """
-  Get the HTTP status code from a transcript.
-
-  ## Examples
-
-      status = VCR.status(transcript)  # => 200
-  """
   def status(%Transcript{events: events}) do
     case Enum.find(events, &match?({:status, _}, &1)) do
       {:status, code} -> code
@@ -144,13 +56,6 @@ defmodule ReqLLM.Test.VCR do
     end
   end
 
-  @doc """
-  Get the HTTP headers from a transcript.
-
-  ## Examples
-
-      headers = VCR.headers(transcript)
-  """
   def headers(%Transcript{events: events}) do
     case Enum.find(events, &match?({:headers, _}, &1)) do
       {:headers, h} -> h
@@ -158,30 +63,6 @@ defmodule ReqLLM.Test.VCR do
     end
   end
 
-  @doc """
-  Replay streaming fixture into an existing StreamServer.
-
-  Used by FinchClient to feed fixture data directly into StreamServer
-  instead of making real HTTP calls. Feeds chunks asynchronously in a Task
-  to mimic HTTP streaming behavior.
-
-  ## Parameters
-
-  - `path` - Absolute path to fixture Transcript JSON file
-  - `stream_server_pid` - PID of the StreamServer to feed chunks into
-
-  ## Returns
-
-  `{:ok, task_pid}` - Task that feeds the chunks
-
-  ## Examples
-
-      {:ok, task_pid} =
-        VCR.replay_into_stream_server(
-          "test/support/fixtures/anthropic/text_generation/basic/model/stream.json",
-          stream_server_pid
-        )
-  """
   def replay_into_stream_server(path, stream_server_pid) do
     transcript = load!(path)
 
@@ -231,30 +112,10 @@ defmodule ReqLLM.Test.VCR do
     ]
   end
 
-  @doc """
-  Check if a transcript represents streaming data.
-
-  ## Examples
-
-      {:ok, transcript} = VCR.load("fixtures/stream.json")
-      VCR.streaming?(transcript)  # => true
-  """
   def streaming?(%Transcript{} = transcript) do
     Transcript.streaming?(transcript)
   end
 
-  @doc """
-  Replay a transcript as a raw response body (JSON decoded).
-
-  For non-streaming fixtures, decodes the single data event as JSON.
-  Useful for Step API compatibility.
-
-  ## Examples
-
-      {:ok, transcript} = VCR.load("fixtures/response.json")
-      body = VCR.replay_response_body(transcript)
-      # => %{"content" => [...], "model" => "..."}
-  """
   def replay_response_body(%Transcript{} = transcript) do
     if Transcript.streaming?(transcript) do
       raise ArgumentError, """
@@ -268,17 +129,6 @@ defmodule ReqLLM.Test.VCR do
     |> Jason.decode!()
   end
 
-  @doc """
-  Replay a transcript as a stream for Step API.
-
-  Returns a Stream that yields decoded provider response chunks.
-  Used by the legacy Step API for compatibility.
-
-  ## Examples
-
-      {:ok, transcript} = VCR.load("fixtures/stream.json")
-      stream = VCR.replay_as_stream(transcript, provider_mod, model)
-  """
   def replay_as_stream(%Transcript{} = transcript, provider_mod, model) do
     alias ReqLLM.StreamServer
 
@@ -295,13 +145,11 @@ defmodule ReqLLM.Test.VCR do
         model: model
       )
 
-    # Feed transcript events to server
     Task.async(fn ->
       Process.sleep(10)
       feed_transcript_to_server(server, transcript)
     end)
 
-    # Return stream from server
     Stream.resource(
       fn -> server end,
       fn server ->

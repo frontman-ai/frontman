@@ -1,46 +1,9 @@
 defmodule SwarmAi.Testing do
-  @moduledoc """
-  Test helpers for SwarmAi execution tests.
-
-  Provides common fixtures, loops, and LLM mocks.
-
-  ## Usage
-
-      use SwarmAi.Testing, async: true
-
-      @tag echo_execution: true
-      test "runs loop", %{echo_execution: loop} do
-        runtime = MyRuntime
-        start_supervised!({SwarmAi, name: runtime})
-        loop = %{loop | task_id: "task", messages: [SwarmAi.Message.user("Hello")]}
-        {:ok, pid} = SwarmAi.run(runtime, loop)
-        assert is_pid(pid)
-      end
-
-  ## Available fixtures
-
-  All fixtures are opt-in via setup tags:
-
-  - `:echo_execution` - Loop with EchoLLM that echoes back messages
-  - `:error_execution` - Loop with ErrorLLM that returns errors
-  - `:mock_llm` - Configurable MockLLM (use `mock_llm: response`)
-  """
-
   use ExUnit.CaseTemplate
 
   alias SwarmAi.LLM
 
   defmodule MockLLM do
-    @moduledoc """
-    Configurable mock LLM for testing.
-
-    Configure response via struct:
-    - `response: "text"` - Returns text response
-    - `response: {:error, reason}` - Returns error
-    - `response: fn -> ... end` - Calls function for dynamic behavior
-    - `delay_ms: integer` - Adds delay before response
-    - `model: string` - Model name for telemetry
-    """
     @type t :: %__MODULE__{
             response: term(),
             delay_ms: non_neg_integer(),
@@ -111,9 +74,6 @@ defmodule SwarmAi.Testing do
   end
 
   defmodule EchoLLM do
-    @moduledoc """
-    LLM that echoes the user message with "Echo: " prefix.
-    """
     defstruct model: "echo"
   end
 
@@ -136,9 +96,6 @@ defmodule SwarmAi.Testing do
   end
 
   defmodule ErrorLLM do
-    @moduledoc """
-    LLM that always returns an error.
-    """
     defstruct error: :llm_error, model: "error"
   end
 
@@ -147,22 +104,11 @@ defmodule SwarmAi.Testing do
   end
 
   defmodule StreamErrorLLM do
-    @moduledoc """
-    LLM that returns a stream which raises mid-consumption.
-
-    Simulates the real LLMClient behavior when ReqLLM emits an error chunk
-    inside the stream (e.g., HTTP 400 for oversized images). The raise
-    propagates through Task -> death watcher -> PubSub.
-
-    Unlike ErrorLLM (which fails at the stream/3 return level), this mock
-    returns {:ok, stream} and the error only surfaces when the stream is consumed.
-    """
     defstruct error_message: "LLM API error", model: "stream-error"
   end
 
   defimpl SwarmAi.LLM, for: SwarmAi.Testing.StreamErrorLLM do
     def stream(%{error_message: message}, _messages, _opts) do
-      # Return a lazy stream that raises when consumed.
       error_stream =
         Stream.resource(
           fn -> :init end,
@@ -175,12 +121,6 @@ defmodule SwarmAi.Testing do
   end
 
   defmodule StallingLLM do
-    @moduledoc """
-    LLM that delivers N chunks then hangs forever.
-
-    Simulates an LLM provider that silently stalls mid-stream (no chunks,
-    no TCP error). Used to test StreamStallTimeout detection.
-    """
     defstruct chunks_before_stall: 2, model: "stalling"
   end
 
@@ -196,7 +136,6 @@ defmodule SwarmAi.Testing do
               {[StreamChunk.text("chunk-#{count}")], count + 1}
 
             _count ->
-              # Hang forever to simulate a stalled provider.
               Process.sleep(:infinity)
               {:halt, nil}
           end,
@@ -208,17 +147,6 @@ defmodule SwarmAi.Testing do
   end
 
   defmodule StreamTimeoutLLM do
-    @moduledoc """
-    LLM that returns a stream which exits with a GenServer.call timeout
-    during consumption.
-
-    Simulates the real scenario where the LLM provider stalls mid-stream:
-    `StreamServer.next/2` issues a `GenServer.call` with a timeout slightly
-    above Finch's `receive_timeout`. Under load the Finch timeout can take
-    longer than that buffer to propagate, so the GenServer.call timeout
-    fires first and exits the consumer process with
-    `{:timeout, {GenServer, :call, [server, msg, timeout]}}`.
-    """
     defstruct timeout: 151_000, model: "stream-timeout"
   end
 
@@ -290,9 +218,6 @@ defmodule SwarmAi.Testing do
 
   defp maybe_add_error_execution(context), do: context
 
-  @doc """
-  Creates a test execution with the given LLM client.
-  """
   @spec test_execution(SwarmAi.LLM.t(), String.t(), keyword()) :: SwarmAi.Loop.t()
   def test_execution(llm, name \\ "TestBot", opts \\ []) do
     defaults = [
@@ -342,24 +267,11 @@ defmodule SwarmAi.Testing do
   @spec default_tool_timeout(SwarmAi.ToolCall.t(), term()) :: :ok
   def default_tool_timeout(_tool_call, _reason), do: :ok
 
-  @doc """
-  Creates a mock LLM with the given response.
-  """
   @spec mock_llm(term(), keyword()) :: MockLLM.t()
   def mock_llm(response, opts \\ []) do
     struct!(MockLLM, [{:response, response} | opts])
   end
 
-  @doc """
-  Creates a multi-turn LLM that returns tool calls first, then completes.
-
-  ## Example
-
-      llm = multi_turn_llm([
-        {:tool_calls, [%ToolCall{...}], "Let me check"},
-        {:complete, "Here's the result"}
-      ])
-  """
   @spec multi_turn_llm([
           {:tool_calls, [SwarmAi.ToolCall.t()], String.t()}
           | {:complete, String.t()}
@@ -402,9 +314,6 @@ defmodule SwarmAi.Testing do
     }
   end
 
-  @doc """
-  Creates an LLM that returns tool calls on first call, then a final response.
-  """
   @spec tool_then_complete_llm([SwarmAi.ToolCall.t()], String.t()) :: MockLLM.t()
   def tool_then_complete_llm(tool_calls, final_response) do
     multi_turn_llm([
@@ -413,14 +322,6 @@ defmodule SwarmAi.Testing do
     ])
   end
 
-  @doc """
-  Creates a ToolCall fixture with the given name and arguments.
-
-  ## Examples
-
-      tool_call("get_weather", %{"city" => "NYC"})
-      tool_call("list_files", %{}, id: "call_123")
-  """
   @spec tool_call(String.t(), map(), keyword()) :: SwarmAi.ToolCall.t()
   def tool_call(name, args \\ %{}, opts \\ []) do
     id = Keyword.get(opts, :id, "tc_#{:erlang.unique_integer([:positive])}")
@@ -432,17 +333,6 @@ defmodule SwarmAi.Testing do
     }
   end
 
-  @doc """
-  Creates a ToolResult fixture.
-
-  Accepts either a ToolCall struct or a tool call ID string.
-
-  ## Examples
-
-      tc = tool_call("get_weather")
-      tool_result(tc, "Sunny, 22°C")
-      tool_result("call_123", "Error: not found", true)
-  """
   @spec tool_result(SwarmAi.ToolCall.t() | String.t(), term(), boolean()) ::
           SwarmAi.ToolResult.t()
   def tool_result(id_or_tool_call, content, is_error \\ false)

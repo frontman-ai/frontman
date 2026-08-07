@@ -1,7 +1,4 @@
 ---
-// /compare — Master Comparison Hub
-// Pillar page for "AI coding tools comparison" queries
-// Links to all individual /vs/ pages, provides the full matrix view
 
 import Layout from '../layouts/Layout.astro'
 import Button from '../components/ui/Button.astro'
@@ -12,7 +9,6 @@ const SEO = {
 		'Side-by-side matrix of 6 AI coding tools: Frontman, Cursor, Claude Code, Copilot, Windsurf, Stagewise. Features, pricing, BYOK support, and architecture compared.'
 }
 
-// Master comparison matrix data
 type ToolStatus = 'yes' | 'no' | 'partial' | 'n/a'
 
 type Tool = {
@@ -103,7 +99,6 @@ const matrixFeatures: MatrixFeature[] = [
 	},
 ]
 
-// Pricing data
 const pricing = [
 	{ name: 'Frontman', price: 'Free', model: 'Source-available, BYOK', detail: 'You pay your LLM provider only' },
 	{ name: 'Cursor', price: '$0–$200/mo', model: 'Freemium', detail: 'Free tier limited; Pro $20/mo' },
@@ -113,7 +108,6 @@ const pricing = [
 	{ name: 'Stagewise', price: 'Free–$20/mo', model: 'Freemium', detail: 'Free: 10 prompts/day' },
 ]
 
-// FAQ data
 const faqs = [
 	{
 		question: 'What makes Frontman different from all these tools?',
@@ -177,7 +171,6 @@ const linkCardClass =
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Hero -->
 	<section class="flex justify-center bg-[#09090b] px-5 pb-12 pt-20 text-zinc-50 md:px-6 md:pb-12 max-md:pt-12">
 		<div class="w-full max-w-[800px]">
 			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-primary-500">Comparison</p>
@@ -193,7 +186,6 @@ const linkCardClass =
 		</div>
 	</section>
 
-	<!-- Quick Category Overview -->
 	<section class="flex justify-center bg-[#09090b] px-5 pb-16 pt-12 md:px-6 md:pt-12">
 		<div class="w-full max-w-[1000px]">
 			<h2 class={darkSectionTitleClass}>Tool Categories</h2>
@@ -240,7 +232,6 @@ const linkCardClass =
 		</div>
 	</section>
 
-	<!-- Full Feature Matrix -->
 	<section class="flex justify-center bg-[#09090b] px-5 py-16 md:px-6">
 		<div class="w-full max-w-[1100px]">
 			<h2 class={darkSectionTitleClass}>Full Feature Matrix</h2>
@@ -300,7 +291,6 @@ const linkCardClass =
 		</div>
 	</section>
 
-	<!-- Pricing Comparison -->
 	<section class="flex justify-center bg-zinc-50 px-5 py-16 text-zinc-950 md:px-6">
 		<div class="w-full max-w-[1000px]">
 			<h2 class={lightSectionTitleClass}>Pricing at a Glance</h2>
@@ -336,7 +326,6 @@ const linkCardClass =
 		</div>
 	</section>
 
-	<!-- Individual Comparison Links -->
 	<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
 		<div class="w-full max-w-[800px]">
 			<h2 class={darkSectionTitleClass}>Detailed Comparisons</h2>
@@ -356,7 +345,6 @@ const linkCardClass =
 		</div>
 	</section>
 
-	<!-- FAQ -->
 	<section class="flex justify-center bg-zinc-50 px-5 py-16 text-zinc-950 md:px-6">
 		<div class="w-full max-w-[800px]">
 			<h2 class={lightSectionTitleClass}>Frequently Asked Questions</h2>
@@ -378,7 +366,6 @@ const linkCardClass =
 		</div>
 	</section>
 
-	<!-- Related -->
 	<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
 		<div class="w-full max-w-[800px]">
 			<p class="m-0 text-[17px] leading-[1.7] text-zinc-300">
@@ -387,7 +374,6 @@ const linkCardClass =
 		</div>
 	</section>
 
-	<!-- CTA -->
 	<section class="flex justify-center border-t border-zinc-800 bg-[#09090b] px-5 py-20 text-zinc-50 md:px-6 max-md:py-12">
 		<div class="w-full max-w-[720px]">
 			<h2 class="mb-2 text-[28px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[36px]">Try Frontman</h2>

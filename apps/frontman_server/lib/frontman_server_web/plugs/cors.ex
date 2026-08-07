@@ -1,21 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServerWeb.Plugs.CORS do
-  @moduledoc """
-  CORS plug for cross-origin API requests.
-
-  When used at the endpoint level, handles OPTIONS preflight requests
-  before they reach the router.
-
-  ## Options
-
-    * `:path_prefix` - Only apply CORS to paths starting with this prefix.
-      Defaults to "/api".
-  """
   import Plug.Conn
 
   def init(opts), do: opts

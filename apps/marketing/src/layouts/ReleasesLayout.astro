@@ -25,7 +25,6 @@ const wordCount = body
 			.filter(Boolean).length
 	: undefined
 
-// WebPage JSON-LD with dateModified for freshness signals
 const webPageJsonLd = {
 	'@context': 'https://schema.org',
 	'@type': 'WebPage',
@@ -50,7 +49,6 @@ const webPageJsonLd = {
 	}
 }
 
-// FAQPage JSON-LD (optional)
 const faqJsonLd = frontmatter.faq?.length
 	? {
 			'@context': 'https://schema.org',

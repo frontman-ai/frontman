@@ -195,7 +195,6 @@ defmodule SwarmAi.TelemetryTest do
       handler_id,
       TelemetryEvents.all(),
       fn event, measurements, metadata, _config ->
-        # Capture only current-process events to avoid async test interference.
         if self() == test_pid do
           :ets.insert(events, {event, measurements, metadata})
         end

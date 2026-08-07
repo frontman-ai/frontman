@@ -1,6 +1,4 @@
 defmodule SwarmAi.Message.Tool do
-  @moduledoc "Tool result message returned to the LLM."
-
   use TypedStruct
   alias SwarmAi.Message.ContentPart
 

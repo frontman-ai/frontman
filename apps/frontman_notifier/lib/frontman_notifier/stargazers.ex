@@ -1,8 +1,4 @@
 defmodule FrontmanNotifier.Stargazers do
-  @moduledoc """
-  Detects new repository stargazers and posts enriched Discord messages.
-  """
-
   require Logger
 
   alias FrontmanNotifier.Config

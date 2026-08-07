@@ -1,9 +1,3 @@
-/**
- * @license MIT
- * topbar 3.0.0
- * http://buunguyen.github.io/topbar
- * Copyright (c) 2024 Buu Nguyen
- */
 (function (window, document) {
   "use strict";
 
@@ -34,7 +28,7 @@
     },
     repaint = function () {
       canvas.width = window.innerWidth;
-      canvas.height = options.barThickness * 5; // need space for shadow
+      canvas.height = options.barThickness * 5;
 
       var ctx = canvas.getContext("2d");
       ctx.shadowBlur = options.shadowBlur;

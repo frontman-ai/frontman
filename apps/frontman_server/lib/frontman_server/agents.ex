@@ -1,14 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Agents do
-  @moduledoc """
-  Product agent catalog boundary.
-  """
-
   use Boundary,
     deps: [FrontmanServer, FrontmanServer.Accounts, FrontmanServer.Frameworks],
     exports: [Agent]
@@ -24,7 +14,6 @@ defmodule FrontmanServer.Agents do
     |> resolve_catalog!()
   end
 
-  @doc "Asserts the current global catalog and referenced agent IDs."
   def resolve_catalog!(active_agents, referenced_agent_ids \\ [])
       when is_list(active_agents) and is_list(referenced_agent_ids) do
     agent_ids = agent_ids!(active_agents)

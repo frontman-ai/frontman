@@ -1,6 +1,3 @@
-# =============================================================================
-# Build stage — prebuilt Erlang+Elixir, no compilation from source
-# =============================================================================
 FROM hexpm/elixir:1.20.0-erlang-29.0.1-debian-bookworm-20260518-slim AS builder
 
 RUN apt-get update -y && \
@@ -8,20 +5,16 @@ RUN apt-get update -y && \
     libssl-dev libncurses-dev && \
     apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# Install Node.js (for ReScript/JS build steps)
 ARG NODE_VERSION=24.4.1
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# Install Yarn via corepack
 RUN corepack enable
 
 WORKDIR /app
 
-# ---------- JS dependencies (monorepo root) ----------
 COPY package.json yarn.lock .yarnrc.yml ./
-# Copy workspace package.json files so Yarn can resolve the workspace graph
 COPY apps/frontman_server/assets/package.json apps/frontman_server/assets/package.json
 COPY libs/bindings/package.json libs/bindings/
 COPY libs/client/package.json libs/client/
@@ -39,13 +32,11 @@ COPY test/sites/blog-starter/package.json test/sites/blog-starter/
 
 RUN yarn install --immutable
 
-# ---------- ReScript build ----------
 COPY rescript.json rescript.json
 COPY libs/ libs/
 
 RUN yarn rescript clean && yarn rescript build
 
-# ---------- Elixir dependencies ----------
 ENV MIX_ENV="prod"
 
 COPY apps/frontman_server/mix.exs apps/frontman_server/mix.lock apps/frontman_server/
@@ -56,15 +47,12 @@ RUN mix local.hex --force && \
     mix local.rebar --force && \
     mix deps.get --only $MIX_ENV
 
-# Copy compile-time config before compiling deps to ensure config
-# changes trigger recompilation
 RUN mkdir -p config
 COPY apps/frontman_server/config/config.exs apps/frontman_server/config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
 RUN mix tailwind.install --if-missing && mix esbuild.install --if-missing
 
-# ---------- Compile application ----------
 COPY apps/frontman_server/priv priv
 COPY apps/frontman_server/lib lib
 RUN mix compile --warnings-as-errors --all-warnings
@@ -75,15 +63,11 @@ RUN mix tailwind frontman_server --minify && \
     mix esbuild browser_test --minify && \
     mix phx.digest
 
-# runtime.exs doesn't require recompiling the code
 COPY apps/frontman_server/config/runtime.exs config/
 
 COPY apps/frontman_server/rel rel
 RUN mix release
 
-# =============================================================================
-# Runtime stage — slim, no build tools
-# =============================================================================
 FROM debian:bookworm-slim
 
 RUN apt-get update -y && \

@@ -1,6 +1,3 @@
-// Middleware factory for Next.js
-// Thin wrapper around shared core middleware
-
 module Core = FrontmanAiFrontmanCore
 module CoreMiddleware = Core.FrontmanCore__Middleware
 module CoreMiddlewareConfig = Core.FrontmanCore__MiddlewareConfig
@@ -10,7 +7,6 @@ module LogCapture = FrontmanNextjs__LogCapture
 
 type config = Config.t
 
-// Convert Next.js config to core middleware config
 let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   projectRoot: config.projectRoot,
   sourceRoot: config.sourceRoot,
@@ -24,7 +20,6 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   traits: ["react", "typescript"],
 }
 
-// Create middleware from a config input object (applies defaults)
 let createMiddleware = (configInput: Config.jsConfigInput) => {
   let config = Config.makeFromObject(configInput)
   let middlewareConfig = toMiddlewareConfig(config)

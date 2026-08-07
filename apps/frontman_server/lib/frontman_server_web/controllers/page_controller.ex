@@ -1,16 +1,6 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServerWeb.PageController do
   use FrontmanServerWeb, :controller
 
-  # In production, the root URL (api.frontman.sh) redirects to the marketing site.
-  # In dev, redirect unauthenticated visitors to the sign-in page.
-  # Authenticated users in dev see a simple "you're signed in" page
-  # (avoids redirect loop with signed_in_path -> / -> /users/log-in).
   def home(conn, _params) do
     if Application.get_env(:frontman_server, :dev_routes) do
       if conn.assigns[:current_scope] do

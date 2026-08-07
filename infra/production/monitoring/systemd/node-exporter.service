@@ -17,7 +17,6 @@ ExecStart=/usr/local/bin/node_exporter \
 Restart=on-failure
 RestartSec=5
 
-# Security hardening
 NoNewPrivileges=yes
 ProtectHome=yes
 

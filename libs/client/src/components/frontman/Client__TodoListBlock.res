@@ -1,18 +1,10 @@
-/**
- * TodoListBlock - Renders a TODO list within the chat stream
- * 
- * Shows todos in a compact inline format with status icons and content.
- * Completed/cancelled items have strikethrough text.
- */
 module Icons = Client__ToolIcons
 module TodoUtils = Client__TodoUtils
 
 @react.component
 let make = (~todos: array<TodoUtils.todoItem>, ~isLoading: bool=false, ~messageId as _: string) => {
-  // For single todo, show ultra-compact inline format
   let isSingleTodo = Array.length(todos) == 1
 
-  // Get icon and colors based on status
   let getStatusIcon = (status: [#pending | #in_progress | #completed | #cancelled]) => {
     switch status {
     | #pending => (
@@ -33,7 +25,6 @@ let make = (~todos: array<TodoUtils.todoItem>, ~isLoading: bool=false, ~messageI
     }
   }
 
-  // Render a compact todo item inline
   let renderCompactTodo = (todo: TodoUtils.todoItem) => {
     let (icon, iconColor) = getStatusIcon(todo.status)
     let isDone = todo.status == #completed || todo.status == #cancelled
@@ -50,7 +41,6 @@ let make = (~todos: array<TodoUtils.todoItem>, ~isLoading: bool=false, ~messageI
     </div>
   }
 
-  // For single todo or loading, show ultra-compact single line
   if isSingleTodo && !isLoading {
     let todo = todos->Array.getUnsafe(0)
     <div
@@ -59,7 +49,6 @@ let make = (~todos: array<TodoUtils.todoItem>, ~isLoading: bool=false, ~messageI
       {renderCompactTodo(todo)}
     </div>
   } else if Array.length(todos) > 0 {
-    // Multiple todos - show compact list
     <div
       className="bg-zinc-800 border border-zinc-700 rounded-md my-1 animate-in fade-in duration-100 overflow-hidden"
     >

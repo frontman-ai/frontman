@@ -1,13 +1,5 @@
 #!/usr/bin/env node
 
-/**
- * Blog cover image generator using Satori + Sharp.
- *
- * Usage:
- *   node scripts/generate-blog-cover.mjs "Your Blog Title Here" [output-filename]
- *
- * Output lands in public/blog/<output-filename>.png (defaults to slugified title).
- */
 
 import satori from "satori";
 import sharp from "sharp";
@@ -19,9 +11,6 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 
-// ---------------------------------------------------------------------------
-// Args
-// ---------------------------------------------------------------------------
 const title = process.argv[2];
 if (!title) {
   console.error("Usage: node scripts/generate-blog-cover.mjs <title> [output-filename]");
@@ -37,32 +26,20 @@ const slug =
 
 const outPath = join(ROOT, "public", "blog", `${slug}.png`);
 
-// ---------------------------------------------------------------------------
-// Fonts — TTFs for satori (woff2 is not supported)
-// ---------------------------------------------------------------------------
 const fredokaLight = readFileSync(join(__dirname, "fonts", "Fredoka-Light.ttf"));
 
-// ---------------------------------------------------------------------------
-// Logo SVG — read and base64-encode for <img> in satori
-// ---------------------------------------------------------------------------
 const logoSvg = readFileSync(join(ROOT, "public", "logo.svg"), "utf-8");
 const logoDataUri = `data:image/svg+xml;base64,${Buffer.from(logoSvg).toString("base64")}`;
 
-// ---------------------------------------------------------------------------
-// Brand colors (from tailwind config)
-// ---------------------------------------------------------------------------
 const brandAccents = ["#A259FF", "#1ABCFE", "#F24E1E", "#EFCF81", "#94D0CD"];
 
 const colors = {
-  bg: "#0f172a", // neutral-900
-  surface: "#1e293b", // neutral-800
-  text: "#f8fafc", // neutral-50
-  muted: "#94a3b8", // neutral-400
+  bg: "#0f172a",
+  surface: "#1e293b",
+  text: "#f8fafc",
+  muted: "#94a3b8",
 };
 
-// ---------------------------------------------------------------------------
-// Deterministic seeded RNG from the title — same title = same image
-// ---------------------------------------------------------------------------
 function seededRng(seed) {
   let hash = createHash("sha256").update(seed).digest();
   let offset = 0;
@@ -79,7 +56,6 @@ function seededRng(seed) {
 
 const rand = seededRng(title);
 
-// Pick three distinct accent colors for orbs
 function pickDistinct(n) {
   const pool = [...brandAccents];
   const picked = [];
@@ -91,7 +67,6 @@ function pickDistinct(n) {
 }
 const [orbColor1, orbColor2, orbColor3] = pickDistinct(3);
 
-// Orb positions — wide spread across the canvas, bolder opacity
 const orb1 = {
   top: `${-100 + Math.floor(rand() * 300)}px`,
   left: `${-80 + Math.floor(rand() * 900)}px`,
@@ -111,19 +86,14 @@ const orb3 = {
   opacity: (0.15 + rand() * 0.15).toFixed(2),
 };
 
-// Pick accent bar order — shuffle brand colors deterministically
 const barColors = [...brandAccents];
 for (let i = barColors.length - 1; i > 0; i--) {
   const j = Math.floor(rand() * (i + 1));
   [barColors[i], barColors[j]] = [barColors[j], barColors[i]];
 }
 
-// Grid rotation — slight random angle for variety
-const gridAngle = Math.floor(rand() * 30 - 15); // -15 to +15 degrees
+const gridAngle = Math.floor(rand() * 30 - 15);
 
-// ---------------------------------------------------------------------------
-// Layout — 1200x450
-// ---------------------------------------------------------------------------
 const WIDTH = 1200;
 const HEIGHT = 450;
 
@@ -144,7 +114,6 @@ const svg = await satori(
         overflow: "hidden",
       },
       children: [
-        // Decorative gradient orb 1
         {
           type: "div",
           props: {
@@ -160,7 +129,6 @@ const svg = await satori(
             },
           },
         },
-        // Decorative gradient orb 2
         {
           type: "div",
           props: {
@@ -176,7 +144,6 @@ const svg = await satori(
             },
           },
         },
-        // Decorative gradient orb 3
         {
           type: "div",
           props: {
@@ -192,7 +159,6 @@ const svg = await satori(
             },
           },
         },
-        // Rotated grid overlay
         {
           type: "div",
           props: {
@@ -208,7 +174,6 @@ const svg = await satori(
             },
           },
         },
-        // Logo
         {
           type: "img",
           props: {
@@ -220,7 +185,6 @@ const svg = await satori(
             },
           },
         },
-        // Title
         {
           type: "div",
           props: {
@@ -249,7 +213,6 @@ const svg = await satori(
             ],
           },
         },
-        // Bottom accent bar — horizontal
         {
           type: "div",
           props: {
@@ -273,7 +236,6 @@ const svg = await satori(
             })),
           },
         },
-        // "frontman.sh" watermark
         {
           type: "div",
           props: {
@@ -307,9 +269,6 @@ const svg = await satori(
   },
 );
 
-// ---------------------------------------------------------------------------
-// Satori outputs SVG → Sharp converts to PNG
-// ---------------------------------------------------------------------------
 await sharp(Buffer.from(svg)).png({ quality: 90 }).toFile(outPath);
 
 console.log(`Blog cover generated → ${outPath}`);

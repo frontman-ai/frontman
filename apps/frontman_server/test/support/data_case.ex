@@ -1,19 +1,4 @@
 defmodule FrontmanServer.DataCase do
-  @moduledoc """
-  This module defines the setup for tests requiring
-  access to the application's data layer.
-
-  You may define functions here to be used as helpers in
-  your tests.
-
-  Finally, if the test case interacts with the database,
-  we enable the SQL sandbox, so changes done to the database
-  are reverted at the end of every test. If you are using
-  PostgreSQL, you can even run database tests asynchronously
-  by setting `use FrontmanServer.DataCase, async: true`, although
-  this option is not recommended for other databases.
-  """
-
   use ExUnit.CaseTemplate
 
   alias Ecto.Adapters.SQL.Sandbox
@@ -34,38 +19,17 @@ defmodule FrontmanServer.DataCase do
     :ok
   end
 
-  @doc """
-  Sets up the sandbox based on the test tags.
-  """
   def setup_sandbox(tags) do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: not tags[:async])
     on_exit(fn -> Sandbox.stop_owner(pid) end)
   end
 
-  @doc """
-  Sets up sandbox in shared mode for tests that spawn processes needing DB access.
-
-  Use this in tests that spawn Tasks/GenServers which hit the database:
-
-      setup :setup_sandbox_for_async_tasks
-
-  Note: Tests using this cannot be `async: true` since shared mode requires
-  sequential execution to avoid cross-test contamination.
-  """
   def setup_sandbox_for_async_tasks(_context) do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
     :ok
   end
 
-  @doc """
-  A helper that transforms changeset errors into a map of messages.
-
-      assert {:error, changeset} = Accounts.create_user(%{password: "short"})
-      assert "password is too short" in errors_on(changeset).password
-      assert %{password: ["password is too short"]} = errors_on(changeset)
-
-  """
   def errors_on(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
       Regex.replace(~r"%{(\w+)}", message, fn _, key ->

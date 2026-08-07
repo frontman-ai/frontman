@@ -1,26 +1,20 @@
 dist
 test/sites/glitter
-# Astro
 .astro/
 
-# ReScript build output
 *.res.mjs
 *.res.js
 *.gen.tsx
 
-# ReScript build artifacts
 lib/
 .bsb.lock
 .compiler.log
 
-# Node
 node_modules/
 
-# Environment variables
 .env.local
 test/e2e/.env
 
-# Yarn
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
@@ -30,35 +24,27 @@ test/e2e/.env
 .pnp.*
 yarn-error.log
 
-# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Local private project notes
 .notes
 
-# OS
 .DS_Store
 Thumbs.db
 .claude/settings.local.json
-# thoughts/shared
 
-# Git worktrees
 .worktrees/
 .chunkhound.json
 .chunkhound
-# Local SSL certificates
 .certs/
 opencode.json*
 scripts/certs/
 mprocs.log
 libs/frontman-nextjs/test/cli/.llm-cache/*.runs
 
-# Containerized worktree infra (auto-generated)
 infra/local/Caddyfile
 .env.secrets.resolved
 
-# Lefthook local overrides
 lefthook-local.yml

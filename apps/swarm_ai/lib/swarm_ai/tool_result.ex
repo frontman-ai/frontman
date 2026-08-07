@@ -1,7 +1,4 @@
 defmodule SwarmAi.ToolResult do
-  @moduledoc """
-  Result of a tool execution, supporting multimodal content (text + images).
-  """
   use TypedStruct
 
   alias SwarmAi.Message.ContentPart
@@ -12,11 +9,6 @@ defmodule SwarmAi.ToolResult do
     field(:is_error, boolean(), default: false)
   end
 
-  @doc """
-  Creates a ToolResult from raw tool output.
-
-  Handles string and other term types by converting them to text content.
-  """
   @spec make(String.t(), term(), boolean()) :: t()
   def make(id, raw_result, is_error \\ false) do
     content =

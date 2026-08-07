@@ -1,20 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServerWeb.Plugs.FetchOrganization do
-  @moduledoc """
-  Fetches the current organization from the URL path and adds it to the scope.
-
-  This plug extracts the `org_slug` parameter from the URL, verifies the
-  scoped user is a member of that organization, and updates `current_scope`
-  to include the organization.
-
-  Returns 404 if the organization is not found or user is not a member.
-  """
-
   import Plug.Conn
 
   alias FrontmanServer.Accounts.Scope

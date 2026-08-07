@@ -1,8 +1,4 @@
 defmodule FrontmanNotifier.Config do
-  @moduledoc """
-  Runtime configuration read from environment variables.
-  """
-
   @github_api_base_url "https://api.github.com"
   @github_repository "frontman-ai/frontman"
   @check_interval_ms 60 * 60 * 1_000

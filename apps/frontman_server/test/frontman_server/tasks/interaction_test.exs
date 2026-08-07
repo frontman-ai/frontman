@@ -13,10 +13,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
   alias ModelContextProtocol, as: MCP
 
-  # ---------------------------------------------------------------------------
-  # UserMessage.attrs/1
-  # ---------------------------------------------------------------------------
-
   describe "UserMessage.attrs/1" do
     test "extracts non-empty text messages" do
       msg = build_user_message([text_block("Hello")])
@@ -203,10 +199,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1
-  # ---------------------------------------------------------------------------
-
   describe "to_swarm_messages/1" do
     test "converts user message text and images to Swarm content parts" do
       msg = %{
@@ -277,10 +269,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1
-  # ---------------------------------------------------------------------------
-
   describe "to_swarm_messages/1 conversation coverage" do
     test "converts user message with correct role and content" do
       messages = Interaction.to_swarm_messages([user_msg("Hello")])
@@ -326,8 +314,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       ]
 
       messages = Interaction.to_swarm_messages(interactions)
-      # UserMessage + AgentResponse(with tool) + ToolResult + AgentResponse(final)
-      # ToolCall is skipped
       assert length(messages) == 4
       assert Enum.map(messages, &SwarmAi.Message.role/1) == [:user, :assistant, :tool, :assistant]
     end
@@ -423,10 +409,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       refute text =~ "write_file with image_ref"
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1 — DB-loaded metadata (string keys)
-  # ---------------------------------------------------------------------------
 
   describe "to_swarm_messages/1 with DB-loaded metadata (string keys)" do
     test "converts tool_calls stored in OpenAI wire format (string keys)" do
@@ -603,10 +585,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # JSON encoding
-  # ---------------------------------------------------------------------------
-
   describe "JSON encoding" do
     test "encodes UserMessage with annotation including all enrichment fields" do
       msg =
@@ -649,7 +627,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert ann["screenshot"] == %{"blob" => "base64screenshotdata", "mime_type" => "image/jpeg"}
 
-      # Nil enrichment fields are stripped from JSON
       refute Map.has_key?(ann, "comment")
     end
 

@@ -1,5 +1,3 @@
-// Write file tool - writes content to a file (text or binary via image_ref)
-
 module Fs = FrontmanBindings.Fs
 module NodeBuffer = FrontmanBindings.NodeBuffer
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -73,7 +71,6 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
     switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
     | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
     | Ok(resolved) =>
-      // Guard: existing files must have been read first and not be stale
       let fileExists = try {
         let _ = await Fs.Promises.stat(resolved.resolvedPath)
         true

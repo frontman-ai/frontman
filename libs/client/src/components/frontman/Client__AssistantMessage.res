@@ -1,6 +1,3 @@
-/**
- * AssistantMessage - Renders assistant messages with markdown and copy action
- */
 module MessageContainer = Client__MessageContainer
 module Markdown = Client__Markdown
 module Icons = Client__ToolIcons

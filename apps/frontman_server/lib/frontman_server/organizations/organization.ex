@@ -1,14 +1,4 @@
-# Frontman Server
-# Copyright (C) 2025 Frontman AI
-#
-# Licensed under the AGPL-3.0 — see LICENSE for details.
-# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
-
 defmodule FrontmanServer.Organizations.Organization do
-  @moduledoc """
-  Schema for organizations - workspaces that group users together.
-  """
-
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
@@ -26,8 +16,6 @@ defmodule FrontmanServer.Organizations.Organization do
 
     timestamps(type: :utc_datetime)
   end
-
-  # Queries
 
   def for_user(query \\ __MODULE__, user_id) do
     from o in query,

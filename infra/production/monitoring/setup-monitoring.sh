@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Frontman Production Monitoring Setup
-# Installs Prometheus, exporters, Alertmanager, and a Python Discord bridge.
-#
-# Run as root on the production server:
-#   ssh root@<server-ip> 'bash -s' < setup-monitoring.sh
-#
-# Prerequisites:
-#   - Ubuntu 24.04 (x86_64 or ARM64)
-#   - server-setup.sh already ran (frontman services exist)
-#   - Discord webhook URL for #prod-alerts channel
-#   - Python 3 installed (ships with Ubuntu 24.04)
-# =============================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
 set -euo pipefail
 
-# --- Configuration ---
+
 DEPLOY_ROOT="/opt/frontman"
 MONITORING_DIR="${DEPLOY_ROOT}/monitoring"
 TEXTFILE_DIR="${MONITORING_DIR}/textfile"
 
-# Component versions
+
 PROMETHEUS_VERSION="3.2.1"
 NODE_EXPORTER_VERSION="1.9.0"
 POSTGRES_EXPORTER_VERSION="0.16.0"
 BLACKBOX_EXPORTER_VERSION="0.25.0"
 ALERTMANAGER_VERSION="0.28.1"
 
-# Auto-detect architecture
+
 case "$(uname -m)" in
   x86_64)  ARCH="amd64" ;;
   aarch64) ARCH="arm64" ;;
@@ -39,9 +39,9 @@ echo "=== Frontman Monitoring Setup ==="
 echo "Detected architecture: ${ARCH}"
 echo ""
 
-# =============================================================================
-# 0. Discord Webhook URL
-# =============================================================================
+
+
+
 echo "=== Discord Webhook Setup ==="
 echo "Enter the Discord webhook URL for #prod-alerts channel:"
 read -r DISCORD_WEBHOOK_URL
@@ -52,9 +52,9 @@ fi
 echo "Discord webhook URL saved."
 echo ""
 
-# =============================================================================
-# 1. Create System Users
-# =============================================================================
+
+
+
 echo ">>> Creating monitoring system users..."
 for USER in prometheus node_exporter postgres_exporter blackbox_exporter alertmanager; do
   if ! id "${USER}" &>/dev/null; then
@@ -65,9 +65,9 @@ for USER in prometheus node_exporter postgres_exporter blackbox_exporter alertma
   fi
 done
 
-# =============================================================================
-# 2. Create Directories
-# =============================================================================
+
+
+
 echo ">>> Creating directories..."
 mkdir -p /etc/prometheus
 mkdir -p /etc/alertmanager
@@ -80,12 +80,12 @@ chown prometheus:prometheus /var/lib/prometheus /var/lib/prometheus/data
 chown alertmanager:alertmanager /var/lib/alertmanager /var/lib/alertmanager/data
 chown deploy:deploy "${MONITORING_DIR}" "${TEXTFILE_DIR}"
 
-# Allow node_exporter to read textfile dir
+
 chmod 755 "${TEXTFILE_DIR}"
 
-# =============================================================================
-# 3. Download and Install Binaries
-# =============================================================================
+
+
+
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "${TMPDIR}"' EXIT
 
@@ -124,11 +124,6 @@ chmod +x /usr/local/bin/alertmanager /usr/local/bin/amtool
 echo ">>> Installing alertmanager-discord (Python bridge)..."
 cat > /usr/local/bin/alertmanager-discord <<'PYBRIDGE'
 #!/usr/bin/env python3
-"""Minimal Alertmanager -> Discord webhook bridge.
-
-Receives Alertmanager webhook POSTs on port 9095 and forwards them
-as Discord embeds with color-coded severity levels.
-"""
 import http.server
 import json
 import os
@@ -139,9 +134,9 @@ DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK", "")
 LISTEN_ADDR = ("127.0.0.1", 9095)
 
 COLOR_MAP = {
-    "critical": 0xFF0000,   # red
-    "warning": 0xFFA500,    # orange
-    "none": 0x00FF00,       # green (heartbeat)
+    "critical": 0xFF0000,
+    "warning": 0xFFA500,
+    "none": 0x00FF00,
 }
 
 def format_alert(alert):
@@ -168,13 +163,13 @@ def format_alert(alert):
         "color": color,
     }
 
-    # Add relevant labels as fields (skip alertname and severity, already shown)
+
     fields = []
     for k, v in labels.items():
         if k not in ("alertname", "severity"):
             fields.append({"name": k, "value": v, "inline": True})
     if fields:
-        embed["fields"] = fields[:25]  # Discord embed limit
+        embed["fields"] = fields[:25]
 
     return embed
 
@@ -188,7 +183,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             data = json.loads(body)
             alerts = data.get("alerts", [])
-            embeds = [format_alert(a) for a in alerts[:10]]  # Discord max 10 embeds
+            embeds = [format_alert(a) for a in alerts[:10]]
 
             payload = json.dumps({"embeds": embeds}).encode()
             req = urllib.request.Request(
@@ -218,13 +213,13 @@ chmod +x /usr/local/bin/alertmanager-discord
 
 echo "All binaries installed."
 
-# =============================================================================
-# 4. Deploy Configuration Files
-# =============================================================================
+
+
+
 echo ">>> Deploying configuration files..."
 
-# Configuration files are expected in /opt/frontman/build/infra/production/monitoring/
-# after rsync from CI, or can be copied manually
+
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -f "${SCRIPT_DIR}/prometheus.yml" ]; then
@@ -241,12 +236,12 @@ fi
 chown -R prometheus:prometheus /etc/prometheus
 chown -R alertmanager:alertmanager /etc/alertmanager
 
-# =============================================================================
-# 4b. Sudoers for deploy user to sync monitoring configs from CI
-# =============================================================================
+
+
+
 echo ">>> Adding sudoers entries for monitoring config deployment..."
 cat > /etc/sudoers.d/deploy-monitoring <<'SUDOERS'
-# Allow deploy user to update monitoring configs and ownership without password
+
 deploy ALL=(ALL) NOPASSWD: /usr/bin/cp /opt/frontman/build/infra/production/monitoring/prometheus.yml /etc/prometheus/prometheus.yml
 deploy ALL=(ALL) NOPASSWD: /usr/bin/cp /opt/frontman/build/infra/production/monitoring/alert-rules.yml /etc/prometheus/alert-rules.yml
 deploy ALL=(ALL) NOPASSWD: /usr/bin/cp /opt/frontman/build/infra/production/monitoring/blackbox.yml /etc/prometheus/blackbox.yml
@@ -256,13 +251,13 @@ deploy ALL=(ALL) NOPASSWD: /usr/bin/chown -R alertmanager\:alertmanager /etc/ale
 SUDOERS
 chmod 440 /etc/sudoers.d/deploy-monitoring
 
-# =============================================================================
-# 5. Create Environment Files
-# =============================================================================
+
+
+
 echo ">>> Creating environment files..."
 
-# PostgreSQL exporter - connect via Unix socket with peer auth.
-# The PG role name must match the OS user (postgres_exporter) for peer auth.
+
+
 sudo -u postgres psql -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'postgres_exporter') THEN CREATE ROLE postgres_exporter LOGIN; END IF; END \$\$;" 2>/dev/null || true
 sudo -u postgres psql -c "GRANT pg_monitor TO postgres_exporter;" 2>/dev/null || true
 
@@ -272,26 +267,26 @@ ENV
 chown postgres_exporter:postgres_exporter "${MONITORING_DIR}/postgres-exporter.env"
 chmod 600 "${MONITORING_DIR}/postgres-exporter.env"
 
-# alertmanager-discord
+
 cat > "${MONITORING_DIR}/alertmanager-discord.env" <<ENV
 DISCORD_WEBHOOK=${DISCORD_WEBHOOK_URL}
 ENV
 chown alertmanager:alertmanager "${MONITORING_DIR}/alertmanager-discord.env"
 chmod 600 "${MONITORING_DIR}/alertmanager-discord.env"
 
-# =============================================================================
-# 6. Write Initial Textfile Metrics
-# =============================================================================
+
+
+
 echo ">>> Writing initial textfile metrics..."
 
-# Active slot metric - written by a small cron job
+
 cat > "${MONITORING_DIR}/update-active-slot.sh" <<'SCRIPT'
 #!/usr/bin/env bash
-# Write the active slot as a Prometheus metric for the service-down alert.
+
 ACTIVE_SLOT=$(cat /opt/frontman/active_slot 2>/dev/null || echo "unknown")
 TEXTFILE_DIR="/opt/frontman/monitoring/textfile"
 
-# Write metric: 1 for the active slot, 0 for the inactive
+
 for SLOT in blue green; do
   if [ "${SLOT}" = "${ACTIVE_SLOT}" ]; then
     VALUE=1
@@ -304,22 +299,22 @@ SCRIPT
 chmod +x "${MONITORING_DIR}/update-active-slot.sh"
 chown deploy:deploy "${MONITORING_DIR}/update-active-slot.sh"
 
-# Run it once now
+
 "${MONITORING_DIR}/update-active-slot.sh"
 
-# Initialize backup metric (will be updated by backup-pg.sh)
+
 echo "node_textfile_backup_last_success_timestamp_seconds $(date +%s)" > "${TEXTFILE_DIR}/backup.prom"
 chown deploy:deploy "${TEXTFILE_DIR}/backup.prom"
 
-# Add cron jobs for the deploy user
+
 echo ">>> Installing cron jobs..."
 CRON_ACTIVE_SLOT="* * * * * ${MONITORING_DIR}/update-active-slot.sh"
 (crontab -u deploy -l 2>/dev/null | grep -v "update-active-slot.sh"; echo "${CRON_ACTIVE_SLOT}") | crontab -u deploy -
 echo "  Active slot metric cron installed (every minute)."
 
-# =============================================================================
-# 7. Install Systemd Services
-# =============================================================================
+
+
+
 echo ">>> Installing systemd services..."
 
 if [ -d "${SCRIPT_DIR}/systemd" ]; then
@@ -336,12 +331,12 @@ fi
 
 systemctl daemon-reload
 
-# =============================================================================
-# 8. Enable and Start Services
-# =============================================================================
+
+
+
 echo ">>> Enabling and starting services..."
 
-# Start alertmanager-discord first (port 9095), then alertmanager (port 9093)
+
 SERVICES=(
   node-exporter
   postgres-exporter
@@ -363,9 +358,9 @@ for SVC in "${SERVICES[@]}"; do
   fi
 done
 
-# =============================================================================
-# 9. Validate
-# =============================================================================
+
+
+
 echo ""
 echo ">>> Validating Prometheus configuration..."
 if promtool check config /etc/prometheus/prometheus.yml; then
@@ -380,7 +375,7 @@ else
   echo "  ERROR: Alert rules are invalid!"
 fi
 
-# Wait for Prometheus to be ready
+
 echo ">>> Waiting for Prometheus to be ready..."
 for i in $(seq 1 10); do
   if curl -sf http://127.0.0.1:9090/-/ready > /dev/null 2>&1; then
@@ -393,7 +388,7 @@ for i in $(seq 1 10); do
   sleep 1
 done
 
-# Check scrape targets
+
 echo ">>> Checking scrape targets..."
 sleep 3
 curl -sf http://127.0.0.1:9090/api/v1/targets | python3 -c "
@@ -406,9 +401,9 @@ for t in targets:
     print(f'  {job}: {status}')
 " 2>/dev/null || echo "  (Could not query targets yet — they may take a moment to appear)"
 
-# =============================================================================
-# Summary
-# =============================================================================
+
+
+
 echo ""
 echo "=============================================="
 echo "  Monitoring Setup Complete!"
