@@ -28,7 +28,7 @@ type sharedWorker
 /**
 The WorkerGlobalScope interface of the Web Workers API is an interface representing the scope of any worker.
 Workers have no browsing context; this scope contains the information usually conveyed by Window objects —
-in this case event handlers, the console or the associated WorkerNavigator object.
+in this case event handlers, the console or the associated WorkerNavigator object. 
 Each WorkerGlobalScope has its own event loop.
 [See WorkerGlobalScope on MDN](https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope)
 */
@@ -58,10 +58,10 @@ type workerOptions = {
 }
 
 /**
-The `SharedWorkerGlobalScope` object (the `SharedWorker` global scope) is
-accessible through the self keyword. Some additional global functions,
-namespaces objects, and constructors, not typically associated with the worker
-global scope, but available on it, are listed in the JavaScript Reference. See
+The `SharedWorkerGlobalScope` object (the `SharedWorker` global scope) is 
+accessible through the self keyword. Some additional global functions, 
+namespaces objects, and constructors, not typically associated with the worker 
+global scope, but available on it, are listed in the JavaScript Reference. See 
 the complete list of functions available to workers.
 */
 @editor.completeFrom(SharedWorkerGlobalScope)

@@ -141,6 +141,7 @@ AudioDestinationNode has no output (as it is the output, no more AudioNode can b
 [See AudioDestinationNode on MDN](https://developer.mozilla.org/docs/Web/API/AudioDestinationNode)
 */
 and audioDestinationNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -165,6 +166,8 @@ and audioDestinationNode = {
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioDestinationNode/maxChannelCount)
     */
@@ -208,6 +211,7 @@ A simple low-order filter, and is created using the AudioContext.createBiquadFil
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(BiquadFilterNode) and biquadFilterNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -232,6 +236,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/BiquadFilterNode/type)
     */
@@ -335,6 +341,7 @@ TODO: mark as private once mutating fields of private records is allowed
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(AudioScheduledSourceNode) and audioScheduledSourceNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -359,6 +366,7 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
 }
 
 /**
@@ -367,6 +375,10 @@ An AudioScheduledSourceNode which represents an audio source consisting of in-me
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(AudioBufferSourceNode) and audioBufferSourceNode = {
+  // Base properties from AudioScheduledSourceNode
+  // End base properties from AudioScheduledSourceNode
+
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -391,6 +403,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioBufferSourceNode/buffer)
     */
@@ -423,6 +437,7 @@ The ChannelMergerNode interface, often used in conjunction with its opposite, Ch
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(ChannelMergerNode) and channelMergerNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -447,6 +462,7 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
 }
 
 /**
@@ -455,6 +471,7 @@ The ChannelSplitterNode interface, often used in conjunction with its opposite, 
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(ChannelSplitterNode) and channelSplitterNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -479,6 +496,7 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
 }
 
 /**
@@ -486,6 +504,10 @@ TODO: mark as private once mutating fields of private records is allowed
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(ConstantSourceNode) and constantSourceNode = {
+  // Base properties from AudioScheduledSourceNode
+  // End base properties from AudioScheduledSourceNode
+
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -510,6 +532,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/ConstantSourceNode/offset)
     */
@@ -522,6 +546,7 @@ An AudioNode that performs a Linear Convolution on a given AudioBuffer, often us
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(ConvolverNode) and convolverNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -546,6 +571,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/ConvolverNode/buffer)
     */
@@ -562,6 +589,7 @@ A delay-line; an AudioNode audio-processing module that causes a delay between t
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(DelayNode) and delayNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -586,6 +614,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/DelayNode/delayTime)
     */
@@ -598,6 +628,7 @@ Inherits properties from its parent, AudioNode.
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(DynamicsCompressorNode) and dynamicsCompressorNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -622,6 +653,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/DynamicsCompressorNode/threshold)
     */
@@ -654,6 +687,7 @@ A change in volume. It is an AudioNode audio-processing module that causes a giv
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(GainNode) and gainNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -678,6 +712,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/GainNode/gain)
     */
@@ -690,6 +726,7 @@ The IIRFilterNode interface of the Web Audio API is a AudioNode processor wh
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(IIRFilterNode) and iirFilterNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -714,6 +751,7 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
 }
 
 /**
@@ -722,6 +760,10 @@ The OscillatorNode interface represents a periodic waveform, such as a sine wav
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(OscillatorNode) and oscillatorNode = {
+  // Base properties from AudioScheduledSourceNode
+  // End base properties from AudioScheduledSourceNode
+
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -746,6 +788,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/OscillatorNode/type)
     */
@@ -767,6 +811,7 @@ A PannerNode always has exactly one input and one output: the input can be mono 
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(PannerNode) and pannerNode = {
+  // Base properties from AudioNode
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/context)
     */
@@ -791,6 +836,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AudioNode/channelInterpretation)
     */
   mutable channelInterpretation: channelInterpretation,
+  // End base properties from AudioNode
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/PannerNode/panningModel)
     */

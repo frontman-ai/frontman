@@ -294,6 +294,7 @@ The state and the identity of the user agent. It allows scripts to query it and 
 @editor.completeFrom(Navigator)
 type navigator
 
+// TODO: mark as private once mutating fields of private records is allowed
 @editor.completeFrom(DOMTokenList)
 type domTokenList = {
   /**
@@ -419,10 +420,12 @@ type rec animationTimeline = private {
 [See DocumentTimeline on MDN](https://developer.mozilla.org/docs/Web/API/DocumentTimeline)
 */
 @editor.completeFrom(DocumentTimeline) and documentTimeline = private {
+  // Base properties from AnimationTimeline
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AnimationTimeline/currentTime)
     */
   currentTime: Null.t<float>,
+  // End base properties from AnimationTimeline
 }
 
 /**
@@ -520,6 +523,7 @@ A single CSS style sheet. It inherits properties and methods from its parent, St
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(CSSStyleSheet) and cssStyleSheet = {
+  // Base properties from StyleSheet
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/StyleSheet/type)
     */
@@ -549,6 +553,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/StyleSheet/disabled)
     */
   mutable disabled: bool,
+  // End base properties from StyleSheet
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/CSSStyleSheet/ownerRule)
     */
@@ -2393,6 +2399,7 @@ Element is the most general base class from which all objects in a Document inhe
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(Element) and element = {
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -2461,6 +2468,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -2762,6 +2771,10 @@ TODO: mark as private once mutating fields of private records is allowed
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(ShadowRoot) and shadowRoot = {
+  // Base properties from DocumentFragment
+  // End base properties from DocumentFragment
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -2830,6 +2843,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/ShadowRoot/mode)
     */
@@ -2908,11 +2923,13 @@ A collection of HTML form control elements.
 [See HTMLFormControlsCollection on MDN](https://developer.mozilla.org/docs/Web/API/HTMLFormControlsCollection)
 */
 @editor.completeFrom(DOM.HTMLFormControlsCollection) and htmlFormControlsCollection = private {
+  // Base properties from HTMLCollection
   /**
     Sets or retrieves the number of objects in a collection.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLCollection/length)
     */
   length: int,
+  // End base properties from HTMLCollection
 }
 
 /**
@@ -2921,6 +2938,7 @@ Any HTML element. Some elements directly implement this interface, while others 
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLElement) and htmlElement = {
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -3018,6 +3036,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -3086,6 +3107,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -3210,6 +3233,7 @@ Contains the descriptive information, or metadata, for a document. This object i
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLHeadElement) and htmlHeadElement = {
+  // Base properties from HTMLElement
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -3286,6 +3310,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/offsetHeight)
     */
   offsetHeight: int,
+  // End base properties from HTMLElement
+
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -3383,6 +3410,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -3451,6 +3481,7 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
 }
 
 /**
@@ -3459,6 +3490,7 @@ A <form> element in the WebApiDOM; it allows access to and in some cases modific
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLFormElement) and htmlFormElement = {
+  // Base properties from HTMLElement
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -3535,6 +3567,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/offsetHeight)
     */
   offsetHeight: int,
+  // End base properties from HTMLElement
+
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -3632,6 +3667,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -3700,6 +3738,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Sets or retrieves a list of character encodings for input data that must be accepted by the server processing the form.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLFormElement/acceptCharset)
@@ -3758,6 +3798,7 @@ Provides special properties and methods for manipulating <img> elements.
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLImageElement) and htmlImageElement = {
+  // Base properties from HTMLElement
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -3834,6 +3875,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/offsetHeight)
     */
   offsetHeight: int,
+  // End base properties from HTMLElement
+
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -3931,6 +3975,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -3999,6 +4046,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Sets or retrieves a text alternative to the graphic.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLImageElement/alt)
@@ -4093,6 +4142,7 @@ Provides special properties (beyond the regular HTMLElement interface it also ha
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLEmbedElement) and htmlEmbedElement = {
+  // Base properties from HTMLElement
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -4169,6 +4219,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/offsetHeight)
     */
   offsetHeight: int,
+  // End base properties from HTMLElement
+
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -4266,6 +4319,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -4334,6 +4390,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Sets or retrieves a WebApiURL to be loaded by the object.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLEmbedElement/src)
@@ -4357,6 +4415,7 @@ Hyperlink elements and provides special properties and methods (beyond those of 
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLAnchorElement) and htmlAnchorElement = {
+  // Base properties from HTMLElement
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -4433,6 +4492,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/offsetHeight)
     */
   offsetHeight: int,
+  // End base properties from HTMLElement
+
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -4530,6 +4592,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -4598,6 +4663,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Sets or retrieves the window or frame at which to target content.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLAnchorElement/target)
@@ -4722,6 +4789,7 @@ Provides special properties and methods (beyond those of the regular object HTML
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLAreaElement) and htmlAreaElement = {
+  // Base properties from HTMLElement
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -4798,6 +4866,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/offsetHeight)
     */
   offsetHeight: int,
+  // End base properties from HTMLElement
+
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -4895,6 +4966,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -4963,6 +5037,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Sets or retrieves the window or frame at which to target content.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLAreaElement/target)
@@ -5067,6 +5143,7 @@ HTML <script> elements expose the HTMLScriptElement interface, which provides sp
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLScriptElement) and htmlScriptElement = {
+  // Base properties from HTMLElement
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -5143,6 +5220,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/offsetHeight)
     */
   offsetHeight: int,
+  // End base properties from HTMLElement
+
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -5240,6 +5320,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -5308,6 +5391,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Retrieves the WebApiURL to an external file that contains the source code or data.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLScriptElement/src)
@@ -5366,6 +5451,7 @@ A Node containing a doctype.
 [See DocumentType on MDN](https://developer.mozilla.org/docs/Web/API/DocumentType)
 */
 and documentType = {
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -5434,6 +5520,8 @@ and documentType = {
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/DocumentType/name)
     */
@@ -5454,6 +5542,7 @@ Any web page loaded in the browser and serves as an entry point into the web pag
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(Document) and document = {
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -5522,6 +5611,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Gets the implementation object of the current document.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Document/implementation)
@@ -5798,6 +5889,7 @@ A WebApiDOM element's attribute as an object. In most WebApiDOM methods, you wil
 [See Attr on MDN](https://developer.mozilla.org/docs/Web/API/Attr)
 */
 and attr = {
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -5866,6 +5958,8 @@ and attr = {
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Attr/namespaceURI)
     */
@@ -5898,6 +5992,7 @@ The CharacterData abstract interface represents a Node object that contains char
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(CharacterData) and characterData = {
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -5966,6 +6061,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/CharacterData/data)
     */
@@ -5992,6 +6089,7 @@ A minimal document object that has no parent. It is used as a lightweight versio
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(DocumentFragment) and documentFragment = {
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -6060,6 +6158,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     Returns the child elements.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Document/children)
@@ -6086,6 +6186,7 @@ TODO: mark as private once mutating fields of private records is allowed
 TODO: mark as private once mutating fields of private records is allowed
 */
 @editor.completeFrom(HTMLSlotElement) and htmlSlotElement = {
+  // Base properties from HTMLElement
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/title)
     */
@@ -6162,6 +6263,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLElement/offsetHeight)
     */
   offsetHeight: int,
+  // End base properties from HTMLElement
+
+  // Base properties from Element
   /**
     Returns the namespace.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/namespaceURI)
@@ -6259,6 +6363,9 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Element/outerHTML)
     */
   mutable outerHTML: string,
+  // End base properties from Element
+
+  // Base properties from Node
   /**
     Returns the type of node.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/nodeType)
@@ -6327,6 +6434,8 @@ TODO: mark as private once mutating fields of private records is allowed
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     */
   mutable textContent: Null.t<string>,
+  // End base properties from Node
+
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/HTMLSlotElement/name)
     */

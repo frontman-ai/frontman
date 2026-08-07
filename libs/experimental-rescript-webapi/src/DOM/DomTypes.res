@@ -281,6 +281,7 @@ The state and the identity of the user agent. It allows scripts to query it and 
 @editor.completeFrom(Navigator)
 type navigator = DOM.navigator
 
+// TODO: mark as private once mutating fields of private records is allowed
 @editor.completeFrom(DOMTokenList)
 type domTokenList = {
   /**
@@ -406,10 +407,12 @@ type rec animationTimeline = private {
 [See DocumentTimeline on MDN](https://developer.mozilla.org/docs/Web/API/DocumentTimeline)
 */
 @editor.completeFrom(DocumentTimeline) and documentTimeline = private {
+  // Base properties from AnimationTimeline
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/AnimationTimeline/currentTime)
     */
   currentTime: Null.t<float>,
+  // End base properties from AnimationTimeline
 }
 
 /**

@@ -7,7 +7,7 @@ include EventTarget.Impl({type t = t})
 /**
 `make(string)`
 
-The SharedWorker() constructor creates a SharedWorker object that executes the
+The SharedWorker() constructor creates a SharedWorker object that executes the 
 script at the specified URL. This script must obey the same-origin policy.
 
 ```res
@@ -22,7 +22,7 @@ external make: string => t = "SharedWorker"
 /**
 `makeWithName(string, string)`
 
-The SharedWorker() constructor creates a SharedWorker object that executes the
+The SharedWorker() constructor creates a SharedWorker object that executes the 
 script at the specified URL. This script must obey the same-origin policy.
 
 ```res
@@ -37,7 +37,7 @@ external makeWithName: (string, string) => t = "SharedWorker"
 /**
 `makeWithOptions(string, workerOptions)`
 
-The SharedWorker() constructor creates a SharedWorker object that executes the
+The SharedWorker() constructor creates a SharedWorker object that executes the 
 script at the specified URL. This script must obey the same-origin policy.
 
 ```res
@@ -55,7 +55,7 @@ external makeWithOptions: (string, workerOptions) => t = "SharedWorker"
 /**
 `port(sharedWorker)`
 
-The port property of the SharedWorker interface returns a MessagePort object
+The port property of the SharedWorker interface returns a MessagePort object 
 used to communicate and control the shared worker.
 
 ```res

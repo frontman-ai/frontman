@@ -34,7 +34,7 @@
     },
     repaint = function () {
       canvas.width = window.innerWidth;
-      canvas.height = options.barThickness * 5;
+      canvas.height = options.barThickness * 5; // need space for shadow
 
       var ctx = canvas.getContext("2d");
       ctx.shadowBlur = options.shadowBlur;

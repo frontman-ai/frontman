@@ -10,7 +10,7 @@ module Impl = (
   /**
 `fetch(workerGlobalScope, string, init)`
 
-The fetch() method of the WorkerGlobalScope interface starts the process of fetching a resource from the network,
+The fetch() method of the WorkerGlobalScope interface starts the process of fetching a resource from the network, 
 returning a promise that is fulfilled once the response is available.
 
 ```res
@@ -25,7 +25,7 @@ let response = await self->Worker.fetch("https://rescript-lang.org")
   /**
 `fetchWithRequest(workerGlobalScope, request, init)`
 
-The fetch() method of the WorkerGlobalScope interface starts the process of fetching a resource from the network,
+The fetch() method of the WorkerGlobalScope interface starts the process of fetching a resource from the network, 
 returning a promise that is fulfilled once the response is available.
 
 ```res

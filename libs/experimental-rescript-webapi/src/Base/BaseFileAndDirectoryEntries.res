@@ -33,6 +33,7 @@ type rec fileSystemEntry = private {
 @editor.completeFrom(
   BaseFileAndDirectoryEntries.FileSystemDirectoryEntry
 ) and fileSystemDirectoryEntry = private {
+  // Base properties from FileSystemEntry
   /**
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/FileSystemEntry/isFile)
     */
@@ -53,6 +54,7 @@ type rec fileSystemEntry = private {
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/FileSystemEntry/filesystem)
     */
   filesystem: fileSystem,
+  // End base properties from FileSystemEntry
 }
 
 /**

@@ -11,6 +11,7 @@ pre-commit:
 
     rescript-format:
       glob: "**/*.{res,resi}"
+      exclude: "libs/experimental-rescript-webapi/**"
       run: npx rescript format --check {staged_files}
 
     elixir-format-server:

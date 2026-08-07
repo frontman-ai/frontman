@@ -68,10 +68,7 @@ const generatedTemplateBindings = new Map([
   ["libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res", ["middlewareTemplate", "proxyTemplate", "instrumentationTemplate"]],
   ["libs/frontman-vite/src/cli/FrontmanVite__Cli__Templates.res", ["importLine", "pluginCall"]],
 ])
-const generatedArtifacts = new Set([
-  "libs/experimental-rescript-webapi/src/Prelude/DOMException.js",
-  "libs/experimental-rescript-webapi/src/Prelude/DOMStringList.js",
-])
+const vendoredPaths = ["apps/frontman_server/assets/vendor/", "libs/experimental-rescript-webapi/"]
 
 function span(start, end, kind) {
   return {start, end, kind}
@@ -761,7 +758,8 @@ export function trackedFiles(root) {
 export function repositoryFiles(root) {
   return trackedFiles(root).filter(file => {
     const normalized = file.replaceAll("\\", "/")
-    return !generatedArtifacts.has(normalized) && !normalized.startsWith("test/no-comments/fixtures/")
+    return !vendoredPaths.some(path => normalized.startsWith(path)) &&
+      !normalized.startsWith("test/no-comments/fixtures/")
   })
 }
 

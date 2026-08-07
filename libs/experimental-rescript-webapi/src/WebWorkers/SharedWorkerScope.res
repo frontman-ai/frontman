@@ -12,8 +12,8 @@ module Impl = (
   /**
 `close(sharedWorkerGlobalScope)`
 
-The close() method of the SharedWorkerGlobalScope interface discards any tasks
-queued in the SharedWorkerGlobalScope's event loop, effectively closing this
+The close() method of the SharedWorkerGlobalScope interface discards any tasks 
+queued in the SharedWorkerGlobalScope's event loop, effectively closing this 
 particular scope.
 
 ```res
