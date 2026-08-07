@@ -665,10 +665,27 @@ function scanPhp(source) {
   for (const match of source.matchAll(region)) {
     const bodyOffset = match.index + match[0].indexOf(match[1])
     ignoredRanges.push({start: match.index, end: match.index + match[0].length})
-    results.push(...offsetSpans(scanCLike(match[1], {hash: true}), bodyOffset))
+    results.push(...offsetSpans(scanCLike(maskPhpHeredocs(match[1]), {hash: true}), bodyOffset))
   }
   results.push(...scanHtmlMarkers(source, ignoredRanges))
   return results.sort((a, b) => a.start - b.start)
+}
+
+function maskPhpHeredocs(source) {
+  const characters = source.split("")
+  const opening = /<<<[ \t]*(?:'([^'\r\n]+)'|"([^"\r\n]+)"|([A-Za-z_][A-Za-z0-9_]*))[^\r\n]*(?:\r\n|\n|\r|$)/g
+  for (const match of source.matchAll(opening)) {
+    const label = match[1] ?? match[2] ?? match[3]
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const closing = new RegExp(`^[ \\t]*${escaped};?[ \\t]*(?:\\r?$)`, "gm")
+    closing.lastIndex = match.index + match[0].length
+    const terminator = closing.exec(source)
+    const end = terminator ? terminator.index + terminator[0].length : source.length
+    for (let i = match.index; i < end; i++) {
+      if (source[i] !== "\n" && source[i] !== "\r") characters[i] = " "
+    }
+  }
+  return characters.join("")
 }
 
 function uniqueSpans(spans) {
@@ -682,11 +699,24 @@ function uniqueSpans(spans) {
 }
 
 function excludeLegalNotice(source, spans) {
-  const separator = source.indexOf("\n\n")
-  const end = separator < 0 ? source.length : separator + 2
-  const header = source.slice(0, end)
+  let cursor = 0
+  if (source.startsWith("#!")) {
+    const newline = source.indexOf("\n")
+    cursor = newline < 0 ? source.length : newline + 1
+  }
+  const phpOpening = source.slice(cursor).match(/^[ \t]*<\?php\b/)
+  if (phpOpening) cursor += phpOpening[0].length
+  const leading = []
+  for (const item of spans) {
+    if (source.slice(cursor, item.start).trim() !== "") break
+    leading.push(item)
+    cursor = item.end
+  }
+  const header = leading.map(item => source.slice(item.start, item.end)).join("\n")
   const legal = /copyright|spdx-license-identifier|licensed under|third_party_licenses|ai-supplementary-terms/i.test(header)
-  return legal ? spans.filter(item => item.start >= end) : spans
+  if (!legal) return spans
+  const exempt = new Set(leading)
+  return spans.filter(item => !exempt.has(item))
 }
 
 function scanGeneratedTemplates(file, source) {
@@ -727,6 +757,7 @@ export function classifyFile(file, source = "") {
 export function scanSource(file, source) {
   const kind = classifyFile(file, source)
   const extension = extname(file).toLowerCase()
+  const normalized = file.replaceAll("\\", "/")
   if (kind === "clike") {
     const spans = scanCLike(source, {nested: extension === ".res" || extension === ".resi", regex: true, rescript: extension === ".res" || extension === ".resi"})
     return excludeLegalNotice(source, uniqueSpans([...spans, ...scanGeneratedTemplates(file, source)]).sort((a, b) => a.start - b.start))
@@ -738,6 +769,10 @@ export function scanSource(file, source) {
   if (kind === "php") return excludeLegalNotice(source, scanPhp(source))
   if (kind === "batch") return excludeLegalNotice(source, scanBatch(source))
   if (kind === "sql") return excludeLegalNotice(source, scanSql(source))
+  if (kind === "template" && normalized.endsWith(".html.heex")) {
+    const spans = uniqueSpans([...scanTemplate(source, extension), ...scanHeexExpressions(source)]).sort((a, b) => a.start - b.start)
+    return excludeLegalNotice(source, spans)
+  }
   if (kind === "template") return excludeLegalNotice(source, scanTemplate(source, extension))
   return []
 }

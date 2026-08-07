@@ -160,6 +160,51 @@ const value = 1 // implementation comment
   }
 })
 
+test("single-line legal notices do not exempt later comments", () => {
+  const source = `# SPDX-License-Identifier: AGPL-3.0-only
+value = 1 # implementation comment
+`
+  const spans = scanSource("example.ex", source)
+  assert.equal(spans.length, 1)
+  const fixed = fixSource(source, spans)
+  assert.match(fixed, /^# SPDX-License-Identifier:/m)
+  assert.doesNotMatch(fixed, /implementation comment/)
+})
+
+test("file-based HEEx expressions scan Elixir comments", () => {
+  const source = `<div>
+  <%= # hidden comment
+  @value %>
+</div>
+`
+  assert.equal(scanSource("template.html.heex", source).length, 1)
+})
+
+test("PHP heredoc and nowdoc bodies remain literal data", () => {
+  const source = `<?php
+$html = <<<HTML
+https://example.com
+/* literal block */
+HTML;
+$text = <<<'TEXT'
+// literal line
+TEXT;
+$value = 1; // implementation comment
+`
+  const spans = scanSource("example.php", source)
+  assert.equal(spans.length, 1)
+  const fixed = fixSource(source, spans)
+  assert.match(fixed, /https:\/\/example\.com/)
+  assert.match(fixed, /\/\* literal block \*\//)
+  assert.match(fixed, /\/\/ literal line/)
+  assert.doesNotMatch(fixed, /implementation comment/)
+})
+
+test("ReScript format target excludes the vendored WebAPI subtree", () => {
+  const makefile = readFileSync(join(here, "../../Makefile"), "utf8")
+  assert.match(makefile, /rescript-format:[\s\S]*?:\(exclude\)libs\/experimental-rescript-webapi\/\*\*/)
+})
+
 test("installer generated-source bindings are scanned narrowly", () => {
   const nextFile = "libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res"
   const viteFile = "libs/frontman-vite/src/cli/FrontmanVite__Cli__Templates.res"

@@ -230,7 +230,7 @@ rescript-build:
 	yarn rescript build
 
 rescript-format:
-	git ls-files -z -- '*.res' '*.resi' | xargs -0 yarn rescript format
+	git ls-files -z -- '*.res' '*.resi' ':(exclude)libs/experimental-rescript-webapi/**' | xargs -0 yarn rescript format
 
 reanalyze:
 	@printf "$(YELLOW)Running ReScript dead code analysis...$(RESET)\n"
