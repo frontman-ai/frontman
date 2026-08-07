@@ -1,3 +1,5 @@
+// Adapted from astro-consent, Copyright (c) 2026 Velohost UK Limited.
+// Licensed under MIT; see THIRD_PARTY_LICENSES.md.
 
 const config = {
   storageKey: "frontman-cookie-consent",

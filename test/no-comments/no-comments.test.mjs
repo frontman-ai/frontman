@@ -125,6 +125,31 @@ end
   }
 })
 
+test("leading legal notices are preserved without allowing later comments", () => {
+  const elixir = `# Frontman Server
+# Copyright (C) 2025 Frontman AI
+#
+# Licensed under the AGPL-3.0 - see LICENSE for details.
+# Additional terms apply - see AI-SUPPLEMENTARY-TERMS.md
+
+defmodule Example do
+  # implementation comment
+end
+`
+  const javascript = `// Adapted work, Copyright (c) 2026 Example.
+// Licensed under MIT; see THIRD_PARTY_LICENSES.md.
+
+const value = 1 // implementation comment
+`
+  for (const [file, source] of [["example.ex", elixir], ["example.js", javascript]]) {
+    const spans = scanSource(file, source)
+    assert.equal(spans.length, 1, file)
+    const fixed = fixSource(source, spans)
+    assert.match(fixed, /Copyright/)
+    assert.doesNotMatch(fixed, /implementation comment/)
+  }
+})
+
 test("installer generated-source bindings are scanned narrowly", () => {
   const nextFile = "libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res"
   const viteFile = "libs/frontman-vite/src/cli/FrontmanVite__Cli__Templates.res"

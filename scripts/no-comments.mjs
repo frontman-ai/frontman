@@ -648,6 +648,14 @@ function uniqueSpans(spans) {
   })
 }
 
+function excludeLegalNotice(source, spans) {
+  const separator = source.indexOf("\n\n")
+  const end = separator < 0 ? source.length : separator + 2
+  const header = source.slice(0, end)
+  const legal = /copyright|spdx-license-identifier|licensed under|third_party_licenses|ai-supplementary-terms/i.test(header)
+  return legal ? spans.filter(item => item.start >= end) : spans
+}
+
 function scanGeneratedTemplates(file, source) {
   const bindings = generatedTemplateBindings.get(file.replaceAll("\\", "/"))
   if (!bindings) return []
@@ -688,16 +696,16 @@ export function scanSource(file, source) {
   const extension = extname(file).toLowerCase()
   if (kind === "clike") {
     const spans = scanCLike(source, {nested: extension === ".res" || extension === ".resi", regex: true, rescript: extension === ".res" || extension === ".resi"})
-    return uniqueSpans([...spans, ...scanGeneratedTemplates(file, source)]).sort((a, b) => a.start - b.start)
+    return excludeLegalNotice(source, uniqueSpans([...spans, ...scanGeneratedTemplates(file, source)]).sort((a, b) => a.start - b.start))
   }
-  if (kind === "css") return scanCLike(source, {lineComments: false})
-  if (kind === "elixir") return scanElixir(source)
-  if (kind === "python") return scanPython(source)
-  if (kind === "hash") return scanHash(source, {semicolon: extension === ".ini" || extension === ".service", shell: extension === ".sh" || source.startsWith("#!"), yaml: extension === ".yaml" || extension === ".yml"})
-  if (kind === "php") return scanPhp(source)
-  if (kind === "batch") return scanBatch(source)
-  if (kind === "sql") return scanSql(source)
-  if (kind === "template") return scanTemplate(source, extension)
+  if (kind === "css") return excludeLegalNotice(source, scanCLike(source, {lineComments: false}))
+  if (kind === "elixir") return excludeLegalNotice(source, scanElixir(source))
+  if (kind === "python") return excludeLegalNotice(source, scanPython(source))
+  if (kind === "hash") return excludeLegalNotice(source, scanHash(source, {semicolon: extension === ".ini" || extension === ".service", shell: extension === ".sh" || source.startsWith("#!"), yaml: extension === ".yaml" || extension === ".yml"}))
+  if (kind === "php") return excludeLegalNotice(source, scanPhp(source))
+  if (kind === "batch") return excludeLegalNotice(source, scanBatch(source))
+  if (kind === "sql") return excludeLegalNotice(source, scanSql(source))
+  if (kind === "template") return excludeLegalNotice(source, scanTemplate(source, extension))
   return []
 }
 

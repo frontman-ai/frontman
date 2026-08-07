@@ -1,3 +1,9 @@
+# Frontman Server
+# Copyright (C) 2025 Frontman AI
+#
+# Licensed under the AGPL-3.0 — see LICENSE for details.
+# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
+
 defmodule FrontmanServer.Workers.SyncResendContact do
   @moduledoc """
   Oban worker that adds a newly registered user to the Resend Contacts list.

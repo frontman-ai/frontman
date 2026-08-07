@@ -1,3 +1,9 @@
+# Frontman Server
+# Copyright (C) 2025 Frontman AI
+#
+# Licensed under the AGPL-3.0 — see LICENSE for details.
+# Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
+
 defmodule FrontmanServer.Accounts.User do
   @moduledoc """
   Schema for user accounts with email-based authentication.
