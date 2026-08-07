@@ -61,8 +61,6 @@ else
     git worktree add "$WT_DIR" -b "$BRANCH"
   fi
 fi
-mkdir -p "$WT_DIR/.claude/projects" "$WT_DIR/.claude/plans" "$WT_DIR/.claude/todos"
-touch "$WT_DIR/.claude/history.jsonl"
 echo ""
 
 # ── Secrets ─────────────────────────────────────────────
