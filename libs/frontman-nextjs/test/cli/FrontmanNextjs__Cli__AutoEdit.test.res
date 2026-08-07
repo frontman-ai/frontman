@@ -11,13 +11,12 @@ module AutoEdit = FrontmanNextjs__Cli__AutoEdit
 
 let makeCacheKey: (~fileType: string, ~existingContent: string, ~host: string) => string = %raw(`
   function(fileType, existingContent, host) {
-    // Simple hash using string concatenation and charCode sum
     const input = fileType + "|" + host + "|" + existingContent;
     let hash = 0;
     for (let i = 0; i < input.length; i++) {
       const char = input.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
+      hash = hash & hash;
     }
     return "llm-cache-" + Math.abs(hash).toString(36);
   }
@@ -48,7 +47,6 @@ let writeCache: (~cacheKey: string, ~content: string) => promise<unit> = %raw(`
     await fs.mkdir(cacheDir, { recursive: true });
     const filePath = path.join(cacheDir, cacheKey + ".json");
     await fs.writeFile(filePath, JSON.stringify({ content, timestamp: Date.now() }));
-    // Reset run counter on fresh write
     const runCountPath = path.join(cacheDir, cacheKey + ".runs");
     await fs.writeFile(runCountPath, "0");
     console.log("  [cache] Written for " + cacheKey);

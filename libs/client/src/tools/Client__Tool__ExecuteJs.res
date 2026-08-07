@@ -84,7 +84,6 @@ let executeInWindow: (
 
     var result;
     try {
-      // Separate construction from execution so only SyntaxErrors trigger the fallback
       var fn;
       try {
         fn = new win.Function('return (' + expression + ')');
@@ -102,7 +101,6 @@ let executeInWindow: (
       });
     }
 
-    // If result is a thenable, race against timeout
     if (result && typeof result.then === 'function') {
       var timer;
       var timeoutPromise = new Promise(function(_, reject) {

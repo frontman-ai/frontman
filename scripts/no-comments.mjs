@@ -148,6 +148,10 @@ function consumeTemplateLiteral(source, start, options, results) {
   return source.length
 }
 
+function isRescriptRawTemplate(source, index) {
+  return /%raw\(\s*$/.test(source.slice(0, index))
+}
+
 function typescriptReferenceEnd(source, index) {
   const lineStart = source.lastIndexOf("\n", index - 1) + 1
   if (!/^[ \t]*$/.test(source.slice(lineStart, index))) return index
@@ -180,6 +184,11 @@ function scanCLikeInternal(source, options, start = 0, braceDepth = 0) {
       i++
     } else if (char === '"' || char === "'") {
       i = consumeQuoted(source, i, char)
+    } else if (rescript && char === "`" && isRescriptRawTemplate(source, i)) {
+      const end = consumeTemplateLiteral(source, i, options, [])
+      const bodyEnd = end > i + 1 ? end - 1 : end
+      results.push(...offsetSpans(scanCLike(source.slice(i + 1, bodyEnd), {regex: true}), i + 1))
+      i = end
     } else if (char === "`") {
       i = consumeTemplateLiteral(source, i, options, results)
     } else if (rescript && char === "{" && consumeRescriptQuoted(source, i) !== i) {
@@ -269,7 +278,7 @@ function scanHash(source, options = {}) {
   const results = []
   const lines = source.match(/.*(?:\r\n|\n|\r|$)/g).filter(Boolean)
   let offset = 0
-  let yamlBlockIndent = null
+  let yamlBlock = null
   let heredoc = null
   for (let index = 0; index < lines.length; index++) {
     const raw = lines[index]
@@ -291,21 +300,32 @@ function scanHash(source, options = {}) {
       offset += raw.length
       continue
     }
-    if (yamlBlockIndent !== null) {
-      if (trimmed === "" || indentation(line) > yamlBlockIndent) {
+    if (yamlBlock) {
+      if (trimmed === "" || indentation(line) > yamlBlock.indent) {
         offset += raw.length
         continue
       }
-      yamlBlockIndent = null
+      if (yamlBlock.shell) {
+        const body = source.slice(yamlBlock.start, offset)
+        results.push(...offsetSpans(scanHash(body, {shell: true}), yamlBlock.start))
+      }
+      yamlBlock = null
     }
     if (index === 0 && line.startsWith("#!")) {
       offset += raw.length
       continue
     }
-    const marker = hashMarker(line, options.semicolon === true)
+    const dockerDirective = options.dockerfile && /^#\s*(?:syntax|escape|check)\s*=/i.test(line)
+    const marker = dockerDirective ? -1 : hashMarker(line, options.semicolon === true)
     if (marker >= 0) results.push(span(offset + marker, offset + line.length, "line"))
     const code = marker >= 0 ? line.slice(0, marker) : line
-    if (options.yaml && /:\s*[>|][-+0-9]*\s*$/.test(code)) yamlBlockIndent = indentation(line)
+    if (options.yaml && /:\s*[>|][-+0-9]*\s*$/.test(code)) {
+      yamlBlock = {
+        indent: indentation(line),
+        shell: /^\s*(?:-\s*)?run\s*:/.test(code),
+        start: offset + raw.length,
+      }
+    }
     if (options.shell) {
       const match = code.match(/<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/)
       if (match) {
@@ -321,6 +341,10 @@ function scanHash(source, options = {}) {
       }
     }
     offset += raw.length
+  }
+  if (yamlBlock?.shell) {
+    const body = source.slice(yamlBlock.start, offset)
+    results.push(...offsetSpans(scanHash(body, {shell: true}), yamlBlock.start))
   }
   return results
 }
@@ -621,6 +645,15 @@ function scanTemplate(source, extension) {
     results.push(...offsetSpans(spans, bodyOffset))
     opening.lastIndex = closing.lastIndex
   }
+  if (extension === ".astro") {
+    let start = source.indexOf("{/*")
+    while (start >= 0) {
+      const ignored = ignoredRanges.some(range => start >= range.start && start < range.end)
+      const close = source.indexOf("*/}", start + 3)
+      if (!ignored && close >= 0) results.push(span(start, close + 3, "block"))
+      start = source.indexOf("{/*", start + 3)
+    }
+  }
   results.push(...scanHtmlMarkers(source, ignoredRanges))
   return results.sort((a, b) => a.start - b.start)
 }
@@ -701,7 +734,7 @@ export function scanSource(file, source) {
   if (kind === "css") return excludeLegalNotice(source, scanCLike(source, {lineComments: false}))
   if (kind === "elixir") return excludeLegalNotice(source, scanElixir(source))
   if (kind === "python") return excludeLegalNotice(source, scanPython(source))
-  if (kind === "hash") return excludeLegalNotice(source, scanHash(source, {semicolon: extension === ".ini" || extension === ".service", shell: extension === ".sh" || source.startsWith("#!"), yaml: extension === ".yaml" || extension === ".yml"}))
+  if (kind === "hash") return excludeLegalNotice(source, scanHash(source, {dockerfile: /^Dockerfile(?:\..+)?$/.test(basename(file)), semicolon: extension === ".ini" || extension === ".service", shell: extension === ".sh" || source.startsWith("#!"), yaml: extension === ".yaml" || extension === ".yml"}))
   if (kind === "php") return excludeLegalNotice(source, scanPhp(source))
   if (kind === "batch") return excludeLegalNotice(source, scanBatch(source))
   if (kind === "sql") return excludeLegalNotice(source, scanSql(source))

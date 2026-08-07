@@ -68,6 +68,16 @@ test("ReScript regular expressions are not line comments", () => {
   assert.equal(scanSource("value.res", source).length, 0)
 })
 
+test("ReScript raw JavaScript bodies are scanned as executable source", () => {
+  const source = `let value = %raw(\`function run() {
+  const text = "// data"
+  // line comment
+  return text /* block comment */
+}\`)
+`
+  assert.equal(scanSource("value.res", source).length, 2)
+})
+
 test("triple-slash documentation comments are preserved only on their own line", () => {
   const directive = '/// <reference types="vite/client" />\n'
   for (const file of ["env.ts", "env.tsx", "env.d.ts"]) {
@@ -189,6 +199,45 @@ NODE
 `
   assert.equal(scanSource("setup.sh", source).length, 5)
   assert.equal(scanSource("setup.sh", fixSource(source, scanSource("setup.sh", source))).length, 0)
+})
+
+test("GitHub Actions run blocks scan their shell source", () => {
+  const source = `name: Test
+jobs:
+  test:
+    steps:
+      - run: |
+          value="# data"
+          # shell comment
+          node <<'NODE'
+          // JavaScript comment
+          NODE
+`
+  assert.equal(scanSource("workflow.yml", source).length, 2)
+})
+
+test("Astro expression comments are scanned", () => {
+  const source = `<section>
+  {/* expression comment */}
+  <p>Content</p>
+</section>
+`
+  assert.equal(scanSource("component.astro", source).length, 1)
+})
+
+test("Dockerfile parser directives are preserved", () => {
+  const source = `# syntax=docker/dockerfile:1.7
+# check=error=true
+FROM alpine
+# ordinary comment
+RUN true
+`
+  const spans = scanSource("Dockerfile", source)
+  assert.equal(spans.length, 1)
+  const fixed = fixSource(source, spans)
+  assert.match(fixed, /^# syntax=/m)
+  assert.match(fixed, /^# check=/m)
+  assert.doesNotMatch(fixed, /ordinary comment/)
 })
 
 test("Python files and shebang scripts distinguish comments and data", () => {

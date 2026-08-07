@@ -89,7 +89,6 @@ describe("Client__ComponentName.getForElement", () => {
       (function() {
         var el = { tagName: "div", parentElement: null };
         var fn = function() {};
-        // displayName takes priority over function.name in the fiber walker
         fn.displayName = "_InternalComponent";
         el["__reactFiber$test123"] = {
           type: fn,

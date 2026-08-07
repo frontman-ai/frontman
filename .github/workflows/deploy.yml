@@ -125,7 +125,6 @@ jobs:
       - name: Sync monitoring configs and reload
         run: |
           ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" bash -s <<'EOF'
-          # Only sync if monitoring is installed (setup-monitoring.sh has been run)
           if [ -f /usr/local/bin/prometheus ]; then
             BUILD_MON="/opt/frontman/build/infra/production/monitoring"
             if [ -d "${BUILD_MON}" ]; then

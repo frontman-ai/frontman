@@ -37,18 +37,14 @@ let _findElementsInRect: (
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
       if (!meaningfulTags.has(el.tagName)) continue;
-      // Skip invisible elements
       var style = doc.defaultView.getComputedStyle(el);
       if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
       var rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
-      // Check overlap
       if (rect.left < selRight && rect.right > rx && rect.top < selBottom && rect.bottom > ry) {
         results.push(el);
       }
     }
-    // Remove elements that are ancestors of other matched elements
-    // (prefer more specific/leaf elements)
     var filtered = results.filter(function(el) {
       return !results.some(function(other) {
         return other !== el && el.contains(other);

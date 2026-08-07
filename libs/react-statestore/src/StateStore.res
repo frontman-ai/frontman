@@ -82,7 +82,6 @@ let isEqual: ('a, 'a) => bool = %raw(`
     }
     var b_type = typeof b;
     if (a_type === "function" || b_type === "function") {
-      // different functions
       return false;
     }
     if (b_type === "number" || b_type === "bigint" || b_type === "undefined" || b === null) {
@@ -121,7 +120,6 @@ let isEqual: ('a, 'a) => bool = %raw(`
       } else if ((a instanceof Date && b instanceof Date)) {
         return !(a > b || a < b);
       } else {
-        // assume objects are immutable
         return false
       }
     } else {

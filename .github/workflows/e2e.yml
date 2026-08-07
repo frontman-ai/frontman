@@ -152,9 +152,7 @@ jobs:
 
       - name: Generate mkcert certificates
         run: |
-          # Install mkcert CA into system trust store
           mkcert -install 2>/dev/null || true
-          # Generate certs for localhost (same names as dev)
           mkdir -p .certs
           mkcert -key-file .certs/frontman.local-key.pem \
                  -cert-file .certs/frontman.local.pem \
@@ -197,17 +195,13 @@ jobs:
       - name: Cleanup workspace
         if: always()
         run: |
-          # Kill any leaked dev server processes
           lsof -ti:4002 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:5173 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3010 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3011 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3012 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3013 2>/dev/null | xargs kill -9 2>/dev/null || true
-          # Drop the per-run E2E database.
           bash scripts/ci/postgres-test-db-cleanup.sh current-e2e || true
           bash scripts/ci/postgres-test-db-cleanup.sh stale || true
-          # Restore fixture files modified by AI + installer during tests
           git checkout -- test/e2e/fixtures/ 2>/dev/null || true
-          # Remove untracked files created by installer (middleware.ts, instrumentation.ts)
           git clean -fd -- test/e2e/fixtures/ 2>/dev/null || true

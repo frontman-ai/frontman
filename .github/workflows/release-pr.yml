@@ -55,7 +55,6 @@ jobs:
           BUMP="patch"
           for f in .changeset/*.md; do
             [ "$(basename "$f")" = "README.md" ] && continue
-            # Only search the YAML frontmatter (between --- delimiters), not the description
             FRONTMATTER=$(sed -n '/^---$/,/^---$/p' "$f")
             if echo "$FRONTMATTER" | grep -qE ':\s*major(\s|$)'; then
               BUMP="major"
@@ -79,13 +78,11 @@ jobs:
         id: version
         shell: bash
         run: |
-          # Get the current project version from root CHANGELOG.md
           CURRENT=$(sed -n 's/^## \[\{0,1\}\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -1)
           if [ -z "$CURRENT" ]; then
             CURRENT="0.0.0"
           fi
 
-          # Bump version based on changeset level
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
           BUMP="${{ steps.bump.outputs.level }}"
           case "$BUMP" in
@@ -96,7 +93,6 @@ jobs:
           VERSION="${MAJOR}.${MINOR}.${PATCH}"
           DATE=$(date +%Y-%m-%d)
 
-          # Collect summaries from per-package changelogs updated by changeset version
           CHANGES=""
           for changelog in libs/*/CHANGELOG.md apps/*/CHANGELOG.md; do
             [ -f "$changelog" ] || continue
@@ -120,11 +116,8 @@ jobs:
             CHANGES=$'\n\n'"### Changed"$'\n'"- Package version bumps (see per-package changelogs for details)"
           fi
 
-          # Build new changelog: preamble (everything before the first ## version heading) + new entry + existing entries
-          # Find the line number of the first ## version heading
           FIRST_HEADING=$(grep -n '^## ' CHANGELOG.md | head -1 | cut -d: -f1)
           if [ -z "$FIRST_HEADING" ]; then
-            # No existing version headings — entire file is the preamble
             HEADER=$(cat CHANGELOG.md)
             BODY=""
           else
