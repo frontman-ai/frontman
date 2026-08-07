@@ -8,6 +8,10 @@ import {fileURLToPath} from "node:url"
 
 import {classifyFile, fixSource, repositoryFiles, scanSource, trackedFiles} from "../../scripts/no-comments.mjs"
 
+for (const variable of execFileSync("git", ["rev-parse", "--local-env-vars"], {encoding: "utf8"}).trim().split("\n")) {
+  delete process.env[variable]
+}
+
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = join(here, "fixtures")
 const manifest = JSON.parse(readFileSync(join(fixtures, "manifest.json"), "utf8"))
