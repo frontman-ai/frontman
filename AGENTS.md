@@ -3,7 +3,7 @@
 
 ## Worktree Workflow
 
-This repo uses git worktrees for parallel feature development with isolated Claude contexts.
+This repo uses git worktrees for parallel feature development with isolated agent sessions.
 
 **Create worktree:**
 ```bash
@@ -13,7 +13,7 @@ cd .worktrees/feature/my-feature
 
 **Benefits:**
 - Work on multiple features without branch switching
-- Isolated Claude Code context per feature (separate history)
+- Isolated agent session per feature
 - Parallel dev servers on different ports
 - Self-contained dependencies per worktree
 
@@ -43,7 +43,6 @@ cd .worktrees/feature/my-feature
 
 **Structure:**
 - `.worktrees/<branch-name>/` - Worktree directory
-- `.worktrees/<branch-name>/.claude/` - Isolated Claude context (history, plans, todos)
 
 ## Containerized Worktrees
 
