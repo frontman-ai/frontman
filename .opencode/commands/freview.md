@@ -5,7 +5,7 @@ description: Prepare PR with CI checks and Devin AI review loop
 You are running the Frontman full review workflow. Follow these steps precisely.
 
 Before starting, read and internalize the project guidelines:
-- @CLAUDE.md
+- @AGENTS.md
 - @apps/frontman_server/AGENTS.md
 
 ---

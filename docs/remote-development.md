@@ -376,8 +376,6 @@ make install
 make dev
 ```
 
-Each worktree has an isolated `.claude/` directory for Claude Code context.
-
 See `AGENTS.md` for more on the worktree workflow.
 
 ### Managing Workspaces
