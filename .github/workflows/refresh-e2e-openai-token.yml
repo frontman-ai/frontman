@@ -2,6 +2,11 @@ name: Refresh E2E OpenAI token
 
 on:
   workflow_dispatch:
+    inputs:
+      refresh_threshold_seconds:
+        description: "Refresh when token expires within this many seconds"
+        required: true
+        default: "259200"
   schedule:
     - cron: "17 9 * * *"
 
@@ -27,8 +32,8 @@ jobs:
       E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
       E2E_OPENAI_TOKEN_MODE: refresh_if_needed
-      # Refresh when the access token is within 3 days of expiry.
-      E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: "259200"
+      # Refresh when the access token is within 3 days of expiry by default.
+      E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: ${{ github.event.inputs.refresh_threshold_seconds || '259200' }}
 
     steps:
       - name: Checkout code
@@ -52,7 +57,7 @@ jobs:
       - name: Update repo secrets
         if: steps.token.outputs.rotated == 'true'
         env:
-          # PAT or GitHub App token with permission to manage repo Actions secrets.
+          # PAT or GitHub App token with permission to manage repo Actions and Dependabot secrets.
           GH_TOKEN: ${{ secrets.E2E_SECRET_ROTATION_GH_TOKEN }}
           REPO: ${{ github.repository }}
           ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
@@ -64,9 +69,11 @@ jobs:
             exit 1
           fi
 
-          gh secret set E2E_CHATGPT_ACCESS_TOKEN --repo "$REPO" --body "$ACCESS_TOKEN"
-          gh secret set E2E_CHATGPT_REFRESH_TOKEN --repo "$REPO" --body "$REFRESH_TOKEN"
-          gh secret set E2E_CHATGPT_ACCOUNT_ID --repo "$REPO" --body "$ACCOUNT_ID"
+          for APP in actions dependabot; do
+            gh secret set E2E_CHATGPT_ACCESS_TOKEN --app "$APP" --repo "$REPO" --body "$ACCESS_TOKEN"
+            gh secret set E2E_CHATGPT_REFRESH_TOKEN --app "$APP" --repo "$REPO" --body "$REFRESH_TOKEN"
+            gh secret set E2E_CHATGPT_ACCOUNT_ID --app "$APP" --repo "$REPO" --body "$ACCOUNT_ID"
+          done
 
       - name: Summarize result
         run: |
