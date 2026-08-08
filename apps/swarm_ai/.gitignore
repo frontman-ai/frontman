@@ -7,5 +7,4 @@
 *.tar
 erl_crash.dump
 
-# Override root .gitignore which ignores lib/ for ReScript build output
 !lib/

@@ -1,8 +1,4 @@
 ---
-// ComparisonFeatureTable
-// ----------------------
-// Shared feature comparison table for /vs/ pages.
-// Tailwind utility classes only.
 
 type Status = 'yes' | 'no' | 'partial'
 
@@ -34,7 +30,6 @@ function statusLabel(status: Status): string {
   <div class="w-full max-w-[900px]">
     <h2 class="mb-8 !text-[32px] !font-bold !tracking-tight !text-zinc-50 max-md:!text-2xl">Feature Comparison</h2>
 
-    <!-- Desktop table -->
     <div class="hidden md:block">
       <table class="w-full border-separate border-spacing-0">
         <caption class="sr-only">Feature comparison between Frontman and {competitorName}</caption>
@@ -74,7 +69,6 @@ function statusLabel(status: Status): string {
       </table>
     </div>
 
-    <!-- Mobile cards -->
     <div class="flex flex-col gap-3 md:hidden">
       {features.map((feature) => (
         <div class="rounded-xl border border-white/[0.08] bg-white/[0.04] p-4">

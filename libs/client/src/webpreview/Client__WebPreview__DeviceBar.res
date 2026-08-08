@@ -1,6 +1,3 @@
-// Device bar - secondary toolbar showing device mode controls
-// Only visible when device mode is active (not Responsive)
-
 module Icons = Client__UI__Icons
 module DropdownMenu = Client__UI__DropdownMenu
 
@@ -9,7 +6,6 @@ module DimensionInput = {
   let make = (~value: int, ~onChange: int => unit, ~label: string) => {
     let (localValue, setLocalValue) = React.useState(() => Int.toString(value))
 
-    // Sync from external changes
     React.useEffect(() => {
       setLocalValue(_ => Int.toString(value))
       None
@@ -53,7 +49,7 @@ let make = (
   let effectiveDims = Client__DeviceMode.getEffectiveDimensions(deviceMode, orientation)
 
   switch effectiveDims {
-  | None => React.null // Responsive mode - no bar
+  | None => React.null
   | Some((width, height)) =>
     let deviceName = Client__DeviceMode.getDeviceName(deviceMode)
     let categories = Client__DeviceMode.presetsByCategory()
@@ -61,7 +57,6 @@ let make = (
     <div
       className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-b border-gray-200 text-xs"
     >
-      // Device preset dropdown
       <DropdownMenu>
         <DropdownMenu.Trigger
           render={<button
@@ -76,7 +71,6 @@ let make = (
         <DropdownMenu.Content
           align=BaseUi.Types.Align.Start sideOffset=4. className="min-w-[180px]"
         >
-          // Responsive option
           <DropdownMenu.Item
             onClick={_ =>
               Client__State.Actions.setDeviceMode(~deviceMode=Client__DeviceMode.Responsive)}
@@ -85,7 +79,6 @@ let make = (
             {React.string("Responsive")}
           </DropdownMenu.Item>
           <DropdownMenu.Separator />
-          // Device presets by category
           {categories
           ->Array.mapWithIndex(((category, devices), idx) => {
             <React.Fragment key={category}>
@@ -120,9 +113,7 @@ let make = (
           ->React.array}
         </DropdownMenu.Content>
       </DropdownMenu>
-      // Separator
       <div className="w-px h-4 bg-gray-300" />
-      // Width x Height inputs
       <div className="flex items-center gap-1">
         <DimensionInput
           value={width}
@@ -158,9 +149,7 @@ let make = (
           }}
         />
       </div>
-      // Separator
       <div className="w-px h-4 bg-gray-300" />
-      // Rotate button
       <button
         type_="button"
         onClick={_ => {
@@ -179,7 +168,6 @@ let make = (
       >
         <Icons.UpdateIcon className="size-3.5" />
       </button>
-      // DPR indicator (if preset with DPR)
       {switch Client__DeviceMode.getDeviceDpr(deviceMode) {
       | Some(dpr) =>
         <span className="text-gray-400 ml-1" title="Device pixel ratio">

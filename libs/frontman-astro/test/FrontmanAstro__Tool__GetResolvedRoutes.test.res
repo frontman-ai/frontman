@@ -1,16 +1,3 @@
-// Integration tests for get_client_pages (v5 resolved routes) via the full HTTP middleware stack.
-//
-// Tests the complete production path:
-//   Integration.make() creates a ref + getRoutes closure
-//   → astro:routes:resolved hook populates the ref
-//   → ToolRegistry.makeWithResolvedRoutes(~getRoutes) wires the v5 tool
-//   → POST /frontman/tools/call { name: "get_client_pages" }
-//   → SSE response body contains resolved route data
-//
-// These tests focus on route types that the v4 filesystem scanner misses:
-// content collections, config redirects, API endpoints, integration-injected
-// routes, internal/fallback routes, and multi-param dynamics.
-
 open Vitest
 
 module Helpers = FrontmanAstro__TestHelpers
@@ -18,8 +5,6 @@ module Bindings = FrontmanBindings.Astro
 module ToolRegistry = FrontmanAstro__ToolRegistry
 
 module Fixtures = {
-  // --- Standard page routes (v4 can find these too) ---
-
   let homePage: Bindings.integrationResolvedRoute = {
     pattern: "/",
     entrypoint: "src/pages/index.astro",
@@ -40,9 +25,6 @@ module Fixtures = {
     isPrerendered: true,
   }
 
-  // --- Routes that v4 filesystem scanning CANNOT discover ---
-
-  // Content collection route: generated from src/content/, no file in src/pages/
   let blogPost: Bindings.integrationResolvedRoute = {
     pattern: "/blog/[slug]",
     entrypoint: "src/pages/blog/[slug].astro",
@@ -53,7 +35,6 @@ module Fixtures = {
     isPrerendered: true,
   }
 
-  // Content collection with nested params
   let docsSection: Bindings.integrationResolvedRoute = {
     pattern: "/docs/[...path]",
     entrypoint: "src/pages/docs/[...path].astro",
@@ -64,7 +45,6 @@ module Fixtures = {
     isPrerendered: true,
   }
 
-  // API endpoint: v4 explicitly excludes src/pages/api/
   let apiHealth: Bindings.integrationResolvedRoute = {
     pattern: "/api/health",
     entrypoint: "src/pages/api/health.ts",
@@ -75,7 +55,6 @@ module Fixtures = {
     isPrerendered: false,
   }
 
-  // API endpoint with dynamic param
   let apiUserById: Bindings.integrationResolvedRoute = {
     pattern: "/api/users/[id]",
     entrypoint: "src/pages/api/users/[id].ts",
@@ -86,7 +65,6 @@ module Fixtures = {
     isPrerendered: false,
   }
 
-  // Config-defined redirect: declared in astro.config.mjs, no file on disk
   let redirectOldBlog: Bindings.integrationResolvedRoute = {
     pattern: "/old-blog",
     entrypoint: "",
@@ -97,7 +75,6 @@ module Fixtures = {
     isPrerendered: false,
   }
 
-  // Redirect with a dynamic segment (e.g. redirects: { "/posts/[slug]": "/blog/[slug]" })
   let redirectDynamic: Bindings.integrationResolvedRoute = {
     pattern: "/posts/[slug]",
     entrypoint: "",
@@ -108,7 +85,6 @@ module Fixtures = {
     isPrerendered: false,
   }
 
-  // Integration-injected route: added by a third-party integration (e.g. @astrojs/sitemap)
   let sitemapXml: Bindings.integrationResolvedRoute = {
     pattern: "/sitemap.xml",
     entrypoint: "node_modules/@astrojs/sitemap/dist/endpoint.js",
@@ -119,7 +95,6 @@ module Fixtures = {
     isPrerendered: true,
   }
 
-  // Internal fallback route: Astro's built-in image optimization endpoint
   let imageEndpoint: Bindings.integrationResolvedRoute = {
     pattern: "/_image",
     entrypoint: "node_modules/astro/dist/assets/endpoint.js",
@@ -130,7 +105,6 @@ module Fixtures = {
     isPrerendered: false,
   }
 
-  // Astro's built-in 404 fallback
   let fallback404: Bindings.integrationResolvedRoute = {
     pattern: "/404",
     entrypoint: "src/pages/404.astro",
@@ -141,7 +115,6 @@ module Fixtures = {
     isPrerendered: true,
   }
 
-  // Multi-param dynamic route: e.g. i18n pattern /[lang]/blog/[slug]
   let i18nBlogPost: Bindings.integrationResolvedRoute = {
     pattern: "/[lang]/blog/[slug]",
     entrypoint: "src/pages/[lang]/blog/[slug].astro",
@@ -190,7 +163,6 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
 
         t->expect(sseBody->String.includes("/old-blog"))->Expect.toBe(true)
         t->expect(sseBody->String.includes("redirect"))->Expect.toBe(true)
-        // Dynamic redirect should report its param
         t->expect(sseBody->String.includes("/posts/[slug]"))->Expect.toBe(true)
       },
     )
@@ -230,10 +202,6 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
   })
 
   describe("route metadata from hook data", _t => {
-    // SSE body is double-encoded: tool output is JSON.stringify'd into a text
-    // field, then the MCP envelope is JSON.stringify'd again. So JSON keys/values
-    // with quotes appear escaped: "isDynamic":true → \"isDynamic\":true
-
     testAsync(
       "populates params from hook data",
       async t => {
@@ -293,7 +261,6 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
           ~arguments=JSON.Encode.object(Dict.fromArray([])),
         )
 
-        // homePage is SSR (false), aboutPage is prerendered (true)
         t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":true`))->Expect.toBe(true)
         t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":false`))->Expect.toBe(true)
       },
@@ -362,7 +329,6 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
           ~arguments=JSON.Encode.object(Dict.fromArray([])),
         )
 
-        // All 12 routes should be present
         t->expect(sseBody->String.includes("/blog/[slug]"))->Expect.toBe(true)
         t->expect(sseBody->String.includes("/docs/[...path]"))->Expect.toBe(true)
         t->expect(sseBody->String.includes("/api/health"))->Expect.toBe(true)

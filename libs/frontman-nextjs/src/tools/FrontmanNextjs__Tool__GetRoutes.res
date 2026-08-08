@@ -1,5 +1,3 @@
-// Get routes tool - lists Next.js routes from the filesystem
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -34,13 +32,10 @@ type output = array<route>
 
 let (visibleToAgent, outputJsonSchema) = (true, None)
 
-// Check if a segment is dynamic (contains [ ])
 let isDynamicSegment = (segment: string): bool => {
   segment->String.startsWith("[") && segment->String.endsWith("]")
 }
 
-// Convert file path to route path
-// Normalizes separators first since Path.join uses \ on Windows but routes need /
 let fileToRoute = (filePath: string): string => {
   filePath
   ->PathStringUtils.toForwardSlashes
@@ -51,7 +46,6 @@ let fileToRoute = (filePath: string): string => {
   ->(p => p == "" ? "/" : p)
 }
 
-// Recursively find route files
 let rec findRoutes = async (baseDir: string, currentPath: string, ~projectRoot: string): array<
   route,
 > => {
@@ -66,7 +60,6 @@ let rec findRoutes = async (baseDir: string, currentPath: string, ~projectRoot: 
       let stats = await Fs.Promises.stat(entryPath)
 
       if Fs.isDirectory(stats) {
-        // Skip special directories
         if entry->String.startsWith("_") || entry == "api" || entry == "components" {
           []
         } else {
@@ -110,11 +103,9 @@ let execute = async (
   _input: input,
 ): Tool.MCP.CallToolResult.t => {
   try {
-    // Try app directory first (Next.js 13+)
     let appRoutes = await findRoutes("src/app", "", ~projectRoot=ctx.projectRoot)
     let appRoutesAlt = await findRoutes("app", "", ~projectRoot=ctx.projectRoot)
 
-    // Try pages directory (legacy)
     let pagesRoutes = await findRoutes("src/pages", "", ~projectRoot=ctx.projectRoot)
     let pagesRoutesAlt = await findRoutes("pages", "", ~projectRoot=ctx.projectRoot)
 

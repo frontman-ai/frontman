@@ -1,11 +1,10 @@
 /**
  * TodoUtils - Utility functions for TODO handling
- * 
+ *
  * Helpers for identifying TODO tools and extracting TODO data from tool results.
  */
 module Message = Client__State__Types.Message
 
-// TODO item type for display
 type todoItem = {
   id: string,
   content: string,

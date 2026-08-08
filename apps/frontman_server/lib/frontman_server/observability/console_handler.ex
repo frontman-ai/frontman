@@ -29,7 +29,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   defp attach_handlers do
     [
-      # Swarm events
       {SwarmEvents.run_start(), &__MODULE__.handle_swarm_run_start/4},
       {SwarmEvents.run_stop(), &__MODULE__.handle_swarm_run_stop/4},
       {SwarmEvents.run_exception(), &__MODULE__.handle_swarm_run_exception/4},
@@ -45,10 +44,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
       :telemetry.attach(handler_id, event, handler, nil)
     end)
   end
-
-  # ===========================================================================
-  # Swarm Run Lifecycle
-  # ===========================================================================
 
   def handle_swarm_run_start(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, task_id: task_id, turn_number: turn_number} = metadata
@@ -85,10 +80,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
     :ets.delete(@table, {:swarm_run, loop_id})
     Logger.error("[swarm] run:exception loop=#{short_id(loop_id)} #{kind}: #{inspect(reason)}")
   end
-
-  # ===========================================================================
-  # Swarm LLM Calls
-  # ===========================================================================
 
   def handle_swarm_llm_start(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, step: step, model: model} = metadata
@@ -130,10 +121,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
     )
   end
 
-  # ===========================================================================
-  # Swarm Tool Execution
-  # ===========================================================================
-
   def handle_swarm_tool_start(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, step: step, tool_id: tool_id, tool_name: tool_name} = metadata
     start_time = System.monotonic_time(:millisecond)
@@ -170,10 +157,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
       "[swarm] tool:exception loop=#{short_id(loop_id)} #{tool_name} #{kind}: #{inspect(reason)}"
     )
   end
-
-  # ===========================================================================
-  # Helpers
-  # ===========================================================================
 
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
   defp short_id(id), do: inspect(id)

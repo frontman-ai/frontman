@@ -1,4 +1,3 @@
-// Install command implementation
 module Bindings = FrontmanBindings
 module ChildProcess = FrontmanAiFrontmanCore.FrontmanCore__ChildProcess
 module Path = Bindings.Path
@@ -23,7 +22,6 @@ type installResult =
   | PartialSuccess({manualStepsRequired: array<string>})
   | Failure(string)
 
-// Install dependencies using detected package manager
 let installDependencies = async (
   ~projectDir: string,
   ~packageManager: Detect.packageManager,
@@ -56,7 +54,6 @@ let installDependencies = async (
   }
 }
 
-// Helper to process a file result and collect manual steps
 let processFileResult = (
   result: result<Files.fileResult, string>,
   manualSteps: array<string>,
@@ -75,13 +72,11 @@ let processFileResult = (
   }
 }
 
-// Collect which files need auto-editing (without prompting the user)
 let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): array<
   Files.pendingAutoEdit,
 > => {
   let pending = []
 
-  // Check middleware or proxy
   switch isNext16Plus {
   | true =>
     let fileName = switch info.hasSrcDir {
@@ -103,7 +98,6 @@ let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): 
     }
   }
 
-  // Check instrumentation
   let instrFileName = switch info.hasSrcDir {
   | true => "src/instrumentation.ts"
   | false => "instrumentation.ts"
@@ -116,7 +110,6 @@ let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): 
   pending
 }
 
-// Main install function
 let run = async (options: installOptions): installResult => {
   let projectDir = options.prefix->Option.getOr(Process.cwd())
   let host = options.server
@@ -131,7 +124,6 @@ let run = async (options: installOptions): installResult => {
   | false => ()
   }
 
-  // Step 1: Detect project info
   switch await Detect.detect(projectDir) {
   | Error(msg) =>
     Console.error(`  ${Style.warn}  ${Style.bold("Error:")} ${msg}`)
@@ -144,7 +136,6 @@ let run = async (options: installOptions): installResult => {
     Console.log(`  ${Style.bullet} ${Style.bold("Detected:")} Next.js ${version}`)
     Console.log("")
 
-    // Step 2: Install dependencies (unless skipped)
     switch options.skipDeps {
     | true => ()
     | false =>
@@ -155,14 +146,12 @@ let run = async (options: installOptions): installResult => {
       ) {
       | Error(msg) =>
         Console.error(`  ${Style.warn}  ${msg}`)
-        // Continue anyway - user might have deps already
         ()
       | Ok() => ()
       }
       Console.log("")
     }
 
-    // Step 3: Collect files needing auto-edit and prompt once (if any)
     let pendingEdits = collectPendingAutoEdits(~info, ~isNext16Plus)
     let shouldAutoEdit = switch (pendingEdits->Array.length > 0, options.dryRun) {
     | (true, false) =>
@@ -171,10 +160,8 @@ let run = async (options: installOptions): installResult => {
     | _ => false
     }
 
-    // Step 4: Handle files based on Next.js version
     let manualSteps = []
 
-    // Handle middleware or proxy based on version
     let middlewareResult = switch isNext16Plus {
     | true =>
       await Files.handleProxy(
@@ -199,7 +186,6 @@ let run = async (options: installOptions): installResult => {
     switch processFileResult(middlewareResult, manualSteps) {
     | Error(msg) => Failure(msg)
     | Ok() =>
-      // Handle instrumentation
       let instrumentationResult = await Files.handleInstrumentation(
         ~projectDir,
         ~host,
@@ -212,7 +198,6 @@ let run = async (options: installOptions): installResult => {
       switch processFileResult(instrumentationResult, manualSteps) {
       | Error(msg) => Failure(msg)
       | Ok() =>
-        // Summary
         switch manualSteps->Array.length > 0 {
         | true =>
           Console.log("")

@@ -215,7 +215,6 @@ describe("RequestHandlers", _t => {
           req,
         )
 
-        // SSE response should still be 200 with event-stream content type
         t->expect(response.status)->Expect.toBe(200)
 
         let text = await response->WebAPI.Response.text

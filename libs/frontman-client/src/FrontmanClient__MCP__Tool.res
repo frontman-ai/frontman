@@ -1,4 +1,3 @@
-// Re-export from protocol package
 module ProtocolTool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 

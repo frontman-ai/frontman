@@ -28,8 +28,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   @persisted_restart_model "openrouter:persisted/restart-model"
 
-  # --- Live execution chunk builders ---
-
   defp response_metadata(turn_started_id \\ "turn-1", ordinal \\ 0) do
     %{
       turn_started_id: turn_started_id,
@@ -79,8 +77,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     interaction_event(agent_error("Cancelled", "cancelled"), 1)
   end
 
-  # Collects all pending push messages from the test process mailbox.
-  # Phoenix.ChannelTest sends pushes as {:socket_push, event, payload} messages.
   defp collect_all_pushes(acc \\ []) do
     receive do
       %Phoenix.Socket.Message{event: event, payload: payload} ->
@@ -547,9 +543,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  # Tests that verify the channel is properly subscribed to PubSub.
-  # Critical because tool calls are broadcast via PubSub from the agent,
-  # and the channel must receive them to route to MCP.
   describe "PubSub subscription" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
@@ -561,20 +554,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: _socket,
       task_id: task_id
     } do
-      # This test verifies the REAL path: PubSub.broadcast -> channel receives
-      # Unlike other tests that use send(socket.channel_pid, ...) directly
-
       tool_call =
         tool_call("call_pubsub_#{:rand.uniform(1_000_000)}", "testTool", %{"key" => "value"})
 
-      # Broadcast via PubSub - this is what Tasks.request_client_tool does in production
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
         interaction_event(tool_call, 1)
       )
 
-      # If the channel is subscribed to PubSub, it should route this to MCP
       assert_push("mcp:message", %{
         "method" => "tools/call",
         "params" => %{"name" => "testTool"}
@@ -585,24 +573,19 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: _socket,
       task_id: task_id
     } do
-      # Verify that the channel only receives broadcasts to its specific topic
-      # This proves the subscription is topic-specific, not global
       different_topic = "task:different_#{:rand.uniform(1_000_000)}"
 
       tool_call =
         tool_call("call_different_#{:rand.uniform(1_000_000)}", "otherTool")
 
-      # Broadcast to a DIFFERENT topic
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         different_topic,
         interaction_event(tool_call, 1)
       )
 
-      # Channel should NOT receive this since it's subscribed to task_id's topic
       refute_push("mcp:message", %{"params" => %{"name" => "otherTool"}})
 
-      # But it SHOULD still receive broadcasts to its own topic
       tool_call2 = %{
         tool_call
         | tool_call_id: "call_own_#{:rand.uniform(1_000_000)}",
@@ -625,7 +608,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       socket: socket,
       task_id: task_id
     } do
-      # Thinking chunks and empty-text chunks are silently dropped
       activate_turn(socket, "turn-1")
 
       Phoenix.PubSub.broadcast(
@@ -648,7 +630,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"update" => %{"sessionUpdate" => "agent_message_chunk"}}
       })
 
-      # Channel should still be alive and functional
       Phoenix.PubSub.broadcast(
         FrontmanServer.PubSub,
         task_topic(task_id),
@@ -665,7 +646,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
 
-      # Verify channel process is still alive
       assert Process.alive?(socket.channel_pid)
     end
   end
@@ -687,7 +667,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         agent_failed("Rate limit exceeded")
       )
 
-      # Assert session/update notification was pushed with error
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
         "method" => "session/update",
@@ -1098,7 +1077,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tool_call_id = "call_dedup_#{:rand.uniform(1_000_000)}"
       activate_turn(socket, "turn-1")
 
-      # Step 1: Send tool_call chunk (early streaming notification)
       send(socket.channel_pid, execution_tool_call(tool_call_id, "write_file"))
       :sys.get_state(socket.channel_pid)
 

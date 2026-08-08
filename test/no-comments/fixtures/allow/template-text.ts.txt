@@ -1,0 +1,2 @@
+const value = `literal // text /* text */ https://frontman.sh/${identifier}`
+const nested = `${condition ? `inner ${/https?:\/\/frontman\.sh/.test(url)}` : value}`

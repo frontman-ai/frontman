@@ -32,11 +32,9 @@ let extractTargetFromInput = (input: option<JSON.t>): option<string> => {
   switch input {
   | None => None
   | Some(json) =>
-    // Try to decode as an object and look for common fields
     switch JSON.Decode.object(json) {
     | None => None
     | Some(dict) =>
-      // Check common field names in order of priority
       let fields = [
         "target_file",
         "file_path",
@@ -53,7 +51,7 @@ let extractTargetFromInput = (input: option<JSON.t>): option<string> => {
 
       fields->Array.reduce(None, (acc, field) => {
         switch acc {
-        | Some(_) => acc // Already found one
+        | Some(_) => acc
         | None =>
           dict
           ->Dict.get(field)

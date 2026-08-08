@@ -1,24 +1,11 @@
-// Shared helpers for element discovery and resolution in browser tools.
-// Used by GetInteractiveElements, InteractWithElement, GetDom, and SearchText tools.
-
-// Convert a NodeList to an array of elements. NodeList has no toArray binding
-// in @rescript/webapi, so we use a small typed external for Array.from.
 @val
 external nodeListToElements: WebAPI.DOMAPI.nodeList => array<WebAPI.DOMAPI.element> = "Array.from"
 
-// Extract the message from a JS exception, or return "Unknown error".
 let exnMessage = (exn: exn): string =>
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
 
-// ============================================================================
-// Preview frame access
-// ============================================================================
-
-// Re-export from protocol for consumers that import from ElementResolver
 type previewContext = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.previewContext
 
-// Get preview iframe context if available. Used by forFramework to inject
-// into framework-specific browser tool factories.
 let getPreviewDoc = (): option<previewContext> => {
   let state = StateStore.getState(Client__State__Store.store)
   let previewFrame = Client__State__StateReducer.Selectors.previewFrame(state)
@@ -28,33 +15,22 @@ let getPreviewDoc = (): option<previewContext> => {
   }
 }
 
-// Eliminates repeated getState -> previewFrame -> switch contentDocument boilerplate.
-// Calls `fn` with the preview iframe's document and window when available,
-// or `onUnavailable` when the preview frame isn't ready.
 let withPreviewDoc = (~onUnavailable: unit => 'a, fn: previewContext => 'a): 'a =>
   switch getPreviewDoc() {
   | Some(ctx) => fn(ctx)
   | None => onUnavailable()
   }
 
-// ============================================================================
-// Selector resolution (CSS + XPath)
-// ============================================================================
-
 type selectorKind =
   | CssSelector(string)
   | XPathExpression(string)
 
-// Detect whether a selector string is XPath or CSS.
-// XPath expressions start with "/" or "(" (for grouped expressions).
 let classifySelector = (selector: string): selectorKind =>
   switch selector->String.startsWith("/") || selector->String.startsWith("(") {
   | true => XPathExpression(selector)
   | false => CssSelector(selector)
   }
 
-// Resolve elements by CSS selector or XPath expression.
-// Returns the element at the given index and the total match count.
 let resolveBySelector = (~doc: WebAPI.DOMAPI.document, ~selector: string, ~index: int=0): (
   option<WebAPI.DOMAPI.element>,
   int,
@@ -64,7 +40,6 @@ let resolveBySelector = (~doc: WebAPI.DOMAPI.document, ~selector: string, ~index
     let elements = doc->WebAPI.Document.querySelectorAll(css)->nodeListToElements
     (elements->Array.get(index), elements->Array.length)
   | XPathExpression(xpath) =>
-    // ORDERED_NODE_SNAPSHOT_TYPE = 7
     let result =
       doc->WebAPI.Document.evaluate(
         ~expression=xpath,
@@ -72,8 +47,6 @@ let resolveBySelector = (~doc: WebAPI.DOMAPI.document, ~selector: string, ~index
         ~type_=7,
       )
     let count = result.snapshotLength
-    // snapshotItem returns node; use typed asElement cast
-    // (XPath snapshot queries on DOM return element nodes)
     let element = switch index >= 0 && index < count {
     | true =>
       let node = result->WebAPI.XPathResult.snapshotItem(index)
@@ -84,8 +57,6 @@ let resolveBySelector = (~doc: WebAPI.DOMAPI.document, ~selector: string, ~index
   }
 }
 
-// Resolve an optional selector to a root element, falling back to document body.
-// Used by tools that accept an optional scope selector (e.g. SearchText).
 let resolveRootOrBody = (~doc: WebAPI.DOMAPI.document, ~selector: option<string>): result<
   WebAPI.DOMAPI.element,
   string,
@@ -100,12 +71,6 @@ let resolveRootOrBody = (~doc: WebAPI.DOMAPI.document, ~selector: option<string>
   | None => Ok(doc.body->WebAPI.HTMLElement.asElement)
   }
 
-// ============================================================================
-// Shadow DOM traversal helpers
-// ============================================================================
-
-// Get child elements from an element, optionally including shadow root children.
-// Shadow root children are appended after the element's direct children.
 let getChildElements = (el: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): array<
   WebAPI.DOMAPI.element,
 > => {
@@ -119,7 +84,6 @@ let getChildElements = (el: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): arra
   | true =>
     switch el.shadowRoot->Null.toOption {
     | Some(shadowRoot) =>
-      // Walk childNodes and pick element nodes (nodeType === 1)
       let childNodes = shadowRoot.childNodes
       for i in 0 to childNodes.length - 1 {
         let node = WebAPI.NodeListOf.item(childNodes, i)
@@ -134,12 +98,8 @@ let getChildElements = (el: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): arra
   result
 }
 
-// Check whether an element has a shadow root (for annotation in DOM output)
 let hasShadowRoot = (el: WebAPI.DOMAPI.element): bool => el.shadowRoot->Null.toOption->Option.isSome
 
-// Compute the effective role for an element: ARIA role if present, tag name otherwise.
-// Used consistently for filtering, resolution, and output so the agent can target
-// elements by the same role value shown in discovery.
 let effectiveRole = (el: WebAPI.DOMAPI.element): string => {
   let rawRole =
     FrontmanBindings.Bindings__DomAccessibilityApi.getRole(el)->Null.toOption->Option.getOr("")
@@ -150,21 +110,18 @@ let effectiveRole = (el: WebAPI.DOMAPI.element): string => {
   }
 }
 
-// Extract optional ARIA role, returning None for empty strings or absent roles.
 let getOptionalRole = (el: WebAPI.DOMAPI.element): option<string> =>
   switch FrontmanBindings.Bindings__DomAccessibilityApi.getRole(el)->Null.toOption {
   | Some("") | None => None
   | some => some
   }
 
-// Extract optional accessible name, returning None for empty strings.
 let getOptionalAccessibleName = (el: WebAPI.DOMAPI.element): option<string> =>
   switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el) {
   | "" => None
   | n => Some(n)
   }
 
-// Interactive ARIA roles — elements with these roles are inherently interactive
 let interactiveRoles = [
   "button",
   "link",
@@ -207,8 +164,6 @@ type resolvedElement = {
   visibleText: option<string>,
 }
 
-// Get cursor style for an element. Uses the iframe's window for getComputedStyle.
-// May throw on cross-origin or detached elements — returns "" on failure.
 let getCursor = (win: WebAPI.DOMAPI.window, el: WebAPI.DOMAPI.element): string =>
   try {
     WebAPI.Window.getComputedStyle(win, ~elt=el).cursor
@@ -216,19 +171,14 @@ let getCursor = (win: WebAPI.DOMAPI.window, el: WebAPI.DOMAPI.element): string =
   | JsExn(_) => ""
   }
 
-// Check if an element has zero dimensions (invisible)
 let hasZeroDimensions = (el: WebAPI.DOMAPI.element): bool => {
   let rect = el->WebAPI.Element.getBoundingClientRect
   rect.width <= 0.0 || rect.height <= 0.0
 }
 
-// Check if an element is effectively hidden — either inaccessible (aria-hidden,
-// display:none, etc.) or has zero dimensions. Single predicate for the visibility
-// guard used across all tool element walks.
 let isEffectivelyHidden = (el: WebAPI.DOMAPI.element): bool =>
   FrontmanBindings.Bindings__DomAccessibilityApi.isInaccessible(el) || hasZeroDimensions(el)
 
-// Truncate text to a reasonable length for LLM context
 let truncateText = (text: string): option<string> => {
   let maxLen = 80
   let trimmed = text->String.trim
@@ -239,8 +189,6 @@ let truncateText = (text: string): option<string> => {
   }
 }
 
-// Get visible text content from an element (innerText preferred, falls back to textContent).
-// May throw on cross-origin or detached elements — returns "" on failure.
 let getVisibleText = (el: WebAPI.DOMAPI.element): string =>
   try {
     let htmlEl = el->WebAPI.Element.asHTMLElement
@@ -252,7 +200,6 @@ let getVisibleText = (el: WebAPI.DOMAPI.element): string =>
   | JsExn(_) => ""
   }
 
-// Determine how an element was detected as interactive, if at all.
 let detectInteractivity = (
   ~contentWindow: WebAPI.DOMAPI.window,
   ~el: WebAPI.DOMAPI.element,
@@ -262,9 +209,6 @@ let detectInteractivity = (
   | _ if rawRole !== "" && interactiveRoleSet->Dict.get(rawRole)->Option.isSome => Some(Semantic)
   | _ if getCursor(contentWindow, el) === "pointer" => Some(CursorPointer)
   | _ if el->WebAPI.Element.hasAttribute("tabindex") =>
-    // Only treat tabindex >= 0 as interactive. tabindex="-1" means
-    // "programmatically focusable but not in the tab order" and is
-    // used on non-interactive containers (modals, scroll targets, etc.)
     let tabVal =
       el
       ->WebAPI.Element.getAttribute("tabindex")
@@ -279,7 +223,6 @@ let detectInteractivity = (
   | _ => None
   }
 
-// Check whether an element passes the optional role and name filters.
 let passesFilters = (
   ~role: string,
   ~name: string,
@@ -297,14 +240,6 @@ let passesFilters = (
   passesRole && passesName
 }
 
-// Collect interactive elements from a document.
-// Walks the DOM and identifies elements that are interactive via:
-// 1. Semantic ARIA role (implicit or explicit)
-// 2. cursor:pointer CSS
-// 3. tabindex attribute
-//
-// Uses a while loop (not Array.filter) so we can stop at maxElements
-// without scanning the entire DOM.
 let collectInteractiveElements = (
   ~document: WebAPI.DOMAPI.document,
   ~contentWindow: WebAPI.DOMAPI.window,
@@ -356,8 +291,6 @@ let collectInteractiveElements = (
   results
 }
 
-// Resolve an element by role + name (both required).
-// Walks all elements, matches by computed role and accessible name.
 let resolveByRoleAndName = (
   ~document: WebAPI.DOMAPI.document,
   ~role: string,
@@ -386,16 +319,12 @@ let resolveByRoleAndName = (
   (matches->Array.get(index), matches->Array.length)
 }
 
-// Check whether any direct child of `el` contains `lowerText` in its visible text.
-// Used to prefer leaf-ish elements over parent containers.
 let childMatchesText = (el: WebAPI.DOMAPI.element, lowerText: string): bool => {
   let children = el.children
   let found = ref(false)
   let j = ref(0)
   while j.contents < children.length && !found.contents {
     let child = children->WebAPI.HTMLCollection.item(j.contents)
-    // Only consider visible, accessible children — skip <style>, <script>,
-    // aria-hidden="true", etc. to avoid false positives from hidden text content.
     switch isEffectivelyHidden(child) {
     | true => ()
     | false =>
@@ -409,9 +338,6 @@ let childMatchesText = (el: WebAPI.DOMAPI.element, lowerText: string): bool => {
   found.contents
 }
 
-// Find all visible, accessible elements under `root` whose visible text
-// contains `query` (case-insensitive). Prefers leaf-ish elements: skips
-// an element if any direct child also contains the same text.
 let findMatchingElements = (~root: WebAPI.DOMAPI.element, ~query: string): array<
   WebAPI.DOMAPI.element,
 > => {
@@ -425,15 +351,11 @@ let findMatchingElements = (~root: WebAPI.DOMAPI.element, ~query: string): array
     | true => false
     | false =>
       let visText = getVisibleText(el)->String.toLowerCase
-      // Match text, but prefer leaf-ish elements: skip if a child also matches
-      // (to avoid matching a parent div when a child button has the text)
       visText->String.includes(lowerQuery) && !childMatchesText(el, lowerQuery)
     }
   })
 }
 
-// Resolve an element by visible text content.
-// Walks all elements, matches by innerText substring.
 let resolveByText = (~document: WebAPI.DOMAPI.document, ~text: string, ~index: int): (
   option<WebAPI.DOMAPI.element>,
   int,
@@ -443,8 +365,6 @@ let resolveByText = (~document: WebAPI.DOMAPI.document, ~text: string, ~index: i
   (matches->Array.get(index), matches->Array.length)
 }
 
-// Generate a CSS selector for an element using @medv/finder.
-// Returns None if selector generation fails (e.g. detached elements).
 let generateSelector = (
   ~element: WebAPI.DOMAPI.element,
   ~document: option<WebAPI.DOMAPI.document>,
@@ -470,8 +390,6 @@ let generateSelector = (
   }
 }
 
-// Describe an element for output to the agent.
-// Format: "role 'name'" or "tag 'name'" or "tag" if no name.
 let describeElement = (el: WebAPI.DOMAPI.element): string => {
   let label = effectiveRole(el)
   let name = FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el)

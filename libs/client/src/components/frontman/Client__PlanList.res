@@ -1,13 +1,12 @@
 /**
  * Client__PlanList - Plan entries display component
- * 
+ *
  * Pure ReScript replacement for Queue components.
  * Displays a collapsible list of plan entries with status indicators.
  */
 module Icons = Client__ToolIcons
 module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-// Status helpers
 let statusToCompleted = (status: ACPTypes.planEntryStatus): bool => {
   switch status {
   | Completed => true
@@ -22,7 +21,6 @@ let statusToInProgress = (status: ACPTypes.planEntryStatus): bool => {
   }
 }
 
-// Individual plan item component
 module PlanItem = {
   @react.component
   let make = (~entry: ACPTypes.planEntry, ~index: int) => {
@@ -78,11 +76,10 @@ let make = (~entries: array<ACPTypes.planEntry>) => {
     let totalCount = Array.length(entries)
 
     <div className="mb-4 bg-zinc-800/50 border border-zinc-700/50 rounded-lg overflow-hidden">
-      // Header
       <button
         type_="button"
         onClick={_ => setIsExpanded(prev => !prev)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 
+        className="w-full flex items-center justify-between gap-2 px-3 py-2
                    hover:bg-zinc-700/30 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
@@ -96,7 +93,6 @@ let make = (~entries: array<ACPTypes.planEntry>) => {
             {React.string(`Plan (${completedCount->Int.toString}/${totalCount->Int.toString})`)}
           </span>
         </div>
-        // Progress indicator
         <div className="flex items-center gap-2">
           <div className="w-16 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
             <div
@@ -110,7 +106,6 @@ let make = (~entries: array<ACPTypes.planEntry>) => {
         </div>
       </button>
 
-      // Content
       <div
         className={`frontman-collapse-transition ${isExpanded
             ? "opacity-100"

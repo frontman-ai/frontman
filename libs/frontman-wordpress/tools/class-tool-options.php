@@ -14,7 +14,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Options {
 	/**
@@ -45,8 +44,6 @@ class Frontman_Tool_Options {
 		'comments_per_page',
 		'stylesheet',
 		'template',
-		// Complex widget/sidebar state can be inspected but should not be
-		// overwritten through a plain string-valued generic option editor.
 		'sidebars_widgets',
 		'widget_text',
 		'widget_categories',
@@ -240,7 +237,6 @@ class Frontman_Tool_Options {
 			$value = sanitize_text_field( $value );
 		}
 
-		// Intentionally limited to WordPress core options in WRITABLE_OPTIONS.
 		$updated = update_option( $name, $value );
 
 		return [
@@ -259,7 +255,6 @@ class Frontman_Tool_Options {
 
 		foreach ( self::READABLE_OPTIONS as $name ) {
 			$value = get_option( $name );
-			// Skip complex/serialized values for readability.
 			if ( is_array( $value ) || is_object( $value ) ) {
 				$value = '(complex value - use wp_get_option to read)';
 			}
@@ -400,5 +395,3 @@ class Frontman_Tool_Options {
 		return 1 === preg_match( '/[[:cntrl:]\/\\\\]/', $value );
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

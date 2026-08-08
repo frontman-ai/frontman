@@ -31,14 +31,12 @@ defmodule AgentClientProtocol do
   @agent_error_id_metadata_key "#{@extension_namespace}/agentErrorId"
   @timestamp_metadata_key "#{@extension_namespace}/timestamp"
 
-  # Channel event names — the single source of truth for Phoenix channel events.
   @event_acp_message "acp:message"
   @event_config_options_updated "config_options_updated"
   @event_title_updated "title_updated"
   @event_list_sessions "list_sessions"
   @event_delete_session "delete_session"
 
-  # ACP method names — the single source of truth for JSON-RPC method strings.
   @method_initialize "initialize"
   @method_session_new "session/new"
   @method_session_load "session/load"
@@ -46,7 +44,6 @@ defmodule AgentClientProtocol do
   @method_session_cancel "session/cancel"
   @method_session_update "session/update"
 
-  # Tool call status constants — the single source of truth for ACP wire values.
   @tool_call_status_pending "pending"
   @tool_call_status_in_progress "in_progress"
   @tool_call_status_completed "completed"
@@ -59,21 +56,18 @@ defmodule AgentClientProtocol do
     @tool_call_status_failed
   ]
 
-  # Plan entry priority constants
   @plan_priority_high "high"
   @plan_priority_medium "medium"
   @plan_priority_low "low"
 
   @plan_priorities [@plan_priority_high, @plan_priority_medium, @plan_priority_low]
 
-  # Plan entry status constants
   @plan_status_pending "pending"
   @plan_status_in_progress "in_progress"
   @plan_status_completed "completed"
 
   @plan_statuses [@plan_status_pending, @plan_status_in_progress, @plan_status_completed]
 
-  # Stop reason constants — the single source of truth for ACP wire values.
   @stop_reason_end_turn "end_turn"
   @stop_reason_max_tokens "max_tokens"
   @stop_reason_max_turn_requests "max_turn_requests"
@@ -95,14 +89,12 @@ defmodule AgentClientProtocol do
 
   def protocol_version, do: @protocol_version
 
-  # Channel event accessors
   def event_acp_message, do: @event_acp_message
   def event_config_options_updated, do: @event_config_options_updated
   def event_title_updated, do: @event_title_updated
   def event_list_sessions, do: @event_list_sessions
   def event_delete_session, do: @event_delete_session
 
-  # Method name accessors
   def method_initialize, do: @method_initialize
   def method_session_new, do: @method_session_new
   def method_session_load, do: @method_session_load
@@ -488,10 +480,6 @@ defmodule AgentClientProtocol do
     :ok
   end
 
-  # ---------------------------------------------------------------------------
-  # Elicitation (session/elicitation)
-  # ---------------------------------------------------------------------------
-
   @doc """
   Builds a form-mode `session/elicitation` JSON-RPC request.
 
@@ -659,7 +647,6 @@ defmodule AgentClientProtocol do
             _ -> []
           end
 
-        # Append custom answer if provided
         answer_values =
           case custom_answer do
             val when is_binary(val) and val != "" -> answer_values ++ [val]

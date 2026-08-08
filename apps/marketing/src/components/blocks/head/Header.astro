@@ -1,19 +1,14 @@
 ---
-// Imports
 import GoogleAnalytics from '../../scripts/googleAnalytics.astro'
 import GoogleSearchConsole from '../../scripts/googleSearchConsole.astro'
-// Partials
 import Seo from './partials/Seo.astro'
 import StructuredData from './partials/StructuredData.astro'
-// Data
 import { configData } from '../../../config/config'
 
 import { googleAnalyticsMeasurementID } from '../../../config/analytics'
-// Font preloading
 import interLatinUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
 import outfitLatinUrl from '@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2?url'
 
-// Props
 type Props = {
 	title?: string
 	description?: string
@@ -33,7 +28,6 @@ type Props = {
 		url: string
 	}[]
 }
-// Page Metadata
 const {
 	title = configData.siteTitle,
 	description = configData.siteDescription,

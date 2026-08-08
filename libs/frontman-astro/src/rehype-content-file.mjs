@@ -1,15 +1,6 @@
 import { relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Rehype plugin that prepends an inert template with the content file path.
-//
-// Astro's compiler adds data-astro-source-file to .astro template elements,
-// but markdown content goes through unified (remark→rehype→stringify) and gets
-// no source attribution. This plugin bridges the gap by injecting a marker
-// that the Frontman annotation capture script can read as a fallback.
-//
-// The marker survives both Markdown and MDX rendering:
-//   <template data-frontman-content-file="src/content/docs/page.md"></template>
 
 export function rehypeContentFile(options) {
   var raw = (options && options.projectRoot) || '';

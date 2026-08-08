@@ -96,7 +96,6 @@ let assertNotStale = async (resolvedPath: string): result<unit, string> => {
       }
     } catch {
     | exn =>
-      // File was deleted between read and edit — surface the error
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("unknown error")
       Error(`File "${resolvedPath}" is no longer accessible: ${msg}`)

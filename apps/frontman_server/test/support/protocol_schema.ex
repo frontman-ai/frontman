@@ -93,8 +93,6 @@ defmodule FrontmanServer.ProtocolSchema do
       raise "Pinned upstream ACP schema checksum mismatch: #{actual_sha256}"
     end
 
-    # ex_json_schema supports draft 7. ACP's schema only needs its 2020-12
-    # `$defs` spelling adapted; the vendored artifact remains unmodified.
     contents
     |> String.replace(
       ~s("$schema": "https://json-schema.org/draft/2020-12/schema"),

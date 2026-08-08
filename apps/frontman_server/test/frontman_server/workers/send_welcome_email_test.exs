@@ -11,7 +11,6 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
     test "sends a welcome email to the user" do
       user = Accounts.user_fixture()
 
-      # Clear emails sent during fixture setup (confirmation/login)
       assert_email_sent()
 
       assert :ok = perform_job(SendWelcomeEmail, %{user_id: user.id})
@@ -25,7 +24,6 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
     test "welcome email includes HTML and plain text bodies" do
       user = Accounts.user_fixture(%{name: "Ada Lovelace"})
 
-      # Drain fixture emails
       assert_email_sent()
 
       assert :ok = perform_job(SendWelcomeEmail, %{user_id: user.id})
@@ -47,7 +45,6 @@ defmodule FrontmanServer.Workers.SendWelcomeEmailTest do
     test "welcome email is sent from danni@frontman.sh" do
       user = Accounts.user_fixture()
 
-      # Drain fixture emails
       assert_email_sent()
 
       assert :ok = perform_job(SendWelcomeEmail, %{user_id: user.id})

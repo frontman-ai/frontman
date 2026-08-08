@@ -1,10 +1,3 @@
-// Shared HTTP request handlers for all framework adapters
-//
-// These handle the three core API endpoints:
-// - GET /tools - list available tools
-// - POST /tools/call - execute a tool with SSE streaming
-// - POST /resolve-source-location - resolve source maps
-
 module Protocol = FrontmanAiFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 module Relay = Protocol.FrontmanProtocol__Relay
@@ -21,7 +14,6 @@ type handlerConfig = {
   serverVersion: string,
 }
 
-// Sury schemas for resolve-source-location endpoint
 @schema
 type resolveSourceLocationRequest = {
   componentName: string,
@@ -50,7 +42,6 @@ type errorResponse = {
   details: option<string>,
 }
 
-// GET /tools - returns JSON list of available tools
 let handleGetTools = (
   ~registry: FrontmanCore__ToolRegistry.t,
   ~config: handlerConfig,
@@ -67,7 +58,6 @@ let handleGetTools = (
   WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
 }
 
-// POST /tools/call - executes tool with SSE streaming
 let handleToolCall = async (
   ~registry: FrontmanCore__ToolRegistry.t,
   ~config: handlerConfig,
@@ -140,7 +130,6 @@ let handleToolCall = async (
   }
 }
 
-// POST /resolve-source-location - resolves source location via source maps
 let handleResolveSourceLocation = async (
   ~sourceRoot: string,
   req: WebAPI.FetchAPI.request,
@@ -176,8 +165,6 @@ let handleResolveSourceLocation = async (
 
       let resolved = await DOMElementToComponentSource.resolveSourceLocationInServer(sourceLocation)
 
-      // Convert absolute path to relative path (relative to sourceRoot)
-      // This ensures the agent can use the path directly with MCP tools
       let relativeFile = PathContext.toRelativePath(~sourceRoot, ~absolutePath=resolved.file)
 
       let responseJson: resolveSourceLocationResponse = {

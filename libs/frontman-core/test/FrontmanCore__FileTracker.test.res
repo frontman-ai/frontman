@@ -530,16 +530,12 @@ describe("TOCTOU regression", _t => {
     await _withTempFile(
       "original content",
       async path => {
-        // Capture stats BEFORE the file changes (simulates the caller statting at read time)
         let (mtimeMs, size) = await _statFile(path)
 
-        // External process modifies the file after our stat
         await Fs.Promises.writeFile(path, "externally modified content that differs")
 
-        // Record with the stale stats (this is what the old code effectively did)
         FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1, ~mtimeMs, ~size)
 
-        // assertNotStale should detect the mismatch
         let result = await FileTracker.assertNotStale(path)
         t->expect(Result.isError(result))->Expect.toBe(true)
       },
@@ -554,8 +550,6 @@ describe("concurrent recordRead range preservation", _t => {
       async path => {
         let (mtimeMs, size) = await _statFile(path)
 
-        // Two recordRead calls for different ranges — both should be preserved
-        // With the old async version, concurrent calls could overwrite each other
         FileTracker.recordRead(path, ~offset=0, ~limit=100, ~totalLines=1000, ~mtimeMs, ~size)
         FileTracker.recordRead(path, ~offset=500, ~limit=100, ~totalLines=1000, ~mtimeMs, ~size)
 

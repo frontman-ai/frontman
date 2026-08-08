@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+url="https://frontman.sh/path#fragment"
+cat <<'TEXT'
+# immutable payload
+TEXT

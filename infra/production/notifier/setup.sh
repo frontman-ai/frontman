@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Frontman Notifier Production Setup
-# Run on the existing production server as root.
-# =============================================================================
 set -euo pipefail
 
 DEPLOY_ROOT="/opt/frontman-notifier"

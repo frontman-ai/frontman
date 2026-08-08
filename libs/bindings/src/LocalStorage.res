@@ -1,5 +1,3 @@
-// Bindings for the Web Storage API (localStorage)
-
 @val @scope("localStorage")
 external getItem: string => Nullable.t<string> = "getItem"
 

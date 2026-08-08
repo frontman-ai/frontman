@@ -16,8 +16,6 @@ import {
 
 const appRoot = path.resolve(import.meta.dirname);
 
-// Build slug -> date maps from content markdown files so the sitemap can use
-// durable content dates instead of a blanket build date for every URL.
 function buildDateMap(dir) {
   const map = new Map();
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".md"))) {
@@ -119,7 +117,6 @@ function validateDocsDescriptions() {
   };
 }
 
-// https://astro.build/config
 export default defineConfig({
   site: "https://frontman.sh",
   trailingSlash: "always",
@@ -130,9 +127,6 @@ export default defineConfig({
     },
   },
   build: {
-    // Inline all stylesheets directly into the HTML to eliminate
-    // render-blocking <link> requests (~25 KiB total). Trades a small
-    // increase in HTML size for removing 4 blocking CSS round-trips (~430 ms).
     inlineStylesheets: "always",
   },
   integrations: [
@@ -263,17 +257,11 @@ export default defineConfig({
           !isIndexableTagCount(blogTagCounts.get(tagMatch[1]) ?? 0)
         )
           return undefined;
-        // Exclude integration redirect pages — they 301 to /docs/integrations/*,
-        // which are already in the sitemap.
         if (/(?<!\/docs)\/integrations\/(astro|nextjs|vite)\/?$/.test(item.url))
           return undefined;
-        // Exclude noindexed stub pages that exist only for sidebar navigation.
         if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
-        // Exclude explicit noindex pages from sitemap output.
         if (/\/404\/?$/.test(item.url)) return undefined;
 
-        // Use real content dates where available; omit unknown dates rather than
-        // presenting one synthetic modification date for unrelated pages.
         const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
         const releasesMatch = item.url.match(
           /\/open-source-ai-releases\/([^/]+)\/?$/,
@@ -288,7 +276,6 @@ export default defineConfig({
           item.lastmod = comparisonReviewDate;
         }
 
-        // Assign priority and changefreq by page type.
         if (item.url === "https://frontman.sh/") {
           item.priority = 1.0;
           item.changefreq = "weekly";
@@ -320,9 +307,6 @@ export default defineConfig({
 
         return item;
       },
-      // Split sitemap into content-grouped child sitemaps instead of a
-      // single flat sitemap-0.xml. URLs that don't match any chunk land
-      // in the default sitemap-pages-0.xml.
       chunks: {
         posts: (item) => {
           if (/\/blog\/(?!tags\/)/.test(item.url)) return item;

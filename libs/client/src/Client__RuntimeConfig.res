@@ -1,6 +1,3 @@
-// Runtime config injected by the framework middleware (e.g., Next.js)
-// Reads from window.__frontmanRuntime
-
 type frameworkId = Nextjs | Vite | Astro | Wordpress
 
 type updateTarget =
@@ -24,9 +21,6 @@ let frameworkIdToString = (id: frameworkId): string =>
   | Wordpress => "wordpress"
   }
 
-// Map a framework ID to a human-readable display name.
-// The wire format uses normalized IDs ("nextjs", "vite", "astro") but the
-// UI should display user-friendly names ("Next.js", "Vite", "Astro").
 let frameworkDisplayName = (id: frameworkId): string =>
   switch id {
   | Nextjs => "Next.js"
@@ -38,9 +32,7 @@ let frameworkDisplayName = (id: frameworkId): string =>
 @schema
 type parsed = {
   framework: string,
-  // UIShell always sets this, but tests and non-standard embeddings may omit it.
   basePath: option<string>,
-  // WordPress injects a nonce for authenticated same-origin POSTs to /frontman/*.
   wpNonce: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
@@ -76,8 +68,6 @@ let read = (): t => {
   }
 }
 
-// Model update checks explicitly so WordPress doesn't silently pretend to have
-// an npm package.
 let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
   switch id {
   | Nextjs => NpmPackage("@frontman-ai/nextjs")
@@ -86,8 +76,6 @@ let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
   | Wordpress => WordPressPlugin
   }
 
-// Convert runtime config to _meta JSON for ACP requests
-// Includes framework metadata used by the server.
 let toMeta = (config: t): JSON.t => {
   let configObj = Dict.fromArray([
     ("framework", JSON.Encode.string(frameworkIdToString(config.framework))),

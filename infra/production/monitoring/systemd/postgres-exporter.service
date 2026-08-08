@@ -14,7 +14,6 @@ ExecStart=/usr/local/bin/postgres_exporter \
 Restart=on-failure
 RestartSec=5
 
-# Security hardening
 NoNewPrivileges=yes
 ProtectHome=yes
 

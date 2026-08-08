@@ -1,0 +1,3 @@
+value = 1 # FIXME
+# credo:disable-for-next-line
+other = 2

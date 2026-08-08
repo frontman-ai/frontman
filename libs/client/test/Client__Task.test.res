@@ -48,7 +48,6 @@ module TestHelpers = {
     )->Pair.first
   }
 
-  // Helper to get messages from loaded tasks (unwraps the option)
   let getMessages = (task: Task.t): array<Message.t> => {
     TaskReducer.Selectors.messages(task)->Option.getOrThrow(
       ~message="Expected task to have messages (not Unloaded)",
@@ -63,7 +62,6 @@ module TestHelpers = {
 }
 
 describe("Task - Protocol Message Identity", () => {
-  // Helper: create a loaded task with a user message and explicit running update.
   let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TestHelpers.acceptUserMessage(task)
@@ -111,7 +109,6 @@ describe("Task - Protocol Message Identity", () => {
     let (task3, _) = TaskReducer.next(task2, ExecutionStateIdle)
 
     let messages = TestHelpers.getMessages(task3)
-    // Messages: User + Completed
     t->expect(Array.length(messages))->Expect.toBe(2)
 
     switch messages->Array.get(1) {
@@ -123,7 +120,6 @@ describe("Task - Protocol Message Identity", () => {
 })
 
 describe("Task - Tool Call Lifecycle", () => {
-  // Helper: create a loaded task with a user message and explicit running update.
   let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TestHelpers.acceptUserMessage(task)
@@ -134,7 +130,6 @@ describe("Task - Tool Call Lifecycle", () => {
     let task = _startAgent()
     let toolId = "tool-1"
 
-    // Create tool call via ToolCallReceived (the live application path)
     let toolCall: Message.toolCall = {
       id: toolId,
       toolName: "test_tool",
@@ -148,7 +143,6 @@ describe("Task - Tool Call Lifecycle", () => {
     }
     let (task1, _) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
 
-    // Verify InputAvailable state (user msg at index 0, tool call at index 1)
     let messages1 = TestHelpers.getMessages(task1)
     switch messages1->Array.get(1) {
     | Some(Message.ToolCall({state: InputAvailable, input: Some(_)})) =>
@@ -156,7 +150,6 @@ describe("Task - Tool Call Lifecycle", () => {
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    // Receive result
     let (task2, _) = TaskReducer.next(
       task1,
       ToolResultReceived({
@@ -167,7 +160,6 @@ describe("Task - Tool Call Lifecycle", () => {
       }),
     )
 
-    // Verify OutputAvailable state
     let messages2 = TestHelpers.getMessages(task2)
     switch messages2->Array.get(1) {
     | Some(Message.ToolCall({state: OutputAvailable, result: Some(_)})) =>
@@ -180,7 +172,6 @@ describe("Task - Tool Call Lifecycle", () => {
     let task = _startAgent()
     let toolId = "tool-1"
 
-    // Create tool call via ToolCallReceived
     let toolCall: Message.toolCall = {
       id: toolId,
       toolName: "test_tool",
@@ -234,13 +225,6 @@ describe("Task - Load State Machine", () => {
   })
 })
 
-// ============================================================================
-// Session Rehydration Tests
-//
-// History replay agent messages go through TextDeltaBuffer, which schedules rAF.
-// LoadComplete must preserve already-buffered agent messages when hydration finishes.
-// ============================================================================
-
 describe("Task - Session Rehydration (Loading history → LoadComplete)", () => {
   test("in-flight streaming message is finalized to Completed by LoadComplete", t => {
     let task = TestHelpers.makeLoadingTask()
@@ -262,10 +246,8 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
       }),
     )
 
-    // Before LoadComplete: still Streaming
     t->expect(TaskReducer.Selectors.streamingMessage(task)->Option.isSome)->Expect.toBe(true)
 
-    // After LoadComplete: finalized to Completed
     let (loaded, _) = TaskReducer.next(task, LoadComplete)
     t->expect(TaskReducer.Selectors.streamingMessage(loaded))->Expect.toBe(None)
 
@@ -403,11 +385,9 @@ describe("Task - Annotation Mode", () => {
   test("SetAnnotationMode Off leaves annotations intact", t => {
     let task = TestHelpers.makeLoadedTask()
 
-    // Enter Selecting mode
     let (task2, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
 
-    // Exit selection mode
     let (task3, _) = TaskReducer.next(task2, SetAnnotationMode({mode: Off}))
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
   })
@@ -464,11 +444,9 @@ describe("Task - Error Handling", () => {
 
   test("AgentError sets isAgentRunning to false", t => {
     let task = TestHelpers.makeLoadedTask()
-    // First start the agent running via state update
     let (task2, _) = TaskReducer.next(task, ExecutionStateRunning)
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
 
-    // Agent error should set isAgentRunning to false
     let (task3, _) = TaskReducer.next(
       task2,
       AgentError({
@@ -493,13 +471,11 @@ describe("Task - Error Handling", () => {
       }),
     )
 
-    // Verify we have a streaming message
     switch TaskReducer.Selectors.streamingMessage(task2) {
     | Some(Message.Streaming(_)) => t->expect(true)->Expect.toBe(true)
     | _ => t->expect(false)->Expect.toBe(true)
     }
 
-    // Agent error should complete the streaming message
     let (task3, _) = TaskReducer.next(
       task2,
       AgentError({
@@ -510,7 +486,6 @@ describe("Task - Error Handling", () => {
     )
     t->expect(TaskReducer.Selectors.streamingMessage(task3))->Expect.toEqual(None)
 
-    // Check the message is now completed (user at index 0, assistant at index 1)
     let messages = TestHelpers.getMessages(task3)
     switch messages->Array.get(1) {
     | Some(Message.Assistant(Completed({content}))) =>
@@ -567,7 +542,6 @@ describe("Task - Error Handling", () => {
 
   test("AddUserMessage clears turnError", t => {
     let task = TestHelpers.makeLoadedTask()
-    // Set an error first
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
@@ -586,7 +560,6 @@ describe("Task - Error Handling", () => {
       }),
     )
 
-    // Sending a new message should clear the error
     let (task3, _) = TaskReducer.next(
       task2,
       AddUserMessage({
@@ -600,12 +573,7 @@ describe("Task - Error Handling", () => {
   })
 })
 
-// ============================================================================
-// Cancel Turn
-// ============================================================================
-
 describe("Task - CancelTurn", () => {
-  // Helper: simulate an agent-running task with a streaming message
   let _startAgentWithStreaming = () => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TestHelpers.acceptUserMessage(task)
@@ -633,9 +601,7 @@ describe("Task - CancelTurn", () => {
     let task = _startAgentWithStreaming()
     let (cancelled, _) = TaskReducer.next(task, CancelTurn)
 
-    // Streaming message should be completed, not removed
     let messages = TestHelpers.getMessages(cancelled)
-    // Messages: User + Assistant(Completed)
     t->expect(Array.length(messages))->Expect.toBe(2)
 
     switch messages->Array.get(1) {
@@ -666,7 +632,6 @@ describe("Task - CancelTurn", () => {
 
     let (unchanged, effects) = TaskReducer.next(task, CancelTurn)
     t->expect(effects)->Expect.toEqual([])
-    // State should be identical
     t->expect(TaskReducer.Selectors.isAgentRunning(unchanged))->Expect.toEqual(Some(false))
   })
 
@@ -675,7 +640,6 @@ describe("Task - CancelTurn", () => {
     let task1 = TestHelpers.acceptUserMessage(task)
     let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning)
 
-    // Insert a tool call in InputAvailable state
     let toolCall: Message.toolCall = {
       id: "tool-1",
       toolName: "edit_file",
@@ -692,7 +656,6 @@ describe("Task - CancelTurn", () => {
     let (cancelled, _) = TaskReducer.next(task2, CancelTurn)
 
     let messages = TestHelpers.getMessages(cancelled)
-    // Find the tool call message
     let toolMsg = messages->Array.find(
       msg =>
         switch msg {
@@ -709,7 +672,6 @@ describe("Task - CancelTurn", () => {
 
   test("CancelTurn clears turnError", t => {
     let task = TestHelpers.makeLoadedTask()
-    // Set error, then start agent, then cancel
     let (task1, _) = TaskReducer.next(
       task,
       AgentError({
@@ -728,10 +690,8 @@ describe("Task - CancelTurn", () => {
     let task = _startAgentWithStreaming()
     let (cancelled, _) = TaskReducer.next(task, CancelTurn)
 
-    // Server accepts a new message after cancel
     let task2 = TestHelpers.acceptUserMessage(cancelled, ~id="user-2", ~text="New question")
 
-    // Start new streaming
     let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning)
     let (task4, _) = TaskReducer.next(
       runningTask,
@@ -743,10 +703,8 @@ describe("Task - CancelTurn", () => {
     )
 
     let messages = TestHelpers.getMessages(task4)
-    // Messages: User1 + Completed(Partial resp) + User2 + Streaming(New response)
     t->expect(Array.length(messages))->Expect.toBe(4)
 
-    // Last message should be a NEW streaming message with only new text
     switch messages->Array.get(3) {
     | Some(Message.Assistant(Streaming({textBuffer}))) =>
       t->expect(textBuffer)->Expect.toBe("New response")
@@ -754,10 +712,6 @@ describe("Task - CancelTurn", () => {
     }
   })
 })
-
-// ============================================================================
-// Streaming and tool events do not depend on local running flag
-// ============================================================================
 
 describe("Task - Running-independent streamed events", () => {
   test("TextDeltaReceived creates streaming message even when local running state is false", t => {
@@ -802,14 +756,9 @@ describe("Task - Running-independent streamed events", () => {
   })
 })
 
-// ============================================================================
-// Annotation-to-Message Tests (Issue #466)
-// ============================================================================
-
 module Annotation = Client__Annotation__Types
 module MessageAnnotation = Client__Message.MessageAnnotation
 
-// Helper to create a mock DOM element for testing
 let _makeMockElement: unit => WebAPI.DOMAPI.element = %raw(`
   function() { return { tagName: "DIV" }; }
 `)
@@ -842,12 +791,9 @@ let _sampleMessageAnnotations: array<MessageAnnotation.t> = [
 ]
 
 describe("Task - Annotations Cleared on Send (Issue #466)", () => {
-  // Helper: create a loaded task with annotations in task state
   let _taskWithAnnotations = () => {
     let task = TestHelpers.makeLoadedTask()
-    // Enter selecting mode and add annotations
     let (task1, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
-    // Manually set annotations via ToggleAnnotation
     let el1 = _makeMockElement()
     let el2 = _makeMockElement()
     let (task2, _) = TaskReducer.next(
@@ -870,12 +816,10 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
   test("AddUserMessage with annotations clears task-level annotations", t => {
     let task = _taskWithAnnotations()
 
-    // Verify annotations exist on task before send
     t
     ->expect(TaskReducer.Selectors.annotations(task)->Option.getOr([])->Array.length)
     ->Expect.toBe(2)
 
-    // Send message with annotations
     let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
@@ -886,7 +830,6 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       }),
     )
 
-    // Task-level annotations should be cleared
     t
     ->expect(TaskReducer.Selectors.annotations(task2)->Option.getOr([])->Array.length)
     ->Expect.toBe(0)
@@ -895,10 +838,8 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
   test("AddUserMessage resets annotationMode to Off", t => {
     let task = _taskWithAnnotations()
 
-    // Verify we're in Selecting mode before send
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task))->Expect.toEqual(Some(true))
 
-    // Send message
     let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
@@ -909,19 +850,16 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       }),
     )
 
-    // Annotation mode should be Off
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(false))
   })
 
   test("AddUserMessage clears activePopupAnnotationId", t => {
     let task = _taskWithAnnotations()
 
-    // Verify popup is open (from ToggleAnnotation which opens popup for last added)
     t
     ->expect(TaskReducer.Selectors.activePopupAnnotationId(task)->Option.getOr(None)->Option.isSome)
     ->Expect.toBe(true)
 
-    // Send message
     let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
@@ -932,7 +870,6 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       }),
     )
 
-    // Active popup should be cleared
     t
     ->expect(
       TaskReducer.Selectors.activePopupAnnotationId(task2)->Option.getOr(None)->Option.isNone,
@@ -990,9 +927,6 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
 
 describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", () => {
   test("QuestionReceived sets pendingQuestion on Loaded task with isAgentRunning=false", t => {
-    // After reconnect + LoadComplete, the task is Loaded with isAgentRunning=false.
-    // The server re-sends the tools/call for the unresolved question.
-    // The client's MCP handler calls QuestionReceived.
     let task = TestHelpers.makeLoadedTask()
 
     let resolvedOk = ref(None)
@@ -1014,12 +948,10 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
       QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
     )
 
-    // pendingQuestion should be set
     let pq = TaskReducer.Selectors.pendingQuestion(nextTask)
     t->expect(pq->Option.isSome)->Expect.toBe(true)
     t->expect(effects->Array.length)->Expect.toBe(0)
 
-    // Verify question data is correct
     switch pq {
     | Some(pq) =>
       t->expect(pq.questions->Array.length)->Expect.toBe(1)
@@ -1045,26 +977,21 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
       },
     ]
 
-    // Set up question
     let (taskWithQuestion, _) = TaskReducer.next(
       task,
       QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
     )
 
-    // Select an answer
     let (taskWithAnswer, _) = TaskReducer.next(
       taskWithQuestion,
       QuestionOptionToggled({questionIndex: 0, label: "A"}),
     )
 
-    // Submit
     let (finalTask, effects) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
 
-    // pendingQuestion should be cleared
     let pq = TaskReducer.Selectors.pendingQuestion(finalTask)
     t->expect(pq->Option.isNone)->Expect.toBe(true)
 
-    // Should emit ResolveQuestionToolEffect
     switch effects->Array.get(0) {
     | Some(ResolveQuestionToolEffect(_)) => t->expect(true)->Expect.toBe(true)
     | other =>
@@ -1102,13 +1029,11 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
     )
     let (_finalTask, effects) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
 
-    // Execute the effect (simulate what the effect handler does)
     switch effects->Array.get(0) {
     | Some(ResolveQuestionToolEffect({resolveOk, answerJson})) => resolveOk(answerJson)
     | _ => ()
     }
 
-    // The callback should have been called
     t->expect(resolvedOk.contents->Option.isSome)->Expect.toBe(true)
   })
 })
@@ -1141,33 +1066,27 @@ describe("Task - QuestionPerQuestionSkipped", () => {
       },
     ]
 
-    // Set up 3-question flow
     let (taskWithQ, _) = TaskReducer.next(
       task,
       QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
     )
 
-    // Skip question 0 (non-last)
     let (afterSkip, effects) = TaskReducer.next(
       taskWithQ,
       QuestionPerQuestionSkipped({questionIndex: 0}),
     )
 
-    // Step should advance to 1
     switch TaskReducer.Selectors.pendingQuestion(afterSkip) {
     | Some(pq) =>
       t->expect(pq.currentStep)->Expect.toBe(1)
-      // Answer 0 should be Skipped
       t
       ->expect(pq.answers->Dict.get("0") == Some(Client__Question__Types.Skipped))
       ->Expect.toBe(true)
     | None => t->expect("pendingQuestion")->Expect.toBe("to be Some")
     }
 
-    // No effects — question is NOT submitted yet
     t->expect(effects->Array.length)->Expect.toBe(0)
 
-    // pendingQuestion should still exist
     t
     ->expect(TaskReducer.Selectors.pendingQuestion(afterSkip)->Option.isSome)
     ->Expect.toBe(true)
@@ -1195,30 +1114,25 @@ describe("Task - QuestionPerQuestionSkipped", () => {
       },
     ]
 
-    // Set up 2-question flow
     let (taskWithQ, _) = TaskReducer.next(
       task,
       QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
     )
 
-    // Skip question 0 first (non-last)
     let (afterSkip0, _) = TaskReducer.next(
       taskWithQ,
       QuestionPerQuestionSkipped({questionIndex: 0}),
     )
 
-    // Skip question 1 (last) — should auto-submit
     let (afterSkip1, effects) = TaskReducer.next(
       afterSkip0,
       QuestionPerQuestionSkipped({questionIndex: 1}),
     )
 
-    // pendingQuestion should be cleared (resolved)
     t
     ->expect(TaskReducer.Selectors.pendingQuestion(afterSkip1)->Option.isNone)
     ->Expect.toBe(true)
 
-    // Should emit ResolveQuestionToolEffect (from resolveQuestion)
     switch effects->Array.get(0) {
     | Some(ResolveQuestionToolEffect(_)) => t->expect(true)->Expect.toBe(true)
     | other =>
@@ -1231,19 +1145,13 @@ describe("Task - QuestionPerQuestionSkipped", () => {
   })
 })
 
-// ============================================================================
-// Annotation Enrichment Lifecycle Tests (Issue #582)
-// ============================================================================
-
 describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
-  // Helper: get annotation by index with a clear error message
   let _getAnnotation = (task: Task.t, index: int): Annotation.t => {
     Task.getAnnotations(task)
     ->Array.get(index)
     ->Option.getOrThrow(~message=`Expected annotation at index ${Int.toString(index)}`)
   }
 
-  // Helper: create a loaded task with one annotation in Enriching state
   let _taskWithEnrichingAnnotation = () => {
     let task = TestHelpers.makeLoadedTask()
     let (task1, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
@@ -1258,7 +1166,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     (task2, effects)
   }
 
-  // Helper: extract annotation ID from the FetchAnnotationDetails effect
   let _getAnnotationIdFromEffect = (effects: array<TaskReducer.effect>): string => {
     switch effects->Array.get(0) {
     | Some(FetchAnnotationDetails({id})) => id
@@ -1266,8 +1173,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     }
   }
 
-  // Helper: build AnnotationDetailsResolved action with sensible defaults.
-  // Override only the fields under test to reduce per-test boilerplate.
   let _makeResolved = (
     ~id: string,
     ~selector: result<option<string>, string>=Ok(None),
@@ -1289,38 +1194,26 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     enrichmentStatus,
   })
 
-  // Helper: create an enriching annotation then resolve it, returning the resolved task
   let _resolveAnnotation = (task, effects, ~enrichmentStatus=Annotation.Enriched) => {
     let id = _getAnnotationIdFromEffect(effects)
     let (resolved, _) = TaskReducer.next(task, _makeResolved(~id, ~enrichmentStatus))
     resolved
   }
 
-  // ============================================================================
-  // ToggleAnnotation → initial enrichment state
-  // ============================================================================
-
   test("ToggleAnnotation creates annotation with Enriching status and Ok(None) async fields", t => {
     let (task, effects) = _taskWithEnrichingAnnotation()
     let ann = _getAnnotation(task, 0)
 
-    // Status is Enriching (promises in-flight)
     t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Enriching)
-    // Async fields are Ok(None) — not yet populated
     t->expect(ann.selector)->Expect.toEqual(Ok(None))
     t->expect(ann.screenshot)->Expect.toEqual(Ok(None))
     t->expect(ann.sourceLocation)->Expect.toEqual(Ok(None))
 
-    // Emits FetchAnnotationDetails effect
     switch effects->Array.get(0) {
     | Some(FetchAnnotationDetails(_)) => t->expect(true)->Expect.toBe(true)
     | _ => t->expect("FetchAnnotationDetails effect")->Expect.toBe("not found")
     }
   })
-
-  // ============================================================================
-  // AnnotationDetailsResolved — Enriched (happy path + partial errors)
-  // ============================================================================
 
   test("AnnotationDetailsResolved writes all enrichment fields and sets Enriched", t => {
     let (task, effects) = _taskWithEnrichingAnnotation()
@@ -1351,7 +1244,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
   })
 
   test("Per-field errors are stored while enrichmentStatus stays Enriched", t => {
-    // Partial failure: individual sub-promises failed but the outer chain succeeded
     let (task, effects) = _taskWithEnrichingAnnotation()
     let id = _getAnnotationIdFromEffect(effects)
     let (task2, _) = TaskReducer.next(
@@ -1364,16 +1256,11 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
       ),
     )
     let ann = _getAnnotation(task2, 0)
-    // Status is Enriched (outer chain succeeded), but individual fields have errors
     t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Enriched)
     t->expect(ann.selector)->Expect.toEqual(Error("No unique selector found"))
     t->expect(ann.screenshot)->Expect.toEqual(Error("Canvas tainted by cross-origin data"))
     t->expect(ann.sourceLocation)->Expect.toEqual(Error("CORS error on source map URL"))
   })
-
-  // ============================================================================
-  // AnnotationDetailsResolved — Failed (outer catch)
-  // ============================================================================
 
   test("AnnotationDetailsResolved Failed stores error string on all fields", t => {
     let (task, effects) = _taskWithEnrichingAnnotation()
@@ -1396,10 +1283,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     t->expect(ann.sourceLocation)->Expect.toEqual(Error(errorMsg))
   })
 
-  // ============================================================================
-  // Edge cases
-  // ============================================================================
-
   test("AnnotationDetailsResolved on Unloaded task is silently discarded", t => {
     let task = TestHelpers.makeUnloadedTask()
     let (task2, effects) = TaskReducer.next(task, _makeResolved(~id="stale-ann-id"))
@@ -1407,12 +1290,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     t->expect(Task.getAnnotations(task2)->Array.length)->Expect.toBe(0)
   })
 
-  // ============================================================================
-  // hasEnrichingAnnotations selector
-  // ============================================================================
-
   test("hasEnrichingAnnotations is true while Enriching, false after Enriched", t => {
-    // Full lifecycle on a single annotation: Enriching → Enriched
     let (task, effects) = _taskWithEnrichingAnnotation()
     t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task))->Expect.toEqual(Some(true))
 
@@ -1434,7 +1312,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
   test("hasEnrichingAnnotations with mixed statuses — true if any is Enriching", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task1, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
-    // Add two annotations
     let el1 = _makeMockElement()
     let el2 = _makeMockElement()
     let (task2, effects1) = TaskReducer.next(
@@ -1451,10 +1328,8 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
         tagName: "div",
       }),
     )
-    // Both are Enriching
     t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task3))->Expect.toEqual(Some(true))
 
-    // Resolve first — still true because second is Enriching
     let task4 = _resolveAnnotation(task3, effects1)
     t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task4))->Expect.toEqual(Some(true))
   })

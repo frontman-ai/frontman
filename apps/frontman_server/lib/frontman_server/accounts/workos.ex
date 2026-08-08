@@ -221,8 +221,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     |> Repo.one()
   end
 
-  # Private functions
-
   defp extract_profile(%{user: user, authentication_method: auth_method}) do
     with {:ok, provider} <- workos_to_provider(auth_method) do
       {:ok,
@@ -284,7 +282,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  # Returning user with existing identity — touch timestamps, no welcome email.
   defp build_oauth_multi(%UserIdentity{} = identity, _existing_user, _profile, _signup_framework) do
     now = DateTime.utc_now(:second)
 
@@ -296,7 +293,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     )
   end
 
-  # Existing user by email but no identity for this provider — link identity.
   defp build_oauth_multi(nil, %User{} = user, profile, _signup_framework) do
     now = DateTime.utc_now(:second)
 
@@ -305,7 +301,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     |> Multi.update(:user, change(user, last_signed_in_at: now))
   end
 
-  # Brand-new user — create user + identity + enqueue welcome email.
   defp build_oauth_multi(nil, nil, profile, signup_framework) do
     Multi.new()
     |> Multi.insert(
@@ -364,8 +359,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   defp provider_to_workos("github"), do: "GitHubOAuth"
   defp provider_to_workos("google"), do: "GoogleOAuth"
-
-  # Raw HTTP authentication to capture full error responses.
 
   defp authenticate_with_code_raw(code) do
     body = %{

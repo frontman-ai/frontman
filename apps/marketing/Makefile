@@ -3,27 +3,37 @@
 
 PORT ?= 4321
 
-help: ## Display available commands
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help install test dev build deploy indexnow blog-cover
+HELP_help := Display available commands
+HELP_install := Install dependencies
+HELP_test := Run marketing tests
+HELP_dev := Start development server
+HELP_build := Build for production
+HELP_deploy := Build and deploy to Cloudflare Pages
+HELP_indexnow := Submit sitemap URLs through IndexNow
+HELP_blog-cover := Generate blog cover image — usage: make blog-cover TITLE="Your Title" [FILE=output-name]
 
-install: ## Install dependencies
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+install:
 	yarn install
 
-test: ## Run marketing tests
+test:
 	yarn run -T vitest run src/integrations/*.test.mjs src/content/*.test.mjs
 
-dev: ## Start development server
+dev:
 	yarn dev --port $(PORT)
 
-build: ## Build for production
+build:
 	yarn build
 
-deploy: build ## Build and deploy to Cloudflare Pages
+deploy: build
 	op run --env-file=../../.env -- npx wrangler pages deploy dist --project-name=frontman-marketing --branch=main
 
-indexnow: build ## Submit sitemap URLs through IndexNow
+indexnow: build
 	node scripts/indexnow.mjs
 
-blog-cover: ## Generate blog cover image — usage: make blog-cover TITLE="Your Title" [FILE=output-name]
+blog-cover:
 	@test -n "$(TITLE)" || (echo "Usage: make blog-cover TITLE=\"Your Title\" [FILE=output-name]" && exit 1)
 	node scripts/generate-blog-cover.mjs "$(TITLE)" $(FILE)

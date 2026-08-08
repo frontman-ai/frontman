@@ -26,21 +26,18 @@ jobs:
     env:
       MIX_ENV: e2e
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
-      # Backing repo secrets still use the legacy ChatGPT names; expose the new
-      # OpenAI env names to the token refresh script until secrets are migrated.
       E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
       E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
       E2E_OPENAI_TOKEN_MODE: refresh_if_needed
-      # Refresh when the access token is within 3 days of expiry by default.
       E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: ${{ github.event.inputs.refresh_threshold_seconds || '259200' }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d
         with:
           install: true
           cache: true
@@ -57,7 +54,6 @@ jobs:
       - name: Update repo secrets
         if: steps.token.outputs.rotated == 'true'
         env:
-          # PAT or GitHub App token with permission to manage repo Actions and Dependabot secrets.
           GH_TOKEN: ${{ secrets.E2E_SECRET_ROTATION_GH_TOKEN }}
           REPO: ${{ github.repository }}
           ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}

@@ -49,16 +49,12 @@ if env_boolean.("PHX_SERVER", false) do
   config :frontman_server, FrontmanServerWeb.Endpoint, server: true
 end
 
-# Cloak encryption key for API keys at rest (required)
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
-# WorkOS configuration for OAuth (GitHub, Google)
 config :workos, WorkOS.Client,
   api_key: env!("WORKOS_API_KEY", :string, nil),
   client_id: env!("WORKOS_CLIENT_ID", :string, nil)
 
-# Dev/Test/E2E: Allow DB_HOST override for container development (e.g., DevPod)
-# The docker bridge gateway IP (172.17.0.1) is used to connect from container to host PostgreSQL
 if config_env() in [:dev, :test, :e2e] do
   db_host = env!("DB_HOST", :string, "localhost")
 
@@ -121,7 +117,6 @@ if config_env() == :prod do
 
   maybe_ipv6 = if env_boolean.("ECTO_IPV6", false), do: [:inet6], else: []
 
-  # SSL can be disabled for local PostgreSQL (DATABASE_SSL=false)
   use_ssl = env_boolean.("DATABASE_SSL", true)
 
   ssl_config =
@@ -138,11 +133,6 @@ if config_env() == :prod do
     | ssl_config
   ]
 
-  # The secret key base is used to sign/encrypt cookies and other secrets.
-  # A default value is used in config/dev.exs and config/test.exs but you
-  # want to use a different value for prod and you most likely don't want
-  # to check this value into version control, so we use an environment
-  # variable instead.
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
       raise """
@@ -155,56 +145,18 @@ if config_env() == :prod do
 
   config :frontman_server, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  # Allow WebSocket connections from any origin.
   check_origin = false
 
   config :frontman_server, FrontmanServerWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
     check_origin: check_origin,
     secret_key_base: secret_key_base
 
-  # ## SSL Support
-  #
-  # To get SSL working, you will need to add the `https` key
-  # to your endpoint configuration:
-  #
-  #     config :frontman_server, FrontmanServerWeb.Endpoint,
-  #       https: [
-  #         ...,
-  #         port: 443,
-  #         cipher_suite: :strong,
-  #         keyfile: System.get_env("SOME_APP_SSL_KEY_PATH"),
-  #         certfile: System.get_env("SOME_APP_SSL_CERT_PATH")
-  #       ]
-  #
-  # The `cipher_suite` is set to `:strong` to support only the
-  # latest and more secure SSL ciphers. This means old browsers
-  # and clients may not be supported. You can set it to
-  # `:compatible` for wider support.
-  #
-  # `:keyfile` and `:certfile` expect an absolute path to the key
-  # and cert in disk or a relative path inside priv, for example
-  # "priv/ssl/server.key". For all supported SSL configuration
-  # options, see https://hexdocs.pm/plug/Plug.SSL.html#configure/1
-  #
-  # We also recommend setting `force_ssl` in your config/prod.exs,
-  # ensuring no data is ever sent via http, always redirecting to https:
-  #
-  #     config :frontman_server, FrontmanServerWeb.Endpoint,
-  #       force_ssl: [hsts: true]
-  #
-  # Check `Plug.SSL` for all available options in `force_ssl`.
-
   if resend_enabled do
-    # Mailer: Resend adapter for production email delivery
     config :frontman_server, FrontmanServer.Mailer,
       adapter: Swoosh.Adapters.Resend,
       api_key: resend_api_key

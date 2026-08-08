@@ -54,7 +54,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       on_replace: :update
     )
 
-    # Monotonic sequence avoids DB insert race conditions.
     field(:sequence, :integer)
     field(:turn_number, :integer)
 

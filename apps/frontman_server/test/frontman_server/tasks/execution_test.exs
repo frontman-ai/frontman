@@ -983,8 +983,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      # The telemetry stop event fires only after the backend tool actually runs.
-      # The missing tool_defs regression skipped execution before producing this event.
       assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
       assert meta.tool_name == "todo_write"
 
@@ -1146,7 +1144,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentError{kind: "terminated"}, _turn_number)
 
-      # Verify DB persistence
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       agent_error =

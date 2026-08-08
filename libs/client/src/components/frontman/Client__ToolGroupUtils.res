@@ -18,14 +18,6 @@ module Types = Client__ToolGroupTypes
 module ToolLabels = Client__ToolLabels
 module TodoUtils = Client__TodoUtils
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-// ============================================================================
-// Tool Classification (using substring matching like ToolLabels)
-// ============================================================================
-
 let includesAny = (name, needles) => needles->Array.some(needle => String.includes(name, needle))
 
 module BrowserAction = {
@@ -129,10 +121,6 @@ let getGroupType = (toolName: string): Types.groupType => {
   }
 }
 
-// ============================================================================
-// Summary Calculation
-// ============================================================================
-
 /**
  * Extract file path from tool input
  */
@@ -156,27 +144,22 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
     let name = String.toLowerCase(tool.toolName)
     let path = extractFilePath(tool.input)
 
-    // File reads
     let files = if String.includes(name, "read") && !String.includes(name, "lint") {
       appendPath(acc.files, path)
     } else {
       acc.files
     }
 
-    // Directory listings
     let directories = if includesAny(name, directoryToolNeedles) {
       appendPath(acc.directories, path)
     } else {
       acc.directories
     }
 
-    // Searches (grep, search, find)
     let searches = incrementIf(acc.searches, includesAny(name, searchToolNeedles))
 
-    // Definition/symbol lookups
     let definitions = incrementIf(acc.definitions, includesAny(name, definitionToolNeedles))
 
-    // Browser snapshots/screenshots
     let browserSnapshots = incrementIf(
       acc.browserSnapshots,
       includesAny(name, browserSnapshotNeedles),
@@ -192,10 +175,6 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
     }
   })
 }
-
-// ============================================================================
-// Label Generation
-// ============================================================================
 
 /**
  * Get unique items from an array
@@ -224,7 +203,6 @@ let unique = (arr: array<string>): array<string> => {
 let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
   let labels = []
 
-  // 1. Directories (list)
   let uniqueDirs = unique(summary.directories)
   let labels = if Array.length(uniqueDirs) > 0 {
     let count = Array.length(uniqueDirs)
@@ -234,7 +212,6 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 
-  // 2. Files
   let uniqueFiles = unique(summary.files)
   let labels = if Array.length(uniqueFiles) > 0 {
     let count = Array.length(uniqueFiles)
@@ -244,7 +221,6 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 
-  // 3. Searches
   let labels = if summary.searches > 0 {
     let label = `${Int.toString(summary.searches)} search${summary.searches == 1 ? "" : "es"}`
     Array.concat(labels, [label])
@@ -252,7 +228,6 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 
-  // 4. Definitions
   let labels = if summary.definitions > 0 {
     let label = if summary.definitions == 1 {
       "found definition"
@@ -264,7 +239,6 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 
-  // 5. Browser snapshots
   let labels = if summary.browserSnapshots > 0 {
     let label = `${Int.toString(summary.browserSnapshots)} snapshot${summary.browserSnapshots == 1
         ? ""
@@ -274,7 +248,6 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 
-  // Fallback if no specific labels - show operation count
   if Array.length(labels) == 0 {
     let count = Array.length(summary.tools)
     [`${Int.toString(count)} operation${count == 1 ? "" : "s"}`]
@@ -282,10 +255,6 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 }
-
-// ============================================================================
-// Grouping Logic
-// ============================================================================
 
 /**
  * Check if a tool call has an error state
@@ -318,16 +287,12 @@ let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): a
   let currentIsSubagent: ref<bool> = ref(false)
   let currentParentAgentId: ref<option<string>> = ref(None)
 
-  // Flush current group to results
   let flushGroup = () => {
     let group = currentGroup.contents
 
-    // Check if group is entirely todo tools - use minGroupSize=2 for those
     let isTodoOnlyGroup =
       Array.length(group) > 0 && group->Array.every(tc => TodoUtils.isTodoTool(tc.toolName))
 
-    // For subagent and explored groups: minGroupSize=1
-    // For todo-only groups: minGroupSize=2
     let effectiveMinSize = if isTodoOnlyGroup {
       2
     } else {
@@ -335,12 +300,9 @@ let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): a
     }
 
     if Array.length(group) >= effectiveMinSize {
-      // Create a proper group
       let summary = calculateSummary(group)
       let groupType = currentGroupType.contents->Option.getOr(Types.Activity)
-      // Get spawningToolName from first tool in group (for subagent groups)
       let spawningToolName = group->Array.get(0)->Option.flatMap(tc => tc.spawningToolName)
-      // Generate stable ID from first tool call's ID (stable across re-renders)
       let firstToolId = group->Array.get(0)->Option.mapOr("unknown", tc => tc.id)
       let toolGroup: Types.toolGroup = {
         id: `group-${firstToolId}`,
@@ -352,7 +314,6 @@ let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): a
       }
       result->Array.push(Types.ToolGroup(toolGroup))
     } else {
-      // Not enough to group - emit as singles
       group->Array.forEach(tc => {
         result->Array.push(Types.SingleTool(tc))
       })
@@ -363,33 +324,26 @@ let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): a
     currentParentAgentId := None
   }
 
-  // Check if this specific tool call should be grouped (for main agent)
   let shouldGroupToolCall = (tc: Message.toolCall): bool =>
     !hasError(tc) && !breaksGrouping(tc.toolName) && isGroupableTool(tc.toolName)
 
   toolCalls->Array.forEach(tc => {
     let isSubagent = isSubagentToolCall(tc)
 
-    // If switching between subagent and main agent, flush the current group
     if currentIsSubagent.contents != isSubagent && Array.length(currentGroup.contents) > 0 {
       flushGroup()
     }
 
-    // If switching to a different subagent (different parentAgentId), flush the current group
     if isSubagent && currentIsSubagent.contents {
       let currentParent = currentParentAgentId.contents
       let newParent = tc.parentAgentId
       switch (currentParent, newParent) {
-      | (Some(current), Some(new_)) if current != new_ =>
-        // Different subagent - flush and start new group
-        flushGroup()
+      | (Some(current), Some(new_)) if current != new_ => flushGroup()
       | _ => ()
       }
     }
 
     if isSubagent {
-      // Subagent tool calls are grouped together regardless of tool type
-      // INCLUDING error states - we want to keep the group together
       currentIsSubagent := true
       currentGroupType := Some(Types.Subagent)
       currentParentAgentId := tc.parentAgentId
@@ -397,7 +351,6 @@ let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): a
     } else if shouldGroupToolCall(tc) {
       let toolGroupType = getGroupType(tc.toolName)
 
-      // If group type changes, flush current group first
       switch currentGroupType.contents {
       | Some(current) if current != toolGroupType => flushGroup()
       | _ => ()
@@ -407,13 +360,11 @@ let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): a
       currentGroupType := Some(toolGroupType)
       currentGroup.contents->Array.push(tc)
     } else {
-      // Non-groupable tool - render individually
       flushGroup()
       result->Array.push(Types.SingleTool(tc))
     }
   })
 
-  // Flush any remaining group at the end
   flushGroup()
 
   result
@@ -432,7 +383,6 @@ let getGroupPrefix = (group: Types.toolGroup, ~isOpen: bool): string => {
     }
   })
 
-  // Show loading prefix if any tool is loading OR if group is still open
   if isLoading || isOpen {
     switch group.groupType {
     | Types.Activity => "Exploring..."

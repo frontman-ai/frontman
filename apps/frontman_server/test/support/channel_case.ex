@@ -25,14 +25,11 @@ defmodule FrontmanServerWeb.ChannelCase do
 
   using do
     quote do
-      # Import conveniences for testing with channels
       import Phoenix.ChannelTest
       import FrontmanServerWeb.ChannelCase
 
-      # The default endpoint for testing
       @endpoint FrontmanServerWeb.Endpoint
 
-      # ACP channel event constant for test assertions
       @acp_message AgentClientProtocol.event_acp_message()
     end
   end
@@ -234,7 +231,6 @@ defmodule FrontmanServerWeb.ChannelCase do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    # Create a test user for scope
     {:ok, user} =
       Accounts.register_user(%{
         email: "channel_test_#{System.unique_integer([:positive])}@test.local",

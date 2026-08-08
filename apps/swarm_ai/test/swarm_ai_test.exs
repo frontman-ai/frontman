@@ -98,7 +98,6 @@ defmodule SwarmAiTest do
     test "pause_agent tool timeout returns :paused result, no :failed event" do
       runtime = start_runtime!()
 
-      # Executor returns Sync executions with 10ms timeout and :pause_agent policy.
       execute_tools = fn tool_calls, task_supervisor ->
         executions =
           Enum.map(tool_calls, fn tool_call ->

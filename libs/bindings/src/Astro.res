@@ -1,7 +1,3 @@
-// Astro Integration API bindings
-
-// Dev toolbar app configuration
-// entrypoint: file path to the toolbar app module (string | URL supported, using string for simplicity)
 type devToolbarAppConfig = {
   id: string,
   name: string,
@@ -9,18 +5,14 @@ type devToolbarAppConfig = {
   entrypoint: string,
 }
 
-// Astro command type
 type astroCommand = [#dev | #build | #preview | #sync]
 type trailingSlash = [#always | #never | #ignore]
 
-// Astro devToolbar config
 type devToolbarConfig = {enabled: bool}
 
-// Opaque type for rehype/remark plugins (JS functions)
 type rehypePlugin
 type markdownProcessor
 
-// Astro config (subset we care about)
 type markdownConfig = {
   processor?: markdownProcessor,
   rehypePlugins: array<rehypePlugin>,
@@ -33,23 +25,18 @@ type astroConfig = {
   trailingSlash: trailingSlash,
 }
 
-// Vite plugin type — opaque, we just pass plugin objects through
 type vitePlugin
 
-// Vite dev server connect middleware stack
 type connectMiddlewareStack
 
 @send
 external use: (connectMiddlewareStack, NodeHttp.connectMiddleware) => unit = "use"
 
-// Vite dev server (minimal bindings for astro:server:setup)
 type viteDevServer = {middlewares: connectMiddlewareStack}
 
 @send
 external ssrLoadModule: (viteDevServer, string) => promise<'a> = "ssrLoadModule"
 
-// Config for constructing a Vite plugin with typed fields we use.
-// Keeps vitePlugin opaque while avoiding Obj.magic at call sites.
 type vitePluginConfig = {
   name: string,
   configureServer?: viteDevServer => unit,
@@ -57,14 +44,11 @@ type vitePluginConfig = {
 
 external makeVitePlugin: vitePluginConfig => vitePlugin = "%identity"
 
-// Partial Astro config for updateConfig — only the fields we need
 type partialViteConfig = {plugins?: array<vitePlugin>}
 
 type partialMarkdownConfig = {rehypePlugins?: array<rehypePlugin>}
 type partialAstroConfig = {vite?: partialViteConfig, markdown?: partialMarkdownConfig}
 
-// Hook context for astro:config:setup
-// injectScript stage is passed as a plain string: "head-inline", "before-hydration", "page", "page-ssr"
 type configSetupHookContext = {
   addDevToolbarApp: devToolbarAppConfig => unit,
   injectScript: (string, string) => unit,
@@ -75,12 +59,8 @@ type configSetupHookContext = {
 
 type configDoneHookContext = {config: astroConfig}
 
-// --- Server-side toolbar object (available in astro:server:setup hook) ---
-// Must be defined before serverSetupHookContext which references it.
-
 type toolbarServerSide
 
-// Toggle state — shared between client-side and server-side toolbar APIs
 type toggleState = {state: bool}
 
 @send
@@ -97,13 +77,11 @@ external toolbarOnAppInitialized: (toolbarServerSide, string, unit => unit) => u
 external toolbarOnAppToggled: (toolbarServerSide, string, toggleState => unit) => unit =
   "onAppToggled"
 
-// Hook context for astro:server:setup
 type serverSetupHookContext = {
   server: viteDevServer,
   toolbar: toolbarServerSide,
 }
 
-// Route types from astro:routes:resolved hook (Astro v5+)
 type routeType = [#page | #endpoint | #redirect | #fallback]
 type routeOrigin = [#internal | #"external" | #project]
 
@@ -120,7 +98,6 @@ type integrationResolvedRoute = {
 
 type routesResolvedHookContext = {routes: array<integrationResolvedRoute>}
 
-// Astro integration hooks
 type astroHooks = {
   @as("astro:config:setup")
   configSetup?: configSetupHookContext => unit,
@@ -132,30 +109,22 @@ type astroHooks = {
   routesResolved?: routesResolvedHookContext => unit,
 }
 
-// Astro integration type
 type astroIntegration = {
   name: string,
   hooks: astroHooks,
 }
 
-// --- Client-side toolbar app types ---
-
-// canvas is a ShadowRoot — apps render their UI into it
 type toolbarCanvas = WebAPI.DOMAPI.shadowRoot
 
-// app is an EventTarget with helper methods for toggle/notification events
 type toolbarApp
 
-// Notification options for toggleNotification
 type notificationOptions = {
   state?: bool,
   level?: [#error | #warning | #info],
 }
 
-// Toolbar placement options
 type placementOptions = {placement: [#"bottom-left" | #"bottom-center" | #"bottom-right"]}
 
-// Client-side app event helpers
 @send
 external onToggled: (toolbarApp, toggleState => unit) => unit = "onToggled"
 
@@ -169,7 +138,6 @@ external toggleState: (toolbarApp, toggleState) => unit = "toggleState"
 @send
 external toggleNotification: (toolbarApp, notificationOptions) => unit = "toggleNotification"
 
-// Toolbar server helpers for client-server communication (client-side)
 type toolbarServer
 
 @send
@@ -178,13 +146,12 @@ external serverSend: (toolbarServer, string, 'a) => unit = "send"
 @send
 external serverOn: (toolbarServer, string, 'a => unit) => unit = "on"
 
-type toolbarAppDefinition // opaque - returned by defineToolbarApp
+type toolbarAppDefinition
 
 type toolbarAppConfig = {
   init: (toolbarCanvas, toolbarApp, toolbarServer) => unit,
   beforeTogglingOff?: toolbarCanvas => bool,
 }
 
-// defineToolbarApp binding - returns an object that should be export default'd
 @module("astro/toolbar")
 external defineToolbarApp: toolbarAppConfig => toolbarAppDefinition = "defineToolbarApp"

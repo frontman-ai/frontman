@@ -62,7 +62,6 @@ defmodule Mix.Tasks.DebugTask do
   @discovered_project_rule_type :discovered_project_rule
   @discovered_project_structure_type :discovered_project_structure
 
-  # ANSI helpers
   defp cyan(text), do: IO.ANSI.cyan() <> text <> IO.ANSI.reset()
   defp red(text), do: IO.ANSI.red() <> text <> IO.ANSI.reset()
   defp bold(text), do: IO.ANSI.bright() <> text <> IO.ANSI.reset()
@@ -103,8 +102,6 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  # ── list ──────────────────────────────────────────────────────
-
   defp cmd_list(opts) do
     limit = Keyword.get(opts, :limit, 10)
 
@@ -135,8 +132,6 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  # ── show ──────────────────────────────────────────────────────
-
   defp cmd_show(positional, opts) do
     task = resolve_task_from_args(positional)
 
@@ -154,8 +149,6 @@ defmodule Mix.Tasks.DebugTask do
       show_list(task.id, opts)
     end
   end
-
-  # ── show_list ─────────────────────────────────────────────────
 
   defp show_list(task_id, opts) do
     limit = Keyword.get(opts, :limit, 100)
@@ -176,8 +169,6 @@ defmodule Mix.Tasks.DebugTask do
 
     Mix.shell().info("\n#{dim("  Tip: --seq NUMBER for full detail on any interaction")}")
   end
-
-  # ── show_detail ───────────────────────────────────────────────
 
   defp show_detail(task_id, seq) do
     interaction =
@@ -200,12 +191,10 @@ defmodule Mix.Tasks.DebugTask do
 
         Mix.shell().info(format_json(data))
 
-        # For error tool_results, show the originating tool_call
         if i.type == @tool_result_type and is_error do
           show_originating_call(task_id, data["tool_call_id"])
         end
 
-        # For tool_results, always show the originating call if not an error too
         if i.type == @tool_result_type and not is_error and data["tool_call_id"] do
           show_originating_call(task_id, data["tool_call_id"])
         end
@@ -291,8 +280,6 @@ defmodule Mix.Tasks.DebugTask do
 
   defp decode_embedded_tool_arguments(arguments), do: arguments
 
-  # ── query filters ─────────────────────────────────────────────
-
   defp apply_filters(query, opts) do
     query
     |> maybe_filter_errors(opts[:errors])
@@ -321,10 +308,7 @@ defmodule Mix.Tasks.DebugTask do
     where(query, [i], fragment("?->>'tool_name' = ?", i.data, ^tool))
   end
 
-  # ── task resolution ───────────────────────────────────────────
-
   defp resolve_task_from_args([]) do
-    # No task specified — use the most recent
     task =
       TaskSchema
       |> TaskSchema.ordered_by_updated()
@@ -340,7 +324,6 @@ defmodule Mix.Tasks.DebugTask do
 
   defp resolve_task(id) do
     cond do
-      # Full UUID
       String.match?(id, ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ->
         TaskSchema
         |> TaskSchema.by_id(id)
@@ -350,7 +333,6 @@ defmodule Mix.Tasks.DebugTask do
           task -> task
         end
 
-      # Prefix (at least 8 hex chars)
       String.match?(id, ~r/^[0-9a-f]{8,}$/i) ->
         like_pattern = "#{String.downcase(id)}%"
 
@@ -381,8 +363,6 @@ defmodule Mix.Tasks.DebugTask do
         )
     end
   end
-
-  # ── formatting helpers ────────────────────────────────────────
 
   defp print_interaction_line(i) do
     seq_str = String.pad_leading(to_string(i.sequence || 0), 6)
@@ -561,8 +541,6 @@ defmodule Mix.Tasks.DebugTask do
     id |> String.split("-") |> hd()
   end
 
-  # Start only the Repo (and its dependencies) instead of the full app.
-  # This avoids needing Vault/CLOAK_KEY, WorkOS, Phoenix, etc.
   defp ensure_repo_started do
     {:ok, _} = Application.ensure_all_started(:postgrex)
     {:ok, _} = Application.ensure_all_started(:ecto_sql)

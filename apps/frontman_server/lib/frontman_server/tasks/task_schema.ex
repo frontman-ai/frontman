@@ -59,8 +59,6 @@ defmodule FrontmanServer.Tasks.TaskSchema do
     |> validate_required([:short_desc])
   end
 
-  # Query helpers
-
   def by_id(query \\ __MODULE__, id) do
     from(t in query, where: t.id == ^id)
   end

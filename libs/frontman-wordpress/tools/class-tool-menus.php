@@ -15,7 +15,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Menus {
 	/**
@@ -672,7 +671,6 @@ class Frontman_Tool_Menus {
 			throw new Frontman_Tool_Error( 'Provide title, url, or position to update a menu item.' );
 		}
 
-		// Get the menu this item belongs to.
 		$menus = wp_get_object_terms( $menu_item_id, 'nav_menu' );
 		if ( empty( $menus ) ) {
 			throw new Frontman_Tool_Error( "Menu item {$menu_item_id} is not assigned to any menu" );
@@ -732,5 +730,3 @@ class Frontman_Tool_Menus {
 		];
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

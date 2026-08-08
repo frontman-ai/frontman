@@ -29,7 +29,6 @@ class Frontman_Auth {
 	 * @return true|\WP_Error True if authorized, WP_Error with status code on failure.
 	 */
 	public static function check() {
-		// Ensure current user is loaded from cookies (needed when called early in parse_request).
 		if ( ! did_action( 'set_current_user' ) ) {
 			wp_get_current_user();
 		}
@@ -122,7 +121,6 @@ class Frontman_Auth {
 			return;
 		}
 
-		// For page requests (the UI), redirect to login.
 		$redirect_url = home_url( '/frontman' );
 		wp_safe_redirect( wp_login_url( $redirect_url ) );
 		exit;

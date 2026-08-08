@@ -1,11 +1,7 @@
 ---
-// Tags for the Blog and post pages
 
-// Components
-// - UI
 import Badge from '../Badge.astro'
 
-//Data
 import { getCollection } from 'astro:content'
 import { countPostsByTag, isIndexableTagCount } from '../../../utils/tagIndexability.mjs'
 const posts = await getCollection('blog')

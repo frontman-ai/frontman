@@ -1,6 +1,3 @@
-# Treat each ReScript package as its own LSP root. The monorepo root has a
-# rescript.json, but source files live under these package roots and the
-# ReScript language server resolves package artifacts relative to that root.
 [[language]]
 name = "rescript"
 workspace-lsp-roots = [

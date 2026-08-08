@@ -34,8 +34,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       task_id: task_id,
       turn_number: turn_number
     } do
-      # Send directly to the channel process (not via PubSub, which also delivers
-      # the raw message to the test process and blocks assert_push)
       tool_result =
         tool_result(
           "call_status_#{:rand.uniform(1_000_000)}",
@@ -46,7 +44,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
       send(socket.channel_pid, interaction_event(tool_result, turn_number))
 
-      # The client should receive "failed" not "error"
       assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
@@ -94,20 +91,17 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Send a tool call interaction that will be routed to MCP
       tool_call =
         tool_call("call_mcp_err_#{:rand.uniform(1_000_000)}", "testMcpTool", %{"key" => "value"})
 
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 
-      # Get the MCP request ID
       assert_push("mcp:message", %{
         "method" => "tools/call",
         "id" => mcp_request_id,
         "params" => %{"name" => "testMcpTool"}
       })
 
-      # Respond with an MCP error
       mcp_error = %{
         "code" => -32_000,
         "message" => "Tool execution failed: permission denied"
@@ -121,7 +115,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
       :sys.get_state(socket.channel_pid)
 
-      # Verify the error notification was sent to the client
       assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
@@ -131,7 +124,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         }
       })
 
-      # Verify Sentry captured the MCP tool error
       reports = Sentry.Test.pop_sentry_reports()
 
       mcp_error_reports =
@@ -168,7 +160,6 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         "id" => mcp_request_id
       })
 
-      # Error response with no message field
       push(
         socket,
         "mcp:message",

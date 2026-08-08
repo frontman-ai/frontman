@@ -1,0 +1,11 @@
+def text(assigns) do
+  ordinary = ~s"""
+  <!-- ordinary sigil text -->
+  # ordinary string text
+  """
+
+  ~H"""
+  <p data-marker="<!-- attribute string -->">https://frontman.sh/{@path}</p>
+  <p>{ordinary}</p>
+  """
+end

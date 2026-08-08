@@ -1,4 +1,3 @@
-// Detection module for Vite project analysis
 module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
@@ -23,7 +22,6 @@ type projectInfo = {
   viteConfigFileName: string,
 }
 
-// Read file content safely
 let readFile = async (path: string): option<string> => {
   try {
     let content = await Fs.Promises.readFile(path)
@@ -35,10 +33,8 @@ let readFile = async (path: string): option<string> => {
 
 let detectPackageManager = PackageManager.detect
 
-// Pattern to detect frontman plugin import
 let frontmanImportPattern = /@frontman-ai\/vite|frontman-vite|frontmanPlugin/
 
-// Find the vite config file (supports .ts, .js, .mjs, .mts)
 let findViteConfig = async (projectDir: string): option<(string, string)> => {
   let candidates = ["vite.config.ts", "vite.config.js", "vite.config.mts", "vite.config.mjs"]
 
@@ -59,7 +55,6 @@ let findViteConfig = async (projectDir: string): option<(string, string)> => {
   await check(candidates)
 }
 
-// Analyze existing vite config for Frontman
 let analyzeViteConfig = async (projectDir: string): (existingViteConfig, string) => {
   switch await findViteConfig(projectDir) {
   | None => (NotFound, "vite.config.ts")
@@ -73,12 +68,10 @@ let analyzeViteConfig = async (projectDir: string): (existingViteConfig, string)
   }
 }
 
-// Check if package.json exists
 let hasPackageJson = async (projectDir: string): bool => {
   await FsUtils.pathExists(Path.join([projectDir, "package.json"]))
 }
 
-// Check if this is a Vite project
 let hasViteDependency = async (projectDir: string): bool => {
   let pkgPath = Path.join([projectDir, "package.json"])
   switch await readFile(pkgPath) {
@@ -102,7 +95,6 @@ let hasViteDependency = async (projectDir: string): bool => {
   }
 }
 
-// Main detection function
 let detect = async (projectDir: string): result<projectInfo, string> => {
   let hasPackage = await hasPackageJson(projectDir)
   switch hasPackage {

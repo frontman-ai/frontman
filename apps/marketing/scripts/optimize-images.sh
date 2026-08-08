@@ -1,8 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Image Optimization Script
-# Converts PNG images to WebP and updates references
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MARKETING_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -17,7 +15,6 @@ echo ""
 echo "Working directory: $MARKETING_DIR"
 echo ""
 
-# Check dependencies
 if ! command -v cwebp &> /dev/null; then
     echo "❌ Error: cwebp not found"
     echo "Install it with: brew install webp"
@@ -27,7 +24,6 @@ fi
 echo "✅ Dependencies installed"
 echo ""
 
-# Function to convert image to WebP
 convert_to_webp() {
     local input="$1"
     local quality="${2:-80}"
@@ -48,7 +44,6 @@ convert_to_webp() {
     echo "✅ Saved $savings% ($(numfmt --to=iec-i --suffix=B $original_size) → $(numfmt --to=iec-i --suffix=B $webp_size))"
 }
 
-# Convert blog images
 echo "📝 Converting blog images..."
 if [ -d "$PUBLIC_DIR/blog" ]; then
     cd "$PUBLIC_DIR/blog"
@@ -61,7 +56,6 @@ else
 fi
 echo ""
 
-# Convert OG images
 echo "📱 Converting OG images..."
 cd "$PUBLIC_DIR"
 if [ -f "og.png" ]; then
@@ -77,7 +71,6 @@ else
 fi
 echo ""
 
-# Update references in markdown files
 echo "🔍 Updating markdown references..."
 if [ -d "$CONTENT_DIR/blog" ]; then
     cd "$CONTENT_DIR/blog"
@@ -94,7 +87,6 @@ else
 fi
 echo ""
 
-# Update config references
 echo "⚙️  Updating config references..."
 if [ -f "$CONFIG_DIR/config.ts" ]; then
     cd "$CONFIG_DIR"
@@ -108,7 +100,6 @@ else
 fi
 echo ""
 
-# Update component references
 echo "🧩 Updating component references..."
 SEO_FILE="$COMPONENTS_DIR/blocks/head/partials/Seo.astro"
 if [ -f "$SEO_FILE" ]; then
@@ -122,7 +113,6 @@ else
 fi
 echo ""
 
-# Summary
 echo "✨ Optimization complete!"
 echo ""
 echo "Next steps:"

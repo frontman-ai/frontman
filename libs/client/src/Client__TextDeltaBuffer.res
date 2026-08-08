@@ -1,15 +1,3 @@
-// ACP message chunk buffering.
-//
-// Instead of dispatching a state update for every streaming chunk from the server,
-// accumulate assistant text deltas and flush once per animation frame (~60fps).
-// This prevents dozens of full state rebuilds per second during fast streaming.
-// User blocks remain grouped until the next protocol update boundary so paired
-// resources such as annotation screenshots are parsed together.
-//
-// Separated into its own module so both FrontmanProvider (producer) and
-// StateReducer can flush streamed text before finalizing task state.
-// without circular dependencies.
-
 type entry = {
   text: string,
   agentId: string,
@@ -106,7 +94,7 @@ let make = (
     }
     messages->Dict.set(messageId, updatedEntry)
     switch rafId.contents {
-    | Some(_) => () // Already scheduled
+    | Some(_) => ()
     | None => rafId := Some(WebAPI.Global.requestAnimationFrame(_ => flush()))
     }
   }
@@ -137,8 +125,6 @@ let make = (
   {add, addUserBlock, flush, discardTask, reset}
 }
 
-// Active instance — set by FrontmanProvider, read by StateReducer.
-// This is the only module-level state; all buffer state lives in closures.
 let active: ref<option<t>> = ref(None)
 
 let flush = () => active.contents->Option.forEach(instance => instance.flush())

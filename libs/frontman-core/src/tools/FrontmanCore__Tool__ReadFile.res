@@ -1,5 +1,3 @@
-// Read file tool - reads file content with optional offset/limit
-
 module Fs = FrontmanBindings.Fs
 module Path = FrontmanBindings.Path
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -95,7 +93,6 @@ let readResolvedFile = async (
     let selectedContent = selectedLines->Array.join("\n")
     let hasMore = offset + limit < totalLines
 
-    // Track that this file was read (for edit_file safety)
     FrontmanCore__FileTracker.recordRead(
       resolved.resolvedPath,
       ~offset,

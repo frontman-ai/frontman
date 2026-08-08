@@ -5,15 +5,12 @@ module ClientTypes = Client__Types
 module Annotation = Client__Annotation__Types
 module ContentBlock = Client__Task__Types.ContentBlock
 
-// Helper to create a mock DOM element for testing
-// Using a raw JS object that satisfies the minimal interface
 let makeMockElement: unit => WebAPI.DOMAPI.element = %raw(`
   function() {
     return { tagName: "DIV" };
   }
 `)
 
-// Helper to create an annotation with source location for testing
 let makeTestAnnotation = (
   ~file: string,
   ~line: int,
@@ -50,7 +47,6 @@ let makeTestAnnotation = (
   enrichmentStatus: Enriched,
 }
 
-// Helper to extract _meta from an EmbeddedResource content block
 let getMeta = (block: ContentBlock.t): JSON.t => {
   switch block {
   | EmbeddedResource({_meta}) => _meta->Option.getOrThrow
@@ -59,7 +55,6 @@ let getMeta = (block: ContentBlock.t): JSON.t => {
   }
 }
 
-// Helper to extract resource contents from an EmbeddedResource content block
 let getResource = (block: ContentBlock.t): ContentBlock.embeddedResourceResource => {
   switch block {
   | EmbeddedResource({resource}) => resource
@@ -68,7 +63,6 @@ let getResource = (block: ContentBlock.t): ContentBlock.embeddedResourceResource
   }
 }
 
-// Helper to get a string field from _meta JSON
 let getMetaString = (meta: JSON.t, field: string): string =>
   meta
   ->JSON.Decode.object
@@ -76,7 +70,6 @@ let getMetaString = (meta: JSON.t, field: string): string =>
   ->Option.flatMap(JSON.Decode.string)
   ->Option.getOrThrow
 
-// Helper to get an int field from _meta JSON
 let getMetaFloat = (meta: JSON.t, field: string): float =>
   meta
   ->JSON.Decode.object
@@ -84,7 +77,6 @@ let getMetaFloat = (meta: JSON.t, field: string): float =>
   ->Option.flatMap(JSON.Decode.float)
   ->Option.getOrThrow
 
-// Helper to get a bool field from _meta JSON
 let getMetaBool = (meta: JSON.t, field: string): bool =>
   meta
   ->JSON.Decode.object
@@ -92,7 +84,6 @@ let getMetaBool = (meta: JSON.t, field: string): bool =>
   ->Option.flatMap(JSON.Decode.bool)
   ->Option.getOrThrow
 
-// Helper to get an object field from _meta JSON
 let getMetaObject = (meta: JSON.t, field: string): Dict.t<JSON.t> =>
   meta
   ->JSON.Decode.object
@@ -115,12 +106,10 @@ describe("Client__State__Types", () => {
 
         let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
 
-        // Should produce at least 1 block (resource with annotation metadata)
         t->expect(blocks->Array.length >= 1)->Expect.toBe(true)
 
         let meta = getMeta(blocks->Array.getUnsafe(0))
 
-        // The file should be an absolute path, not a file:// URI
         t->expect(getMetaString(meta, "file"))->Expect.toBe("/home/user/project/src/Component.tsx")
       },
     )
@@ -163,7 +152,6 @@ describe("Client__State__Types", () => {
         let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
         let meta = getMeta(blocks->Array.getUnsafe(0))
 
-        // Windows paths should have the drive letter preserved
         t
         ->expect(getMetaString(meta, "file"))
         ->Expect.toBe("C:/Users/dev/project/src/Component.tsx")
@@ -187,7 +175,6 @@ describe("Client__State__Types", () => {
 
         switch resource {
         | TextResourceContents(textResource) =>
-          // The URI should use file:// with cleaned path and line:col
           t
           ->expect(textResource.uri)
           ->Expect.toBe("file:///home/user/project/src/Component.tsx:42:5")
@@ -208,10 +195,8 @@ describe("Client__State__Types", () => {
 
         let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
 
-        // Should produce 2 blocks: resource + screenshot
         t->expect(blocks->Array.length)->Expect.toBe(2)
 
-        // Second block should be screenshot blob
         let screenshotBlock = blocks->Array.getUnsafe(1)
         let screenshotResource = getResource(screenshotBlock)
         let screenshotMeta = getMeta(screenshotBlock)
@@ -389,10 +374,6 @@ describe("Client__State__Types", () => {
   })
 })
 
-// ============================================================================
-// MessageAnnotation Tests (Issue #466)
-// ============================================================================
-
 module MessageAnnotation = Client__Message.MessageAnnotation
 
 describe("MessageAnnotation.fromAnnotation", () => {
@@ -408,7 +389,6 @@ describe("MessageAnnotation.fromAnnotation", () => {
       ~nearbyText="Submit",
       ~boundingBox={x: 10.0, y: 20.0, width: 100.0, height: 50.0},
     )
-    // Add a comment and screenshot to the annotation
     let annotation = {
       ...annotation,
       comment: Some("This is broken"),
@@ -525,7 +505,6 @@ describe("messageAnnotationsToContentBlocks", () => {
 
     let blocks = Types.messageAnnotationsToContentBlocks(annotations)
 
-    // 1 annotation without screenshot = 1 block
     t->expect(blocks->Array.length)->Expect.toBe(1)
 
     let meta = getMeta(blocks->Array.getUnsafe(0))
@@ -588,7 +567,6 @@ describe("messageAnnotationsToContentBlocks", () => {
 
     let blocks = Types.messageAnnotationsToContentBlocks(annotations)
 
-    // 1 annotation with screenshot = 2 blocks
     t->expect(blocks->Array.length)->Expect.toBe(2)
   })
 

@@ -8,10 +8,8 @@ module ToolLabels = Client__ToolLabels
 module ToolNames = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool.ToolNames
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-// Normalize tool name for comparison
 let cleanToolName = (toolName: string): string => String.toLowerCase(toolName)
 
-// Tools that show a target inline (path, URL, etc.) instead of expandable body
 let isInlineTool = (toolName: string): bool => {
   let name = cleanToolName(toolName)
   switch name {
@@ -54,7 +52,6 @@ let renderContent = (item, setPreviewSrc) =>
   | Terminal({terminalId}) => <div> {React.string(`Terminal ${terminalId}`)} </div>
   }
 
-// Extract target path/URL, defaulting to "./" for list/file operations
 let getTarget = (toolName: string, input: option<JSON.t>): option<string> => {
   switch ToolLabels.extractTargetFromInput(input) {
   | Some(".") => Some("./")
@@ -75,7 +72,6 @@ let make = (
   ~defaultExpanded: bool=false,
   ~compact: bool=false,
 ) => {
-  // Question tools get their own compact summary card
   switch cleanToolName(toolName) == ToolNames.question {
   | true => <Client__QuestionToolBlock state input result errorText />
   | false =>
@@ -84,7 +80,6 @@ let make = (
     let wasManuallyToggled = React.useRef(false)
     let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
 
-    // Sync with defaultExpanded prop unless manually toggled
     React.useEffect(() => {
       if !wasManuallyToggled.current {
         setIsExpanded(_ => defaultExpanded)
@@ -103,7 +98,6 @@ let make = (
       Option.isSome(result) ||
       Option.isSome(errorText))
 
-    // Toggle expansion handler
     let handleToggle = _ => {
       if hasBody {
         setIsExpanded(prev => !prev)
@@ -111,7 +105,6 @@ let make = (
       }
     }
 
-    // Container classes - purple themed with rounded corners
     let containerClasses =
       [
         "group overflow-hidden",
@@ -119,14 +112,12 @@ let make = (
         compact ? "rounded-lg" : "rounded-xl",
         compact ? "bg-[#8051CD]/15" : "bg-[#8051CD]/20",
         compact ? "border border-[#8051CD]/30" : "border border-[#8051CD]/40",
-        // compact ? "my-1" : "my-2",
         compact ? "px-3 py-2" : "px-4 py-3",
         hasBody ? "cursor-pointer" : "",
       ]
       ->Array.filter(s => s != "")
       ->Array.join(" ")
 
-    // Body transition classes
     let bodyClasses =
       [
         "overflow-hidden frontman-collapse-transition",
@@ -134,9 +125,7 @@ let make = (
       ]->Array.join(" ")
 
     <div className={containerClasses}>
-      // Header - clickable to toggle expansion
       <div onClick={handleToggle}>
-        // Human-readable tool name (e.g., "Get Routes", "Write File")
         <div className={`font-mono ${compact ? "text-[12px]" : "text-[13px]"}`}>
           <span className={isInProgress ? "shimmer-text text-zinc-200" : "text-zinc-200"}>
             {React.string(ToolLabels.toTitleCase(toolName))}
@@ -166,7 +155,6 @@ let make = (
         | _ => React.null
         }}
 
-        // Error message if present (inline)
         {switch errorText {
         | Some(err) =>
           <div
@@ -179,7 +167,6 @@ let make = (
         }}
       </div>
 
-      // Expandable body for non-file tools
       {hasBody
         ? <div className={bodyClasses}>
             <div
@@ -220,7 +207,7 @@ let make = (
                   )
                   ->React.array}
                 </div>
-              | None if Option.isSome(errorText) => React.null // Error already shown inline in header
+              | None if Option.isSome(errorText) => React.null
               | _ if state == InputAvailable =>
                 <div className="text-sm text-zinc-400 italic py-1">
                   {React.string("Executing...")}
@@ -236,6 +223,6 @@ let make = (
       | None => React.null
       }}
     </div>
-  } // end | false => (non-question tools)
+  }
 }
 let make = React.memo(make)

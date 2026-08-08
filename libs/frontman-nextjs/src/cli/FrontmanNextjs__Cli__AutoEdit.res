@@ -1,6 +1,3 @@
-// AI-powered auto-edit for existing files during installation
-// Uses OpenCode Zen API (free, no API key required) to merge Frontman into existing files
-
 module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
@@ -14,15 +11,11 @@ type fileType =
   | Proxy
   | Instrumentation
 
-// OpenCode Zen API configuration
 let apiBaseUrl = "https://opencode.ai/zen/v1/chat/completions"
 let apiKey = "public"
 
-// Model fallback chain (all free on OpenCode Zen, no API key needed)
-// Verified against https://opencode.ai/zen/v1/models
 let models = ["gpt-5-nano", "big-pickle", "glm-4.7-free"]
 
-// Build the system prompt for the LLM based on file type
 let buildSystemPrompt = (~fileType: fileType, ~host: string): string => {
   let (typeName, manualInstructions, referenceTemplate, rules) = switch fileType {
   | Middleware => (
@@ -76,17 +69,14 @@ ${rules}
 - Return ONLY the complete file contents. No markdown fences, no explanations, no comments about changes.`
 }
 
-// Build the user message with the existing file content
 let buildUserMessage = (~existingContent: string): string => {
   `Here is the existing file to modify:
 
 ${existingContent}`
 }
 
-// Per-model timeout in milliseconds (30 seconds)
 let requestTimeoutMs = 30_000
 
-// Raw JS fetch implementation for Node.js (avoids webapi module dependency)
 let fetchChatCompletion: (
   ~url: string,
   ~apiKey: string,
@@ -133,7 +123,6 @@ let fetchChatCompletion: (
   }
 `)
 
-// Call a single model
 let callModel = async (~model: string, ~systemPrompt: string, ~userMessage: string): result<
   string,
   string,
@@ -148,19 +137,16 @@ let callModel = async (~model: string, ~systemPrompt: string, ~userMessage: stri
   )
 }
 
-// Strip markdown fences if the LLM wraps the response in them
 let stripMarkdownFences = (content: string): string => {
   let lines = content->String.split("\n")
   let len = lines->Array.length
 
-  // Check if first line is a markdown fence
   let firstLine = lines->Array.get(0)->Option.getOr("")
   let startsWithFence = firstLine->String.startsWith("```")
 
   switch startsWithFence {
   | false => content
   | true =>
-    // Find last line that is a closing fence
     let lastLine = lines->Array.get(len - 1)->Option.getOr("")
     let endsWithFence = lastLine->String.trim == "```"
 
@@ -175,7 +161,6 @@ let stripMarkdownFences = (content: string): string => {
   }
 }
 
-// Validate that the LLM output contains required Frontman imports/config
 let validateOutput = (~content: string, ~fileType: fileType): bool => {
   let hasFrontmanImport = content->String.includes("@frontman-ai/nextjs")
 
@@ -198,7 +183,6 @@ let validateOutput = (~content: string, ~fileType: fileType): bool => {
   }
 }
 
-// Call LLM with model fallback chain
 let callLLM = async (~existingContent: string, ~fileType: fileType, ~host: string): result<
   string,
   string,
@@ -236,9 +220,7 @@ let callLLM = async (~existingContent: string, ~fileType: fileType, ~host: strin
   await tryModels(models, [])
 }
 
-// Prompt user for auto-edit with privacy disclosure (batched for multiple files)
 let promptUserForAutoEdit = async (~fileNames: array<string>): bool => {
-  // Skip prompt if not interactive (piped input)
   switch Readline.isTTY() {
   | false => false
   | true =>
@@ -262,7 +244,6 @@ let promptUserForAutoEdit = async (~fileNames: array<string>): bool => {
 
     let answer = await Readline.question(`     Auto-edit using AI? ${Style.dim("[Y/n]")} `)
 
-    // Ctrl+D (EOF) returns null — treat as decline (never auto-consent)
     switch answer->Nullable.toOption {
     | None => false
     | Some(raw) =>
@@ -274,16 +255,12 @@ let promptUserForAutoEdit = async (~fileNames: array<string>): bool => {
   }
 }
 
-// Result type re-exported for use in Files.res
 type autoEditResult =
   | AutoEdited(string)
   | AutoEditFailed(string)
 
-// Maximum file size (in bytes) to send to the LLM. Files larger than this
-// are skipped to avoid excessive latency or request failures.
 let maxFileSizeBytes = 50_000
 
-// Main auto-edit function: prompt user, call LLM, write file
 let autoEditFile = async (
   ~filePath: string,
   ~fileName: string,
@@ -291,7 +268,6 @@ let autoEditFile = async (
   ~fileType: fileType,
   ~host: string,
 ): autoEditResult => {
-  // Guard: skip files that are too large for reliable LLM editing
   let fileSize = existingContent->String.length
   switch fileSize > maxFileSizeBytes {
   | true =>

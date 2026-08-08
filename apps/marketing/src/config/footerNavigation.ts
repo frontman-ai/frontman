@@ -1,6 +1,3 @@
-// Footer Navigation
-// ------------
-// Description: The footer navigation data for the website.
 import { legalInfo } from '../data/legalInfo'
 
 export interface Logo {

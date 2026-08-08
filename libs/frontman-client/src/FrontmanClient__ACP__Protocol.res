@@ -1,6 +1,3 @@
-// ACP Protocol helpers
-// Centralizes JSON-RPC request/response pattern and message handling
-
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module Client = FrontmanClient__ACP__Client
 module Channel = FrontmanClient__Phoenix__Channel
@@ -12,7 +9,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 type messageDirection = Send | Receive
 
-// Generic request sender - eliminates duplication across sendInitialize, createSession, sendPrompt
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
@@ -42,8 +38,6 @@ let sendRequest = (
     channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
   })
 }
-
-// Typed wrappers for specific ACP methods
 
 let sendInitialize = (
   ~channel: Channel.t,
@@ -92,7 +86,6 @@ let sendPrompt = (
     ("sessionId", JSON.Encode.string(sessionId)),
     ("prompt", JSON.Encode.array(prompt)),
   ]
-  // Add _meta if provided
   let entries = switch _meta {
   | Some(meta) => Array.concat(entries, [("_meta", meta)])
   | None => entries
@@ -108,7 +101,6 @@ let sendPrompt = (
   )
 }
 
-// ACP spec: session/cancel is a NOTIFICATION (no id, no response expected).
 let sendCancel = (
   ~channel: Channel.t,
   ~sessionId: string,
@@ -123,8 +115,6 @@ let sendCancel = (
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-// Frontman extension: session/retry_turn is a notification (no response expected).
-// Signals the server to retry the failed turn identified by retriedErrorId.
 let sendRetryTurn = (
   ~channel: Channel.t,
   ~sessionId: string,
@@ -143,7 +133,6 @@ let sendRetryTurn = (
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-// Extract method from JSON-RPC message (notifications have method, responses have id)
 let getMethod = (payload: JSON.t): option<string> => {
   payload
   ->JSON.Decode.object
@@ -151,8 +140,6 @@ let getMethod = (payload: JSON.t): option<string> => {
   ->Option.flatMap(JSON.Decode.string)
 }
 
-// Message handler with proper error reporting (no silent swallowing)
-// onUpdate receives (sessionId, update) per ACP session/update notification params
 let handleIncomingMessage = (
   ~state: ref<Client.state>,
   ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
@@ -162,10 +149,8 @@ let handleIncomingMessage = (
 ): unit => {
   onMessage->Option.forEach(cb => cb(Receive, payload))
 
-  // Dispatch based on message type
   switch getMethod(payload) {
   | Some("session/update") =>
-    // Session update notification - parse and dispatch with sessionId
     switch Client.parseSessionUpdateNotification(state.contents, payload) {
     | Ok(notification) =>
       onUpdate->Option.forEach(cb => {
@@ -184,15 +169,12 @@ let handleIncomingMessage = (
       })
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
-  | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake
+  | Some("mcp_initialization_complete") => ()
   | Some(method) => Log.warning(`Received unhandled ACP notification: ${method}`)
-  | None =>
-    // No method field - must be a response
-    state := Client.handleResponse(state.contents, payload)
+  | None => state := Client.handleResponse(state.contents, payload)
   }
 }
 
-// Setup channel listener for ACP messages
 let attachMessageHandler = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,

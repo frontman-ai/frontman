@@ -271,8 +271,6 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             variant=Button.Variant.Outline
                             size=Button.Size.Sm
                             onClick={_ => {
-                              // Navigate to server-side logout with return_to so user is redirected
-                              // back here after re-authenticating
                               let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
                               let currentUrl = Client__HostNavigation.currentUrl()
                               let returnTo = encodeURIComponent(currentUrl)

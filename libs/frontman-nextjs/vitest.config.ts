@@ -8,7 +8,6 @@ export default defineConfig({
     include: ["test/**/*.test.res.mjs"],
     environment: "node",
 
-    // Coverage configuration
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "cobertura"],

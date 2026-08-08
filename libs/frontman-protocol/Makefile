@@ -1,17 +1,24 @@
 .DEFAULT_GOAL := help
 .PHONY: help build clean export-schemas check-schemas
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help build clean export-schemas check-schemas
+HELP_help := Display this help message
+HELP_build := Build ReScript
+HELP_clean := Clean build artifacts
+HELP_export-schemas := Export Sury schemas to JSON Schema files
+HELP_check-schemas := Verify committed schemas are up to date
 
-build: ## Build ReScript
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+build:
 	yarn rescript build
 
-clean: ## Clean build artifacts
+clean:
 	yarn rescript clean
 
-export-schemas: build ## Export Sury schemas to JSON Schema files
+export-schemas: build
 	node scripts/ExportSchemas.res.mjs
 
-check-schemas: export-schemas ## Verify committed schemas are up to date
+check-schemas: export-schemas
 	git diff --exit-code schemas/ || (echo "Schemas out of date. Run 'make export-schemas' and commit." && exit 1)

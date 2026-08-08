@@ -4,14 +4,12 @@ import { readFileSync } from 'fs';
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 export default defineConfig([
-  // Main entry point
   {
     entry: { 'index': './src/FrontmanNextjs.res.mjs' },
     format: ['esm'],
     outDir: 'dist',
     clean: true,
     define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
-    // Bundle internal workspace dependencies
     noExternal: [
       '@frontman-ai/frontman-core',
       '@frontman-ai/frontman-protocol',
@@ -20,7 +18,6 @@ export default defineConfig([
       'sury',
       'dom-element-to-component-source',
     ],
-    // Keep these as external (user must install)
     external: [
       '@sentry/nextjs',
       '@opentelemetry/api',
@@ -33,7 +30,6 @@ export default defineConfig([
       'react-dom',
       'lighthouse',
       'chrome-launcher',
-      // Node.js built-ins
       'fs',
       'path',
       'os',
@@ -58,12 +54,11 @@ export default defineConfig([
     target: 'node18',
     treeshake: true,
   },
-  // Instrumentation entry point
   {
     entry: { 'instrumentation': './src/FrontmanNextjs__Instrumentation.res.mjs' },
     format: ['esm'],
     outDir: 'dist',
-    clean: false, // Don't clean, we already did in first build
+    clean: false,
     define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
     noExternal: [
       '@frontman-ai/frontman-core',
@@ -83,7 +78,6 @@ export default defineConfig([
       'next/server',
       'react',
       'react-dom',
-      // Lighthouse has dynamic imports that break Turbopack
       'lighthouse',
       'chrome-launcher',
       'fs',
@@ -110,7 +104,6 @@ export default defineConfig([
     target: 'node18',
     treeshake: true,
   },
-  // CLI entry point
   {
     entry: { 'cli': './src/cli/cli.mjs' },
     format: ['esm'],
@@ -135,7 +128,6 @@ export default defineConfig([
       'next/server',
       'react',
       'react-dom',
-      // Lighthouse has dynamic imports that break Turbopack
       'lighthouse',
       'chrome-launcher',
       'fs',

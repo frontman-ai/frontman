@@ -1,11 +1,5 @@
-// Chrome launcher wrapper built on top of FrontmanBindings.ChromeLauncher
-//
-// Provides lazy-loaded launch (avoids bundler static resolution issues)
-// and safe kill with error logging.
-
 module B = FrontmanBindings.ChromeLauncher
 
-// Re-export types and accessors so consumers don't need to reach into bindings
 type launchedChrome = B.launchedChrome
 type launchOptions = B.launchOptions
 
@@ -13,8 +7,6 @@ let getPort = B.getPort
 @@live
 let getPid = B.getPid
 
-// Launch Chrome and return a LaunchedChrome instance.
-// Loaded lazily at runtime to avoid bundler static resolution issues.
 let launch: B.launchOptions => promise<B.launchedChrome> = %raw(`
   options =>
     import("node:module")
@@ -32,7 +24,6 @@ let launch: B.launchOptions => promise<B.launchedChrome> = %raw(`
       })
 `)
 
-// Kill Chrome, logging errors but not throwing (e.g. already exited)
 let killSafely = async (chrome: B.launchedChrome): unit => {
   try {
     await B.kill(chrome)

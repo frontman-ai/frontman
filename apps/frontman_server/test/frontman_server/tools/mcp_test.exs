@@ -53,8 +53,6 @@ defmodule FrontmanServer.Tools.MCPTest do
     end
 
     test "does not require or read timeoutMs / onTimeout from wire" do
-      # Tools from external MCP servers don't include these fields — they
-      # must not be required.
       assert %MCP{} =
                MCP.from_map(%{
                  "name" => "take_screenshot",

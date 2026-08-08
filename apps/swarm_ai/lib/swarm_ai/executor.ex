@@ -12,8 +12,6 @@ defmodule SwarmAi.Executor do
         turn_number: loop.turn_number
       },
       fn ->
-        # QUESTION(Danni) - why do we need both loop.execute which does almost
-        # nothing compared to make, then we've run_effects
         {loop, effects} = Loop.execute(loop)
         final_loop = run_effects(loop, effects, task_supervisor)
 

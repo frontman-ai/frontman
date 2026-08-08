@@ -147,7 +147,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      # Error result should be ignored
       Tasks.resolve_tool_request(
         scope,
         task_id,
@@ -184,7 +183,6 @@ defmodule FrontmanServer.Tasks.TodosTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Simulate legacy interactions
       Tasks.resolve_tool_request(
         scope,
         task_id,

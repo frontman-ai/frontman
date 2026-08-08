@@ -1,24 +1,11 @@
 ---
-// Hero Section for Blog Posts
-// ------------
-// Description: A hero section (page header) for the post pages.
-// Properties:
-// - tags: An array of tags for the post
-// - title: The title of the section (usually the title of the post)
-// - author: The author of the post
-// - pubDate: The publish date of the post (Date object)
-// - updatedDate: Optional last-updated date (Date object)
 
-// Components
-// - Layout
 import Section from '../../../components/ui/Section.astro'
 import Row from '../../../components/ui/Row.astro'
 import Col from '../../../components/ui/Col.astro'
-// - UI
 import Badge from '../../../components/ui/Badge.astro'
 import Breadcrumbs from '../../../components/ui/Breadcrumbs.astro'
 
-// Props
 type Props = {
 	tags?: any
 	title: string

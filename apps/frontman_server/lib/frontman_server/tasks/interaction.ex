@@ -401,7 +401,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    # Extract text messages from content blocks
     defp extract_messages(content_blocks) do
       content_blocks
       |> Enum.reduce_while({:ok, []}, fn
@@ -423,9 +422,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    # Extract annotations from content blocks.
-    # Annotations are resource blocks with _meta.annotation: true.
-    # Screenshots are paired by annotation_id via _meta.annotation_screenshot: true.
     defp extract_annotations(content_blocks) do
       screenshot_map = extract_screenshot_map(content_blocks)
 
@@ -445,7 +441,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp annotation_block?(_), do: false
 
-    # Collect screenshot blobs indexed by annotation_id
     defp extract_screenshot_map(content_blocks) do
       content_blocks
       |> Enum.filter(&annotation_screenshot_block?/1)
@@ -498,7 +493,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end)
     end
 
-    # Extract Figma image blob from content blocks
     defp extract_figma_image_blob(content_blocks) do
       Enum.find_value(content_blocks, fn
         %{

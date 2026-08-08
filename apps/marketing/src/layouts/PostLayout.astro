@@ -1,23 +1,17 @@
 ---
-// Imports
 const { frontmatter, body } = Astro.props
 
-//Layout Components
 import Layout from './Layout.astro'
 import { getAuthor } from '../content/authors'
 import { getWebPageId } from '../utils/structuredData.mjs'
 
-// Section Components
 import BlogPostHero from '../components/blocks/blog/BlogPostHero.astro'
 
-// Content
-// - SEO
 const SEO = {
 	title: `${frontmatter.seoTitle ?? frontmatter.title} | Frontman`,
 	description: `${frontmatter.description}`
 }
 
-// Dates
 const pubDateISO =
 	frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate
 const updatedDateISO =
@@ -27,7 +21,6 @@ const updatedDateISO =
 const author = getAuthor(frontmatter.author)
 const absoluteAuthorUrl = new URL(author.url, Astro.site).href
 
-// Word count from markdown body (strip markdown syntax, count words)
 const wordCount = body
 	? body
 			.replace(/```[\s\S]*?```/g, '')
@@ -36,7 +29,6 @@ const wordCount = body
 			.filter(Boolean).length
 	: undefined
 
-// BlogPosting JSON-LD
 const blogPostJsonLd = {
 	'@context': 'https://schema.org',
 	'@type': 'BlogPosting',
@@ -73,7 +65,6 @@ const blogPostJsonLd = {
 	}
 }
 
-// FAQPage JSON-LD (optional, driven by frontmatter.faq)
 const faqJsonLd = frontmatter.faq?.length
 	? {
 			'@context': 'https://schema.org',
@@ -89,7 +80,6 @@ const faqJsonLd = frontmatter.faq?.length
 		}
 	: null
 
-// ItemList JSON-LD (optional, driven by frontmatter.comparisonItems)
 const itemListJsonLd = frontmatter.comparisonItems?.length
 	? {
 			'@context': 'https://schema.org',
@@ -110,7 +100,6 @@ const itemListJsonLd = frontmatter.comparisonItems?.length
 		}
 	: null
 
-// VideoObject JSON-LD (optional, driven by frontmatter.video)
 const videoJsonLd = frontmatter.video
 	? {
 			'@context': 'https://schema.org',

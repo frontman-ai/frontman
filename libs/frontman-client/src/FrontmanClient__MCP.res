@@ -1,7 +1,3 @@
-// MCP Client entry point
-// Handles MCP message routing for browser-as-server pattern
-// Generic over server type - can be used with any MCP server implementation
-
 module Types = FrontmanClient__MCP__Types
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
@@ -12,8 +8,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 type messageDirection = Send | Receive
 
-// Generic handler type - parameterized over server type
-// sessionId identifies the task this handler is bound to
 type mcpHandler<'server> = {
   serverInterface: Types.serverInterface<'server>,
   channel: Channel.t,
@@ -21,13 +15,11 @@ type mcpHandler<'server> = {
   onMessage: option<(messageDirection, JSON.t) => unit>,
 }
 
-// Incoming message variants
 @@live
 type mcpMessage =
   | Request({id: JsonRpc.Id.t, method: string, params: option<JSON.t>})
   | Notification({method: string, params: option<JSON.t>})
 
-// Schema for requests (has id field)
 let requestSchema = S.object(s => {
   s.field("jsonrpc", S.literal("2.0"))->ignore
   let id = s.field("id", JsonRpc.Id.schema)
@@ -36,7 +28,6 @@ let requestSchema = S.object(s => {
   Request({id, method, params})
 })
 
-// Schema for notifications (no id field)
 let notificationSchema = S.object(s => {
   s.field("jsonrpc", S.literal("2.0"))->ignore
   let method = s.field("method", S.string)
@@ -44,7 +35,6 @@ let notificationSchema = S.object(s => {
   Notification({method, params})
 })
 
-// Check if JSON object has an "id" field
 let hasIdField = (json: JSON.t): bool => {
   switch json->JSON.Decode.object {
   | Some(obj) => obj->Dict.get("id")->Option.isSome
@@ -52,8 +42,6 @@ let hasIdField = (json: JSON.t): bool => {
   }
 }
 
-// Parse incoming MCP message
-// Discriminates by presence of 'id' field
 let parse = (json: JSON.t): result<mcpMessage, string> => {
   let schema = if hasIdField(json) {
     requestSchema
@@ -63,14 +51,12 @@ let parse = (json: JSON.t): result<mcpMessage, string> => {
   json->Decoders.parseSchema(schema)
 }
 
-// Send a JSON-RPC response
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
   let payload = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
-// Send a JSON-RPC error response
 let sendError = (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
@@ -83,7 +69,6 @@ let sendError = (
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
-// Handle initialize request
 let handleInitialize = (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
@@ -103,7 +88,6 @@ let handleInitialize = (
   }
 }
 
-// Handle tools/list request
 let handleToolsList = (handler: mcpHandler<'server>, id: JsonRpc.Id.t): unit => {
   try {
     let {serverInterface} = handler
@@ -119,7 +103,6 @@ let handleToolsList = (handler: mcpHandler<'server>, id: JsonRpc.Id.t): unit => 
   }
 }
 
-// Handle tools/call request
 let handleToolsCall = async (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
@@ -155,7 +138,7 @@ let handleToolsCall = async (
               ~to=S.json->S.noValidation(true),
             )
           sendResponse(handler, id, resultJson)
-        | Suspended => () // Interactive tool — result will be delivered separately
+        | Suspended => ()
         }
       } catch {
       | exn =>
@@ -169,9 +152,6 @@ let handleToolsCall = async (
   }
 }
 
-// Handle incoming MCP message
-// Guaranteed to never reject — all exceptions are caught and logged
-// (the Sentry log handler auto-reports Log.error calls).
 let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit => {
   try {
     handler.onMessage->Option.forEach(cb => cb(Receive, payload))
@@ -184,12 +164,8 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
       | "tools/call" => await handleToolsCall(handler, id, params)
       | _ => sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
       }
-    | Ok(Notification({
-        method: "notifications/initialized",
-      })) => // Agent acknowledged initialization - nothing to do
-      ()
-    | Ok(Notification(_)) => // Other notifications - ignore for now
-      ()
+    | Ok(Notification({method: "notifications/initialized"})) => ()
+    | Ok(Notification(_)) => ()
     | Error(msg) => Log.error(`Failed to parse MCP message: ${msg}`)
     }
   } catch {
@@ -199,7 +175,6 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
   }
 }
 
-// Attach MCP handler to a session channel with a server interface
 @@live
 let attach = (
   ~channel: Channel.t,
@@ -216,7 +191,6 @@ let attach = (
   handler
 }
 
-// Detach MCP handler from channel
 @@live
 let detach = (handler: mcpHandler<'server>): unit => {
   handler.channel->Channel.off(~event=#"mcp:message")

@@ -5,8 +5,6 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
   alias FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Workers.SyncResendContact
 
-  # Inject Req.Test as the HTTP adapter so no real network calls are made.
-  # The Resend API key comes from test.exs ("re_test_key") — no patching needed.
   setup do
     Application.put_env(:frontman_server, :sync_resend_contact_req_options,
       plug: {Req.Test, :resend}
@@ -77,7 +75,6 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
     test "discards the job when user does not exist" do
       non_existent_id = Ecto.UUID.generate()
 
-      # No Req stub needed — the worker never reaches the HTTP call.
       assert :discard = perform_job(SyncResendContact, %{user_id: non_existent_id})
     end
 
