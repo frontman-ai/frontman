@@ -37,7 +37,7 @@
 		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"sury": "11.0.0-alpha.8"
+		"sury": "11.0.0-alpha.10"
 	},
 	"devDependencies": {
 		"@rescript/webapi": "*",

@@ -404,8 +404,6 @@ worktree-create:
 			git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME"; \
 		fi; \
 	fi; \
-	mkdir -p ".worktrees/$$WORKTREE_NAME/.claude/projects" ".worktrees/$$WORKTREE_NAME/.claude/plans" ".worktrees/$$WORKTREE_NAME/.claude/todos"; \
-	touch ".worktrees/$$WORKTREE_NAME/.claude/history.jsonl"; \
 	printf "$(GREEN)Worktree created at: .worktrees/$$WORKTREE_NAME$(RESET)\n"
 
 worktree-list:
