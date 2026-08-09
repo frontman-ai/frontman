@@ -19,7 +19,7 @@ defmodule FrontmanServer.ProtocolSchema do
     path
     |> File.read!()
     |> Jason.decode!()
-    |> ExJsonSchema.Schema.resolve()
+    |> JSV.build!()
   end
 
   @doc """
@@ -35,8 +35,9 @@ defmodule FrontmanServer.ProtocolSchema do
   Returns true if the data validates against the named schema.
   """
   def valid?(data, schema_name) do
-    schema = load!(schema_name)
-    ExJsonSchema.Validator.valid?(schema, data)
+    schema_name
+    |> load!()
+    |> valid_schema?(data)
   end
 
   @doc "Validates one envelope against the checksum-pinned official ACP v1 schema."
@@ -47,38 +48,39 @@ defmodule FrontmanServer.ProtocolSchema do
   @doc "Returns true when one envelope conforms to the pinned official ACP v1 schema."
   def upstream_acp_valid?(data) do
     load_upstream_acp!()
-    |> ExJsonSchema.Validator.valid?(data)
+    |> valid_schema?(data)
   end
 
   @doc "Validates data against one named definition in the pinned ACP schema."
   def upstream_acp_definition_valid?(data, definition) do
     schema = load_upstream_acp_json!()
-    definitions = Map.fetch!(schema, "definitions")
+    definitions = Map.fetch!(schema, "$defs")
 
     definitions
     |> Map.fetch!(definition)
-    |> Map.put("$schema", "http://json-schema.org/draft-07/schema#")
-    |> Map.put("definitions", definitions)
-    |> ExJsonSchema.Schema.resolve()
-    |> ExJsonSchema.Validator.valid?(data)
+    |> Map.put("$schema", "https://json-schema.org/draft/2020-12/schema")
+    |> Map.put("$defs", definitions)
+    |> JSV.build!()
+    |> valid_schema?(data)
   end
 
   defp validate_schema!(schema, data, failure) do
-    case ExJsonSchema.Validator.validate(schema, data) do
-      :ok ->
+    case JSV.validate(data, schema) do
+      {:ok, _validated_data} ->
         :ok
 
-      {:error, errors} ->
-        formatted =
-          Enum.map_join(errors, "\n", fn {message, path} -> "  #{path}: #{message}" end)
-
-        raise "#{failure}:\n#{formatted}\n\nData: #{inspect(data, pretty: true)}"
+      {:error, error} ->
+        raise "#{failure}:\n#{Exception.message(error)}\n\nData: #{inspect(data, pretty: true)}"
     end
+  end
+
+  defp valid_schema?(schema, data) do
+    match?({:ok, _validated_data}, JSV.validate(data, schema))
   end
 
   defp load_upstream_acp! do
     load_upstream_acp_json!()
-    |> ExJsonSchema.Schema.resolve()
+    |> JSV.build!()
   end
 
   defp load_upstream_acp_json! do
@@ -93,13 +95,6 @@ defmodule FrontmanServer.ProtocolSchema do
       raise "Pinned upstream ACP schema checksum mismatch: #{actual_sha256}"
     end
 
-    contents
-    |> String.replace(
-      ~s("$schema": "https://json-schema.org/draft/2020-12/schema"),
-      ~s("$schema": "http://json-schema.org/draft-07/schema#")
-    )
-    |> String.replace(~s("$defs":), ~s("definitions":))
-    |> String.replace("#/$defs/", "#/definitions/")
-    |> Jason.decode!()
+    Jason.decode!(contents)
   end
 end
