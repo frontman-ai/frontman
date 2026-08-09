@@ -20,7 +20,7 @@ let nextVersionForFixture = (fixtureName: string): option<string> => {
   if fixtureName->String.startsWith("nextjs15") {
     Some("15.0.0")
   } else if fixtureName->String.startsWith("nextjs16") {
-    Some("16.0.0")
+    Some("16.2.11")
   } else {
     None
   }
@@ -139,7 +139,7 @@ describe("Project Detection", _t => {
         switch result {
         | Ok(info) =>
           t->expect(info.nextVersion.major)->Expect.toBe(16)
-          t->expect(info.nextVersion.raw)->Expect.toBe("16.0.0")
+          t->expect(info.nextVersion.raw)->Expect.toBe("16.2.11")
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
       },
