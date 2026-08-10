@@ -33,6 +33,13 @@ let hasConnectRelay = effects =>
     | _ => false
     }
   )
+let hasTrackedEvent = (effects, predicate) =>
+  hasEffect(effects, e =>
+    switch e {
+    | Reducer.TrackAnalytics(event) => predicate(event)
+    | _ => false
+    }
+  )
 let getConnectACPInitialAuthBehavior = effects =>
   effects->Array.findMap(e =>
     switch e {
@@ -127,6 +134,18 @@ describe("Connection Reducer", () => {
 
         t->expect(nextState.relay)->Expect.toBe(Reducer.RelayConnected)
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
+        t
+        ->expect(
+          hasTrackedEvent(
+            effects,
+            event =>
+              switch event {
+              | Client__Heap.LocalRelayDiscoveryCompleted({outcome: Success}) => true
+              | _ => false
+              },
+          ),
+        )
+        ->Expect.toBe(true)
       },
     )
 
@@ -134,13 +153,38 @@ describe("Connection Reducer", () => {
       "RelayConnectError is non-fatal",
       t => {
         let state = {...Reducer.initialState, relay: RelayConnecting}
-        let (nextState, effects) = Reducer.reduce(state, RelayConnectError("Connection refused"))
+        let (nextState, effects) = Reducer.reduce(
+          state,
+          RelayConnectError({message: "Connection refused", reason: Client__Heap.NetworkError}),
+        )
 
         switch nextState.relay {
         | Reducer.RelayError(_) => t->expect(true)->Expect.toBe(true)
         | _ => t->expect(false)->Expect.toBe(true)
         }
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
+        t
+        ->expect(
+          hasTrackedEvent(
+            effects,
+            event =>
+              switch event {
+              | Client__Heap.LocalRelayDiscoveryCompleted({outcome: Failure(NetworkError)}) => true
+              | _ => false
+              },
+          ),
+        )
+        ->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "stale relay completions do not emit analytics",
+      t => {
+        let state = {...Reducer.initialState, relay: RelayConnected}
+        let (_, effects) = Reducer.reduce(state, RelayConnectSuccess)
+
+        t->expect(hasTrackedEvent(effects, _ => true))->Expect.toBe(false)
       },
     )
   })
@@ -323,6 +367,18 @@ describe("Connection Reducer", () => {
         ->Expect.toBe(true)
         t
         ->expect(
+          hasTrackedEvent(
+            firstEffects,
+            event =>
+              switch event {
+              | Client__Heap.PromptRequestSent => true
+              | _ => false
+              },
+          ),
+        )
+        ->Expect.toBe(true)
+        t
+        ->expect(
           hasEffect(
             secondEffects,
             e =>
@@ -372,6 +428,18 @@ describe("Connection Reducer", () => {
             e =>
               switch e {
               | Reducer.CreateSessionEffect(_) => true
+              | _ => false
+              },
+          ),
+        )
+        ->Expect.toBe(true)
+        t
+        ->expect(
+          hasTrackedEvent(
+            effects,
+            event =>
+              switch event {
+              | Client__Heap.TaskCreationRequested => true
               | _ => false
               },
           ),

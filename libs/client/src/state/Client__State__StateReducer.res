@@ -40,6 +40,8 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
+  | InitializeAuthenticatedClient({apiBaseUrl: string})
+  | TrackActivationEvent(Client__Heap.event)
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
   | SaveApiKey({provider: apiKeyProvider, key: string})
@@ -99,6 +101,7 @@ type effect =
   | LoadTaskEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
   | IdentifyUserInAnalyticsEffect(Client__State__Types.userProfile)
+  | TrackActivationEventEffect(Client__Heap.event)
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
@@ -198,6 +201,7 @@ let defaultState: state = {
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   acpSession: NoAcpSession,
   sessionInitialized: false,
+  userProfileRequested: false,
   userProfile: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
@@ -984,6 +988,8 @@ let handleEffect = (effect, state: state, dispatch) => {
       "Email": userProfile.email,
       "Name": userProfile.name->Option.getOr(""),
     })
+    Client__Heap.track(AuthenticatedClientIdentified)
+  | TrackActivationEventEffect(event) => Client__Heap.track(event)
   | CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage}) =>
     let fetch = async () => {
       try {
@@ -1162,7 +1168,6 @@ let next = (state: state, action) => {
       ->StateReducer.update(
         ~sideEffects=[
           FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
-          FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
           FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
           FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
         ],
@@ -1189,11 +1194,27 @@ let next = (state: state, action) => {
       sessionInitialized: false,
     }->StateReducer.update
 
+  | InitializeAuthenticatedClient({apiBaseUrl}) =>
+    switch state.userProfileRequested {
+    | true => state->StateReducer.update
+    | false =>
+      {...state, userProfileRequested: true}->StateReducer.update(
+        ~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    }
+
+  | TrackActivationEvent(event) =>
+    state->StateReducer.update(~sideEffects=[TrackActivationEventEffect(event)])
+
   | UserProfileReceived({userProfile: {id, email, name}}) =>
     let userProfile: Client__State__Types.userProfile = {id, email, name}
-    {...state, userProfile: Some(userProfile)}->StateReducer.update(
-      ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
-    )
+    switch state.userProfile {
+    | Some(_) => state->StateReducer.update
+    | None =>
+      {...state, userProfile: Some(userProfile)}->StateReducer.update(
+        ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
+      )
+    }
   | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>

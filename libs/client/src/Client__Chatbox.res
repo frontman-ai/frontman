@@ -146,6 +146,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
       | true =>
+        Client__State.Actions.trackActivationEvent(Client__Heap.PromptSubmissionInitiated)
         let sendMessage = (sessionId: string) => {
           Client__State.Actions.addUserMessage(
             ~sessionId,

@@ -44,3 +44,52 @@ let addUserProperties: {..} => unit = %raw(`
     }
   }
 `)
+
+type relayFailureReason = HttpError | InvalidResponse | NetworkError | Unknown
+type relayOutcome = Success | Failure(relayFailureReason)
+
+type event =
+  | AuthenticatedClientIdentified
+  | LocalRelayDiscoveryCompleted({outcome: relayOutcome})
+  | ProviderSetupBlockerShown
+  | PromptSubmissionInitiated
+  | TaskCreationRequested
+  | PromptRequestSent
+
+let _track: (string, JSON.t) => unit = %raw(`
+  function(name, properties) {
+    if (typeof window !== 'undefined' && window.heap && window.heap.track) {
+      window.heap.track(name, properties);
+    }
+  }
+`)
+
+let failureReasonToString = reason =>
+  switch reason {
+  | HttpError => "http_error"
+  | InvalidResponse => "invalid_response"
+  | NetworkError => "network_error"
+  | Unknown => "unknown"
+  }
+
+let track = event => {
+  let framework = Client__RuntimeConfig.read().framework->Client__RuntimeConfig.frameworkIdToString
+  let properties = Dict.fromArray([("framework", JSON.Encode.string(framework))])
+  let name = switch event {
+  | AuthenticatedClientIdentified => "authenticated_client_identified"
+  | LocalRelayDiscoveryCompleted({outcome}) => {
+      switch outcome {
+      | Success => properties->Dict.set("outcome", JSON.Encode.string("success"))
+      | Failure(reason) =>
+        properties->Dict.set("outcome", JSON.Encode.string("failure"))
+        properties->Dict.set("reason_code", JSON.Encode.string(failureReasonToString(reason)))
+      }
+      "local_relay_discovery_completed"
+    }
+  | ProviderSetupBlockerShown => "provider_setup_blocker_shown"
+  | PromptSubmissionInitiated => "prompt_submission_initiated"
+  | TaskCreationRequested => "task_creation_requested"
+  | PromptRequestSent => "prompt_request_sent"
+  }
+  _track(name, JSON.Encode.object(properties))
+}

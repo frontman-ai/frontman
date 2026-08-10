@@ -11,6 +11,9 @@ type relayState =
   | Connected({tools: array<Types.remoteTool>, @live serverInfo: MCPTypes.info})
   | Error(string)
 
+type connectionErrorReason = HttpError | InvalidResponse | NetworkError | Aborted
+type connectionError = {reason: connectionErrorReason, message: string}
+
 type t = {
   baseUrl: string,
   requestHeaders: Dict.t<string>,
@@ -33,9 +36,9 @@ let isConnected = (relay: t): bool => {
 
 let getState = (relay: t): relayState => relay.state.contents
 
-let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
+let connectDetailed = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
   unit,
-  string,
+  connectionError,
 > => {
   let url = `${relay.baseUrl}/frontman/tools`
   try {
@@ -52,7 +55,7 @@ let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): 
       let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
       Log.error(~ctx={"url": url}, msg)
       relay.state := Error(msg)
-      Error(msg)
+      Error({reason: HttpError, message: msg})
     | true =>
       let json = await response->WebAPI.Response.json
       switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
@@ -67,22 +70,31 @@ let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): 
         let msg = `Invalid tools response: ${parseError}`
         Log.error(msg)
         relay.state := Error(msg)
-        Error(msg)
+        Error({reason: InvalidResponse, message: msg})
       }
     }
   } catch {
   | exn =>
     switch signal {
-    | Some(s) if s.aborted => Error("Connection aborted")
+    | Some(s) if s.aborted => Error({reason: Aborted, message: "Connection aborted"})
     | _ =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Relay fetch failed")
       Log.error(~ctx={"url": url}, msg)
       relay.state := Error(msg)
-      Error(msg)
+      Error({reason: NetworkError, message: msg})
     }
   }
 }
+
+let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
+  unit,
+  string,
+> =>
+  switch await connectDetailed(relay, ~signal?) {
+  | Ok() => Ok()
+  | Error({message}) => Error(message)
+  }
 
 @@live
 let disconnect = (relay: t): unit => {

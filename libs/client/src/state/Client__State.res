@@ -127,6 +127,11 @@ module Actions = {
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
+  let initializeAuthenticatedClient = (~apiBaseUrl: string) =>
+    Client__State__Store.dispatch(InitializeAuthenticatedClient({apiBaseUrl: apiBaseUrl}))
+
+  let trackActivationEvent = event => Client__State__Store.dispatch(TrackActivationEvent(event))
+
   let executionStateRunning = (~taskId: string) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),

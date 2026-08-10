@@ -30,6 +30,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
       apiBaseUrl: _apiBaseUrl,
     }),
     sessionInitialized: true,
+    userProfileRequested: false,
     userProfile: None,
     openrouterKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     anthropicKeySettings: {
