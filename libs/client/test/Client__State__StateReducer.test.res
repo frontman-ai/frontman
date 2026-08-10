@@ -1391,7 +1391,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
         t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(FetchingStatus)
         t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAIFetchingStatus)
-        t->expect(effects->Array.length)->Expect.toBe(4)
+        t->expect(effects->Array.length)->Expect.toBe(3)
       },
     )
 

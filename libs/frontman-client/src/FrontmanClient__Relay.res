@@ -50,22 +50,16 @@ let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): 
     switch response.ok {
     | false =>
       let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
-      Log.error(~ctx={"url": url}, msg)
       relay.state := Error(msg)
       Error(msg)
     | true =>
       let json = await response->WebAPI.Response.json
       switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
       | Ok(data) =>
-        Log.info(
-          ~ctx={"toolCount": data.tools->Array.length, "serverInfo": data.serverInfo},
-          "Relay connected",
-        )
         relay.state := Connected({tools: data.tools, serverInfo: data.serverInfo})
         Ok()
       | Error(parseError) =>
         let msg = `Invalid tools response: ${parseError}`
-        Log.error(msg)
         relay.state := Error(msg)
         Error(msg)
       }
@@ -77,7 +71,6 @@ let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): 
     | _ =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Relay fetch failed")
-      Log.error(~ctx={"url": url}, msg)
       relay.state := Error(msg)
       Error(msg)
     }
@@ -128,9 +121,7 @@ let executeTool = async (
   ~onProgress: option<string => unit>=?,
 ): result<MCPTypes.CallToolResult.t, string> => {
   switch relay->isConnected {
-  | false =>
-    Log.warning("Cannot execute tool: relay not connected")
-    Error("Relay not connected")
+  | false => Error("Relay not connected")
   | true =>
     Log.debug(~ctx={"tool": name}, "Executing relay tool")
     let url = `${relay.baseUrl}/frontman/tools/call`

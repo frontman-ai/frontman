@@ -127,6 +127,9 @@ module Actions = {
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
+  let fetchUserProfile = (~apiBaseUrl: string) =>
+    Client__State__Store.dispatch(FetchUserProfile({apiBaseUrl: apiBaseUrl}))
+
   let executionStateRunning = (~taskId: string) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),

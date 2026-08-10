@@ -40,6 +40,7 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
+  | FetchUserProfile({apiBaseUrl: string})
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
   | SaveApiKey({provider: apiKeyProvider, key: string})
@@ -98,7 +99,6 @@ type effect =
   | FetchUserProfileEffect({apiBaseUrl: string})
   | LoadTaskEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
-  | IdentifyUserInAnalyticsEffect(Client__State__Types.userProfile)
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
@@ -521,6 +521,7 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
         let userProfile =
           json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
         dispatch(UserProfileReceived({userProfile: userProfile}))
+        Client__Heap.heap.identify(userProfile.id)
       }
     } catch {
     | exn => Log.error(~error=JsExn.fromException(exn), "FetchUserProfile failed")
@@ -978,12 +979,6 @@ let handleEffect = (effect, state: state, dispatch) => {
         TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
       )
     }
-  | IdentifyUserInAnalyticsEffect(userProfile) =>
-    Client__Heap.identify(userProfile.id)
-    Client__Heap.addUserProperties({
-      "Email": userProfile.email,
-      "Name": userProfile.name->Option.getOr(""),
-    })
   | CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage}) =>
     let fetch = async () => {
       try {
@@ -1162,7 +1157,6 @@ let next = (state: state, action) => {
       ->StateReducer.update(
         ~sideEffects=[
           FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
-          FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
           FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
           FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
         ],
@@ -1189,11 +1183,12 @@ let next = (state: state, action) => {
       sessionInitialized: false,
     }->StateReducer.update
 
+  | FetchUserProfile({apiBaseUrl}) =>
+    state->StateReducer.update(~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})])
+
   | UserProfileReceived({userProfile: {id, email, name}}) =>
     let userProfile: Client__State__Types.userProfile = {id, email, name}
-    {...state, userProfile: Some(userProfile)}->StateReducer.update(
-      ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
-    )
+    {...state, userProfile: Some(userProfile)}->StateReducer.update
   | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
