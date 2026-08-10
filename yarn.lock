@@ -12840,7 +12840,7 @@ __metadata:
     hc-starlight: "npm:^0.0.8"
     jsdom: "npm:^29.1.1"
     marked: "npm:^18.0.4"
-    preact: "npm:^10.27.2"
+    preact: "npm:^10.29.7"
     prettier: "npm:^3.9.4"
     prettier-plugin-astro: "npm:^0.14.0"
     prettier-plugin-tailwindcss: "npm:^0.8.0"
@@ -15140,10 +15140,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"preact@npm:*, preact@npm:^10.27.2":
+"preact@npm:*":
   version: 10.29.4
   resolution: "preact@npm:10.29.4"
   checksum: 10c0/3922cb259c6a8a2d4ab49463566148a6db2c6879f5952327179a52658c7008c6e421add4390578c8d6dabb81a386aedd4370b2dc3ec81a4b711b9a9241907f9b
+  languageName: node
+  linkType: hard
+
+"preact@npm:^10.29.7":
+  version: 10.29.7
+  resolution: "preact@npm:10.29.7"
+  peerDependencies:
+    preact-render-to-string: ">=5"
+  peerDependenciesMeta:
+    preact-render-to-string:
+      optional: true
+  checksum: 10c0/c16df6d83d1f1d7117f5e27c64121989c317c54561535a98d1cce874406b7edcd68c2230dc4d440ef8509f29638d7a6fcb1ae0f974e9f71852aee17d90ccc87b
   languageName: node
   linkType: hard
 
