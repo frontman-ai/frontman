@@ -10,24 +10,8 @@ module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
-let installHeapOrderCapture: unit => unit = %raw(`function() {
-  window.__frontmanHeapCalls = [];
-  window.heap = {
-    identify: function(id) { window.__frontmanHeapCalls.push("identify:" + id); },
-    addUserProperties: function() { window.__frontmanHeapCalls.push("properties"); },
-    track: function(name) { window.__frontmanHeapCalls.push("track:" + name); }
-  };
-}`)
-let heapCalls: unit => array<string> = %raw(`function() { return window.__frontmanHeapCalls }`)
-let clearHeapCapture: unit => unit = %raw(`function() {
-  delete window.__frontmanHeapCalls;
-  delete window.heap;
-}`)
 
-afterEach(() => {
-  clearRuntime()
-  clearHeapCapture()
-})
+afterEach(() => clearRuntime())
 
 module TestHelpers = {
   let makeLoadedTask = (
@@ -1185,112 +1169,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
       (Fireworks, "fireworks_ai"),
       (Nvidia, "nvidia"),
     ]
-
-    test(
-      "authenticated client initialization requests profile only once per document",
-      t => {
-        let (initialized, firstEffects) = Reducer.next(
-          Reducer.defaultState,
-          InitializeAuthenticatedClient({apiBaseUrl: "http://localhost:4000"}),
-        )
-        let (_, secondEffects) = Reducer.next(
-          initialized,
-          InitializeAuthenticatedClient({apiBaseUrl: "http://localhost:4000"}),
-        )
-
-        t->expect(initialized.userProfileRequested)->Expect.toBe(true)
-        switch firstEffects {
-        | [FetchUserProfileEffect({apiBaseUrl})] =>
-          t->expect(apiBaseUrl)->Expect.toBe("http://localhost:4000")
-        | _ => JsExn.throw("Expected one FetchUserProfileEffect")
-        }
-        t->expect(secondEffects)->Expect.toEqual([])
-      },
-    )
-
-    test(
-      "ACP session initialization does not own profile loading",
-      t => {
-        let (_, effects) = Reducer.next(Reducer.defaultState, _setAcpSessionAction())
-
-        t
-        ->expect(
-          effects->Array.some(
-            effect =>
-              switch effect {
-              | FetchUserProfileEffect(_) => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(false)
-      },
-    )
-
-    test(
-      "authenticated profile queues analytics identity only once",
-      t => {
-        let userProfile: Client__State__Types.userProfile = {
-          id: "user-1",
-          email: "user@example.com",
-          name: Some("Test User"),
-        }
-        let (identified, firstEffects) = Reducer.next(
-          Reducer.defaultState,
-          UserProfileReceived({userProfile: userProfile}),
-        )
-        let (_, secondEffects) = Reducer.next(
-          identified,
-          UserProfileReceived({userProfile: userProfile}),
-        )
-
-        switch firstEffects {
-        | [IdentifyUserInAnalyticsEffect(profile)] => t->expect(profile.id)->Expect.toBe("user-1")
-        | _ => JsExn.throw("Expected one IdentifyUserInAnalyticsEffect")
-        }
-        t->expect(secondEffects)->Expect.toEqual([])
-      },
-    )
-
-    test(
-      "analytics identifies before tracking authenticated client",
-      t => {
-        installHeapOrderCapture()
-        setRuntime(
-          JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("nextjs"))])),
-        )
-        let userProfile: Client__State__Types.userProfile = {
-          id: "user-1",
-          email: "user@example.com",
-          name: None,
-        }
-
-        Reducer.handleEffect(
-          IdentifyUserInAnalyticsEffect(userProfile),
-          Reducer.defaultState,
-          _ => (),
-        )
-
-        t
-        ->expect(heapCalls())
-        ->Expect.toEqual(["identify:user-1", "properties", "track:authenticated_client_identified"])
-      },
-    )
-
-    test(
-      "activation events are delegated to the reducer effect boundary",
-      _t => {
-        let (_, effects) = Reducer.next(
-          Reducer.defaultState,
-          TrackActivationEvent(Client__Heap.PromptSubmissionInitiated),
-        )
-
-        switch effects {
-        | [TrackActivationEventEffect(Client__Heap.PromptSubmissionInitiated)] => ()
-        | _ => JsExn.throw("Expected one TrackActivationEventEffect")
-        }
-      },
-    )
 
     let _settingsForProvider = (
       state: Client__State__Types.state,

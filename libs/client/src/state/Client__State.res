@@ -127,8 +127,8 @@ module Actions = {
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
-  let initializeAuthenticatedClient = (~apiBaseUrl: string) =>
-    Client__State__Store.dispatch(InitializeAuthenticatedClient({apiBaseUrl: apiBaseUrl}))
+  let fetchUserProfile = (~apiBaseUrl: string) =>
+    Client__State__Store.dispatch(FetchUserProfile({apiBaseUrl: apiBaseUrl}))
 
   let trackActivationEvent = event => Client__State__Store.dispatch(TrackActivationEvent(event))
 

@@ -33,11 +33,11 @@ let hasConnectRelay = effects =>
     | _ => false
     }
   )
-let hasTrackedEvent = (effects, predicate) =>
-  hasEffect(effects, e =>
+let trackedEvents = effects =>
+  effects->Array.filterMap(e =>
     switch e {
-    | Reducer.TrackAnalytics(event) => predicate(event)
-    | _ => false
+    | Reducer.TrackAnalytics(event) => Some(event)
+    | _ => None
     }
   )
 let getConnectACPInitialAuthBehavior = effects =>
@@ -135,17 +135,8 @@ describe("Connection Reducer", () => {
         t->expect(nextState.relay)->Expect.toBe(Reducer.RelayConnected)
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
         t
-        ->expect(
-          hasTrackedEvent(
-            effects,
-            event =>
-              switch event {
-              | Client__Heap.LocalRelayDiscoveryCompleted({outcome: Success}) => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
+        ->expect(trackedEvents(effects))
+        ->Expect.toEqual([Client__Heap.LocalRelayDiscoveryCompleted({outcome: Success})])
       },
     )
 
@@ -164,17 +155,10 @@ describe("Connection Reducer", () => {
         }
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
         t
-        ->expect(
-          hasTrackedEvent(
-            effects,
-            event =>
-              switch event {
-              | Client__Heap.LocalRelayDiscoveryCompleted({outcome: Failure(NetworkError)}) => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
+        ->expect(trackedEvents(effects))
+        ->Expect.toEqual([
+          Client__Heap.LocalRelayDiscoveryCompleted({outcome: Failure(NetworkError)}),
+        ])
       },
     )
 
@@ -184,7 +168,7 @@ describe("Connection Reducer", () => {
         let state = {...Reducer.initialState, relay: RelayConnected}
         let (_, effects) = Reducer.reduce(state, RelayConnectSuccess)
 
-        t->expect(hasTrackedEvent(effects, _ => true))->Expect.toBe(false)
+        t->expect(trackedEvents(effects))->Expect.toEqual([])
       },
     )
   })
@@ -366,17 +350,8 @@ describe("Connection Reducer", () => {
         )
         ->Expect.toBe(true)
         t
-        ->expect(
-          hasTrackedEvent(
-            firstEffects,
-            event =>
-              switch event {
-              | Client__Heap.PromptRequestSent => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
+        ->expect(trackedEvents(firstEffects))
+        ->Expect.toEqual([Client__Heap.PromptRequestSent])
         t
         ->expect(
           hasEffect(
@@ -433,18 +408,7 @@ describe("Connection Reducer", () => {
           ),
         )
         ->Expect.toBe(true)
-        t
-        ->expect(
-          hasTrackedEvent(
-            effects,
-            event =>
-              switch event {
-              | Client__Heap.TaskCreationRequested => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
+        t->expect(trackedEvents(effects))->Expect.toEqual([Client__Heap.TaskCreationRequested])
       },
     )
   })

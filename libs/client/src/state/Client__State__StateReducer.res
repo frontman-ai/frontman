@@ -40,7 +40,7 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
-  | InitializeAuthenticatedClient({apiBaseUrl: string})
+  | FetchUserProfile({apiBaseUrl: string})
   | TrackActivationEvent(Client__Heap.event)
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
@@ -201,7 +201,6 @@ let defaultState: state = {
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   acpSession: NoAcpSession,
   sessionInitialized: false,
-  userProfileRequested: false,
   userProfile: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
@@ -1194,14 +1193,8 @@ let next = (state: state, action) => {
       sessionInitialized: false,
     }->StateReducer.update
 
-  | InitializeAuthenticatedClient({apiBaseUrl}) =>
-    switch state.userProfileRequested {
-    | true => state->StateReducer.update
-    | false =>
-      {...state, userProfileRequested: true}->StateReducer.update(
-        ~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})],
-      )
-    }
+  | FetchUserProfile({apiBaseUrl}) =>
+    state->StateReducer.update(~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})])
 
   | TrackActivationEvent(event) =>
     state->StateReducer.update(~sideEffects=[TrackActivationEventEffect(event)])

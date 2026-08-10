@@ -45,7 +45,7 @@ let addUserProperties: {..} => unit = %raw(`
   }
 `)
 
-type relayFailureReason = HttpError | InvalidResponse | NetworkError | Unknown
+type relayFailureReason = HttpError | InvalidResponse | NetworkError
 type relayOutcome = Success | Failure(relayFailureReason)
 
 type event =
@@ -69,11 +69,9 @@ let failureReasonToString = reason =>
   | HttpError => "http_error"
   | InvalidResponse => "invalid_response"
   | NetworkError => "network_error"
-  | Unknown => "unknown"
   }
 
-let track = event => {
-  let framework = Client__RuntimeConfig.read().framework->Client__RuntimeConfig.frameworkIdToString
+let encodeEvent = (~framework, event) => {
   let properties = Dict.fromArray([("framework", JSON.Encode.string(framework))])
   let name = switch event {
   | AuthenticatedClientIdentified => "authenticated_client_identified"
@@ -91,5 +89,11 @@ let track = event => {
   | TaskCreationRequested => "task_creation_requested"
   | PromptRequestSent => "prompt_request_sent"
   }
+  (name, properties)
+}
+
+let track = event => {
+  let framework = Client__RuntimeConfig.read().framework->Client__RuntimeConfig.frameworkIdToString
+  let (name, properties) = encodeEvent(~framework, event)
   _track(name, JSON.Encode.object(properties))
 }

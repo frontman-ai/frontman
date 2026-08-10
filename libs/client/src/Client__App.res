@@ -14,11 +14,6 @@ let make = (~apiBaseUrl: string) => {
   } = Client__FrontmanProvider.useFrontman()
 
   React.useEffect(() => {
-    Client__State.Actions.initializeAuthenticatedClient(~apiBaseUrl)
-    None
-  }, [apiBaseUrl])
-
-  React.useEffect(() => {
     switch connectionState {
     | Connecting => ()
     | Connected | SessionActive(_) =>

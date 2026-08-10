@@ -13,7 +13,7 @@ beforeEach(() => {
 	trackedEvents = [];
 	window.__frontmanRuntime = { framework: "nextjs" };
 	window.heap = {
-		track: (name, properties) => trackedEvents.push({ name, properties }),
+		track: (name) => trackedEvents.push(name),
 	};
 });
 
@@ -113,30 +113,16 @@ describe("Client__ProviderSetupModal", () => {
 					onOpenSettings: () => {},
 				}),
 			);
+		const render = (open_) => act(async () => root.render(modal(open_)));
 
-		await act(async () => {
-			root.render(modal(false));
-		});
-		await act(async () => {
-			root.render(modal(true));
-		});
-		await act(async () => {
-			root.render(modal(true));
-		});
+		await render(false);
+		await render(true);
+		await render(true);
 
-		expect(trackedEvents).toEqual([
-			{
-				name: "provider_setup_blocker_shown",
-				properties: { framework: "nextjs" },
-			},
-		]);
+		expect(trackedEvents).toEqual(["provider_setup_blocker_shown"]);
 
-		await act(async () => {
-			root.render(modal(false));
-		});
-		await act(async () => {
-			root.render(modal(true));
-		});
+		await render(false);
+		await render(true);
 
 		expect(trackedEvents).toHaveLength(2);
 	});

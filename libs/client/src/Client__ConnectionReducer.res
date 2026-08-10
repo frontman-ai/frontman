@@ -479,15 +479,14 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           )
         | Disconnected | Error(_) => ()
         }
-      | (false, Error({reason: Aborted})) => Log.info("Relay connection aborted (cleanup)")
       | (false, Error({message, reason})) =>
-        let analyticsReason = switch reason {
-        | HttpError => Client__Heap.HttpError
-        | InvalidResponse => Client__Heap.InvalidResponse
-        | NetworkError => Client__Heap.NetworkError
-        | Aborted => Client__Heap.Unknown
+        switch reason {
+        | Aborted => Log.info("Relay connection aborted (cleanup)")
+        | HttpError => dispatch(RelayConnectError({message, reason: Client__Heap.HttpError}))
+        | InvalidResponse =>
+          dispatch(RelayConnectError({message, reason: Client__Heap.InvalidResponse}))
+        | NetworkError => dispatch(RelayConnectError({message, reason: Client__Heap.NetworkError}))
         }
-        dispatch(RelayConnectError({message, reason: analyticsReason}))
       }
     }
     connect()->ignore
