@@ -46,4 +46,4 @@ format:
 check: lint test
 
 clean:
-	rm -rf src/*.res.mjs src/*.res.mjs.map test/*.res.mjs test/*.res.mjs.map
+	yarn rescript clean

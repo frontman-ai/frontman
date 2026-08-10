@@ -59,22 +59,20 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   @doc """
   MCP tool definition list for the interactive `question` tool.
 
-  Derived from wire-format data via MCP.from_map/1 so that changes to
-  the parsing layer are caught by tests that use this fixture.
+  The interactive timeout behavior is an internal execution policy.
   """
   def question_mcp_tool_defs do
-    MCP.from_maps([
-      %{
-        "name" => "question",
-        "description" => "Ask the user a question",
-        "inputSchema" => %{
+    [
+      %MCP{
+        name: "question",
+        description: "Ask the user a question",
+        input_schema: %{
           "type" => "object",
           "properties" => %{"questions" => %{"type" => "array"}}
         },
-        "_meta" => %{
-          "ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}
-        }
+        timeout_ms: 120_000,
+        on_timeout: :pause_agent
       }
-    ])
+    ]
   end
 end

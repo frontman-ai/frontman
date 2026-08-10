@@ -3,266 +3,203 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
   import ExUnit.CaptureLog
 
-  alias FrontmanServerWeb.ChannelCase
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
-  alias ModelContextProtocol, as: MCP
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
     :ok
   end
 
-  defp discovery_result(overrides), do: ChannelCase.mcp_discovery_result(overrides)
-
-  defp state(overrides) do
-    scope = %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}}
-    {state, _actions} = MCPInitializer.start("test_task", scope, :nextjs)
-    Map.merge(state, overrides)
+  defp tools_state(request_id) do
+    %{
+      status: :loading_tools,
+      task_id: "test_task",
+      scope: %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}},
+      mcp_init_request_id: nil,
+      tools_request_id: request_id,
+      project_rules_request_id: nil,
+      project_structure_request_id: nil,
+      mcp_capabilities: %{},
+      mcp_server_info: %{},
+      load_project_context: true,
+      tools: nil
+    }
   end
 
-  defp discovery_state,
-    do: MCPInitializer.start("test_task", %FrontmanServer.Accounts.Scope{}, :nextjs)
-
-  defp tools_result(tools, overrides \\ %{}), do: ChannelCase.mcp_tools_result(tools, overrides)
-
-  defp tools_state(request_id),
-    do: state(%{status: :loading_tools, discovery_request_id: nil, tools_request_id: request_id})
-
-  defp rules_state(request_id),
-    do:
-      state(%{
-        status: :loading_project_rules,
-        discovery_request_id: nil,
-        project_rules_request_id: request_id
-      })
-
-  defp structure_state(request_id),
-    do:
-      state(%{
-        status: :loading_project_structure,
-        discovery_request_id: nil,
-        project_structure_request_id: request_id
-      })
-
-  test "discovers the server then requests one tools page without an initialized notification" do
-    {state, [{:push_mcp, discovery}]} =
-      MCPInitializer.start("test_task", %FrontmanServer.Accounts.Scope{}, :nextjs)
-
-    assert discovery["method"] == "server/discover"
-
-    assert discovery["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"] ==
-             "2026-07-28"
-
-    result = discovery_result(%{"ttlMs" => 2_592_000_000})
-
-    {_new_state, [{:push_mcp, tools_request}]} =
-      MCPInitializer.handle_response(state, state.discovery_request_id, result)
-
-    assert tools_request["method"] == "tools/list"
-    assert tools_request["params"] == ModelContextProtocol.tools_list_params()
+  defp rules_state(request_id) do
+    %{
+      status: :loading_project_rules,
+      task_id: "test_task",
+      scope: %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}},
+      mcp_init_request_id: nil,
+      tools_request_id: nil,
+      project_rules_request_id: request_id,
+      project_structure_request_id: nil,
+      mcp_capabilities: %{},
+      mcp_server_info: %{},
+      load_project_context: true,
+      tools: []
+    }
   end
 
-  test "fails initialization for incompatible protocol or extension versions" do
-    incompatible_results = [
-      discovery_result(%{"supportedVersions" => ["2025-11-25"]}),
-      discovery_result(%{
-        "capabilities" => %{
-          "tools" => %{"listChanged" => false},
-          "extensions" => %{
-            "ai.frontman/execution-context" => %{"version" => 2}
-          }
-        }
-      })
-    ]
+  defp structure_state(request_id) do
+    %{
+      status: :loading_project_structure,
+      task_id: "test_task",
+      scope: %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}},
+      mcp_init_request_id: nil,
+      tools_request_id: nil,
+      project_rules_request_id: nil,
+      project_structure_request_id: request_id,
+      mcp_capabilities: %{},
+      mcp_server_info: %{},
+      load_project_context: true,
+      tools: []
+    }
+  end
 
-    Enum.each(incompatible_results, fn result ->
-      {state, _actions} = discovery_state()
+  describe "discovery" do
+    test "starts with server/discover and no initialize notification" do
+      {state, actions} = MCPInitializer.start("test_task", %{}, :nextjs)
 
-      assert {%{status: :failed}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_response(state, state.discovery_request_id, result)
+      assert state.status == :discovering_mcp
+      assert [{:push_mcp, request}] = actions
+      assert request["method"] == "server/discover"
+      refute Enum.any?(actions, &match?({:push_mcp, %{"method" => "initialize"}}, &1))
 
-      assert message =~ "incompatible MCP discovery"
-    end)
+      refute Enum.any?(
+               actions,
+               &match?({:push_mcp, %{"method" => "notifications/initialized"}}, &1)
+             )
+    end
+
+    test "requires compatible version and execution-context capability before tools/list" do
+      {state, _actions} = MCPInitializer.start("test_task", %{}, :nextjs)
+
+      result = %{
+        "resultType" => "discovery",
+        "supportedVersions" => [ModelContextProtocol.protocol_version()],
+        "capabilities" => %{"tools" => %{}},
+        "ttlMs" => 0,
+        "cacheScope" => "private"
+      }
+
+      {failed_state, actions} =
+        MCPInitializer.handle_response(state, state.mcp_init_request_id, result)
+
+      assert failed_state.status == :failed
+      assert actions == [{:initialization_failed, "missing_required_server_extension"}]
+      refute Enum.any?(actions, &match?({:push_mcp, %{"method" => "tools/list"}}, &1))
+    end
   end
 
   describe "handle_response/3 for tools/list" do
-    test "requests every tools page before continuing initialization" do
-      state = tools_state(1)
+    test "loads standard tools with conservative internal policy" do
+      request_id = 1
+      state = tools_state(request_id)
 
-      first_page =
-        tools_result(
-          [%{"name" => "first", "inputSchema" => %{"type" => "object"}}],
-          %{"nextCursor" => "page-2"}
-        )
-
-      assert {new_state = %{status: :loading_tools, tools: [first]}, [{:push_mcp, request}]} =
-               MCPInitializer.handle_response(state, 1, first_page)
-
-      assert first.name == "first"
-      assert request["method"] == "tools/list"
-      assert request["params"]["cursor"] == "page-2"
-
-      second_page =
-        tools_result([%{"name" => "second", "inputSchema" => %{"type" => "object"}}])
-
-      assert {%{status: :loading_project_rules, tools: [second, first]}, [{:push_mcp, _}]} =
-               MCPInitializer.handle_response(new_state, request["id"], second_page)
-
-      assert {first.name, second.name} == {"first", "second"}
-    end
-
-    test "fails initialization when one tools page contains duplicate names" do
-      state = tools_state(1)
-
-      duplicate_tools = [
-        %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}},
-        %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}}
-      ]
-
-      assert {%{status: :failed, tools: []}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_response(state, 1, tools_result(duplicate_tools))
-
-      assert message == "MCP tools/list returned duplicate tool name: duplicate"
-    end
-
-    test "fails initialization when tools pages contain duplicate names" do
-      state = tools_state(1)
-      tool = %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}}
-      first_page = tools_result([tool], %{"nextCursor" => "page-2"})
-
-      assert {new_state, [{:push_mcp, request}]} =
-               MCPInitializer.handle_response(state, 1, first_page)
-
-      assert {%{status: :failed}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_response(new_state, request["id"], tools_result([tool]))
-
-      assert message == "MCP tools/list returned duplicate tool name: duplicate"
-    end
-
-    test "fails initialization when a tools cursor repeats" do
-      state = tools_state(1)
-      first_page = tools_result([], %{"nextCursor" => "same-cursor"})
-
-      assert {new_state, [{:push_mcp, request}]} =
-               MCPInitializer.handle_response(state, 1, first_page)
-
-      repeated_page = tools_result([], %{"nextCursor" => "same-cursor"})
-
-      assert {%{status: :failed}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_response(new_state, request["id"], repeated_page)
-
-      assert message =~ "repeated cursor"
-    end
-
-    test "fails initialization for unsupported tool JSON Schemas" do
-      for {schema_key, invalid_schema} <- [
-            {"inputSchema",
-             %{"type" => "object", "properties" => %{"value" => %{"type" => "unsupported"}}}},
-            {"outputSchema", %{"type" => "unsupported"}}
-          ] do
-        state = tools_state(1)
-
-        tool = %{
-          "name" => "invalid_schema",
-          "inputSchema" => %{"type" => "object"},
-          schema_key => invalid_schema
-        }
-
-        assert {%{status: :failed, tools: []}, [{:initialization_failed, message}]} =
-                 MCPInitializer.handle_response(state, 1, tools_result([tool]))
-
-        assert message == "Invalid MCP tools/list response"
-      end
-    end
-
-    test "crashes with context when tools pagination exceeds its bound" do
-      seen_tool_cursors = 1..99 |> Enum.map(&"page-#{&1}") |> MapSet.new()
-      state = %{tools_state(1) | seen_tool_cursors: seen_tool_cursors}
-      page = tools_result([], %{"nextCursor" => "page-100"})
-
-      assert_raise RuntimeError, ~r/MCP tools\/list exceeded 100 pages/, fn ->
-        MCPInitializer.handle_response(state, 1, page)
-      end
-    end
-
-    test "crashes when the accumulated catalog exceeds its memory bound" do
-      state = tools_state(1)
-
-      tool = %{
-        "name" => "oversized",
-        "description" => String.duplicate("x", 8 * 1024 * 1024),
-        "inputSchema" => %{"type" => "object"}
+      result = %{
+        "tools" => [
+          %{
+            "name" => "question",
+            "description" => "Ask the user a question",
+            "inputSchema" => %{"type" => "object", "properties" => %{}},
+            "annotations" => %{"readOnlyHint" => true}
+          },
+          %{
+            "name" => "navigate",
+            "description" => "Navigate to a URL",
+            "inputSchema" => %{"type" => "object", "properties" => %{}}
+          }
+        ]
       }
 
-      assert_raise RuntimeError, ~r/MCP tools\/list catalog exceeded/, fn ->
-        MCPInitializer.handle_response(state, 1, tools_result([tool]))
-      end
-    end
+      {new_state, _actions} = MCPInitializer.handle_response(state, request_id, result)
 
-    test "ignores stale responses after terminal failure" do
-      state = tools_state(1)
+      [question_tool, navigate_tool] = new_state.tools
 
-      {failed_state, [{:initialization_failed, _message}]} =
-        MCPInitializer.handle_response(state, 1, tools_result([%{"name" => "invalid"}]))
+      assert question_tool.name == "question"
+      assert question_tool.on_timeout == :error
+      assert question_tool.timeout_ms == 600_000
+      assert question_tool.annotations == %{"readOnlyHint" => true}
 
-      assert failed_state.status == :failed
-      assert failed_state.discovery_request_id == nil
-      assert failed_state.tools_request_id == nil
-      assert failed_state.project_rules_request_id == nil
-      assert failed_state.project_structure_request_id == nil
-
-      assert {^failed_state, []} =
-               MCPInitializer.handle_response(failed_state, 1, tools_result([]))
-
-      assert {^failed_state, []} =
-               MCPInitializer.handle_error(failed_state, 1, %{"message" => "late error"})
+      assert navigate_tool.name == "navigate"
+      assert navigate_tool.on_timeout == :error
+      assert navigate_tool.timeout_ms == 600_000
     end
   end
 
   describe "handle_response/3 with tool-level errors (isError: true)" do
-    test "advances initialization without reporting private tool errors" do
-      for {request_id, state, step, next_status} <- [
-            {1, rules_state(1), "project_rules", :loading_project_structure},
-            {2, structure_state(2), "project_structure", :ready}
-          ] do
-        marker = "private-#{step}-marker"
+    test "project rules: does not crash or report to Sentry" do
+      request_id = 1
+      state = rules_state(request_id)
 
-        log =
-          capture_log(fn ->
-            {new_state, [_action]} =
-              MCPInitializer.handle_response(state, request_id, %{
-                "resultType" => "complete",
-                "content" => [%{"text" => marker, "type" => "text"}],
-                "isError" => true
-              })
+      result = %{
+        "resultType" => "complete",
+        "content" => [%{"text" => "private-project-rules-marker", "type" => "text"}],
+        "isError" => true
+      }
 
-            assert new_state.status == next_status
-          end)
+      log =
+        capture_log(fn ->
+          {new_state, actions} = MCPInitializer.handle_response(state, request_id, result)
 
-        assert log =~ "Tool error loading #{step}"
-        refute log =~ marker
-      end
+          assert new_state.status == :loading_project_structure
 
-      assert Sentry.Test.pop_sentry_reports() == []
+          assert Enum.any?(actions, fn
+                   {:push_mcp, _} -> true
+                   _ -> false
+                 end)
+        end)
+
+      assert log =~ "Tool error loading project_rules"
+      refute log =~ "private-project-rules-marker"
+
+      assert [] = Sentry.Test.pop_sentry_reports()
+    end
+
+    test "project structure: does not crash or report to Sentry" do
+      request_id = 2
+      state = structure_state(request_id)
+
+      result = %{
+        "resultType" => "complete",
+        "content" => [%{"text" => "private-project-structure-marker", "type" => "text"}],
+        "isError" => true
+      }
+
+      log =
+        capture_log(fn ->
+          {new_state, actions} = MCPInitializer.handle_response(state, request_id, result)
+
+          assert new_state.status == :ready
+
+          assert Enum.any?(actions, fn
+                   {:initialization_complete, _} -> true
+                   _ -> false
+                 end)
+        end)
+
+      assert log =~ "Tool error loading project_structure"
+      refute log =~ "private-project-structure-marker"
+
+      assert [] = Sentry.Test.pop_sentry_reports()
     end
   end
 
-  test "raises when project structure exceeds its bounds" do
-    cases = [
-      {%{"tree" => ".", "workspaces" => List.duplicate(%{}, 129)}, ~r/workspace count 129.*128/},
-      {%{"tree" => String.duplicate("x", 512 * 1024)}, ~r/structure bytes \d+.*524288/},
-      {%{"tree" => ".", "workspaces" => [%{"name" => String.duplicate("x", 512 * 1024)}]},
-       ~r/structure bytes \d+.*524288/}
-    ]
+  describe "handle_response/3 with unhandled decode results" do
+    test "project rules: handles JSON that decodes to a map (not a list)" do
+      request_id = 1
+      state = rules_state(request_id)
 
-    Enum.each(cases, fn {payload, message} ->
-      assert_raise RuntimeError, message, fn ->
-        MCPInitializer.handle_response(
-          structure_state(1),
-          1,
-          MCP.tool_result_text(Jason.encode!(payload))
-        )
-      end
-    end)
+      result = %{
+        "resultType" => "complete",
+        "content" => [%{"text" => ~s({"key": "value"}), "type" => "text"}]
+      }
+
+      {new_state, _actions} = MCPInitializer.handle_response(state, request_id, result)
+
+      assert new_state.status == :loading_project_structure
+    end
   end
 end

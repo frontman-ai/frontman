@@ -1,0 +1,197 @@
+{
+  "type": "object",
+  "properties": {
+    "jsonrpc": {
+      "type": "string",
+      "const": "2.0"
+    },
+    "id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991
+        }
+      ]
+    },
+    "method": {
+      "type": "string",
+      "const": "tools/list"
+    },
+    "params": {
+      "type": "object",
+      "properties": {
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true,
+          "maxProperties": 64,
+          "propertyNames": {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          "properties": {
+            "io.modelcontextprotocol/protocolVersion": {
+              "type": "string"
+            },
+            "io.modelcontextprotocol/clientCapabilities": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "elicitation": {
+                  "type": "object",
+                  "properties": {
+                    "form": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "url": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                },
+                "experimental": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "extensions": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  },
+                  "propertyNames": {
+                    "allOf": [
+                      {
+                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                      },
+                      {
+                        "pattern": "/"
+                      }
+                    ]
+                  }
+                },
+                "roots": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "sampling": {
+                  "type": "object",
+                  "properties": {
+                    "context": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "tools": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            },
+            "io.modelcontextprotocol/clientInfo": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "websiteUrl": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "icons": {
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "src": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "mimeType": {
+                        "type": "string"
+                      },
+                      "sizes": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "theme": {
+                        "enum": [
+                          "dark",
+                          "light"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "src"
+                    ]
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "name",
+                "version"
+              ]
+            },
+            "io.modelcontextprotocol/logLevel": {
+              "enum": [
+                "alert",
+                "critical",
+                "debug",
+                "emergency",
+                "error",
+                "info",
+                "notice",
+                "warning"
+              ]
+            },
+            "progressToken": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991
+                }
+              ]
+            }
+          },
+          "required": [
+            "io.modelcontextprotocol/protocolVersion",
+            "io.modelcontextprotocol/clientCapabilities"
+          ]
+        },
+        "cursor": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "_meta"
+      ]
+    }
+  },
+  "required": [
+    "jsonrpc",
+    "id",
+    "method",
+    "params"
+  ]
+}

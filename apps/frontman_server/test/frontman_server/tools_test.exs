@@ -200,6 +200,7 @@ defmodule FrontmanServer.ToolsTest do
       turn_number: turn_number
     } do
       untrusted_result = %{
+        "resultType" => "complete",
         "content" => [
           %{"type" => "text", "text" => "file contents", "unknown" => "drop me"}
         ],
@@ -209,11 +210,13 @@ defmodule FrontmanServer.ToolsTest do
       }
 
       sanitized_result = %{
+        "resultType" => "complete",
         "content" => [
           %{"type" => "text", "text" => "file contents", "unknown" => "drop me"}
         ],
         "isError" => false,
-        "_meta" => %{}
+        "_meta" => %{},
+        "unknownTopLevel" => "drop me"
       }
 
       {:ok, interaction, :no_executor} =

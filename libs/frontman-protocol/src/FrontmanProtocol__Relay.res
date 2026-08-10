@@ -38,7 +38,7 @@ let remoteToolSchema = MCP.preservingJson(remoteToolShapeSchema)
 
 type toolsResponse = {
   tools: array<remoteTool>,
-  serverInfo: MCP.info,
+  serverInfo: MCP.Implementation.t,
   protocolVersion: string,
 }
 

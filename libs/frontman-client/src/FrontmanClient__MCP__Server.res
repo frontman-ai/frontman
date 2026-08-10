@@ -16,7 +16,7 @@ type imageRefResolver = (string, ~taskId: string) => option<resolvedImage>
 type t = {
   tools: array<module(Tool.Tool)>,
   relay: Relay.t,
-  serverInfo: Types.info,
+  serverInfo: Types.Implementation.t,
   resolveImageRef: ref<option<imageRefResolver>>,
 }
 
@@ -29,7 +29,14 @@ let make = (
 ): t => {
   tools: [],
   relay,
-  serverInfo: {name: serverName, version: serverVersion},
+  serverInfo: {
+    name: serverName,
+    version: serverVersion,
+    title: None,
+    description: None,
+    websiteUrl: None,
+    icons: None,
+  },
   resolveImageRef: ref(resolveImageRef),
 }
 
@@ -46,27 +53,12 @@ let registerToolModule = (server: t, toolModule: module(Tool.Tool)): t => {
 
 external jsonSchemaAsJson: JSONSchema.t => JSON.t = "%identity"
 
-module ToolTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
-
-let executionModeSchema = S.union([
-  S.literal(ToolTypes.Synchronous),
-  S.literal(ToolTypes.Interactive),
-])
-
 let serializeTool = (m: module(Tool.Tool)): JSON.t => {
   module T = unpack(m)
-  let frontmanMetadata = dict{
-    "access": T.access->S.decodeOrThrow(~from=ToolTypes.accessSchema, ~to=S.json),
-    "visibleToAgent": JSON.Encode.bool(T.visibleToAgent),
-    "executionMode": T.executionMode->S.decodeOrThrow(~from=executionModeSchema, ~to=S.json),
-  }
   let definition = dict{
     "name": JSON.Encode.string(T.name),
     "description": JSON.Encode.string(T.description),
     "inputSchema": T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
-    "_meta": JSON.Encode.object(
-      dict{"ai.frontman/tool-metadata": JSON.Encode.object(frontmanMetadata)},
-    ),
   }
   T.outputJsonSchema->Option.forEach(schema =>
     definition->Dict.set("outputSchema", jsonSchemaAsJson(schema))
@@ -87,12 +79,18 @@ let getToolByName = (server: t, name: string): option<module(Tool.Tool)> => {
   })
 }
 
+let argumentKeys = (arguments: option<Dict.t<JSON.t>>): string =>
+  switch arguments {
+  | None => "none"
+  | Some(args) => args->Dict.keysToArray->Array.join(",")
+  }
+
 let executeLocalTool = async (
   toolModule: module(Tool.Tool),
   ~arguments: option<Dict.t<JSON.t>>,
   ~taskId: string,
   ~toolCallId: string,
-): Types.executeToolResult => {
+): Types.CallToolResult.t => {
   module T = unpack(toolModule)
   Log.debug(~ctx={"tool": T.name}, "Executing local tool")
   let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
@@ -110,30 +108,17 @@ let executeLocalTool = async (
         "tool": T.name,
         "taskId": taskId,
         "toolCallId": toolCallId,
+        "schemaError": msg,
+        "argumentKeys": argumentKeys(arguments),
       },
       "Tool input schema validation failed",
     )
-    Completed(Types.CallToolResult.makeError(`Invalid input: ${msg}`))
+    Types.CallToolResult.makeError(`Invalid input: ${msg}`)
   | Ok(input) =>
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
-    try {
-      let result = await T.execute(input, ~taskId, ~toolCallId)
-      Log.debug(~ctx={"tool": T.name}, "Execute returned")
-      Completed(result)
-    } catch {
-    | exn =>
-      let message =
-        exn
-        ->JsExn.fromException
-        ->Option.flatMap(JsExn.message)
-        ->Option.getOr("Tool execution failed")
-      Log.error(
-        ~error=exn->JsExn.fromException,
-        ~ctx={"tool": T.name, "taskId": taskId, "toolCallId": toolCallId},
-        "Tool execution failed",
-      )
-      Completed(Types.CallToolResult.makeError(message))
-    }
+    let result = await T.execute(input, ~taskId, ~toolCallId)
+    Log.debug(~ctx={"tool": T.name}, "Execute returned")
+    result
   }
 }
 
@@ -167,8 +152,9 @@ let resolveToolImageRef = (
         newArgs->Dict.set("encoding", JSON.Encode.string("base64"))
         switch includeMimeType {
         | true =>
-          if newArgs->Dict.get("mime_type")->Option.isNone {
-            newArgs->Dict.set("mime_type", JSON.Encode.string(mediaType))
+          switch newArgs->Dict.get("mime_type") {
+          | None => newArgs->Dict.set("mime_type", JSON.Encode.string(mediaType))
+          | Some(_) => ()
           }
         | false => ()
         }
@@ -186,14 +172,14 @@ let executeTool = async (
   ~name: string,
   ~arguments: option<Dict.t<JSON.t>>=?,
   ~taskId: string,
-  ~callId: string,
-): Types.executeToolResult => {
+  ~toolCallId: string,
+  ~onProgress: option<string => unit>=?,
+): Types.CallToolResult.t => {
   switch getToolByName(server, name) {
-  | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
+  | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId)
   | None =>
     switch server.relay->Relay.hasTool(name) {
-    | false =>
-      ProtocolError({code: Types.ErrorCode.invalidParams, message: `Unknown tool: ${name}`})
+    | false => toolError(`Tool not found: ${name}`)
     | true =>
       let resolvedArgs = switch name {
       | name if name == ToolNames.writeFile =>
@@ -216,39 +202,50 @@ let executeTool = async (
       }
 
       switch resolvedArgs {
-      | Error(msg) => Completed(toolError(msg))
+      | Error(msg) => toolError(msg)
       | Ok(finalArgs) =>
-        let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs)
+        let result = await server.relay->Relay.executeTool(
+          ~name,
+          ~arguments=?finalArgs,
+          ~onProgress?,
+        )
         switch result {
-        | Ok(toolResult) => Completed(toolResult)
-        | Error(msg) => Completed(toolError(msg))
+        | Ok(toolResult) => toolResult
+        | Error(msg) => toolError(msg)
         }
       }
     }
   }
 }
 
-let buildDiscoverResult = (server: t): Types.discoverResult => {
+let resultMeta = (server: t): Types.ResultMeta.t =>
+  Dict.fromArray([
+    (
+      "io.modelcontextprotocol/serverInfo",
+      server.serverInfo->S.decodeOrThrow(~from=Types.Implementation.schema, ~to=S.json),
+    ),
+  ])
+
+let buildDiscoverResult = (server: t): Types.DiscoverResult.t => {
   {
     resultType: "complete",
     supportedVersions: [Types.protocolVersion],
-    capabilities: {
-      tools: {listChanged: false},
-      extensions: {executionContext: {version: 1}, toolMetadata: {version: 1}},
-    },
-    ttlMs: 0,
-    cacheScope: "private",
-    _meta: {serverInfo: server.serverInfo},
+    capabilities: Types.ExecutionContextExtension.serverCapabilities(),
+    _meta: Some(resultMeta(server)),
+    instructions: None,
+    ttlMs: 0.,
+    cacheScope: Types.CacheScope.Private,
   }
 }
 
-let buildToolsListResult = (server: t): Types.toolsListResult => {
+let buildToolsListResult = (server: t): Types.ListToolsResult.t => {
   {
     resultType: "complete",
-    tools: getToolsJson(server),
-    ttlMs: 0,
-    cacheScope: "private",
-    _meta: {serverInfo: server.serverInfo},
+    tools: getToolsJson(server)->Array.map(json => json->S.parseOrThrow(~to=Types.Tool.schema)),
+    nextCursor: None,
+    ttlMs: 0.,
+    cacheScope: Types.CacheScope.Private,
+    _meta: Some(resultMeta(server)),
   }
 }
 
@@ -256,12 +253,6 @@ let toInterface = (server: t): Types.serverInterface<t> => {
   server,
   buildDiscoverResult,
   buildToolsListResult,
-  executeTool: (server, toolCall) =>
-    executeTool(
-      server,
-      ~name=Types.AuthorizedToolCall.name(toolCall),
-      ~arguments=?Types.AuthorizedToolCall.arguments(toolCall),
-      ~taskId=Types.AuthorizedToolCall.taskId(toolCall),
-      ~callId=Types.AuthorizedToolCall.callId(toolCall),
-    ),
+  executeTool: (server, ~name, ~arguments, ~taskId, ~toolCallId, ~onProgress) =>
+    executeTool(server, ~name, ~arguments?, ~taskId, ~toolCallId, ~onProgress?),
 }

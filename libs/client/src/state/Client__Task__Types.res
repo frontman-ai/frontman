@@ -675,8 +675,13 @@ let annotationTextResourceBlock = (annotation: annotationBlockData, ~index): Con
   let _meta = makeAnnotationMeta(annotation, ~index)
 
   ContentBlock.EmbeddedResource({
-    resource: ContentBlock.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
-    _meta: Some(_meta),
+    resource: ContentBlock.TextResourceContents({
+      uri,
+      mimeType: Some("text/plain"),
+      text,
+      _meta: None,
+    }),
+    _meta: Some(_meta->JSON.Decode.object->Option.getOrThrow),
     annotations: None,
   })
 }
@@ -716,8 +721,9 @@ let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): 
         uri: `annotation://${annotation.id}/screenshot`,
         mimeType: Some(mimeType),
         blob: base64Data,
+        _meta: None,
       }),
-      _meta: Some(screenshotMeta),
+      _meta: Some(screenshotMeta->JSON.Decode.object->Option.getOrThrow),
       annotations: None,
     })
   })
@@ -918,8 +924,9 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ContentBlock.
       uri: `page://${url}`,
       mimeType: Some("text/plain"),
       text: `Current page: ${summaryText}`,
+      _meta: None,
     }),
-    _meta: Some(_meta),
+    _meta: Some(_meta->JSON.Decode.object->Option.getOrThrow),
     annotations: None,
   })
 }

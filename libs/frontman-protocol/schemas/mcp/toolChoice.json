@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "enum": [
+        "auto",
+        "none",
+        "required"
+      ]
+    }
+  }
+}

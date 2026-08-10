@@ -2,8 +2,7 @@
   "type": "object",
   "properties": {
     "resultType": {
-      "type": "string",
-      "const": "complete"
+      "type": "string"
     },
     "supportedVersions": {
       "items": {
@@ -13,8 +12,40 @@
     },
     "capabilities": {
       "type": "object",
+      "additionalProperties": true,
       "properties": {
-        "tools": {
+        "completions": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "experimental": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          },
+          "propertyNames": {
+            "allOf": [
+              {
+                "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+              },
+              {
+                "pattern": "/"
+              }
+            ]
+          }
+        },
+        "logging": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "prompts": {
           "type": "object",
           "properties": {
             "listChanged": {
@@ -22,35 +53,34 @@
             }
           }
         },
-        "extensions": {
+        "resources": {
           "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "properties": {}
-          },
-          "propertyNames": {
-            "type": "string",
-            "pattern": "^[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$"
+          "properties": {
+            "listChanged": {
+              "type": "boolean"
+            },
+            "subscribe": {
+              "type": "boolean"
+            }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "properties": {
+            "listChanged": {
+              "type": "boolean"
+            }
           }
         }
       }
     },
-    "instructions": {
-      "type": "string"
-    },
-    "ttlMs": {
-      "type": "number",
-      "multipleOf": 1,
-      "minimum": 0
-    },
-    "cacheScope": {
-      "enum": [
-        "public",
-        "private"
-      ]
-    },
     "_meta": {
       "type": "object",
+      "additionalProperties": true,
+      "maxProperties": 64,
+      "propertyNames": {
+        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+      },
       "properties": {
         "io.modelcontextprotocol/serverInfo": {
           "type": "object",
@@ -58,14 +88,48 @@
             "name": {
               "type": "string"
             },
-            "title": {
+            "version": {
               "type": "string"
             },
-            "version": {
+            "title": {
               "type": "string"
             },
             "description": {
               "type": "string"
+            },
+            "websiteUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "icons": {
+              "items": {
+                "type": "object",
+                "properties": {
+                  "src": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "sizes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "theme": {
+                    "enum": [
+                      "dark",
+                      "light"
+                    ]
+                  }
+                },
+                "required": [
+                  "src"
+                ]
+              },
+              "type": "array"
             }
           },
           "required": [
@@ -74,6 +138,19 @@
           ]
         }
       }
+    },
+    "instructions": {
+      "type": "string"
+    },
+    "ttlMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cacheScope": {
+      "enum": [
+        "private",
+        "public"
+      ]
     }
   },
   "required": [

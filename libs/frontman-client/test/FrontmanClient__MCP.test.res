@@ -2,8 +2,7 @@ open Vitest
 
 module MCP = FrontmanClient__MCP
 module Types = FrontmanClient__MCP__Types
-module MCPServer = FrontmanClient__MCP__Server
-module Relay = FrontmanClient__Relay
+module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 
 module MockChannel = {
   type pushCall = {payload: JSON.t}
@@ -24,337 +23,312 @@ module MockChannel = {
   }
 }
 
-let serverInfo: Types.info = {name: "test-browser", version: "1.0.0"}
-
-module ThrowingTool = {
-  let name = "throwing_tool"
-  let description = "Throws during execution"
-  let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
-  type input = Dict.t<JSON.t>
-  let inputSchema = S.dict(S.json)
-  let outputJsonSchema = None
-  let visibleToAgent = true
-  let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
-  let execute = async (_input, ~taskId as _, ~toolCallId as _) =>
-    JsError.throwWithMessage("tool exploded")
+let discoverResult = (): Types.DiscoverResult.t => {
+  resultType: "complete",
+  supportedVersions: [Types.protocolVersion],
+  capabilities: Types.ExecutionContextExtension.serverCapabilities(),
+  _meta: None,
+  instructions: None,
+  ttlMs: 0.,
+  cacheScope: Types.CacheScope.Private,
 }
 
-type failure = Discover | List | Tool
+let toolsListResult = (): Types.ListToolsResult.t => {
+  resultType: "complete",
+  tools: [],
+  nextCursor: None,
+  ttlMs: 0.,
+  cacheScope: Types.CacheScope.Private,
+  _meta: None,
+}
 
-let makeInterface = (
-  ~context: ref<option<(string, string)>>,
-  ~failure: option<failure>=?,
-): Types.serverInterface<unit> => {
+let makeServerInterface = (~executeTool): Types.serverInterface<unit> => {
   server: (),
-  buildDiscoverResult: _ =>
-    switch failure {
-    | Some(Discover) => JsError.throwWithMessage("discovery exploded")
-    | Some(List) | Some(Tool) | None => {
-        resultType: "complete",
-        supportedVersions: [Types.protocolVersion],
-        capabilities: {
-          tools: {listChanged: false},
-          extensions: {executionContext: {version: 1}, toolMetadata: {version: 1}},
-        },
-        ttlMs: 0,
-        cacheScope: "private",
-        _meta: {serverInfo: serverInfo},
-      }
-    },
-  buildToolsListResult: _ => {
-    resultType: "complete",
-    tools: switch failure {
-    | Some(List) => [JSON.Encode.null]
-    | _ => [JSON.parseOrThrow(`{"name":"test","inputSchema":{"type":"object"}}`)]
-    },
-    ttlMs: 0,
-    cacheScope: "private",
-    _meta: {serverInfo: serverInfo},
-  },
-  executeTool: async (_, toolCall) => {
-    switch failure == Some(Tool) {
-    | true => JsError.throwWithMessage("tool exploded")
-    | false => ()
-    }
-    context :=
-      Some((Types.AuthorizedToolCall.taskId(toolCall), Types.AuthorizedToolCall.callId(toolCall)))
-    Types.Completed(Types.CallToolResult.makeText("ok"))
-  },
+  buildDiscoverResult: _ => discoverResult(),
+  buildToolsListResult: _ => toolsListResult(),
+  executeTool,
 }
 
-let commonMeta = `"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{"extensions":{"ai.frontman/execution-context":{"version":1}}},"io.modelcontextprotocol/clientInfo":{"name":"frontman-server","version":"1.0.0"}`
-let metadata = `"_meta":{${commonMeta}}`
-let toolParams = `"_meta":{${commonMeta},"ai.frontman/execution-context":{"taskId":"task-1","callId":"call-1"}},"name":"question"`
-let coreMetadata = `"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}`
-let coreToolParams = `${coreMetadata},"name":"question"`
+let completedServerInterface = () =>
+  makeServerInterface(~executeTool=async (
+    _,
+    ~name as _,
+    ~arguments as _,
+    ~taskId as _,
+    ~toolCallId as _,
+    ~onProgress as _,
+  ) => Types.CallToolResult.makeText("tool output"))
 
-let requestWithId = (~id: string, ~method: string, ~params: string) =>
-  JSON.parseOrThrow(`{"jsonrpc":"2.0","id":${id},"method":"${method}","params":{${params}}}`)
-
-let request = (~id: int, ~method: string, ~params: string) =>
-  requestWithId(~id=id->Int.toString, ~method, ~params)
-
-let requestWithoutParams = (~id: int, ~method: string) =>
-  JSON.parseOrThrow(`{"jsonrpc":"2.0","id":${id->Int.toString},"method":"${method}"}`)
-
-let response = (calls: ref<array<MockChannel.pushCall>>) => {
-  let {payload} = calls.contents->Array.get(0)->Option.getOrThrow
-  payload->JSON.Decode.object->Option.getOrThrow
+let makeHandler = (channel, serverInterface): MCP.mcpHandler<unit> => {
+  serverInterface,
+  channel,
+  onMessage: None,
 }
-let resultJson = message => message->Dict.get("result")->Option.getOrThrow
 
-let errorCode = calls =>
-  response(calls)
-  ->Dict.get("error")
+let requestMeta = (
+  ~protocolVersion=Types.protocolVersion,
+  ~context: option<(string, string)>=?,
+) => {
+  let metadata = Dict.fromArray([
+    ("io.modelcontextprotocol/protocolVersion", JSON.Encode.string(protocolVersion)),
+    (
+      "io.modelcontextprotocol/clientCapabilities",
+      Types.ExecutionContextExtension.clientCapabilities()->Types.ClientCapabilities.toJson,
+    ),
+  ])
+  switch context {
+  | Some((taskId, toolCallId)) =>
+    metadata->Dict.set(
+      Types.ExecutionContextExtension.identifier,
+      JSON.Encode.object(
+        Dict.fromArray([
+          ("taskId", JSON.Encode.string(taskId)),
+          ("toolCallId", JSON.Encode.string(toolCallId)),
+        ]),
+      ),
+    )
+  | None => ()
+  }
+  JSON.Encode.object(metadata)
+}
+
+let request = (~id=JSON.Encode.int(1), ~method, ~params) =>
+  JSON.Encode.object(
+    Dict.fromArray([
+      ("jsonrpc", JSON.Encode.string("2.0")),
+      ("id", id),
+      ("method", JSON.Encode.string(method)),
+      ("params", params),
+    ]),
+  )
+
+let discoverRequest = (~id=JSON.Encode.int(1), ~protocolVersion=Types.protocolVersion) =>
+  request(
+    ~id,
+    ~method="server/discover",
+    ~params=JSON.Encode.object(Dict.fromArray([("_meta", requestMeta(~protocolVersion))])),
+  )
+
+let listRequest = (~id=JSON.Encode.int(1)) =>
+  request(
+    ~id,
+    ~method="tools/list",
+    ~params=JSON.Encode.object(Dict.fromArray([("_meta", requestMeta())])),
+  )
+
+let callRequest = (~id=JSON.Encode.int(1), ~taskId="task-1", ~toolCallId="tool-call-1") =>
+  request(
+    ~id,
+    ~method="tools/call",
+    ~params=JSON.Encode.object(
+      Dict.fromArray([
+        ("_meta", requestMeta(~context=(taskId, toolCallId))),
+        ("name", JSON.Encode.string("take_screenshot")),
+      ]),
+    ),
+  )
+
+let responseById = (calls: ref<array<MockChannel.pushCall>>, id: JSON.t) =>
+  calls.contents
+  ->Array.find(call =>
+    call.payload
+    ->JSON.Decode.object
+    ->Option.flatMap(fields => fields->Dict.get("id")) == Some(id)
+  )
+  ->Option.map(call => call.payload)
+
+let responseErrorCode = response =>
+  response
+  ->JSON.Decode.object
+  ->Option.flatMap(fields => fields->Dict.get("error"))
   ->Option.flatMap(JSON.Decode.object)
   ->Option.flatMap(error => error->Dict.get("code"))
   ->Option.flatMap(JSON.Decode.float)
   ->Option.map(Float.toInt)
 
-let errorData = calls =>
-  response(calls)
-  ->Dict.get("error")
-  ->Option.flatMap(JSON.Decode.object)
-  ->Option.flatMap(error => error->Dict.get("data"))
-
-let handler = (channel, context, ~sessionId="task-1", ~failure=?) => {
-  MCP.serverInterface: makeInterface(~context, ~failure?),
-  channel,
-  sessionId,
-}
-
-describe("MCP 2026-07-28", () => {
-  test("namespaces Frontman tool metadata under _meta", t => {
-    let server =
-      MCPServer.make(
-        ~relay=Relay.make(~baseUrl="http://relay.invalid"),
-      )->MCPServer.registerToolModule(module(ThrowingTool))
-    let tool =
-      MCPServer.buildToolsListResult(server).tools
-      ->Array.get(0)
-      ->Option.getOrThrow
-      ->JSON.Decode.object
-      ->Option.getOrThrow
-    let metadata =
-      tool
-      ->Dict.get("_meta")
-      ->Option.flatMap(JSON.Decode.object)
-      ->Option.flatMap(metadata => metadata->Dict.get("ai.frontman/tool-metadata"))
-      ->Option.flatMap(JSON.Decode.object)
-
-    t->expect(metadata->Option.isSome)->Expect.toBe(true)
-    t->expect(tool->Dict.get("access")->Option.isNone)->Expect.toBe(true)
-    t->expect(tool->Dict.get("visibleToAgent")->Option.isNone)->Expect.toBe(true)
-    t->expect(tool->Dict.get("executionMode")->Option.isNone)->Expect.toBe(true)
-  })
-
-  testAsync("handles discovery, listing, and tool execution", async t => {
-    let context = ref(None)
-    let call = async (id, method, params) => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(handler(channel, context), request(~id, ~method, ~params))
-      response(calls)
-    }
-
-    resultJson(await call(1, "server/discover", metadata))->ignore
-    let listed = resultJson(await call(2, "tools/list", metadata))->JSON.stringify
-    t->expect(listed->String.includes(`"name":"test"`))->Expect.toBe(true)
-    resultJson(await call(3, "tools/call", toolParams))->ignore
-    t->expect(context.contents)->Expect.toEqual(Some(("task-1", "call-1")))
-  })
-
-  testAsync("accepts core requests without optional identity or Frontman capabilities", async t => {
-    let context = ref(None)
-    let call = async (id, method) => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(
-        handler(channel, context),
-        request(~id, ~method, ~params=coreMetadata),
-      )
-      response(calls)
+describe("modern MCP consumer", () => {
+  test("accepts absent and generic tool result metadata", t => {
+    let parses = json => {
+      try {
+        json->JSON.parseOrThrow->S.parseOrThrow(~to=Types.CallToolResult.schema)->ignore
+        true
+      } catch {
+      | _ => false
+      }
     }
 
     t
-    ->expect((await call(17, "server/discover"))->Dict.get("result")->Option.isSome)
+    ->expect(
+      parses(`{"content":[{"type":"text","text":"ok"}],"_meta":{"vendor.example/context":{"nested":[1,true,null]}},"resultType":"complete"}`),
+    )
     ->Expect.toBe(true)
-    t->expect((await call(18, "tools/list"))->Dict.get("result")->Option.isSome)->Expect.toBe(true)
+    t
+    ->expect(parses(`{"content":[],"structuredContent":[],"resultType":"complete"}`))
+    ->Expect.toBe(true)
+    t->expect(parses(`{"content":[],"resultType":"input_required"}`))->Expect.toBe(false)
   })
 
-  testAsync("rejects malformed and missing params", async t => {
-    let check = async payload => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(handler(channel, ref(None)), payload)
-      errorCode(calls)
-    }
-    let errors = await [
-      request(~id=5, ~method="server/discover", ~params=""),
-      requestWithoutParams(~id=6, ~method="server/discover"),
-      request(~id=7, ~method="tools/list", ~params=""),
-      requestWithoutParams(~id=8, ~method="tools/list"),
-      request(~id=9, ~method="tools/call", ~params=`"name":"question"`),
-      request(
-        ~id=10,
-        ~method="tools/call",
-        ~params=toolParams->String.replace(`"taskId":"task-1"`, `"taskId":""`),
-      ),
-    ]
-    ->Array.map(check)
-    ->Promise.all
-
-    t->expect(errors)->Expect.toEqual(Array.make(~length=6, Some(Types.ErrorCode.invalidParams)))
-  })
-
-  testAsync("rejects tool calls for another joined session without executing", async t => {
+  testAsync("discovers the server and advertises execution context support", async t => {
     let (channel, calls) = MockChannel.make()
-    let context = ref(None)
-    await MCP.handleMessage(
-      handler(channel, context, ~sessionId="different-task"),
-      request(~id=11, ~method="tools/call", ~params=toolParams),
-    )
-    t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-    t->expect(context.contents)->Expect.toEqual(None)
+    await MCP.handleMessage(makeHandler(channel, completedServerInterface()), discoverRequest())
+
+    let response = responseById(calls, JSON.Encode.int(1))->Option.getOrThrow
+    let capabilities =
+      response
+      ->JSON.Decode.object
+      ->Option.flatMap(fields => fields->Dict.get("result"))
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.flatMap(result => result->Dict.get("capabilities"))
+      ->Option.getOrThrow
+    capabilities
+    ->S.parseOrThrow(~to=Types.ExecutionContextExtension.serverCapabilitiesSchema)
+    ->ignore
+    t->expect(responseErrorCode(response))->Expect.toEqual(None)
   })
 
-  testAsync("returns negotiation errors for unsupported versions and capabilities", async t => {
-    let invoke = async (id, method, params) => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(handler(channel, ref(None)), request(~id, ~method, ~params))
-      calls
-    }
-    let wrongProtocol = metadata->String.replace("2026-07-28", "2025-11-25")
-
-    let unsupported = await Promise.all([
-      invoke(12, "server/discover", wrongProtocol),
-      invoke(19, "tools/list", `${wrongProtocol},"cursor":"expired"`),
-      invoke(20, "unknown/method", wrongProtocol),
-    ])
-    t
-    ->expect(unsupported->Array.map(errorCode))
-    ->Expect.toEqual(Array.make(~length=3, Some(-32022)))
-    t
-    ->expect(errorData(unsupported->Array.get(0)->Option.getOrThrow))
-    ->Expect.toEqual(
-      Some(JSON.parseOrThrow(`{"supported":["2026-07-28"],"requested":"2025-11-25"}`)),
+  testAsync("rejects legacy initialize requests", async t => {
+    let (channel, calls) = MockChannel.make()
+    let payload = request(
+      ~method="initialize",
+      ~params=JSON.Encode.object(Dict.fromArray([("_meta", requestMeta())])),
     )
+    await MCP.handleMessage(makeHandler(channel, completedServerInterface()), payload)
 
-    let capabilities = await Promise.all([
-      invoke(13, "tools/call", coreToolParams),
-      invoke(21, "tools/call", toolParams->String.replace(`"version":1`, `"version":2`)),
-    ])
+    let response = responseById(calls, JSON.Encode.int(1))->Option.getOrThrow
+    t->expect(responseErrorCode(response))->Expect.toEqual(Some(Types.ErrorCode.methodNotFound))
+  })
+
+  testAsync("lists tools with required request metadata", async t => {
+    let (channel, calls) = MockChannel.make()
+    await MCP.handleMessage(makeHandler(channel, completedServerInterface()), listRequest())
+
+    let response = responseById(calls, JSON.Encode.int(1))->Option.getOrThrow
+    t->expect(responseErrorCode(response))->Expect.toEqual(None)
+  })
+
+  testAsync("takes task and tool call identity only from execution context metadata", async t => {
+    let receivedContext = ref(None)
+    let serverInterface = makeServerInterface(
+      ~executeTool=async (
+        _,
+        ~name as _,
+        ~arguments as _,
+        ~taskId,
+        ~toolCallId,
+        ~onProgress as _,
+      ) => {
+        receivedContext := Some((taskId, toolCallId))
+        Types.CallToolResult.makeText("ok")
+      },
+    )
+    let (channel, calls) = MockChannel.make()
+    let payload = callRequest(
+      ~id=JSON.Encode.string("request-7"),
+      ~taskId="task-9",
+      ~toolCallId="call-3",
+    )
+    await MCP.handleMessage(makeHandler(channel, serverInterface), payload)
+
+    t->expect(receivedContext.contents)->Expect.toEqual(Some(("task-9", "call-3")))
     t
-    ->expect(capabilities->Array.map(errorCode))
-    ->Expect.toEqual(Array.make(~length=2, Some(-32021)))
-    t
-    ->expect(errorData(capabilities->Array.get(0)->Option.getOrThrow))
-    ->Expect.toEqual(
-      Some(
-        JSON.parseOrThrow(`{"requiredCapabilities":{"extensions":{"ai.frontman/execution-context":{"version":1}}}}`),
+    ->expect(responseById(calls, JSON.Encode.string("request-7"))->Option.isSome)
+    ->Expect.toBe(true)
+  })
+
+  testAsync("returns invalid params when execution context is absent", async t => {
+    let (channel, calls) = MockChannel.make()
+    let payload = request(
+      ~method="tools/call",
+      ~params=JSON.Encode.object(
+        Dict.fromArray([("_meta", requestMeta()), ("name", JSON.Encode.string("take_screenshot"))]),
       ),
     )
+    await MCP.handleMessage(makeHandler(channel, completedServerInterface()), payload)
+
+    let response = responseById(calls, JSON.Encode.int(1))->Option.getOrThrow
+    t->expect(responseErrorCode(response))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
   })
 
-  testAsync("returns serverError for handler failures", async t => {
-    let invoke = async (failure, method, params) => {
-      let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(
-        handler(channel, ref(None), ~failure),
-        request(~id=14, ~method, ~params),
+  testAsync("returns unsupported version errors", async t => {
+    let (channel, calls) = MockChannel.make()
+    await MCP.handleMessage(
+      makeHandler(channel, completedServerInterface()),
+      discoverRequest(~protocolVersion="2024-11-05"),
+    )
+
+    let response = responseById(calls, JSON.Encode.int(1))->Option.getOrThrow
+    t
+    ->expect(responseErrorCode(response))
+    ->Expect.toEqual(Some(Types.ErrorCode.unsupportedProtocolVersion))
+  })
+
+  testAsync(
+    "returns required capability errors when the client does not advertise execution context",
+    async t => {
+      let metadata = JSON.Encode.object(
+        Dict.fromArray([
+          ("io.modelcontextprotocol/protocolVersion", JSON.Encode.string(Types.protocolVersion)),
+          ("io.modelcontextprotocol/clientCapabilities", JSON.Encode.object(Dict.make())),
+        ]),
       )
-      errorCode(calls)
-    }
-
-    let codes = await Promise.all([
-      invoke(Discover, "server/discover", metadata),
-      invoke(List, "tools/list", metadata),
-      invoke(Tool, "tools/call", toolParams),
-    ])
-    t->expect(codes)->Expect.toEqual(Array.make(~length=3, Some(-32603)))
-  })
-
-  testAsync("echoes string JSON-RPC ids", async t => {
-    let (channel, calls) = MockChannel.make()
-    await MCP.handleMessage(
-      handler(channel, ref(None)),
-      requestWithId(~id=`"call-1"`, ~method="tools/call", ~params=toolParams),
-    )
-    t->expect(response(calls)->Dict.get("id"))->Expect.toEqual(Some(JSON.Encode.string("call-1")))
-  })
-
-  testAsync("echoes numeric JSON-RPC ids above signed 32-bit", async t => {
-    let (channel, calls) = MockChannel.make()
-    await MCP.handleMessage(
-      handler(channel, ref(None)),
-      requestWithId(~id="2147483648", ~method="tools/list", ~params=metadata),
-    )
-
-    t
-    ->expect(response(calls)->Dict.get("id"))
-    ->Expect.toEqual(Some(JSON.parseOrThrow("2147483648")))
-  })
-
-  testAsync("returns invalid params for an unknown tool", async t => {
-    let server = MCPServer.make(~relay=Relay.make(~baseUrl="http://relay.invalid"))
-    let (channel, calls) = MockChannel.make()
-
-    await MCP.handleMessage(
-      {
-        MCP.serverInterface: MCPServer.toInterface(server),
-        channel,
-        sessionId: "task-1",
-      },
-      request(
-        ~id=21,
-        ~method="tools/call",
-        ~params=toolParams->String.replace(`"name":"question"`, `"name":"missing_tool"`),
-      ),
-    )
-
-    t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-    t->expect(response(calls)->Dict.get("result")->Option.isNone)->Expect.toBe(true)
-  })
-
-  testAsync("returns thrown tool failures as tool errors", async t => {
-    let server =
-      MCPServer.make(
-        ~relay=Relay.make(~baseUrl="http://relay.invalid"),
-      )->MCPServer.registerToolModule(module(ThrowingTool))
-    let (channel, calls) = MockChannel.make()
-
-    await MCP.handleMessage(
-      {
-        MCP.serverInterface: MCPServer.toInterface(server),
-        channel,
-        sessionId: "task-1",
-      },
-      request(
-        ~id=22,
-        ~method="tools/call",
-        ~params=toolParams->String.replace(`"name":"question"`, `"name":"throwing_tool"`),
-      ),
-    )
-
-    let result = response(calls)->Dict.get("result")->Option.flatMap(JSON.Decode.object)
-    t
-    ->expect(result->Option.flatMap(result => result->Dict.get("isError")))
-    ->Expect.toEqual(Some(JSON.Encode.bool(true)))
-    t->expect(response(calls)->Dict.get("error")->Option.isNone)->Expect.toBe(true)
-  })
-
-  testAsync("preserves readable ids on invalid requests", async t => {
-    let invoke = async payload => {
+      let payload = request(
+        ~method="server/discover",
+        ~params=JSON.Encode.object(Dict.fromArray([("_meta", metadata)])),
+      )
       let (channel, calls) = MockChannel.make()
-      await MCP.handleMessage(handler(channel, ref(None)), JSON.parseOrThrow(payload))
-      response(calls)->S.parseOrThrow(~to=S.object(s => s.field("id", S.option(S.json))))
-    }
-    let ids = await Promise.all([
-      invoke(`{"jsonrpc":"2.0","id":23,"method":{},"params":{${metadata}}}`),
-      invoke(`{"jsonrpc":"2.0","id":{},"method":"server/discover","params":{${metadata}}}`),
-    ])
-    t->expect(ids)->Expect.toEqual([Some(JSON.Encode.int(23)), None])
+      await MCP.handleMessage(makeHandler(channel, completedServerInterface()), payload)
+
+      let response = responseById(calls, JSON.Encode.int(1))->Option.getOrThrow
+      t
+      ->expect(responseErrorCode(response))
+      ->Expect.toEqual(Some(Types.ErrorCode.missingRequiredClientCapability))
+    },
+  )
+
+  testAsync("guarantees an internal error response when execution throws", async t => {
+    let serverInterface = makeServerInterface(
+      ~executeTool=async (
+        _,
+        ~name as _,
+        ~arguments as _,
+        ~taskId as _,
+        ~toolCallId as _,
+        ~onProgress as _,
+      ) => JsError.throwWithMessage("boom"),
+    )
+    let (channel, calls) = MockChannel.make()
+    await MCP.handleMessage(makeHandler(channel, serverInterface), callRequest())
+
+    let response = responseById(calls, JSON.Encode.int(1))->Option.getOrThrow
+    t->expect(responseErrorCode(response))->Expect.toEqual(Some(Types.ErrorCode.internalError))
   })
 
-  test("accepts array structuredContent", _ => {
-    let json = JSON.parseOrThrow(`{"resultType":"complete","content":[],"structuredContent":[1,"two",null]}`)
-    json->S.parseOrThrow(~to=Types.callToolResultSchema)->ignore
+  testAsync("accepts cancellation notifications without responding", async t => {
+    let (channel, calls) = MockChannel.make()
+    let handler = makeHandler(channel, completedServerInterface())
+    let payload = JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"request-7","reason":"user requested"}}`)
+    await MCP.handleMessage(handler, payload)
+
+    t->expect(calls.contents->Array.length)->Expect.toBe(0)
+  })
+
+  testAsync("returns invalid request when a malformed request has a recoverable id", async t => {
+    let (channel, calls) = MockChannel.make()
+    let payload = JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"request-8","params":{}}`)
+    await MCP.handleMessage(makeHandler(channel, completedServerInterface()), payload)
+
+    let response = responseById(calls, JSON.Encode.string("request-8"))->Option.getOrThrow
+    t
+    ->expect(responseErrorCode(response))
+    ->Expect.toEqual(Some(Types.ModernErrorCode.invalidRequest))
+    t->expect(calls.contents->Array.length)->Expect.toBe(1)
+  })
+
+  testAsync("does not respond to a malformed response envelope", async t => {
+    let (channel, calls) = MockChannel.make()
+    let payload = JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"response-1","result":{}}`)
+    await MCP.handleMessage(makeHandler(channel, completedServerInterface()), payload)
+
+    t->expect(calls.contents->Array.length)->Expect.toBe(0)
   })
 })

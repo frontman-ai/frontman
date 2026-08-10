@@ -11,13 +11,15 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
+type messageDirection = Protocol.messageDirection
 @@live
 type config = {
   endpoint: string,
+  tokenUrl: string,
   loginUrl: string,
-  getAuthToken: unit => option<string>,
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
+  onMessage: option<(messageDirection, JSON.t) => unit>,
   onTitleUpdated: option<(string, string) => unit>,
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
 }
@@ -25,17 +27,18 @@ type config = {
 @@live
 let makeConfig = (
   ~endpoint: string,
+  ~tokenUrl: string,
   ~loginUrl: string,
-  ~getAuthToken: unit => option<string>,
   ~name: string,
   ~version: string,
   ~_meta: JSON.t,
+  ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
   ~onTitleUpdated: option<(string, string) => unit>=?,
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
 ): config => {
   endpoint,
+  tokenUrl,
   loginUrl,
-  getAuthToken,
   clientInfo: {
     name,
     version,
@@ -50,6 +53,7 @@ let makeConfig = (
     elicitation: None,
     _meta: None,
   },
+  onMessage,
 }
 
 type connection = {
@@ -57,6 +61,7 @@ type connection = {
   channel: Channel.t,
   clientConfig: Client.config,
   state: ref<Client.state>,
+  onMessage: option<(messageDirection, JSON.t) => unit>,
 }
 
 @@live
@@ -115,7 +120,7 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
   })
 }
 
-let checkAborted = (signal: option<WebAPI.EventTypes.abortSignal>): result<unit, string> => {
+let checkAborted = (signal: option<WebAPI.EventAPI.abortSignal>): result<unit, string> => {
   switch signal {
   | Some(s) if s.aborted => Error("Connection aborted")
   | _ => Ok()
@@ -126,34 +131,62 @@ type connectError =
   | AuthRequired({loginUrl: string})
   | ConnectionFailed(string)
 
+type tokenError =
+  | FetchFailed(string)
+  | NotAuthenticated
+  | InvalidResponse
+
+let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
+  try {
+    let response = await WebAPI.Global.fetch(tokenUrl, ~init={credentials: Include})
+    if response.ok {
+      let json = await response->WebAPI.Response.json
+      switch json
+      ->JSON.Decode.object
+      ->Option.flatMap(obj => obj->Dict.get("token"))
+      ->Option.flatMap(JSON.Decode.string) {
+      | Some(token) => Ok(token)
+      | None => Error(InvalidResponse)
+      }
+    } else if response.status == 401 {
+      Error(NotAuthenticated)
+    } else {
+      Error(FetchFailed(`HTTP ${response.status->Int.toString}`))
+    }
+  } catch {
+  | exn =>
+    Error(
+      FetchFailed(
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error"),
+      ),
+    )
+  }
+}
+
 @@live
-let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSignal>=?): result<
+let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
   connection,
   connectError,
 > => {
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
 
-  let tokenResult = switch config.getAuthToken() {
-  | Some(token) => Ok(token)
-  | None => Error(AuthRequired({loginUrl: config.loginUrl}))
+  let tokenResult = switch await fetchSocketToken(config.tokenUrl) {
+  | Ok(token) => Ok(token)
+  | Error(NotAuthenticated) => Error(AuthRequired({loginUrl: config.loginUrl}))
+  | Error(FetchFailed(msg)) =>
+    Log.error(`Token fetch failed: ${msg}`)
+    Error(ConnectionFailed(`Token fetch failed: ${msg}`))
+  | Error(InvalidResponse) =>
+    Log.error("Invalid token response")
+    Error(ConnectionFailed("Invalid token response"))
   }
 
   switch (tokenResult, checkAborted(signal)) {
   | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
   | (Error(e), _) => Error(e)
   | (Ok(token), Ok()) =>
-    let socketOpts: Socket.socketOptions = {
-      authToken: token,
-      params: Dict.fromArray([
-        (
-          "origin",
-          WebAPI.Window.current
-          ->WebAPI.Window.location
-          ->FrontmanBindings.Bindings__WebAPI.locationOrigin,
-        ),
-      ]),
-    }
+    let socketOpts: Socket.socketOptions = {params: Dict.fromArray([("token", token)])}
     let socket = Socket.make(~endpoint=config.endpoint, ~opts=socketOpts)
     let channel = socket->Socket.channel(~topic=Constants.tasksTopic)
     let state = ref(Client.initialState)
@@ -163,7 +196,13 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       clientCapabilities: config.clientCapabilities,
     }
 
-    Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
+    Protocol.attachMessageHandler(
+      ~channel,
+      ~state,
+      ~onUpdate=None,
+      ~onMessage=config.onMessage,
+      ~onParseError=None,
+    )
 
     let socketResult = await waitForSocket(socket)
 
@@ -184,14 +223,8 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
     }
 
     switch (joinResult, checkAborted(signal)) {
-    | (_, Error(_)) =>
-      cleanupChannel(channel)
-      Socket.disconnect(socket)
-      Error(ConnectionFailed("Connection aborted"))
-    | (Error(e), _) =>
-      cleanupChannel(channel)
-      Socket.disconnect(socket)
-      Error(e)
+    | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
+    | (Error(e), _) => Error(e)
     | (Ok(), Ok()) =>
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>
@@ -205,14 +238,25 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       }
 
       Sentry.addBreadcrumb(~category=#acp, ~message="Channel joined, sending initialize")
-      switch await Protocol.sendInitialize(~channel, ~state, ~clientConfig) {
+      switch await Protocol.sendInitialize(
+        ~channel,
+        ~state,
+        ~clientConfig,
+        ~onMessage=config.onMessage,
+      ) {
       | Error(e) =>
         Log.error(`ACP initialize failed: ${e}`)
         Error(ConnectionFailed(e))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
         state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
-        Ok({socket, channel, clientConfig, state})
+        Ok({
+          socket,
+          channel,
+          clientConfig,
+          state,
+          onMessage: config.onMessage,
+        })
       }
     }
   }
@@ -255,6 +299,7 @@ let joinSession = async (
   ~onParseError: option<string => unit>=?,
   ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
+  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
   let handleParseError = err => {
@@ -272,6 +317,7 @@ let joinSession = async (
     ~channel=sessionChannel,
     ~state=conn.state,
     ~onUpdate=Some(onUpdate),
+    ~onMessage=conn.onMessage,
     ~onParseError=Some(handleParseError),
   )
 
@@ -279,7 +325,7 @@ let joinSession = async (
     let handler: MCP.mcpHandler<'server> = {
       serverInterface,
       channel: sessionChannel,
-      sessionId,
+      onMessage: onMcpMessage,
     }
     sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
       MCP.handleMessage(handler, payload)->ignore
@@ -324,6 +370,7 @@ let createSession = async (
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
+  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<(session, Types.sessionNewResult), string> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
@@ -331,6 +378,7 @@ let createSession = async (
     ~channel=conn.channel,
     ~state=conn.state,
     ~sessionId,
+    ~onMessage=conn.onMessage,
   )
 
   switch sessionNewResult {
@@ -345,6 +393,7 @@ let createSession = async (
         ~onTitleUpdated,
         ~onParseError?,
         ~mcpServerInterface?,
+        ~onMcpMessage?,
       )
       switch joinResult {
       | Ok(session) => Ok((session, result))
@@ -380,14 +429,25 @@ let sendPrompt = async (
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
     ~_meta,
+    ~onMessage=session.connection.onMessage,
   )
 }
 
-let cancelPrompt = (session: session): unit =>
-  Protocol.sendCancel(~channel=session.channel, ~sessionId=session.sessionId)
+let cancelPrompt = (session: session): unit => {
+  Protocol.sendCancel(
+    ~channel=session.channel,
+    ~sessionId=session.sessionId,
+    ~onMessage=session.connection.onMessage,
+  )
+}
 
 let retryTurn = (session: session, ~retriedErrorId: string): unit => {
-  Protocol.sendRetryTurn(~channel=session.channel, ~sessionId=session.sessionId, ~retriedErrorId)
+  Protocol.sendRetryTurn(
+    ~channel=session.channel,
+    ~sessionId=session.sessionId,
+    ~retriedErrorId,
+    ~onMessage=session.connection.onMessage,
+  )
 }
 
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
@@ -430,6 +490,7 @@ let loadSession = async (
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
+  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<(session, Types.sessionLoadResult), string> => {
   let buffering = ref(true)
   let bufferedUpdates = ref([])
@@ -466,6 +527,7 @@ let loadSession = async (
       },
     ~cleanupOnParseError,
     ~mcpServerInterface?,
+    ~onMcpMessage?,
   )
 
   switch joinResult {
@@ -488,6 +550,7 @@ let loadSession = async (
         ),
       ),
       ~parseResult=Client.parseSessionLoadResult,
+      ~onMessage=conn.onMessage,
     )
     cleanupOnParseError := true
 

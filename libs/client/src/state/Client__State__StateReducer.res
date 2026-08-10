@@ -576,15 +576,14 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
     let metaObj = Dict.make()
     metaObj->Dict.set("user_image", JSON.Encode.bool(true))
     metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
-    let meta = JSON.Encode.object(metaObj)
-
     Client__State__Types.ContentBlock.EmbeddedResource({
       resource: Client__State__Types.ContentBlock.BlobResourceContents({
         uri: `attachment://${att.id}/${att.filename}`,
         mimeType: Some(att.mediaType),
         blob: base64Data,
+        _meta: None,
       }),
-      _meta: Some(meta),
+      _meta: Some(metaObj),
       annotations: None,
     })
   })

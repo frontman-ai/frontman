@@ -1,28 +1,38 @@
 {
   "type": "object",
   "properties": {
-    "_meta": {},
+    "type": {
+      "type": "string",
+      "const": "resource"
+    },
+    "_meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "maxProperties": 64,
+      "propertyNames": {
+        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+      }
+    },
     "annotations": {
       "type": "object",
       "properties": {
         "audience": {
           "items": {
             "enum": [
-              "user",
-              "assistant"
+              "assistant",
+              "user"
             ]
           },
           "type": "array"
         },
         "priority": {
           "type": "number",
-          "maximum": 1,
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 1
         },
         "lastModified": {
           "type": "string"
-        },
-        "_meta": {}
+        }
       }
     },
     "resource": {
@@ -31,7 +41,8 @@
           "type": "object",
           "properties": {
             "uri": {
-              "type": "string"
+              "type": "string",
+              "format": "uri"
             },
             "mimeType": {
               "type": "string"
@@ -39,7 +50,14 @@
             "text": {
               "type": "string"
             },
-            "_meta": {}
+            "_meta": {
+              "type": "object",
+              "additionalProperties": true,
+              "maxProperties": 64,
+              "propertyNames": {
+                "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+              }
+            }
           },
           "required": [
             "uri",
@@ -50,15 +68,24 @@
           "type": "object",
           "properties": {
             "uri": {
-              "type": "string"
+              "type": "string",
+              "format": "uri"
             },
             "mimeType": {
               "type": "string"
             },
             "blob": {
-              "type": "string"
+              "type": "string",
+              "format": "byte"
             },
-            "_meta": {}
+            "_meta": {
+              "type": "object",
+              "additionalProperties": true,
+              "maxProperties": 64,
+              "propertyNames": {
+                "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+              }
+            }
           },
           "required": [
             "uri",
@@ -69,6 +96,7 @@
     }
   },
   "required": [
+    "type",
     "resource"
   ]
 }

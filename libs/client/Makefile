@@ -62,6 +62,7 @@ build-standalone:
 	yarn vite build --config vite.config.standalone.ts
 
 clean:
+	yarn rescript clean
 	rm -rf dist
 
 serve:

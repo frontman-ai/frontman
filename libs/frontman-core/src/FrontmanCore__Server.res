@@ -74,6 +74,10 @@ let getToolsResponse = (
   serverInfo: {
     name: serverName,
     version: serverVersion,
+    title: None,
+    description: None,
+    websiteUrl: None,
+    icons: None,
   },
   protocolVersion: Relay.protocolVersion,
 }

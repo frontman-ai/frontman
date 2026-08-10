@@ -5,7 +5,7 @@ module Codec = Client__ACP__MessageCodec
 module MessageAnnotation = Client__Message.MessageAnnotation
 
 let resource = (~meta, resource) => ContentBlock.EmbeddedResource({
-  _meta: Some(JSON.parseOrThrow(meta)),
+  _meta: Some(JSON.parseOrThrow(meta)->JSON.Decode.object->Option.getOrThrow),
   annotations: None,
   resource,
 })
@@ -19,6 +19,7 @@ test("parses flat annotation, screenshot, and image resources", t => {
         uri: "annotation://annotation-1",
         mimeType: None,
         text: "",
+        _meta: None,
       }),
     ),
     resource(
@@ -27,6 +28,7 @@ test("parses flat annotation, screenshot, and image resources", t => {
         uri: "annotation://annotation-1/screenshot",
         mimeType: Some("image/png"),
         blob: "c2NyZWVuc2hvdA==",
+        _meta: None,
       }),
     ),
     resource(
@@ -35,6 +37,7 @@ test("parses flat annotation, screenshot, and image resources", t => {
         uri: "attachment://photo.png",
         mimeType: Some("image/png"),
         blob: "aW1hZ2U=",
+        _meta: None,
       }),
     ),
   ]

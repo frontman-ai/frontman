@@ -56,6 +56,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       |> update_in(["content", Access.at(0)], &Map.put(&1, "unknown", "drop me"))
 
     canonical_result = %{
+      "resultType" => "complete",
       "content" => [
         %{
           "type" => "image",
@@ -64,8 +65,8 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
           "unknown" => "drop me"
         }
       ],
-      "isError" => false,
-      "_meta" => %{}
+      "_meta" => %{},
+      "unknownTopLevel" => "drop me"
     }
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
@@ -186,6 +187,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     persisted = tool_result!(Tasks.interactions(task), tool_call_id)
 
     assert persisted.result == %{
+             "resultType" => "complete",
              "content" => [
                %{
                  "type" => "image",
@@ -258,8 +260,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       %{
         "name" => "take_screenshot",
         "description" => "Take a screenshot",
-        "inputSchema" => %{"type" => "object", "properties" => %{}},
-        "executionMode" => "blocking"
+        "inputSchema" => %{"type" => "object", "properties" => %{}}
       }
     ])
   end
@@ -273,6 +274,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   defp client_mcp_image_result(binary, mime \\ "image/png") do
     %{
+      "resultType" => "complete",
       "content" => [%{"type" => "image", "data" => Base.encode64(binary), "mimeType" => mime}],
       "_meta" => %{}
     }

@@ -192,7 +192,10 @@ let handleToolCall = async (
   | Error(msg) =>
     let errorResult = MCP.CallToolResult.makeError(`Invalid request: ${msg}`)
     let json =
-      errorResult->S.decodeOrThrow(~from=MCP.callToolResultSchema, ~to=S.json->S.noValidation(true))
+      errorResult->S.decodeOrThrow(
+        ~from=MCP.CallToolResult.schema,
+        ~to=S.json->S.noValidation(true),
+      )
     WebAPI.Response.jsonR(~data=json, ~init={status: 400})
 
   | Ok(request) =>

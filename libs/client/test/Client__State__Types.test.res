@@ -6,7 +6,7 @@ module MessageAnnotation = Client__Message.MessageAnnotation
 
 let getMeta = (block: ContentBlock.t): JSON.t =>
   switch block {
-  | EmbeddedResource({_meta}) => _meta->Option.getOrThrow
+  | EmbeddedResource({_meta}) => _meta->Option.getOrThrow->JSON.Encode.object
   | TextContent(_) | ImageContent(_) | AudioContent(_) | ResourceLink(_) =>
     failwith("Expected embedded resource")
   }

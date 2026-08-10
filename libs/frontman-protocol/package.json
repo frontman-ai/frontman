@@ -1,7 +1,9 @@
 {
 	"name": "@frontman-ai/frontman-protocol",
-	"private": true,
-	"version": "3.0.0",
+	"publishConfig": {
+		"access": "public"
+	},
+	"version": "1.0.2",
 	"description": "Protocol definitions for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -31,17 +33,16 @@
 		"schemas"
 	],
 	"scripts": {
-		"build": "rescript build"
+		"build": "rescript build",
+		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
-		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
-		"sury": "catalog:"
+		"sury": "11.0.0-alpha.10"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "catalog:",
-		"rescript": "catalog:",
-		"rescript-vitest": "catalog:",
-		"vite": "catalog:",
-		"vitest": "catalog:"
+		"@rescript/webapi": "*",
+		"ajv": "^8.17.1",
+		"ajv-formats": "^3.0.1",
+		"rescript": "catalog:"
 	}
 }

@@ -28,7 +28,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias ModelContextProtocol, as: MCP
-  alias ModelContextProtocol.Schema, as: MCPSchema
 
   @acp_message ACP.event_acp_message()
   @acp_title_updated ACP.event_title_updated()
@@ -39,31 +38,35 @@ defmodule FrontmanServerWeb.TaskChannel do
   def join("task:" <> task_id, _params, socket) do
     scope = socket.assigns.scope
 
-    with {:ok, task} <- Tasks.get_task(scope, task_id),
-         {:ok, _owner} <-
-           Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
-      {:ok, history} = TaskHistory.new(task.interaction_rows)
+    case Tasks.get_task(scope, task_id) do
+      {:ok, task} ->
+        {:ok, history} = TaskHistory.new(task.interaction_rows)
+        active_turn = TaskHistory.active_turn_context(history)
 
-      SentryContext.set_task_scope_context(scope, task_id)
-      {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
+        SentryContext.set_task_scope_context(scope, task_id)
 
-      socket =
-        socket
-        |> assign(:task_id, task_id)
-        |> assign(:framework, task.framework)
-        |> assign(:mcp_init_state, init_state)
-        |> assign(:mcp_tools, [])
-        |> assign(:mcp_status, :pending)
-        |> assign(:session_loaded, false)
-        |> assign(:active_turn, TaskHistory.active_turn_context(history))
-        |> assign(:pending_mcp_tool_requests, %{})
+        Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
-      send(self(), {:start_mcp_init, init_actions})
+        {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
 
-      {:ok, %{task_id: task_id}, socket}
-    else
-      {:error, :not_found} -> {:error, %{reason: "task_not_found"}}
-      {:error, {:already_registered, _owner}} -> {:error, %{reason: "task_already_joined"}}
+        socket =
+          socket
+          |> assign(:task_id, task_id)
+          |> assign(:framework, task.framework)
+          |> assign(:mcp_init_state, init_state)
+          |> assign(:mcp_tools, [])
+          |> assign(:mcp_status, :pending)
+          |> assign(:session_loaded, false)
+          |> assign(:active_turn, active_turn)
+          |> assign(:pending_mcp_tool_requests, %{})
+
+        send(self(), {:start_mcp_init, init_actions})
+
+        {:ok, %{task_id: task_id}, socket}
+
+      {:error, :not_found} ->
+        Logger.info("Client tried to join non-existent task: #{task_id}")
+        {:error, %{reason: "task_not_found"}}
     end
   end
 
@@ -104,7 +107,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_in("mcp:message", payload, socket) do
-    case JsonRpc.parse_response(payload) do
+    case parse_mcp_response(payload, socket) do
       {:ok, {:success, id, result}} ->
         handle_mcp_response(id, result, socket)
 
@@ -112,33 +115,47 @@ defmodule FrontmanServerWeb.TaskChannel do
         handle_mcp_error(id, error, socket)
 
       {:error, reason} ->
-        Logger.error("Invalid MCP response")
-
-        error_notification =
-          JsonRpc.notification("error", %{
-            "message" => "Invalid JSON-RPC response",
-            "reason" => Atom.to_string(reason)
-          })
-
-        push(socket, "mcp:message", error_notification)
-
+        Logger.error("Invalid MCP response: #{reason}")
         {:noreply, socket}
+    end
+  end
+
+  defp parse_mcp_response(%{"id" => id} = payload, socket) do
+    case mcp_response_method(socket, id) do
+      nil -> MCP.parse_response(payload)
+      method -> MCP.parse_response(payload, method)
+    end
+  end
+
+  defp parse_mcp_response(payload, _socket), do: MCP.parse_response(payload)
+
+  defp mcp_response_method(socket, id) do
+    case MCPInitializer.response_method(socket.assigns[:mcp_init_state], id) do
+      nil -> pending_mcp_response_method(socket, id)
+      method -> method
+    end
+  end
+
+  defp pending_mcp_response_method(socket, id) do
+    case Map.has_key?(socket.assigns.pending_mcp_tool_requests, id) do
+      true -> "tools/call"
+      false -> nil
     end
   end
 
   @impl true
   def handle_info({:start_mcp_init, actions}, socket) do
-    socket = apply_init_actions(actions, socket)
+    socket = execute_init_actions(actions, socket)
     {:noreply, socket}
   end
 
-  def handle_info({:execute_next_turn, execution}, socket) do
-    case Tasks.execute_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
+  def handle_info({:run_next_turn, execution}, socket) do
+    case Tasks.run_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
       result when result in [:ok, :already_running, :no_accepted_messages] ->
         :ok
 
       {:error, reason} ->
-        Logger.error("Failed to execute next turn: #{inspect(reason)}")
+        Logger.error("Failed to run next turn: #{inspect(reason)}")
     end
 
     {:noreply, socket}
@@ -240,30 +257,38 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_interaction(%Tasks.Interaction.ToolResult{} = tool_result, _turn_number, socket) do
     task_id = socket.assigns.task_id
+    scope = socket.assigns.scope
 
-    notification =
-      ACP.tool_call_update(
-        task_id,
-        tool_result.tool_call_id,
-        ACP.tool_call_status(tool_result.is_error),
-        ACP.Content.from_tool_result(tool_result.result),
-        nil,
-        tool_result.result["structuredContent"]
-      )
+    if Tools.todo_mutation?(tool_result.tool_name) do
+      case Tasks.list_todos(scope, task_id) do
+        {:ok, todos} ->
+          entries = Enum.map(todos, &to_plan_entry/1)
+          plan_notification = ACP.plan_update(task_id, entries)
+          push(socket, @acp_message, plan_notification)
 
-    push(socket, @acp_message, notification)
+        {:error, _reason} ->
+          :ok
+      end
+    else
+      notification =
+        ACP.tool_call_update(
+          task_id,
+          tool_result.tool_call_id,
+          ACP.tool_call_status(tool_result.is_error),
+          ACP.Content.from_tool_result(tool_result.result),
+          nil,
+          tool_result.result["structuredContent"]
+        )
 
-    case {Tools.todo_mutation?(tool_result.tool_name), tool_result.is_error} do
-      {true, false} -> push_current_todo_plan(socket)
-      {true, true} -> :ok
-      {false, _is_error} -> :ok
+      push(socket, @acp_message, notification)
     end
 
     {:noreply, socket}
   end
 
-  defp handle_interaction(%Tasks.Interaction.AgentCompleted{}, turn_number, socket),
-    do: finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
+  defp handle_interaction(%Tasks.Interaction.AgentCompleted{}, turn_number, socket) do
+    finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
+  end
 
   defp handle_interaction(%Tasks.Interaction.AgentRetry{}, turn_number, socket) do
     context =
@@ -275,11 +300,13 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, assign(socket, :active_turn, context)}
   end
 
-  defp handle_interaction(%Tasks.Interaction.AgentPaused{}, turn_number, socket),
-    do: finalize_turn(socket, :requires_action, turn_number)
+  defp handle_interaction(%Tasks.Interaction.AgentPaused{}, turn_number, socket) do
+    finalize_turn(socket, :requires_action, turn_number)
+  end
 
-  defp handle_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, turn_number, socket),
-    do: finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, turn_number)
+  defp handle_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, turn_number, socket) do
+    finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, turn_number)
+  end
 
   defp handle_interaction(
          %Tasks.Interaction.AgentError{retryable: true} = error,
@@ -318,13 +345,14 @@ defmodule FrontmanServerWeb.TaskChannel do
     if mcp_initialization_request?(init_state, id) do
       {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
       socket = assign(socket, :mcp_init_state, new_state)
-      {:noreply, apply_init_actions(actions, socket)}
+      {:noreply, execute_init_actions(actions, socket)}
     else
       handle_tool_call_response_by_id(id, result, socket)
     end
   end
 
-  defp handle_tool_call_response_by_id(id, result, socket) when is_integer(id) do
+  defp handle_tool_call_response_by_id(id, result, socket)
+       when is_binary(id) or is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
       {:ok, tool_call_id, socket} ->
         case open_tool_call(socket, tool_call_id) do
@@ -358,7 +386,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp open_tool_call(socket, tool_call_id) do
     with {:ok, _turn_number, tool_calls} when is_list(tool_calls) <-
-           Tasks.get_active_turn_unresolved_tool_calls(
+           Tasks.get_active_run_unresolved_tool_calls(
              socket.assigns.scope,
              socket.assigns.task_id
            ),
@@ -376,38 +404,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_tool_call_response(tool_call, result, socket) do
-    tools = socket.assigns.mcp_tools
-
-    %{output_schema: output_schema} =
-      Enum.find(tools, %{output_schema: nil}, &(&1.name == tool_call.tool_name))
-
-    result =
-      case MCPSchema.validate_call_tool_result(result, output_schema) do
-        :ok ->
-          normalize_tool_call_result(result)
-
-        :error ->
-          raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
-      end
-
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
-
-  defp normalize_tool_call_result(%{"content" => content} = result) do
-    case Enum.find(content, &(not supported_tool_result_content?(&1))) do
-      nil ->
-        result
-
-      %{"type" => type} ->
-        MCP.tool_result_error("Unsupported MCP tool result content type: #{type}")
-    end
-  end
-
-  defp supported_tool_result_content?(%{"type" => "text"}), do: true
-  defp supported_tool_result_content?(%{"type" => "image"}), do: true
-  defp supported_tool_result_content?(%{"type" => "audio"}), do: false
-  defp supported_tool_result_content?(%{"type" => "resource_link"}), do: false
-  defp supported_tool_result_content?(%{"type" => "resource"}), do: false
 
   defp persist_tool_call_result(tool_call, result, socket) do
     task_id = socket.assigns.task_id
@@ -437,24 +435,28 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         resume_after_tool_result(executor_status, socket, scope, task_id)
 
-      {:error, reason} ->
-        raise "Failed to store MCP tools/call result for task #{task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}: #{inspect(reason)}"
+      {:error, _reason} ->
+        Logger.warning("Failed to store tool result")
+
+        socket
     end
   end
 
   defp resume_after_tool_result(:notified, socket, _scope, _task_id), do: socket
 
   defp resume_after_tool_result(:no_executor, socket, scope, task_id) do
-    case Tasks.get_active_turn_unresolved_tool_calls(scope, task_id) do
+    case Tasks.get_active_run_unresolved_tool_calls(scope, task_id) do
       {:ok, _turn_number, []} ->
-        Logger.info("Active turn has no unresolved tool calls for #{task_id}, resuming execution")
+        Logger.info(
+          "Active agent run has no unresolved tool calls for #{task_id}, resuming agent"
+        )
 
         resume_agent(socket, scope, task_id)
 
       {:ok, _turn_number, [_ | _]} ->
         socket
 
-      {:ok, :no_active_turn} ->
+      {:ok, :no_active_run} ->
         socket
     end
   end
@@ -474,15 +476,16 @@ defmodule FrontmanServerWeb.TaskChannel do
     if mcp_initialization_request?(init_state, id) do
       {new_state, actions} = MCPInitializer.handle_error(init_state, id, error)
       socket = assign(socket, :mcp_init_state, new_state)
-      {:noreply, apply_init_actions(actions, socket)}
+      {:noreply, execute_init_actions(actions, socket)}
     else
       handle_tool_call_error_by_id(id, error, socket)
     end
   end
 
-  defp mcp_initialization_request?(%{} = init_state, id) when is_integer(id) do
+  defp mcp_initialization_request?(%{} = init_state, id)
+       when is_binary(id) or is_integer(id) do
     id in [
-      init_state.discovery_request_id,
+      init_state.mcp_init_request_id,
       init_state.tools_request_id,
       init_state.project_rules_request_id,
       init_state.project_structure_request_id
@@ -491,7 +494,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp mcp_initialization_request?(_init_state, _id), do: false
 
-  defp handle_tool_call_error_by_id(id, error, socket) when is_integer(id) do
+  defp handle_tool_call_error_by_id(id, error, socket) when is_binary(id) or is_integer(id) do
     case pop_mcp_tool_request(socket, id) do
       {:ok, tool_call_id, socket} ->
         case open_tool_call(socket, tool_call_id) do
@@ -593,13 +596,11 @@ defmodule FrontmanServerWeb.TaskChannel do
             id,
             ACP.build_session_load_result(
               scope
-              |> Providers.available_models()
+              |> Providers.model_config_data()
               |> ACP.build_model_config_options()
             )
           )
         )
-
-        push_current_todo_plan(socket, Tasks.list_todos(task))
 
         socket =
           socket
@@ -625,7 +626,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
-    case parse_client_model(meta["model"]) do
+    case Providers.model_from_client_params(meta["model"]) do
       {:ok, model} ->
         Logger.info("process_prompt", %{task_id: task_id, model: model})
 
@@ -636,7 +637,6 @@ defmodule FrontmanServerWeb.TaskChannel do
                  scope,
                  %{
                    task_id: task_id,
-                   message_id: meta["frontman.dev/messageId"],
                    message: content_blocks,
                    model: model,
                    agent_id: agent_id
@@ -649,19 +649,15 @@ defmodule FrontmanServerWeb.TaskChannel do
           Logger.info("User message accepted for task #{task_id}")
           {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
         else
-          {:error, %Ecto.Changeset{} = changeset} ->
-            {message, _metadata} = Keyword.fetch!(changeset.errors, :id)
-            reply_invalid_params(socket, id, "Message ID #{message}")
-
           {:error, :missing_agent} ->
-            reply_invalid_params(socket, id, "Agent is required")
+            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Agent is required")
 
           {:error, :unknown_agent} ->
-            reply_invalid_params(socket, id, "Unknown agent")
+            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Unknown agent")
 
           {:error, {:invalid_content_block, message}} ->
             Logger.error("Failed to add user message: #{message}")
-            reply_invalid_params(socket, id, message)
+            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
 
           {:error, reason} ->
             Logger.error("Failed to add user message: #{inspect(reason)}")
@@ -669,7 +665,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         end
 
       :error ->
-        reply_invalid_params(socket, id, "Model is required")
+        reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Model is required")
     end
   end
 
@@ -682,9 +678,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp reply_acp_error(socket, id, code, message) do
     {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
   end
-
-  defp reply_invalid_params(socket, id, message),
-    do: reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
 
   defp push_acp_error(socket, id, code, message) do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
@@ -809,8 +802,7 @@ defmodule FrontmanServerWeb.TaskChannel do
            }
          ) do
       :ok ->
-        notification = ACP.build_state_update_notification(socket.assigns.task_id, "running")
-        push(socket, @acp_message, notification)
+        :ok
 
       {:error, reason} ->
         unless reason in [:not_found, :stale_turn] do
@@ -896,15 +888,19 @@ defmodule FrontmanServerWeb.TaskChannel do
     push(socket, @acp_message, notification)
   end
 
-  defp wake_runner(%{assigns: %{mcp_status: status, active_turn: nil}} = socket, meta)
-       when status in [:ready, :failed],
-       do: send(self(), {:execute_next_turn, execution_context(socket, meta)})
+  defp wake_runner(socket, meta) do
+    case socket.assigns[:mcp_status] do
+      status when status in [:ready, :failed] ->
+        send(self(), {:run_next_turn, execution_context(socket, meta)})
 
-  defp wake_runner(_socket, _meta), do: :ok
+      _pending ->
+        :ok
+    end
+  end
 
   defp execution_context(socket, meta) do
     model =
-      case parse_client_model(meta && meta["model"]) do
+      case Providers.model_from_client_params(meta && meta["model"]) do
         {:ok, model} -> model
         :error -> nil
       end
@@ -916,19 +912,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     }
   end
 
-  defp parse_client_model(%{"provider" => "custom", "value" => value}) do
-    Providers.parse_model_ref(value)
+  defp execute_init_actions(actions, socket) do
+    apply_init_actions(actions, socket)
   end
 
-  defp parse_client_model(%{"provider" => provider, "value" => value})
-       when is_binary(provider) do
-    case value do
-      value when is_binary(value) -> Providers.parse_model_ref("#{provider}:#{value}")
-      _invalid -> :error
-    end
-  end
-
-  defp parse_client_model(value), do: Providers.parse_model_ref(value)
   defp apply_init_actions([], socket), do: socket
 
   defp apply_init_actions([action | rest], socket) do
@@ -941,22 +928,30 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket
   end
 
+  defp apply_init_action(socket, {:push_acp, msg}) do
+    push(socket, @acp_message, msg)
+    socket
+  end
+
   defp apply_init_action(socket, {:initialization_complete, data}) do
     task_id = socket.assigns.task_id
     Logger.info("MCP initialization complete for task #{task_id}")
 
     socket
     |> assign(:mcp_status, :ready)
+    |> assign(:mcp_capabilities, data.mcp_capabilities)
+    |> assign(:mcp_server_info, data.mcp_server_info)
     |> assign(:mcp_tools, data.tools)
     |> redispatch_unresolved_tool_calls()
     |> tap(&wake_runner(&1, nil))
   end
 
   defp apply_init_action(socket, {:initialization_failed, error}) do
-    Logger.error("MCP initialization failed", reason: error)
+    Logger.error("MCP initialization failed")
 
     socket
     |> assign(:mcp_status, :failed)
+    |> assign(:mcp_error, error)
     |> redispatch_unresolved_tool_calls()
     |> tap(&wake_runner(&1, nil))
   end
@@ -965,11 +960,11 @@ defmodule FrontmanServerWeb.TaskChannel do
          %{assigns: %{session_loaded: true, mcp_status: status}} = socket
        )
        when status in [:ready, :failed] do
-    case Tasks.get_active_turn_unresolved_tool_calls(socket.assigns.scope, socket.assigns.task_id) do
+    case Tasks.get_active_run_unresolved_tool_calls(socket.assigns.scope, socket.assigns.task_id) do
       {:ok, turn_number, tool_calls} when is_list(tool_calls) ->
         Enum.reduce(tool_calls, socket, &redispatch_unresolved_tool_call(&2, &1, turn_number))
 
-      {:ok, :no_active_turn} ->
+      {:ok, :no_active_run} ->
         socket
     end
   end
@@ -1000,10 +995,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     request =
       MCP.build_tool_execution(%MCP.ToolCallParams{
         request_id: request_id,
+        task_id: task_id,
         tool_name: tool_call.tool_name,
         arguments: tool_call.arguments,
-        task_id: task_id,
-        call_id: tool_call.tool_call_id
+        tool_call_id: tool_call.tool_call_id
       })
 
     in_progress_notification =
@@ -1028,15 +1023,5 @@ defmodule FrontmanServerWeb.TaskChannel do
       "priority" => Atom.to_string(todo.priority),
       "status" => Atom.to_string(todo.status)
     }
-  end
-
-  defp push_current_todo_plan(socket) do
-    {:ok, todos} = Tasks.list_todos(socket.assigns.scope, socket.assigns.task_id)
-    push_current_todo_plan(socket, todos)
-  end
-
-  defp push_current_todo_plan(socket, todos) when is_list(todos) do
-    entries = Enum.map(todos, &to_plan_entry/1)
-    push(socket, @acp_message, ACP.plan_update(socket.assigns.task_id, entries))
   end
 end

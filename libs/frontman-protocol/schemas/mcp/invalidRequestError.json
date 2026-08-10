@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "number",
+      "const": -32600
+    },
+    "message": {
+      "type": "string"
+    },
+    "data": {}
+  },
+  "required": [
+    "code",
+    "message"
+  ]
+}

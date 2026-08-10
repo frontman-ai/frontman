@@ -2,58 +2,45 @@ open Vitest
 
 module Relay = FrontmanClient__Relay
 
-let jsonString = json => JSON.stringify(json)
-
 describe("Relay.connect", _t => {
-  test("accepts only the current relay protocol version", t => {
-    let json = JSON.parseOrThrow(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"1.0"}`)
-    t
-    ->expect(() => json->S.parseOrThrow(~to=FrontmanClient__Relay__Types.toolsResponseSchema))
-    ->Expect.toThrow
-  })
+  testAsync("sets state to Error when server is unreachable", async t => {
+    let relay = Relay.make(~baseUrl="http://localhost:19999")
+    let _ = await Relay.connect(relay)
 
-  test("requires relay v2 tool metadata shape", t => {
-    let legacy = JSON.parseOrThrow(`{
-      "tools":[{"name":"hidden","inputSchema":{"type":"object"},"access":"read","visibleToAgent":false}],
-      "serverInfo":{"name":"test","version":"1"},
-      "protocolVersion":"2.0"
-    }`)
-    let current = JSON.parseOrThrow(`{
-      "tools":[{"name":"hidden","inputSchema":{"type":"object"},"_meta":{"ai.frontman/tool-metadata":{"access":"read","visibleToAgent":false}}}],
-      "serverInfo":{"name":"test","version":"1"},
-      "protocolVersion":"2.0"
-    }`)
-
-    t
-    ->expect(() => legacy->S.parseOrThrow(~to=FrontmanClient__Relay__Types.toolsResponseSchema))
-    ->Expect.toThrow
-    current->S.parseOrThrow(~to=FrontmanClient__Relay__Types.toolsResponseSchema)->ignore
+    switch Relay.getState(relay) {
+    | Error(_) => t->expect(true)->Expect.toBe(true)
+    | _ => t->expect(false)->Expect.toBe(true)
+    }
   })
 })
 
-test("preserves relayed MCP tool metadata and parses legacy results", t => {
+test("preserves optional output schemas in MCP tool definitions", t => {
   let relay = Relay.make(~baseUrl="http://localhost")
-  let tool = JSON.parseOrThrow(`{
-    "name":"tool",
-    "title":"Tool",
-    "description":"tool",
-    "icons":[{"src":"data:image/png;base64,AA==","theme":"light"}],
-    "inputSchema":{"type":"object"},
-    "outputSchema":{"type":"object"},
-    "annotations":{"title":"Tool annotation","readOnlyHint":true},
-    "_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"},"vendor/example":{"x":1}}
-  }`)
+  let tool = (~name, ~outputSchema): FrontmanClient__Relay__Types.remoteTool => {
+    name,
+    description: name,
+    access: None,
+    inputSchema: JSON.Encode.object(Dict.make()),
+    outputSchema,
+    visibleToAgent: true,
+  }
   relay.state :=
     Relay.Connected({
-      tools: [tool],
-      serverInfo: {name: "test", version: "1"},
+      tools: [
+        tool(~name="structured", ~outputSchema=Some(JSON.Encode.object(Dict.make()))),
+        tool(~name="content_only", ~outputSchema=None),
+      ],
+      serverInfo: {
+        name: "test",
+        version: "1",
+        title: None,
+        description: None,
+        websiteUrl: None,
+        icons: None,
+      },
     })
 
-  t
-  ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(jsonString))
-  ->Expect.toEqual(Some(JSON.stringify(tool)))
-  t->expect(relay->Relay.hasTool("tool"))->Expect.toBe(true)
-  JSON.parseOrThrow(`{"content":[]}`)
-  ->S.parseOrThrow(~to=FrontmanClient__MCP__Types.callToolResultSchema)
-  ->ignore
+  let definitions = relay->Relay.getToolsJson->Array.map(json => JSON.stringify(json))
+  t->expect(definitions[0]->Option.getOrThrow->String.includes("outputSchema"))->Expect.toBe(true)
+  t->expect(definitions[1]->Option.getOrThrow->String.includes("outputSchema"))->Expect.toBe(false)
 })

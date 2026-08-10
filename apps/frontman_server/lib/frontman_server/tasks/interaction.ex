@@ -905,19 +905,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp scrub_result_metadata(changeset) do
       case get_change(changeset, :result) do
-        %{} = result ->
-          put_change(changeset, :result, scrub_result_metadata_value(result))
-
-        _missing_or_invalid ->
-          changeset
+        %{} = result -> put_change(changeset, :result, Map.put(result, "_meta", %{}))
+        _missing_or_invalid -> changeset
       end
-    end
-
-    defp scrub_result_metadata_value(result) do
-      result
-      |> Map.take(["content", "structuredContent", "isError"])
-      |> Map.put_new("isError", false)
-      |> Map.put("_meta", %{})
     end
 
     defp derive_is_error(changeset) do

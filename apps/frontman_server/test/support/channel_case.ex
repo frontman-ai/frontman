@@ -34,41 +34,6 @@ defmodule FrontmanServerWeb.ChannelCase do
     end
   end
 
-  def mcp_discovery_result(overrides \\ %{}) do
-    Map.merge(
-      %{
-        "resultType" => "complete",
-        "supportedVersions" => [ModelContextProtocol.protocol_version()],
-        "capabilities" => %{
-          "tools" => %{"listChanged" => false},
-          "extensions" => %{
-            "ai.frontman/execution-context" => %{"version" => 1},
-            "ai.frontman/tool-metadata" => %{"version" => 1}
-          }
-        },
-        "ttlMs" => 0,
-        "cacheScope" => "private",
-        "_meta" => %{
-          "io.modelcontextprotocol/serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
-        }
-      },
-      overrides
-    )
-  end
-
-  def mcp_tools_result(tools, overrides \\ %{}) do
-    Map.merge(
-      %{
-        "resultType" => "complete",
-        "tools" => tools,
-        "ttlMs" => 0,
-        "cacheScope" => "private",
-        "_meta" => mcp_discovery_result()["_meta"]
-      },
-      overrides
-    )
-  end
-
   @doc """
   Completes the MCP handshake and optional project-context loading.
 
@@ -78,22 +43,31 @@ defmodule FrontmanServerWeb.ChannelCase do
   defmacro complete_mcp_handshake(socket, opts \\ []) do
     quote do
       socket = unquote(socket)
-      opts = unquote(opts)
-      tools = Keyword.get(opts, :tools, [])
+      tools = unquote(opts) |> Keyword.get(:tools, [])
 
-      load_project_context = Keyword.get(opts, :load_project_context, true)
+      load_project_context = unquote(opts) |> Keyword.get(:load_project_context, true)
 
       :sys.get_state(socket.channel_pid)
-      assert_push("mcp:message", %{"id" => discovery_request_id, "method" => "server/discover"})
+      assert_push("mcp:message", %{"id" => init_request_id, "method" => "server/discover"})
 
-      discovery_result = FrontmanServerWeb.ChannelCase.mcp_discovery_result()
+      init_result = %{
+        "resultType" => "discovery",
+        "supportedVersions" => [ModelContextProtocol.protocol_version()],
+        "capabilities" => %{
+          "tools" => %{},
+          "extensions" => %{"ai.frontman/execution-context" => %{"version" => 1}}
+        },
+        "_meta" => %{
+          "io.modelcontextprotocol/serverInfo" => %{
+            "name" => "test-mcp",
+            "version" => "1.0.0"
+          }
+        },
+        "ttlMs" => 0,
+        "cacheScope" => "private"
+      }
 
-      push(
-        socket,
-        "mcp:message",
-        JsonRpc.success_response(discovery_request_id, discovery_result)
-      )
-
+      push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
       :sys.get_state(socket.channel_pid)
 
       assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
@@ -101,10 +75,12 @@ defmodule FrontmanServerWeb.ChannelCase do
       push(
         socket,
         "mcp:message",
-        JsonRpc.success_response(
-          tools_request_id,
-          FrontmanServerWeb.ChannelCase.mcp_tools_result(tools)
-        )
+        JsonRpc.success_response(tools_request_id, %{
+          "resultType" => "tools",
+          "tools" => tools,
+          "ttlMs" => 0,
+          "cacheScope" => "private"
+        })
       )
 
       :sys.get_state(socket.channel_pid)
@@ -147,7 +123,7 @@ defmodule FrontmanServerWeb.ChannelCase do
             "mcp:message",
             JsonRpc.success_response(project_structure_request_id, %{
               "resultType" => "complete",
-              "content" => [%{"type" => "text", "text" => Jason.encode!(%{"tree" => "."})}]
+              "content" => []
             })
           )
 
@@ -156,6 +132,10 @@ defmodule FrontmanServerWeb.ChannelCase do
         false ->
           :ok
       end
+
+      assert_push(@acp_message, %{
+        "method" => "mcp_initialization_complete"
+      })
     end
   end
 
@@ -211,10 +191,11 @@ defmodule FrontmanServerWeb.ChannelCase do
   @doc """
   Builds a JSON-RPC `session/prompt` request for channel tests.
 
+  Convenience wrapper around `build_acp_request/3`.
+
   ## Options
 
     * `:id` - JSON-RPC request id (default: `1`)
-    * `:message_id` - client-generated user message UUID (default: generated UUID)
     * `:text` - prompt text (default: `"Hello"`)
     * `:_meta` - _meta map with selected model and agent
 
@@ -222,28 +203,21 @@ defmodule FrontmanServerWeb.ChannelCase do
 
       build_prompt_request()
       build_prompt_request(id: 42, text: "Next question")
-      build_prompt_request(_meta: %{"model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}})
+      build_prompt_request(_meta: %{"model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}})
   """
   def build_prompt_request(opts \\ []) do
-    message_id =
-      case Keyword.fetch(opts, :message_id) do
-        {:ok, message_id} -> message_id
-        :error -> Ecto.UUID.generate()
-      end
-
+    id = Keyword.get(opts, :id, 1)
     text = Keyword.get(opts, :text, "Hello")
 
     meta =
-      opts
-      |> Keyword.get(:_meta, %{
-        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
+      Keyword.get(opts, :_meta, %{
+        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
         "agent" => "test-frontman"
       })
-      |> Map.put("frontman.dev/messageId", message_id)
 
     params = %{"prompt" => [%{"type" => "text", "text" => text}], "_meta" => meta}
 
-    build_acp_request("session/prompt", Keyword.get(opts, :id, 1), params)
+    build_acp_request("session/prompt", id, params)
   end
 
   @doc """
@@ -284,7 +258,7 @@ defmodule FrontmanServerWeb.ChannelCase do
       })
 
     scope = Scope.for_user(user)
-    :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
     {:ok, scope: scope, user: user}
   end

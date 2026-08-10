@@ -1,80 +1,43 @@
 {
-  "anyOf": [
-    {
-      "type": "object",
-      "properties": {
-        "jsonrpc": {
-          "type": "string",
-          "const": "2.0"
+  "type": "object",
+  "properties": {
+    "jsonrpc": {
+      "type": "string"
+    },
+    "id": {
+      "anyOf": [
+        {
+          "type": "string"
         },
-        "id": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -2147483648,
-              "maximum": 2147483647
-            },
-            {
-              "type": "string"
-            }
-          ]
-        },
-        "result": {},
-        "error": {
-          "not": {}
+        {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991
         }
-      },
-      "required": [
-        "jsonrpc",
-        "id",
-        "result"
       ]
     },
-    {
+    "result": {},
+    "error": {
       "type": "object",
       "properties": {
-        "jsonrpc": {
-          "type": "string",
-          "const": "2.0"
+        "code": {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
         },
-        "id": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -2147483648,
-              "maximum": 2147483647
-            },
-            {
-              "type": "string"
-            }
-          ]
+        "message": {
+          "type": "string"
         },
-        "error": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "type": "integer",
-              "minimum": -2147483648,
-              "maximum": 2147483647
-            },
-            "message": {
-              "type": "string"
-            },
-            "data": {}
-          },
-          "required": [
-            "code",
-            "message"
-          ]
-        },
-        "result": {
-          "not": {}
-        }
+        "data": {}
       },
       "required": [
-        "jsonrpc",
-        "error"
+        "code",
+        "message"
       ]
     }
+  },
+  "required": [
+    "jsonrpc",
+    "id"
   ]
 }

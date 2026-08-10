@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "const": "url"
+    },
+    "message": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri"
+    }
+  },
+  "required": [
+    "mode",
+    "message",
+    "url"
+  ]
+}

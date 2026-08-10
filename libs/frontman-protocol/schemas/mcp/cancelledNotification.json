@@ -1,0 +1,133 @@
+{
+  "type": "object",
+  "properties": {
+    "jsonrpc": {
+      "type": "string",
+      "const": "2.0"
+    },
+    "method": {
+      "type": "string",
+      "const": "notifications/cancelled"
+    },
+    "params": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true,
+          "maxProperties": 64,
+          "propertyNames": {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          "properties": {
+            "io.modelcontextprotocol/subscriptionId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991
+                }
+              ]
+            }
+          }
+        }
+      },
+      "required": [
+        "requestId"
+      ]
+    }
+  },
+  "required": [
+    "jsonrpc",
+    "method",
+    "params"
+  ],
+  "allOf": [
+    {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "method": {
+          "type": "string",
+          "const": "notifications/cancelled"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer",
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991
+                }
+              ]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "_meta": {
+              "type": "object",
+              "additionalProperties": true,
+              "maxProperties": 64,
+              "propertyNames": {
+                "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+              },
+              "properties": {
+                "io.modelcontextprotocol/subscriptionId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "required": [
+            "requestId"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method",
+        "params"
+      ]
+    },
+    {
+      "properties": {
+        "id": false
+      }
+    }
+  ]
+}

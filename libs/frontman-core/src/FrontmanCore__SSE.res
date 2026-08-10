@@ -13,9 +13,17 @@ let progressEvent = (~progress: string): string => {
 let resultEvent = (result: MCP.CallToolResult.t): string => {
   let data =
     result
-    ->S.decodeOrThrow(~from=MCP.callToolResultSchema, ~to=S.json->S.noValidation(true))
+    ->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json->S.noValidation(true))
     ->JSON.stringify
   formatEvent(~eventType="result", ~data)
+}
+
+let errorEvent = (result: MCP.CallToolResult.t): string => {
+  let data =
+    result
+    ->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json->S.noValidation(true))
+    ->JSON.stringify
+  formatEvent(~eventType="error", ~data)
 }
 
 let headers = () => {

@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolCallId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "taskId",
+    "toolCallId"
+  ]
+}

@@ -231,6 +231,7 @@ defmodule FrontmanServer.TasksTest do
              ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 
       assert result == %{
+               "resultType" => "complete",
                "content" => [%{"type" => "text", "text" => "Interrupted by restart"}],
                "isError" => true,
                "_meta" => %{}
@@ -651,6 +652,7 @@ defmodule FrontmanServer.TasksTest do
       {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, tc)
 
       untrusted_result = %{
+        "resultType" => "complete",
         "content" => [
           %{"type" => "text", "text" => "4", "audience" => ["assistant"]}
         ],
@@ -664,10 +666,11 @@ defmodule FrontmanServer.TasksTest do
       }
 
       sanitized_result = %{
+        "resultType" => "complete",
         "content" => [%{"type" => "text", "text" => "4", "audience" => ["assistant"]}],
         "structuredContent" => %{"answer" => 4},
-        "isError" => false,
-        "_meta" => %{}
+        "_meta" => %{},
+        "unknownTopLevel" => "drop me"
       }
 
       {:ok, persisted_result, _} =

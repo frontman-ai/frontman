@@ -1,0 +1,197 @@
+{
+  "type": "object",
+  "properties": {
+    "resultType": {
+      "type": "string"
+    },
+    "tools": {
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "$schema": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "const": "object"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "$schema": {
+                "type": "string"
+              }
+            }
+          },
+          "icons": {
+            "items": {
+              "type": "object",
+              "properties": {
+                "src": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "sizes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "theme": {
+                  "enum": [
+                    "dark",
+                    "light"
+                  ]
+                }
+              },
+              "required": [
+                "src"
+              ]
+            },
+            "type": "array"
+          },
+          "annotations": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "destructiveHint": {
+                "type": "boolean"
+              },
+              "idempotentHint": {
+                "type": "boolean"
+              },
+              "openWorldHint": {
+                "type": "boolean"
+              },
+              "readOnlyHint": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true,
+            "maxProperties": 64,
+            "propertyNames": {
+              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "inputSchema"
+        ]
+      },
+      "type": "array"
+    },
+    "nextCursor": {
+      "type": "string"
+    },
+    "ttlMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cacheScope": {
+      "enum": [
+        "private",
+        "public"
+      ]
+    },
+    "_meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "maxProperties": 64,
+      "propertyNames": {
+        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+      },
+      "properties": {
+        "io.modelcontextprotocol/serverInfo": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "websiteUrl": {
+              "type": "string",
+              "format": "uri"
+            },
+            "icons": {
+              "items": {
+                "type": "object",
+                "properties": {
+                  "src": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "sizes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "theme": {
+                    "enum": [
+                      "dark",
+                      "light"
+                    ]
+                  }
+                },
+                "required": [
+                  "src"
+                ]
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ]
+        }
+      }
+    }
+  },
+  "required": [
+    "resultType",
+    "tools",
+    "ttlMs",
+    "cacheScope"
+  ]
+}

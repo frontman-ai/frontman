@@ -8,14 +8,18 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
   blocks->Array.forEach(block =>
     switch block {
     | EmbeddedResource({_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})})
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) !=
-        None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.screenshotMetaSchema)
-      if parsed.annotationScreenshot {
+      if meta->Dict.has("annotation_screenshot") =>
+      let parsed = S.parseOrThrow(
+        JSON.Encode.object(meta),
+        ~to=Client__Task__Types.screenshotMetaSchema,
+      )
+      switch parsed.annotationScreenshot {
+      | true =>
         screenshotMap->Dict.set(
           parsed.annotationId,
           `data:${mimeType->Option.getOrThrow};base64,${blob}`,
         )
+      | false => ()
       }
     | _ => ()
     }
@@ -28,9 +32,13 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
     | TextContent({text}) =>
       content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
     | EmbeddedResource({_meta: Some(meta), resource: TextResourceContents(_)})
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation")) != None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.annotationMetaSchema)
-      if parsed.annotation {
+      if meta->Dict.has("annotation") =>
+      let parsed = S.parseOrThrow(
+        JSON.Encode.object(meta),
+        ~to=Client__Task__Types.annotationMetaSchema,
+      )
+      switch parsed.annotation {
+      | true =>
         annotations
         ->Array.push(
           Client__Task__Types.annotationMetaToMessageAnnotation(
@@ -39,12 +47,13 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
           ),
         )
         ->ignore
+      | false => ()
       }
     | EmbeddedResource({_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}) =>
-      switch meta->JSON.Decode.object {
-      | Some(d) if d->Dict.get("user_image") == Some(JSON.Encode.bool(true)) =>
+      switch meta->Dict.get("user_image")->Option.flatMap(JSON.Decode.bool) {
+      | Some(true) =>
         let filename =
-          d->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
+          meta->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
         let mime = mimeType->Option.getOrThrow
         content
         ->Array.push(
@@ -56,7 +65,7 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
           }),
         )
         ->ignore
-      | _ => ()
+      | Some(false) | None => ()
       }
     | _ => ()
     }

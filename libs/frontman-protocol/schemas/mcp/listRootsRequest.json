@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "properties": {
+    "method": {
+      "type": "string",
+      "const": "roots/list"
+    },
+    "params": {
+      "type": "object",
+      "properties": {
+        "_meta": {
+          "type": "object",
+          "additionalProperties": true,
+          "maxProperties": 64,
+          "propertyNames": {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "method"
+  ]
+}

@@ -23,28 +23,34 @@
                 "text": {
                   "type": "string"
                 },
-                "_meta": {},
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 }
               },
@@ -61,33 +67,40 @@
                   "const": "image"
                 },
                 "data": {
-                  "type": "string"
+                  "type": "string",
+                  "format": "byte"
                 },
                 "mimeType": {
                   "type": "string"
                 },
-                "_meta": {},
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 }
               },
@@ -105,33 +118,40 @@
                   "const": "audio"
                 },
                 "data": {
-                  "type": "string"
+                  "type": "string",
+                  "format": "byte"
                 },
                 "mimeType": {
                   "type": "string"
                 },
-                "_meta": {},
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 }
               },
@@ -151,10 +171,11 @@
                 "name": {
                   "type": "string"
                 },
-                "title": {
-                  "type": "string"
-                },
                 "uri": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "title": {
                   "type": "string"
                 },
                 "description": {
@@ -164,32 +185,66 @@
                   "type": "string"
                 },
                 "size": {
-                  "type": "number",
-                  "multipleOf": 1,
-                  "minimum": 0
+                  "type": "integer"
                 },
-                "_meta": {},
+                "icons": {
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "src": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "mimeType": {
+                        "type": "string"
+                      },
+                      "sizes": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "theme": {
+                        "enum": [
+                          "dark",
+                          "light"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "src"
+                    ]
+                  },
+                  "type": "array"
+                },
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 }
               },
@@ -206,28 +261,34 @@
                   "type": "string",
                   "const": "resource"
                 },
-                "_meta": {},
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 },
                 "resource": {
@@ -236,7 +297,8 @@
                       "type": "object",
                       "properties": {
                         "uri": {
-                          "type": "string"
+                          "type": "string",
+                          "format": "uri"
                         },
                         "mimeType": {
                           "type": "string"
@@ -244,7 +306,14 @@
                         "text": {
                           "type": "string"
                         },
-                        "_meta": {}
+                        "_meta": {
+                          "type": "object",
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "propertyNames": {
+                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                          }
+                        }
                       },
                       "required": [
                         "uri",
@@ -255,15 +324,24 @@
                       "type": "object",
                       "properties": {
                         "uri": {
-                          "type": "string"
+                          "type": "string",
+                          "format": "uri"
                         },
                         "mimeType": {
                           "type": "string"
                         },
                         "blob": {
-                          "type": "string"
+                          "type": "string",
+                          "format": "byte"
                         },
-                        "_meta": {}
+                        "_meta": {
+                          "type": "object",
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "propertyNames": {
+                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                          }
+                        }
                       },
                       "required": [
                         "uri",
@@ -329,28 +407,34 @@
                 "text": {
                   "type": "string"
                 },
-                "_meta": {},
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 }
               },
@@ -367,33 +451,40 @@
                   "const": "image"
                 },
                 "data": {
-                  "type": "string"
+                  "type": "string",
+                  "format": "byte"
                 },
                 "mimeType": {
                   "type": "string"
                 },
-                "_meta": {},
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 }
               },
@@ -411,33 +502,40 @@
                   "const": "audio"
                 },
                 "data": {
-                  "type": "string"
+                  "type": "string",
+                  "format": "byte"
                 },
                 "mimeType": {
                   "type": "string"
                 },
-                "_meta": {},
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 }
               },
@@ -457,10 +555,11 @@
                 "name": {
                   "type": "string"
                 },
-                "title": {
-                  "type": "string"
-                },
                 "uri": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "title": {
                   "type": "string"
                 },
                 "description": {
@@ -470,32 +569,66 @@
                   "type": "string"
                 },
                 "size": {
-                  "type": "number",
-                  "multipleOf": 1,
-                  "minimum": 0
+                  "type": "integer"
                 },
-                "_meta": {},
+                "icons": {
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "src": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "mimeType": {
+                        "type": "string"
+                      },
+                      "sizes": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "theme": {
+                        "enum": [
+                          "dark",
+                          "light"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "src"
+                    ]
+                  },
+                  "type": "array"
+                },
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 }
               },
@@ -512,28 +645,34 @@
                   "type": "string",
                   "const": "resource"
                 },
-                "_meta": {},
+                "_meta": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "maxProperties": 64,
+                  "propertyNames": {
+                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                  }
+                },
                 "annotations": {
                   "type": "object",
                   "properties": {
                     "audience": {
                       "items": {
                         "enum": [
-                          "user",
-                          "assistant"
+                          "assistant",
+                          "user"
                         ]
                       },
                       "type": "array"
                     },
                     "priority": {
                       "type": "number",
-                      "maximum": 1,
-                      "minimum": 0
+                      "minimum": 0,
+                      "maximum": 1
                     },
                     "lastModified": {
                       "type": "string"
-                    },
-                    "_meta": {}
+                    }
                   }
                 },
                 "resource": {
@@ -542,7 +681,8 @@
                       "type": "object",
                       "properties": {
                         "uri": {
-                          "type": "string"
+                          "type": "string",
+                          "format": "uri"
                         },
                         "mimeType": {
                           "type": "string"
@@ -550,7 +690,14 @@
                         "text": {
                           "type": "string"
                         },
-                        "_meta": {}
+                        "_meta": {
+                          "type": "object",
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "propertyNames": {
+                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                          }
+                        }
                       },
                       "required": [
                         "uri",
@@ -561,15 +708,24 @@
                       "type": "object",
                       "properties": {
                         "uri": {
-                          "type": "string"
+                          "type": "string",
+                          "format": "uri"
                         },
                         "mimeType": {
                           "type": "string"
                         },
                         "blob": {
-                          "type": "string"
+                          "type": "string",
+                          "format": "byte"
                         },
-                        "_meta": {}
+                        "_meta": {
+                          "type": "object",
+                          "additionalProperties": true,
+                          "maxProperties": 64,
+                          "propertyNames": {
+                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                          }
+                        }
                       },
                       "required": [
                         "uri",
@@ -658,28 +814,34 @@
                           "text": {
                             "type": "string"
                           },
-                          "_meta": {},
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           }
                         },
@@ -696,33 +858,40 @@
                             "const": "image"
                           },
                           "data": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "byte"
                           },
                           "mimeType": {
                             "type": "string"
                           },
-                          "_meta": {},
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           }
                         },
@@ -740,33 +909,40 @@
                             "const": "audio"
                           },
                           "data": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "byte"
                           },
                           "mimeType": {
                             "type": "string"
                           },
-                          "_meta": {},
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           }
                         },
@@ -786,10 +962,11 @@
                           "name": {
                             "type": "string"
                           },
-                          "title": {
-                            "type": "string"
-                          },
                           "uri": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "title": {
                             "type": "string"
                           },
                           "description": {
@@ -799,32 +976,66 @@
                             "type": "string"
                           },
                           "size": {
-                            "type": "number",
-                            "multipleOf": 1,
-                            "minimum": 0
+                            "type": "integer"
                           },
-                          "_meta": {},
+                          "icons": {
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "src": {
+                                  "type": "string",
+                                  "format": "uri"
+                                },
+                                "mimeType": {
+                                  "type": "string"
+                                },
+                                "sizes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "theme": {
+                                  "enum": [
+                                    "dark",
+                                    "light"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "src"
+                              ]
+                            },
+                            "type": "array"
+                          },
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           }
                         },
@@ -841,28 +1052,34 @@
                             "type": "string",
                             "const": "resource"
                           },
-                          "_meta": {},
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           },
                           "resource": {
@@ -871,7 +1088,8 @@
                                 "type": "object",
                                 "properties": {
                                   "uri": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "format": "uri"
                                   },
                                   "mimeType": {
                                     "type": "string"
@@ -879,7 +1097,14 @@
                                   "text": {
                                     "type": "string"
                                   },
-                                  "_meta": {}
+                                  "_meta": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "maxProperties": 64,
+                                    "propertyNames": {
+                                      "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    }
+                                  }
                                 },
                                 "required": [
                                   "uri",
@@ -890,15 +1115,24 @@
                                 "type": "object",
                                 "properties": {
                                   "uri": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "format": "uri"
                                   },
                                   "mimeType": {
                                     "type": "string"
                                   },
                                   "blob": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "format": "byte"
                                   },
-                                  "_meta": {}
+                                  "_meta": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "maxProperties": 64,
+                                    "propertyNames": {
+                                      "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    }
+                                  }
                                 },
                                 "required": [
                                   "uri",
@@ -1033,28 +1267,34 @@
                           "text": {
                             "type": "string"
                           },
-                          "_meta": {},
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           }
                         },
@@ -1071,33 +1311,40 @@
                             "const": "image"
                           },
                           "data": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "byte"
                           },
                           "mimeType": {
                             "type": "string"
                           },
-                          "_meta": {},
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           }
                         },
@@ -1115,33 +1362,40 @@
                             "const": "audio"
                           },
                           "data": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "byte"
                           },
                           "mimeType": {
                             "type": "string"
                           },
-                          "_meta": {},
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           }
                         },
@@ -1161,10 +1415,11 @@
                           "name": {
                             "type": "string"
                           },
-                          "title": {
-                            "type": "string"
-                          },
                           "uri": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "title": {
                             "type": "string"
                           },
                           "description": {
@@ -1174,32 +1429,66 @@
                             "type": "string"
                           },
                           "size": {
-                            "type": "number",
-                            "multipleOf": 1,
-                            "minimum": 0
+                            "type": "integer"
                           },
-                          "_meta": {},
+                          "icons": {
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "src": {
+                                  "type": "string",
+                                  "format": "uri"
+                                },
+                                "mimeType": {
+                                  "type": "string"
+                                },
+                                "sizes": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "theme": {
+                                  "enum": [
+                                    "dark",
+                                    "light"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "src"
+                              ]
+                            },
+                            "type": "array"
+                          },
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           }
                         },
@@ -1216,28 +1505,34 @@
                             "type": "string",
                             "const": "resource"
                           },
-                          "_meta": {},
+                          "_meta": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "maxProperties": 64,
+                            "propertyNames": {
+                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            }
+                          },
                           "annotations": {
                             "type": "object",
                             "properties": {
                               "audience": {
                                 "items": {
                                   "enum": [
-                                    "user",
-                                    "assistant"
+                                    "assistant",
+                                    "user"
                                   ]
                                 },
                                 "type": "array"
                               },
                               "priority": {
                                 "type": "number",
-                                "maximum": 1,
-                                "minimum": 0
+                                "minimum": 0,
+                                "maximum": 1
                               },
                               "lastModified": {
                                 "type": "string"
-                              },
-                              "_meta": {}
+                              }
                             }
                           },
                           "resource": {
@@ -1246,7 +1541,8 @@
                                 "type": "object",
                                 "properties": {
                                   "uri": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "format": "uri"
                                   },
                                   "mimeType": {
                                     "type": "string"
@@ -1254,7 +1550,14 @@
                                   "text": {
                                     "type": "string"
                                   },
-                                  "_meta": {}
+                                  "_meta": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "maxProperties": 64,
+                                    "propertyNames": {
+                                      "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    }
+                                  }
                                 },
                                 "required": [
                                   "uri",
@@ -1265,15 +1568,24 @@
                                 "type": "object",
                                 "properties": {
                                   "uri": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "format": "uri"
                                   },
                                   "mimeType": {
                                     "type": "string"
                                   },
                                   "blob": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "format": "byte"
                                   },
-                                  "_meta": {}
+                                  "_meta": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "maxProperties": 64,
+                                    "propertyNames": {
+                                      "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    }
+                                  }
                                 },
                                 "required": [
                                   "uri",

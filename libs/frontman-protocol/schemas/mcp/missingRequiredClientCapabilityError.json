@@ -1,0 +1,109 @@
+{
+  "type": "object",
+  "properties": {
+    "jsonrpc": {
+      "type": "string",
+      "const": "2.0"
+    },
+    "id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991
+        }
+      ]
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "number",
+          "const": -32021
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "requiredCapabilities": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "elicitation": {
+                  "type": "object",
+                  "properties": {
+                    "form": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "url": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                },
+                "experimental": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "extensions": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  },
+                  "propertyNames": {
+                    "allOf": [
+                      {
+                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                      },
+                      {
+                        "pattern": "/"
+                      }
+                    ]
+                  }
+                },
+                "roots": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "sampling": {
+                  "type": "object",
+                  "properties": {
+                    "context": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "tools": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "required": [
+            "requiredCapabilities"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "data"
+      ]
+    }
+  },
+  "required": [
+    "jsonrpc",
+    "error"
+  ]
+}

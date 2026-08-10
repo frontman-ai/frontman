@@ -68,7 +68,7 @@ HELP_dev-nextjs-prebuilt := Start Next.js test site with prebuilt integration
 HELP_dev-marketing := Start development server for marketing site
 
 HELP_BUILD_TITLE := Build & Quality
-HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
+HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments mcp-verify clean
 HELP_install := Install dependencies
 HELP_hooks-install := Install git pre-commit hooks via Lefthook
 HELP_setup-elixir-tools := Install Hex/Rebar for the active mise Elixir
@@ -79,6 +79,7 @@ HELP_rescript-build := Build ReScript project (one-shot)
 HELP_rescript-format := Format ReScript source
 HELP_reanalyze := Run ReScript dead code analysis
 HELP_check-source-comments := Test scanner and check repository source comments
+HELP_mcp-verify := Verify the MCP oracle and normative traceability offline
 HELP_clean := Clean ReScript build artifacts
 
 HELP_SSL_TITLE := SSL & Networking
@@ -176,7 +177,7 @@ dev-marketing:
 
 
 
-.PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments
+.PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments mcp-verify
 
 install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -241,6 +242,9 @@ reanalyze:
 check-source-comments:
 	node --test test/no-comments/no-comments.test.mjs
 	node scripts/no-comments.mjs --check
+
+mcp-verify:
+	$(MAKE) -C libs/frontman-protocol mcp-verify
 
 clean:
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
