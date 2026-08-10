@@ -95,7 +95,6 @@ defmodule FrontmanServer.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_json_schema, "~> 0.10", only: :test},
       {:bypass, "~> 2.1", only: :test},
       {:mox, "~> 1.2", only: :test},
       {:toml, github: "bitwalker/toml-elixir", branch: "main", override: true}
