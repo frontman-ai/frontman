@@ -25,7 +25,7 @@
     "astro-broken-links-checker": "^1.1.0",
     "astro-icon": "^1.1.5",
     "hc-starlight": "^0.0.8",
-    "marked": "^18.0.4",
+    "marked": "^18.0.6",
     "preact": "^10.29.7",
     "prettier": "^3.9.4",
     "prettier-plugin-astro": "^0.14.0",
