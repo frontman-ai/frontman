@@ -54,7 +54,7 @@ preview: ## Preview production build
 	yarn vite preview
 
 publish:
-	SENTRY_DSN=op://frontman/SENTRY_DSN/password op run -- $(MAKE) build-lib
+	$(MAKE) build-lib
 	npm publish
 
 check: lint ## Run all checks (lint + test)

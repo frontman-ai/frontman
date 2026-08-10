@@ -16,6 +16,7 @@ Client__Heap.init()
 
 type clientConfig = {
   clientName: string,
+  sentryDsn: option<string>,
   endpoint: string,
   tokenUrl: string,
   loginUrl: string,
@@ -37,6 +38,7 @@ let getConfig = (): clientConfig => {
   }
   {
     clientName: get("clientName")->Option.getOr("unknown"),
+    sentryDsn: get("sentryDsn"),
     endpoint: `wss://${host}/socket`,
     tokenUrl: `https://${host}/api/socket-token`,
     loginUrl: `https://${host}/users/log-in`,
@@ -53,6 +55,9 @@ WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoade
   | Some(rootElement) =>
     let root = ReactDOM.Client.createRoot(rootElement->WebAPI.Element.asRescriptElement)
     let config = getConfig()
+    config.sentryDsn->Option.forEach(dsn =>
+      FrontmanAiFrontmanClient.FrontmanClient__Sentry.initialize(~dsn)
+    )
     root->ReactDOM.Client.Root.render(
       <React.StrictMode>
         <Client__FrontmanProvider.Provider

@@ -79,8 +79,6 @@ type jsConfigInput = {
 let makeFromObject = (config: jsConfigInput): t => {
   let host = config.host->Option.getOr(defaultHost)->normalizeHost
 
-  // isDev is inferred from the host: api.frontman.sh is the only production server,
-  // everything else (e.g. frontman.local:4000) is dev. Can be overridden explicitly.
   let isDev = config.isDev->Option.getOr(host != Hosts.apiHost->String.toLowerCase)
 
   let projectRoot =
@@ -97,29 +95,14 @@ let makeFromObject = (config: jsConfigInput): t => {
   let serverName = config.serverName->Option.getOr("frontman-vite")
   let serverVersion = config.serverVersion->Option.getOr(packageVersion)
 
-  let clientUrl = {
-    let baseUrl = config.clientUrl->Option.getOr(
-      Bindings.Process.env
-      ->Dict.get("FRONTMAN_CLIENT_URL")
-      ->Option.getOr(
-        switch isDev {
-        | true => Hosts.devClientJs
-        | false => Hosts.clientJs
-        },
-      ),
-    )
-    // Ensure clientUrl always has the required query params the client reads from import.meta.url
-    let url = WebAPI.URL.make(~url=baseUrl)
-    switch url.searchParams->WebAPI.URLSearchParams.has(~name="clientName") {
-    | true => ()
-    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="vite")
-    }
-    switch url.searchParams->WebAPI.URLSearchParams.has(~name="host") {
-    | true => ()
-    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
-    }
-    url.href
-  }
+  let clientUrl = Hosts.clientUrl(
+    ~baseUrl=config.clientUrl,
+    ~clientName="vite",
+    ~host,
+    ~isDev,
+    ~sentryDsn=Bindings.Process.envString("SENTRY_DSN"),
+    ~preserveExisting=true,
+  )
 
   {
     isDev,

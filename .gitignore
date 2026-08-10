@@ -15,6 +15,7 @@ lib/
 
 # Node
 node_modules/
+coverage/
 
 # Environment variables
 .env.local

@@ -6,28 +6,25 @@ module SentryFilter = FrontmanBindings.Sentry__Filter
 module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
 describe("FrontmanClient Sentry", () => {
+  let dsn = "https://public@example.invalid/1"
   let testkit = ref(None)
   let transport = ref(None)
 
-  // Set up testkit once - Sentry SDK only allows one init per process
   beforeAll(() => {
     let (tk, t) = SentryTestkit.setup()
     testkit := Some(tk)
     transport := Some(t)
   })
 
-  // Reset state before each test
   beforeEach(() => {
-    // Clear testkit reports
     switch testkit.contents {
     | Some(tk) => tk.reset()
     | None => ()
     }
 
-    // Reset initialized flag and reinitialize with testkit transport
     Sentry.initialized.contents = false
     switch transport.contents {
-    | Some(t) => Sentry.initialize(~transport=t)
+    | Some(t) => Sentry.initialize(~dsn, ~transport=t)
     | None => ()
     }
   })
@@ -36,20 +33,16 @@ describe("FrontmanClient Sentry", () => {
     test(
       "initializes only once",
       t => {
-        // Already initialized in beforeEach
         let initialReportCount = switch testkit.contents {
         | Some(tk) => tk.reports()->Array.length
         | None => 0
         }
 
-        // Try to initialize again
         Sentry.initialize()
-        Sentry.initialize()
+        Sentry.initialize(~dsn)
 
-        // Should still work, no errors
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
 
-        // Report count shouldn't change from double init
         switch testkit.contents {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(initialReportCount)
         | None => ()

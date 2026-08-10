@@ -69,7 +69,6 @@ jobs:
       # Disable Yarn hardened mode — adds ~20s to resolution for public-PR detection.
       # --immutable already prevents lockfile changes, so hardened mode is redundant.
       YARN_ENABLE_HARDENED_MODE: "0"
-      SENTRY_DSN: https://public@example.invalid/1
       # OpenAI OAuth tokens for the E2E test user.
       # Backing repo secrets still use the legacy ChatGPT names; expose the new
       # OpenAI env names to the app without requiring a GitHub secrets migration.

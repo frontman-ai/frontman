@@ -10,7 +10,7 @@ type scopeContext = Types.scopeContext
 type transport = Types.transport
 
 type initOptions = {
-  dsn: string,
+  dsn?: string,
   environment?: string,
   release?: string,
   sampleRate?: float,
@@ -18,24 +18,11 @@ type initOptions = {
   debug?: bool,
   enabled?: bool,
   initialScope?: scopeContext,
-  beforeSend?: (sentryEvent, eventHint) => Nullable.t<sentryEvent>,
-}
-
-type initOptionsWithTransport = {
-  dsn: string,
-  environment?: string,
-  release?: string,
-  sampleRate?: float,
-  tracesSampleRate?: float,
-  debug?: bool,
-  enabled?: bool,
-  initialScope?: scopeContext,
-  transport: transport,
+  transport?: transport,
   beforeSend?: (sentryEvent, eventHint) => Nullable.t<sentryEvent>,
 }
 
 @module("@sentry/nextjs") external init: initOptions => unit = "init"
-@module("@sentry/nextjs") external initWithTransport: initOptionsWithTransport => unit = "init"
 @module("@sentry/nextjs")
 external captureException: (exn, ~hint: eventHint=?) => string = "captureException"
 @module("@sentry/nextjs")

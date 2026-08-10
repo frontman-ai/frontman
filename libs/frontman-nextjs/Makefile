@@ -7,8 +7,7 @@ help: ## Display this help message
 build: ## Build ReScript + bundle
 	yarn build
 
-publish: ## Build and publish to npm (pass OTP=<code> for 2FA)
-	SENTRY_DSN=op://frontman/SENTRY_DSN/password op run -- $(MAKE) build
+publish: build ## Build and publish to npm (pass OTP=<code> for 2FA)
 	@PKG=$$(node -e "const p=require('./package.json'); console.log(p.name+'@'+p.version)"); \
 	if npm view "$$PKG" version >/dev/null 2>&1; then \
 		echo "Skipping $$PKG — already published"; \
@@ -16,16 +15,14 @@ publish: ## Build and publish to npm (pass OTP=<code> for 2FA)
 	fi; \
 	npm publish $(if $(OTP),--otp=$(OTP))
 
-test: ## Run tests
-	SENTRY_DSN=https://public@example.invalid/1 $(MAKE) build
-	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run
+test: build ## Run tests
+	yarn vitest run
 
 test-watch: ## Run tests in watch mode
-	SENTRY_DSN=https://public@example.invalid/1 yarn vitest
+	yarn vitest
 
-test-coverage: ## Run tests with coverage
-	SENTRY_DSN=https://public@example.invalid/1 $(MAKE) build
-	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run --coverage
+test-coverage: build ## Run tests with coverage
+	yarn vitest run --coverage
 
 lint: ## Check formatting
 	yarn rescript format --check src test

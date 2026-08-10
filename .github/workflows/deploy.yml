@@ -55,7 +55,6 @@ jobs:
       - name: Build client standalone bundle
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: make -C libs/client build-standalone
 
       - name: Upload client bundle

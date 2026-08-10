@@ -169,17 +169,13 @@ let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
   }
 }
 
-// Connect and initialize ACP
 @@live
 let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
   connection,
   connectError,
 > => {
-  // Initialize Sentry on first connection
-  Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
 
-  // Fetch socket token
   let tokenResult = switch await fetchSocketToken(config.tokenUrl) {
   | Ok(token) => Ok(token)
   | Error(NotAuthenticated) => Error(AuthRequired({loginUrl: config.loginUrl}))

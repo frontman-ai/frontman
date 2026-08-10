@@ -104,6 +104,10 @@ class Frontman_UI {
 			],
 			$base_js_url
 		);
+		$sentry_dsn = trim( (string) getenv( 'SENTRY_DSN' ) );
+		if ( '' !== $sentry_dsn ) {
+			$client_url = add_query_arg( 'sentryDsn', $sentry_dsn, $client_url );
+		}
 
 		// Runtime config — same shape as FrontmanCore__UIShell produces
 		// for Frontman browser clients. The page script reads this into window.__frontmanRuntime.

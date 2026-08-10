@@ -7,6 +7,8 @@ external exit: int => unit = "exit"
 // Process environment variables
 @val @scope("process") external env: Dict.t<string> = "env"
 
+let envString = name => env->Dict.get(name)->Option.filter(value => value->String.trim != "")
+
 // Current working directory
 @val @scope("process")
 external cwd: unit => string = "cwd"

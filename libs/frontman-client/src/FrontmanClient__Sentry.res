@@ -1,17 +1,16 @@
-// Frontman Sentry integration for browser client
-// Reports errors to Frontman's own Sentry project
-
 module Bindings = FrontmanBindings.Sentry__Browser
 module SentryConfig = FrontmanBindings.Sentry__Config
 module SentryFilter = FrontmanBindings.Sentry__Filter
 
 let initialized = ref(false)
 
-let initialize = (~transport: option<Bindings.transport>=?) => {
-  // Skip Sentry in Frontman internal dev; custom transport (tests) always initializes
-  if !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
+let initialize = (~dsn: option<string>=?, ~transport: option<Bindings.transport>=?) => {
+  if (
+    !initialized.contents &&
+    (Option.isSome(transport) || (Option.isSome(dsn) && !SentryConfig.isInternalDev()))
+  ) {
     Bindings.init({
-      dsn: SentryConfig.dsn(),
+      ?dsn,
       environment: %raw(`typeof window !== 'undefined' && window.location?.hostname === 'localhost' ? 'development' : 'production'`),
       sampleRate: 1.0,
       ?transport,

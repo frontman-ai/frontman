@@ -55,8 +55,6 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
   let config = ensureConfig(rawConfig)
   let host = config.host->Option.getOr(defaultHost)
 
-  // isDev is inferred from the host: the production API host is the only production server,
-  // everything else (e.g. frontman.local:4000) is dev.
   let isDev = host != Hosts.apiHost
 
   let projectRoot =
@@ -84,29 +82,14 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
   let serverName = config.serverName->Option.getOr("frontman-astro")
   let serverVersion = config.serverVersion->Option.getOr(packageVersion)
 
-  let clientUrl = {
-    let baseUrl = config.clientUrl->Option.getOr(
-      Bindings.Process.env
-      ->Dict.get("FRONTMAN_CLIENT_URL")
-      ->Option.getOr(
-        switch isDev {
-        | true => Hosts.devClientJs
-        | false => Hosts.clientJs
-        },
-      ),
-    )
-    // Ensure clientUrl always has the required query params the client reads from import.meta.url
-    let url = WebAPI.URL.make(~url=baseUrl)
-    switch url.searchParams->WebAPI.URLSearchParams.has(~name="clientName") {
-    | true => ()
-    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="astro")
-    }
-    switch url.searchParams->WebAPI.URLSearchParams.has(~name="host") {
-    | true => ()
-    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
-    }
-    url.href
-  }
+  let clientUrl = Hosts.clientUrl(
+    ~baseUrl=config.clientUrl,
+    ~clientName="astro",
+    ~host,
+    ~isDev,
+    ~sentryDsn=Bindings.Process.envString("SENTRY_DSN"),
+    ~preserveExisting=true,
+  )
 
   {
     isDev,

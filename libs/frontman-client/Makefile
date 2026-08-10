@@ -16,13 +16,13 @@ dev: ## Build the project in watch mode
 	yarn rescript watch
 
 test: build ## Run test suite
-	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run
+	yarn vitest run
 
 test-watch: ## Run tests in watch mode
-	SENTRY_DSN=https://public@example.invalid/1 yarn vitest watch
+	yarn vitest watch
 
 test-coverage: build ## Run tests with coverage
-	SENTRY_DSN=https://public@example.invalid/1 yarn vitest run --coverage
+	yarn vitest run --coverage
 
 lint: ## Check code formatting
 	yarn rescript format --check

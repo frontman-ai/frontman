@@ -1,39 +1,26 @@
-// Frontman Sentry integration for Next.js library
-// Reports errors to Frontman's own Sentry project
-
 module Bindings = FrontmanBindings.Sentry__Nextjs
 module SentryConfig = FrontmanBindings.Sentry__Config
 module SentryFilter = FrontmanBindings.Sentry__Filter
 
 let initialized = ref(false)
 
-let initialize = (~transport: option<Bindings.transport>=?) => {
-  // Skip Sentry in Frontman internal dev; custom transport (tests) always initializes
-  if !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
+let initialize = (~dsn: option<string>=?, ~transport: option<Bindings.transport>=?) => {
+  if (
+    !initialized.contents &&
+    (Option.isSome(transport) || (Option.isSome(dsn) && !SentryConfig.isInternalDev()))
+  ) {
     let scope: Bindings.scopeContext = {
       tags: Dict.fromArray([("frontman.library", "frontman-nextjs")]),
     }
-    switch transport {
-    | Some(t) =>
-      Bindings.initWithTransport({
-        dsn: SentryConfig.dsn(),
-        environment: %raw(`process.env.NODE_ENV || "development"`),
-        release: %raw(`process.env.npm_package_version || "unknown"`),
-        sampleRate: 1.0,
-        transport: t,
-        initialScope: scope,
-        beforeSend: SentryFilter.beforeSend,
-      })
-    | None =>
-      Bindings.init({
-        dsn: SentryConfig.dsn(),
-        environment: %raw(`process.env.NODE_ENV || "development"`),
-        release: %raw(`process.env.npm_package_version || "unknown"`),
-        sampleRate: 1.0,
-        initialScope: scope,
-        beforeSend: SentryFilter.beforeSend,
-      })
-    }
+    Bindings.init({
+      ?dsn,
+      environment: %raw(`process.env.NODE_ENV || "development"`),
+      release: %raw(`process.env.npm_package_version || "unknown"`),
+      sampleRate: 1.0,
+      ?transport,
+      initialScope: scope,
+      beforeSend: SentryFilter.beforeSend,
+    })
     initialized.contents = true
   }
 }
