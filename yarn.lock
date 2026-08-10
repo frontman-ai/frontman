@@ -4927,7 +4927,7 @@ __metadata:
     astro: "npm:^7.0.6"
     micromark: "npm:^4.0.1"
     oxfmt: "npm:^0.58.0"
-    prettier: "npm:^3.9.4"
+    prettier: "npm:^3.9.5"
     prettier-plugin-astro: "npm:^0.14.1"
     rescript: "catalog:"
     sharp: "npm:^0.35.3"
@@ -12866,7 +12866,7 @@ __metadata:
     jsdom: "npm:^29.1.1"
     marked: "npm:^18.0.6"
     preact: "npm:^10.29.7"
-    prettier: "npm:^3.9.4"
+    prettier: "npm:^3.9.5"
     prettier-plugin-astro: "npm:^0.14.0"
     prettier-plugin-tailwindcss: "npm:^0.8.0"
     satori: "npm:^0.26.0"
@@ -15280,12 +15280,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^3.9.4":
-  version: 3.9.4
-  resolution: "prettier@npm:3.9.4"
+"prettier@npm:^3.9.5":
+  version: 3.9.5
+  resolution: "prettier@npm:3.9.5"
   bin:
     prettier: bin/prettier.cjs
-  checksum: 10c0/dc6ec13d692745c6b7e7bf39beda9eb1b3b76c619118319bce393928c392264b1273337c75f80499695e165affefc7b3a9d2ebb18983af0a8f4dfbb2f45f6ff3
+  checksum: 10c0/0349dd9e6d8010965de6f69e6b6ee2484b8caf78c66675afced6c75ad60ff24c3a2a4f41153fb8adeaee4d8f539641b48cebc71d283cec4d146e9962126c5ceb
   languageName: node
   linkType: hard
 
