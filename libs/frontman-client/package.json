@@ -34,7 +34,7 @@
 	"dependencies": {
 		"@frontman/logs": "workspace:*",
 		"@sentry/browser": "^10.63.0",
-		"phoenix": "^1.8.8"
+		"phoenix": "^1.8.9"
 	},
 	"devDependencies": {
 		"@rescript/webapi": "*",
