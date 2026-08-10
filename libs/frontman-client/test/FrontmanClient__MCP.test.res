@@ -102,16 +102,16 @@ let request = (~id=JSON.Encode.int(1), ~method, ~params) =>
     ]),
   )
 
-let discoverRequest = (~id=JSON.Encode.int(1), ~protocolVersion=Types.protocolVersion) =>
+let discoverRequest = (~protocolVersion=Types.protocolVersion) =>
   request(
-    ~id,
+    ~id=JSON.Encode.int(1),
     ~method="server/discover",
     ~params=JSON.Encode.object(Dict.fromArray([("_meta", requestMeta(~protocolVersion))])),
   )
 
-let listRequest = (~id=JSON.Encode.int(1)) =>
+let listRequest = () =>
   request(
-    ~id,
+    ~id=JSON.Encode.int(1),
     ~method="tools/list",
     ~params=JSON.Encode.object(Dict.fromArray([("_meta", requestMeta())])),
   )
