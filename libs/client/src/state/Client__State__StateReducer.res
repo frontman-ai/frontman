@@ -41,7 +41,6 @@ type action =
     })
   | ClearAcpSession
   | FetchUserProfile({apiBaseUrl: string})
-  | TrackActivationEvent(Client__Heap.event)
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
   | SaveApiKey({provider: apiKeyProvider, key: string})
@@ -100,8 +99,6 @@ type effect =
   | FetchUserProfileEffect({apiBaseUrl: string})
   | LoadTaskEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
-  | IdentifyUserInAnalyticsEffect(Client__State__Types.userProfile)
-  | TrackActivationEventEffect(Client__Heap.event)
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
@@ -524,6 +521,7 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
         let userProfile =
           json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
         dispatch(UserProfileReceived({userProfile: userProfile}))
+        Client__Heap.heap.identify(userProfile.id)
       }
     } catch {
     | exn => Log.error(~error=JsExn.fromException(exn), "FetchUserProfile failed")
@@ -981,14 +979,6 @@ let handleEffect = (effect, state: state, dispatch) => {
         TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
       )
     }
-  | IdentifyUserInAnalyticsEffect(userProfile) =>
-    Client__Heap.identify(userProfile.id)
-    Client__Heap.addUserProperties({
-      "Email": userProfile.email,
-      "Name": userProfile.name->Option.getOr(""),
-    })
-    Client__Heap.track(AuthenticatedClientIdentified)
-  | TrackActivationEventEffect(event) => Client__Heap.track(event)
   | CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage}) =>
     let fetch = async () => {
       try {
@@ -1196,18 +1186,9 @@ let next = (state: state, action) => {
   | FetchUserProfile({apiBaseUrl}) =>
     state->StateReducer.update(~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})])
 
-  | TrackActivationEvent(event) =>
-    state->StateReducer.update(~sideEffects=[TrackActivationEventEffect(event)])
-
   | UserProfileReceived({userProfile: {id, email, name}}) =>
     let userProfile: Client__State__Types.userProfile = {id, email, name}
-    switch state.userProfile {
-    | Some(_) => state->StateReducer.update
-    | None =>
-      {...state, userProfile: Some(userProfile)}->StateReducer.update(
-        ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
-      )
-    }
+    {...state, userProfile: Some(userProfile)}->StateReducer.update
   | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>

@@ -33,10 +33,10 @@ let hasConnectRelay = effects =>
     | _ => false
     }
   )
-let trackedEvents = effects =>
+let trackedOutcomes = effects =>
   effects->Array.filterMap(e =>
     switch e {
-    | Reducer.TrackAnalytics(event) => Some(event)
+    | Reducer.TrackRelay(outcome) => Some(outcome)
     | _ => None
     }
   )
@@ -133,32 +133,28 @@ describe("Connection Reducer", () => {
         let (nextState, effects) = Reducer.reduce(state, RelayConnectSuccess)
 
         t->expect(nextState.relay)->Expect.toBe(Reducer.RelayConnected)
-        t->expect(hasLogInfo(effects))->Expect.toBe(true)
         t
-        ->expect(trackedEvents(effects))
-        ->Expect.toEqual([Client__Heap.LocalRelayDiscoveryCompleted({outcome: Success})])
+        ->expect(trackedOutcomes(effects))
+        ->Expect.toEqual([Client__Heap.Success])
       },
     )
 
     test(
       "RelayConnectError is non-fatal",
       t => {
-        let state = {...Reducer.initialState, relay: RelayConnecting}
-        let (nextState, effects) = Reducer.reduce(
-          state,
-          RelayConnectError({message: "Connection refused", reason: Client__Heap.NetworkError}),
-        )
+        [
+          ("HTTP 500: Error", Client__Heap.HttpError),
+          ("Invalid tools response: bad data", Client__Heap.InvalidResponse),
+          ("Connection refused", Client__Heap.NetworkError),
+        ]->Array.forEach(
+          ((message, reason)) => {
+            let state = {...Reducer.initialState, relay: RelayConnecting}
+            let (nextState, effects) = Reducer.reduce(state, RelayConnectError(message))
 
-        switch nextState.relay {
-        | Reducer.RelayError(_) => t->expect(true)->Expect.toBe(true)
-        | _ => t->expect(false)->Expect.toBe(true)
-        }
-        t->expect(hasLogInfo(effects))->Expect.toBe(true)
-        t
-        ->expect(trackedEvents(effects))
-        ->Expect.toEqual([
-          Client__Heap.LocalRelayDiscoveryCompleted({outcome: Failure(NetworkError)}),
-        ])
+            t->expect(nextState.relay)->Expect.toEqual(Reducer.RelayError(message))
+            t->expect(trackedOutcomes(effects))->Expect.toEqual([Client__Heap.Failure(reason)])
+          },
+        )
       },
     )
 
@@ -166,9 +162,16 @@ describe("Connection Reducer", () => {
       "stale relay completions do not emit analytics",
       t => {
         let state = {...Reducer.initialState, relay: RelayConnected}
-        let (_, effects) = Reducer.reduce(state, RelayConnectSuccess)
-
-        t->expect(trackedEvents(effects))->Expect.toEqual([])
+        let actions: array<Reducer.action> = [
+          Reducer.RelayConnectSuccess,
+          Reducer.RelayConnectError("late failure"),
+        ]
+        actions->Array.forEach(
+          action => {
+            let (_, effects) = Reducer.reduce(state, action)
+            t->expect(trackedOutcomes(effects))->Expect.toEqual([])
+          },
+        )
       },
     )
   })
@@ -350,9 +353,6 @@ describe("Connection Reducer", () => {
         )
         ->Expect.toBe(true)
         t
-        ->expect(trackedEvents(firstEffects))
-        ->Expect.toEqual([Client__Heap.PromptRequestSent])
-        t
         ->expect(
           hasEffect(
             secondEffects,
@@ -408,7 +408,6 @@ describe("Connection Reducer", () => {
           ),
         )
         ->Expect.toBe(true)
-        t->expect(trackedEvents(effects))->Expect.toEqual([Client__Heap.TaskCreationRequested])
       },
     )
   })

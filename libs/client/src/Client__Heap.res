@@ -29,40 +29,11 @@ let init = () => {
   `)
 }
 
-let identify: string => unit = %raw(`
-  function(userId) {
-    if (typeof window !== 'undefined' && window.heap && window.heap.identify) {
-      window.heap.identify(userId);
-    }
-  }
-`)
-
-let addUserProperties: {..} => unit = %raw(`
-  function(properties) {
-    if (typeof window !== 'undefined' && window.heap && window.heap.addUserProperties) {
-      window.heap.addUserProperties(properties);
-    }
-  }
-`)
+type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
+@scope("window") @val external heap: heapApi = "heap"
 
 type relayFailureReason = HttpError | InvalidResponse | NetworkError
 type relayOutcome = Success | Failure(relayFailureReason)
-
-type event =
-  | AuthenticatedClientIdentified
-  | LocalRelayDiscoveryCompleted({outcome: relayOutcome})
-  | ProviderSetupBlockerShown
-  | PromptSubmissionInitiated
-  | TaskCreationRequested
-  | PromptRequestSent
-
-let _track: (string, JSON.t) => unit = %raw(`
-  function(name, properties) {
-    if (typeof window !== 'undefined' && window.heap && window.heap.track) {
-      window.heap.track(name, properties);
-    }
-  }
-`)
 
 let failureReasonToString = reason =>
   switch reason {
@@ -71,29 +42,14 @@ let failureReasonToString = reason =>
   | NetworkError => "network_error"
   }
 
-let encodeEvent = (~framework, event) => {
-  let properties = Dict.fromArray([("framework", JSON.Encode.string(framework))])
-  let name = switch event {
-  | AuthenticatedClientIdentified => "authenticated_client_identified"
-  | LocalRelayDiscoveryCompleted({outcome}) => {
-      switch outcome {
-      | Success => properties->Dict.set("outcome", JSON.Encode.string("success"))
-      | Failure(reason) =>
-        properties->Dict.set("outcome", JSON.Encode.string("failure"))
-        properties->Dict.set("reason_code", JSON.Encode.string(failureReasonToString(reason)))
-      }
-      "local_relay_discovery_completed"
-    }
-  | ProviderSetupBlockerShown => "provider_setup_blocker_shown"
-  | PromptSubmissionInitiated => "prompt_submission_initiated"
-  | TaskCreationRequested => "task_creation_requested"
-  | PromptRequestSent => "prompt_request_sent"
-  }
-  (name, properties)
-}
-
-let track = event => {
+let trackRelayConnection = outcome => {
   let framework = Client__RuntimeConfig.read().framework->Client__RuntimeConfig.frameworkIdToString
-  let (name, properties) = encodeEvent(~framework, event)
-  _track(name, JSON.Encode.object(properties))
+  let properties = Dict.fromArray([("framework", JSON.Encode.string(framework))])
+  switch outcome {
+  | Success => properties->Dict.set("outcome", JSON.Encode.string("success"))
+  | Failure(reason) =>
+    properties->Dict.set("outcome", JSON.Encode.string("failure"))
+    properties->Dict.set("reason_code", JSON.Encode.string(failureReasonToString(reason)))
+  }
+  heap.track("relay_connection_completed", JSON.Encode.object(properties))
 }

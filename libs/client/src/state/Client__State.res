@@ -130,8 +130,6 @@ module Actions = {
   let fetchUserProfile = (~apiBaseUrl: string) =>
     Client__State__Store.dispatch(FetchUserProfile({apiBaseUrl: apiBaseUrl}))
 
-  let trackActivationEvent = event => Client__State__Store.dispatch(TrackActivationEvent(event))
-
   let executionStateRunning = (~taskId: string) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),

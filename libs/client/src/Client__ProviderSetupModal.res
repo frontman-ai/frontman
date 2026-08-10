@@ -3,18 +3,6 @@ module Dialog = Client__UI__Dialog
 
 @react.component
 let make = (~open_: bool, ~onOpenSettings: unit => unit) => {
-  let wasOpen = React.useRef(false)
-
-  React.useEffect(() => {
-    switch (wasOpen.current, open_) {
-    | (false, true) =>
-      Client__State.Actions.trackActivationEvent(Client__Heap.ProviderSetupBlockerShown)
-    | _ => ()
-    }
-    wasOpen.current = open_
-    None
-  }, [open_])
-
   <Dialog open_ onOpenChange={(_, _) => ()}>
     <Dialog.Content className="sm:max-w-md" showCloseButton=false>
       <Dialog.Header>

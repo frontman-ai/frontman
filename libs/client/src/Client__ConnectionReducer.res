@@ -87,7 +87,7 @@ type action =
   | ACPAuthRequiredReceived(authRequiredPayload)
   | ACPConnectError(string)
   | RelayConnectSuccess
-  | RelayConnectError({message: string, reason: Client__Heap.relayFailureReason})
+  | RelayConnectError(string)
   | SessionCreateSuccess(ACP.session)
   | SessionCreateError({sessionId: string, error: string})
   | SessionFailed({sessionId: string, error: string})
@@ -107,7 +107,7 @@ type action =
 type effect =
   | LogError(string)
   | LogInfo(string)
-  | TrackAnalytics(Client__Heap.event)
+  | TrackRelay(Client__Heap.relayOutcome)
   | ConnectACP({
       config: ACP.config,
       signal: WebAPI.EventAPI.abortSignal,
@@ -147,6 +147,14 @@ let initialState: state = {
   mcpServer: None,
   abortController: None,
 }
+
+let relayFailureReason = message =>
+  switch message {
+  | message if message->String.startsWith("HTTP ") => Client__Heap.HttpError
+  | message if message->String.startsWith("Invalid tools response: ") =>
+    Client__Heap.InvalidResponse
+  | _ => Client__Heap.NetworkError
+  }
 
 module Selectors = {
   let getSession = (state: state): option<ACP.session> => {
@@ -219,18 +227,17 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
           initialAuthBehavior: state.initialAuthBehavior,
         }),
         ConnectRelay(relay, abortController.signal),
-        LogInfo("Initializing connections..."),
       ],
     )
 
   | ({acp: ACPConnecting}, ACPConnectSuccess(conn)) => (
       {...state, acp: ACPConnected(conn)},
-      [LogInfo("ACP connected"), FetchSessionsEffect(conn)],
+      [FetchSessionsEffect(conn)],
     )
 
   | ({acp: ACPConnecting}, ACPAuthRequiredReceived({loginUrl})) => (
       {...state, acp: ACPAuthRequired({loginUrl: loginUrl})},
-      [LogInfo("ACP auth required")],
+      [],
     )
 
   | ({acp: ACPConnecting}, ACPConnectError(msg)) => (
@@ -240,18 +247,12 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | ({relay: RelayConnecting}, RelayConnectSuccess) => (
       {...state, relay: RelayConnected},
-      [
-        TrackAnalytics(LocalRelayDiscoveryCompleted({outcome: Success})),
-        LogInfo("Relay connected"),
-      ],
+      [TrackRelay(Success)],
     )
 
-  | ({relay: RelayConnecting}, RelayConnectError({message, reason})) => (
+  | ({relay: RelayConnecting}, RelayConnectError(message)) => (
       {...state, relay: RelayError(message)},
-      [
-        TrackAnalytics(LocalRelayDiscoveryCompleted({outcome: Failure(reason)})),
-        LogInfo(`Relay failed (non-fatal): ${message}`),
-      ],
+      [TrackRelay(Failure(relayFailureReason(message)))],
     )
 
   | ({session: SessionCreating(expectedSessionId)}, SessionCreateSuccess(sess))
@@ -291,22 +292,13 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       CreateSession(request),
     ) => (
       {...state, session: SessionCreating(request.sessionId)},
-      [
-        TrackAnalytics(TaskCreationRequested),
-        CreateSessionEffect({connection: conn, mcpServer, request}),
-      ],
+      [CreateSessionEffect({connection: conn, mcpServer, request})],
     )
 
   | (
       {session: SessionActive(session)},
       SendPrompt({text, additionalBlocks, onComplete, _meta}),
-    ) => (
-      state,
-      [
-        TrackAnalytics(PromptRequestSent),
-        SendPromptEffect({session, text, additionalBlocks, onComplete, _meta}),
-      ],
-    )
+    ) => (state, [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})])
 
   | ({session: SessionActive(session)}, CancelPrompt) => (
       state,
@@ -413,7 +405,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   switch effect {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
-  | TrackAnalytics(event) => Client__Heap.track(event)
+  | TrackRelay(outcome) => Client__Heap.trackRelayConnection(outcome)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | ConnectACP({config, signal, initialAuthBehavior}) =>
     let connect = async () => {
@@ -461,32 +453,14 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     connect()->ignore
   | ConnectRelay(relay, signal) =>
     let connect = async () => {
-      let result = await Relay.connectDetailed(relay, ~signal)
+      let result = await Relay.connect(relay, ~signal)
       switch (signal.aborted, result) {
       | (true, Ok()) =>
         Relay.disconnect(relay)
         Log.info("Relay connection aborted after connect (cleanup)")
       | (true, Error(_)) => Log.info("Relay connection aborted (cleanup)")
-      | (false, Ok()) =>
-        dispatch(RelayConnectSuccess)
-        switch Relay.getState(relay) {
-        | Connected({tools, serverInfo}) =>
-          Log.info(
-            ~ctx={"tools": tools->Array.map(t => t.name)},
-            `${serverInfo.name} v${serverInfo.version} - ${tools
-              ->Array.length
-              ->Int.toString} relay tools available`,
-          )
-        | Disconnected | Error(_) => ()
-        }
-      | (false, Error({message, reason})) =>
-        switch reason {
-        | Aborted => Log.info("Relay connection aborted (cleanup)")
-        | HttpError => dispatch(RelayConnectError({message, reason: Client__Heap.HttpError}))
-        | InvalidResponse =>
-          dispatch(RelayConnectError({message, reason: Client__Heap.InvalidResponse}))
-        | NetworkError => dispatch(RelayConnectError({message, reason: Client__Heap.NetworkError}))
-        }
+      | (false, Ok()) => dispatch(RelayConnectSuccess)
+      | (false, Error(message)) => dispatch(RelayConnectError(message))
       }
     }
     connect()->ignore
