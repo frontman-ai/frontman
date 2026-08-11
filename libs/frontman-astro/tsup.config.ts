@@ -18,7 +18,6 @@ const sharedExternal = [
   'astro/config',
   'lighthouse',
   'chrome-launcher',
-  // Node.js built-ins
   'node:module',
   'fs',
   'path',
@@ -43,7 +42,6 @@ const sharedExternal = [
 ];
 
 export default defineConfig([
-  // Main library entry point
   {
     entry: { 'index': './index.mjs' },
     format: ['esm'],
@@ -53,10 +51,9 @@ export default defineConfig([
     noExternal: sharedNoExternal,
     external: sharedExternal,
     platform: 'node',
-    target: 'node18',
+    target: 'node22',
     treeshake: true,
   },
-  // Integration entry point
   {
     entry: { 'integration': './src/FrontmanAstro__Integration.res.mjs' },
     format: ['esm'],
@@ -66,10 +63,9 @@ export default defineConfig([
     noExternal: sharedNoExternal,
     external: sharedExternal,
     platform: 'node',
-    target: 'node18',
+    target: 'node22',
     treeshake: true,
   },
-  // Toolbar entry point (runs in browser)
   {
     entry: { 'toolbar': './src/FrontmanAstro__ToolbarApp.res.mjs' },
     format: ['esm'],

@@ -3,8 +3,10 @@ title: 'AI Editing for WordPress'
 seoTitle: 'AI WordPress Editor Plugin'
 pubDate: 2026-03-31T05:00:00Z
 description: 'Use Frontman as an AI WordPress editor plugin for content, Elementor pages, menus, templates, widgets, settings, and live site preview.'
-author: 'Itay A'
+author: 'Itay Adler'
+articleSection: 'Product Announcement'
 image: '/blog/frontman-now-supports-wordpress-cover.png'
+imageAlt: 'Frontman AI editing for WordPress announcement cover'
 tags: ['announcement', 'wordpress']
 updatedDate: 2026-06-17T00:00:00Z
 ---
@@ -52,7 +54,7 @@ Frontman takes a fundamentally different approach:
 
 - **Cross-framework.** Frontman isn't WordPress-only. The same agent works with Next.js, Astro, and Vite. If your team works across frameworks, you get one tool that works everywhere.
 
-- **Fully open source.** Frontman's source code, including every prompt, every tool definition, and every piece of agent logic, is open on [GitHub](https://github.com/frontman-ai/frontman). Licenses vary by package and integration, and are declared in the source and release artifacts.
+- **Source-available.** Frontman's source code, including every prompt, every tool definition, and every piece of agent logic, is available on [GitHub](https://github.com/frontman-ai/frontman). The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.
 
 The tradeoff: Frontman is newer and more experimental. AI Engine has 100k+ installs, a Pro tier, WooCommerce tools, embeddings, and years of polish. If you need a production-ready AI content pipeline today, AI Engine is solid. If you want an agent that can edit actual WordPress content, Elementor pages, menus, templates, widgets, and settings inside a live preview, that's what Frontman does. For the broader comparison, read [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/).
 
@@ -70,7 +72,7 @@ We're actively looking for WordPress users and developers to try it and help sha
 
 - **Report issues** on [GitHub](https://github.com/frontman-ai/frontman/issues)
 - **Join the conversation** and share feedback
-- **Contribute**: the codebase is open source on GitHub, with licenses declared per package and integration
+- **Contribute**: the source-available codebase is on GitHub, with an Apache-2.0 browser client and JavaScript integrations, a GPL-2.0-or-later WordPress plugin, and an AGPL-3.0-only server plus AI Supplementary Terms
 
 ## A Note on Production Use
 

@@ -1,15 +1,17 @@
 ---
-title: Tool Capabilities
-description: Reference for every tool the Frontman agent can use — screenshots, DOM inspection, file editing, navigation, and more.
+title: Frontman Agent Tool Capabilities
+description: Reference the browser, framework, and backend tools available to Frontman's agent and where each tool executes.
 ---
+
+This page owns tool names, parameters, execution locations, and framework availability. Use [Frontman Limitations & Workarounds](/docs/using/limitations/) for operational boundaries, [Annotate UI Elements for Frontman](/docs/using/annotations/) for element-selection workflow, and [Use Frontman Plans & Todo Lists](/docs/using/plans-and-todos/) for plan lifecycle.
 
 Frontman's agent has access to three categories of tools that run in different environments. Understanding what each tool does helps you write better prompts and predict what the agent will do.
 
-| Category | Where it runs | Purpose |
-|----------|---------------|---------|
-| [**Browser tools**](#browser-tools) | In your browser, against the live preview | See the page, interact with elements, inspect the DOM |
-| [**Framework tools**](#framework-tools) | On your machine, via the dev server plugin | Read/write files, discover routes, check build logs |
-| [**Backend tools**](#backend-tools) | On the Frontman server | Fetch web pages, manage todo lists |
+| Category                                | Where it runs                              | Purpose                                               |
+| --------------------------------------- | ------------------------------------------ | ----------------------------------------------------- |
+| [**Browser tools**](#browser-tools)     | In your browser, against the live preview  | See the page, interact with elements, inspect the DOM |
+| [**Framework tools**](#framework-tools) | On your machine, via the dev server plugin | Read/write files, discover routes, check build logs   |
+| [**Backend tools**](#backend-tools)     | On the Frontman server                     | Fetch web pages, manage todo lists                    |
 
 ## Browser tools
 
@@ -19,9 +21,9 @@ Browser tools execute inside your browser tab, operating on the live preview ifr
 
 Captures a screenshot of the current web preview page. Returns a base64-encoded JPEG image.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `selector` | string? | CSS selector to screenshot a specific element instead of the full page |
+| Parameter  | Type     | Description                                                                               |
+| ---------- | -------- | ----------------------------------------------------------------------------------------- |
+| `selector` | string?  | CSS selector to screenshot a specific element instead of the full page                    |
 | `fullPage` | boolean? | Capture the entire scrollable page instead of just the visible viewport. Default: `false` |
 
 The agent uses screenshots before and after edits to verify visual changes. This is the core of Frontman's perception-action loop — it's how the agent "sees" your running app.
@@ -30,10 +32,10 @@ The agent uses screenshots before and after edits to verify visual changes. This
 
 Evaluates arbitrary JavaScript inside the web preview iframe and returns the result.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `expression` | string | JavaScript code to evaluate |
-| `timeout` | number? | Maximum execution time in milliseconds. Default: 5000 |
+| Parameter    | Type    | Description                                           |
+| ------------ | ------- | ----------------------------------------------------- |
+| `expression` | string  | JavaScript code to evaluate                           |
+| `timeout`    | number? | Maximum execution time in milliseconds. Default: 5000 |
 
 Use cases include querying DOM properties, measuring layout, reading computed styles, and navigating pages. The expression runs via `new Function` in the iframe's window context. Promises are automatically awaited. DOM nodes, NodeLists, Maps, Sets, and circular references are serialized to readable JSON. Console output during execution is captured.
 
@@ -43,15 +45,15 @@ Output is capped at 30 KB.
 
 Inspects a specific section of the DOM in the web preview.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `selector` | string | CSS selector or XPath expression targeting a DOM subtree |
-| `mode` | string? | `"simplified"` (default) or `"full"` |
-| `maxDepth` | number? | Maximum tree depth in simplified mode. Default: 5 |
-| `maxNodes` | number? | Maximum element nodes to include. Default: 200 |
-| `pierceShadowDom` | boolean? | Traverse into shadow DOM roots. Default: `false` |
+| Parameter         | Type     | Description                                              |
+| ----------------- | -------- | -------------------------------------------------------- |
+| `selector`        | string   | CSS selector or XPath expression targeting a DOM subtree |
+| `mode`            | string?  | `"simplified"` (default) or `"full"`                     |
+| `maxDepth`        | number?  | Maximum tree depth in simplified mode. Default: 5        |
+| `maxNodes`        | number?  | Maximum element nodes to include. Default: 200           |
+| `pierceShadowDom` | boolean? | Traverse into shadow DOM roots. Default: `false`         |
 
-**Simplified mode** returns a pruned indented representation with tag names, key attributes (id, class, role, aria-*, href, src), framework component names, and short text snippets. Script, style, and SVG elements are stripped. Capped at 200 nodes.
+**Simplified mode** returns a pruned indented representation with tag names, key attributes (id, class, role, aria-\*, href, src), framework component names, and short text snippets. Script, style, and SVG elements are stripped. Capped at 200 nodes.
 
 **Full mode** returns raw `outerHTML`. Capped at 15 KB. Use only when you need exact markup for a small, specific component.
 
@@ -61,10 +63,10 @@ If a subtree is too large, the tool rejects the request and returns a list of th
 
 Discovers clickable and interactive elements on the current page.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `role` | string? | Filter by ARIA role (e.g. `"button"`, `"link"`) |
-| `name` | string? | Filter by accessible name substring (case-insensitive) |
+| Parameter | Type    | Description                                            |
+| --------- | ------- | ------------------------------------------------------ |
+| `role`    | string? | Filter by ARIA role (e.g. `"button"`, `"link"`)        |
+| `name`    | string? | Filter by accessible name substring (case-insensitive) |
 
 Returns elements with their ARIA roles, accessible names, CSS selectors, detection method, and visible text. Detection methods include:
 
@@ -78,16 +80,17 @@ Results are capped at 50 elements.
 
 Performs actions on elements in the web preview.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `selector` | string? | CSS selector (preferred) |
-| `role` | string? | ARIA role — must be used with `name` |
-| `name` | string? | Accessible name — must be used with `role` |
-| `text` | string? | Visible text content to match |
-| `action` | string? | `"click"` (default), `"hover"`, or `"focus"` |
-| `index` | number? | 0-based index when multiple elements match |
+| Parameter  | Type    | Description                                  |
+| ---------- | ------- | -------------------------------------------- |
+| `selector` | string? | CSS selector (preferred)                     |
+| `role`     | string? | ARIA role — must be used with `name`         |
+| `name`     | string? | Accessible name — must be used with `role`   |
+| `text`     | string? | Visible text content to match                |
+| `action`   | string? | `"click"` (default), `"hover"`, or `"focus"` |
+| `index`    | number? | 0-based index when multiple elements match   |
 
 Supports three targeting strategies:
+
 1. **CSS selector** — most precise, use selectors from `get_interactive_elements`
 2. **Role + name** — ARIA-based targeting (e.g. role=`"button"`, name=`"Submit"`)
 3. **Text** — matches the innermost element containing the text
@@ -96,12 +99,12 @@ Supports three targeting strategies:
 
 Searches for visible text on the current page, like Ctrl+F.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `query` | string | Text to search for (case-insensitive) |
-| `selector` | string? | Scope search to a CSS selector or XPath subtree |
-| `maxResults` | number? | Maximum results. Default: 25 |
-| `contextChars` | number? | Characters of surrounding context. Default: 80 |
+| Parameter      | Type    | Description                                     |
+| -------------- | ------- | ----------------------------------------------- |
+| `query`        | string  | Text to search for (case-insensitive)           |
+| `selector`     | string? | Scope search to a CSS selector or XPath subtree |
+| `maxResults`   | number? | Maximum results. Default: 25                    |
+| `contextChars` | number? | Characters of surrounding context. Default: 80  |
 
 Returns matching elements with surrounding text context, CSS selectors, tags, and accessibility metadata. Matches are wrapped in `>>` and `<<` markers within the context text.
 
@@ -109,13 +112,13 @@ Returns matching elements with surrounding text context, CSS selectors, tags, an
 
 Controls the device emulation mode for responsive design testing.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `action` | string | `"set_preset"`, `"set_custom"`, `"set_responsive"`, `"set_orientation"`, `"get_current"`, or `"list_presets"` |
-| `device` | string? | Device preset name (for `set_preset`) |
-| `width` | number? | Viewport width in CSS pixels (for `set_custom`) |
-| `height` | number? | Viewport height in CSS pixels (for `set_custom`) |
-| `orientation` | string? | `"portrait"` or `"landscape"` (for `set_orientation`) |
+| Parameter     | Type    | Description                                                                                                   |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `action`      | string  | `"set_preset"`, `"set_custom"`, `"set_responsive"`, `"set_orientation"`, `"get_current"`, or `"list_presets"` |
+| `device`      | string? | Device preset name (for `set_preset`)                                                                         |
+| `width`       | number? | Viewport width in CSS pixels (for `set_custom`)                                                               |
+| `height`      | number? | Viewport height in CSS pixels (for `set_custom`)                                                              |
+| `orientation` | string? | `"portrait"` or `"landscape"` (for `set_orientation`)                                                         |
 
 **Available presets:** iPhone SE, iPhone 15 Pro, iPhone 15 Pro Max, Pixel 8, Samsung Galaxy S24, iPad Mini, iPad Air, iPad Pro 11", iPad Pro 12.9", Laptop, Laptop L, 4K.
 
@@ -123,8 +126,8 @@ Controls the device emulation mode for responsive design testing.
 
 Pauses the agent loop and asks you a question via an interactive drawer.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter   | Type  | Description                                                                                                |
+| ----------- | ----- | ---------------------------------------------------------------------------------------------------------- |
 | `questions` | array | Array of question objects, each with a `question`, `header`, `options` array, and optional `multiple` flag |
 
 The agent uses this when it needs clarification, wants to offer a choice between approaches, or needs approval for a destructive action. The agent loop literally pauses — no LLM calls happen until you respond.
@@ -135,21 +138,21 @@ See [The Question Flow](/docs/using/question-flow/) for more detail.
 
 ## Framework tools
 
-Framework tools run on your machine via the Frontman dev server plugin. They give the agent access to your project's files, route structure, and build output. There's a shared set of **core tools** available in every framework, plus **framework-specific tools** that vary by integration.
+Framework tools run on your machine via the Astro, Next.js, or Vite dev server integration. They give the agent access to your project's files, route structure, and build output. WordPress instead exposes site-management tools through its plugin; see [Install and Use Frontman for WordPress](/docs/integrations/wordpress/).
 
-### Core tools (all frameworks)
+### Core tools (code-first integrations)
 
-These tools are available in every Frontman integration — Astro, Next.js, and Vite.
+These tools are available in the Astro, Next.js, and Vite integrations. They are not WordPress plugin tools.
 
 #### `read_file`
 
 Reads a file from your project's filesystem.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | string | Path to file — relative to source root or absolute |
-| `offset` | number? | Line number to start from (0-indexed). Default: 0 |
-| `limit` | number? | Maximum lines to read. Default: 500 |
+| Parameter | Type    | Description                                        |
+| --------- | ------- | -------------------------------------------------- |
+| `path`    | string  | Path to file — relative to source root or absolute |
+| `offset`  | number? | Line number to start from (0-indexed). Default: 0  |
+| `limit`   | number? | Maximum lines to read. Default: 500                |
 
 Returns the file content along with total line count and whether more content exists. For large files, the agent is instructed to use `grep` first to find relevant sections, then `read_file` with a targeted offset.
 
@@ -161,12 +164,12 @@ The agent tracks which files it has read. The `edit_file` and `write_file` tools
 
 Writes content to a file. Creates parent directories if they don't exist.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | string | Path to file — relative to source root or absolute |
-| `content` | string? | Text content to write |
-| `image_ref` | string? | URI of a user-attached image to save to disk |
-| `encoding` | string? | Set to `"base64"` for binary data |
+| Parameter   | Type    | Description                                        |
+| ----------- | ------- | -------------------------------------------------- |
+| `path`      | string  | Path to file — relative to source root or absolute |
+| `content`   | string? | Text content to write                              |
+| `image_ref` | string? | URI of a user-attached image to save to disk       |
+| `encoding`  | string? | Set to `"base64"` for binary data                  |
 
 Provide either `content` or `image_ref`, not both. If the file already exists, the agent must read it first — the tool rejects writes to existing files that haven't been read.
 
@@ -176,12 +179,12 @@ Prefer `write_file` over `edit_file` when rewriting most of a file.
 
 Edits a file by finding text and replacing it, with fuzzy matching.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | string | Path to file |
-| `oldText` | string | Text to find and replace. Empty string creates a new file. |
-| `newText` | string | Replacement text |
-| `replaceAll` | boolean? | Replace all occurrences. Default: `false` |
+| Parameter    | Type     | Description                                                |
+| ------------ | -------- | ---------------------------------------------------------- |
+| `path`       | string   | Path to file                                               |
+| `oldText`    | string   | Text to find and replace. Empty string creates a new file. |
+| `newText`    | string   | Replacement text                                           |
+| `replaceAll` | boolean? | Replace all occurrences. Default: `false`                  |
 
 The tool uses multiple matching strategies — exact, line-trimmed, whitespace-normalized, indentation-flexible — to handle common formatting differences. This means the agent doesn't need to get whitespace exactly right.
 
@@ -195,9 +198,9 @@ Each framework enhances `edit_file` with **post-edit error detection**. After ap
 
 Lists the immediate contents of a single directory.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | string? | Directory to list. Default: project root. If a file path is given, lists its parent directory. |
+| Parameter | Type    | Description                                                                                    |
+| --------- | ------- | ---------------------------------------------------------------------------------------------- |
+| `path`    | string? | Directory to list. Default: project root. If a file path is given, lists its parent directory. |
 
 Returns entries with name, path, and file/directory type. Respects `.gitignore`.
 
@@ -205,10 +208,10 @@ Returns entries with name, path, and file/directory type. Respects `.gitignore`.
 
 Returns a recursive directory tree of the project structure.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | string? | Subdirectory to root the tree at. Default: project root |
-| `depth` | number? | Maximum depth. Default: 3 |
+| Parameter | Type    | Description                                             |
+| --------- | ------- | ------------------------------------------------------- |
+| `path`    | string? | Subdirectory to root the tree at. Default: project root |
+| `depth`   | number? | Maximum depth. Default: 3                               |
 
 Includes monorepo workspace detection — workspace roots are annotated with `[workspace: name]`. Skips noisy directories like `node_modules`, `.git`, `dist`, and `build`. Respects `.gitignore`.
 
@@ -218,9 +221,9 @@ This tool also runs automatically during initialization to give the agent an ove
 
 Checks if a file or directory exists.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `path` | string | Path to check |
+| Parameter | Type   | Description   |
+| --------- | ------ | ------------- |
+| `path`    | string | Path to check |
 
 Returns `true` or `false`.
 
@@ -228,15 +231,15 @@ Returns `true` or `false`.
 
 Searches file contents for text or regex patterns using ripgrep (with git grep and plain grep as fallbacks).
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `pattern` | string | Text or regex to search for |
-| `path` | string? | Directory or file to search in. Default: source root |
-| `type` | string? | File type filter (e.g. `"js"`, `"ts"`, `"py"`) |
-| `glob` | string? | Glob pattern (e.g. `"*.tsx"`, `"*.{ts,tsx}"`) |
-| `case_insensitive` | boolean? | Default: `false` |
-| `literal` | boolean? | Treat pattern as literal text, not regex. Default: `false` |
-| `max_results` | number? | Maximum files to return. Default: 20 |
+| Parameter          | Type     | Description                                                |
+| ------------------ | -------- | ---------------------------------------------------------- |
+| `pattern`          | string   | Text or regex to search for                                |
+| `path`             | string?  | Directory or file to search in. Default: source root       |
+| `type`             | string?  | File type filter (e.g. `"js"`, `"ts"`, `"py"`)             |
+| `glob`             | string?  | Glob pattern (e.g. `"*.tsx"`, `"*.{ts,tsx}"`)              |
+| `case_insensitive` | boolean? | Default: `false`                                           |
+| `literal`          | boolean? | Treat pattern as literal text, not regex. Default: `false` |
+| `max_results`      | number?  | Maximum files to return. Default: 20                       |
 
 Returns matching lines grouped by file, with line numbers. Results are sorted by file modification time (newest first). Binary and hidden files are skipped.
 
@@ -244,26 +247,26 @@ Returns matching lines grouped by file, with line numbers. Results are sorted by
 
 Searches for files by name across the project.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `pattern` | string | Filename pattern (supports glob-like: `"*.test.ts"`, `"Button*"`) |
-| `path` | string? | Directory to search in. Default: source root |
-| `max_results` | number? | Maximum results. Default: 20 |
+| Parameter     | Type    | Description                                                       |
+| ------------- | ------- | ----------------------------------------------------------------- |
+| `pattern`     | string  | Filename pattern (supports glob-like: `"*.test.ts"`, `"Button*"`) |
+| `path`        | string? | Directory to search in. Default: source root                      |
+| `max_results` | number? | Maximum results. Default: 20                                      |
 
 Uses ripgrep `--files` with a git ls-files fallback. Matches file names only, not directory names. Hidden files (dotfiles) are included.
 
 #### `lighthouse`
 
-Runs a full Google Lighthouse audit on a URL.
+Runs Lighthouse for four selected categories: performance, accessibility, best practices, and SEO.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `url` | string | The URL to audit (e.g. `http://localhost:4321/`) |
-| `preset` | string? | `"desktop"` (default) or `"mobile"` |
+| Parameter | Type    | Description                                      |
+| --------- | ------- | ------------------------------------------------ |
+| `url`     | string  | The URL to audit (e.g. `http://localhost:4321/`) |
+| `preset`  | string? | `"desktop"` (default) or `"mobile"`              |
 
 Returns scores (0–100) for performance, accessibility, best practices, and SEO, plus the top 3 worst issues per category. Each issue includes descriptions, CSS selectors, HTML snippets, and source locations when available.
 
-Requires Chrome to be installed. Takes 15–30 seconds per run.
+Requires Chrome to be installed.
 
 :::tip
 Only the 3 worst issues per category are returned. After fixing those, re-run the audit to surface additional issues that were previously ranked lower.
@@ -285,18 +288,18 @@ This goes beyond simple filesystem scanning — it captures routes that don't ex
 
 Retrieves Astro dev server logs from a rotating 1024-entry buffer.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `pattern` | string? | Regex pattern to filter messages (case-insensitive) |
-| `level` | string? | Filter by type: `"console"`, `"build"`, or `"error"` |
-| `since` | string? | ISO 8601 timestamp — only return logs after this time |
-| `tail` | number? | Limit to most recent N entries |
+| Parameter | Type    | Description                                           |
+| --------- | ------- | ----------------------------------------------------- |
+| `pattern` | string? | Regex pattern to filter messages (case-insensitive)   |
+| `level`   | string? | Filter by type: `"console"`, `"build"`, or `"error"`  |
+| `since`   | string? | ISO 8601 timestamp — only return logs after this time |
+| `tail`    | number? | Limit to most recent N entries                        |
 
 Captures console output, Astro build/HMR logs, and uncaught exceptions with stack traces.
 
 #### `get_astro_audit`
 
-*(Astro only, runs in browser)*
+_(Astro only, runs in browser)_
 
 Reads accessibility and performance audit results from Astro's dev toolbar. Traverses the toolbar's shadow DOM to extract the ~26 checks that Astro runs automatically.
 
@@ -342,21 +345,31 @@ Backend tools run on the Frontman server. They handle operations that don't need
 
 Fetches a web page and returns its content as markdown.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `url` | string | URL to fetch (must start with `http://` or `https://`) |
-| `offset` | number? | Line number to start from. Default: 0 |
-| `limit` | number? | Maximum lines to return (1–2000). Default: 500 |
+| Parameter | Type    | Description                                            |
+| --------- | ------- | ------------------------------------------------------ |
+| `url`     | string  | URL to fetch (must start with `http://` or `https://`) |
+| `offset`  | number? | Line number to start from. Default: 0                  |
+| `limit`   | number? | Maximum lines to return (1–2000). Default: 500         |
 
 HTML pages are automatically converted to markdown. Results are paginated by lines for large pages. Includes SSRF protection — requests to private/internal addresses (localhost, 10.x.x.x, 192.168.x.x, etc.) are blocked.
+
+### `get_tool_result`
+
+Retrieves a persisted result when an earlier tool result was replaced by an omitted-data placeholder.
+
+| Parameter      | Type   | Description                                                              |
+| -------------- | ------ | ------------------------------------------------------------------------ |
+| `tool_call_id` | string | Exact `tool_call_id` copied from the omitted-data placeholder. Required. |
+
+The ID must be passed unchanged; it identifies a tool result in the current task history. The tool returns the original MCP `ToolResult`. It returns an error when the ID is not a string, no matching result exists, or the stored result is not a valid MCP tool result.
 
 ### `todo_write`
 
 Writes the complete todo list for the current task. Every call replaces the entire list.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `todos` | array | Complete todo list. Each item has `content`, `active_form`, `status` (`"pending"`, `"in_progress"`, `"completed"`), and optional `priority` (`"high"`, `"medium"`, `"low"`) |
+| Parameter | Type  | Description                                                                                                                                                                 |
+| --------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `todos`   | array | Complete todo list. Each item has `content`, `active_form`, `status` (`"pending"`, `"in_progress"`, `"completed"`), and optional `priority` (`"high"`, `"medium"`, `"low"`) |
 
 The agent uses this for tasks with 3+ distinct steps. The todo list appears in the chat UI so you can track progress. See [Plans & Todo Lists](/docs/using/plans-and-todos/) for more detail.
 
@@ -364,33 +377,38 @@ The agent uses this for tasks with 3+ distinct steps. The todo list appears in t
 
 ## Tool summary by framework
 
-This table shows which tools are available for each framework integration.
+This table distinguishes shared browser/backend tools from code-first dev server tools. WordPress site mutations use dedicated plugin tools documented in the [WordPress guide](/docs/integrations/wordpress/), not the similarly scoped file tools below.
 
-| Tool | Astro | Next.js | Vite | Where |
-|------|:-----:|:-------:|:----:|-------|
-| `take_screenshot` | ✓ | ✓ | ✓ | Browser |
-| `execute_js` | ✓ | ✓ | ✓ | Browser |
-| `get_dom` | ✓ | ✓ | ✓ | Browser |
-| `get_interactive_elements` | ✓ | ✓ | ✓ | Browser |
-| `interact_with_element` | ✓ | ✓ | ✓ | Browser |
-| `search_text` | ✓ | ✓ | ✓ | Browser |
-| `set_device_mode` | ✓ | ✓ | ✓ | Browser |
-| `question` | ✓ | ✓ | ✓ | Browser |
-| `get_astro_audit` | ✓ | — | — | Browser |
-| `read_file` | ✓ | ✓ | ✓ | Dev server |
-| `write_file` | ✓ | ✓ | ✓ | Dev server |
-| `edit_file` | ✓ | ✓ | ✓ | Dev server |
-| `list_files` | ✓ | ✓ | ✓ | Dev server |
-| `list_tree` | ✓ | ✓ | ✓ | Dev server |
-| `file_exists` | ✓ | ✓ | ✓ | Dev server |
-| `grep` | ✓ | ✓ | ✓ | Dev server |
-| `search_files` | ✓ | ✓ | ✓ | Dev server |
-| `lighthouse` | ✓ | ✓ | ✓ | Dev server |
-| `get_client_pages` | ✓ | — | — | Dev server |
-| `get_routes` | — | ✓ | — | Dev server |
-| `get_logs` | ✓ | ✓ | ✓ | Dev server |
-| `web_fetch` | ✓ | ✓ | ✓ | Backend |
-| `todo_write` | ✓ | ✓ | ✓ | Backend |
+Verified July 30, 2026 against `@frontman-ai/astro` 2.0.0, `@frontman-ai/nextjs` 1.0.3, `@frontman-ai/vite` 1.0.3, and Frontman WordPress plugin 2.0.0 source.
+
+| Tool                       | Astro | Next.js | Vite |  WordPress  | Where      | Access     |
+| -------------------------- | :---: | :-----: | :--: | :---------: | ---------- | ---------- |
+| `take_screenshot`          |   ✓   |    ✓    |  ✓   |      ✓      | Browser    | read       |
+| `execute_js`               |   ✓   |    ✓    |  ✓   |      ✓      | Browser    | read-write |
+| `get_dom`                  |   ✓   |    ✓    |  ✓   |      ✓      | Browser    | read       |
+| `get_interactive_elements` |   ✓   |    ✓    |  ✓   |      ✓      | Browser    | read       |
+| `interact_with_element`    |   ✓   |    ✓    |  ✓   |      ✓      | Browser    | read-write |
+| `search_text`              |   ✓   |    ✓    |  ✓   |      ✓      | Browser    | read       |
+| `set_device_mode`          |   ✓   |    ✓    |  ✓   |      ✓      | Browser    | write      |
+| `question`                 |   ✓   |    ✓    |  ✓   |      ✓      | Browser    | write      |
+| `get_astro_audit`          |   ✓   |    —    |  —   |      —      | Browser    | read       |
+| `read_file`                |   ✓   |    ✓    |  ✓   |      —      | Dev server | read       |
+| `write_file`               |   ✓   |    ✓    |  ✓   |      —      | Dev server | write      |
+| `edit_file`                |   ✓   |    ✓    |  ✓   |      —      | Dev server | read-write |
+| `list_files`               |   ✓   |    ✓    |  ✓   |      —      | Dev server | read       |
+| `list_tree`                |   ✓   |    ✓    |  ✓   |      —      | Dev server | read       |
+| `file_exists`              |   ✓   |    ✓    |  ✓   |      —      | Dev server | read       |
+| `grep`                     |   ✓   |    ✓    |  ✓   |      —      | Dev server | read       |
+| `search_files`             |   ✓   |    ✓    |  ✓   |      —      | Dev server | read       |
+| `lighthouse`               |   ✓   |    ✓    |  ✓   |      —      | Dev server | read       |
+| `get_client_pages`         |   ✓   |    —    |  —   |      —      | Dev server | read       |
+| `get_routes`               |   —   |    ✓    |  —   |      —      | Dev server | read       |
+| `get_logs`                 |   ✓   |    ✓    |  ✓   |      —      | Dev server | read       |
+| WordPress `wp_*` tools     |   —   |    —    |  —   |      ✓      | WP plugin  | varies     |
+| WooCommerce `wc_*` tools   |   —   |    —    |  —   | conditional | WP plugin  | varies     |
+| `web_fetch`                |   ✓   |    ✓    |  ✓   |      ✓      | Backend    | read       |
+| `get_tool_result`          |   ✓   |    ✓    |  ✓   |      ✓      | Backend    | read       |
+| `todo_write`               |   ✓   |    ✓    |  ✓   |      ✓      | Backend    | write      |
 
 ---
 

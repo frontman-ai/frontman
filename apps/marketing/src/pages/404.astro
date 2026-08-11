@@ -1,17 +1,12 @@
 ---
-// Components
-// - Layout
 import Layout from '../layouts/Layout.astro'
 import Section from '../components/ui/Section.astro'
 import Row from '../components/ui/Row.astro'
 import Col from '../components/ui/Col.astro'
-// - UI
 import Spacer from '../components/ui/Spacer.astro'
 import Button from '../components/ui/Button.astro'
 import { Icon } from 'astro-icon/components'
 
-// Content
-// - SEO
 const SEO = {
 	title: 'Page Not Found | Frontman',
 	description:
@@ -19,7 +14,7 @@ const SEO = {
 }
 ---
 
-<Layout title={SEO.title} description={SEO.description} noindex={true}>
+<Layout title={SEO.title} description={SEO.description} canonical={false} noindex={true}>
 	<Section>
 		<Row flex classes="text-center">
 			<Col span="2" />
@@ -134,6 +129,14 @@ const SEO = {
 				<p class="mx-auto max-w-xl text-neutral-300">The page may have moved or the link may be outdated.</p>
 				<Spacer size="2" desktopSize="4" />
 				<Button link="/"> Return to homepage <Icon name="long-arrow-right" /> </Button>
+				<nav class="mt-8" aria-label="Popular pages">
+					<p class="text-sm font-semibold text-neutral-800 dark:text-white">Popular pages</p>
+					<ul class="mt-3 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-neutral-600 dark:text-neutral-300">
+						<li><a class="underline underline-offset-4" href="/docs/">Documentation</a></li>
+						<li><a class="underline underline-offset-4" href="/docs/installation/">Installation</a></li>
+						<li><a class="underline underline-offset-4" href="/changelog/">Changelog</a></li>
+					</ul>
+				</nav>
 			</Col>
 			<Col span="2" />
 		</Row>

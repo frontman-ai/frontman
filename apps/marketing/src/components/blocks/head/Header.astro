@@ -1,19 +1,14 @@
 ---
-// Imports
 import GoogleAnalytics from '../../scripts/googleAnalytics.astro'
 import GoogleSearchConsole from '../../scripts/googleSearchConsole.astro'
-// Partials
 import Seo from './partials/Seo.astro'
 import StructuredData from './partials/StructuredData.astro'
-// Data
 import { configData } from '../../../config/config'
 
 import { googleAnalyticsMeasurementID } from '../../../config/analytics'
-// Font preloading
 import interLatinUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
 import outfitLatinUrl from '@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2?url'
 
-// Props
 type Props = {
 	title?: string
 	description?: string
@@ -33,7 +28,6 @@ type Props = {
 		url: string
 	}[]
 }
-// Page Metadata
 const {
 	title = configData.siteTitle,
 	description = configData.siteDescription,
@@ -48,34 +42,55 @@ const {
 } = Astro.props
 ---
 
-<head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<meta name="color-scheme" content="dark light" />
-	<link rel="preload" href={interLatinUrl} as="font" type="font/woff2" crossorigin />
-	<link rel="preload" href={outfitLatinUrl} as="font" type="font/woff2" crossorigin />
-	{googleAnalyticsMeasurementID && <GoogleAnalytics />}
-	<GoogleSearchConsole />
-	<meta name="yandex-verification" content="f7cb42505a6da42d" />
-	<Seo
-		title={title}
-		description={description}
-		ogImage={ogImage}
-		ogImageWidth={ogImageWidth}
-		ogImageHeight={ogImageHeight}
-		ogImageAlt={ogImageAlt}
-		canonical={canonical}
-		noindex={noindex}
-		article={article}
-	/>
-	<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-	<link rel="icon" href="/favicon.ico" sizes="48x48" />
-	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-	<link rel="manifest" href="/site.webmanifest" />
-	<link rel="sitemap" href="/sitemap-index.xml" />
-	<link rel="alternate" type="application/rss+xml" title="Frontman Blog" href="/rss.xml" />
-	<meta name="generator" content={Astro.generator} />
-	<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
-	<meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
-	<StructuredData noindex={noindex} breadcrumbs={breadcrumbs} />
-</head>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
+<link rel="preload" href={interLatinUrl} as="font" type="font/woff2" crossorigin />
+<link rel="preload" href={outfitLatinUrl} as="font" type="font/woff2" crossorigin />
+{googleAnalyticsMeasurementID && <GoogleAnalytics />}
+<GoogleSearchConsole />
+<meta name="yandex-verification" content="f7cb42505a6da42d" />
+<Seo
+	title={title}
+	description={description}
+	ogImage={ogImage}
+	ogImageWidth={ogImageWidth}
+	ogImageHeight={ogImageHeight}
+	ogImageAlt={ogImageAlt}
+	canonical={canonical}
+	noindex={noindex}
+	article={article}
+/>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="/favicon.ico" sizes="48x48" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+<link rel="sitemap" href="/sitemap-index.xml" />
+<link rel="alternate" type="text/markdown" title="Frontman markdown homepage" href="/index.md" />
+<link
+	rel="service-desc"
+	type="application/linkset+json"
+	title="Frontman API catalog"
+	href="/.well-known/api-catalog"
+/>
+<link
+	rel="service-desc"
+	type="application/json"
+	title="Frontman agent card"
+	href="/.well-known/agent-card.json"
+/>
+<link
+	rel="service-desc"
+	type="application/json"
+	title="Frontman MCP server card"
+	href="/.well-known/mcp/server-card.json"
+/>
+<link rel="alternate" type="application/rss+xml" title="Frontman Blog" href="/rss.xml" />
+<meta name="generator" content={Astro.generator} />
+<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
+<StructuredData
+	title={title}
+	description={description}
+	noindex={noindex}
+	breadcrumbs={breadcrumbs}
+/>

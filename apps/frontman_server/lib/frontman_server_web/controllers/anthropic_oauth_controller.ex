@@ -72,7 +72,6 @@ defmodule FrontmanServerWeb.AnthropicOAuthController do
         json(conn, %{status: "ok"})
 
       {:error, :not_found} ->
-        # Token didn't exist, but that's fine - user is disconnected either way
         json(conn, %{status: "ok"})
     end
   end
@@ -83,8 +82,6 @@ defmodule FrontmanServerWeb.AnthropicOAuthController do
   def status(conn, _params) do
     json(conn, Providers.oauth_connection_status(conn.assigns.current_scope, "anthropic"))
   end
-
-  # Private helpers
 
   defp translate_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->

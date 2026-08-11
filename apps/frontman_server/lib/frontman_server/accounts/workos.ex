@@ -25,7 +25,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
   alias FrontmanServer.Workers.SyncResendContact
 
   import Ecto.Changeset
-  import Ecto.Query
 
   @supported_providers ~w(github google)
   @workos_api_base "https://api.workos.com"
@@ -209,7 +208,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
   """
   def list_identities(%User{} = user) do
     UserIdentity
-    |> where([i], i.user_id == ^user.id)
+    |> UserIdentity.for_user(user.id)
     |> Repo.all()
   end
 
@@ -218,11 +217,9 @@ defmodule FrontmanServer.Accounts.WorkOS do
   """
   def get_identity_by_provider(%User{} = user, provider) when is_binary(provider) do
     UserIdentity
-    |> where([i], i.user_id == ^user.id and i.provider == ^provider)
+    |> UserIdentity.for_user_and_provider(user.id, provider)
     |> Repo.one()
   end
-
-  # Private functions
 
   defp extract_profile(%{user: user, authentication_method: auth_method}) do
     with {:ok, provider} <- workos_to_provider(auth_method) do
@@ -285,7 +282,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     end
   end
 
-  # Returning user with existing identity — touch timestamps, no welcome email.
   defp build_oauth_multi(%UserIdentity{} = identity, _existing_user, _profile, _signup_framework) do
     now = DateTime.utc_now(:second)
 
@@ -297,7 +293,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     )
   end
 
-  # Existing user by email but no identity for this provider — link identity.
   defp build_oauth_multi(nil, %User{} = user, profile, _signup_framework) do
     now = DateTime.utc_now(:second)
 
@@ -306,7 +301,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
     |> Multi.update(:user, change(user, last_signed_in_at: now))
   end
 
-  # Brand-new user — create user + identity + enqueue welcome email.
   defp build_oauth_multi(nil, nil, profile, signup_framework) do
     Multi.new()
     |> Multi.insert(
@@ -348,16 +342,14 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   defp get_identity_by_provider_id(provider, provider_id) do
     UserIdentity
-    |> where([i], i.provider == ^provider and i.provider_id == ^provider_id)
+    |> UserIdentity.for_provider_identity(provider, provider_id)
     |> Repo.one()
   end
 
   defp get_user_by_email(email) when email in [nil, ""], do: nil
 
   defp get_user_by_email(email) when is_binary(email) do
-    User
-    |> where([u], u.email == ^email)
-    |> Repo.one()
+    Repo.get_by(User, email: email)
   end
 
   defp create_identity(user, profile) do
@@ -367,8 +359,6 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   defp provider_to_workos("github"), do: "GitHubOAuth"
   defp provider_to_workos("google"), do: "GoogleOAuth"
-
-  # Raw HTTP authentication to capture full error responses.
 
   defp authenticate_with_code_raw(code) do
     body = %{

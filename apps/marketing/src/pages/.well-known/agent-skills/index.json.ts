@@ -1,43 +1,46 @@
 import type { APIRoute } from 'astro'
 import { createHash } from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const siteUrl = new URL(import.meta.env.SITE)
 const origin = siteUrl.origin
+const appRoot = process.cwd()
 
 const skillDocs = [
   {
-    name: 'marketing-site-navigation',
-    type: 'site-resource',
-    description: 'Discover the main Frontman marketing pages and documentation entry points.',
-    url: `${origin}/`,
+    name: 'frontman-site-navigation',
+    type: 'skill-md',
+    description: 'Discover Frontman product pages, documentation, API catalog, and support resources.',
+    url: `${origin}/skills/frontman-site-navigation/SKILL.md`,
+    file: 'public/skills/frontman-site-navigation/SKILL.md',
   },
   {
-    name: 'docs',
-    type: 'documentation',
-    description: 'Read Frontman installation, integration, troubleshooting, and self-hosting docs.',
-    url: `${origin}/docs/`,
+    name: 'frontman-installation',
+    type: 'skill-md',
+    description: 'Install Frontman in Next.js, Astro, Vite, and WordPress projects.',
+    url: `${origin}/skills/frontman-installation/SKILL.md`,
+    file: 'public/skills/frontman-installation/SKILL.md',
   },
   {
-    name: 'llms-full-context',
-    type: 'llm-context',
-    description: 'Read the expanded LLM-facing summary of Frontman resources.',
-    url: `${origin}/llms-full.txt`,
-  },
-  {
-    name: 'webmcp-site-tools',
-    type: 'browser-tools',
-    description: 'Use lightweight WebMCP tools for on-site navigation such as opening docs or jumping to install.',
-    url: `${origin}/`,
+    name: 'frontman-agent-usage',
+    type: 'skill-md',
+    description: 'Use Frontman as a browser-aware frontend coding agent with runtime context.',
+    url: `${origin}/skills/frontman-agent-usage/SKILL.md`,
+    file: 'public/skills/frontman-agent-usage/SKILL.md',
   },
 ]
 
 const skills = skillDocs.map((skill) => ({
-  ...skill,
-  sha256: createHash('sha256').update(JSON.stringify(skill)).digest('hex'),
+  name: skill.name,
+  type: skill.type,
+  description: skill.description,
+  url: skill.url,
+  digest: `sha256:${createHash('sha256').update(fs.readFileSync(path.join(appRoot, skill.file))).digest('hex')}`,
 }))
 
 const index = {
-  $schema: 'https://agentskills.io/schemas/agent-skills-index-v0.2.0.json',
+  $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
   skills,
 }
 

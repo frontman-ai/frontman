@@ -1,0 +1,6 @@
+let one = 1 // suppression: ignore this
+/* outer
+   /* nested TODO */
+   docblock
+*/
+let two = 2

@@ -1,0 +1,133 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Button from '../components/ui/Button.astro'
+import UseCaseContentSection from '../components/use-cases/UseCaseContentSection.astro'
+import UseCaseFaqSection from '../components/use-cases/UseCaseFaqSection.astro'
+import UseCaseCtaSection from '../components/use-cases/UseCaseCtaSection.astro'
+
+const SEO = {
+	title: 'AI Website Editor for Marketing and Design Teams | Frontman',
+	description:
+		'Frontman helps marketing and design teams update existing Next.js, Astro, and Vite websites by clicking the live page and turning requests into reviewable code changes.'
+}
+
+const faqs = [
+	{
+		question: 'Can marketers and designers use Frontman without opening an IDE?',
+		answer:
+			'Yes. A developer installs Frontman once. After that, marketers and designers can work from the browser: click the live site, describe the update, review the result, and hand engineering a normal source-code diff.'
+	},
+	{
+		question: 'Does Frontman bypass engineering review?',
+		answer:
+			'No. For Next.js, Astro, and Vite sites, Frontman runs in development and produces regular source changes. Your team can review, approve, and ship those changes through the same git and deployment workflow you already use.'
+	},
+	{
+		question: 'What kinds of website changes fit this workflow?',
+		answer:
+			'Frontman is strongest for copy, CTAs, hero sections, spacing, colors, responsive polish, landing-page cleanup, visual QA, and small content or layout changes on existing websites.'
+	},
+	{
+		question: 'Which stacks are supported?',
+		answer:
+			'Frontman supports Next.js, Astro, and Vite projects, including React, Vue, Svelte, SvelteKit, SolidJS, and vanilla Vite apps.'
+	}
+]
+
+const faqJsonLd = {
+	'@context': 'https://schema.org',
+	'@type': 'FAQPage',
+	mainEntity: faqs.map((faq) => ({
+		'@type': 'Question',
+		name: faq.question,
+		acceptedAnswer: {
+			'@type': 'Answer',
+			text: faq.answer
+		}
+	}))
+}
+
+const useCases = [
+	'Update campaign landing page copy and CTAs',
+	'Fix spacing, alignment, and responsive polish before launch',
+	'Refresh pricing, feature, and comparison pages',
+	'Turn design-review comments into code changes',
+	'Ship visual QA fixes without creating ticket debt',
+	'Let developers review one concrete diff instead of interpreting screenshots'
+]
+
+const workflowSteps = [
+	{
+		title: 'Open the live site',
+		description: 'Use Frontman from your browser beside the page you are changing.'
+	},
+	{
+		title: 'Click what needs work',
+		description: 'Select a headline, CTA, section, image, or layout issue directly on the rendered page.'
+	},
+	{
+		title: 'Describe the update',
+		description: 'Ask in plain English. Frontman uses live DOM, CSS, routes, logs, and source mappings to edit the right files.'
+	},
+	{
+		title: 'Review the diff',
+		description: 'Developers keep control through normal git review and deployment.'
+	}
+]
+---
+
+<Layout title={SEO.title} description={SEO.description}>
+	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+
+	<section class="flex justify-center bg-[#09090b] px-5 pb-9 pt-12 text-center text-zinc-50 md:px-6 md:pb-12 md:pt-20">
+		<div class="w-full max-w-[760px]">
+			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-primary-500">Marketing and design teams</p>
+			<h1 class="mb-[14px] text-[34px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 md:text-[48px]">Update your website without opening an IDE.</h1>
+			<p class="mb-[18px] text-[18px] leading-[1.5] text-zinc-300 md:text-[20px]">Frontman runs inside your Next.js, Astro, or Vite site. Click the live page, describe the change, and turn visual requests into reviewable source changes your developers can approve.</p>
+			<div class="mt-8 flex flex-wrap items-center justify-center gap-4">
+				<Button size="lg" style="white" link="/#install">Add Frontman to your site</Button>
+				<a href="/use-cases/designers/" class="text-[15px] text-zinc-300 no-underline transition-colors hover:text-zinc-50">Designer workflow</a>
+			</div>
+		</div>
+	</section>
+
+	<UseCaseContentSection title="Website updates get stuck between people who see the problem and people who can change the code." variant="light">
+		<p>Marketers know the headline is wrong. Designers know the spacing is off. Site owners know the pricing page is stale. But code-backed websites turn small edits into screenshots, tickets, backlog grooming, and developer interpretation.</p>
+		<p>Frontman moves the request into the browser. Your team points at the real page, explains the desired outcome, and gets a concrete change to review.</p>
+	</UseCaseContentSection>
+
+	<UseCaseContentSection title="From visual request to reviewable change." maxWidth="1080px">
+		<div class="use-case-card-grid">
+			{workflowSteps.map((step, index) => (
+				<div class="use-case-card">
+					<span class="mb-2.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-[13px] font-bold text-violet-700">
+						{index + 1}
+					</span>
+					<h3>{step.title}</h3>
+					<p class="m-0 text-[15px] leading-[1.6]">{step.description}</p>
+				</div>
+			))}
+		</div>
+	</UseCaseContentSection>
+
+	<UseCaseContentSection title="Where Frontman saves the most time." variant="light">
+		<ul>
+			{useCases.map((useCase) => <li>{useCase}</li>)}
+		</ul>
+	</UseCaseContentSection>
+
+	<UseCaseContentSection title="Shorter handoff. Same developer control.">
+		<p>Frontman does not turn marketers into production deployers. Framework integrations run in development, and production builds strip Frontman out.</p>
+		<p>Every edit lands as normal source changes. Your team can review the diff, test the result, and ship through the same workflow you already trust.</p>
+	</UseCaseContentSection>
+
+	<UseCaseFaqSection faqs={faqs} />
+
+	<UseCaseCtaSection
+		title="Give your website team a faster edit loop."
+		description="Install Frontman in your Next.js, Astro, or Vite site and let visual requests start from the page, not a ticket."
+		primaryLink="/#install"
+		primaryLabel="Add Frontman"
+		secondaryLinks={[{href: '/docs/installation/', label: 'Read install docs'}]}
+	/>
+</Layout>

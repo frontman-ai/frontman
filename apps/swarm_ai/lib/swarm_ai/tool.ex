@@ -19,6 +19,7 @@ defmodule SwarmAi.Tool do
   typedstruct enforce: true do
     field(:name, String.t())
     field(:description, String.t())
+    field(:access, :read | :write | :read_write)
     field(:parameter_schema, map())
     field(:timeout_ms, pos_integer())
     field(:on_timeout, :error | :pause_agent)
@@ -35,6 +36,7 @@ defmodule SwarmAi.Tool do
       Tool.new(
         name: "question",
         description: "Ask the user a question",
+        access: :write,
         parameter_schema: %{},
         timeout_ms: 120_000,
         on_timeout: :pause_agent

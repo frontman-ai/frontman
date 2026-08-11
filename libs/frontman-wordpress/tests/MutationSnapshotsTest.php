@@ -6,6 +6,11 @@ $GLOBALS['frontman_test_posts'] = [];
 $GLOBALS['frontman_test_meta'] = [];
 $GLOBALS['frontman_test_options'] = [];
 $GLOBALS['frontman_test_custom_css'] = [];
+$GLOBALS['frontman_test_custom_css_posts'] = [];
+$GLOBALS['frontman_test_custom_css_revisions'] = [];
+$GLOBALS['frontman_test_revisions_enabled'] = [];
+$GLOBALS['frontman_test_custom_css_restore_count'] = 0;
+$GLOBALS['frontman_test_custom_css_restore_transform'] = null;
 $GLOBALS['frontman_test_theme_mods'] = [];
 $GLOBALS['frontman_test_menu_terms'] = [];
 $GLOBALS['frontman_test_menu_item_to_term'] = [];
@@ -117,7 +122,28 @@ if ( ! function_exists( 'get_permalink' ) ) {
 
 if ( ! function_exists( 'get_post' ) ) {
 	function get_post( int $id ) {
-		return $GLOBALS['frontman_test_posts'][ $id ] ?? null;
+		if ( isset( $GLOBALS['frontman_test_posts'][ $id ] ) ) {
+			return $GLOBALS['frontman_test_posts'][ $id ];
+		}
+		foreach ( $GLOBALS['frontman_test_custom_css_posts'] as $post ) {
+			if ( $id === (int) $post->ID ) {
+				return $post;
+			}
+		}
+
+		return null;
+	}
+}
+
+if ( ! function_exists( 'get_posts' ) ) {
+	function get_posts( array $args ): array {
+		return array_values( array_filter( $GLOBALS['frontman_test_posts'], static function( $post ) use ( $args ) {
+			if ( isset( $args['post_type'] ) && $post->post_type !== $args['post_type'] ) {
+				return false;
+			}
+
+			return ! isset( $args['post_status'] ) || 'any' === $args['post_status'] || $post->post_status === $args['post_status'];
+		} ) );
 	}
 }
 
@@ -217,9 +243,37 @@ if ( ! function_exists( 'add_post_meta' ) ) {
 
 if ( ! function_exists( 'parse_blocks' ) ) {
 	function parse_blocks( string $content ): array {
+		if ( 'NESTED_BLOCK_FIXTURE' === $content ) {
+			return [
+				[
+					'blockName' => 'core/group',
+					'attrs' => [],
+					'innerHTML' => '<div></div>',
+					'innerContent' => [ '<div>', null, null, '</div>' ],
+					'innerBlocks' => [
+						[ 'blockName' => 'core/paragraph', 'attrs' => [], 'innerHTML' => '<p>Nested one</p>', 'innerContent' => [ '<p>Nested one</p>' ], 'innerBlocks' => [], 'markup' => '<p>Nested one</p>' ],
+						[
+							'blockName' => 'core/group',
+							'attrs' => [],
+							'innerHTML' => '<div></div>',
+							'innerContent' => [ '<div>', null, '</div>' ],
+							'innerBlocks' => [
+								[ 'blockName' => 'core/paragraph', 'attrs' => [], 'innerHTML' => '<p>Nested two</p>', 'innerContent' => [ '<p>Nested two</p>' ], 'innerBlocks' => [], 'markup' => '<p>Nested two</p>' ],
+							],
+						],
+					],
+				],
+				[ 'blockName' => 'core/paragraph', 'attrs' => [], 'innerHTML' => '<p>Top level</p>', 'innerContent' => [ '<p>Top level</p>' ], 'innerBlocks' => [], 'markup' => '<p>Top level</p>' ],
+			];
+		}
+
 		$parts = array_values( array_filter( explode( "\n\n", $content ) ) );
 		$blocks = [];
 		foreach ( $parts as $part ) {
+			if ( 0 === strpos( $part, 'BLOCK:' ) ) {
+				$blocks[] = unserialize( base64_decode( substr( $part, 6 ) ) );
+				continue;
+			}
 			if ( 0 === strpos( $part, 'RAW:' ) || 0 === strpos( $part, '<div>' ) ) {
 				$markup = 0 === strpos( $part, 'RAW:' ) ? substr( $part, 4 ) : $part;
 				$blocks[] = [
@@ -246,7 +300,11 @@ if ( ! function_exists( 'parse_blocks' ) ) {
 
 if ( ! function_exists( 'serialize_block' ) ) {
 	function serialize_block( array $block ): string {
-		return $block['markup'];
+		if ( array_key_exists( 'markup', $block ) && empty( $block['innerBlocks'] ) ) {
+			return $block['markup'];
+		}
+
+		return 'BLOCK:' . base64_encode( serialize( $block ) );
 	}
 }
 
@@ -276,6 +334,13 @@ if ( ! function_exists( 'wp_get_custom_css' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_get_custom_css_post' ) ) {
+	function wp_get_custom_css_post( string $stylesheet = '' ) {
+		$stylesheet = '' === $stylesheet ? get_stylesheet() : $stylesheet;
+		return $GLOBALS['frontman_test_custom_css_posts'][ $stylesheet ] ?? null;
+	}
+}
+
 if ( ! function_exists( 'wp_update_custom_css_post' ) ) {
 	function wp_update_custom_css_post( string $css, array $args = [] ) {
 		$stylesheet = $args['stylesheet'] ?? get_stylesheet();
@@ -283,8 +348,65 @@ if ( ! function_exists( 'wp_update_custom_css_post' ) ) {
 		$post = new WP_Post();
 		$post->ID = 9001;
 		$post->post_type = 'custom_css';
+		$post->post_name = $stylesheet;
 		$post->post_content = $css;
+		$post->post_content_filtered = '';
+		$post->post_modified_gmt = '2026-03-24 12:00:00';
+		$GLOBALS['frontman_test_custom_css_posts'][ $stylesheet ] = $post;
 		return $post;
+	}
+}
+
+if ( ! function_exists( 'wp_revisions_enabled' ) ) {
+	function wp_revisions_enabled( WP_Post $post ): bool {
+		return $GLOBALS['frontman_test_revisions_enabled'][ $post->ID ] ?? true;
+	}
+}
+
+if ( ! function_exists( 'wp_get_post_revisions' ) ) {
+	function wp_get_post_revisions( int $parent_id, ?array $args = null ): array {
+		return array_values( array_filter( $GLOBALS['frontman_test_custom_css_revisions'], static function( WP_Post $revision ) use ( $parent_id ): bool {
+			return $parent_id === $revision->post_parent;
+		} ) );
+	}
+}
+
+if ( ! function_exists( 'wp_get_post_revision' ) ) {
+	function wp_get_post_revision( int $revision_id ) {
+		return $GLOBALS['frontman_test_custom_css_revisions'][ $revision_id ] ?? null;
+	}
+}
+
+if ( ! function_exists( 'wp_is_post_revision' ) ) {
+	function wp_is_post_revision( $revision ) {
+		return $revision instanceof WP_Post && 'revision' === $revision->post_type ? $revision->post_parent : false;
+	}
+}
+
+if ( ! function_exists( 'clean_post_cache' ) ) {
+	function clean_post_cache( int $post_id ): void {}
+}
+
+if ( ! function_exists( 'wp_restore_post_revision' ) ) {
+	function wp_restore_post_revision( WP_Post $revision, ?array $fields = null ) {
+		$GLOBALS['frontman_test_custom_css_restore_count']++;
+		$parent_id = (int) $revision->post_parent;
+		foreach ( $GLOBALS['frontman_test_custom_css_posts'] as $stylesheet => $post ) {
+			if ( $parent_id !== (int) $post->ID ) {
+				continue;
+			}
+
+			$content = (string) $revision->post_content;
+			if ( is_callable( $GLOBALS['frontman_test_custom_css_restore_transform'] ) ) {
+				$content = ( $GLOBALS['frontman_test_custom_css_restore_transform'] )( $content );
+			}
+			$post->post_content = $content;
+			$post->post_modified_gmt = '2026-03-24 13:00:00';
+			$GLOBALS['frontman_test_custom_css'][ $stylesheet ] = $content;
+			return $parent_id;
+		}
+
+		return false;
 	}
 }
 
@@ -521,8 +643,10 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->test_posts_include_before_snapshots();
 		$this->test_blocks_include_before_snapshots();
 		$this->test_block_move_and_delete_snapshots();
+		$this->test_nested_blocks_use_stable_paths();
 		$this->test_duplicate_post_copies_page_metadata();
 		$this->test_menu_management_snapshots();
+		$this->test_block_navigation_management();
 		$this->test_menu_item_creation_includes_before_snapshot();
 		$this->test_menu_option_and_widget_updates_include_before_snapshots();
 		$this->test_theme_source_tools();
@@ -567,6 +691,25 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$slash_post->post_name = 'slash-before';
 		$GLOBALS['frontman_test_posts'][11] = $slash_post;
 
+		$nested_post = new WP_Post();
+		$nested_post->ID = 12;
+		$nested_post->post_title = 'Nested Blocks';
+		$nested_post->post_content = 'NESTED_BLOCK_FIXTURE';
+		$nested_post->post_excerpt = '';
+		$nested_post->post_status = 'publish';
+		$nested_post->post_type = 'page';
+		$GLOBALS['frontman_test_posts'][12] = $nested_post;
+
+		$navigation = new WP_Post();
+		$navigation->ID = 30;
+		$navigation->post_title = 'Header Navigation';
+		$navigation->post_content = '<!-- wp:navigation-link {"label":"Home","url":"/"} /-->';
+		$navigation->post_excerpt = '';
+		$navigation->post_status = 'publish';
+		$navigation->post_type = 'wp_navigation';
+		$navigation->post_name = 'header-navigation';
+		$GLOBALS['frontman_test_posts'][30] = $navigation;
+
 		$GLOBALS['frontman_test_menu_terms'][7] = (object) [
 			'term_id' => 7,
 			'name' => 'Primary Menu',
@@ -597,6 +740,22 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$GLOBALS['frontman_test_options']['blogname'] = 'Old Blog Name';
 		$GLOBALS['frontman_test_options']['stylesheet'] = 'frontman-theme';
 		$GLOBALS['frontman_test_custom_css']['frontman-theme'] = '.old { color: red; }';
+		$custom_css_post = new WP_Post();
+		$custom_css_post->ID = 9001;
+		$custom_css_post->post_type = 'custom_css';
+		$custom_css_post->post_name = 'frontman-theme';
+		$custom_css_post->post_content = '.old { color: red; }';
+		$custom_css_post->post_content_filtered = '$old-color: red;';
+		$custom_css_post->post_modified_gmt = '2026-03-24 10:30:00';
+		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme'] = $custom_css_post;
+		$custom_css_revision = new WP_Post();
+		$custom_css_revision->ID = 9101;
+		$custom_css_revision->post_parent = 9001;
+		$custom_css_revision->post_type = 'revision';
+		$custom_css_revision->post_content = '.old { color: blue; }';
+		$custom_css_revision->post_date = '2026-03-23 11:00:00';
+		$custom_css_revision->post_date_gmt = '2026-03-23 15:00:00';
+		$GLOBALS['frontman_test_custom_css_revisions'][9101] = $custom_css_revision;
 		$GLOBALS['frontman_test_theme_mods'] = [
 			'header_image' => 'https://example.com/header.jpg',
 			'page_title_enabled' => true,
@@ -726,6 +885,67 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_true( false !== strpos( $deleted['after']['post_content'], 'C:\\tmp\\file' ), 'wp_delete_block preserves existing backslash-sensitive block markup' );
 	}
 
+	private function test_nested_blocks_use_stable_paths(): void {
+		$tool = new Frontman_Tool_Blocks();
+		$listed = $tool->list_blocks( [ 'post_id' => 12 ] );
+
+		$this->assert_same( 2, $listed['block_count'], 'wp_list_blocks preserves top-level block count' );
+		$this->assert_same( 5, $listed['total_block_count'], 'wp_list_blocks includes nested named blocks' );
+		$this->assert_same( [ 0, 1, 0 ], $listed['all_blocks'][3]['path'], 'wp_list_blocks returns stable nested paths' );
+		$this->assert_same( 'core/paragraph', $tool->read_block( [ 'post_id' => 12, 'path' => [ 0, 1, 0 ] ] )['name'], 'wp_read_block reads nested blocks by path' );
+		$original_content = get_post( 12 )->post_content;
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->insert_block( [
+					'post_id' => 12,
+					'parent_path' => [ 0, 0 ],
+					'block_markup' => '<p>Invalid nested paragraph</p>',
+				] );
+			},
+			'does not support nested blocks',
+			'wp_insert_block rejects leaf blocks as nested parents'
+		);
+		$this->assert_same( $original_content, get_post( 12 )->post_content, 'wp_insert_block preserves content after rejecting a leaf parent' );
+
+		$updated = $tool->update_block( [
+			'post_id' => 12,
+			'path' => [ 0, 1, 0 ],
+			'block_markup' => '<p>Updated nested</p>',
+		] );
+		$this->assert_same( '<p>Updated nested</p>', $updated['after']['block']['markup'], 'wp_update_block replaces a nested block by path' );
+
+		$inserted = $tool->insert_block( [
+			'post_id' => 12,
+			'parent_path' => [ 0, 1 ],
+			'index' => 1,
+			'block_markup' => '<p>Inserted nested</p>',
+		] );
+		$this->assert_same( 6, $inserted['after']['blocks']['total_block_count'], 'wp_insert_block inserts into a nested parent path' );
+
+		$moved = $tool->move_block( [
+			'post_id' => 12,
+			'from_path' => [ 0, 0 ],
+			'to_parent_path' => [ 0, 1 ],
+			'to_index' => 0,
+		] );
+		$this->assert_same( 'Nested one', $moved['after']['blocks']['all_blocks'][2]['innerText'], 'wp_move_block moves a block between nested parents' );
+
+		$deleted = $tool->delete_block( [ 'post_id' => 12, 'path' => [ 0, 0, 1 ], 'confirm' => true ] );
+		$this->assert_same( 5, $deleted['after']['blocks']['total_block_count'], 'wp_delete_block deletes nested blocks by path' );
+
+		$same_parent = new WP_Post();
+		$same_parent->ID = 13;
+		$same_parent->post_title = 'Same Parent Move';
+		$same_parent->post_content = '<p>First</p>' . "\n\n" . '<p>Second</p>';
+		$same_parent->post_excerpt = '';
+		$same_parent->post_status = 'publish';
+		$same_parent->post_type = 'page';
+		$GLOBALS['frontman_test_posts'][13] = $same_parent;
+		$forward = $tool->move_block( [ 'post_id' => 13, 'from_path' => [ 0 ], 'to_index' => 1 ] );
+		$this->assert_same( 'Second', $forward['after']['blocks']['blocks'][0]['innerText'], 'path-based forward moves use final destination indices' );
+		$this->assert_same( 0, $tool->read_block( [ 'post_id' => 13, 'path' => [ 0 ] ] )['index'], 'top-level path reads preserve legacy index output' );
+	}
+
 	private function test_duplicate_post_copies_page_metadata(): void {
 		$tool = new Frontman_Tool_Posts();
 		$duplicated = $tool->duplicate_post( [
@@ -764,6 +984,37 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 		$deleted = $tool->delete_menu( [ 'id' => $created['menu_id'], 'confirm' => true ] );
 		$this->assert_same( $created['menu_id'], $deleted['id'], 'wp_delete_menu reports deleted menu id' );
+	}
+
+	private function test_block_navigation_management(): void {
+		$tool = new Frontman_Tool_Menus();
+		$listed = $tool->list_navigation_menus( [] );
+		$this->assert_same( 1, count( $listed ), 'wp_list_navigation_menus lists wp_navigation posts' );
+		$this->assert_same( 'Header Navigation', $tool->read_navigation_menu( [ 'id' => 30 ] )['title'], 'wp_read_navigation_menu reads block navigation content' );
+
+		$created = $tool->create_navigation_menu( [
+			'title' => 'Footer Navigation',
+			'content' => '<!-- wp:navigation-link {"label":"Contact","url":"/contact"} /-->',
+		] );
+		$this->assert_same( 'wp_navigation', get_post( $created['id'] )->post_type, 'wp_create_navigation_menu creates wp_navigation posts' );
+
+		$updated = $tool->update_navigation_menu( [
+			'id' => 30,
+			'title' => 'Main Navigation',
+			'content' => '<!-- wp:navigation-link {"label":"About","url":"/about"} /-->',
+		] );
+		$this->assert_same( 'Header Navigation', $updated['before']['title'], 'wp_update_navigation_menu captures previous navigation state' );
+		$this->assert_same( 'Main Navigation', $updated['after']['title'], 'wp_update_navigation_menu updates block navigation posts' );
+
+		$this->assert_error_contains(
+			static function() use ( $tool, $created ) {
+				$tool->delete_navigation_menu( [ 'id' => $created['id'], 'confirm' => false ] );
+			},
+			'explicit confirmation',
+			'wp_delete_navigation_menu requires confirm=true'
+		);
+		$deleted = $tool->delete_navigation_menu( [ 'id' => $created['id'], 'confirm' => true ] );
+		$this->assert_same( 'Footer Navigation', $deleted['before']['title'], 'wp_delete_navigation_menu returns deleted navigation snapshot' );
 	}
 
 	private function test_menu_option_and_widget_updates_include_before_snapshots(): void {
@@ -816,6 +1067,183 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$current_css = $tool->get_custom_css( [] );
 		$this->assert_same( 'frontman-theme', $current_css['stylesheet'], 'wp_get_custom_css returns active stylesheet' );
 		$this->assert_same( '.old { color: red; }', $current_css['css'], 'wp_get_custom_css reads Additional CSS' );
+		$this->assert_same( 9001, $current_css['parent_post_id'], 'wp_get_custom_css returns active Custom CSS post ID' );
+		$this->assert_same( strlen( '.old { color: red; }' ), $current_css['persisted_css_bytes'], 'wp_get_custom_css counts exact persisted CSS bytes' );
+		$this->assert_same( hash( 'sha256', '.old { color: red; }' ), $current_css['persisted_css_sha256'], 'wp_get_custom_css fingerprints exact persisted CSS' );
+		$this->assert_same( '2026-03-24 10:30:00', $current_css['post_modified_gmt'], 'wp_get_custom_css returns observed Custom CSS modification time' );
+		$this->assert_same( true, $current_css['preprocessor_source_present'], 'wp_get_custom_css reports preprocessor source without returning it' );
+		$this->assert_true( ! array_key_exists( 'preprocessor_source', $current_css ), 'wp_get_custom_css does not expose preprocessor source' );
+
+		$missing_css = $tool->get_custom_css( [ 'stylesheet' => 'theme-without-custom-css' ] );
+		$this->assert_same( '', $missing_css['css'], 'wp_get_custom_css preserves empty CSS for a missing Custom CSS post' );
+		$this->assert_same( null, $missing_css['parent_post_id'], 'wp_get_custom_css explicitly reports a missing Custom CSS post' );
+		$this->assert_same( 0, $missing_css['persisted_css_bytes'], 'wp_get_custom_css reports zero persisted bytes for a missing post' );
+		$this->assert_same( hash( 'sha256', '' ), $missing_css['persisted_css_sha256'], 'wp_get_custom_css fingerprints captured empty content for a missing post' );
+		$this->assert_same( null, $missing_css['post_modified_gmt'], 'wp_get_custom_css reports no modification time for a missing post' );
+		$this->assert_same( false, $missing_css['preprocessor_source_present'], 'wp_get_custom_css reports no preprocessor source for a missing post' );
+
+		$revisions = $tool->list_custom_css_revisions( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001 ] );
+		$this->assert_same( 'available', $revisions['status'], 'wp_list_custom_css_revisions reports available history' );
+		$this->assert_same( true, $revisions['revisions_enabled'], 'wp_list_custom_css_revisions reports revision support' );
+		$this->assert_same( 9101, $revisions['revisions'][0]['revision_id'], 'wp_list_custom_css_revisions returns revision ID' );
+		$this->assert_same( 9001, $revisions['revisions'][0]['parent_post_id'], 'wp_list_custom_css_revisions returns revision parent' );
+		$this->assert_same( '2026-03-23 11:00:00', $revisions['revisions'][0]['post_date'], 'wp_list_custom_css_revisions returns revision date' );
+		$this->assert_same( strlen( '.old { color: blue; }' ), $revisions['revisions'][0]['css_bytes'], 'wp_list_custom_css_revisions counts revision CSS bytes' );
+		$this->assert_same( hash( 'sha256', '.old { color: blue; }' ), $revisions['revisions'][0]['css_sha256'], 'wp_list_custom_css_revisions fingerprints revision CSS' );
+		$this->assert_true( ! array_key_exists( 'css', $revisions['revisions'][0] ), 'wp_list_custom_css_revisions omits full CSS' );
+
+		$revision = $tool->get_custom_css_revision( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001, 'revision_id' => 9101 ] );
+		$this->assert_same( '.old { color: blue; }', $revision['css'], 'wp_get_custom_css_revision returns selected revision CSS' );
+		$this->assert_same( hash( 'sha256', '.old { color: blue; }' ), $revision['css_sha256'], 'wp_get_custom_css_revision fingerprints selected revision CSS' );
+		$custom_css_revision = $GLOBALS['frontman_test_custom_css_revisions'][9101];
+
+		$GLOBALS['frontman_test_revisions_enabled'][9001] = false;
+		$disabled_revisions = $tool->list_custom_css_revisions( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001 ] );
+		$this->assert_same( 'revisions_disabled', $disabled_revisions['status'], 'wp_list_custom_css_revisions distinguishes disabled revisions' );
+		$this->assert_same( 9101, $disabled_revisions['revisions'][0]['revision_id'], 'wp_list_custom_css_revisions includes retained history when revision creation is disabled' );
+		$GLOBALS['frontman_test_revisions_enabled'][9001] = true;
+		$GLOBALS['frontman_test_custom_css_revisions'] = [];
+		$no_revisions = $tool->list_custom_css_revisions( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001 ] );
+		$this->assert_same( 'no_revisions', $no_revisions['status'], 'wp_list_custom_css_revisions distinguishes enabled empty history' );
+		$GLOBALS['frontman_test_custom_css_revisions'][9101] = $custom_css_revision;
+
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->list_custom_css_revisions( [ 'stylesheet' => 'inactive-theme', 'parent_post_id' => 9001 ] );
+			},
+			'active stylesheet',
+			'wp_list_custom_css_revisions rejects inactive stylesheets'
+		);
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->list_custom_css_revisions( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9999 ] );
+			},
+			'parent post',
+			'wp_list_custom_css_revisions rejects stale parent IDs'
+		);
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->get_custom_css_revision( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001, 'revision_id' => 9999 ] );
+			},
+			'not found',
+			'wp_get_custom_css_revision rejects missing revisions'
+		);
+		$cross_parent_revision = clone $custom_css_revision;
+		$cross_parent_revision->ID = 9102;
+		$cross_parent_revision->post_parent = 9999;
+		$GLOBALS['frontman_test_custom_css_revisions'][9102] = $cross_parent_revision;
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->get_custom_css_revision( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001, 'revision_id' => 9102 ] );
+			},
+			'does not belong',
+			'wp_get_custom_css_revision rejects cross-parent revisions'
+		);
+
+		$revision_registry = new Frontman_Tools();
+		( new Frontman_Tool_Options() )->register( $revision_registry );
+		$this->assert_same( 'read', $revision_registry->get( 'wp_list_custom_css_revisions' )->access, 'wp_list_custom_css_revisions infers read access' );
+		$this->assert_same( 'read', $revision_registry->get( 'wp_get_custom_css_revision' )->access, 'wp_get_custom_css_revision infers read access' );
+		$this->assert_same( [ 'stylesheet', 'parent_post_id' ], $revision_registry->get( 'wp_list_custom_css_revisions' )->input_schema['required'], 'wp_list_custom_css_revisions requires scope inputs' );
+		$this->assert_same( [ 'stylesheet', 'parent_post_id', 'revision_id' ], $revision_registry->get( 'wp_get_custom_css_revision' )->input_schema['required'], 'wp_get_custom_css_revision requires scope and revision inputs' );
+		$this->assert_same( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001 ], $revision_registry->sanitize_input( 'wp_list_custom_css_revisions', [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001, 'unexpected' => 'drop-me' ] ), 'wp_list_custom_css_revisions rejects extra properties' );
+		$this->assert_tool_error_result_contains(
+			$revision_registry->call( 'wp_list_custom_css_revisions', $revision_registry->sanitize_input( 'wp_list_custom_css_revisions', [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => '9001junk' ] ) ),
+			'positive integer',
+			'wp_list_custom_css_revisions rejects malformed parent IDs through registry sanitization'
+		);
+		$this->assert_tool_error_result_contains(
+			$revision_registry->call( 'wp_get_custom_css_revision', $revision_registry->sanitize_input( 'wp_get_custom_css_revision', [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001, 'revision_id' => '9101junk' ] ) ),
+			'positive integer',
+			'wp_get_custom_css_revision rejects malformed revision IDs through registry sanitization'
+		);
+
+		$restore_input = [
+			'stylesheet' => 'frontman-theme',
+			'parent_post_id' => 9001,
+			'revision_id' => 9101,
+			'expected_current_sha256' => hash( 'sha256', '.old { color: red; }' ),
+			'confirm' => true,
+		];
+		$this->assert_error_contains(
+			static function() use ( $tool, $restore_input ) {
+				$tool->restore_custom_css_revision( array_merge( $restore_input, [ 'confirm' => false ] ) );
+			},
+			'confirm=true',
+			'wp_restore_custom_css_revision requires confirmation'
+		);
+		$this->assert_error_contains(
+			static function() use ( $tool, $restore_input ) {
+				$tool->restore_custom_css_revision( array_merge( $restore_input, [ 'expected_current_sha256' => hash( 'sha256', 'stale' ) ] ) );
+			},
+			'changed',
+			'wp_restore_custom_css_revision rejects stale current CSS'
+		);
+		$this->assert_error_contains(
+			static function() use ( $tool, $restore_input ) {
+				$tool->restore_custom_css_revision( $restore_input );
+			},
+			'preprocessor',
+			'wp_restore_custom_css_revision rejects preprocessor-backed CSS'
+		);
+		$this->assert_same( 0, $GLOBALS['frontman_test_custom_css_restore_count'], 'Failed restore preconditions do not call WordPress restore API' );
+
+		$valid_custom_css_post = $GLOBALS['frontman_test_custom_css_posts']['frontman-theme'];
+		$poisoned_post = clone $valid_custom_css_post;
+		$poisoned_post->ID = 42;
+		$poisoned_post->post_type = 'page';
+		$poisoned_post->post_name = 'unrelated-page';
+		$poisoned_post->post_content = 'private page content';
+		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme'] = $poisoned_post;
+		$this->assert_error_contains(
+			static function() use ( $tool ) {
+				$tool->get_custom_css( [ 'stylesheet' => 'frontman-theme' ] );
+			},
+			'invalid post',
+			'wp_get_custom_css rejects a poisoned Custom CSS post pointer'
+		);
+		$this->assert_error_contains(
+			static function() use ( $tool, $restore_input ) {
+				$tool->restore_custom_css_revision( $restore_input );
+			},
+			'invalid post',
+			'wp_restore_custom_css_revision rejects a poisoned Custom CSS post pointer'
+		);
+		$this->assert_same( 0, $GLOBALS['frontman_test_custom_css_restore_count'], 'Poisoned scope does not call WordPress restore API' );
+		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme'] = $valid_custom_css_post;
+
+		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme']->post_content_filtered = '';
+		$string_confirmation = $revision_registry->call(
+			'wp_restore_custom_css_revision',
+			$revision_registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'confirm' => 'true' ] ) )
+		);
+		$this->assert_tool_error_result_contains( $string_confirmation, 'confirm=true', 'wp_restore_custom_css_revision rejects string confirmation through registry sanitization' );
+		$this->assert_same( 0, $GLOBALS['frontman_test_custom_css_restore_count'], 'String confirmation does not call WordPress restore API' );
+
+		$restored = $tool->restore_custom_css_revision( $restore_input );
+		$this->assert_same( [ 'selected_revision_id', 'before', 'after' ], array_keys( $restored ), 'wp_restore_custom_css_revision limits its receipt to observed metadata' );
+		$this->assert_same( 9101, $restored['selected_revision_id'], 'wp_restore_custom_css_revision reports selected revision ID' );
+		$this->assert_same( hash( 'sha256', '.old { color: red; }' ), $restored['before']['persisted_css_sha256'], 'wp_restore_custom_css_revision reports observed prior fingerprint' );
+		$this->assert_same( hash( 'sha256', '.old { color: blue; }' ), $restored['after']['persisted_css_sha256'], 'wp_restore_custom_css_revision reports observed restored fingerprint' );
+		$this->assert_same( 1, $GLOBALS['frontman_test_custom_css_restore_count'], 'Successful restore calls WordPress restore API once' );
+
+		wp_update_custom_css_post( '.current { color: green; }', [ 'stylesheet' => 'frontman-theme' ] );
+		$GLOBALS['frontman_test_custom_css_restore_transform'] = static function( string $css ): string {
+			return $css . ' /* transformed */';
+		};
+		$transformed = $tool->restore_custom_css_revision( array_merge( $restore_input, [ 'expected_current_sha256' => hash( 'sha256', '.current { color: green; }' ) ] ) );
+		$this->assert_same( hash( 'sha256', '.old { color: blue; } /* transformed */' ), $transformed['after']['persisted_css_sha256'], 'wp_restore_custom_css_revision reports transformed persisted output' );
+		$GLOBALS['frontman_test_custom_css_restore_transform'] = null;
+		wp_update_custom_css_post( '.old { color: red; }', [ 'stylesheet' => 'frontman-theme' ] );
+
+		$this->assert_same( 'read-write', $revision_registry->get( 'wp_restore_custom_css_revision' )->access, 'wp_restore_custom_css_revision infers mutation access' );
+		$this->assert_same( [ 'stylesheet', 'parent_post_id', 'revision_id', 'expected_current_sha256', 'confirm' ], $revision_registry->get( 'wp_restore_custom_css_revision' )->input_schema['required'], 'wp_restore_custom_css_revision requires every safety input' );
+		$this->assert_same( $restore_input, $revision_registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'unexpected' => 'drop-me' ] ) ), 'wp_restore_custom_css_revision rejects extra properties' );
+		$this->assert_tool_error_result_contains(
+			$revision_registry->call( 'wp_restore_custom_css_revision', $revision_registry->sanitize_input( 'wp_restore_custom_css_revision', array_merge( $restore_input, [ 'revision_id' => '9101junk' ] ) ) ),
+			'positive integer',
+			'wp_restore_custom_css_revision rejects malformed revision IDs through registry sanitization'
+		);
 
 		$this->assert_error_contains(
 			static function() use ( $tool ) {

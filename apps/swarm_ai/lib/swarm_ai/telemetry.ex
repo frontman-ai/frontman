@@ -351,7 +351,6 @@ defmodule SwarmAi.Telemetry do
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
   defp short_id(id), do: inspect(id)
 
-  # Handles both string models and LLMDB.Model structs.
   defp format_model(nil), do: "unknown"
   defp format_model(model) when is_binary(model), do: model
   defp format_model(%{id: id}) when is_binary(id), do: id

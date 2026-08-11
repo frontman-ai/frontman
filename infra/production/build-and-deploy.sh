@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Frontman Build & Deploy Script (runs on production server)
-#
-# CI rsyncs the source code to /opt/frontman/build, then invokes this script.
-# It builds the Elixir release natively, then does a blue-green deploy.
-#
-# Usage: build-and-deploy.sh
-# =============================================================================
 set -euo pipefail
 
-# --- Configuration ---
 APP_NAME="frontman_server"
 DEPLOY_ROOT="/opt/frontman"
 BUILD_DIR="${DEPLOY_ROOT}/build"
@@ -21,7 +12,6 @@ KEEP_RELEASES=3
 REBAR_URL="https://s3.amazonaws.com/rebar3/rebar3"
 REBAR_SHA512="0d00494d849fdc521a55142278d1f6ba552954fbd65b80d40df8022f594f05d6c99ed1d731bc263691a04176e11d4c6e126c56ba20dca19c5e42d4ffab2e7e36"
 
-# --- Activate mise ---
 export PATH="/home/deploy/.local/bin:${PATH}"
 if ! command -v mise >/dev/null 2>&1; then
   curl https://mise.run | sh
@@ -47,9 +37,6 @@ ensure_elixir_build_tools() {
   rm -f "${REBAR_TMP}"
 }
 
-# =============================================================================
-# Phase 1: Build (Elixir only — no JS/ReScript needed for server)
-# =============================================================================
 cd "${BUILD_DIR}/apps/frontman_server"
 export MIX_ENV=prod
 
@@ -81,11 +68,7 @@ echo ""
 echo "=== Build Complete ==="
 echo ""
 
-# =============================================================================
-# Phase 2: Blue-Green Deploy
-# =============================================================================
 
-# --- Determine active/inactive slots ---
 ACTIVE_SLOT=$(cat "${DEPLOY_ROOT}/active_slot" 2>/dev/null || echo "blue")
 
 if [ "${ACTIVE_SLOT}" = "blue" ]; then
@@ -100,7 +83,6 @@ echo "Active slot:   ${ACTIVE_SLOT}"
 echo "Deploying to:  ${INACTIVE_SLOT} (port ${INACTIVE_PORT})"
 echo ""
 
-# --- Copy release to inactive slot ---
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
 RELEASE_DIR="${DEPLOY_ROOT}/${INACTIVE_SLOT}/releases/${TIMESTAMP}"
 RELEASE_TAR="${BUILD_DIR}/apps/frontman_server/_build/prod/frontman_server-0.0.1.tar.gz"
@@ -114,12 +96,10 @@ echo ">>> Extracting release to ${RELEASE_DIR}..."
 mkdir -p "${RELEASE_DIR}"
 tar -xzf "${RELEASE_TAR}" -C "${RELEASE_DIR}"
 
-# --- Atomic symlink swap ---
 echo ">>> Swapping symlink to new release..."
 ln -sfn "${RELEASE_DIR}" "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current.tmp"
 mv -T "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current.tmp" "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current"
 
-# --- Run database migrations ---
 echo ">>> Running database migrations..."
 set -a
 source "${DEPLOY_ROOT}/${INACTIVE_SLOT}/env"
@@ -127,11 +107,9 @@ set +a
 "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current/bin/migrate"
 echo "Migrations complete."
 
-# --- Restart inactive slot ---
 echo ">>> Starting ${INACTIVE_SLOT} slot..."
 sudo /bin/systemctl restart "frontman-${INACTIVE_SLOT}"
 
-# --- Health check loop ---
 echo ">>> Waiting for ${INACTIVE_SLOT} to become healthy (port ${INACTIVE_PORT})..."
 ELAPSED=0
 HEALTHY=false
@@ -159,7 +137,6 @@ fi
 echo "${INACTIVE_SLOT} is healthy!"
 echo ""
 
-# --- Switch Caddy to new slot ---
 echo ">>> Switching Caddy to ${INACTIVE_SLOT} (port ${INACTIVE_PORT})..."
 cat > /tmp/Caddyfile.new <<EOF
 ${DOMAIN} {
@@ -170,17 +147,14 @@ cp /tmp/Caddyfile.new /etc/caddy/Caddyfile && rm /tmp/Caddyfile.new
 sudo /bin/systemctl reload caddy
 echo "Caddy reloaded. Traffic now routed to ${INACTIVE_SLOT}."
 
-# --- Update active slot marker + monitoring metric ---
 echo "${INACTIVE_SLOT}" > "${DEPLOY_ROOT}/active_slot"
 "${DEPLOY_ROOT}/monitoring/update-active-slot.sh" || true
 
-# --- Stop old slot (after brief drain period) ---
 echo ">>> Draining old slot (${ACTIVE_SLOT})..."
 sleep 5
 sudo /bin/systemctl stop "frontman-${ACTIVE_SLOT}" 2>/dev/null || true
 echo "Old slot stopped."
 
-# --- Clean up old releases (keep last N) ---
 echo ">>> Cleaning old releases..."
 for SLOT in blue green; do
   RELEASES_DIR="${DEPLOY_ROOT}/${SLOT}/releases"

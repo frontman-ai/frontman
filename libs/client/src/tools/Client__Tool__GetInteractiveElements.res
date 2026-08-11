@@ -1,10 +1,7 @@
-// Client tool that discovers interactive elements on the current page.
-// Returns a snapshot of clickable/interactive elements with their roles,
-// accessible names, and CSS selectors for use by interact_with_element.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.getInteractiveElements
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Discover interactive elements on the current web preview page. Returns a list of clickable/interactive elements with their ARIA roles, accessible names, CSS selectors, and visible text.
@@ -67,6 +64,8 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
@@ -74,7 +73,7 @@ let execute = async (
 ): Tool.MCP.CallToolResult.t => {
   Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=() =>
-      Tool.jsonResult(
+      Tool.structuredResult(
         {
           success: false,
           elements: None,
@@ -114,7 +113,7 @@ let execute = async (
         })
 
         let count = elements->Array.length
-        Tool.jsonResult(
+        Tool.structuredResult(
           {
             success: true,
             elements: Some(elements),
@@ -126,7 +125,7 @@ let execute = async (
         )
       } catch {
       | exn =>
-        Tool.jsonResult(
+        Tool.structuredResult(
           {
             success: false,
             elements: None,

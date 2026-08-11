@@ -45,10 +45,10 @@ Kilo Code reported crossing 1.5 million users and becoming the highest-volume co
 
 ## Frontman — Astro + Vite Support
 
-[frontman.sh](https://frontman.sh) | Apache-2.0 / AGPL-3.0
+[frontman.sh](https://frontman.sh) | Source-available: Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms
 
 *Disclosure: We built this.* Frontman added Astro and Vite framework integrations alongside the existing Next.js support. The browser-based approach now works across the three most popular frontend build tools.
 
 ---
 
-For a detailed comparison of all major open-source AI coding tools, see our [full comparison guide](/blog/best-open-source-ai-coding-tools-2026/).
+For a detailed comparison of all major open-source AI coding agents, see our [open-source AI coding agents comparison guide](/blog/best-open-source-ai-coding-tools-2026/).

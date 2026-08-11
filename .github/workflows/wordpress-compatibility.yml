@@ -1,0 +1,56 @@
+name: WordPress Compatibility
+
+on:
+  pull_request:
+    paths:
+      - "libs/frontman-wordpress/**"
+      - "scripts/test-wordpress-plugin-runtime.sh"
+      - "scripts/package-wordpress-plugin.sh"
+      - "scripts/validate-wordpress-plugin-release.sh"
+      - ".github/workflows/wordpress-compatibility.yml"
+      - "Makefile"
+  push:
+    branches:
+      - main
+    paths:
+      - "libs/frontman-wordpress/**"
+      - "scripts/test-wordpress-plugin-runtime.sh"
+      - "scripts/package-wordpress-plugin.sh"
+      - "scripts/validate-wordpress-plugin-release.sh"
+      - ".github/workflows/wordpress-compatibility.yml"
+      - "Makefile"
+
+permissions:
+  contents: read
+
+jobs:
+  wordpress-runtime:
+    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wordpress: "6.0.9"
+            php: "7.4"
+          - wordpress: "7.0.2"
+            php: "7.4"
+          - wordpress: "7.0.2"
+            php: "8.4"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Run isolated PHP tests
+        run: |
+          docker run --rm \
+            -v "$PWD:/workspace:ro" \
+            -w /workspace \
+            "php:${{ matrix.php }}-cli" \
+            sh -c 'for test in libs/frontman-wordpress/tests/*Test.php; do php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "$test" || exit 1; done'
+
+      - name: Run WordPress runtime tests
+        env:
+          WORDPRESS_VERSION: ${{ matrix.wordpress }}
+          PHP_VERSION: ${{ matrix.php }}
+        run: bash scripts/test-wordpress-plugin-runtime.sh

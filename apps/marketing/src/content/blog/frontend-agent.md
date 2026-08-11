@@ -4,10 +4,8 @@ seoTitle: 'Frontend Agent: Browser-Based AI for UI Development'
 pubDate: 2026-06-12T05:00:00Z
 description: 'Learn what a frontend agent is, how browser-based AI tools use DOM context and live UI feedback, and where they fit in frontend development workflows.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
+articleSection: 'Technical Explainer'
 image: '/blog/frontend-agent-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Browser-based AI frontend agent inspecting rendered UI and editing code'
 tags: ['ai', 'frontend', 'developer-tools']
 softwareApplication:

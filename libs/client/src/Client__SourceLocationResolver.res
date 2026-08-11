@@ -1,5 +1,3 @@
-// Helper to resolve source locations via the dedicated API endpoint
-
 let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
   Client__Types.SourceLocation.t,
   string,
@@ -64,7 +62,7 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
               file,
               line,
               column,
-              parent: sourceLocation.parent, // Keep parent as-is for now
+              parent: sourceLocation.parent,
               componentProps: sourceLocation.componentProps,
             }: Client__Types.SourceLocation.t
           ),

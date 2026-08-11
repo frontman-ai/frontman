@@ -1,26 +1,16 @@
 ---
-// Blog Index Page
-// ------------
-// Description: The blog index page.
 
-// Components
-// - Layout
 import Layout from '../../layouts/Layout.astro'
-// - UI
 import Hero from '../../components/blocks/hero/PageHeader.astro'
 import BlogPosts from '../../components/blocks/blog/BlogPosts.astro'
 
-// Data
 import { getCollection } from 'astro:content'
 
-// Content
-// - SEO
 const SEO = {
 	title: 'AI Frontend Development Blog | Frontman',
 	description:
 		'Technical articles on browser-aware AI coding, runtime context, and frontend development from the Frontman team.'
 }
-// - Page Header
 const header = {
 	title: 'Frontman Blog',
 	text: 'Stay informed, stay productive. All the latest from the world of Frontman.'
@@ -28,12 +18,10 @@ const header = {
 
 const allPosts = await getCollection('blog')
 
-// Sort posts by date descending for the ItemList
 const sortedPosts = [...allPosts].sort((a, b) =>
 	new Date(b.data.pubDate).getTime() - new Date(a.data.pubDate).getTime()
 )
 
-// CollectionPage + ItemList JSON-LD
 const collectionJsonLd = {
 	"@context": "https://schema.org",
 	"@type": "CollectionPage",
@@ -54,5 +42,10 @@ const collectionJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(collectionJsonLd)} />
 	<Hero title={header.title} text={header.text} />
+	<nav class="flex justify-center bg-neutral-50 px-6 pb-4 dark:bg-neutral-950" aria-label="Blog topics">
+		<a href="/blog/tags/" class="text-sm font-semibold text-primary-600 underline-offset-4 hover:underline dark:text-primary-300">
+			Browse articles by topic
+		</a>
+	</nav>
 	<BlogPosts data={allPosts} />
 </Layout>

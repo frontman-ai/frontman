@@ -1,4 +1,3 @@
-/* JSON-RPC types */
 export type JSONRPCMessage =
 	| JSONRPCRequest
 	| JSONRPCNotification
@@ -79,7 +78,6 @@ export interface JSONRPCResponse {
 	result: Result;
 }
 
-// Standard JSON-RPC error codes
 export const PARSE_ERROR = -32700;
 export const INVALID_REQUEST = -32600;
 export const METHOD_NOT_FOUND = -32601;
@@ -108,13 +106,11 @@ export interface JSONRPCError {
 	};
 }
 
-/* Empty result */
 /**
  * A response that indicates success but carries no data.
  */
 export type EmptyResult = Result;
 
-/* Cancellation */
 /**
  * This notification can be sent by either side to indicate that it is cancelling a previously-issued request.
  *
@@ -141,7 +137,6 @@ export interface CancelledNotification extends Notification {
 	};
 }
 
-/* Initialization */
 /**
  * This request is sent from the client to the server when it first connects, asking it to begin initialization.
  */
@@ -258,7 +253,6 @@ export interface Implementation {
 	version: string;
 }
 
-/* Ping */
 /**
  * A ping, issued by either the server or the client, to check that the other party is still alive. The receiver must promptly respond, or else may be disconnected.
  */
@@ -266,7 +260,6 @@ export interface PingRequest extends Request {
 	method: "ping";
 }
 
-/* Progress notifications */
 /**
  * An out-of-band notification used to inform the receiver of a progress update for a long-running request.
  */
@@ -292,7 +285,6 @@ export interface ProgressNotification extends Notification {
 	};
 }
 
-/* Pagination */
 export interface PaginatedRequest extends Request {
 	params?: {
 		/**
@@ -311,7 +303,6 @@ export interface PaginatedResult extends Result {
 	nextCursor?: Cursor;
 }
 
-/* Resources */
 /**
  * Sent from the client to request a list of resources the server has.
  */
@@ -515,7 +506,6 @@ export interface BlobResourceContents extends ResourceContents {
 	blob: string;
 }
 
-/* Prompts */
 /**
  * Sent from the client to request a list of prompts and prompt templates the server has.
  */
@@ -628,7 +618,6 @@ export interface PromptListChangedNotification extends Notification {
 	method: "notifications/prompts/list_changed";
 }
 
-/* Tools */
 /**
  * Sent from the client to request a list of tools the server has.
  */
@@ -706,7 +695,6 @@ export interface Tool {
 	};
 }
 
-/* Logging */
 /**
  * A request from the client to the server, to enable or adjust logging.
  */
@@ -757,7 +745,6 @@ export type LoggingLevel =
 	| "alert"
 	| "emergency";
 
-/* Sampling */
 /**
  * A request from the server to sample an LLM via the client. The client has full discretion over which model to select. The client should also inform the user before beginning sampling, to allow them to inspect the request (human in the loop) and decide whether to approve it.
  */
@@ -950,7 +937,6 @@ export interface ModelHint {
 	name?: string;
 }
 
-/* Autocomplete */
 /**
  * A request from the client to the server, to ask for completion options.
  */
@@ -1018,7 +1004,6 @@ export interface PromptReference {
 	name: string;
 }
 
-/* Roots */
 /**
  * Sent from the server to request a list of root URIs from the client. Roots allow
  * servers to ask for specific directories or files to operate on. A common example
@@ -1070,7 +1055,6 @@ export interface RootsListChangedNotification extends Notification {
 	method: "notifications/roots/list_changed";
 }
 
-/* Client messages */
 export type ClientRequest =
 	| PingRequest
 	| InitializeRequest
@@ -1094,7 +1078,6 @@ export type ClientNotification =
 
 export type ClientResult = EmptyResult | CreateMessageResult | ListRootsResult;
 
-/* Server messages */
 export type ServerRequest =
 	| PingRequest
 	| CreateMessageRequest

@@ -4,7 +4,9 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   use FrontmanServer.ExecutionCase
   use FrontmanServerWeb.ChannelCase
 
-  import FrontmanServer.InteractionCase.Helpers
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [assert_receive_interaction: 3, swarm_tool_call: 2]
+
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias FrontmanServer.Providers
@@ -19,16 +21,13 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
     setup %{scope: scope} do
       task_id = task_fixture(scope, framework: "nextjs").id
 
-      # Join TaskChannel to intercept MCP requests
       {:ok, _reply, socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      # Drain MCP initialization request
       assert_push("mcp:message", %{"method" => "initialize"})
 
-      # Subscribe to PubSub to see what interactions are published
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       {:ok, socket: socket, task_id: task_id, scope: scope}
@@ -54,9 +53,11 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         2_000
       )
 
-      assert_receive {:interaction, %Interaction.ToolCall{tool_name: "take_screenshot"},
-                      _turn_number},
-                     500
+      assert_receive_interaction(
+        %Interaction.ToolCall{tool_name: "take_screenshot"},
+        _turn_number,
+        500
+      )
     end
 
     test "full agent execution with MCP tool routing", %{
@@ -78,23 +79,21 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "test-key")
 
-      {:ok, _interaction, _turn_number} =
-        Tasks.submit_user_message(
-          scope,
-          Map.merge(
-            execution_request_fixture(
-              mcp_tools: [mcp_tool_def],
-              model: "openrouter:anthropic/claude-sonnet-4-20250514",
-              project_traits: []
-            ),
-            %{
-              task_id: task_id,
-              message: user_content("Implement the component")
-            }
-          )
+      execution_request =
+        execution_request_fixture(
+          mcp_tools: [mcp_tool_def],
+          model: "openrouter:anthropic/claude-sonnet-4-20250514",
+          project_traits: []
         )
 
-      # Verify MCP request is pushed to channel
+      {:ok, _interaction, _turn_number} =
+        submit_user_message_and_run(
+          scope,
+          task_id,
+          execution_request,
+          user_content("Implement the component")
+        )
+
       assert_push(
         "mcp:message",
         %{
@@ -105,7 +104,6 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         5_000
       )
 
-      # Respond to the MCP request so agent can continue
       mcp_response = %{
         "content" => [
           %{"type" => "text", "text" => ~s({"screenshot": "base64data"})}
@@ -114,8 +112,29 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_response))
 
-      assert_receive {:interaction, %Tasks.Interaction.AgentCompleted{}, _turn_number},
-                     10_000
+      assert_receive_interaction(%Tasks.Interaction.AgentCompleted{}, _turn_number, 10_000)
+    end
+  end
+
+  defp submit_user_message_and_run(scope, task_id, execution_request, message) do
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution_request, %{task_id: task_id, message: message})
+         ) do
+      {:ok, interaction} ->
+        case Tasks.run_next_turn(scope, task_id, execution_request) do
+          :ok ->
+            {:ok, interaction, FrontmanServer.Test.Fixtures.Tasks.latest_turn_number(task_id)}
+
+          result when result in [:already_running, :no_accepted_messages] ->
+            {:error, result}
+
+          result ->
+            result
+        end
+
+      result ->
+        result
     end
   end
 end

@@ -16,18 +16,27 @@ defmodule AgentClientProtocol do
   the agent server, separate from MCP which handles tool invocation.
   """
 
-  use Boundary, deps: [JsonRpc], exports: :all
+  use Boundary,
+    deps: [JsonRpc, FrontmanServer],
+    exports: :all
+
+  alias FrontmanServer.Agents.Agent
 
   @protocol_version 1
+  @agent_attribution_version 1
+  @extension_namespace "frontman.dev"
+  @invalid_agent_attribution_capability {:error,
+                                         "Invalid Frontman agent attribution capability metadata"}
+  @agent_id_metadata_key "#{@extension_namespace}/agentId"
+  @agent_error_id_metadata_key "#{@extension_namespace}/agentErrorId"
+  @timestamp_metadata_key "#{@extension_namespace}/timestamp"
 
-  # Channel event names — the single source of truth for Phoenix channel events.
   @event_acp_message "acp:message"
   @event_config_options_updated "config_options_updated"
   @event_title_updated "title_updated"
   @event_list_sessions "list_sessions"
   @event_delete_session "delete_session"
 
-  # ACP method names — the single source of truth for JSON-RPC method strings.
   @method_initialize "initialize"
   @method_session_new "session/new"
   @method_session_load "session/load"
@@ -35,7 +44,6 @@ defmodule AgentClientProtocol do
   @method_session_cancel "session/cancel"
   @method_session_update "session/update"
 
-  # Tool call status constants — the single source of truth for ACP wire values.
   @tool_call_status_pending "pending"
   @tool_call_status_in_progress "in_progress"
   @tool_call_status_completed "completed"
@@ -48,39 +56,30 @@ defmodule AgentClientProtocol do
     @tool_call_status_failed
   ]
 
-  # Plan entry priority constants
   @plan_priority_high "high"
   @plan_priority_medium "medium"
   @plan_priority_low "low"
 
   @plan_priorities [@plan_priority_high, @plan_priority_medium, @plan_priority_low]
 
-  # Plan entry status constants
   @plan_status_pending "pending"
   @plan_status_in_progress "in_progress"
   @plan_status_completed "completed"
 
   @plan_statuses [@plan_status_pending, @plan_status_in_progress, @plan_status_completed]
 
-  # Stop reason constants — the single source of truth for ACP wire values.
   @stop_reason_end_turn "end_turn"
   @stop_reason_max_tokens "max_tokens"
   @stop_reason_max_turn_requests "max_turn_requests"
   @stop_reason_refusal "refusal"
   @stop_reason_cancelled "cancelled"
 
-  @stop_reasons [
-    @stop_reason_end_turn,
-    @stop_reason_max_tokens,
-    @stop_reason_max_turn_requests,
-    @stop_reason_refusal,
-    @stop_reason_cancelled
-  ]
-
   def tool_call_status_pending, do: @tool_call_status_pending
   def tool_call_status_in_progress, do: @tool_call_status_in_progress
   def tool_call_status_completed, do: @tool_call_status_completed
   def tool_call_status_failed, do: @tool_call_status_failed
+  def tool_call_status(false), do: @tool_call_status_completed
+  def tool_call_status(true), do: @tool_call_status_failed
 
   def stop_reason_end_turn, do: @stop_reason_end_turn
   def stop_reason_max_tokens, do: @stop_reason_max_tokens
@@ -90,14 +89,12 @@ defmodule AgentClientProtocol do
 
   def protocol_version, do: @protocol_version
 
-  # Channel event accessors
   def event_acp_message, do: @event_acp_message
   def event_config_options_updated, do: @event_config_options_updated
   def event_title_updated, do: @event_title_updated
   def event_list_sessions, do: @event_list_sessions
   def event_delete_session, do: @event_delete_session
 
-  # Method name accessors
   def method_initialize, do: @method_initialize
   def method_session_new, do: @method_session_new
   def method_session_load, do: @method_session_load
@@ -113,24 +110,60 @@ defmodule AgentClientProtocol do
     }
   end
 
-  def agent_capabilities do
+  def agent_capabilities(agents, default_agent_id)
+      when is_list(agents) and is_binary(default_agent_id) do
     %{
       "loadSession" => true,
       "mcpCapabilities" => %{"http" => false, "sse" => false, "websocket" => true},
-      "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true}
+      "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true},
+      "_meta" => %{
+        @extension_namespace => %{
+          "agentAttribution" => %{"version" => @agent_attribution_version},
+          "agents" => build_agent_catalog(agents),
+          "defaultAgentId" => default_agent_id
+        }
+      }
     }
   end
+
+  def negotiate_agent_attribution_version(nil), do: {:ok, nil}
+
+  def negotiate_agent_attribution_version(%{} = capabilities) do
+    with {:ok, metadata} <- optional_map(capabilities, "_meta"),
+         {:ok, namespace} <- optional_map(metadata, @extension_namespace),
+         {:ok, advertisement} <- optional_map(namespace, "agentAttribution") do
+      case Map.fetch(advertisement, "version") do
+        {:ok, @agent_attribution_version} -> {:ok, @agent_attribution_version}
+        {:ok, version} when version in 1..65_535 -> {:ok, nil}
+        _invalid -> @invalid_agent_attribution_capability
+      end
+    else
+      :absent -> {:ok, nil}
+      :invalid -> @invalid_agent_attribution_capability
+    end
+  end
+
+  def negotiate_agent_attribution_version(_invalid), do: @invalid_agent_attribution_capability
 
   @doc """
   Builds the initialize response result.
   """
-  def build_initialize_result do
+  def build_initialize_result(agents, default_agent_id)
+      when is_list(agents) and is_binary(default_agent_id) do
     %{
       "protocolVersion" => @protocol_version,
-      "agentCapabilities" => agent_capabilities(),
+      "agentCapabilities" => agent_capabilities(agents, default_agent_id),
       "agentInfo" => agent_info(),
       "authMethods" => []
     }
+  end
+
+  defp optional_map(map, key) do
+    case Map.fetch(map, key) do
+      {:ok, value} when is_map(value) -> {:ok, value}
+      {:ok, _invalid} -> :invalid
+      :error -> :absent
+    end
   end
 
   @doc """
@@ -163,27 +196,41 @@ defmodule AgentClientProtocol do
     ]
   end
 
-  @doc """
-  Builds session/new result payload with optional config options.
-  """
-  def build_session_new_result(session_id, config_options \\ []) do
-    result = %{"sessionId" => session_id}
+  @doc "Encodes the resolved agent catalog for ACP metadata."
+  def build_agent_catalog(agents) when is_list(agents) do
+    Enum.map(agents, &agent_entry/1)
+  end
 
-    case config_options do
-      [] -> result
-      opts when is_list(opts) -> Map.put(result, "configOptions", opts)
-    end
+  @doc """
+  Builds session/new result payload with config options.
+  """
+  def build_session_new_result(session_id, config_options) when is_list(config_options) do
+    %{"sessionId" => session_id}
+    |> put_config_options(config_options)
   end
 
   @doc """
   Builds session/load result payload with optional config options.
   """
-  def build_session_load_result(config_options \\ []) do
-    case config_options do
-      [] -> %{}
-      opts when is_list(opts) -> %{"configOptions" => opts}
-    end
+  def build_session_load_result(config_options) when is_list(config_options) do
+    %{}
+    |> put_config_options(config_options)
   end
+
+  defp agent_entry(%Agent{} = agent) do
+    %{
+      "id" => agent.id,
+      "name" => agent.name,
+      "displayName" => agent.display_name,
+      "description" => agent.description,
+      "color" => agent.color
+    }
+  end
+
+  defp put_config_options(result, []), do: result
+
+  defp put_config_options(result, config_options),
+    do: Map.put(result, "configOptions", config_options)
 
   @doc """
   Builds a session summary for the list_sessions channel response.
@@ -223,66 +270,65 @@ defmodule AgentClientProtocol do
   Per ACP spec: The first agent_message_chunk implicitly signals message start.
   Message end is signaled by the session/prompt response with stopReason.
   """
-  def build_agent_message_chunk_notification(session_id, text, timestamp) do
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "agent_message_chunk",
-        "content" => %{
-          "type" => "text",
-          "text" => text
-        },
-        "timestamp" => DateTime.to_iso8601(timestamp)
-      }
-    }
+  def build_agent_message_chunk_notification(
+        session_id,
+        text,
+        timestamp,
+        message_id,
+        agent_id
+      ) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "agent_message_chunk",
+      "messageId" => message_id,
+      "content" => %{"type" => "text", "text" => text},
+      "_meta" => message_metadata(agent_id, timestamp)
+    })
+  end
 
-    JsonRpc.notification(@method_session_update, params)
+  def agent_message_id(turn_started_id, ordinal), do: "#{turn_started_id}:#{ordinal}"
+
+  @doc """
+  Builds a canonical accepted user_message_chunk session/update notification.
+
+  Used when a user message is persisted as accepted session history. `message_id` is server-owned.
+  """
+  def build_user_message_chunk_notification(session_id, message_id, content, agent_id, timestamp)
+      when is_binary(agent_id) and agent_id != "" do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "user_message_chunk",
+      "messageId" => message_id,
+      "content" => content,
+      "_meta" => message_metadata(agent_id, timestamp)
+    })
+  end
+
+  defp message_metadata(agent_id, timestamp) do
+    %{
+      @agent_id_metadata_key => agent_id,
+      @timestamp_metadata_key => DateTime.to_iso8601(timestamp)
+    }
+  end
+
+  defp session_update_notification(session_id, update) do
+    JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
   end
 
   @doc """
-  Builds a user_message_chunk session/update notification.
-
-  Used during history replay to send stored user messages back to the client.
-  Accepts either a pre-built content block map or a plain text string.
+  Builds a state_update session/update notification.
   """
-  def build_user_message_chunk_notification(session_id, %{} = content_block, timestamp) do
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "user_message_chunk",
-        "content" => content_block,
-        "timestamp" => DateTime.to_iso8601(timestamp)
-      }
+  def build_state_update_notification(session_id, state, stop_reason \\ nil) do
+    update = %{
+      "sessionUpdate" => "state_update",
+      "state" => state
     }
 
-    JsonRpc.notification(@method_session_update, params)
-  end
+    update =
+      case stop_reason do
+        nil -> update
+        stop_reason -> Map.put(update, "stopReason", stop_reason)
+      end
 
-  def build_user_message_chunk_notification(session_id, text, timestamp) when is_binary(text) do
-    build_user_message_chunk_notification(
-      session_id,
-      %{"type" => "text", "text" => text},
-      timestamp
-    )
-  end
-
-  @doc """
-  Builds an agent_turn_complete session/update notification.
-
-  Sent when the agent finishes a turn that was resumed via elicitation response
-  (not via session/prompt), so there is no pending JSON-RPC request to respond to.
-  The client uses this to finalize the streaming message and reset the agent-running state.
-  """
-  def build_agent_turn_complete_notification(session_id, stop_reason) do
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "agent_turn_complete",
-        "stopReason" => stop_reason
-      }
-    }
-
-    JsonRpc.notification(@method_session_update, params)
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -294,14 +340,15 @@ defmodule AgentClientProtocol do
   Pass `retry_opts` when the server is scheduling an automatic retry. The client
   uses `retryAt` to show a countdown and infers retry state from its presence.
 
-    retry_opts: [retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
+    retry_opts: [category: "rate_limit", agent_error_id: "err_...", retry_at: %DateTime{}, attempt: 1, max_attempts: 5]
   """
   def build_error_notification(session_id, message, timestamp, retry_opts \\ []) do
     update = %{
       "sessionUpdate" => "error",
       "message" => message,
       "timestamp" => DateTime.to_iso8601(timestamp),
-      "category" => Keyword.get(retry_opts, :category, "unknown")
+      "category" => Keyword.fetch!(retry_opts, :category),
+      "_meta" => %{@agent_error_id_metadata_key => Keyword.fetch!(retry_opts, :agent_error_id)}
     }
 
     update =
@@ -316,14 +363,14 @@ defmodule AgentClientProtocol do
           |> Map.put("maxAttempts", Keyword.fetch!(retry_opts, :max_attempts))
       end
 
-    JsonRpc.notification(@method_session_update, %{"sessionId" => session_id, "update" => update})
+    session_update_notification(session_id, update)
   end
 
   @doc """
-  Builds a session/prompt response with stop reason.
+  Builds a session/prompt acceptance response.
   """
-  def build_prompt_result(stop_reason) when stop_reason in @stop_reasons do
-    %{"stopReason" => stop_reason}
+  def build_prompt_accepted_result do
+    %{}
   end
 
   @doc """
@@ -337,7 +384,9 @@ defmodule AgentClientProtocol do
         title,
         kind,
         timestamp,
-        status \\ @tool_call_status_pending
+        status \\ @tool_call_status_pending,
+        raw_input \\ nil,
+        raw_output \\ nil
       )
       when status in @tool_call_statuses do
     update = %{
@@ -349,19 +398,26 @@ defmodule AgentClientProtocol do
       "timestamp" => DateTime.to_iso8601(timestamp)
     }
 
-    JsonRpc.notification(@method_session_update, %{
-      "sessionId" => session_id,
-      "update" => update
-    })
+    update = if is_nil(raw_input), do: update, else: Map.put(update, "rawInput", raw_input)
+    update = if is_nil(raw_output), do: update, else: Map.put(update, "rawOutput", raw_output)
+
+    session_update_notification(session_id, update)
   end
 
   @doc """
   Updates an existing tool call (sessionUpdate: "tool_call_update").
 
-  Content should be an array of ACP content blocks if provided.
+  Content, raw input, and raw output are included when provided.
   Per ACP spec: "All fields except toolCallId are optional in updates"
   """
-  def tool_call_update(session_id, tool_call_id, status, content \\ nil)
+  def tool_call_update(
+        session_id,
+        tool_call_id,
+        status,
+        content \\ nil,
+        raw_input \\ nil,
+        raw_output \\ nil
+      )
       when status in @tool_call_statuses do
     update = %{
       "sessionUpdate" => "tool_call_update",
@@ -370,13 +426,10 @@ defmodule AgentClientProtocol do
     }
 
     update = if content, do: Map.put(update, "content", content), else: update
+    update = if is_nil(raw_input), do: update, else: Map.put(update, "rawInput", raw_input)
+    update = if is_nil(raw_output), do: update, else: Map.put(update, "rawOutput", raw_output)
 
-    params = %{
-      "sessionId" => session_id,
-      "update" => update
-    }
-
-    JsonRpc.notification(@method_session_update, params)
+    session_update_notification(session_id, update)
   end
 
   @doc """
@@ -406,15 +459,10 @@ defmodule AgentClientProtocol do
   def plan_update(session_id, entries) do
     validate_plan_entries!(entries)
 
-    params = %{
-      "sessionId" => session_id,
-      "update" => %{
-        "sessionUpdate" => "plan",
-        "entries" => entries
-      }
-    }
-
-    JsonRpc.notification(@method_session_update, params)
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "plan",
+      "entries" => entries
+    })
   end
 
   defp validate_plan_entries!(entries) when is_list(entries) do
@@ -431,10 +479,6 @@ defmodule AgentClientProtocol do
        when is_binary(content) and priority in @plan_priorities and status in @plan_statuses do
     :ok
   end
-
-  # ---------------------------------------------------------------------------
-  # Elicitation (session/elicitation)
-  # ---------------------------------------------------------------------------
 
   @doc """
   Builds a form-mode `session/elicitation` JSON-RPC request.
@@ -603,7 +647,6 @@ defmodule AgentClientProtocol do
             _ -> []
           end
 
-        # Append custom answer if provided
         answer_values =
           case custom_answer do
             val when is_binary(val) and val != "" -> answer_values ++ [val]

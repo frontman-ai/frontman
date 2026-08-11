@@ -1,5 +1,3 @@
-// Write file tool - writes content to a file (text or binary via image_ref)
-
 module Fs = FrontmanBindings.Fs
 module NodeBuffer = FrontmanBindings.NodeBuffer
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -8,7 +6,7 @@ module FileTracker = FrontmanCore__FileTracker
 module ExnUtils = FrontmanCore__ExnUtils
 
 let name = Tool.ToolNames.writeFile
-let visibleToAgent = true
+let access = Tool.Write
 let description = `Writes content to a file.
 
 Parameters:
@@ -50,6 +48,8 @@ type output = {
   _context?: pathContext,
 }
 
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
+
 let writeContent = (resolvedPath: string, content: string, encoding: option<[#base64]>) => {
   switch encoding {
   | Some(#base64) =>
@@ -71,7 +71,6 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
     switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
     | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
     | Ok(resolved) =>
-      // Guard: existing files must have been read first and not be stale
       let fileExists = try {
         let _ = await Fs.Promises.stat(resolved.resolvedPath)
         true
@@ -94,7 +93,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
             ~mtimeMs=Fs.mtimeMs(stats),
             ~size=Fs.size(stats),
           )
-          Tool.jsonResult(
+          Tool.structuredResult(
             {
               _context: {
                 sourceRoot: resolved.sourceRoot,

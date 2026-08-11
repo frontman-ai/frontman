@@ -64,4 +64,42 @@ defmodule FrontmanServer.SentryTest do
       assert event.extra[:logger_metadata][:task_id] == task_id
     end
   end
+
+  describe "Sentry logger filtering" do
+    test "drops ReqLLM streaming rate-limit errors" do
+      event = %{
+        level: :error,
+        msg:
+          {:string,
+           "Finch streaming failed: %ReqLLM.Error.API.Request{reason: \"rate limited\", status: 429}"},
+        meta: %{file: "lib/req_llm/streaming/finch_client.ex"}
+      }
+
+      assert FrontmanServer.Application.sentry_logger_filter(event, []) == :stop
+    end
+
+    test "drops ReqLLM streaming rate-limit errors with Logger file metadata" do
+      event = %{
+        level: :error,
+        msg:
+          {:string,
+           "Finch streaming failed: %ReqLLM.Error.API.Request{reason: \"rate limited\", status: 429}"},
+        meta: %{file: ~c"/app/lib/req_llm/streaming/finch_client.ex"}
+      }
+
+      assert FrontmanServer.Application.sentry_logger_filter(event, []) == :stop
+    end
+
+    test "keeps non-rate-limit ReqLLM streaming errors" do
+      event = %{
+        level: :error,
+        msg:
+          {:string,
+           "Finch streaming failed: %ReqLLM.Error.API.Request{reason: \"server error\", status: 500}"},
+        meta: %{file: "lib/req_llm/streaming/finch_client.ex"}
+      }
+
+      assert FrontmanServer.Application.sentry_logger_filter(event, []) == :ignore
+    end
+  end
 end

@@ -1,13 +1,9 @@
-// Max 7680px per dimension (Anthropic hard-rejects >8000; server gate enforces 7680 for all providers).
-
 type limits = {
   maxDimension: int,
   quality: float,
 }
 
 let conservative: limits = {maxDimension: 7680, quality: 0.8}
-
-let forProvider = (_provider: option<string>): limits => conservative
 
 @new external makeImage: unit => WebAPI.DOMAPI.htmlImageElement = "Image"
 

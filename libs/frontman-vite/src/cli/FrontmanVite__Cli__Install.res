@@ -1,4 +1,3 @@
-// Install command implementation for Vite
 module Bindings = FrontmanBindings
 module ChildProcess = FrontmanAiFrontmanCore.FrontmanCore__ChildProcess
 module Fs = Bindings.Fs
@@ -22,7 +21,6 @@ type installResult =
   | PartialSuccess({@live manualStepsRequired: array<string>})
   | Failure(string)
 
-// Install dependencies using detected package manager
 let installDependencies = async (
   ~projectDir: string,
   ~packageManager: Detect.packageManager,
@@ -55,19 +53,14 @@ let installDependencies = async (
   }
 }
 
-// Inject frontmanPlugin into an existing vite config file
-// Strategy: add import at the top, add frontmanPlugin({ host }) to plugins array
 let injectFrontmanPlugin = (~server: string, content: string): result<string, string> => {
-  // Check if plugins array exists
   let pluginsPattern = /plugins\s*:\s*\[/
 
   switch pluginsPattern->RegExp.test(content) {
   | false => Error("Could not find a `plugins: [` array in your Vite config")
   | true =>
-    // Add import at the top of the file (after any existing imports)
     let importStatement = Templates.importLine ++ "\n"
 
-    // Find the last import line to insert after
     let lines = content->String.split("\n")
     let lastImportIdx = ref(-1)
 
@@ -87,12 +80,9 @@ let injectFrontmanPlugin = (~server: string, content: string): result<string, st
         ->Array.slice(~start=lastImportIdx.contents + 1, ~end=Array.length(lines))
         ->Array.join("\n")
       before ++ "\n" ++ importStatement ++ after
-    | false =>
-      // No imports found, add at the very top
-      importStatement ++ "\n" ++ content
+    | false => importStatement ++ "\n" ++ content
     }
 
-    // Insert frontmanPlugin({ host }) as first item in plugins array
     let call = Templates.pluginCall(~server)
     let result =
       contentWithImport->String.replaceRegExp(/plugins\s*:\s*\[/, `plugins: [\n    ${call},`)
@@ -101,7 +91,6 @@ let injectFrontmanPlugin = (~server: string, content: string): result<string, st
   }
 }
 
-// Handle vite config file
 let handleViteConfig = async (
   ~projectDir: string,
   ~info: Detect.projectInfo,
@@ -114,7 +103,6 @@ let handleViteConfig = async (
     Ok()
 
   | Detect.NotFound =>
-    // No vite config at all — create one from scratch
     let fileName = "vite.config.ts"
     let filePath = Path.join([projectDir, fileName])
     let call = Templates.pluginCall(~server)
@@ -156,7 +144,6 @@ export default defineConfig({
   }
 }
 
-// Main install function
 let run = async (options: installOptions): installResult => {
   let projectDir = options.prefix->Option.getOr(Process.cwd())
 
@@ -170,7 +157,6 @@ let run = async (options: installOptions): installResult => {
   | false => ()
   }
 
-  // Step 1: Detect project info
   switch await Detect.detect(projectDir) {
   | Error(msg) =>
     Console.error(`  ${Style.warn}  ${Style.bold("Error:")} ${msg}`)
@@ -180,7 +166,6 @@ let run = async (options: installOptions): installResult => {
     Console.log(`  ${Style.bullet} ${Style.bold("Detected:")} Vite project`)
     Console.log("")
 
-    // Step 2: Install dependencies (unless skipped)
     switch options.skipDeps {
     | true => ()
     | false =>
@@ -197,7 +182,6 @@ let run = async (options: installOptions): installResult => {
       Console.log("")
     }
 
-    // Step 3: Handle vite config
     let manualSteps = []
 
     switch await handleViteConfig(
@@ -210,7 +194,6 @@ let run = async (options: installOptions): installResult => {
     | Error(details) => manualSteps->Array.push(details)->ignore
     }
 
-    // Summary
     switch manualSteps->Array.length > 0 {
     | true =>
       Console.log("")
@@ -228,7 +211,13 @@ let run = async (options: installOptions): installResult => {
         let devCommand = Detect.getDevCommand(info.packageManager)
         Console.log("")
         Console.log(`  ${Style.divider}`)
-        Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~port="5173"))
+        Console.log(
+          Templates.SuccessMessages.installComplete(
+            ~devCommand,
+            ~port="5173",
+            ~server=options.server,
+          ),
+        )
       }
       Success
     }

@@ -18,7 +18,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
   describe "list_todos/1" do
     test "returns empty map when no interactions", %{task_id: task_id, scope: scope} do
       {:ok, task} = Tasks.get_task(scope, task_id)
-      assert %{} = Todos.list_todos(task.interactions)
+      assert %{} = Todos.list_todos(task.interaction_rows)
     end
 
     test "parses todos from a todo_write result", %{
@@ -53,13 +53,12 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(write_result),
-        false,
+        %{"content" => [], "structuredContent" => write_result},
         turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      todos = Todos.list_todos(task.interactions)
+      todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 2
 
       todo_list = Map.values(todos)
@@ -100,8 +99,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(first_result),
-        false,
+        %{"content" => [], "structuredContent" => first_result},
         turn_number: turn_number
       )
 
@@ -109,13 +107,12 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
-        MCP.tool_result_structured(second_result),
-        false,
+        %{"content" => [], "structuredContent" => second_result},
         turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      todos = Todos.list_todos(task.interactions)
+      todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 1
 
       [todo] = Map.values(todos)
@@ -146,23 +143,20 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(good_result),
-        false,
+        %{"content" => [], "structuredContent" => good_result},
         turn_number: turn_number
       )
 
-      # Error result should be ignored
       Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
         MCP.tool_result_error("Invalid todo at index 0"),
-        true,
         turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      todos = Todos.list_todos(task.interactions)
+      todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 1
       assert [%{content: "Good task"}] = Map.values(todos)
     end
@@ -176,13 +170,12 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(%{"todos" => []}),
-        false,
+        %{"content" => [], "structuredContent" => %{"todos" => []}},
         turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      assert %{} = Todos.list_todos(task.interactions)
+      assert %{} = Todos.list_todos(task.interaction_rows)
     end
 
     test "old todo_add/update/remove interactions are ignored", %{
@@ -190,13 +183,11 @@ defmodule FrontmanServer.Tasks.TodosTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Simulate legacy interactions
       Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c1", name: "todo_add"},
         %{"id" => "fake", "content" => "Old todo"},
-        false,
         turn_number: turn_number
       )
 
@@ -205,12 +196,11 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c2", name: "todo_update"},
         %{"id" => "fake", "status" => "completed"},
-        false,
         turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      todos = Todos.list_todos(task.interactions)
+      todos = Todos.list_todos(task.interaction_rows)
       assert todos == %{}
     end
   end

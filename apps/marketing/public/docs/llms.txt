@@ -1,0 +1,24 @@
+# Frontman Docs LLM Context
+
+Frontman documentation explains installation, API keys, integrations, usage workflows, and self-hosting.
+
+## Start Here
+
+- Introduction: https://frontman.sh/docs/
+- Installation: https://frontman.sh/docs/installation/
+- API keys and providers: https://frontman.sh/docs/api-keys/
+
+## Integrations
+
+- Next.js: https://frontman.sh/docs/integrations/nextjs/
+- Astro: https://frontman.sh/docs/integrations/astro/
+- Vite: https://frontman.sh/docs/integrations/vite/
+- WordPress beta: https://frontman.sh/docs/integrations/wordpress/
+
+## Reference
+
+- Configuration: https://frontman.sh/docs/reference/configuration/
+- Environment variables: https://frontman.sh/docs/reference/env-vars/
+- Architecture: https://frontman.sh/docs/reference/architecture/
+- Self-hosting: https://frontman.sh/docs/reference/self-hosting/
+- Troubleshooting: https://frontman.sh/docs/reference/troubleshooting/

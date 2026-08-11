@@ -10,7 +10,6 @@ defmodule SwarmAi.LLM.Response do
   require Logger
 
   alias ReqLLM.StreamChunk
-  alias SwarmAi.LLM.Usage
 
   @type finish_reason ::
           :stop
@@ -28,7 +27,7 @@ defmodule SwarmAi.LLM.Response do
     field(:reasoning_details, [map()], default: [])
     field(:finish_reason, finish_reason(), default: :stop)
     field(:tool_calls, [SwarmAi.ToolCall.t()], default: [])
-    field(:usage, Usage.t())
+    field(:usage, map())
     field(:metadata, map(), default: %{})
     field(:raw, term())
   end
@@ -52,7 +51,7 @@ defmodule SwarmAi.LLM.Response do
       content: IO.iodata_to_binary(result.content),
       reasoning_details: Enum.reverse(result.reasoning_details),
       tool_calls: finalize_tool_calls(result.tool_calls_by_id, result.fragments_by_index),
-      usage: build_usage(result.usage),
+      usage: result.usage,
       finish_reason: result.finish_reason || :stop,
       metadata: result.metadata
     }
@@ -241,10 +240,6 @@ defmodule SwarmAi.LLM.Response do
     |> Map.put("text", text)
     |> Map.put("index", index)
   end
-
-  defp build_usage(nil), do: nil
-  defp build_usage(usage) when is_map(usage), do: Usage.from_map(usage)
-  defp build_usage(_other), do: nil
 
   defp maybe_put_usage(acc, metadata) do
     case meta_field(metadata, :usage) do

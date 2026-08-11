@@ -1,22 +1,20 @@
 /**
  * ToolGroupTypes - Types for tool grouping and collapse behavior
- * 
+ *
  * Defines the data structures used to group consecutive tool calls
  * into collapsible "Explored" summaries.
  */
 module Message = Client__State__Types.Message
 
-// Summary statistics for grouped tools
 type toolsSummary = {
-  files: array<string>, // Files read
-  directories: array<string>, // Directories listed
-  searches: int, // Search count
-  definitions: int, // Definitions found
-  browserSnapshots: int, // Browser snapshots taken
-  tools: array<string>, // All tool names in group
+  files: array<string>,
+  directories: array<string>,
+  searches: int,
+  definitions: int,
+  browserSnapshots: int,
+  tools: array<string>,
 }
 
-// Empty summary for initialization
 let emptySummary: toolsSummary = {
   files: [],
   directories: [],
@@ -26,29 +24,25 @@ let emptySummary: toolsSummary = {
   tools: [],
 }
 
-// Group type determines the prefix label
 type groupType =
-  | Activity // "Explored" - read, list, search
-  | Browser // "Performed" - browser actions
-  | PrePlan // "Prepared plan" - planning operations
-  | Subagent // "Processed" - subagent tool calls
+  | Activity
+  | Browser
+  | PrePlan
+  | Subagent
 
-// A group of related tool calls
 type toolGroup = {
   id: string,
   groupType: groupType,
   toolCalls: array<Message.toolCall>,
   summary: toolsSummary,
-  prefix: string, // "Explored", "Performed", etc.
-  spawningToolName: option<string>, // For subagent groups: the tool that spawned this agent
+  prefix: string,
+  spawningToolName: option<string>,
 }
 
-// Display item - either a single tool or a group
 type displayItem =
   | SingleTool(Message.toolCall)
   | ToolGroup(toolGroup)
 
-// Get prefix for a group type
 let getPrefixForGroupType = (gt: groupType): string => {
   switch gt {
   | Activity => "Explored"

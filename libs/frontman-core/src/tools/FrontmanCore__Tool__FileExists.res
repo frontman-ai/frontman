@@ -1,11 +1,9 @@
-// File exists tool - checks if a file or directory exists
-
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module SafePath = FrontmanCore__SafePath
 module FsUtils = FrontmanCore__FsUtils
 
 let name = Tool.ToolNames.fileExists
-let visibleToAgent = true
+let access = Tool.Read
 let description = `Checks if a file or directory exists.
 
 Parameters:
@@ -19,11 +17,13 @@ type input = {path: string}
 @schema
 type output = bool
 
+let (visibleToAgent, outputJsonSchema) = (true, None)
+
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   | Ok(safePath) =>
     let exists = await FsUtils.pathExists(SafePath.toString(safePath))
-    Tool.jsonResult(exists, outputSchema)
+    Tool.unstructuredResult(exists, outputSchema)
   }
 }

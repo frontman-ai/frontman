@@ -1,6 +1,3 @@
-// Message types - extracted to break circular dependency with MessageStore
-
-// Data for file/image attachments extracted from user content parts
 type fileAttachmentData = {
   id: string,
   dataUrl: string,
@@ -8,13 +5,11 @@ type fileAttachmentData = {
   filename: string,
 }
 
-// Raw base64 + mediaType extracted from a fileAttachmentData's data URL
 type resolvedImageData = {
   base64: string,
   mediaType: string,
 }
 
-// Strip the "data:mime;base64," prefix from a data URL to get raw base64
 let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
   let base64 = switch att.dataUrl->String.indexOf(";base64,") {
   | -1 => att.dataUrl
@@ -23,8 +18,6 @@ let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
   {base64, mediaType: att.mediaType}
 }
 
-// Serializable annotation snapshot — stored on user messages.
-// Captures all annotation metadata at send time, dropping the live DOM element ref.
 module MessageAnnotation = {
   type boundingBox = Client__Annotation__Types.viewportBoundingBox
   type penShape = Client__Annotation__Types.penShape
@@ -42,7 +35,6 @@ module MessageAnnotation = {
 
   type t = {
     id: string,
-    // Async enrichment fields — result captures per-field success/failure
     selector: result<option<string>, string>,
     tagName: string,
     cssClasses: option<string>,
@@ -55,7 +47,6 @@ module MessageAnnotation = {
     elementorContext: option<Client__ElementorDetection.t>,
   }
 
-  // Convert a SourceLocation.t to the local sourceLocation type (same shape, just decoupled)
   let rec sourceLocationFromClientTypes = (loc: Client__Types.SourceLocation.t): sourceLocation => {
     componentName: loc.componentName,
     tagName: loc.tagName,
@@ -66,10 +57,6 @@ module MessageAnnotation = {
     componentProps: loc.componentProps,
   }
 
-  // Snapshot a live Annotation.t into a serializable MessageAnnotation.t
-  // Drops the live DOM element reference.
-  // sourceLocation needs conversion from Client__Types.SourceLocation.t to the local type;
-  // selector and screenshot are pass-through (same result<option<string>, string> shape).
   let fromAnnotation = (annotation: Client__Annotation__Types.t): t => {
     id: annotation.id,
     selector: annotation.selector,
@@ -87,7 +74,6 @@ module MessageAnnotation = {
   }
 }
 
-// Content part types for messages (simplified from Vercel AI SDK)
 module UserContentPart = {
   @@live
   type t =
@@ -113,9 +99,14 @@ type toolCallState =
   | OutputAvailable
   | OutputError
 
+type toolResult = {
+  rawOutput: option<JSON.t>,
+  content: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.toolCallContentItem>,
+}
+
 type assistantMessage =
-  | Streaming({id: string, textBuffer: string, createdAt: float})
-  | Completed({id: string, content: array<AssistantContentPart.t>, createdAt: float})
+  | Streaming({id: string, textBuffer: string, agentId: string})
+  | Completed({id: string, content: array<AssistantContentPart.t>, agentId: string})
 
 type toolCall = {
   id: string,
@@ -123,30 +114,25 @@ type toolCall = {
   state: toolCallState,
   inputBuffer: string,
   input: option<JSON.t>,
-  result: option<JSON.t>,
+  result: option<toolResult>,
   errorText: option<string>,
-  createdAt: float,
   parentAgentId: option<string>,
   spawningToolName: option<string>,
 }
 
 module ErrorMessage: {
   type t
-  let make: (~id: string, ~error: string, ~timestamp: string, ~category: string) => t
+  let make: (~id: string, ~error: string, ~category: Client__ErrorCategory.t) => t
   let id: t => string
   let error: t => string
-  let createdAt: t => float
-  let category: t => string
+  let category: t => Client__ErrorCategory.t
 } = {
-  type t = {id: string, error: string, createdAt: float, category: string}
+  type t = {id: string, error: string, category: Client__ErrorCategory.t}
 
-  let make = (~id, ~error, ~timestamp, ~category) => {
-    {id, error, createdAt: Date.fromString(timestamp)->Date.getTime, category}
-  }
+  let make = (~id, ~error, ~category) => {id, error, category}
 
   let id = t => t.id
   let error = t => t.error
-  let createdAt = t => t.createdAt
   let category = t => t.category
 }
 
@@ -155,7 +141,7 @@ type t =
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<MessageAnnotation.t>,
-      createdAt: float,
+      agentId: string,
     })
   | Assistant(assistantMessage)
   | ToolCall(toolCall)

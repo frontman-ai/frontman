@@ -1,0 +1,4 @@
+<?php
+$value = 1; // line
+# legacy
+/* block */

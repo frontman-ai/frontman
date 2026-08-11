@@ -33,6 +33,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       tool = %SwarmAi.Tool{
         name: "read_file",
         description: "Reads a file",
+        access: :read,
         parameter_schema: %{
           "type" => "object",
           "properties" => %{
@@ -156,6 +157,53 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       client =
         LLMClient.new(
           model: "openrouter:openai/gpt-5.5",
+          llm_opts: [api_key: "test-key"]
+        )
+
+      messages = [
+        %SwarmAi.Message.Assistant{
+          content: [ContentPart.text("thinking done")],
+          reasoning_details: reasoning
+        }
+      ]
+
+      assert {:ok, _stream} = SwarmAi.LLM.stream(client, messages, [])
+    end
+
+    test "normalizes Anthropic thinking details before provider requests" do
+      reasoning = [
+        %{
+          :format => "anthropic-thinking-v1",
+          :provider => :anthropic,
+          :provider_data => %{"type" => "thinking"},
+          :encrypted? => false,
+          "index" => 0,
+          "text" => "Let me explore the project structure."
+        }
+      ]
+
+      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+        assert [thinking] = message.reasoning_details
+        assert %ReqLLM.Message.ReasoningDetails{provider: :anthropic} = thinking
+        assert thinking.index == 0
+        assert thinking.text == "Let me explore the project structure."
+
+        request =
+          [message]
+          |> ReqLLM.Context.new()
+          |> ReqLLM.Providers.Anthropic.Context.encode_request(%{model: "claude-sonnet-4-5"})
+
+        assert [%{role: "assistant", content: [%{type: "thinking"} = thinking_block | _]}] =
+                 request.messages
+
+        assert thinking_block.thinking == "Let me explore the project structure."
+
+        {:ok, stream_response([])}
+      end)
+
+      client =
+        LLMClient.new(
+          model: "anthropic:claude-sonnet-4-5",
           llm_opts: [api_key: "test-key"]
         )
 

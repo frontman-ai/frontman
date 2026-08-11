@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Frontman Notifier Build & Deploy Script (runs on production server)
-#
-# CI rsyncs source code to /opt/frontman-notifier/build, then invokes this
-# script. The notifier is a single worker service, so deployment is an atomic
-# release symlink swap plus systemd restart.
-# =============================================================================
 set -euo pipefail
 
 APP_NAME="frontman_notifier"

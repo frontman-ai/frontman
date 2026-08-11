@@ -7,7 +7,15 @@
     "description": {
       "type": "string"
     },
+    "access": {
+      "enum": [
+        "read",
+        "write",
+        "read-write"
+      ]
+    },
     "inputSchema": {},
+    "outputSchema": {},
     "visibleToAgent": {
       "type": "boolean"
     }

@@ -1,6 +1,7 @@
 open Vitest
 
 module ToolRegistry = FrontmanCore__ToolRegistry
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 describe("ToolRegistry", _t => {
   test("make creates empty registry", t => {
@@ -25,7 +26,7 @@ describe("ToolRegistry", _t => {
     let registry = ToolRegistry.make()
     let extended = registry->ToolRegistry.addTools([module(FrontmanCore__Tool__ReadFile)])
 
-    t->expect(registry->ToolRegistry.count)->Expect.toBe(0) // original unchanged
+    t->expect(registry->ToolRegistry.count)->Expect.toBe(0)
     t->expect(extended->ToolRegistry.count)->Expect.toBe(1)
   })
 
@@ -39,17 +40,13 @@ describe("ToolRegistry", _t => {
     t->expect(merged->ToolRegistry.getToolByName("write_file")->Option.isSome)->Expect.toBe(true)
   })
 
-  test("serializes tools with correct structure", t => {
-    let registry = ToolRegistry.coreTools()
-    let definitions = registry->ToolRegistry.getToolDefinitions
-    let readFile = definitions->Array.find(d => d.name == "read_file")
+  test("serializes access and only real output schemas", t => {
+    let definitions = ToolRegistry.coreTools()->ToolRegistry.getToolDefinitions
+    let readFile = definitions->Array.find(d => d.name == "read_file")->Option.getOrThrow
+    let listFiles = definitions->Array.find(d => d.name == "list_files")->Option.getOrThrow
 
-    t->expect(readFile->Option.isSome)->Expect.toBe(true)
-    switch readFile {
-    | Some(tool) =>
-      t->expect(tool.name)->Expect.toBe("read_file")
-      t->expect(tool.description->String.length > 0)->Expect.toBe(true)
-    | None => ()
-    }
+    t->expect(readFile.access)->Expect.toEqual(Some(Tool.Read))
+    t->expect(readFile.outputSchema->Option.isSome)->Expect.toBe(true)
+    t->expect(listFiles.outputSchema)->Expect.toEqual(None)
   })
 })

@@ -63,10 +63,6 @@ defmodule FrontmanServer.InteractionCase do
       UserMessage
     }
 
-    # -------------------------------------------------------------------
-    # Content block builders (raw maps matching ACP wire format)
-    # -------------------------------------------------------------------
-
     @doc "Build a text content block map."
     def text_block(text), do: %{"type" => "text", "text" => text}
 
@@ -109,13 +105,11 @@ defmodule FrontmanServer.InteractionCase do
 
       %{
         "type" => "resource",
+        "_meta" => meta,
         "resource" => %{
-          "_meta" => meta,
-          "resource" => %{
-            "uri" => "file://#{file}:#{line}:#{col}",
-            "mimeType" => "text/plain",
-            "text" => "Annotated element: <#{tag}> at #{file}:#{line}:#{col}"
-          }
+          "uri" => "file://#{file}:#{line}:#{col}",
+          "mimeType" => "text/plain",
+          "text" => "Annotated element: <#{tag}> at #{file}:#{line}:#{col}"
         }
       }
     end
@@ -124,17 +118,15 @@ defmodule FrontmanServer.InteractionCase do
     def screenshot_block(annotation_id, blob, mime \\ "image/png") do
       %{
         "type" => "resource",
+        "_meta" => %{
+          "annotation_screenshot" => true,
+          "annotation_index" => 0,
+          "annotation_id" => annotation_id
+        },
         "resource" => %{
-          "_meta" => %{
-            "annotation_screenshot" => true,
-            "annotation_index" => 0,
-            "annotation_id" => annotation_id
-          },
-          "resource" => %{
-            "uri" => "annotation://#{annotation_id}/screenshot",
-            "mimeType" => mime,
-            "blob" => blob
-          }
+          "uri" => "annotation://#{annotation_id}/screenshot",
+          "mimeType" => mime,
+          "blob" => blob
         }
       }
     end
@@ -145,20 +137,14 @@ defmodule FrontmanServer.InteractionCase do
 
       %{
         "type" => "resource",
+        "_meta" => meta,
         "resource" => %{
-          "_meta" => meta,
-          "resource" => %{
-            "uri" => "page://#{url}",
-            "mimeType" => "text/plain",
-            "text" => "Current page: #{url}"
-          }
+          "uri" => "page://#{url}",
+          "mimeType" => "text/plain",
+          "text" => "Current page: #{url}"
         }
       }
     end
-
-    # -------------------------------------------------------------------
-    # DB wire-format tool call maps
-    # -------------------------------------------------------------------
 
     @doc "Build a tool_call map in DB wire format (string keys, OpenAI shape)."
     def db_tool_call(id, name, args \\ "{}") do
@@ -174,14 +160,10 @@ defmodule FrontmanServer.InteractionCase do
       %{"id" => id, "name" => name, "arguments" => args}
     end
 
-    # -------------------------------------------------------------------
-    # Interaction struct builders
-    # -------------------------------------------------------------------
-
     @doc "Build a `%UserMessage{}` struct."
     def user_msg(messages, annotations \\ []) do
       %UserMessage{
-        id: Interaction.new_id(),
+        id: Ecto.UUID.generate(),
         messages: List.wrap(messages),
         timestamp: Interaction.now(),
         annotations: annotations
@@ -190,18 +172,54 @@ defmodule FrontmanServer.InteractionCase do
 
     @doc "Build an `%AgentResponse{}` struct."
     def agent_resp(content, metadata \\ %{}) do
-      %AgentResponse{
-        id: Interaction.new_id(),
-        content: content,
+      AgentResponse.attrs(content, metadata)
+      |> Map.put(:id, Ecto.UUID.generate())
+      |> Map.put(:timestamp, Interaction.now())
+      |> then(&struct!(AgentResponse, &1))
+    end
+
+    @doc "Build a `%TurnStarted{}` struct."
+    def turn_started(user_message_ids) do
+      %Interaction.TurnStarted{
+        id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
-        metadata: metadata
+        agent_id: "test-frontman",
+        user_message_ids: user_message_ids
       }
+    end
+
+    @doc "Build an `%AgentError{}` struct."
+    def agent_error(message, kind \\ "failed", retryable \\ false, category \\ "unknown") do
+      %Interaction.AgentError{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        error: message,
+        kind: kind,
+        retryable: retryable,
+        category: category
+      }
+    end
+
+    @doc "Build an `%AgentPaused{}` struct."
+    def agent_paused(tool_name, timeout_ms) do
+      %Interaction.AgentPaused{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        reason: "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)",
+        tool_name: tool_name,
+        timeout_ms: timeout_ms
+      }
+    end
+
+    @doc "Build an `%AgentCompleted{}` struct."
+    def agent_completed do
+      %Interaction.AgentCompleted{id: Ecto.UUID.generate(), timestamp: Interaction.now()}
     end
 
     @doc "Build a `%ToolCall{}` struct."
     def tool_call(call_id, name, args \\ %{}) do
       %ToolCall{
-        id: Interaction.new_id(),
+        id: Ecto.UUID.generate(),
         tool_call_id: call_id,
         tool_name: name,
         arguments: args,
@@ -212,7 +230,7 @@ defmodule FrontmanServer.InteractionCase do
     @doc "Build a `%ToolResult{}` struct."
     def tool_result(call_id, name, result, opts \\ []) do
       %ToolResult{
-        id: Interaction.new_id(),
+        id: Ecto.UUID.generate(),
         tool_call_id: call_id,
         tool_name: name,
         result: result,
@@ -220,10 +238,6 @@ defmodule FrontmanServer.InteractionCase do
         timestamp: Interaction.now()
       }
     end
-
-    # -------------------------------------------------------------------
-    # SwarmAi struct builders
-    # -------------------------------------------------------------------
 
     @doc "Build a `%SwarmAi.ToolCall{}` struct with an auto-generated id."
     def swarm_tool_call(name, args \\ "{}") do
@@ -234,9 +248,35 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    # -------------------------------------------------------------------
-    # Assertion / extraction helpers
-    # -------------------------------------------------------------------
+    @doc "Wrap an interaction struct like Tasks PubSub broadcasts do."
+    def interaction_event(interaction, turn_number) do
+      {:interaction, interaction_row(interaction, turn_number)}
+    end
+
+    @doc "Build an `%InteractionSchema{}` row wrapper for interaction tests."
+    def interaction_row(interaction, turn_number) do
+      schema = Module.concat([FrontmanServer, Tasks, InteractionSchema])
+
+      struct!(schema, %{
+        id: interaction.id,
+        type:
+          PolymorphicEmbed.get_polymorphic_type(
+            schema,
+            :data,
+            interaction
+          ),
+        data: interaction,
+        turn_number: turn_number
+      })
+    end
+
+    defmacro assert_receive_interaction(data_pattern, turn_pattern, timeout \\ 5_000) do
+      quote do
+        assert_receive {:interaction,
+                        %{data: unquote(data_pattern), turn_number: unquote(turn_pattern)}},
+                       unquote(timeout)
+      end
+    end
 
     @doc "Extract text content from an LLM message (handles string + ContentPart list)."
     def extract_text(msg) do
@@ -261,10 +301,6 @@ defmodule FrontmanServer.InteractionCase do
         _ -> ""
       end)
     end
-
-    # -------------------------------------------------------------------
-    # Internal helpers
-    # -------------------------------------------------------------------
 
     defp maybe_put(map, _key, nil), do: map
     defp maybe_put(map, key, val), do: Map.put(map, key, val)

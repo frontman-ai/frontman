@@ -13,7 +13,7 @@ Frontman has three main components:
 
 1. **The browser client** — a chat interface that sits alongside a live preview of your app. It also runs browser-side tools (screenshots, DOM inspection, clicking elements).
 
-2. **The Frontman server** — receives your prompts, calls the LLM (Claude, GPT, Gemini, etc.), and orchestrates the agent loop.
+2. **The Frontman server** — receives your prompts, calls the LLM (Claude, GPT, Gemini, etc.), orchestrates the agent loop, and persists task history.
 
 3. **Your dev server plugin** — a framework integration (Astro, Next.js, or Vite) that gives the agent access to your project files and component structure.
 
@@ -60,7 +60,7 @@ See [API Keys & Providers](/docs/api-keys/) for setup details.
 
 ### 3. The agent loop starts
 
-The server builds a context package — system prompt, available tools, conversation history — and submits it to the LLM. This begins the **agent loop**: a back-and-forth between the LLM and your browser that continues until the task is done.
+The server builds a context package — system prompt, available tools, conversation history, and relevant context returned by tools — and submits it to the selected LLM provider. This begins the **agent loop**: a back-and-forth among the LLM, server, browser, and local framework integration that continues until the task is done.
 
 ### 4. The LLM decides what to do
 
@@ -120,7 +120,7 @@ For tools that need your dev server (like editing a file), the browser acts as a
 Agent → Server → Browser → Dev Server → Browser → Server → Agent
 ```
 
-This relay architecture means the agent can access your files without the Frontman server needing direct access to your filesystem. Your code stays on your machine.
+This relay architecture means filesystem tools execute on your machine through the framework integration without giving the Frontman server direct filesystem access. Relevant file content and tool results still pass through the server to the selected LLM provider as part of the agent loop.
 
 ## What the agent can see
 

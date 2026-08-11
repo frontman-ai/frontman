@@ -11,10 +11,8 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #Chatbox
 })
 
-module Icons = FrontmanBindings.Bindings__RadixUI__Icons
 module Message = Client__State__Types.Message
 
-// Import Frontman UI components
 module UserMessage = Client__UserMessage
 module AssistantMessage = Client__AssistantMessage
 module ToolCallBlock = Client__ToolCallBlock
@@ -29,14 +27,18 @@ module ScrollContainer = Client__ScrollContainer
 module PromptInput = Client__PromptInput
 module ErrorBanner = Client__ErrorBanner
 
-// Display item for grouped rendering
 type displayItem =
-  | UserMsg(Message.t)
-  | AssistantMsg(Message.t)
+  | UserMsg({
+      id: string,
+      content: array<Client__State__Types.UserContentPart.t>,
+      annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
+    })
+  | AssistantMsg(Message.assistantMessage)
   | SingleToolCall(Message.toolCall)
   | ToolGroup(ToolGroupTypes.toolGroup)
   | TodoToolCall(Message.toolCall)
-  | ErrorMsg(Message.t)
+  | ErrorMsg(Message.ErrorMessage.t)
 
 /**
  * Transform messages into display items, grouping consecutive tool calls
@@ -51,17 +53,14 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   let result: array<displayItem> = []
   let pendingToolCalls: ref<array<Message.toolCall>> = ref([])
 
-  // Flush pending tool calls by grouping them
   let flushToolCalls = () => {
     let pending = pendingToolCalls.contents
     if Array.length(pending) > 0 {
-      // Use the grouping utility - it handles what to group vs not
       let grouped = ToolGroupUtils.groupToolCalls(pending, ~minGroupSize=1)
 
       grouped->Array.forEach(item => {
         switch item {
         | ToolGroupTypes.SingleTool(tc) =>
-          // Check if it's a TODO tool - render with special component
           switch TodoUtils.isTodoTool(tc.toolName) {
           | true => result->Array.push(TodoToolCall(tc))
           | false => result->Array.push(SingleToolCall(tc))
@@ -77,19 +76,18 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   messages->Array.forEach(msg => {
     switch msg {
     | Message.ToolCall(tc) => pendingToolCalls.contents->Array.push(tc)
-    | Message.User(_) =>
+    | Message.User({id, content, annotations, agentId}) =>
       flushToolCalls()
-      result->Array.push(UserMsg(msg))
-    | Message.Assistant(_) =>
+      result->Array.push(UserMsg({id, content, annotations, agentId}))
+    | Message.Assistant(message) =>
       flushToolCalls()
-      result->Array.push(AssistantMsg(msg))
-    | Message.Error(_) =>
+      result->Array.push(AssistantMsg(message))
+    | Message.Error(err) =>
       flushToolCalls()
-      result->Array.push(ErrorMsg(msg))
+      result->Array.push(ErrorMsg(err))
     }
   })
 
-  // Flush any remaining tool calls
   flushToolCalls()
 
   result
@@ -105,11 +103,13 @@ let make = (~onConfigureProvider: unit => unit) => {
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
+  let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
-  let lastErrorId = Client__State.useSelector(Client__State.Selectors.lastErrorId)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
+  let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
+  let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
@@ -121,6 +121,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.findConfigOptionByCategory(opts, Model)
     )
   let isModelsConfigLoading = configOptions->Option.isNone
+  let agentForId = agentId => Client__Agent.findOrThrow(agentCatalog, agentId)
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
@@ -143,12 +144,11 @@ let make = (~onConfigureProvider: unit => unit) => {
   }
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
-    // Snapshot live annotations into serializable MessageAnnotation records
+    let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
     let messageAnnotations =
       annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
 
     let sendWithContent = content => {
-      // Allow send if there's content OR annotations (annotations are first-class message content)
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
       | true =>
@@ -157,6 +157,7 @@ let make = (~onConfigureProvider: unit => unit) => {
             ~sessionId,
             ~content,
             ~annotations=messageAnnotations,
+            ~agentId,
           )
         }
         switch session {
@@ -177,37 +178,32 @@ let make = (~onConfigureProvider: unit => unit) => {
     | false => []
     }
 
-    let fileData = inputItems->Array.filterMap(item =>
-      switch item {
-      | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
-        Some((id, name, mediaType, dataUrl))
-      | Client__PromptInput.PastedText(_) => None
-      }
-    )
-
-    switch Array.length(fileData) > 0 {
-    | false => sendWithContent(textParts)
-    | true =>
+    switch Array.length(inputItems) {
+    | 0 => sendWithContent(textParts)
+    | _ =>
       let _ =
-        fileData
-        ->Array.map(((id, name, mediaType, dataUrl)) => {
-          Client__ImageLimits.constrainDataUrl(
-            dataUrl,
-            Client__ImageLimits.conservative,
-          )->Promise.then(constrained => {
-            let actualMediaType = switch constrained->String.startsWith("data:image/jpeg") {
-            | true => "image/jpeg"
-            | false => mediaType
-            }
-            Promise.resolve(
-              Client__State.UserContentPart.Image({
-                id: Some(id),
-                image: constrained,
-                mediaType: Some(actualMediaType),
-                name: Some(name),
-              }),
-            )
-          })
+        inputItems
+        ->Array.map(item => {
+          switch item {
+          | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
+            Client__ImageLimits.constrainDataUrl(
+              dataUrl,
+              Client__ImageLimits.conservative,
+            )->Promise.then(constrained => {
+              let actualMediaType = switch constrained->String.startsWith("data:image/jpeg") {
+              | true => "image/jpeg"
+              | false => mediaType
+              }
+              Promise.resolve(
+                Client__State.UserContentPart.Image({
+                  id: Some(id),
+                  image: constrained,
+                  mediaType: Some(actualMediaType),
+                  name: Some(name),
+                }),
+              )
+            })
+          }
         })
         ->Promise.all
         ->Promise.then(fileParts => {
@@ -222,11 +218,6 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   }
 
-  // Group messages for display, with referential stability for tool groups.
-  // MessageStore.update does a shallow Array.copy, so unchanged toolCall records
-  // keep the same reference. We cache previous groups by ID and reuse them when
-  // all constituent tool calls are reference-equal — this lets React skip
-  // re-rendering groups that haven't actually changed during streaming.
   let groupCacheRef: React.ref<Dict.t<ToolGroupTypes.toolGroup>> = React.useRef(Dict.make())
   let displayItems = React.useMemo1(() => {
     let items = groupMessages(messages)
@@ -257,8 +248,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   }, [messages])
   let totalItems = Array.length(displayItems)
 
-  // Find the index of the last ToolGroup in displayItems
-  // This is used to determine which group should show "Exploring..." state
   let lastToolGroupIndex = displayItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
     switch item {
     | ToolGroup(_) => idx
@@ -266,31 +255,29 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   })
 
-  // Render a single display item
   let renderDisplayItem = (item: displayItem, itemIndex: int) => {
     let isLastItem = itemIndex == totalItems - 1
     let isLastToolGroup = itemIndex == lastToolGroupIndex
 
     switch item {
-    | UserMsg(Message.User({id, content, annotations, _})) =>
-      // Use stable message ID for key
-      // frontman-content-auto: browser skips layout/paint for off-screen messages
+    | UserMsg({id, content, annotations, agentId}) =>
       let messageId = `user-${id}`
-      <div key={messageId} className="frontman-content-auto">
-        <UserMessage content annotations messageId isNew={isLastItem} />
-      </div>
+      <UserMessage
+        key={messageId} content annotations messageId agent={agentForId(agentId)} isNew={isLastItem}
+      />
 
-    | AssistantMsg(Message.Assistant(Streaming({id, textBuffer, _}))) =>
-      // Use stable message ID for key
+    | AssistantMsg(Streaming({id, textBuffer, agentId, _})) =>
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
         <AssistantMessage
-          variant=AssistantMessage.Streaming content={textBuffer} messageId isNew={isLastItem}
+          variant=AssistantMessage.Streaming
+          content={textBuffer}
+          agent={agentForId(agentId)}
+          isNew={isLastItem}
         />
       </div>
 
-    | AssistantMsg(Message.Assistant(Completed({id, content, _}))) =>
-      // Use stable message ID for key
+    | AssistantMsg(Completed({id, content, agentId, _})) =>
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
         {content
@@ -303,12 +290,11 @@ let make = (~onConfigureProvider: unit => unit) => {
               key={partKey}
               variant=AssistantMessage.Completed
               content={text}
-              messageId={partKey}
+              agent={agentForId(agentId)}
               isNew={isLastItem && i == 0}
             />
 
           | Client__State__Types.AssistantContentPart.ToolCall({toolCallId: _, toolName, input}) =>
-            // Embedded tool calls in completed messages (legacy format)
             <ToolCallBlock
               key={partKey}
               toolName
@@ -318,7 +304,6 @@ let make = (~onConfigureProvider: unit => unit) => {
               result=None
               errorText=None
               defaultExpanded=false
-              messageId={partKey}
             />
           }
         })
@@ -326,7 +311,6 @@ let make = (~onConfigureProvider: unit => unit) => {
       </div>
 
     | SingleToolCall(tc) =>
-      // Use stable tool call ID for key
       let messageId = `tool-${tc.id}`
       <div key={messageId} className="frontman-content-auto">
         <ToolCallBlock
@@ -337,32 +321,32 @@ let make = (~onConfigureProvider: unit => unit) => {
           result={tc.result}
           errorText={tc.errorText}
           defaultExpanded=false
-          messageId
         />
       </div>
 
     | ToolGroup(group) =>
-      // group.id is now stable (based on first tool call's ID)
-      // Pass both isLastToolGroup and isLastItem - group is "open" only if both are true
-      // This ensures groups close when items (like assistant messages) appear after them
       <div key={group.id} className="frontman-content-auto">
-        <ToolGroupBlock group messageId={group.id} isLastToolGroup isLastItem isAgentRunning />
+        <ToolGroupBlock group isLastToolGroup isLastItem isAgentRunning />
       </div>
 
     | TodoToolCall(tc) =>
-      // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
-      let todos = TodoUtils.extractTodos(~input=tc.input, ~result=tc.result)
-      let isLoading = switch tc.state {
-      | InputStreaming | InputAvailable => true
-      | OutputAvailable | OutputError => false
+      let isLoading = tc.state == InputStreaming || tc.state == InputAvailable
+      let todos = switch tc.state {
+      | OutputAvailable =>
+        tc.result
+        ->Option.flatMap(result => result.rawOutput)
+        ->Option.getOrThrow(~message="Completed todo tool is missing rawOutput")
+        ->TodoUtils.extractResult
+      | InputStreaming | InputAvailable | OutputError =>
+        tc.input->Option.mapOr([], TodoUtils.extractInput)
       }
 
       <div key={messageId} className="frontman-content-auto">
         <TodoListBlock todos isLoading messageId />
       </div>
 
-    | ErrorMsg(Message.Error(err)) =>
+    | ErrorMsg(err) =>
       <div key={`error-${Message.ErrorMessage.id(err)}`} className="frontman-content-auto">
         <ErrorBanner
           error={Message.ErrorMessage.error(err)}
@@ -376,9 +360,6 @@ let make = (~onConfigureProvider: unit => unit) => {
           }}
         />
       </div>
-
-    // Handle any unexpected message types
-    | UserMsg(_) | AssistantMsg(_) | ErrorMsg(_) => React.null
     }
   }
 
@@ -394,29 +375,22 @@ let make = (~onConfigureProvider: unit => unit) => {
           </div>
         }}
 
-        // Render grouped messages
         {displayItems
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
 
-        // Error banner (shows when there's a turn error, or retry banner during countdown)
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({message, category}), Some(taskId)) =>
+        | (None, Some({id, message, category}), Some(taskId)) =>
           <ErrorBanner
             error=message
             category
             onConfigureProvider
-            onRetry={() =>
-              Client__State.Actions.retryTurn(
-                ~taskId,
-                ~retriedErrorId=lastErrorId->Option.getOr(""),
-              )}
+            onRetry={() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=id)}
           />
         | _ => React.null
         }}
 
-        // Thinking indicator (shows after last message when waiting for response)
         <ThinkingIndicator
           show={thinkingState.showThinking}
           context=?{thinkingState.thinkingContext}
@@ -425,6 +399,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
+    <Client__QueuedMessagesDrawer messages=queuedUserMessages />
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {
@@ -437,6 +412,9 @@ let make = (~onConfigureProvider: unit => unit) => {
           isModelsConfigLoading
           selectedModelValue
           onModelChange={value => Client__State.Actions.setSelectedModelValue(~value)}
+          agentCatalog
+          selectedAgentId
+          onAgentChange={agentId => Client__State.Actions.setSelectedAgentId(~agentId)}
           onConfigureProvider
           isAgentRunning
           hasActiveACPSession

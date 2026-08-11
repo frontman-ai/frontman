@@ -1,6 +1,3 @@
-// MCP Server - browser-side tool registry and executor
-// The browser acts as an MCP server, responding to tool calls from the agent
-
 module Types = FrontmanClient__MCP__Types
 module Tool = FrontmanClient__MCP__Tool
 module ToolNames = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ToolNames
@@ -9,7 +6,6 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #MCPServer
 })
 
-// Resolved data for attachment-aware tool calls.
 type resolvedImage = {
   base64: string,
   mediaType: string,
@@ -21,13 +17,7 @@ type t = {
   tools: array<module(Tool.Tool)>,
   relay: Relay.t,
   serverInfo: Types.info,
-  // Resolver for image_ref URIs — set by the client layer which has access to task attachments.
-  // Receives (uri, ~taskId) so it resolves from the correct task, not the currently viewed one.
   resolveImageRef: ref<option<imageRefResolver>>,
-  // Provider for tool result metadata (model, env API keys).
-  // Set by the client layer which has access to the runtime config.
-  // The server uses this to resume agent execution after a restart.
-  getToolResultMeta: ref<option<unit => Types.callToolResultMeta>>,
 }
 
 @@live
@@ -41,22 +31,10 @@ let make = (
   relay,
   serverInfo: {name: serverName, version: serverVersion},
   resolveImageRef: ref(resolveImageRef),
-  getToolResultMeta: ref(None),
 }
 
 let setImageRefResolver = (server: t, resolver: imageRefResolver): unit => {
   server.resolveImageRef := Some(resolver)
-}
-
-let setToolResultMetaProvider = (server: t, provider: unit => Types.callToolResultMeta): unit => {
-  server.getToolResultMeta := Some(provider)
-}
-
-let currentMeta = (server: t): Types.callToolResultMeta => {
-  switch server.getToolResultMeta.contents {
-  | Some(getMeta) => getMeta()
-  | None => {model: None, envApiKey: Dict.make()}
-  }
 }
 
 let registerToolModule = (server: t, toolModule: module(Tool.Tool)): t => {
@@ -66,41 +44,31 @@ let registerToolModule = (server: t, toolModule: module(Tool.Tool)): t => {
   }
 }
 
-// JSONSchema.t is JSON.t at runtime
 external jsonSchemaAsJson: JSONSchema.t => JSON.t = "%identity"
 
 module ToolTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
-// Schema for executionMode serialization
 let executionModeSchema = S.union([
   S.literal(ToolTypes.Synchronous),
   S.literal(ToolTypes.Interactive),
 ])
 
-// Tool wire format schema - serialized directly to JSON
-let toolWireSchema = S.object(s => {
-  {
-    "name": s.field("name", S.string),
-    "description": s.field("description", S.string),
-    "inputSchema": s.field("inputSchema", S.json),
-    "visibleToAgent": s.field("visibleToAgent", S.bool),
-    "executionMode": s.field("executionMode", executionModeSchema),
-  }
-})
-
-// Serialize a tool module to JSON
 let serializeTool = (m: module(Tool.Tool)): JSON.t => {
   module T = unpack(m)
-  {
-    "name": T.name,
-    "description": T.description,
+  let definition = dict{
+    "name": JSON.Encode.string(T.name),
+    "description": JSON.Encode.string(T.description),
+    "access": T.access->S.decodeOrThrow(~from=ToolTypes.accessSchema, ~to=S.json),
     "inputSchema": T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
-    "visibleToAgent": T.visibleToAgent,
-    "executionMode": T.executionMode,
-  }->S.decodeOrThrow(~from=toolWireSchema, ~to=S.json->S.noValidation(true))
+    "visibleToAgent": JSON.Encode.bool(T.visibleToAgent),
+    "executionMode": T.executionMode->S.decodeOrThrow(~from=executionModeSchema, ~to=S.json),
+  }
+  T.outputJsonSchema->Option.forEach(schema =>
+    definition->Dict.set("outputSchema", jsonSchemaAsJson(schema))
+  )
+  JSON.Encode.object(definition)
 }
 
-// Get tools as JSON array for MCP tools/list response
 let getToolsJson = (server: t): array<JSON.t> => {
   let localTools = server.tools->Array.map(serializeTool)
   let relayTools = server.relay->Relay.getToolsJson
@@ -114,16 +82,19 @@ let getToolByName = (server: t, name: string): option<module(Tool.Tool)> => {
   })
 }
 
-// Execute a local tool module
+let argumentKeys = (arguments: option<Dict.t<JSON.t>>): string =>
+  switch arguments {
+  | None => "none"
+  | Some(args) => args->Dict.keysToArray->Array.join(",")
+  }
+
 let executeLocalTool = async (
-  server: t,
   toolModule: module(Tool.Tool),
   ~arguments: option<Dict.t<JSON.t>>,
   ~taskId: string,
   ~toolCallId: string,
 ): Types.executeToolResult => {
   module T = unpack(toolModule)
-  let meta = currentMeta(server)
   Log.debug(~ctx={"tool": T.name}, "Executing local tool")
   let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
   let inputResult: result<T.input, string> = try {
@@ -135,21 +106,25 @@ let executeLocalTool = async (
 
   switch inputResult {
   | Error(msg) =>
-    Log.error(~ctx={"tool": T.name}, "Schema error")
-    Completed(
-      Types.CallToolResult.makeError(`Invalid input: ${msg}`)->Types.CallToolResult.withMeta(meta),
+    Log.error(
+      ~ctx={
+        "tool": T.name,
+        "taskId": taskId,
+        "toolCallId": toolCallId,
+        "schemaError": msg,
+        "argumentKeys": argumentKeys(arguments),
+      },
+      "Tool input schema validation failed",
     )
+    Completed(Types.CallToolResult.makeError(`Invalid input: ${msg}`))
   | Ok(input) =>
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
     let result = await T.execute(input, ~taskId, ~toolCallId)
     Log.debug(~ctx={"tool": T.name}, "Execute returned")
-    Completed(result->Types.CallToolResult.withMeta(meta))
+    Completed(result)
   }
 }
 
-// Resolve image_ref before forwarding to relay tools that consume user attachments.
-// Replaces image_ref with content (base64) and encoding ("base64") for write_file,
-// and keeps image_ref plus adds mime_type for wp_upload_media.
 let resolveToolImageRef = (
   server: t,
   arguments: option<Dict.t<JSON.t>>,
@@ -192,10 +167,8 @@ let resolveToolImageRef = (
   }
 }
 
-let toolError = (server: t, msg: string): Types.CallToolResult.t =>
-  Types.CallToolResult.makeError(msg)->Types.CallToolResult.withMeta(server->currentMeta)
+let toolError = (msg: string): Types.CallToolResult.t => Types.CallToolResult.makeError(msg)
 
-// Execute tool - tries local first, then relay
 let executeTool = async (
   server: t,
   ~name: string,
@@ -204,15 +177,12 @@ let executeTool = async (
   ~callId: string,
   ~onProgress: option<string => unit>=?,
 ): Types.executeToolResult => {
-  // Try local tools first
   switch getToolByName(server, name) {
-  | Some(toolModule) =>
-    await executeLocalTool(server, toolModule, ~arguments, ~taskId, ~toolCallId=callId)
+  | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
   | None =>
     switch server.relay->Relay.hasTool(name) {
-    | false => Completed(toolError(server, `Tool not found: ${name}`))
+    | false => Completed(toolError(`Tool not found: ${name}`))
     | true =>
-      // Intercept attachment-aware tools with image_ref to resolve from the correct task.
       let resolvedArgs = switch name {
       | name if name == ToolNames.writeFile =>
         resolveToolImageRef(
@@ -234,7 +204,7 @@ let executeTool = async (
       }
 
       switch resolvedArgs {
-      | Error(msg) => Completed(toolError(server, msg))
+      | Error(msg) => Completed(toolError(msg))
       | Ok(finalArgs) =>
         let result = await server.relay->Relay.executeTool(
           ~name,
@@ -242,16 +212,14 @@ let executeTool = async (
           ~onProgress?,
         )
         switch result {
-        | Ok(toolResult) =>
-          Completed(toolResult->Types.CallToolResult.withMeta(server->currentMeta))
-        | Error(msg) => Completed(toolError(server, msg))
+        | Ok(toolResult) => Completed(toolResult)
+        | Error(msg) => Completed(toolError(msg))
         }
       }
     }
   }
 }
 
-// Build initialize result response
 let buildInitializeResult = (server: t): Types.initializeResult => {
   {
     protocolVersion: Types.protocolVersion,
@@ -264,12 +232,10 @@ let buildInitializeResult = (server: t): Types.initializeResult => {
   }
 }
 
-// Build tools/list result
 let buildToolsListResult = (server: t): Types.toolsListResult => {
   {tools: getToolsJson(server)}
 }
 
-// Create a server interface for use with the generic MCP handler
 let toInterface = (server: t): Types.serverInterface<t> => {
   server,
   buildInitializeResult,

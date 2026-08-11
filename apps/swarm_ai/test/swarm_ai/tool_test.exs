@@ -9,6 +9,7 @@ defmodule SwarmAi.ToolTest do
         Tool.new(
           name: "my_tool",
           description: "Does something",
+          access: :read,
           parameter_schema: %{},
           timeout_ms: 30_000,
           on_timeout: :error
@@ -16,6 +17,7 @@ defmodule SwarmAi.ToolTest do
 
       assert tool.name == "my_tool"
       assert tool.description == "Does something"
+      assert tool.access == :read
       assert tool.parameter_schema == %{}
       assert tool.timeout_ms == 30_000
       assert tool.on_timeout == :error
@@ -26,6 +28,7 @@ defmodule SwarmAi.ToolTest do
         Tool.new(
           name: "t",
           description: "d",
+          access: :read,
           parameter_schema: %{},
           on_timeout: :error
         )
@@ -37,6 +40,7 @@ defmodule SwarmAi.ToolTest do
         Tool.new(
           name: "t",
           description: "d",
+          access: :read,
           parameter_schema: %{},
           timeout_ms: 5_000
         )
@@ -48,6 +52,7 @@ defmodule SwarmAi.ToolTest do
         Tool.new(
           name: "t",
           description: "d",
+          access: :read,
           parameter_schema: %{},
           timeout_ms: 5_000,
           on_timeout: :error,

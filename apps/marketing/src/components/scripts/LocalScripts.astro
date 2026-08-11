@@ -1,7 +1,5 @@
-<!-- Scripts for UI components -->
 <script is:inline>
 	function initNavigation() {
-		// Menu Dropdown (mobile only - desktop uses CSS :hover)
 		const menuItems = document.querySelectorAll('.header__menu-item')
 		menuItems.forEach((menuItem) => {
 			const submenu = menuItem.querySelector('.header__submenu')
@@ -14,7 +12,6 @@
 					if (isOpen) return
 
 					event.preventDefault()
-					// Close other open submenus first
 					menuItems.forEach((otherItem) => {
 						if (otherItem !== menuItem && otherItem.classList.contains('open')) {
 							otherItem.classList.remove('open')
@@ -40,7 +37,6 @@
 			})
 		})
 
-		// Menu toggle
 		const headerToggle = document.querySelector('.header__toggle')
 		const headerMenu = document.querySelector('.header__menu')
 
@@ -61,7 +57,6 @@
 				headerMenu.classList.toggle('header__menu--open')
 			})
 
-			// Close mobile menu when a nav link is clicked
 			headerMenu.querySelectorAll('a').forEach((link) => {
 				link.addEventListener('click', () => {
 					const parentMenuItem = link.closest('.header__menu-item')
@@ -76,7 +71,6 @@
 			})
 		}
 
-		// Modals
 		function openModal(modal) {
 			if (modal && modal.classList.contains('modal')) {
 				modal.classList.add('open')
@@ -112,13 +106,10 @@
 		})
 	}
 
-	// Initialize on DOMContentLoaded for initial page load
 	document.addEventListener('DOMContentLoaded', initNavigation)
 
-	// Also handle astro:page-load for View Transitions navigations
 	document.addEventListener('astro:page-load', initNavigation)
 
-	// Close mobile menu on page transitions
 	document.addEventListener('astro:before-swap', () => {
 		const toggle = document.querySelector('.header__toggle')
 		const menu = document.querySelector('.header__menu')
@@ -130,7 +121,6 @@
 	})
 </script>
 
-<!-- GitHub click tracking (GA4 via dataLayer) -->
 <script is:inline>
 	(function () {
 		function getGitHubClickPlacement(link) {
@@ -164,7 +154,6 @@
 	})()
 </script>
 
-<!-- Dark mode is always on -->
 <script>
 	document.documentElement.classList.add('dark')
 </script>

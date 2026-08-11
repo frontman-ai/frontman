@@ -1,10 +1,5 @@
-// Full-height drawer overlay for the question tool.
-// Renders inside the chatbox panel as an absolute overlay, covering
-// the message list and input but allowing task-tab switching.
+module Icons = Client__UI__Icons
 
-module Icons = FrontmanBindings.Bindings__RadixUI__Icons
-
-// Individual option button with checkbox/radio indicator
 module OptionButton = {
   @react.component
   let make = (
@@ -19,7 +14,6 @@ module OptionButton = {
     }
     <button className={optionClass} onClick={_ => onToggle(option.label)}>
       <div className="flex items-start gap-2.5">
-        // Checkbox/radio indicator
         <div
           className={[
             "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded",
@@ -59,16 +53,11 @@ module OptionButton = {
   }
 }
 
-// Custom text textarea with local draft buffering.
-// Owns the localDraft useState so keystroke re-renders stay isolated here.
 module CustomTextInput = {
   @react.component
   let make = (~customText: string, ~isCustomMode: bool, ~onTextChange: string => unit) => {
-    // Local draft buffer — prevents keystroke lag from reducer round-trip.
     let (localDraft, setLocalDraft) = React.useState(() => customText)
 
-    // Sync local draft from store whenever the store answer changes
-    // (e.g. user clicks an option -> store switches to Answered -> customText becomes "")
     React.useEffect(() => {
       setLocalDraft(_ => customText)
       None
@@ -101,7 +90,6 @@ module CustomTextInput = {
   }
 }
 
-// Step indicator dots for multi-question navigation
 module StepperDots = {
   @react.component
   let make = (
@@ -148,7 +136,6 @@ module StepperDots = {
   }
 }
 
-// Bottom action row: skip all / cancel
 module FooterActions = {
   @react.component
   let make = (~onSkipAll: unit => unit, ~onCancel: unit => unit) => {
@@ -208,7 +195,6 @@ let make = () => {
       }
 
       let handleSkipQuestion = () => {
-        // The reducer handles step advancement and auto-submit on the last question.
         Client__State.Actions.questionPerQuestionSkipped(~taskId, ~questionIndex=currentStep)
       }
 
@@ -238,7 +224,6 @@ let make = () => {
       <div
         className="flex shrink-0 flex-col border-t border-zinc-700/50 bg-[#130d20] max-h-[60vh] animate-in fade-in duration-200"
       >
-        // Header
         <div className="flex items-center gap-2 border-b border-zinc-700/50 px-4 py-3">
           <div
             className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#8051CD]/20 text-[#8051CD]"
@@ -252,7 +237,6 @@ let make = () => {
             }}
           </span>
         </div>
-        // Question content
         <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
           {switch currentQuestion {
           | Some(q) =>
@@ -260,7 +244,6 @@ let make = () => {
               <p className="text-[12px] leading-relaxed text-zinc-400">
                 {React.string(q.question)}
               </p>
-              // Options
               <div className="flex flex-col gap-1.5">
                 {q.options
                 ->Array.mapWithIndex((opt, i) => {
@@ -274,17 +257,13 @@ let make = () => {
                 })
                 ->React.array}
               </div>
-              // Custom text input
               <CustomTextInput customText isCustomMode onTextChange=handleCustomTextChange />
             </div>
           | None => React.null
           }}
         </div>
-        // Footer
         <div className="flex flex-col gap-2 border-t border-zinc-700/50 px-4 py-3">
-          // Navigation row
           <div className="relative flex items-center justify-between">
-            // Left: back + skip
             <div className="flex items-center gap-2">
               <button
                 className={[
@@ -307,9 +286,7 @@ let make = () => {
                 {React.string("Skip")}
               </button>
             </div>
-            // Center: stepper dots
             <StepperDots questions={pq.questions} answers={pq.answers} currentStep taskId />
-            // Right: next/submit
             <button
               className={[
                 "rounded-lg px-4 py-1.5 text-[12px] font-medium transition-all duration-100",
@@ -331,7 +308,6 @@ let make = () => {
               }}
             </button>
           </div>
-          // Bottom row: skip all / cancel
           <FooterActions
             onSkipAll={() => Client__State.Actions.questionAllSkipped(~taskId)}
             onCancel={() => Client__State.Actions.questionCancelled(~taskId)}

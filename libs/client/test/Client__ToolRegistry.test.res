@@ -4,21 +4,26 @@ module ToolRegistry = Client__ToolRegistry
 module FrontmanClient = FrontmanAiFrontmanClient
 module Relay = FrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanClient.FrontmanClient__MCP__Server
+module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
-let toolNames = (framework): array<string> => {
+let toolDefinitions = framework => {
   let registry = ToolRegistry.forFramework(framework)
   let relay = Relay.make(~baseUrl="http://localhost:3000")
   let server = ToolRegistry.registerAll(registry, MCPServer.make(~relay))
-
   server
   ->MCPServer.getToolsJson
-  ->Array.filterMap(json =>
-    json
-    ->JSON.Decode.object
-    ->Option.flatMap(obj => obj->Dict.get("name"))
-    ->Option.flatMap(JSON.Decode.string)
-  )
+  ->Array.map(json => json->JSON.Decode.object->Option.getOrThrow)
 }
+
+let toolNames = framework =>
+  toolDefinitions(framework)->Array.map(obj =>
+    obj->Dict.get("name")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
+  )
+
+let toolByName = (framework, name) =>
+  toolDefinitions(framework)
+  ->Array.find(obj => obj->Dict.get("name") == Some(JSON.Encode.string(name)))
+  ->Option.getOrThrow
 
 describe("ToolRegistry", _t => {
   test("registers core browser tools for non-Astro frameworks", t => {
@@ -45,5 +50,33 @@ describe("ToolRegistry", _t => {
     t->expect(viteNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
     t->expect(wordpressNames->Array.length)->Expect.toBe(8)
     t->expect(wordpressNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
+  })
+
+  test("serializes browser tool access levels", t => {
+    let access = name => toolByName(Client__RuntimeConfig.Nextjs, name)->Dict.get("access")
+
+    t->expect(access("take_screenshot"))->Expect.toEqual(Some(JSON.Encode.string("read")))
+    t->expect(access("execute_js"))->Expect.toEqual(Some(JSON.Encode.string("read-write")))
+    t->expect(access("set_device_mode"))->Expect.toEqual(Some(JSON.Encode.string("write")))
+  })
+
+  test("advertises only structured browser output schemas", t => {
+    toolDefinitions(Client__RuntimeConfig.Astro)->Array.forEach(
+      tool => {
+        let isScreenshot = tool->Dict.get("name") == Some(JSON.Encode.string("take_screenshot"))
+        t->expect(tool->Dict.has("outputSchema"))->Expect.toBe(!isScreenshot)
+      },
+    )
+  })
+
+  test("screenshot data becomes image content", t => {
+    let result = Client__Tool__TakeScreenshot.imageResultFromDataUrl(
+      "data:image/jpeg;base64,image-data",
+    )
+
+    let json = result->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json)
+    t
+    ->expect(JSON.stringify(json))
+    ->Expect.toBe(`{"content":[{"type":"image","data":"image-data","mimeType":"image/jpeg"}]}`)
   })
 })

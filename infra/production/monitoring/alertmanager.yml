@@ -1,15 +1,7 @@
-# =============================================================================
-# Alertmanager Configuration - Frontman Production
-# Deployed to /etc/alertmanager/alertmanager.yml
-#
-# Routes all alerts to alertmanager-discord which forwards to the
-# #prod-alerts Discord channel via webhook.
-# =============================================================================
 
 global:
   resolve_timeout: 5m
 
-# Route configuration
 route:
   receiver: discord
   group_by: [alertname]
@@ -18,7 +10,6 @@ route:
   repeat_interval: 4h
 
   routes:
-    # Critical alerts: shorter wait and repeat
     - match:
         severity: critical
       receiver: discord
@@ -26,14 +17,12 @@ route:
       group_interval: 1m
       repeat_interval: 1h
 
-# Receivers
 receivers:
   - name: discord
     webhook_configs:
       - url: http://127.0.0.1:9095
         send_resolved: true
 
-# Inhibition rules: suppress DiskSpaceWarning when DiskSpaceCritical fires for the same partition
 inhibit_rules:
   - source_match:
       alertname: DiskSpaceCritical

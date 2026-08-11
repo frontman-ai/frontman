@@ -19,16 +19,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleEffect } from "../src/state/Client__Task__Reducer.res.mjs";
 
-// ============================================================================
-// Mocks — stub the three async dependencies
-// ============================================================================
-
-// @medv/finder
 vi.mock("@medv/finder", () => ({
 	finder: vi.fn(() => "button.submit"),
 }));
 
-// @zumer/snapdom
 vi.mock("@zumer/snapdom", () => ({
 	snapdom: vi.fn(() =>
 		Promise.resolve({
@@ -37,31 +31,23 @@ vi.mock("@zumer/snapdom", () => ({
 	),
 }));
 
-// Source detection — the compiled module path
 vi.mock("../src/Client__SourceDetection.res.mjs", () => ({
 	getElementSourceLocation: vi.fn(() => Promise.resolve(undefined)),
 }));
 
-// Source location resolver — skip server resolution
 vi.mock("../src/Client__SourceLocationResolver.res.mjs", () => ({
 	resolve: vi.fn((loc) => Promise.resolve({ TAG: "Ok", _0: loc })),
 }));
 
-// Image limits — return simple values
 vi.mock("../src/utils/Client__ImageLimits.res.mjs", () => ({
 	conservative: { maxDimension: 7680, quality: 0.8 },
 	computeScale: () => 1.0,
 }));
 
-// Import mocked modules so we can reconfigure per-test
 import { finder } from "@medv/finder";
 import { snapdom } from "@zumer/snapdom";
 import { getElementSourceLocation } from "../src/Client__SourceDetection.res.mjs";
 import { resolve as resolveSourceLocation } from "../src/Client__SourceLocationResolver.res.mjs";
-
-// ============================================================================
-// Test helpers
-// ============================================================================
 
 /** Create a minimal mock DOM element that satisfies the sync enrichment reads */
 function makeMockElement() {
@@ -69,9 +55,7 @@ function makeMockElement() {
 		tagName: "BUTTON",
 		getAttribute: () => "btn-submit primary",
 		closest: () => null,
-		// WebAPI.Element.asNode -> textContent
 		textContent: "Submit",
-		// getBoundingClientRect
 		getBoundingClientRect: () => ({
 			left: 10,
 			top: 20,
@@ -95,7 +79,7 @@ function makeEffect(overrides = {}) {
 		id: "ann-test-1",
 		element: makeMockElement(),
 		document: makeMockDocument(),
-		contentWindow: undefined, // None → source detection gets Ok(None)
+		contentWindow: undefined,
 		...overrides,
 	};
 }
@@ -116,10 +100,6 @@ async function waitForDispatch(dispatched, { timeout = 1000 } = {}) {
 	);
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
-
 describe("FetchAnnotationDetails effect handler", () => {
 	let dispatched;
 	let dispatch;
@@ -131,7 +111,6 @@ describe("FetchAnnotationDetails effect handler", () => {
 		delegate = () => {};
 		vi.restoreAllMocks();
 
-		// Reset to happy-path defaults
 		finder.mockImplementation(() => "button.submit");
 		snapdom.mockImplementation(() =>
 			Promise.resolve({
@@ -146,10 +125,6 @@ describe("FetchAnnotationDetails effect handler", () => {
 		);
 	});
 
-	// ============================================================================
-	// Happy path
-	// ============================================================================
-
 	it("dispatches AnnotationDetailsResolved with Enriched when all promises succeed", async () => {
 		handleEffect(makeEffect(), dispatch, delegate);
 		await waitForDispatch(dispatched);
@@ -158,10 +133,8 @@ describe("FetchAnnotationDetails effect handler", () => {
 		const action = dispatched[0];
 		expect(action.TAG).toBe("AnnotationDetailsResolved");
 		expect(action.enrichmentStatus).toBe("Enriched");
-		// selector: Ok(Some("button.submit"))
 		expect(action.selector.TAG).toBe("Ok");
 		expect(action.selector._0).toBe("button.submit");
-		// screenshot: Ok(Some("data:image/jpeg;base64,abc123"))
 		expect(action.screenshot.TAG).toBe("Ok");
 		expect(action.screenshot._0).toBe("data:image/jpeg;base64,abc123");
 	});
@@ -187,7 +160,6 @@ describe("FetchAnnotationDetails effect handler", () => {
 		};
 		getElementSourceLocation.mockImplementation(() => Promise.resolve(mockLoc));
 
-		// Provide a contentWindow so source detection runs
 		const mockWindow = {};
 		handleEffect(makeEffect({ contentWindow: mockWindow }), dispatch, delegate);
 		await waitForDispatch(dispatched);
@@ -198,10 +170,6 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.sourceLocation._0.file).toBe("src/Button.tsx");
 		expect(action.sourceLocation._0.line).toBe(42);
 	});
-
-	// ============================================================================
-	// Partial failures — individual sub-promise errors, status still Enriched
-	// ============================================================================
 
 	it("selector Error when finder throws", async () => {
 		finder.mockImplementation(() => {
@@ -214,10 +182,8 @@ describe("FetchAnnotationDetails effect handler", () => {
 		const action = dispatched[0];
 		expect(action.TAG).toBe("AnnotationDetailsResolved");
 		expect(action.enrichmentStatus).toBe("Enriched");
-		// selector should be Error
 		expect(action.selector.TAG).toBe("Error");
 		expect(action.selector._0).toBe("No unique selector found");
-		// screenshot should still be Ok
 		expect(action.screenshot.TAG).toBe("Ok");
 	});
 
@@ -233,7 +199,6 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.enrichmentStatus).toBe("Enriched");
 		expect(action.screenshot.TAG).toBe("Error");
 		expect(action.screenshot._0).toBe("Canvas tainted");
-		// selector should still be Ok
 		expect(action.selector.TAG).toBe("Ok");
 	});
 
@@ -268,12 +233,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.sourceLocation._0).toBe("CORS blocked source map");
 	});
 
-	// ============================================================================
-	// Outer chain failure → Failed status
-	// ============================================================================
-
 	it("dispatches Failed status when source location resolver throws synchronously", async () => {
-		// Make source detection succeed so we enter the resolver path
 		const mockLoc = {
 			componentName: "App",
 			tagName: "div",
@@ -284,7 +244,6 @@ describe("FetchAnnotationDetails effect handler", () => {
 			componentProps: undefined,
 		};
 		getElementSourceLocation.mockImplementation(() => Promise.resolve(mockLoc));
-		// Make resolver throw (not reject — throw synchronously inside .then)
 		resolveSourceLocation.mockImplementation(() => {
 			throw new Error("Resolver exploded");
 		});
@@ -297,26 +256,18 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.TAG).toBe("AnnotationDetailsResolved");
 		expect(action.enrichmentStatus.TAG).toBe("Failed");
 		expect(action.enrichmentStatus.error).toBe("Resolver exploded");
-		// All three async fields should be Error
 		expect(action.selector.TAG).toBe("Error");
 		expect(action.screenshot.TAG).toBe("Error");
 		expect(action.sourceLocation.TAG).toBe("Error");
 	});
-
-	// ============================================================================
-	// Sync enrichment fields are always captured
-	// ============================================================================
 
 	it("captures cssClasses, nearbyText, and boundingBox synchronously", async () => {
 		handleEffect(makeEffect(), dispatch, delegate);
 		await waitForDispatch(dispatched);
 
 		const action = dispatched[0];
-		// cssClasses extracted from getAttribute("class")
 		expect(action.cssClasses).toBe("btn-submit primary");
-		// nearbyText from textContent
 		expect(action.nearbyText).toBe("Submit");
-		// boundingBox from getBoundingClientRect
 		expect(action.boundingBox.x).toBe(10);
 		expect(action.boundingBox.y).toBe(20);
 		expect(action.boundingBox.width).toBe(100);

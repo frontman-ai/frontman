@@ -17,7 +17,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 
   alias SwarmAi.SchemaTransformer
 
-  # Provider auth options are resolved at the domain layer.
   @enforce_keys [:model]
   defstruct model: nil,
             tools: [],
@@ -70,10 +69,10 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     reqllm_tools =
       Enum.map(client.tools, &LLMClient.to_reqllm_tool(&1, client.model, client.llm_opts))
 
-    # Provider auth must be provided via llm_opts (resolved at domain layer)
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)
+      |> Keyword.put_new(:max_retries, 0)
       |> Keyword.reject(fn
         {:parallel_tool_calls, _value} -> true
         {_key, value} -> value == []
@@ -87,10 +86,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       max_image_dimension: Providers.max_image_dimension(provider)
     ]
 
-    # Run request preflight here (not just at task startup) so that tool results
-    # accumulated inside the swarm loop are also truncated. Without this, long
-    # tool-calling chains accumulate dozens of full-size tool results and the
-    # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
       |> LLMRequestPreflight.run(preflight_opts)
@@ -175,8 +170,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   defp normalize_index(_index), do: 0
 
-  # --- SwarmAi.Message -> ReqLLM.Message conversion ---
-
   defp to_reqllm_message(%Message.System{} = msg) do
     %ReqLLM.Message{role: :system, content: Enum.map(msg.content, &to_reqllm_content_part/1)}
   end
@@ -191,7 +184,7 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       content: Enum.map(msg.content, &to_reqllm_content_part/1),
       tool_calls: to_reqllm_tool_calls(msg.tool_calls),
       metadata: msg.metadata,
-      reasoning_details: msg.reasoning_details
+      reasoning_details: normalize_reasoning_details(msg.reasoning_details)
     }
   end
 
@@ -203,6 +196,41 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       name: msg.name,
       metadata: msg.metadata
     }
+  end
+
+  defp normalize_reasoning_details(nil), do: nil
+  defp normalize_reasoning_details([]), do: nil
+
+  defp normalize_reasoning_details(details) when is_list(details) do
+    Enum.map(details, &normalize_reasoning_detail/1)
+  end
+
+  defp normalize_reasoning_detail(%ReqLLM.Message.ReasoningDetails{} = detail), do: detail
+
+  defp normalize_reasoning_detail(detail) when is_map(detail) do
+    case detail_field(detail, :format) do
+      "anthropic-thinking-v1" ->
+        %ReqLLM.Message.ReasoningDetails{
+          text: detail_field(detail, :text),
+          signature: detail_field(detail, :signature),
+          encrypted?: detail_field(detail, :encrypted?) || false,
+          provider: :anthropic,
+          format: "anthropic-thinking-v1",
+          index: detail_field(detail, :index) || 0,
+          provider_data: detail_field(detail, :provider_data) || %{}
+        }
+
+      _other ->
+        detail
+    end
+  end
+
+  defp normalize_reasoning_detail(detail), do: detail
+
+  defp detail_field(map, key) when is_map(map) and is_atom(key) do
+    string_key = Atom.to_string(key)
+
+    Map.get(map, key) || Map.get(map, string_key)
   end
 
   defp to_reqllm_content_part(%ContentPart{type: :text, text: text}) do

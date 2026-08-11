@@ -6,10 +6,18 @@ type SecondaryLink = {
 	label: string,
 }
 
-const { title, description, secondaryLinks } = Astro.props as {
+const {
+	title,
+	description,
+	secondaryLinks,
+	primaryLink = 'https://github.com/frontman-ai/frontman',
+	primaryLabel = 'Star on GitHub'
+} = Astro.props as {
 	title: string,
 	description: string,
 	secondaryLinks: Array<SecondaryLink>,
+	primaryLink?: string,
+	primaryLabel?: string,
 }
 
 const secondaryCtaLinkClass =
@@ -18,10 +26,10 @@ const secondaryCtaLinkClass =
 
 <section class="flex justify-center border-t border-zinc-800 bg-[#09090b] px-5 py-[72px] text-zinc-50 md:px-6">
 	<div class="w-full max-w-[760px]">
-		<h2 class="mb-[10px] text-[30px] leading-[1.2] text-zinc-50 md:text-[36px]">{title}</h2>
+		<h2 class="mb-[10px] !text-[30px] !font-bold !leading-[1.2] !text-zinc-50 md:!text-[36px]">{title}</h2>
 		<p class="mb-6 text-[17px] leading-[1.6] text-zinc-300">{description}</p>
 		<div class="flex flex-wrap items-center gap-5">
-			<Button size="lg" style="primary" link="https://github.com/frontman-ai/frontman">Star on GitHub</Button>
+			<Button size="lg" style="primary" link={primaryLink}>{primaryLabel}</Button>
 			{secondaryLinks.map((link) => (
 				<a href={link.href} class={secondaryCtaLinkClass}>{link.label}</a>
 			))}

@@ -27,8 +27,6 @@ defmodule FrontmanServer.Organizations.Organization do
     timestamps(type: :utc_datetime)
   end
 
-  # Queries
-
   def for_user(query \\ __MODULE__, user_id) do
     from o in query,
       join: m in Membership,

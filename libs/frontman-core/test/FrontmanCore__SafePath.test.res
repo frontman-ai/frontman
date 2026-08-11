@@ -3,9 +3,6 @@ open Vitest
 module SafePath = FrontmanCore__SafePath
 module Path = FrontmanBindings.Path
 
-// ============================================
-// resolve — basic behavior
-// ============================================
 describe("resolve", () => {
   test("resolves relative path under sourceRoot", t => {
     let result = SafePath.resolve(~sourceRoot="/project", ~inputPath="src/file.ts")
@@ -58,7 +55,6 @@ describe("resolve", () => {
   })
 
   test("handles sourceRoot without trailing separator", t => {
-    // Verify the separator appending logic doesn't break valid paths
     let result = SafePath.resolve(~sourceRoot="/project/src", ~inputPath="file.ts")
     switch result {
     | Ok(safePath) => t->expect(SafePath.toString(safePath))->Expect.toBe("/project/src/file.ts")
@@ -75,20 +71,12 @@ describe("resolve", () => {
   })
 
   test("path.sep is a valid separator character", t => {
-    // Verify Path.sep is either / or \ — sanity check for the binding
     t->expect(Path.sep == "/" || Path.sep == "\\")->Expect.toBe(true)
   })
 })
 
-// ============================================
-// resolve — separator handling (Issue #432)
-// On macOS/Linux, Path.normalize uses /
-// These tests verify the logic is correct with forward slashes;
-// on Windows, the same code uses Path.sep (\) to append separators.
-// ============================================
 describe("resolve - separator handling", () => {
   test("sourceRoot at path boundary is enforced (no prefix collision)", t => {
-    // /project-extra should NOT be accepted under /project
     let result = SafePath.resolve(~sourceRoot="/project", ~inputPath="/project-extra/file.ts")
     switch result {
     | Ok(_) => t->expect("should have rejected path prefix collision")->Expect.toBe("")
@@ -105,7 +93,6 @@ describe("resolve - separator handling", () => {
   })
 
   test("nested sourceRoot with similar prefix is safe", t => {
-    // /a/bc should not match /a/b as sourceRoot
     let result = SafePath.resolve(~sourceRoot="/a/b", ~inputPath="/a/bc/file.ts")
     switch result {
     | Ok(_) => t->expect("should have rejected similar prefix")->Expect.toBe("")
@@ -114,9 +101,6 @@ describe("resolve - separator handling", () => {
   })
 })
 
-// ============================================
-// dirname
-// ============================================
 describe("dirname", () => {
   test("returns parent directory", t => {
     switch SafePath.resolve(~sourceRoot="/project", ~inputPath="src/file.ts") {
@@ -126,9 +110,6 @@ describe("dirname", () => {
   })
 })
 
-// ============================================
-// join
-// ============================================
 describe("join", () => {
   test("joins path segments and validates result", t => {
     switch SafePath.resolve(~sourceRoot="/project", ~inputPath="src") {

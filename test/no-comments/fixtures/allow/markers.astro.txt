@@ -1,0 +1,7 @@
+---
+const marker = "<!-- string --> // string"
+const regex = /https?:\/\/frontman\.sh/
+---
+<main data-url="https://frontman.sh/path">Hello</main>
+<script>const marker = "<!-- string --> // string"</script>
+<style>.hero { background: url("https://frontman.sh/a/*b*/"); }</style>

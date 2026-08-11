@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro'
+import UseCaseContentSection from '../../components/use-cases/UseCaseContentSection.astro'
 import UseCaseFaqSection from '../../components/use-cases/UseCaseFaqSection.astro'
 import UseCaseCtaSection from '../../components/use-cases/UseCaseCtaSection.astro'
 
@@ -81,10 +82,6 @@ const comparisonRows = [
 	}
 ]
 
-const textLinkClass =
-	'text-primary-500 underline underline-offset-2 transition-colors hover:text-primary-400'
-const proseBulletBaseClass =
-	'relative py-2 pl-[22px] text-[17px] leading-[1.6] before:absolute before:left-0 before:top-[17px] before:h-2 before:w-2 before:rounded-full before:bg-primary-500'
 const tableHeaderClass =
 	'border-b border-zinc-800 bg-[#111113] px-[14px] py-3 text-left text-[12px] uppercase tracking-[0.06em] text-zinc-300'
 const tableCellClass =
@@ -115,74 +112,52 @@ const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 		</div>
 	</section>
 
-	<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
-		<div class="w-full max-w-[760px]">
-			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[32px]">
-				Why file-only agents miss frontend intent
-			</h2>
-			<div>
-				<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
-					Frontend bugs are often runtime bugs: cascade conflicts, breakpoint behavior, unexpected component
-					nesting, and state-driven UI drift. Reading source files alone does not reveal the final rendered state.
+	<UseCaseContentSection title="Why file-only agents miss frontend intent">
+		<p>
+			Frontend bugs are often runtime bugs: cascade conflicts, breakpoint behavior, unexpected component
+			nesting, and state-driven UI drift. Reading source files alone does not reveal the final rendered state.
+		</p>
+		<p>
+			Frontman closes that gap by combining runtime context with source-level edits. You can target the real
+			element on screen, then iterate in seconds instead of describing visual intent through a terminal loop.
+		</p>
+		<ul>
+			<li><strong>Rendered DOM visibility</strong> for actual structure and state.</li>
+			<li><strong>Computed CSS visibility</strong> for real spacing and style values.</li>
+			<li><strong>Framework awareness</strong> for safer edits in Next.js, Astro, and Vite apps.</li>
+		</ul>
+	</UseCaseContentSection>
+
+	<UseCaseContentSection title="Frontend tasks where Frontman is strongest" variant="light">
+		<div class="use-case-card-grid">
+			<div class="use-case-card">
+				<h3>Layout and spacing fixes</h3>
+				<p class="m-0 text-[15px] leading-[1.6]">
+					Resolve alignment issues and spacing inconsistencies directly on the rendered UI.
 				</p>
-				<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
-					Frontman closes that gap by combining runtime context with source-level edits. You can target the real
-					element on screen, then iterate in seconds instead of describing visual intent through a terminal loop.
+			</div>
+			<div class="use-case-card">
+				<h3>Responsive tweaks</h3>
+				<p class="m-0 text-[15px] leading-[1.6]">
+					Adjust behavior at breakpoints while seeing live component interactions.
 				</p>
-				<ul class="my-3 list-none p-0">
-					<li class={`${proseBulletBaseClass} text-zinc-300`}>
-						<strong>Rendered DOM visibility</strong> for actual structure and state.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-300`}>
-						<strong>Computed CSS visibility</strong> for real spacing and style values.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-300`}>
-						<strong>Framework awareness</strong> for safer edits in Next.js, Astro, and Vite apps.
-					</li>
-				</ul>
+			</div>
+			<div class="use-case-card">
+				<h3>Component polish</h3>
+				<p class="m-0 text-[15px] leading-[1.6]">
+					Refine states, typography, and hierarchy without manually tracing through files.
+				</p>
+			</div>
+			<div class="use-case-card">
+				<h3>Visual QA cleanup</h3>
+				<p class="m-0 text-[15px] leading-[1.6]">
+					Fix copy, style, and consistency bugs discovered during review before they pile up.
+				</p>
 			</div>
 		</div>
-	</section>
+	</UseCaseContentSection>
 
-	<section class="flex justify-center bg-zinc-50 px-5 py-16 text-[#09090b] md:px-6">
-		<div class="w-full max-w-[760px]">
-			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-[#09090b] md:text-[32px]">
-				Frontend tasks where Frontman is strongest
-			</h2>
-			<div class="grid grid-cols-2 gap-4 max-[900px]:grid-cols-1">
-				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
-					<h3 class="mb-2 text-[18px] text-slate-900">Layout and spacing fixes</h3>
-					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
-						Resolve alignment issues and spacing inconsistencies directly on the rendered UI.
-					</p>
-				</div>
-				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
-					<h3 class="mb-2 text-[18px] text-slate-900">Responsive tweaks</h3>
-					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
-						Adjust behavior at breakpoints while seeing live component interactions.
-					</p>
-				</div>
-				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
-					<h3 class="mb-2 text-[18px] text-slate-900">Component polish</h3>
-					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
-						Refine states, typography, and hierarchy without manually tracing through files.
-					</p>
-				</div>
-				<div class="rounded-xl border border-zinc-200 bg-white p-[18px]">
-					<h3 class="mb-2 text-[18px] text-slate-900">Visual QA cleanup</h3>
-					<p class="m-0 text-[15px] leading-[1.6] text-slate-600">
-						Fix copy, style, and consistency bugs discovered during review before they pile up.
-					</p>
-				</div>
-			</div>
-		</div>
-	</section>
-
-	<section class="flex justify-center bg-[#09090b] px-5 py-16 text-zinc-50 md:px-6">
-		<div class="w-full max-w-[980px]">
-			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-zinc-50 md:text-[32px]">
-				Frontend Workflow Comparison
-			</h2>
+	<UseCaseContentSection title="Frontend Workflow Comparison" maxWidth="980px">
 			<p class="mb-4 text-[17px] leading-[1.7] text-zinc-300">
 				Each tool can be useful. This table focuses on frontend editing accuracy and speed for existing apps.
 			</p>
@@ -212,37 +187,23 @@ const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 					</tbody>
 				</table>
 			</div>
-		</div>
-	</section>
+	</UseCaseContentSection>
 
-	<section class="flex justify-center bg-zinc-50 px-5 py-16 text-[#09090b] md:px-6">
-		<div class="w-full max-w-[760px]">
-			<h2 class="mb-5 text-[26px] font-bold tracking-[-0.02em] text-[#09090b] md:text-[32px]">
-				Where Frontman fits in your stack
-			</h2>
-			<div>
-				<p class="mb-4 text-[17px] leading-[1.7] text-zinc-600">
-					Use Frontman when visual accuracy and iteration speed matter. Keep your IDE agent for backend logic,
-					terminal workflows, and broad codebase refactors. This split keeps each tool in its high-leverage lane.
-				</p>
-				<ul class="my-3 list-none p-0">
-					<li class={`${proseBulletBaseClass} text-zinc-600`}>
-						<strong>Frontman</strong> for browser-native UI edits and fast visual iteration.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-600`}>
-						<strong>IDE agent</strong> for architecture, data layer, tests, and large refactors.
-					</li>
-					<li class={`${proseBulletBaseClass} text-zinc-600`}>
-						<strong>Shared repo workflow</strong> so all changes remain reviewable in git.
-					</li>
-				</ul>
-				<p class="mb-0 text-[17px] leading-[1.7] text-zinc-600">
-					Need deeper architecture context? Read <a href="/how-it-works/" class={textLinkClass}>how Frontman works</a>.
-					Want full market context? Use the <a href="/compare/" class={textLinkClass}>comparison hub</a>.
-				</p>
-			</div>
-		</div>
-	</section>
+	<UseCaseContentSection title="Where Frontman fits in your stack" variant="light">
+		<p>
+			Use Frontman when visual accuracy and iteration speed matter. Keep your IDE agent for backend logic,
+			terminal workflows, and broad codebase refactors. This split keeps each tool in its high-leverage lane.
+		</p>
+		<ul>
+			<li><strong>Frontman</strong> for browser-native UI edits and fast visual iteration.</li>
+			<li><strong>IDE agent</strong> for architecture, data layer, tests, and large refactors.</li>
+			<li><strong>Shared repo workflow</strong> so all changes remain reviewable in git.</li>
+		</ul>
+		<p>
+			Need deeper architecture context? Read <a href="/how-it-works/" class="text-link">how Frontman works</a>.
+			Want full market context? Use the <a href="/compare/" class="text-link">comparison hub</a>.
+		</p>
+	</UseCaseContentSection>
 
 	<UseCaseFaqSection faqs={faqs} />
 

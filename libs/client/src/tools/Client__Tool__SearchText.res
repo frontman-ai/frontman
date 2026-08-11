@@ -1,10 +1,7 @@
-// Client tool that searches for visible text on the current page.
-// Like Ctrl+F — finds leaf elements containing the query string
-// and returns matches with surrounding context and CSS selectors.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.searchText
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Search for visible text on the current web preview page. Works like Ctrl+F — finds elements whose visible text contains the query string (case-insensitive).
@@ -63,11 +60,13 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let defaultMaxResults = 25
 let defaultContextChars = 80
 
 let errorResult = (~error: string): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: false,
       matches: None,
@@ -79,7 +78,7 @@ let errorResult = (~error: string): Tool.MCP.CallToolResult.t =>
   )
 
 let successResult = (~matches, ~totalCount, ~truncated): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: true,
       matches: Some(matches),
@@ -90,8 +89,6 @@ let successResult = (~matches, ~totalCount, ~truncated): Tool.MCP.CallToolResult
     outputSchema,
   )
 
-// Build a context snippet around the first occurrence of `query` in `text`.
-// Wraps the matched portion in >> << markers.
 let buildContextSnippet = (~text: string, ~query: string, ~contextChars: int): string => {
   let lowerText = text->String.toLowerCase
   let lowerQuery = query->String.toLowerCase

@@ -1,7 +1,4 @@
 ---
-// /how-it-works — Architecture Deep-Dive Pillar Page
-// Targets "how does frontman work", "browser-based AI coding architecture"
-// This is a topical authority page, not a comparison page.
 
 import Layout from '../layouts/Layout.astro'
 import Button from '../components/ui/Button.astro'
@@ -9,7 +6,7 @@ import Button from '../components/ui/Button.astro'
 const SEO = {
 	title: 'Browser AI Coding Architecture | Frontman',
 	description:
-		'Three-part architecture: framework plugin, browser MCP server, and AI agent. How click-to-edit, source maps, and hot reload work together.'
+		'Distributed architecture: local framework integration, browser tools, and hosted or self-hosted agent server. How click-to-edit, source maps, and hot reload work together.'
 }
 
 const faqs = [
@@ -31,7 +28,7 @@ const faqs = [
 	},
 	{
 		question: 'How does Frontman handle security?',
-		answer: 'Frontman runs locally. It only modifies files in your project directory. It cannot run arbitrary shell commands, deploy code, or push to git. API keys are encrypted on the server and never exposed to the browser. Every change produces a git diff for your normal code review process. Read the full security model at /blog/security/.'
+		answer: 'Frontman uses a distributed architecture. Filesystem tools run on your machine through the framework integration, and the server has no direct filesystem access. The hosted or self-hosted server orchestrates the agent and persists task history, while relevant code, screenshots, logs, metadata, tool results, and generated output may pass through it to your selected LLM provider. It cannot run arbitrary shell commands, deploy code, or push to git. Every change produces a git diff for your normal code review process. Read the full security model at /blog/security/.'
 	}
 ]
 
@@ -52,18 +49,16 @@ const faqJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Hero -->
 	<section class="hero-section">
 		<div class="hero-container">
 			<p class="hero-label">Architecture</p>
 			<h1 class="hero-title">How Frontman Works</h1>
 			<p class="hero-subtitle">
-				Three parts: a framework plugin in your dev server, an MCP server in your browser, and an AI agent on a separate backend. Here's how they connect.
+				Frontman uses a distributed architecture: a local framework integration, browser-side tools, and a hosted or self-hosted agent server. Here's how they connect.
 			</p>
 		</div>
 	</section>
 
-	<!-- The Problem -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">The Problem</h2>
@@ -71,12 +66,11 @@ const faqJsonLd = {
 				<p>AI coding tools read your source files. They see your component code and class names. What they don't see is the rendered page.</p>
 				<p>When you ask an AI agent to "fix the hero section overflow on mobile," it reads your component file and guesses which element you mean, which CSS property to change, and what the result will look like. It never opens a browser. It doesn't know that <code>p-4 md:p-8</code> resolves to 32px at your current viewport width, or that a sibling div's margin is collapsing into the element you're trying to fix.</p>
 				<p>The information needed to make accurate visual edits exists in the browser's runtime: the DOM tree, computed CSS values, the component hierarchy, viewport dimensions. Source files alone are not enough.</p>
-				<p>Frontman solves this by putting the AI agent where the information is: inside the browser, connected to the framework's dev server.</p>
+				<p>Frontman solves this by connecting browser runtime information and local framework context to an agent orchestrated by the Frontman server.</p>
 			</div>
 		</div>
 	</section>
 
-	<!-- Three-Part Architecture -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">Three-Part Architecture</h2>
@@ -133,14 +127,14 @@ const faqJsonLd = {
 							<li>The framework's HMR picks up the file change and hot-reloads the browser automatically</li>
 							<li>Takes a follow-up screenshot to verify the result</li>
 						</ul>
-						<p>Your API keys are stored encrypted on this server and never exposed to the browser. The server communicates with the browser via WebSocket and with the framework plugin via HTTP.</p>
+						<p>The server persists task history but has no direct filesystem access; file operations execute through the local framework integration. Relevant file content, screenshots, logs, metadata, tool results, and generated output may pass through the server to your selected LLM provider.</p>
+						<p>Hosted Frontman runs orchestration and persistence on Frontman-operated infrastructure. Self-hosting moves those components to infrastructure you control, but does not prevent transmission to your configured LLM provider. Your API keys are stored encrypted on the server and never exposed to the browser.</p>
 					</div>
 				</div>
 			</div>
 		</div>
 	</section>
 
-	<!-- Click-to-Edit Workflow -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">What Happens When You Click an Element</h2>
@@ -173,7 +167,7 @@ const faqJsonLd = {
 					<span class="step-number">4</span>
 					<div class="step-content">
 						<h3 class="step-title">The agent reads and edits</h3>
-						<p class="step-desc">The agent reads the source file via the framework plugin, consults the computed styles from the MCP server, sends everything to the LLM, and writes the proposed change back to the file.</p>
+						<p class="step-desc">The agent reads the source file via the framework plugin, consults the computed styles from the MCP server, sends relevant context to the selected LLM provider, and writes the proposed change back through the local integration.</p>
 					</div>
 				</div>
 				<div class="step">
@@ -194,7 +188,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- What the AI Sees -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">What the AI Agent Sees</h2>
@@ -233,7 +226,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Why Middleware, Not a Browser Extension -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">Why Middleware, Not a Browser Extension</h2>
@@ -244,7 +236,7 @@ const faqJsonLd = {
 
 				<p>Then there's the component tree. The browser DOM is flat. It has no concept of React components, Vue reactivity, or Svelte reactive declarations. The framework plugin walks the framework's internal tree (React fiber nodes, Vue component instances, etc.) and maps DOM elements to their component boundaries, props, and state.</p>
 
-				<p>Middleware also gives you server-side context. An extension runs in the browser only. Frontman's middleware runs on both sides: it captures server routes, server logs, middleware execution, and database query timing. If a page is slow because of a server component, the AI knows that.</p>
+				<p>Middleware also gives the agent server-side application context. The local framework integration captures server routes, server logs, middleware execution, and database query timing, while browser tools capture runtime UI context. If a page is slow because of a server component, the AI can use that context.</p>
 
 				<p>And finally, file operations. A browser extension can't write to your file system (security sandbox). Frontman's framework plugin handles file reads, writes, search, and grep on the dev server, which has file system access by design.</p>
 
@@ -253,7 +245,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Multi-Select -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">Multi-Select: Batch Edits</h2>
@@ -264,7 +255,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- What Frontman Cannot Do -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">What Frontman Cannot Do</h2>
@@ -282,7 +272,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- FAQ -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">Frequently Asked Questions</h2>
@@ -302,11 +291,10 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- CTA -->
 	<section class="cta-section">
 		<div class="cta-container">
 			<h2 class="cta-title">Try It Yourself</h2>
-			<p class="cta-description">One command for self-hosted local development. Hosted plans are coming soon.</p>
+			<p class="cta-description">Self-host in one command or use hosted Frontman Pro now.</p>
 			<div class="install-commands">
 				<div class="install-command">
 					<code><span class="command-prefix">$</span> npx @frontman-ai/nextjs install</code>
@@ -332,7 +320,6 @@ const faqJsonLd = {
 
 <style>
 	@reference "../styles/global.css";
-	/* Hero */
 	.hero-section {
 		background: #09090b;
 		color: #fafafa;
@@ -363,7 +350,6 @@ const faqJsonLd = {
 		color: #a1a1aa;
 	}
 
-	/* Content sections */
 	.content-section {
 		background: #09090b;
 		color: #fafafa;
@@ -423,7 +409,6 @@ const faqJsonLd = {
 	.text-link { color: #A259FF; text-decoration: underline; text-underline-offset: 2px; }
 	.text-link:hover { color: #c084fc; }
 
-	/* Architecture cards */
 	.architecture-grid {
 		display: flex;
 		flex-direction: column;
@@ -498,7 +483,6 @@ const faqJsonLd = {
 		border-radius: 4px;
 	}
 
-	/* Steps */
 	.steps-list {
 		display: flex;
 		flex-direction: column;
@@ -545,7 +529,6 @@ const faqJsonLd = {
 		border-radius: 4px;
 	}
 
-	/* Context grid */
 	.context-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -579,7 +562,6 @@ const faqJsonLd = {
 		border-radius: 4px;
 	}
 
-	/* FAQ */
 	.faq-list { border-top: 1px solid #27272a; }
 	.faq-list--light { border-top: 1px solid #e4e4e7; }
 	.faq-item { border-bottom: 1px solid #27272a; cursor: pointer; }
@@ -629,7 +611,6 @@ const faqJsonLd = {
 	}
 	.faq-answer--light p { color: #52525b; }
 
-	/* CTA */
 	.cta-section {
 		background: #09090b;
 		border-top: 1px solid #27272a;
@@ -680,7 +661,6 @@ const faqJsonLd = {
 	}
 	.cta-discord:hover { color: #fafafa; }
 
-	/* Responsive */
 	@media (max-width: 768px) {
 		.hero-section { padding: 48px 20px 32px; }
 		.hero-title { font-size: 32px; }

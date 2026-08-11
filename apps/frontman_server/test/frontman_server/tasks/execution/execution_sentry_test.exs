@@ -9,12 +9,16 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
   use ExUnit.Case, async: false
 
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [assert_receive_interaction: 2]
+
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.StreamStallTimeout
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
@@ -44,8 +48,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
         {:failed, :llm_api_failure}
       )
 
-      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
-                     5_000
+      assert_receive_interaction(%Interaction.AgentError{kind: "failed"}, _turn_number)
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -73,8 +76,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
 
       Tasks.handle_swarm_event(scope, task_id, latest_turn_number(task_id), {:failed, reason})
 
-      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number},
-                     5_000
+      assert_receive_interaction(%Interaction.AgentError{kind: "failed"}, _turn_number)
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -89,6 +91,44 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
       assert report.tags[:task_id] == task_id
       assert report.tags[:user_id] == scope.user.id
       assert report.extra[:reason] == "Sentry test: simulated stream error"
+    end
+
+    @tag :capture_log
+    test "persists wrapped stream stall timeout as retryable overload without Sentry error", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      reason = {:exception, %StreamStallTimeout.Error{timeout_ms: 60_000}}
+
+      Tasks.handle_swarm_event(scope, task_id, latest_turn_number(task_id), {:failed, reason})
+
+      assert_receive_interaction(
+        %Interaction.AgentError{kind: "failed", retryable: true, category: "overload"},
+        _turn_number
+      )
+
+      reports = Sentry.Test.pop_sentry_reports()
+
+      assert Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id)) == []
+    end
+
+    @tag :capture_log
+    test "persists retryable rate limits without Sentry error", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      reason = %ReqLLM.Error.API.Request{status: 429, reason: "rate limited"}
+
+      Tasks.handle_swarm_event(scope, task_id, latest_turn_number(task_id), {:failed, reason})
+
+      assert_receive_interaction(
+        %Interaction.AgentError{kind: "failed", retryable: true, category: "rate_limit"},
+        _turn_number
+      )
+
+      reports = Sentry.Test.pop_sentry_reports()
+
+      assert Enum.filter(reports, &agent_execution_error_for_task?(&1, task_id)) == []
     end
   end
 

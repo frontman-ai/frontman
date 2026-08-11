@@ -1,13 +1,7 @@
 ---
-// Feature Highlights Section
-// ------------
-// Description: Feature highlight rows with text on left and image/video on right, plus a compact features grid
 
-// Components
-// - Layout
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
-// - Image
 import { Image } from 'astro:assets'
 
 type FeatureHighlight = {
@@ -23,7 +17,7 @@ type CompactFeature = {
 	icon: string
 	title: string
 	description: string
-	color: string // tailwind gradient color
+	color: string
 }
 
 const featureHighlights: FeatureHighlight[] = [
@@ -63,7 +57,7 @@ const compactFeatures: CompactFeature[] = [
 	{
 		icon: '🔑',
 		title: 'Bring your own key',
-		description: 'Open-source core with BYOK model support. Use your API key from Anthropic, OpenAI, or OpenRouter for local development.',
+		description: 'Source-available with BYOK model support. The browser client and JavaScript integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and the server is AGPL-3.0-only with AI Supplementary Terms. Use your Anthropic, OpenAI, or OpenRouter API key.',
 		color: '#10b981'
 	},
 	{
@@ -89,7 +83,6 @@ const compactFeatures: CompactFeature[] = [
 		>
 			<div class="container">
 				<Row classes="gap-8">
-					<!-- Left side: Text content -->
 					<Col spanMobile="12" span="5" classes={index === 1 ? 'lg:order-2' : ''}>
 						<div class="feature-content">
 							<h2 class="feature-title">{feature.title}</h2>
@@ -97,7 +90,6 @@ const compactFeatures: CompactFeature[] = [
 						</div>
 					</Col>
 
-					<!-- Right side: Image/Video placeholder -->
 					<Col spanMobile="12" span="7" classes={`flex items-center ${index === 1 ? 'lg:order-1' : ''}`}>
 					<div class="media-placeholder" role="img" aria-label={feature.imageAlt}>
 				{feature.videoSrc ? (
@@ -133,7 +125,6 @@ const compactFeatures: CompactFeature[] = [
 						/>
 						) : (
 							<div class="placeholder-content">
-								{/* Image or video will go here */}
 							</div>
 						)}
 						</div>
@@ -144,7 +135,6 @@ const compactFeatures: CompactFeature[] = [
 	))
 }
 
-<!-- Compact features grid -->
 <section class="compact-features-section">
 	<div class="section-glow"></div>
 	<div class="container">
@@ -211,7 +201,6 @@ const compactFeatures: CompactFeature[] = [
 		@apply relative mx-auto px-6 max-w-7xl;
 	}
 
-	/* Content Side */
 	.feature-content {
 		@apply flex flex-col justify-center h-full pt-8 pb-0 lg:py-0;
 		max-width: 540px;
@@ -235,7 +224,6 @@ const compactFeatures: CompactFeature[] = [
 		margin-top: 0.5rem;
 	}
 
-	/* Media Side */
 	.media-placeholder {
 		@apply bg-neutral-800 rounded-lg relative overflow-hidden w-full;
 		z-index: 10;
@@ -250,7 +238,6 @@ const compactFeatures: CompactFeature[] = [
 		@apply w-full h-full flex items-center justify-center;
 	}
 
-	/* Compact features section */
 	.compact-features-section {
 		@apply relative overflow-hidden py-24 lg:py-32;
 		background: linear-gradient(180deg, #0a0a0a 0%, #111827 50%, #0a0a0a 100%);
@@ -279,7 +266,6 @@ const compactFeatures: CompactFeature[] = [
 		line-height: 1.5;
 	}
 
-	/* Feature list */
 	.feature-list {
 		@apply relative max-w-4xl mx-auto;
 	}
@@ -343,7 +329,6 @@ const compactFeatures: CompactFeature[] = [
 		max-width: 560px;
 	}
 
-	/* Responsive adjustments */
 	@media (max-width: 1024px) {
 		.feature-content {
 			max-width: 100%;

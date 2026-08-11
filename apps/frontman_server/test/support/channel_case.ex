@@ -25,14 +25,11 @@ defmodule FrontmanServerWeb.ChannelCase do
 
   using do
     quote do
-      # Import conveniences for testing with channels
       import Phoenix.ChannelTest
       import FrontmanServerWeb.ChannelCase
 
-      # The default endpoint for testing
       @endpoint FrontmanServerWeb.Endpoint
 
-      # ACP channel event constant for test assertions
       @acp_message AgentClientProtocol.event_acp_message()
     end
   end
@@ -84,7 +81,17 @@ defmodule FrontmanServerWeb.ChannelCase do
           push(
             socket,
             "mcp:message",
-            JsonRpc.success_response(project_rules_request_id, %{"content" => []})
+            JsonRpc.success_response(project_rules_request_id, %{
+              "content" => [
+                %{
+                  "type" => "text",
+                  "text" =>
+                    Jason.encode!([
+                      %{"fullPath" => "/project/AGENTS.md", "content" => "project rules"}
+                    ])
+                }
+              ]
+            })
           )
 
           :sys.get_state(socket.channel_pid)
@@ -171,7 +178,7 @@ defmodule FrontmanServerWeb.ChannelCase do
 
     * `:id` - JSON-RPC request id (default: `1`)
     * `:text` - prompt text (default: `"Hello"`)
-    * `:_meta` - _meta map with selected model
+    * `:_meta` - _meta map with selected model and agent
 
   ## Examples
 
@@ -185,7 +192,8 @@ defmodule FrontmanServerWeb.ChannelCase do
 
     meta =
       Keyword.get(opts, :_meta, %{
-        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}
+        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+        "agent" => "test-frontman"
       })
 
     params = %{"prompt" => [%{"type" => "text", "text" => text}], "_meta" => meta}
@@ -223,7 +231,6 @@ defmodule FrontmanServerWeb.ChannelCase do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    # Create a test user for scope
     {:ok, user} =
       Accounts.register_user(%{
         email: "channel_test_#{System.unique_integer([:positive])}@test.local",

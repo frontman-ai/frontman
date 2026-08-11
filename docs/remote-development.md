@@ -256,7 +256,7 @@ The services are routed through Caddy reverse proxy on the server, which handles
 >
 > 1. **Register with Caddy** — No `.caddy` config is created, so URLs return `HTTP 200, 0 bytes`
 > 2. **Generate SSL certs** — Phoenix needs `.certs/frontman.local-key.pem` to start
-> 3. **Copy secrets** — WorkOS keys and API keys aren't in the container
+> 3. **Copy application secrets** — WorkOS credentials aren't in the container
 > 4. **Fix DB_HOST** — `host.docker.internal` may not resolve; use the Docker gateway IP (`172.17.0.1`)
 > 5. **Build workspace packages** — `@frontman-ai/nextjs` needs to be built before Next.js works
 > 6. **Start dev servers** — No processes are launched in the container
@@ -276,12 +276,12 @@ The services are routed through Caddy reverse proxy on the server, which handles
 > # Create /etc/caddy/worktrees/{hash}.caddy (copy an existing file and replace hash + IP)
 > # Then: ssh root@DEVPOD_SERVER 'systemctl reload caddy'
 >
-> # 3. Copy secrets to the container (from your local machine)
-> # This copies WorkOS keys, API keys, etc. from your local .dev.overrides.env
-> grep -E "^(WORKOS_|BRAINTRUST_|OPENAI_|OPEN_AI_|ANTHROPIC_|GOOGLE_|XAI_|OPENROUTER_)" \
+> # 3. Copy WorkOS credentials to the container (from your local machine)
+> grep -E "^WORKOS_" \
 >   apps/frontman_server/envs/.dev.overrides.env | \
 >   ssh root@DEVPOD_SERVER 'docker exec -i CONTAINER_NAME bash -c \
 >     "cat >> /workspaces/BRANCH/apps/frontman_server/envs/.dev.overrides.env"'
+> # Configure provider OAuth or saved API keys per account in Frontman settings.
 >
 > # 4. Fix DB_HOST if host.docker.internal doesn't resolve
 > # The Docker gateway IP is typically 172.17.0.1 — verify with:
@@ -302,8 +302,8 @@ The services are routed through Caddy reverse proxy on the server, which handles
 > cd /workspaces/your-branch/libs/frontman-nextjs && yarn build && cd -
 >
 > # 8. Start dev servers
-> # Phoenix needs env vars exported — op isn't available in the container,
-> # so export secrets from the overrides file directly:
+> # Phoenix needs application env vars exported — op isn't available in the container,
+> # so export WorkOS credentials from the overrides file directly:
 > cd /workspaces/your-branch/apps/frontman_server
 > source ../../.env.devpod
 > export $(grep -v "^#" envs/.dev.overrides.env | xargs)
@@ -375,8 +375,6 @@ cd .worktrees/my-feature
 make install
 make dev
 ```
-
-Each worktree has an isolated `.claude/` directory for Claude Code context.
 
 See `AGENTS.md` for more on the worktree workflow.
 
@@ -475,12 +473,14 @@ export PHX_URL_PORT=443
 export DB_HOST=host.docker.internal
 ```
 
-### Secrets (`.dev.overrides.env`)
+### Application Secrets (`.dev.overrides.env`)
 
-The post-create script creates `apps/frontman_server/envs/.dev.overrides.env` with DevPod-specific config (DB_HOST, PHX_HOST, PHX_URL_PORT). However, **secret keys (WORKOS, API keys) must be added separately**:
+The post-create script creates `apps/frontman_server/envs/.dev.overrides.env` with DevPod-specific config (DB_HOST, PHX_HOST, PHX_URL_PORT). **WorkOS credentials must be added separately**:
 
 - **Via `make wt-new`**: Automatically copies secrets from your local `.dev.overrides.env` to the devpod
 - **Manually**: SSH into the devpod and append keys to `apps/frontman_server/envs/.dev.overrides.env`
+
+Provider credentials are not copied into remote workspaces. Configure model access per account with provider OAuth or a saved API key in Frontman settings.
 
 Required keys for auth to work:
 ```bash

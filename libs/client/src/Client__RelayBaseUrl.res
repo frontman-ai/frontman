@@ -1,10 +1,3 @@
-// Build the public same-origin base URL used for /frontman/* requests.
-//
-// WordPress Playground mounts each site under a scoped path segment such as
-// /scope:kind-hip-valley. If we drop that prefix and POST to /frontman/tools/call,
-// Playground redirects to the scoped URL with a 302 and the browser retries as GET.
-// Preserve the leading scope segment so tool calls stay POST requests.
-
 let scopePrefixFromPathname = (pathname: string): option<string> => {
   let firstSegment = pathname->String.split("/")->Array.get(1)
 

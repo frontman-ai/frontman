@@ -1,0 +1,38 @@
+name: Mirror to SourceForge
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  workflow_dispatch:
+
+concurrency:
+  group: mirror-sourceforge
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          SOURCEFORGE_SSH_KEY: ${{ secrets.SOURCEFORGE_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SOURCEFORGE_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan git.code.sf.net >> ~/.ssh/known_hosts
+
+      - name: Mirror repository
+        env:
+          SOURCEFORGE_REPOSITORY: ${{ vars.SOURCEFORGE_REPOSITORY }}
+          SOURCEFORGE_USERNAME: ${{ vars.SOURCEFORGE_USERNAME }}
+        run: |
+          set -euo pipefail
+          git clone --mirror "https://github.com/${{ github.repository }}.git" repo.git
+          cd repo.git
+          git remote add sourceforge "ssh://${SOURCEFORGE_USERNAME}@git.code.sf.net/p/${SOURCEFORGE_REPOSITORY}/code"
+          git push --mirror sourceforge

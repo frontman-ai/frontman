@@ -115,7 +115,6 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
         end
 
       {:ok, %Req.Response{status: status}} when status in [403, 404] ->
-        # User hasn't authorized yet
         {:pending}
 
       {:ok, %Req.Response{status: 401, body: body}} ->
@@ -236,8 +235,6 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
     extract_account_id(id_token)
   end
 
-  # Private helpers
-
   defp extract_account_id(jwt) when is_binary(jwt) do
     {:ok, claims} = decode_jwt_payload(jwt)
 
@@ -265,7 +262,6 @@ defmodule FrontmanServer.Providers.OpenAIOAuth do
   defp decode_jwt_payload(jwt) do
     case String.split(jwt, ".") do
       [_header, payload, _signature] ->
-        # Add padding if necessary for base64url decoding
         padded = pad_base64url(payload)
 
         case Base.url_decode64(padded, padding: false) do

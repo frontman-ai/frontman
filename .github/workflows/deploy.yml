@@ -15,7 +15,6 @@ on:
       - '!infra/production/notifier/**'
   workflow_dispatch:
 
-# Only one deploy at a time — newer pushes cancel in-progress deploys
 concurrency:
   group: deploy-production
   cancel-in-progress: true
@@ -24,18 +23,63 @@ permissions:
   contents: read
 
 jobs:
-  # ==========================================================================
-  # Server: rsync source → build natively on prod server → blue-green deploy
-  # ==========================================================================
+  build-client:
+    name: Build Client
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Cache dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build client standalone bundle
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: make -C libs/client build-standalone
+
+      - name: Upload client bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: client-dist
+          path: libs/client/dist
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Notify Discord on client build failure
+        if: failure()
+        continue-on-error: true
+        uses: ./.github/actions/discord-notify
+        with:
+          status: ${{ job.status }}
+          component: Client build
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
   deploy-server:
     name: Deploy Server
+    needs: build-client
     runs-on: self-hosted
     environment: production
     env:
       PROD_SERVER: ${{ secrets.PROD_SERVER }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup SSH
         run: |
@@ -81,7 +125,6 @@ jobs:
       - name: Sync monitoring configs and reload
         run: |
           ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" bash -s <<'EOF'
-          # Only sync if monitoring is installed (setup-monitoring.sh has been run)
           if [ -f /usr/local/bin/prometheus ]; then
             BUILD_MON="/opt/frontman/build/infra/production/monitoring"
             if [ -d "${BUILD_MON}" ]; then
@@ -117,54 +160,35 @@ jobs:
           component: Server
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
-  # ==========================================================================
-  # Client: build standalone bundle on CI → deploy to Cloudflare Pages
-  # Runs after server to avoid OOM on shared self-hosted runner
-  # ==========================================================================
   deploy-client:
     name: Deploy Client
     needs: deploy-server
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     environment: production
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
       - name: Enable Corepack
         run: corepack enable && corepack install
 
-      - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - name: Download client bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
-          path: ~/.yarn/berry/cache
-          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-berry-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: yarn install --immutable
-
-      - name: Build ReScript
-        run: yarn rescript clean && yarn rescript build
-
-      - name: Build client standalone bundle
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
-        run: |
-          cd libs/client
-          yarn vite build --config vite.config.standalone.ts
-          echo "Client bundle built:"
-          ls -lh dist/
+          name: client-dist
+          path: libs/client/dist
 
       - name: Deploy client to Cloudflare Pages
-        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: yarn
           command: pages deploy libs/client/dist --project-name=frontman-client --branch=main
 
       - name: Notify Discord

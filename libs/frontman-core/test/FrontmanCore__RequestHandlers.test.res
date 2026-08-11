@@ -215,7 +215,6 @@ describe("RequestHandlers", _t => {
           req,
         )
 
-        // SSE response should still be 200 with event-stream content type
         t->expect(response.status)->Expect.toBe(200)
 
         let text = await response->WebAPI.Response.text
@@ -226,6 +225,32 @@ describe("RequestHandlers", _t => {
   })
 
   describe("handleResolveSourceLocation", _t => {
+    testAsync(
+      "normalizes resolved files relative to configured sourceRoot",
+      async t => {
+        let body = JSON.Encode.object(
+          Dict.fromArray([
+            ("componentName", JSON.Encode.string("App")),
+            ("file", JSON.Encode.string("/workspace/apps/web/src/App.tsx")),
+            ("line", JSON.Encode.float(12.0)),
+            ("column", JSON.Encode.float(4.0)),
+          ]),
+        )
+
+        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+
+        let response = await RequestHandlers.handleResolveSourceLocation(
+          ~sourceRoot="/workspace/apps/web",
+          req,
+        )
+
+        t->expect(response.status)->Expect.toBe(200)
+        let json = await response->WebAPI.Response.json
+        let result = json->S.parseOrThrow(~to=RequestHandlers.resolveSourceLocationResponseSchema)
+        t->expect(result.file)->Expect.toBe("src/App.tsx")
+      },
+    )
+
     testAsync(
       "returns 400 for completely invalid JSON body",
       async t => {

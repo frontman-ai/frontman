@@ -1,5 +1,3 @@
-// Core server execution logic - framework agnostic
-
 module Protocol = FrontmanAiFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 module Relay = Protocol.FrontmanProtocol__Relay
@@ -19,7 +17,6 @@ type executeResult =
   | InvalidInput(string)
   | ExecutionError(string)
 
-// Execute a tool by name
 let executeTool = async (
   ~registry: ToolRegistry.t,
   ~ctx: executionContext,
@@ -61,7 +58,6 @@ let executeTool = async (
   }
 }
 
-// Convert executeResult to MCP CallToolResult for SSE streaming
 let resultToMCP = (result: executeResult): MCP.CallToolResult.t => {
   switch result {
   | Ok(r) => r
@@ -71,7 +67,6 @@ let resultToMCP = (result: executeResult): MCP.CallToolResult.t => {
   }
 }
 
-// Get tools response for the /tools endpoint
 let getToolsResponse = (
   ~registry: ToolRegistry.t,
   ~serverName: string,

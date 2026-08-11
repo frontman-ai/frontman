@@ -27,11 +27,9 @@ on:
           - vite
           - vue-vite
 
-# Restrict permissions to minimum needed
 permissions:
   contents: read
 
-# Only one E2E run at a time (they're expensive and share API quotas)
 concurrency:
   group: e2e
   cancel-in-progress: true
@@ -39,67 +37,49 @@ concurrency:
 jobs:
   e2e:
     name: E2E (${{ github.event.inputs.test_suite || 'all' }})
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     env:
-      # E2E uses a dedicated Mix environment with HTTPS on port 4002.
       MIX_ENV: e2e
       PHX_SERVER: "true"
-      # Self-hosted runners can reuse Postgres state between runs.
-      # Give each run its own database so migrations always start from a
-      # fresh schema instead of inheriting stale tables from an older build.
       DB_NAME: frontman_server_e2e_${{ github.run_id }}
-      # Cloak encryption key (same test key used in dev)
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
-      # Disable Yarn hardened mode — adds ~20s to resolution for public-PR detection.
-      # --immutable already prevents lockfile changes, so hardened mode is redundant.
       YARN_ENABLE_HARDENED_MODE: "0"
-      # OpenAI OAuth tokens for the E2E test user.
-      # Backing repo secrets still use the legacy ChatGPT names; expose the new
-      # OpenAI env names to the app without requiring a GitHub secrets migration.
-      # Rotation happens in refresh-e2e-openai-token.yml.
       E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
       E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
 
     steps:
-      - name: Resolve Docker host gateway IP for PostgreSQL
-        run: |
-          if command -v ip &>/dev/null; then
-            DB_HOST=$(ip route | awk '/default/ { print $3 }')
-          fi
-          if [ -z "$DB_HOST" ] && [ -f /proc/net/route ]; then
-            HEX=$(awk '$2 == "00000000" { print $3; exit }' /proc/net/route)
-            if [ -n "$HEX" ]; then
-              DB_HOST=$(printf '%d.%d.%d.%d' 0x${HEX:6:2} 0x${HEX:4:2} 0x${HEX:2:2} 0x${HEX:0:2})
-            fi
-          fi
-          if [ -z "$DB_HOST" ]; then
-            DB_HOST="172.17.0.1"
-          fi
-          echo "DB_HOST=${DB_HOST}" >> "$GITHUB_ENV"
-          echo "Resolved DB_HOST=${DB_HOST}"
-
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          # Preserve node_modules/_build between runs on this self-hosted runner.
-          # Yarn's link step (extracting zips → node_modules) takes ~50s from scratch;
-          # with a warm node_modules it's near-instant.
           clean: false
 
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq > /dev/null
-          sudo apt-get install -y -qq libssl-dev libncurses5-dev libnss3-tools > /dev/null
+          sudo apt-get install -y -qq libssl-dev libncurses5-dev libnss3-tools postgresql-client > /dev/null
 
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
-      # ── Elixir/Erlang via mise ──────────────────────────────────────────
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d
         with:
           install: true
           cache: true
@@ -107,41 +87,35 @@ jobs:
       - name: Install Hex/Rebar
         run: make setup-elixir-tools
 
-      # ── Node.js ─────────────────────────────────────────────────────────
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: "24.4.1"
 
       - name: Enable Corepack
         run: corepack enable && corepack install
 
-      # ── Caches ──────────────────────────────────────────────────────────
       - name: Cache Yarn
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ hashFiles('yarn.lock') }}
           restore-keys: yarn-
 
       - name: Cache Mix deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
-      # E2E compiles under MIX_ENV=e2e while lint jobs compile under MIX_ENV=dev.
-      # Keep a dedicated "build-e2e-" cache prefix so the two
-      # environments never share compile artifacts.
       - name: Cache Mix _build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-e2e-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/lib/**') }}
           restore-keys: ${{ runner.os }}-build-e2e-
 
-      # ── Install dependencies ────────────────────────────────────────────
       - name: Install Node.js dependencies
         run: yarn install --immutable
 
@@ -151,36 +125,24 @@ jobs:
           mix deps.clean --unlock --unused
           mix deps.get
 
+      - name: Clean stale test databases
+        run: bash scripts/ci/postgres-test-db-cleanup.sh stale
+
       - name: Compile e2e with warnings as errors
         working-directory: apps/frontman_server
         run: mix compile --warnings-as-errors --all-warnings
 
-      # ── Build ───────────────────────────────────────────────────────────
-      # Cache tsup dist/ output only.  On exact hit the build steps below
-      # are skipped entirely.  We deliberately do NOT cache libs/*/lib
-      # (ReScript metadata) because packages using in-source compilation
-      # write .res.mjs output to src/, not lib/.  Restoring stale lib/
-      # metadata without the corresponding src/*.res.mjs files causes
-      # ReScript to skip recompilation, leaving tsup unable to resolve
-      # imports like @frontman-ai/frontman-core/src/FrontmanCore__Hosts.res.mjs.
       - name: Cache JS build artifacts
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         id: js-build-cache
         with:
           path: libs/*/dist
           key: js-build-v2-${{ runner.os }}-${{ hashFiles('libs/*/src/**', 'libs/*/rescript.json', 'libs/*/tsup.config.ts') }}
           restore-keys: js-build-v2-${{ runner.os }}-
 
-      # Always run ReScript — the cache stores libs/*/dist (tsup output)
-      # but NOT src/*.res.mjs (in-source compiled files).  On a cache hit
-      # the .res.mjs files may be missing, causing the client Vite dev
-      # server to 404 on module requests.  Incremental builds are fast.
       - name: Build ReScript
         run: yarn rescript
 
-      # Build adapters sequentially — each `build` script runs `rescript
-      # build` then `tsup`.  Sequential avoids concurrent rescript processes
-      # racing on shared dependency dirs (e.g. frontman-core).
       - name: Build adapter dist packages
         if: steps.js-build-cache.outputs.cache-hit != 'true'
         run: |
@@ -188,26 +150,20 @@ jobs:
           yarn workspace @frontman-ai/vite build
           yarn workspace @frontman-ai/astro build
 
-      # ── mkcert for HTTPS ────────────────────────────────────────────────
       - name: Generate mkcert certificates
         run: |
-          # Install mkcert CA into system trust store
           mkcert -install 2>/dev/null || true
-          # Generate certs for localhost (same names as dev)
           mkdir -p .certs
           mkcert -key-file .certs/frontman.local-key.pem \
                  -cert-file .certs/frontman.local.pem \
                  frontman.local localhost 127.0.0.1 ::1
 
-      # ── Install Playwright browser ──────────────────────────────────────
       - name: Cache Playwright browsers
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('test/e2e/package.json') }}
-          # Partial restore: browser files survive package.json script changes.
-          # `playwright install` is idempotent — skips download if present.
           restore-keys: playwright-${{ runner.os }}-
 
       - name: Install Playwright Chromium
@@ -220,7 +176,6 @@ jobs:
         run: npx playwright install-deps chromium 2>&1 | tail -5
         working-directory: test/e2e
 
-      # ── Run E2E tests ───────────────────────────────────────────────────
       - name: Determine test command
         id: test-cmd
         run: |
@@ -234,24 +189,19 @@ jobs:
       - name: Run E2E tests
         working-directory: test/e2e
         env:
-          # Accept self-signed mkcert certificates (scoped to test step only)
           NODE_TLS_REJECT_UNAUTHORIZED: "0"
         run: ${{ steps.test-cmd.outputs.cmd }}
 
-      # ── Cleanup ─────────────────────────────────────────────────────────
       - name: Cleanup workspace
         if: always()
         run: |
-          # Kill any leaked dev server processes
           lsof -ti:4002 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:5173 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3010 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3011 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3012 2>/dev/null | xargs kill -9 2>/dev/null || true
           lsof -ti:3013 2>/dev/null | xargs kill -9 2>/dev/null || true
-          # Drop the per-run E2E database on the shared Postgres host.
-          (cd apps/frontman_server && mix ecto.drop --quiet) >/dev/null 2>&1 || true
-          # Restore fixture files modified by AI + installer during tests
+          bash scripts/ci/postgres-test-db-cleanup.sh current-e2e || true
+          bash scripts/ci/postgres-test-db-cleanup.sh stale || true
           git checkout -- test/e2e/fixtures/ 2>/dev/null || true
-          # Remove untracked files created by installer (middleware.ts, instrumentation.ts)
           git clean -fd -- test/e2e/fixtures/ 2>/dev/null || true

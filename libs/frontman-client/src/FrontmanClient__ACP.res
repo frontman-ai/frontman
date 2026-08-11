@@ -1,7 +1,5 @@
-// Main ACP Client entry point
-// Thin orchestrator - delegates to Protocol for messaging, uses Constants for topics
-
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Client = FrontmanClient__ACP__Client
 module Protocol = FrontmanClient__ACP__Protocol
 module Channel = FrontmanClient__Phoenix__Channel
@@ -53,6 +51,7 @@ let makeConfig = (
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
     terminal: Some(false),
     elicitation: None,
+    _meta: None,
   },
   onMessage,
 }
@@ -73,12 +72,14 @@ type session = {
   onUpdate: (string, Types.sessionUpdate) => unit,
 }
 
-let cleanupSessionChannel = (session: session): unit => {
-  session.channel->Channel.off(~event=#"acp:message")
-  session.channel->Channel.off(~event=#"mcp:message")
-  session.channel->Channel.off(~event=#title_updated)
-  Channel.leave(session.channel)->ignore
+let cleanupChannel = channel => {
+  channel->Channel.off(~event=#"acp:message")
+  channel->Channel.off(~event=#"mcp:message")
+  channel->Channel.off(~event=#title_updated)
+  Channel.leave(channel)->ignore
 }
+
+let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.channel)
 
 let disconnect = (conn: connection, ~session: option<session>=?): unit => {
   session->Option.forEach(cleanupSessionChannel)
@@ -105,7 +106,6 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
     Channel.join(channel).receive(~status="ok", ~callback=_ =>
       resolve(Ok())
     ).receive(~status="error", ~callback=err => {
-      // Parse error to check for auth failure
       let parsed = err->JSON.Decode.object
       let reason =
         parsed->Option.flatMap(o => o->Dict.get("reason")->Option.flatMap(JSON.Decode.string))
@@ -120,7 +120,6 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
   })
 }
 
-// Helper to check abort status
 let checkAborted = (signal: option<WebAPI.EventAPI.abortSignal>): result<unit, string> => {
   switch signal {
   | Some(s) if s.aborted => Error("Connection aborted")
@@ -137,7 +136,6 @@ type tokenError =
   | NotAuthenticated
   | InvalidResponse
 
-// Fetch socket auth token from the server (for cross-origin auth)
 let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
   try {
     let response = await WebAPI.Global.fetch(tokenUrl, ~init={credentials: Include})
@@ -165,17 +163,14 @@ let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
   }
 }
 
-// Connect and initialize ACP
 @@live
 let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
   connection,
   connectError,
 > => {
-  // Initialize Sentry on first connection
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
 
-  // Fetch socket token
   let tokenResult = switch await fetchSocketToken(config.tokenUrl) {
   | Ok(token) => Ok(token)
   | Error(NotAuthenticated) => Error(AuthRequired({loginUrl: config.loginUrl}))
@@ -231,7 +226,6 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
     | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
     | (Error(e), _) => Error(e)
     | (Ok(), Ok()) =>
-      // Listen for config option updates (pushed after key saves/OAuth)
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>
         channel->Channel.on(~event=#config_options_updated, ~callback=payload => {
@@ -256,50 +250,77 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
         state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
-        Ok({socket, channel, clientConfig, state, onMessage: config.onMessage})
+        Ok({
+          socket,
+          channel,
+          clientConfig,
+          state,
+          onMessage: config.onMessage,
+        })
       }
     }
   }
 }
 
-// Get current connection state
 @@live
 let getState = (conn: connection): Client.acpState => {
   Client.getACPState(conn.state.contents)
 }
 
-// Check if initialized
 @@live
 let isInitialized = (conn: connection): bool => {
   Client.isInitialized(conn.state.contents)
 }
 
+@@live
+let getAgentAttributionConfiguration = (conn: connection): option<
+  Types.agentAttributionConfigurationMetadata,
+> => conn.state.contents.agentAttributionConfiguration
+
 module MCP = FrontmanClient__MCP
 module MCPTypes = FrontmanClient__MCP__Types
 
-// Join a session channel (internal helper)
-// mcpServerInterface is used to create MCP handler BEFORE joining to avoid race with server MCP init
-// onUpdate receives (sessionId, update) per ACP session/update notification params
+exception SessionMessageParseError(string)
+
+let validatedUpdateHandler = (conn, sessionId, onUpdate) => {
+  let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId)
+  (sessionId, update) =>
+    switch validate(sessionId, update) {
+    | Ok() => onUpdate(sessionId, update)
+    | Error(error) => failwith(error)
+    }
+}
+
 let joinSession = async (
   conn: connection,
   sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
+  ~onParseError: option<string => unit>=?,
+  ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
+  let handleParseError = err => {
+    switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
+    | true => cleanupChannel(sessionChannel)
+    | false => ()
+    }
+    switch onParseError {
+    | Some(callback) => callback(err)
+    | None => throw(SessionMessageParseError(err))
+    }
+  }
 
-  // Attach ACP handler before joining
   Protocol.attachMessageHandler(
     ~channel=sessionChannel,
     ~state=conn.state,
     ~onUpdate=Some(onUpdate),
     ~onMessage=conn.onMessage,
-    ~onParseError=Some(err => Log.warning(`Session message parse error: ${err}`)),
+    ~onParseError=Some(handleParseError),
   )
 
-  // Attach MCP handler before joining - server sends mcp:message immediately on join
   mcpServerInterface->Option.forEach(serverInterface => {
     let handler: MCP.mcpHandler<'server> = {
       serverInterface,
@@ -312,7 +333,6 @@ let joinSession = async (
     })
   })
 
-  // Listen for title updates on the session channel
   sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
     switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
     | Ok({sessionId, title}) => onTitleUpdated(sessionId, title)
@@ -324,6 +344,7 @@ let joinSession = async (
 
   joinResult
   ->Result.mapError(err => {
+    cleanupChannel(sessionChannel)
     let errMsg = switch err {
     | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
     | JoinFailed(msg) => msg
@@ -342,19 +363,16 @@ let joinSession = async (
   })
 }
 
-// Create a new ACP session and auto-join the session channel
-// Client generates sessionId (UUID) and sends it to the server
-// mcpServerInterface is attached before channel join to handle server's immediate MCP init
-// onUpdate receives (sessionId, update) per ACP session/update notification params
 @@live
 let createSession = async (
   conn: connection,
   ~sessionId: string,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
+  ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
-): result<(session, option<array<Types.sessionConfigOption>>), string> => {
+): result<(session, Types.sessionNewResult), string> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
   let sessionNewResult = await Protocol.sendSessionNew(
@@ -366,17 +384,22 @@ let createSession = async (
 
   switch sessionNewResult {
   | Ok(result) =>
-    let joinResult = await joinSession(
-      conn,
-      result.sessionId,
-      ~onUpdate,
-      ~onTitleUpdated,
-      ~mcpServerInterface?,
-      ~onMcpMessage?,
-    )
-    switch joinResult {
-    | Ok(session) => Ok((session, result.configOptions))
-    | Error(e) => Error(e)
+    switch result.sessionId == sessionId {
+    | false => Error(`session/new returned unexpected session ID: ${result.sessionId}`)
+    | true =>
+      let joinResult = await joinSession(
+        conn,
+        result.sessionId,
+        ~onUpdate=validatedUpdateHandler(conn, sessionId, onUpdate),
+        ~onTitleUpdated,
+        ~onParseError?,
+        ~mcpServerInterface?,
+        ~onMcpMessage?,
+      )
+      switch joinResult {
+      | Ok(session) => Ok((session, result))
+      | Error(e) => Error(e)
+      }
     }
   | Error(err) =>
     Log.error(`Session creation failed: ${err}`)
@@ -384,20 +407,21 @@ let createSession = async (
   }
 }
 
-// Send a prompt to the session with additional content blocks
 @@live
 let sendPrompt = async (
   session: session,
   text: string,
-  ~additionalBlocks: array<Types.contentBlock>=[],
+  ~additionalBlocks: array<ContentBlock.t>=[],
   ~_meta: option<JSON.t>=None,
 ): result<Types.promptResult, string> => {
-  // Build prompt array starting with the text block
-  let textBlock: Types.contentBlock = TextContent({text, _meta: None, annotations: None})
-  // Serialize through S.unknown to avoid strict JSON checks on option fields inside union arms.
+  let baseBlocks: array<ContentBlock.t> = switch text->String.trim != "" {
+  | true => [TextContent({text, _meta: None, annotations: None})]
+  | false => []
+  }
+
   let allBlocks =
-    Array.concat([textBlock], additionalBlocks)->Array.map(block =>
-      block->S.decodeOrThrow(~from=Types.contentBlockSchema, ~to=S.json->S.noValidation(true))
+    Array.concat(baseBlocks, additionalBlocks)->Array.map(block =>
+      block->S.decodeOrThrow(~from=ContentBlock.schema, ~to=S.json->S.noValidation(true))
     )
 
   await Protocol.sendPrompt(
@@ -410,9 +434,6 @@ let sendPrompt = async (
   )
 }
 
-// Cancel an in-flight prompt
-// ACP spec: session/cancel is a notification (fire-and-forget).
-// The pending session/prompt request will resolve with stopReason: "cancelled".
 let cancelPrompt = (session: session): unit => {
   Protocol.sendCancel(
     ~channel=session.channel,
@@ -421,8 +442,6 @@ let cancelPrompt = (session: session): unit => {
   )
 }
 
-// Retry a failed turn
-// ACP spec: session/retry_turn is a notification (fire-and-forget).
 let retryTurn = (session: session, ~retriedErrorId: string): unit => {
   Protocol.sendRetryTurn(
     ~channel=session.channel,
@@ -432,7 +451,6 @@ let retryTurn = (session: session, ~retriedErrorId: string): unit => {
   )
 }
 
-// List user's sessions (non-ACP channel message)
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
   Promise.make((resolve, _) => {
     let pushRef =
@@ -448,7 +466,6 @@ let listSessions = (conn: connection): promise<result<array<Types.sessionSummary
   })
 }
 
-// Delete a session (non-ACP channel event)
 let deleteSession = (conn: connection, sessionId: string): promise<result<unit, string>> => {
   Promise.make((resolve, _) => {
     let params: Types.deleteSessionParams = {sessionId: sessionId}
@@ -465,24 +482,51 @@ let deleteSession = (conn: connection, sessionId: string): promise<result<unit, 
   })
 }
 
-// Load an existing session (ACP compliant)
-// History is streamed via session/update notifications to onUpdate callback
-// onUpdate receives (sessionId, update) per ACP session/update notification params
 @@live
 let loadSession = async (
   conn: connection,
   sessionId: string,
+  ~onLoadResult: Types.sessionLoadResult => unit,
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
+  ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
   ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<(session, Types.sessionLoadResult), string> => {
-  // First join the session channel to receive history updates
+  let buffering = ref(true)
+  let bufferedUpdates = ref([])
+  let parseError = ref(None)
+  let cleanupOnParseError = ref(false)
+  let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId)
+  let handleUpdate = (sessionId, update) =>
+    switch buffering.contents {
+    | true => bufferedUpdates := bufferedUpdates.contents->Array.concat([(sessionId, update)])
+    | false =>
+      switch validate(sessionId, update) {
+      | Ok() => onUpdate(sessionId, update)
+      | Error(error) => failwith(error)
+      }
+    }
+
   let joinResult = await joinSession(
     conn,
     sessionId,
-    ~onUpdate,
+    ~onUpdate=handleUpdate,
     ~onTitleUpdated,
+    ~onParseError=err =>
+      switch buffering.contents {
+      | false =>
+        switch onParseError {
+        | Some(callback) => callback(err)
+        | None => throw(SessionMessageParseError(err))
+        }
+      | true =>
+        switch parseError.contents {
+        | None => parseError := Some(err)
+        | Some(_) => ()
+        }
+      },
+    ~cleanupOnParseError,
     ~mcpServerInterface?,
     ~onMcpMessage?,
   )
@@ -490,12 +534,6 @@ let loadSession = async (
   switch joinResult {
   | Error(e) => Error(e)
   | Ok(session) =>
-    // Send ACP session/load request to session channel (not tasks channel)
-    // History notifications are sent to the channel that receives this request,
-    // and the onUpdate callback is attached to the session channel in joinSession.
-    // Include clientInfo metadata in _meta so the task channel can extract
-    // env API keys for config option resolution (env keys are only sent
-    // during initialize on the tasks channel, not available on session channels).
     let params: Types.sessionLoadParams = {
       sessionId,
       cwd: "/",
@@ -515,10 +553,48 @@ let loadSession = async (
       ~parseResult=Client.parseSessionLoadResult,
       ~onMessage=conn.onMessage,
     )
+    cleanupOnParseError := true
 
-    switch loadResult {
-    | Ok(result) => Ok((session, result))
-    | Error(e) => Error(e)
+    let validatedLoad = loadResult->Result.flatMap(result =>
+      switch parseError.contents {
+      | Some(error) => Error(error)
+      | None =>
+        bufferedUpdates.contents
+        ->Array.reduce(Ok(), (validation, (updateSessionId, update)) =>
+          validation->Result.flatMap(() => validate(updateSessionId, update))
+        )
+        ->Result.map(() => result)
+      }
+    )
+
+    switch validatedLoad {
+    | Error(error) =>
+      cleanupSessionChannel(session)
+      Error(error)
+    | Ok(result) =>
+      onLoadResult(result)
+      buffering := false
+      try {
+        bufferedUpdates.contents->Array.forEach(((sessionId, update)) =>
+          onUpdate(sessionId, update)
+        )
+        bufferedUpdates := []
+        Ok((session, result))
+      } catch {
+      | Failure(error) =>
+        cleanupSessionChannel(session)
+        onParseError->Option.forEach(callback => callback(error))
+        Error(error)
+      | exn =>
+        let error =
+          exn
+          ->JsExn.fromException
+          ->Option.flatMap(JsExn.message)
+          ->Option.getOr("Session update handler failed")
+        cleanupSessionChannel(session)
+        onParseError->Option.forEach(callback => callback(error))
+        Error(error)
+      }
     }
   }
 }

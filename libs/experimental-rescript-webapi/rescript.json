@@ -1,16 +1,603 @@
 {
   "name": "@rescript/webapi",
   "namespace": "WebAPI",
-  "reanalyze": {
-    "analysis": ["dce"],
-    "suppress": [],
-    "unsuppress": [],
-    "transitive": false
-  },
   "sources": [
     {
-      "dir": "src",
-      "subdirs": true
+      "dir": "src"
+    },
+    {
+      "dir": "src/Base",
+      "subdirs": true,
+      "feature": "WebAPI.Base",
+      "public": [
+        "ArrayBufferTypedArrayOrDataView",
+        "BaseCSSFontLoading",
+        "BaseEncryptedMediaExtensions",
+        "BaseEvent",
+        "BaseFile",
+        "BaseFileAndDirectoryEntries",
+        "DOM"
+      ]
+    },
+    {
+      "dir": "src/CSSFontLoading",
+      "subdirs": true,
+      "feature": "WebAPI.CSSFontLoading",
+      "public": [
+        "FontFace",
+        "FontFaceSet"
+      ]
+    },
+    {
+      "dir": "src/Canvas",
+      "subdirs": true,
+      "feature": "WebAPI.Canvas",
+      "public": [
+        "Canvas",
+        "CanvasGradient",
+        "CanvasPattern",
+        "CanvasRenderingContext2D",
+        "FillStyle",
+        "HTMLCanvasElement",
+        "ImageBitmap",
+        "ImageBitmapRenderingContext",
+        "OffscreenCanvas",
+        "Path2D",
+        "VideoFrame"
+      ]
+    },
+    {
+      "dir": "src/ChannelMessaging",
+      "subdirs": true,
+      "feature": "WebAPI.ChannelMessaging",
+      "public": [
+        "MessagePort"
+      ]
+    },
+    {
+      "dir": "src/Clipboard",
+      "subdirs": true,
+      "feature": "WebAPI.Clipboard",
+      "public": [
+        "Clipboard",
+        "ClipboardItem"
+      ]
+    },
+    {
+      "dir": "src/CredentialManagement",
+      "subdirs": true,
+      "feature": "WebAPI.CredentialManagement",
+      "public": [
+        "CredentialsContainer"
+      ]
+    },
+    {
+      "dir": "src/DOM",
+      "subdirs": true,
+      "feature": "WebAPI.DOM",
+      "public": [
+        "Animation",
+        "AnimationEffect",
+        "CSSRuleList",
+        "CSSStyleDeclaration",
+        "CSSStyleSheet",
+        "CSSStyleValue",
+        "CaretPosition",
+        "CharacterData",
+        "Comment",
+        "CustomElementRegistry",
+        "DOMException",
+        "DOMImplementation",
+        "DOMMatrix",
+        "DOMMatrixReadOnly",
+        "DOMPoint",
+        "DOMPointReadOnly",
+        "DOMRect",
+        "DOMRectList",
+        "DOMRectReadOnly",
+        "DOMStringList",
+        "DOMTokenList",
+        "Document",
+        "DocumentFragment",
+        "DocumentTimeline",
+        "DomHTMLMediaElement",
+        "Element",
+        "ElementInternals",
+        "FileList",
+        "HTMLAnchorElement",
+        "HTMLAreaElement",
+        "HTMLAudioElement",
+        "HTMLBRElement",
+        "HTMLBaseElement",
+        "HTMLBodyElement",
+        "HTMLButtonElement",
+        "HTMLCollection",
+        "HTMLDListElement",
+        "HTMLDataElement",
+        "HTMLDataListElement",
+        "HTMLDialogElement",
+        "HTMLDivElement",
+        "HTMLElement",
+        "HTMLEmbedElement",
+        "HTMLFieldSetElement",
+        "HTMLFormControlsCollection",
+        "HTMLFormElement",
+        "HTMLFrameSetElement",
+        "HTMLHRElement",
+        "HTMLHeadElement",
+        "HTMLHeadingElement",
+        "HTMLHtmlElement",
+        "HTMLIFrameElement",
+        "HTMLImageElement",
+        "HTMLInputElement",
+        "HTMLLIElement",
+        "HTMLLabelElement",
+        "HTMLLegendElement",
+        "HTMLLinkElement",
+        "HTMLMapElement",
+        "HTMLMenuElement",
+        "HTMLMetaElement",
+        "HTMLMeterElement",
+        "HTMLModElement",
+        "HTMLOListElement",
+        "HTMLObjectElement",
+        "HTMLOptGroupElement",
+        "HTMLOptionElement",
+        "HTMLOptionsCollection",
+        "HTMLOutputElement",
+        "HTMLParagraphElement",
+        "HTMLPictureElement",
+        "HTMLPreElement",
+        "HTMLProgressElement",
+        "HTMLQuoteElement",
+        "HTMLScriptElement",
+        "HTMLSelectElement",
+        "HTMLSlotElement",
+        "HTMLSourceElement",
+        "HTMLSpanElement",
+        "HTMLStyleElement",
+        "HTMLTableCaptionElement",
+        "HTMLTableCellElement",
+        "HTMLTableElement",
+        "HTMLTableRowElement",
+        "HTMLTableSectionElement",
+        "HTMLTemplateElement",
+        "HTMLTextAreaElement",
+        "HTMLTimeElement",
+        "HTMLTitleElement",
+        "HTMLTrackElement",
+        "HTMLUListElement",
+        "HTMLVideoElement",
+        "IdleDeadline",
+        "ImageData",
+        "Location",
+        "MediaList",
+        "MediaQueryList",
+        "NamedNodeMap",
+        "Navigator",
+        "Node",
+        "NodeFilter",
+        "NodeIterator",
+        "NodeList",
+        "Range",
+        "SVGGraphicsElement",
+        "SVGLength",
+        "ScreenOrientation",
+        "Selection",
+        "ShadowRoot",
+        "StylePropertyMap",
+        "StylePropertyMapReadOnly",
+        "StyleSheetList",
+        "Text",
+        "TextTrackList",
+        "TimeRanges",
+        "TreeWalker",
+        "VideoColorSpace",
+        "Window",
+        "XPathExpression",
+        "XPathResult"
+      ]
+    },
+    {
+      "dir": "src/EncryptedMediaExtensions",
+      "subdirs": true,
+      "feature": "WebAPI.EncryptedMediaExtensions",
+      "public": [
+        "EncryptedMediaExtensionsHTMLMediaElement",
+        "MediaKeySession",
+        "MediaKeyStatusMap",
+        "MediaKeySystemAccess",
+        "MediaKeys"
+      ]
+    },
+    {
+      "dir": "src/Event",
+      "subdirs": true,
+      "feature": "WebAPI.Event",
+      "public": [
+        "AbortController",
+        "AbortSignal",
+        "Event",
+        "EventTarget",
+        "ExtendableEvent"
+      ]
+    },
+    {
+      "dir": "src/Fetch",
+      "subdirs": true,
+      "feature": "WebAPI.Fetch",
+      "public": [
+        "BodyInit",
+        "Fetch",
+        "FormData",
+        "FormDataEntryValue",
+        "Headers",
+        "HeadersInit",
+        "Request",
+        "Response"
+      ]
+    },
+    {
+      "dir": "src/File",
+      "subdirs": true,
+      "feature": "WebAPI.File",
+		"public": [
+			"Blob",
+			"File",
+			"FileReader",
+			"FileSystemDirectoryHandle",
+			"FileSystemFileHandle",
+			"FileSystemHandle",
+        "FileSystemWritableFileStream",
+        "ReadableStream",
+        "WritableStream",
+        "WritableStreamDefaultController"
+      ]
+    },
+    {
+      "dir": "src/FileAndDirectoryEntries",
+      "subdirs": true,
+      "feature": "WebAPI.FileAndDirectoryEntries",
+      "public": [
+        "FileSystemDirectoryEntry",
+        "FileSystemDirectoryReader",
+        "FileSystemEntry"
+      ]
+    },
+    {
+      "dir": "src/Gamepad",
+      "subdirs": true,
+      "feature": "WebAPI.Gamepad",
+      "public": [
+        "GamepadHapticActuator"
+      ]
+    },
+    {
+      "dir": "src/Geolocation",
+      "subdirs": true,
+      "feature": "WebAPI.Geolocation",
+      "public": [
+        "Geolocation",
+        "GeolocationCoordinates",
+        "GeolocationPosition"
+      ]
+    },
+    {
+      "dir": "src/History",
+      "subdirs": true,
+      "feature": "WebAPI.History",
+      "public": [
+        "History"
+      ]
+    },
+    {
+      "dir": "src/IndexedDB",
+      "subdirs": true,
+      "feature": "WebAPI.IndexedDB",
+      "public": [
+        "IDBDatabase",
+        "IDBFactory",
+        "IDBIndex",
+        "IDBObjectStore",
+        "IDBTransaction"
+      ]
+    },
+    {
+      "dir": "src/IntersectionObserver",
+      "subdirs": true,
+      "feature": "WebAPI.IntersectionObserver",
+      "public": [
+        "IntersectionObserver",
+        "IntersectionObserverRoot"
+      ]
+    },
+    {
+      "dir": "src/MediaCapabilities",
+      "subdirs": true,
+      "feature": "WebAPI.MediaCapabilities",
+      "public": [
+        "MediaCapabilities"
+      ]
+    },
+    {
+      "dir": "src/MediaCaptureAndStreams",
+      "subdirs": true,
+      "feature": "WebAPI.MediaCaptureAndStreams",
+      "public": [
+        "MediaDeviceInfo",
+        "MediaDevices",
+        "MediaStream",
+        "MediaStreamTrack"
+      ]
+    },
+    {
+      "dir": "src/MediaSession",
+      "subdirs": true,
+      "feature": "WebAPI.MediaSession",
+      "public": [
+        "MediaMetadata",
+        "MediaSession"
+      ]
+    },
+    {
+      "dir": "src/MutationObserver",
+      "subdirs": true,
+      "feature": "WebAPI.MutationObserver",
+      "public": [
+        "MutationObserver"
+      ]
+    },
+    {
+      "dir": "src/Notification",
+      "subdirs": true,
+      "feature": "WebAPI.Notification",
+      "public": [
+        "Notification"
+      ]
+    },
+    {
+      "dir": "src/Performance",
+      "subdirs": true,
+      "feature": "WebAPI.Performance",
+      "public": [
+        "Performance",
+        "PerformanceEntry",
+        "PerformanceMark"
+      ]
+    },
+    {
+      "dir": "src/Permissions",
+      "subdirs": true,
+      "feature": "WebAPI.Permissions",
+      "public": [
+        "Permissions"
+      ]
+    },
+    {
+      "dir": "src/PictureInPicture",
+      "subdirs": true,
+      "feature": "WebAPI.PictureInPicture",
+      "public": [
+        "PictureInPicture"
+      ]
+    },
+    {
+      "dir": "src/Push",
+      "subdirs": true,
+      "feature": "WebAPI.Push",
+      "public": [
+        "ApplicationServerKey",
+        "PushEvent",
+        "PushManager",
+        "PushMessageData",
+        "PushSubscription"
+      ]
+    },
+    {
+      "dir": "src/RemotePlayback",
+      "subdirs": true,
+      "feature": "WebAPI.RemotePlayback",
+      "public": [
+        "RemotePlayback"
+      ]
+    },
+    {
+      "dir": "src/ResizeObserver",
+      "subdirs": true,
+      "feature": "WebAPI.ResizeObserver",
+      "public": [
+        "ResizeObserver"
+      ]
+    },
+    {
+      "dir": "src/ScreenWakeLock",
+      "subdirs": true,
+      "feature": "WebAPI.ScreenWakeLock",
+      "public": [
+        "WakeLock",
+        "WakeLockSentinel"
+      ]
+    },
+    {
+      "dir": "src/ServiceWorker",
+      "subdirs": true,
+      "feature": "WebAPI.ServiceWorker",
+      "public": [
+        "Cache",
+        "Clients",
+        "NavigationPreloadManager",
+        "ServiceWorker",
+        "ServiceWorkerContainer",
+        "ServiceWorkerRegistration",
+        "ServiceWorkerScope"
+      ]
+    },
+    {
+      "dir": "src/Storage",
+      "subdirs": true,
+      "feature": "WebAPI.Storage",
+      "public": [
+        "StorageManager"
+      ]
+    },
+    {
+      "dir": "src/UIEvents",
+      "subdirs": true,
+		"feature": "WebAPI.UIEvents",
+		"public": [
+			"ClipboardEvent",
+			"CompositionEvent",
+			"DataTransfer",
+			"DataTransferItem",
+			"DataTransferItemList",
+			"DragEvent",
+			"FocusEvent",
+        "InputEvent",
+        "KeyboardEvent",
+        "MouseEvent",
+        "PointerEvent",
+        "Touch",
+        "TouchEvent",
+        "TouchList",
+        "UIEvent",
+        "WheelEvent"
+      ]
+    },
+    {
+      "dir": "src/URL",
+      "subdirs": true,
+      "feature": "WebAPI.URL",
+      "public": [
+        "URL",
+        "URLSearchParams"
+      ]
+    },
+    {
+      "dir": "src/ViewTransitions",
+      "subdirs": true,
+      "feature": "WebAPI.ViewTransitions",
+      "public": [
+        "ViewTransition"
+      ]
+    },
+    {
+      "dir": "src/VisualViewport",
+      "subdirs": true,
+      "feature": "WebAPI.VisualViewport",
+      "public": [
+        "VisualViewport"
+      ]
+    },
+    {
+      "dir": "src/WebAudio",
+      "subdirs": true,
+      "feature": "WebAPI.WebAudio",
+      "public": [
+        "AnalyserNode",
+        "AudioBuffer",
+        "AudioBufferSourceNode",
+        "AudioContext",
+        "AudioDestinationNode",
+        "AudioNode",
+        "AudioParam",
+        "AudioProcessingEvent",
+        "AudioScheduledSourceNode",
+        "AudioWorkletNode",
+        "BaseAudioContext",
+        "BiquadFilterNode",
+        "ChannelMergerNode",
+        "ChannelSplitterNode",
+        "ConstantSourceNode",
+        "ConvolverNode",
+        "DelayNode",
+        "DynamicsCompressorNode",
+        "GainNode",
+        "IIRFilterNode",
+        "MediaElementAudioSourceNode",
+        "MediaStreamAudioDestinationNode",
+        "MediaStreamAudioSourceNode",
+        "OfflineAudioCompletionEvent",
+        "OfflineAudioContext",
+        "OscillatorNode",
+        "PannerNode",
+        "PeriodicWave",
+        "StereoPannerNode",
+        "WaveShaperNode",
+        "Worklet"
+      ]
+    },
+    {
+      "dir": "src/WebCrypto",
+      "subdirs": true,
+      "feature": "WebAPI.WebCrypto",
+      "public": [
+        "Crypto",
+        "SubtleCrypto"
+      ]
+    },
+    {
+      "dir": "src/WebLocks",
+      "subdirs": true,
+      "feature": "WebAPI.WebLocks",
+      "public": [
+        "LockManager"
+      ]
+    },
+    {
+      "dir": "src/WebMIDI",
+      "subdirs": true,
+      "feature": "WebAPI.WebMIDI",
+      "public": [
+        "WebMIDI"
+      ]
+    },
+    {
+      "dir": "src/WebSockets",
+      "subdirs": true,
+      "feature": "WebAPI.WebSockets",
+      "public": [
+        "CloseEvent",
+        "MessageEvent",
+        "WebSocket"
+      ]
+    },
+    {
+      "dir": "src/WebSpeech",
+      "subdirs": true,
+      "feature": "WebAPI.WebSpeech",
+      "public": [
+        "SpeechSynthesis",
+        "SpeechSynthesisUtterance"
+      ]
+    },
+    {
+      "dir": "src/WebStorage",
+      "subdirs": true,
+      "feature": "WebAPI.WebStorage",
+      "public": [
+        "Storage",
+        "StorageEvent"
+      ]
+    },
+    {
+      "dir": "src/WebVTT",
+      "subdirs": true,
+      "feature": "WebAPI.WebVTT",
+      "public": [
+        "TextTrack",
+        "TextTrackCueList"
+      ]
+    },
+    {
+      "dir": "src/WebWorkers",
+      "subdirs": true,
+      "feature": "WebAPI.WebWorkers",
+      "public": [
+        "CacheStorage",
+        "SharedWorker",
+        "SharedWorkerScope",
+        "Worker"
+      ]
     },
     {
       "dir": "tests",
@@ -23,7 +610,5 @@
     "in-source": true
   },
   "suffix": ".js",
-  "warnings": {
-    "number": "-44"
-  }
+  "dependencies": []
 }

@@ -1,14 +1,9 @@
 /**
  * ToolIcons - SVG icon components for the UI
- * 
+ *
  * Icons are 14x14 by default and use currentColor for theming.
  */
-let // Default size
-defaultSize = 14
-
-// ============================================================================
-// Icon Components
-// ============================================================================
+let defaultSize = 14
 
 module FileIcon = {
   @react.component
@@ -117,7 +112,6 @@ module ChevronDownIcon = {
   }
 }
 
-// Send arrow icon for submit button
 module SendArrowIcon = {
   @react.component
   let make = (~size: int=20, ~className: string="") => {
@@ -186,7 +180,6 @@ module CursorClickIcon = {
     </svg>
   }
 }
-
 module PenIcon = {
   @react.component
   let make = (~size: int=defaultSize, ~className: string="") => {
@@ -206,27 +199,6 @@ module PenIcon = {
         strokeLinejoin="round"
       />
       <path d="M11.5 4.6L15.4 8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  }
-}
-
-module UploadIcon = {
-  @react.component
-  let make = (~size: int=defaultSize, ~className: string="") => {
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 16 16"
-      fill="currentColor"
-      width={Int.toString(size)}
-      height={Int.toString(size)}
-      className={className}
-    >
-      <path
-        d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"
-      />
-      <path
-        d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"
-      />
     </svg>
   }
 }

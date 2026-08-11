@@ -1,10 +1,7 @@
-// Client tool that asks the user questions via an interactive drawer.
-// The execute function returns a promise that blocks until the user responds.
-// The server routes this as an interactive MCP tool call (24h safety-net timeout).
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.question
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Write
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Interactive
 
@@ -28,7 +25,6 @@ type input = {
   questions: array<Client__Question__Types.questionItem>,
 }
 
-// Per-question answer in the tool output
 @schema
 type questionAnswerOutput = {
   @live
@@ -47,25 +43,21 @@ type output = {
   cancelled: bool,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let execute = async (
   input: input,
   ~taskId: string,
   ~toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
-  // Create a promise that blocks until the user responds via the drawer.
-  // The resolveOk/resolveError callbacks are stored in pendingQuestion state
-  // so the task reducer can call them when the user submits/skips/cancels.
   let result = await Promise.make((resolve, _reject) => {
-    // resolveOk: receives the formatted output JSON, signals Ok
     let resolveOk = (json: JSON.t) => {
       resolve(Ok(json))
     }
-    // resolveError: receives an error message, signals Error
     let resolveError = (msg: string) => {
       resolve(Error(msg))
     }
 
-    // Dispatch to state machine — stores the pending question + resolver callbacks
     Client__State.Actions.questionReceived(
       ~taskId,
       ~questions=input.questions,
@@ -75,11 +67,10 @@ let execute = async (
     )
   })
 
-  // Convert the raw result back to typed output
   switch result {
   | Ok(json) =>
     try {
-      Tool.jsonResult(json->S.parseOrThrow(~to=outputSchema), outputSchema)
+      Tool.structuredResult(json->S.parseOrThrow(~to=outputSchema), outputSchema)
     } catch {
     | _ => Tool.MCP.CallToolResult.makeError("Failed to parse question tool output")
     }

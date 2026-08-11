@@ -1,9 +1,6 @@
 module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
 
 module EventHelpers = {
-  //note(itay): This function will recursively iterate all the iframes in a provided iframeDoc,
-  //and invoke the given event listener with the provided handler. Its safe to execute even
-  //for cross-origin iframes, as those would be safely ignored.
   let rec iframeExecuteEventListener = (
     eventListener: (WebAPI.DOMAPI.document, 'a => unit) => unit,
     handler: 'a => unit,
@@ -15,8 +12,6 @@ module EventHelpers = {
       frames
       ->Obj.magic
       ->Array.forEach(element => {
-        //note(itay): This will return null (None) in case the IFrame is cross-origin to the
-        //running script, and not an error like `contentWindow.document`
         let iframeDoc = element->WebAPI.HTMLIFrameElement.contentDocument
         iframeExecuteEventListener(eventListener, handler, iframeDoc)->Option.ignore
         iframeDoc
@@ -29,12 +24,6 @@ module EventHelpers = {
         ->Option.ignore
       })
     )
-  // Shared hook: subscribes a handler to a DOM event on a document and all its
-  // same-origin iframes, and tears everything down on cleanup.
-  //
-  // Uses ref-based handler pattern to avoid re-subscribing listeners on every
-  // render. The actual DOM listener delegates to the ref, which is always
-  // up-to-date. Effect only re-runs when document/event/withCapture change.
   let useDocumentEvent = (
     ~document: option<WebAPI.DOMAPI.document>,
     ~event: string,
@@ -46,15 +35,13 @@ module EventHelpers = {
     let handlerRef = React.useRef(handler)
     let onCleanupRef = React.useRef(onCleanup)
 
-    // Keep refs current on every render (no effect needed, refs are synchronous)
     handlerRef.current = handler
     onCleanupRef.current = onCleanup
 
     React.useEffect(() => {
       document->Option.map(doc => {
-        let eventType = WebAPI.EventAPI.Custom(event)
+        let eventType = WebAPI.EventTypes.Custom(event)
 
-        // Stable wrapper: delegates to the ref so the DOM listener never changes
         let stableHandler = (ev: WebAPI.EventAPI.event) => handlerRef.current(ev)
 
         WebAPI.Document.addEventListener(
@@ -102,7 +89,6 @@ module MouseMove = {
       None
     }, [state])
 
-    // Throttle mousemove events using requestAnimationFrame for better performance
     let onMouseMove = (ev: WebAPI.EventAPI.event) => {
       let target = WebAPI.MouseEvent.asMouseEvent(ev->Obj.magic).target
 
@@ -141,8 +127,6 @@ module MouseMove = {
 }
 
 module MouseClick = {
-  // Each click returns a target and a unique clickId so consumers can always
-  // detect a new click even when the same DOM element is clicked twice.
   type clickEvent = {target: option<WebAPI.EventAPI.eventTarget>, clickId: int}
 
   let useIFrameDocument = (
@@ -187,7 +171,6 @@ module Scroll = {
     let rafIdRef = React.useRef(None)
     let isScheduledRef = React.useRef(false)
 
-    // Throttle scroll events using requestAnimationFrame for better performance
     let onScroll = _ev => {
       switch isScheduledRef.current {
       | true => ()
@@ -229,6 +212,28 @@ let getIframeWindowSafe = (iframe: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.
   }
 }
 
+@module("./iframe-location-observer.mjs")
+external observeWindowLocation: (WebAPI.DOMAPI.window, string => unit) => unit => unit =
+  "observeWindowLocation"
+
+type navigation
+
+@send
+external navigationAddEventListener: (
+  navigation,
+  string,
+  WebAPI.EventAPI.event => unit,
+  bool,
+) => unit = "addEventListener"
+
+@send
+external navigationRemoveEventListener: (
+  navigation,
+  string,
+  WebAPI.EventAPI.event => unit,
+  bool,
+) => unit = "removeEventListener"
+
 let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachmentKey: int) => {
   let (location, setLocation) = React.useState(() => None)
 
@@ -263,8 +268,6 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
               ) {
               | false => WebAPI.Event.preventDefault(ev)
               | true =>
-                // If the iframe is trying to navigate to a /frontman URL, intercept
-                // and redirect to the stripped version so we never load frontman-in-frontman.
                 let parsed = WebAPI.URL.make(~url=resolvedDestinationUrl)
                 switch Client__BrowserUrl.hasSuffix(parsed.pathname) {
                 | false => setLocation(_ => Some(resolvedDestinationUrl))
@@ -278,32 +281,31 @@ let useIFrameLocation = (~iframeElement: option<WebAPI.DOMAPI.element>, ~attachm
             }
           }
 
-          WebAPI.Navigation.addEventListener(
-            iframeWindow.navigation,
-            Custom("navigate"),
-            onNavigation,
-            ~options={capture: false},
+          let navigation: option<navigation> =
+            (
+              iframeWindow->WebAPI.Window.navigation->Obj.magic: Nullable.t<navigation>
+            )->Nullable.toOption
+          navigation->Option.forEach(navigation =>
+            navigation->navigationAddEventListener("navigate", onNavigation, false)
+          )
+          let cleanupLocationObserver = observeWindowLocation(iframeWindow, currentLocation =>
+            setLocation(_ => Some(currentLocation))
           )
 
           Some(
             () => {
               try {
-                WebAPI.Navigation.removeEventListener(
-                  iframeWindow.navigation,
-                  Custom("navigate"),
-                  onNavigation,
-                  ~options={capture: false},
+                cleanupLocationObserver()
+                navigation->Option.forEach(navigation =>
+                  navigation->navigationRemoveEventListener("navigate", onNavigation, false)
                 )
               } catch {
-              | exn =>
-                // Cross-origin frame — listener already inaccessible
-                Sentry.captureException(exn, ~operation="useIFrameLocation.cleanup")
+              | exn => Sentry.captureException(exn, ~operation="useIFrameLocation.cleanup")
               }
             },
           )
         } catch {
         | exn =>
-          // Cross-origin iframe — treat like getIframeWindowSafe returning None
           Sentry.captureException(exn, ~operation="useIFrameLocation.setup")
           setLocation(_ => None)
           None

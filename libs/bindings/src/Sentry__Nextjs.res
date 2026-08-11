@@ -1,5 +1,3 @@
-// Sentry SDK bindings for Next.js integrations.
-
 module Types = Sentry__Types
 
 type severity = Types.severity

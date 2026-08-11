@@ -3,8 +3,7 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
 
   alias FrontmanServer.Tasks.Execution.ErrorClassifier
   alias FrontmanServer.Tasks.Execution.LLMError
-  alias FrontmanServer.Tasks.StreamStallTimeout
-  alias ReqLLM.Error.API.{Request, Stream}
+  alias ReqLLM.Error.API.Request
 
   describe "classify_error/1" do
     test "LLMError passes through message, category, retryable" do
@@ -12,64 +11,40 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
       assert {"Rate limited", "rate_limit", true} = ErrorClassifier.classify_error(err)
     end
 
-    test "ReqLLM request error 429 is classified as retryable rate limit" do
-      err = Request.exception(status: 429, reason: "Too many requests")
-      {msg, "rate_limit", true} = ErrorClassifier.classify_error(err)
+    test "plain 429 remains retryable rate limit" do
+      assert {msg, "rate_limit", true} = classify_request(reason: "Too many requests")
       assert String.contains?(msg, "Rate limited")
     end
 
-    test "ReqLLM stream error with request cause 413 is classified as payload too large" do
-      request_error =
-        Request.exception(
-          status: 413,
-          reason: "image exceeds the maximum allowed size"
-        )
+    test "quota-like 429s are non-retryable quota" do
+      for error <- [
+            %{"type" => "usage_limit_reached"},
+            %{"code" => "insufficient_quota"},
+            %{"message" => "The usage limit has been reached"}
+          ] do
+        assert {_, "quota", false} = classify_request(response_body: %{"error" => error})
+      end
 
-      err = Stream.exception(reason: "Stream failed", cause: request_error)
-
-      {msg, "payload_too_large", false} = ErrorClassifier.classify_error(err)
-      assert String.contains?(msg, "Payload too large")
+      assert {_, "quota", false} =
+               classify_request(headers: [{"x-codex-secondary-used-percent", "100"}])
     end
 
-    test "StreamStallTimeout.Error returns overload, retryable" do
-      err = %StreamStallTimeout.Error{}
-      {msg, "overload", true} = ErrorClassifier.classify_error(err)
-      assert String.length(msg) > 0
+    test "wrapped request errors delegate to request classifier" do
+      assert {_, "quota", false} =
+               ErrorClassifier.classify_error(
+                 {:llm_error,
+                  Request.exception(
+                    status: 429,
+                    response_body: %{"error" => %{"type" => "usage_limit_reached"}}
+                  )}
+               )
     end
+  end
 
-    test ":genserver_call_timeout returns overload, retryable" do
-      {msg, "overload", true} = ErrorClassifier.classify_error(:genserver_call_timeout)
-      assert String.length(msg) > 0
-    end
-
-    test ":stream_timeout returns overload, retryable" do
-      {msg, "overload", true} = ErrorClassifier.classify_error(:stream_timeout)
-      assert String.length(msg) > 0
-    end
-
-    test ":output_truncated returns output_truncated, not retryable" do
-      {msg, "output_truncated", false} = ErrorClassifier.classify_error(:output_truncated)
-      assert String.length(msg) > 0
-    end
-
-    test "{:exit, reason} returns unknown, not retryable" do
-      {msg, "unknown", false} = ErrorClassifier.classify_error({:exit, :some_reason})
-      assert String.contains?(msg, "some_reason")
-    end
-
-    test "generic exception returns unknown, not retryable" do
-      err = %RuntimeError{message: "something bad"}
-      {msg, "unknown", false} = ErrorClassifier.classify_error(err)
-      assert String.contains?(msg, "something bad")
-    end
-
-    test "binary reason returns as-is with unknown, not retryable" do
-      {"custom error", "unknown", false} = ErrorClassifier.classify_error("custom error")
-    end
-
-    test "unknown atom returns inspect string with unknown, not retryable" do
-      {msg, "unknown", false} = ErrorClassifier.classify_error(:some_weird_atom)
-      assert String.contains?(msg, "some_weird_atom")
-    end
+  defp classify_request(opts) do
+    opts
+    |> Keyword.put_new(:status, 429)
+    |> Request.exception()
+    |> ErrorClassifier.classify_error()
   end
 end

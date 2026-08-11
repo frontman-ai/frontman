@@ -1,4 +1,3 @@
-// File operations module for CLI installer
 module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
@@ -8,7 +7,6 @@ module Templates = FrontmanNextjs__Cli__Templates
 module AutoEdit = FrontmanNextjs__Cli__AutoEdit
 module Style = FrontmanNextjs__Cli__Style
 
-// Result type for file operations
 type fileResult =
   | Created(string)
   | Updated({fileName: string, oldHost: string, newHost: string})
@@ -16,22 +14,17 @@ type fileResult =
   | ManualEditRequired({fileName: string, details: string})
   | AutoEdited(string)
 
-// Pattern to match and replace host in existing file
 let hostPattern = /host:\s*['\"]([^'\"]+)['\"]/
 
-// Escape special replacement patterns ($1, $&, etc.) in a string used as
-// the replacement argument to String.replaceRegExp
 let escapeReplacement: string => string = %raw(`
   function(str) { return str.replace(/\$/g, '$$$$'); }
 `)
 
-// Update host in existing file content
 let updateHostInContent = (content: string, newHost: string): string => {
   let safeHost = escapeReplacement(newHost)
   content->String.replaceRegExp(hostPattern, `host: '${safeHost}'`)
 }
 
-// Read file content
 let readFile = async (path: string): option<string> => {
   try {
     let content = await Fs.Promises.readFile(path)
@@ -41,7 +34,6 @@ let readFile = async (path: string): option<string> => {
   }
 }
 
-// Write file content
 let writeFile = async (path: string, content: string): result<unit, string> => {
   try {
     await Fs.Promises.writeFile(path, content)
@@ -51,13 +43,10 @@ let writeFile = async (path: string, content: string): result<unit, string> => {
   }
 }
 
-// Info about a file that needs auto-editing (collected before prompting)
 type pendingAutoEdit = {
   fileName: string,
 }
 
-// Handle the NeedsManualEdit case — when autoEdit is true, perform the edit;
-// when false, return manual instructions
 let handleNeedsManualEdit = async (
   ~filePath: string,
   ~fileName: string,
@@ -94,7 +83,6 @@ let handleNeedsManualEdit = async (
   }
 }
 
-// Check if a file handler would need auto-editing (without prompting)
 let getPendingAutoEdit = (~existingFile: Detect.existingFile, ~fileName: string): option<
   pendingAutoEdit,
 > => {
@@ -104,16 +92,22 @@ let getPendingAutoEdit = (~existingFile: Detect.existingFile, ~fileName: string)
   }
 }
 
-// Handle middleware file (Next.js 15 and earlier)
 let handleMiddleware = async (
   ~projectDir: string,
+  ~hasSrcDir: bool,
   ~host: string,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
   ~autoEdit: bool,
 ): result<fileResult, string> => {
-  let filePath = Path.join([projectDir, "middleware.ts"])
-  let fileName = "middleware.ts"
+  let filePath = switch hasSrcDir {
+  | true => Path.join([projectDir, "src", "middleware.ts"])
+  | false => Path.join([projectDir, "middleware.ts"])
+  }
+  let fileName = switch hasSrcDir {
+  | true => "src/middleware.ts"
+  | false => "middleware.ts"
+  }
 
   switch existingFile {
   | NotFound =>
@@ -159,16 +153,22 @@ let handleMiddleware = async (
   }
 }
 
-// Handle proxy file (Next.js 16+)
 let handleProxy = async (
   ~projectDir: string,
+  ~hasSrcDir: bool,
   ~host: string,
   ~existingFile: Detect.existingFile,
   ~dryRun: bool,
   ~autoEdit: bool,
 ): result<fileResult, string> => {
-  let filePath = Path.join([projectDir, "proxy.ts"])
-  let fileName = "proxy.ts"
+  let filePath = switch hasSrcDir {
+  | true => Path.join([projectDir, "src", "proxy.ts"])
+  | false => Path.join([projectDir, "proxy.ts"])
+  }
+  let fileName = switch hasSrcDir {
+  | true => "src/proxy.ts"
+  | false => "proxy.ts"
+  }
 
   switch existingFile {
   | NotFound =>
@@ -214,7 +214,6 @@ let handleProxy = async (
   }
 }
 
-// Handle instrumentation file
 let handleInstrumentation = async (
   ~projectDir: string,
   ~host: string,
@@ -237,7 +236,6 @@ let handleInstrumentation = async (
     switch dryRun {
     | true => Ok(Created(fileName))
     | false =>
-      // Ensure src/ directory exists if needed
       switch hasSrcDir {
       | true =>
         let srcDir = Path.join([projectDir, "src"])
@@ -251,9 +249,7 @@ let handleInstrumentation = async (
       }
     }
 
-  | HasFrontman(_) =>
-    // Instrumentation doesn't have a host to update, just skip
-    Ok(Skipped(fileName))
+  | HasFrontman(_) => Ok(Skipped(fileName))
 
   | NeedsManualEdit =>
     await handleNeedsManualEdit(
@@ -268,7 +264,6 @@ let handleInstrumentation = async (
   }
 }
 
-// Format file result for display (short one-liner)
 let formatResult = (result: fileResult): string => {
   switch result {
   | Created(fileName) => Templates.SuccessMessages.fileCreated(fileName)

@@ -1,5 +1,13 @@
 # @frontman-ai/react-statestore
 
+## 1.0.1
+
+### Patch Changes
+
+- [#1230](https://github.com/frontman-ai/frontman/pull/1230) [`6d04707`](https://github.com/frontman-ai/frontman/commit/6d047076a003b8a6de359cd6f3dabcce4523b808) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align React peer dependencies with React DOM 19.2.7.
+
+- [#1235](https://github.com/frontman-ai/frontman/pull/1235) [`5a5a284`](https://github.com/frontman-ai/frontman/commit/5a5a284ce87b839a12824eec8f8d05ef0ff0e54a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix dependency metadata so Yarn installs without peer warnings.
+
 ## 1.0.0
 
 ### Major Changes

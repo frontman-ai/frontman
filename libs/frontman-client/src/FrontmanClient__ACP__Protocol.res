@@ -1,6 +1,3 @@
-// ACP Protocol helpers
-// Centralizes JSON-RPC request/response pattern and message handling
-
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module Client = FrontmanClient__ACP__Client
 module Channel = FrontmanClient__Phoenix__Channel
@@ -12,13 +9,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 type messageDirection = Send | Receive
 
-let sessionIdFromParams = (params: option<JSON.t>): option<string> =>
-  params
-  ->Option.flatMap(JSON.Decode.object)
-  ->Option.flatMap(obj => obj->Dict.get("sessionId"))
-  ->Option.flatMap(JSON.Decode.string)
-
-// Generic request sender - eliminates duplication across sendInitialize, createSession, sendPrompt
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
@@ -32,8 +22,6 @@ let sendRequest = (
     let request = JsonRpc.Request.make(~id, ~method, ~params)
 
     let pending: Client.pendingRequest = {
-      method,
-      sessionId: sessionIdFromParams(params),
       resolve: json => {
         switch parseResult(json) {
         | Ok(result) => resolve(Ok(result))
@@ -50,8 +38,6 @@ let sendRequest = (
     channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
   })
 }
-
-// Typed wrappers for specific ACP methods
 
 let sendInitialize = (
   ~channel: Channel.t,
@@ -100,7 +86,6 @@ let sendPrompt = (
     ("sessionId", JSON.Encode.string(sessionId)),
     ("prompt", JSON.Encode.array(prompt)),
   ]
-  // Add _meta if provided
   let entries = switch _meta {
   | Some(meta) => Array.concat(entries, [("_meta", meta)])
   | None => entries
@@ -116,8 +101,6 @@ let sendPrompt = (
   )
 }
 
-// ACP spec: session/cancel is a NOTIFICATION (no id, no response expected).
-// The pending session/prompt request will be resolved by the agent with stopReason: "cancelled".
 let sendCancel = (
   ~channel: Channel.t,
   ~sessionId: string,
@@ -132,8 +115,6 @@ let sendCancel = (
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-// ACP spec: session/retry_turn is a NOTIFICATION (no id, no response expected).
-// Signals the server to retry the failed turn identified by retriedErrorId.
 let sendRetryTurn = (
   ~channel: Channel.t,
   ~sessionId: string,
@@ -152,7 +133,6 @@ let sendRetryTurn = (
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-// Extract method from JSON-RPC message (notifications have method, responses have id)
 let getMethod = (payload: JSON.t): option<string> => {
   payload
   ->JSON.Decode.object
@@ -160,8 +140,6 @@ let getMethod = (payload: JSON.t): option<string> => {
   ->Option.flatMap(JSON.Decode.string)
 }
 
-// Message handler with proper error reporting (no silent swallowing)
-// onUpdate receives (sessionId, update) per ACP session/update notification params
 let handleIncomingMessage = (
   ~state: ref<Client.state>,
   ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
@@ -171,39 +149,32 @@ let handleIncomingMessage = (
 ): unit => {
   onMessage->Option.forEach(cb => cb(Receive, payload))
 
-  // Dispatch based on message type
   switch getMethod(payload) {
   | Some("session/update") =>
-    // Session update notification - parse and dispatch with sessionId
-    switch Client.parseSessionUpdateNotification(payload) {
+    switch Client.parseSessionUpdateNotification(state.contents, payload) {
     | Ok(notification) =>
-      onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
-      switch notification.params.update {
-      | AgentTurnComplete({stopReason}) =>
-        // After server restart, resumed turns may not have a live session/prompt
-        // request id to answer. The completion notification still closes the prompt.
-        let result: Types.promptResult = {stopReason: stopReason}
-        let resultJson =
-          result->S.decodeOrThrow(~from=Types.promptResultSchema, ~to=S.json->S.noValidation(true))
-        state :=
-          state.contents->Client.resolvePendingSessionRequest(
-            ~method="session/prompt",
-            ~sessionId=notification.params.sessionId,
-            ~result=resultJson,
-          )
-      | _ => ()
-      }
+      onUpdate->Option.forEach(cb => {
+        try {
+          cb(notification.params.sessionId, notification.params.update)
+        } catch {
+        | Failure(error) => onParseError->Option.forEach(cb => cb(error))
+        | exn =>
+          let error =
+            exn
+            ->JsExn.fromException
+            ->Option.flatMap(JsExn.message)
+            ->Option.getOr("Session update handler failed")
+          onParseError->Option.forEach(cb => cb(error))
+        }
+      })
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
-  | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake
+  | Some("mcp_initialization_complete") => ()
   | Some(method) => Log.warning(`Received unhandled ACP notification: ${method}`)
-  | None =>
-    // No method field - must be a response
-    state := Client.handleResponse(state.contents, payload)
+  | None => state := Client.handleResponse(state.contents, payload)
   }
 }
 
-// Setup channel listener for ACP messages
 let attachMessageHandler = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,

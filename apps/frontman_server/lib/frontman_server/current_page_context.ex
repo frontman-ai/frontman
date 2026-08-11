@@ -126,13 +126,11 @@ defmodule FrontmanServer.CurrentPageContext do
         [
           %{
             "type" => "resource",
+            "_meta" => to_meta(page),
             "resource" => %{
-              "_meta" => to_meta(page),
-              "resource" => %{
-                "uri" => "page://#{url}",
-                "mimeType" => "text/plain",
-                "text" => "Current page: #{url}"
-              }
+              "uri" => "page://#{url}",
+              "mimeType" => "text/plain",
+              "text" => "Current page: #{url}"
             }
           }
         ]

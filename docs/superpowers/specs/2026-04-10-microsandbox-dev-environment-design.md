@@ -122,7 +122,7 @@ The existing `frontman-dev` Dockerfile is extended to include PostgreSQL. Image 
 
 ## Backwards Compatibility
 
-`bin/pod-exec` is kept as a shim calling `tsx bin/sandbox exec` for any scripts referencing it, but marked deprecated in CLAUDE.md.
+`bin/pod-exec` is kept as a shim calling `tsx bin/sandbox exec` for any scripts referencing it, but marked deprecated in `AGENTS.md`.
 
 ## Files Changed
 
@@ -139,7 +139,7 @@ The existing `frontman-dev` Dockerfile is extended to include PostgreSQL. Image 
 | `infra/local/` | Deleted — Caddy/dnsmasq infra |
 | `.devcontainer/Dockerfile` | Updated — add Postgres |
 | `Makefile` | Updated — sb-* targets, simplified infra-* |
-| `CLAUDE.md` | Updated — document sb-* workflow, remove worktree section |
+| `AGENTS.md` | Updated — document sb-* workflow, remove worktree section |
 
 ## Secrets
 

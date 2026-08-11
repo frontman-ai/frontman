@@ -1,12 +1,10 @@
-// Get routes tool - lists Next.js routes from the filesystem
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathStringUtils = FrontmanAiFrontmanCore.FrontmanCore__PathStringUtils
 
 let name = "get_routes"
-let visibleToAgent = true
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let description = `Lists Next.js routes from the app or pages directory.
 
 Parameters: None
@@ -32,13 +30,12 @@ type route = {
 @schema
 type output = array<route>
 
-// Check if a segment is dynamic (contains [ ])
+let (visibleToAgent, outputJsonSchema) = (true, None)
+
 let isDynamicSegment = (segment: string): bool => {
   segment->String.startsWith("[") && segment->String.endsWith("]")
 }
 
-// Convert file path to route path
-// Normalizes separators first since Path.join uses \ on Windows but routes need /
 let fileToRoute = (filePath: string): string => {
   filePath
   ->PathStringUtils.toForwardSlashes
@@ -49,7 +46,6 @@ let fileToRoute = (filePath: string): string => {
   ->(p => p == "" ? "/" : p)
 }
 
-// Recursively find route files
 let rec findRoutes = async (baseDir: string, currentPath: string, ~projectRoot: string): array<
   route,
 > => {
@@ -64,7 +60,6 @@ let rec findRoutes = async (baseDir: string, currentPath: string, ~projectRoot: 
       let stats = await Fs.Promises.stat(entryPath)
 
       if Fs.isDirectory(stats) {
-        // Skip special directories
         if entry->String.startsWith("_") || entry == "api" || entry == "components" {
           []
         } else {
@@ -108,11 +103,9 @@ let execute = async (
   _input: input,
 ): Tool.MCP.CallToolResult.t => {
   try {
-    // Try app directory first (Next.js 13+)
     let appRoutes = await findRoutes("src/app", "", ~projectRoot=ctx.projectRoot)
     let appRoutesAlt = await findRoutes("app", "", ~projectRoot=ctx.projectRoot)
 
-    // Try pages directory (legacy)
     let pagesRoutes = await findRoutes("src/pages", "", ~projectRoot=ctx.projectRoot)
     let pagesRoutesAlt = await findRoutes("pages", "", ~projectRoot=ctx.projectRoot)
 
@@ -120,7 +113,7 @@ let execute = async (
     let allRoutes = Array.concat(allRoutes, pagesRoutes)
     let allRoutes = Array.concat(allRoutes, pagesRoutesAlt)
 
-    Tool.jsonResult(allRoutes, outputSchema)
+    Tool.unstructuredResult(allRoutes, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")

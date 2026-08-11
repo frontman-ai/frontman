@@ -4,7 +4,6 @@ module Reducer = Client__State__StateReducer
 module Types = Client__State__Types
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-// Dummy callbacks for AcpSessionActive (reducer only checks the variant, not the callbacks)
 let _dummySendPrompt: Types.sendPromptFn = (
   _,
   ~additionalBlocks as _,
@@ -18,7 +17,6 @@ let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 
 let _apiBaseUrl = "http://localhost:4000"
 
-// Helper: base state with an active ACP session (needed to emit effects)
 let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
   {
     tasks: Dict.make(),
@@ -44,6 +42,8 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     openaiOAuthStatus: Types.OpenAINotConnected,
     configOptions: None,
     selectedModelValue,
+    agentCatalog: None,
+    selectedAgentId: None,
     pendingProviderAutoSelect,
     sessionsLoadState: Types.SessionsNotLoaded,
     updateInfo: None,
@@ -52,12 +52,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
   }
 }
 
-// ============================================================================
-// Sample ACP SessionConfigOption data (replaces old providerConfig/modelsConfig)
-// ============================================================================
-
 module SampleConfig = {
-  // Helper to build a grouped model config option
   let _makeModelConfigOption = (
     ~groups: array<ACP.sessionConfigSelectGroup>,
   ): ACP.sessionConfigOption => {
@@ -76,12 +71,12 @@ module SampleConfig = {
     name: "Anthropic (Claude Pro/Max)",
     options: [
       {
-        value: "anthropic:claude-sonnet-4-5",
-        name: "Claude Sonnet 4.5",
+        value: "anthropic:claude-sonnet-5",
+        name: "Claude Sonnet 5",
         description: None,
         _meta: None,
       },
-      {value: "anthropic:claude-opus-4-5", name: "Claude Opus 4.5", description: None, _meta: None},
+      {value: "anthropic:claude-fable-5", name: "Claude Fable 5", description: None, _meta: None},
     ],
     _meta: None,
   }
@@ -91,12 +86,12 @@ module SampleConfig = {
     name: "OpenAI",
     options: [
       {
-        value: "openai_codex:gpt-5.1-codex-max",
-        name: "GPT-5.1 Codex Max",
+        value: "openai_codex:gpt-5.6-terra",
+        name: "GPT-5.6 Terra",
         description: None,
         _meta: None,
       },
-      {value: "openai_codex:gpt-5.2", name: "GPT-5.2", description: None, _meta: None},
+      {value: "openai_codex:gpt-5.6-sol", name: "GPT-5.6 Sol", description: None, _meta: None},
     ],
     _meta: None,
   }
@@ -106,8 +101,8 @@ module SampleConfig = {
     name: "OpenRouter",
     options: [
       {
-        value: "openrouter:google/gemini-3-flash-preview",
-        name: "Gemini 3 Flash Preview",
+        value: "openrouter:openai/gpt-5.6-terra",
+        name: "GPT-5.6 Terra",
         description: None,
         _meta: None,
       },
@@ -122,11 +117,11 @@ module SampleConfig = {
   }
 
   let _fireworksGroup: ACP.sessionConfigSelectGroup = {
-    group: "fireworks",
+    group: "fireworks_ai",
     name: "Fireworks AI",
     options: [
       {
-        value: "fireworks:accounts/fireworks/routers/kimi-k2p5-turbo",
+        value: "fireworks_ai:accounts/fireworks/routers/kimi-k2p5-turbo",
         name: "Kimi K2.5 Turbo",
         description: None,
         _meta: None,
@@ -172,7 +167,7 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
     let providerCases: array<(Reducer.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
-      (Fireworks, "fireworks"),
+      (Fireworks, "fireworks_ai"),
     ]
 
     providerCases->Array.forEach(
@@ -202,7 +197,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("anthropic:claude-sonnet-4-5"))
+    ->Expect.toEqual(Some("anthropic:claude-sonnet-5"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -219,7 +214,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openai_codex:gpt-5.1-codex-max"))
+    ->Expect.toEqual(Some("openai_codex:gpt-5.6-terra"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -236,13 +231,13 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openrouter:google/gemini-3-flash-preview"))
+    ->Expect.toEqual(Some("openrouter:openai/gpt-5.6-terra"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
-  test("auto-selects Fireworks model when pendingProviderAutoSelect is fireworks", t => {
+  test("auto-selects Fireworks model when pendingProviderAutoSelect is fireworks_ai", t => {
     let state = _makeState(
-      ~pendingProviderAutoSelect=Some("fireworks"),
+      ~pendingProviderAutoSelect=Some("fireworks_ai"),
       ~selectedModelValue=Some("openrouter:anthropic/claude-haiku-4.5"),
     )
 
@@ -253,7 +248,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("fireworks:accounts/fireworks/routers/kimi-k2p5-turbo"))
+    ->Expect.toEqual(Some("fireworks_ai:accounts/fireworks/routers/kimi-k2p5-turbo"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -280,7 +275,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
 
     t
     ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("anthropic:claude-sonnet-4-5"))
+    ->Expect.toEqual(Some("anthropic:claude-sonnet-5"))
   })
 
   test("clears pendingProviderAutoSelect even when provider and current model are missing", t => {

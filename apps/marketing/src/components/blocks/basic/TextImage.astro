@@ -1,26 +1,9 @@
 ---
-// Text and Image Section
-// ------------
-// Description: A basic section with text and a side image.
-// Properties:
-// - id: The id of the section
-// - title: The title of the section
-// - image: The image of the section
-// - imageW: The width of the image
-// - imageH: The height of the image
-// - mobileImage: if provided, this image will be used instead on mobile devices
-// - imagePosition: The position of the image (left or right of the text)
-// - text: The text of the section
-// - classes: Additional classes to be added to the section
-// - offsetImage: Determines if the image should be offset (positioned absolutely)
 
-// Components
-// - Layout
 import Section from '../../ui/Section.astro'
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 
-// Props
 type Props = {
 	id?: string
 	title?: string

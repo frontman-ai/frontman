@@ -14,8 +14,14 @@ defmodule FrontmanServer.Tools do
 
   @todo_mutations [FrontmanServer.Tools.TodoWrite.name()]
 
-  def backend_tool_modules do
+  def backend_tool_modules, do: backend_tool_modules(:all)
+
+  def backend_tool_modules(:all) do
     Application.fetch_env!(:frontman_server, :backend_tools)
+  end
+
+  def backend_tool_modules(%{access: access}) when is_list(access) do
+    Enum.filter(backend_tool_modules(), &(&1.access() in access))
   end
 
   def backend_tools do
@@ -44,18 +50,13 @@ defmodule FrontmanServer.Tools do
 
   def todo_mutation?(tool_name), do: tool_name in @todo_mutations
 
-  @doc """
-  Prepares all available tools for a task.
+  def mcp_tools(mcp_tools, :all), do: Enum.filter(mcp_tools, & &1.visible_to_agent)
 
-  Aggregates backend tools and MCP tools into LLM format.
+  def mcp_tools(mcp_tools, %{access: access}) when is_list(access) do
+    Enum.filter(mcp_tools, &(&1.visible_to_agent and &1.access in access))
+  end
 
-  ## Example
-      Tools.prepare_for_task(mcp_tools)
-  """
-  def prepare_for_task(mcp_tools) do
-    mcp_formatted = MCP.to_swarm_tools(mcp_tools)
-    backend = backend_tools()
-
-    backend ++ mcp_formatted
+  def to_swarm_tools(backend_tool_modules, mcp_tools) do
+    Enum.map(backend_tool_modules, &Backend.to_swarm_tool/1) ++ MCP.to_swarm_tools(mcp_tools)
   end
 end

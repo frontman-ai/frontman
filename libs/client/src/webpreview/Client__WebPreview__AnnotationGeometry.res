@@ -4,7 +4,7 @@ let scrollForElement = (element: WebAPI.DOMAPI.element): (float, float) =>
   element.ownerDocument
   ->Null.toOption
   ->Option.flatMap(doc => doc.defaultView->Null.toOption)
-  ->Option.mapOr((0.0, 0.0), win => (win.scrollX, win.scrollY))
+  ->Option.mapOr((0.0, 0.0), win => (win->WebAPI.Window.scrollX, win->WebAPI.Window.scrollY))
 
 let boundingBox = (annotation: Annotation.t): Annotation.viewportBoundingBox =>
   switch annotation.penShape {

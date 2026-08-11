@@ -5,15 +5,39 @@ defmodule FrontmanServer.Tools.MCPTest do
 
   describe "from_map/1" do
     test "parses standard MCP tool fields" do
+      output_schema = %{"type" => "object"}
+
       tool =
         MCP.from_map(%{
           "name" => "navigate",
           "description" => "Navigate to a URL",
-          "inputSchema" => %{}
+          "inputSchema" => %{},
+          "outputSchema" => output_schema
         })
 
       assert tool.name == "navigate"
       assert tool.description == "Navigate to a URL"
+      assert tool.access == :read_write
+      assert tool.output_schema == output_schema
+    end
+
+    test "parses access from wire format" do
+      for {wire, expected} <- [
+            {"read", :read},
+            {"write", :write},
+            {"read-write", :read_write},
+            {"bogus", :read_write}
+          ] do
+        tool =
+          MCP.from_map(%{
+            "name" => "test_tool",
+            "description" => "Test tool",
+            "inputSchema" => %{},
+            "access" => wire
+          })
+
+        assert tool.access == expected
+      end
     end
 
     test "applies server-side timeout defaults" do
@@ -29,8 +53,6 @@ defmodule FrontmanServer.Tools.MCPTest do
     end
 
     test "does not require or read timeoutMs / onTimeout from wire" do
-      # Tools from external MCP servers don't include these fields — they
-      # must not be required.
       assert %MCP{} =
                MCP.from_map(%{
                  "name" => "take_screenshot",
@@ -92,6 +114,20 @@ defmodule FrontmanServer.Tools.MCPTest do
 
       assert swarm_tool.timeout_ms == 600_000
       assert swarm_tool.on_timeout == :error
+    end
+
+    test "passes access through to swarm tool" do
+      mcp_tool =
+        MCP.from_map(%{
+          "name" => "read_file",
+          "description" => "Read file",
+          "inputSchema" => %{},
+          "access" => "read"
+        })
+
+      [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
+
+      assert swarm_tool.access == :read
     end
 
     test "passes pause_agent policy through to swarm tool for interactive tools" do

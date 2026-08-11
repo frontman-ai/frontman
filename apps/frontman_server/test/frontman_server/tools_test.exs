@@ -6,6 +6,7 @@ defmodule FrontmanServer.ToolsTest do
 
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction.ToolResult
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.GetToolResult
@@ -28,8 +29,17 @@ defmodule FrontmanServer.ToolsTest do
         assert %SwarmAi.Tool{} = tool
         assert is_binary(tool.name)
         assert is_binary(tool.description)
+        assert tool.access in [:read, :write, :read_write]
         assert is_map(tool.parameter_schema)
       end)
+    end
+
+    test "tools expose expected access levels" do
+      by_name = Map.new(Tools.backend_tools(), &{&1.name, &1.access})
+
+      assert by_name["get_tool_result"] == :read
+      assert by_name["web_fetch"] == :read
+      assert by_name["todo_write"] == :write
     end
   end
 
@@ -120,7 +130,6 @@ defmodule FrontmanServer.ToolsTest do
       assert is_binary(first["id"])
 
       assert second["content"] == "Write tests"
-      # default priority
       assert second["priority"] == "medium"
       assert second["status"] == "in_progress"
     end
@@ -185,20 +194,34 @@ defmodule FrontmanServer.ToolsTest do
   end
 
   describe "GetToolResult.execute/2" do
-    test "returns the actual tool result by tool call ID", %{
+    test "returns the sanitized tool result by tool call ID", %{
       task_id: task_id,
       scope: scope,
       turn_number: turn_number
     } do
-      stored_result = MCP.tool_result_text("file contents")
+      untrusted_result = %{
+        "content" => [
+          %{"type" => "text", "text" => "file contents", "unknown" => "drop me"}
+        ],
+        "isError" => false,
+        "_meta" => %{"envApiKey" => "sk-fake-stored-key"},
+        "unknownTopLevel" => "drop me"
+      }
+
+      sanitized_result = %{
+        "content" => [
+          %{"type" => "text", "text" => "file contents", "unknown" => "drop me"}
+        ],
+        "isError" => false,
+        "_meta" => %{}
+      }
 
       {:ok, interaction, :no_executor} =
         Tasks.resolve_tool_request(
           scope,
           task_id,
           %{id: "tc-read", name: "read_file"},
-          stored_result,
-          false,
+          untrusted_result,
           turn_number: turn_number
         )
 
@@ -207,7 +230,8 @@ defmodule FrontmanServer.ToolsTest do
 
       result = GetToolResult.execute(%{"tool_call_id" => "tc-read"}, context)
 
-      assert result == stored_result
+      assert result == sanitized_result
+      assert interaction.result == sanitized_result
       assert interaction.tool_call_id == "tc-read"
     end
 
@@ -230,7 +254,8 @@ defmodule FrontmanServer.ToolsTest do
           timestamp: DateTime.utc_now()
         }
 
-      context = build_context(%{task | interactions: [malformed_result | task.interactions]})
+      row = %InteractionSchema{id: Ecto.UUID.generate(), data: malformed_result}
+      context = build_context(%{task | interaction_rows: [row | task.interaction_rows]})
 
       result = GetToolResult.execute(%{"tool_call_id" => "tc-malformed"}, context)
 
@@ -238,27 +263,6 @@ defmodule FrontmanServer.ToolsTest do
 
       assert MCP.extract_content_text(result) ==
                "Stored tool result for tc-malformed is not a valid MCP tool result"
-    end
-
-    test "returns an error when content is invalid type", %{task: task} do
-      malformed_result =
-        %ToolResult{
-          id: Ecto.UUID.generate(),
-          tool_call_id: "tc-invalid-content",
-          tool_name: "read_file",
-          result: %{"content" => [%{"type" => "text", "text" => "ok"}, "bad"], "isError" => false},
-          is_error: false,
-          timestamp: DateTime.utc_now()
-        }
-
-      context = build_context(%{task | interactions: [malformed_result | task.interactions]})
-
-      result = GetToolResult.execute(%{"tool_call_id" => "tc-invalid-content"}, context)
-
-      assert MCP.error?(result)
-
-      assert MCP.extract_content_text(result) ==
-               "Stored tool result is invalid: content must be list of objects"
     end
   end
 end

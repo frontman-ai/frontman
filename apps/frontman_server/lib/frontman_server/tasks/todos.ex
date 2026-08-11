@@ -17,6 +17,7 @@ defmodule FrontmanServer.Tasks.Todos do
   """
 
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools.TodoWrite
 
   defmodule Todo do
@@ -103,13 +104,18 @@ defmodule FrontmanServer.Tasks.Todos do
     |> Enum.filter(&todo_write_result?/1)
     |> List.last()
     |> case do
-      nil -> %{}
-      %Interaction.ToolResult{result: result} -> parse_write_result(result)
+      nil ->
+        %{}
+
+      %InteractionSchema{data: %Interaction.ToolResult{result: result}} ->
+        parse_write_result(result)
     end
   end
 
-  defp todo_write_result?(%Interaction.ToolResult{tool_name: name, is_error: false}),
-    do: name == TodoWrite.name()
+  defp todo_write_result?(%InteractionSchema{
+         data: %Interaction.ToolResult{tool_name: name, is_error: false}
+       }),
+       do: name == TodoWrite.name()
 
   defp todo_write_result?(_), do: false
 

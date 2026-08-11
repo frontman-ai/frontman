@@ -10,7 +10,6 @@ defmodule FrontmanServer.Providers do
   use Boundary,
     deps: [FrontmanServer, FrontmanServer.Accounts]
 
-  import Ecto.Query, warn: false
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Accounts
@@ -27,8 +26,6 @@ defmodule FrontmanServer.Providers do
              |> Enum.map(fn {provider, config} -> {Atom.to_string(provider), config} end)
 
   @provider_configs Map.new(@providers)
-
-  ## High-Level API (Domain Entry Points)
 
   @doc """
   Prepares ReqLLM arguments for a request. Resolves model and provider auth.
@@ -66,7 +63,8 @@ defmodule FrontmanServer.Providers do
        auth_mode: :oauth,
        access_token: access_token,
        with_claude_subscription: true,
-       anthropic_prompt_cache: true
+       anthropic_prompt_cache: true,
+       anthropic_cache_messages: -1
      ]}
   end
 
@@ -91,7 +89,9 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  defp api_key_llm_opts("anthropic", key), do: [api_key: key, anthropic_prompt_cache: true]
+  defp api_key_llm_opts("anthropic", key),
+    do: [api_key: key, anthropic_prompt_cache: true, anthropic_cache_messages: -1]
+
   defp api_key_llm_opts(_provider, key), do: [api_key: key]
 
   def model_from_client_params(nil), do: :error
@@ -224,8 +224,6 @@ defmodule FrontmanServer.Providers do
   def model_llm_vendor_name(%{provider: provider}) when is_atom(provider),
     do: Atom.to_string(provider)
 
-  ## API Key Management
-
   @doc """
   Stores or updates a user API key for a provider.
 
@@ -235,7 +233,6 @@ defmodule FrontmanServer.Providers do
   def upsert_api_key(%Scope{user: %User{} = user}, provider, key) do
     user_id = user.id
     provider = String.downcase(provider)
-    # Build struct with user_id set explicitly (not via changeset for security)
     api_key = %ApiKey{user_id: user_id}
     changeset = ApiKey.changeset(api_key, %{provider: provider, key: key})
 
@@ -257,10 +254,8 @@ defmodule FrontmanServer.Providers do
   Lists providers with saved API keys for the user.
   """
   def list_api_key_providers(%Scope{user: %User{} = user}) do
-    ApiKey
-    |> ApiKey.for_user(user.id)
-    |> order_by([key], asc: key.provider)
-    |> select([key], key.provider)
+    user.id
+    |> ApiKey.provider_names_for_user()
     |> Repo.all()
   end
 
@@ -280,8 +275,6 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  ## OAuth Token Management
-
   @doc "Stores or updates an OAuth token for a provider without broadcasting."
   def upsert_oauth_token(
         %Scope{user: %User{} = user},
@@ -292,7 +285,6 @@ defmodule FrontmanServer.Providers do
         metadata \\ %{}
       ) do
     provider = String.downcase(provider)
-    # Build struct with user_id set explicitly (not via changeset for security)
     oauth_token = %OAuthToken{user_id: user.id}
 
     changeset =
@@ -394,8 +386,6 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  ## Config Change Notifications
-
   @doc """
   Returns the PubSub topic for config option updates for a given user.
 
@@ -419,8 +409,6 @@ defmodule FrontmanServer.Providers do
       :config_options_changed
     )
   end
-
-  ## Model Config (ACP-ready domain data)
 
   @doc """
   Returns model selection data for a user, ready for ACP serialization.

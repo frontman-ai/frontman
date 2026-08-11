@@ -13,34 +13,43 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
   alias ModelContextProtocol, as: MCP
 
-  # ---------------------------------------------------------------------------
-  # UserMessage.new/1
-  # ---------------------------------------------------------------------------
-
-  describe "UserMessage.new/1" do
+  describe "UserMessage.attrs/1" do
     test "extracts non-empty text messages" do
-      msg = UserMessage.new([text_block("Hello")])
+      msg = build_user_message([text_block("Hello")])
 
       assert msg.messages == ["Hello"]
     end
 
-    test "raises for text blocks without non-empty string text" do
-      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
-        UserMessage.new([%{"type" => "text"}])
-      end
+    test "accepts resource-only prompts without a text block" do
+      msg =
+        build_user_message([
+          current_page_block("https://example.com/app", %{
+            "viewport_width" => 390,
+            "viewport_height" => 844
+          })
+        ])
 
-      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
-        UserMessage.new([%{"type" => "text", "text" => ""}])
-      end
+      assert msg.messages == []
+      assert msg.current_page.url == "https://example.com/app"
+    end
 
-      assert_raise ArgumentError, "text content block must include non-empty string text", fn ->
-        UserMessage.new([%{"type" => "text", "text" => 1}])
-      end
+    test "returns error for text blocks without non-empty string text" do
+      assert {:error,
+              {:invalid_content_block, "text content block must include non-empty string text"}} =
+               UserMessage.attrs([%{"type" => "text"}])
+
+      assert {:error,
+              {:invalid_content_block, "text content block must include non-empty string text"}} =
+               UserMessage.attrs([%{"type" => "text", "text" => ""}])
+
+      assert {:error,
+              {:invalid_content_block, "text content block must include non-empty string text"}} =
+               UserMessage.attrs([%{"type" => "text", "text" => 1}])
     end
 
     test "extracts annotation from resource block" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Hello"),
           annotation_block("ann-1", "div", "/path/to/component.tsx", 42, 10)
         ])
@@ -56,13 +65,13 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "returns empty annotations when no annotation blocks" do
-      msg = UserMessage.new([text_block("Hello")])
+      msg = build_user_message([text_block("Hello")])
       assert msg.annotations == []
     end
 
     test "pairs screenshot with annotation by annotation_id" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Fix this button"),
           annotation_block("ann-1", "button", "/src/Button.tsx", 15, 3),
           screenshot_block("ann-1", "base64screenshotdata")
@@ -79,7 +88,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "extracts multiple annotations with enrichment data" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Fix these"),
           annotation_block("ann-1", "div", "/src/A.tsx", 10, 1,
             component_name: "Header",
@@ -105,7 +114,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       bb = %{"x" => 10.5, "y" => 20.0, "width" => 200.0, "height" => 50.0}
 
       msg =
-        UserMessage.new([
+        build_user_message([
           annotation_block("ann-bb", "div", "/src/Component.tsx", 5, 1, bounding_box: bb)
         ])
 
@@ -126,7 +135,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       }
 
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Fix this"),
           annotation_block("ann-el", "span", "/src/Component.tsx", 5, 1,
             metadata: %{"custom_context" => context}
@@ -139,7 +148,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "extracts current page context from resource block" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Hello"),
           current_page_block("https://example.com/app", %{
             "viewport_width" => 390,
@@ -164,28 +173,24 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
     test "coerces integer device pixel ratio before persistence" do
       msg =
-        UserMessage.new([
+        build_user_message([
           current_page_block("https://example.com/app", %{"device_pixel_ratio" => 1})
         ])
 
       assert msg.current_page.device_pixel_ratio == 1.0
-
-      assert %{current_page: %{device_pixel_ratio: 1.0}} = Interaction.to_data_map(msg)
     end
 
     test "ignores resource url meta without current page marker" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Hello"),
           %{
             "type" => "resource",
+            "_meta" => %{"url" => "https://example.com/not-page-context"},
             "resource" => %{
-              "_meta" => %{"url" => "https://example.com/not-page-context"},
-              "resource" => %{
-                "uri" => "custom://resource",
-                "mimeType" => "text/plain",
-                "text" => "Resource with URL metadata"
-              }
+              "uri" => "custom://resource",
+              "mimeType" => "text/plain",
+              "text" => "Resource with URL metadata"
             }
           }
         ])
@@ -193,10 +198,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.current_page == nil
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1
-  # ---------------------------------------------------------------------------
 
   describe "to_swarm_messages/1" do
     test "converts user message text and images to Swarm content parts" do
@@ -248,11 +249,25 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                metadata: %{response_id: "resp_123", phase: "tool_call"}
              } = swarm_msg
     end
-  end
 
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1
-  # ---------------------------------------------------------------------------
+    test "converts tool-call-only assistant responses without text content" do
+      interactions = [
+        agent_resp(nil, %{
+          "tool_calls" => [db_tool_call("toolu_012", "read_file", ~s({"path":"README.md"}))],
+          "response_id" => "resp_123",
+          "phase" => "tool_call"
+        })
+      ]
+
+      [swarm_msg] = Interaction.to_swarm_messages(interactions)
+
+      assert %SwarmAi.Message.Assistant{
+               content: [],
+               tool_calls: [%SwarmAi.ToolCall{id: "toolu_012", name: "read_file"}],
+               metadata: %{response_id: "resp_123", phase: "tool_call"}
+             } = swarm_msg
+    end
+  end
 
   describe "to_swarm_messages/1 conversation coverage" do
     test "converts user message with correct role and content" do
@@ -299,8 +314,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       ]
 
       messages = Interaction.to_swarm_messages(interactions)
-      # UserMessage + AgentResponse(with tool) + ToolResult + AgentResponse(final)
-      # ToolCall is skipped
       assert length(messages) == 4
       assert Enum.map(messages, &SwarmAi.Message.role/1) == [:user, :assistant, :tool, :assistant]
     end
@@ -396,10 +409,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       refute text =~ "write_file with image_ref"
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1 — DB-loaded metadata (string keys)
-  # ---------------------------------------------------------------------------
 
   describe "to_swarm_messages/1 with DB-loaded metadata (string keys)" do
     test "converts tool_calls stored in OpenAI wire format (string keys)" do
@@ -555,10 +564,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  describe "InteractionSchema.to_struct/1" do
-    test "deserializes normalized user message data" do
+  describe "InteractionSchema data" do
+    test "keeps typed embedded interaction data" do
       message =
-        UserMessage.new([
+        build_user_message([
           text_block("hello"),
           current_page_block("http://localhost:4321/"),
           annotation_block("ann-1", "H1", "/src/Hero.tsx", 12, 4,
@@ -568,22 +577,18 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       row = %InteractionSchema{
         type: :user_message,
-        data: Interaction.to_data_map(message)
+        data: message
       }
 
       assert %Interaction.UserMessage{current_page: %Interaction.CurrentPage{}, annotations: [_]} =
-               InteractionSchema.to_struct(row)
+               row.data
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # JSON encoding
-  # ---------------------------------------------------------------------------
 
   describe "JSON encoding" do
     test "encodes UserMessage with annotation including all enrichment fields" do
       msg =
-        UserMessage.new([
+        build_user_message([
           text_block("Fix this"),
           annotation_block("ann-full", "H1", "/src/Hero.tsx", 30, 5,
             component_name: "Hero",
@@ -601,7 +606,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       decoded = msg |> Jason.encode!() |> Jason.decode!()
 
-      assert decoded["type"] == "user_message"
+      refute Map.has_key?(decoded, "type")
       assert decoded["messages"] == ["Fix this"]
       assert [ann] = decoded["annotations"]
       assert ann["annotation_id"] == "ann-full"
@@ -622,7 +627,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert ann["screenshot"] == %{"blob" => "base64screenshotdata", "mime_type" => "image/jpeg"}
 
-      # Nil enrichment fields are stripped from JSON
       refute Map.has_key?(ann, "comment")
     end
 
@@ -631,7 +635,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       decoded = tc |> Jason.encode!() |> Jason.decode!()
 
-      assert decoded["type"] == "tool_call"
+      refute Map.has_key?(decoded, "type")
       assert decoded["tool_name"] == "calculator"
       assert decoded["tool_call_id"] == "call_123"
     end
@@ -641,15 +645,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       decoded = tr |> Jason.encode!() |> Jason.decode!()
 
-      assert decoded["type"] == "tool_result"
+      refute Map.has_key?(decoded, "type")
       assert decoded["result"] == MCP.tool_result_text("42")
       assert decoded["is_error"] == false
     end
   end
 
   describe "AgentPaused" do
-    test "new/2 builds struct with correct fields" do
-      interaction = Interaction.AgentPaused.new("question", 120_000)
+    test "struct has correct fields" do
+      interaction = agent_paused("question", 120_000)
 
       assert interaction.tool_name == "question"
       assert interaction.timeout_ms == 120_000
@@ -660,8 +664,16 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert %DateTime{} = interaction.timestamp
     end
 
-    test "AgentPaused is in interaction_modules list" do
-      assert Interaction.AgentPaused in Interaction.interaction_modules()
+    test "AgentPaused is in persisted interaction types" do
+      assert Interaction.AgentPaused in Keyword.values(InteractionSchema.types())
     end
+  end
+
+  defp build_user_message(content_blocks) do
+    assert {:ok, attrs} = UserMessage.attrs(content_blocks)
+
+    %UserMessage{}
+    |> UserMessage.changeset(attrs)
+    |> Ecto.Changeset.apply_action!(:insert)
   end
 end

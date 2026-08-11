@@ -1,0 +1,71 @@
+name: Sync SourceForge Release Assets
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to sync, for example v0.4.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sourceforge-release-assets-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      SOURCEFORGE_REPOSITORY: ${{ vars.SOURCEFORGE_REPOSITORY }}
+      SOURCEFORGE_USERNAME: ${{ vars.SOURCEFORGE_USERNAME }}
+    steps:
+      - name: Download GitHub release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "::error::Release tag is required"
+            exit 1
+          fi
+
+          RELEASE_DIR="sourceforge-release"
+          mkdir -p "$RELEASE_DIR"
+
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$RELEASE_DIR" \
+            --clobber
+
+          gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json body \
+            --jq .body > "$RELEASE_DIR/README.md"
+
+      - name: Configure SourceForge SSH
+        env:
+          SOURCEFORGE_SSH_KEY: ${{ secrets.SOURCEFORGE_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SOURCEFORGE_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan frs.sourceforge.net >> ~/.ssh/known_hosts
+
+      - name: Upload assets to SourceForge Files
+        run: |
+          set -euo pipefail
+          REMOTE_DIR="/home/frs/project/${SOURCEFORGE_REPOSITORY}/${RELEASE_TAG}"
+
+          sftp -b - "${SOURCEFORGE_USERNAME}@frs.sourceforge.net" <<SFTP
+          -mkdir ${REMOTE_DIR}
+          SFTP
+
+          rsync -av -e ssh "sourceforge-release/" "${SOURCEFORGE_USERNAME}@frs.sourceforge.net:${REMOTE_DIR}/"

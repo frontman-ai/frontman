@@ -27,7 +27,7 @@ let getConfig = (): clientConfig => {
   let params = url.searchParams
   let get = name =>
     if params->WebAPI.URLSearchParams.has(~name) {
-      Some(params->WebAPI.URLSearchParams.get(name))
+      params->WebAPI.URLSearchParams.get(name)->Null.toOption
     } else {
       None
     }
@@ -46,13 +46,12 @@ let getConfig = (): clientConfig => {
 
 WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoaded"), _event => {
   let rootElement = WebAPI.Global.document->WebAPI.Document.querySelector("#root")
-  // Task is now created when session is established (in Connect action handler)
-  // to ensure task ID matches sessionId for proper update routing
 
   switch rootElement->Null.toOption {
   | Some(rootElement) =>
     let root = ReactDOM.Client.createRoot(rootElement->WebAPI.Element.asRescriptElement)
     let config = getConfig()
+    Client__State.Actions.fetchUserProfile(~apiBaseUrl=config.apiBaseUrl)
     root->ReactDOM.Client.Root.render(
       <React.StrictMode>
         <Client__FrontmanProvider.Provider

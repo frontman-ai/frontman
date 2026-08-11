@@ -83,8 +83,6 @@ defmodule SwarmAi.ParallelExecutor do
         %ToolExecution.Await{} ->
           ref = make_ref()
           {mod, fun, args} = exec.start
-          # Called in PE's own process so self() = PE's pid, enabling the client
-          # to route {:tool_result, ...} back to PE's mailbox.
           apply(mod, fun, args ++ [exec.tool_call])
           timer = Process.send_after(self(), {:deadline, ref}, exec.timeout_ms)
           entry = %{kind: :await, exec: exec, timer: timer}
@@ -102,7 +100,6 @@ defmodule SwarmAi.ParallelExecutor do
   defp collect_results(pending, awaiting, results, task_supervisor) do
     receive do
       {ref, result} when is_map_key(pending, ref) ->
-        # Sync task completed normally.
         Process.demonitor(ref, [:flush])
         %{timer: timer, exec: exec} = Map.fetch!(pending, ref)
         Process.cancel_timer(timer)
@@ -115,7 +112,6 @@ defmodule SwarmAi.ParallelExecutor do
         )
 
       {:DOWN, ref, :process, _pid, reason} when is_map_key(pending, ref) ->
-        # Sync task crashed.
         %{timer: timer, exec: exec} = Map.fetch!(pending, ref)
         Process.cancel_timer(timer)
 
@@ -130,7 +126,6 @@ defmodule SwarmAi.ParallelExecutor do
         )
 
       {:tool_result, key, content, is_error} when is_map_key(awaiting, key) ->
-        # Await tool received its browser client response.
         ref = Map.fetch!(awaiting, key)
         %{exec: exec, timer: timer} = Map.fetch!(pending, ref)
         Process.cancel_timer(timer)
@@ -162,8 +157,6 @@ defmodule SwarmAi.ParallelExecutor do
       case kind do
         :sync ->
           %{pid: pid} = Map.fetch!(pending, ref)
-          # terminate_child is synchronous — child is dead when it returns.
-          # async_nolink sets up a monitor, so :DOWN is guaranteed in the mailbox.
           Task.Supervisor.terminate_child(task_supervisor, pid)
 
           receive do
@@ -193,7 +186,6 @@ defmodule SwarmAi.ParallelExecutor do
         )
 
       :pause_agent ->
-        # First :pause_agent wins. Cancel all remaining.
         cancel_remaining(Map.delete(pending, ref), awaiting, task_supervisor)
         {:halt, {:timeout, exec.tool_call.id, exec.tool_call.name, exec.timeout_ms}}
     end
@@ -203,7 +195,6 @@ defmodule SwarmAi.ParallelExecutor do
   defp cancel_remaining(pending, awaiting, task_supervisor) do
     Enum.each(pending, fn {ref, entry} ->
       %{kind: kind, exec: exec, timer: timer} = entry
-      # Cancel timer first — prevents a stale :deadline from firing mid-cleanup.
       Process.cancel_timer(timer)
 
       {mod, fun, args} = exec.on_timeout
@@ -218,7 +209,6 @@ defmodule SwarmAi.ParallelExecutor do
           end
 
         :await ->
-          # Remove from awaiting so stale {:tool_result, ...} messages are ignored.
           _ = Map.delete(awaiting, exec.tool_call.id)
           :ok
       end
@@ -233,7 +223,6 @@ defmodule SwarmAi.ParallelExecutor do
     end)
   end
 
-  # Re-order results map into a list matching the original tool_calls order.
   @spec finalize([ToolCall.t()], results_map()) :: [ToolResult.t()]
   defp finalize(tool_calls, results_map) do
     Enum.map(tool_calls, fn tc -> Map.fetch!(results_map, tc.id) end)

@@ -1,8 +1,3 @@
-// Shared HTML shell generation for all framework adapters
-//
-// Generates the HTML page that hosts the Frontman client application.
-// Each adapter passes its framework-specific config (framework label, client URL, etc.)
-
 module MiddlewareConfig = FrontmanCore__MiddlewareConfig
 
 let escapeHtmlAttribute = (value: string): string =>
@@ -13,7 +8,6 @@ let escapeHtmlAttribute = (value: string): string =>
   ->String.replaceAll("<", "&lt;")
   ->String.replaceAll(">", "&gt;")
 
-// Pin the dev-only debugger so React Scan releases do not change Frontman debug behavior under us.
 let reactScanScript = `<script src="https://unpkg.com/react-scan@0.5.3/dist/auto.global.js" crossorigin="anonymous"></script>`
 
 let reactScanTag = (~enableReactScan: bool): string => {
@@ -22,7 +16,6 @@ let reactScanTag = (~enableReactScan: bool): string => {
   | false => ""
   }
 }
-// Generate the HTML shell for the Frontman UI
 let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string => {
   let clientCssTag =
     config.clientCssUrl->Option.mapOr("", url =>
@@ -35,34 +28,12 @@ let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string 
     )
 
   let runtimeConfigScript = {
-    let getEnvKey = varName =>
-      FrontmanBindings.Process.env
-      ->Dict.get(varName)
-      ->Option.flatMap(key =>
-        switch key != "" {
-        | true => Some(key)
-        | false => None
-        }
-      )
-    // Build JSON payload using proper JSON encoding to handle special characters
     let configObj = Dict.fromArray([
       ("framework", JSON.Encode.string(MiddlewareConfig.frameworkIdToString(config.frameworkId))),
       ("basePath", JSON.Encode.string(config.basePath)),
       ("projectRoot", JSON.Encode.string(config.projectRoot)),
-      ("sourceRoot", JSON.Encode.string(config.sourceRoot)),
       ("traits", config.traits->Array.map(JSON.Encode.string)->JSON.Encode.array),
     ])
-    // Add key values if present and non-empty
-    [
-      ("OPENROUTER_API_KEY", "openrouterKeyValue"),
-      ("ANTHROPIC_API_KEY", "anthropicKeyValue"),
-      ("FIREWORKS_API_KEY", "fireworksKeyValue"),
-      ("NVIDIA_API_KEY", "nvidiaKeyValue"),
-    ]->Array.forEach(((envVar, keyName)) =>
-      getEnvKey(envVar)->Option.forEach(key =>
-        configObj->Dict.set(keyName, JSON.Encode.string(key))
-      )
-    )
     let payload = JSON.stringify(JSON.Encode.object(configObj))
     `<script>window.__frontmanRuntime=${payload}</script>`
   }
@@ -94,14 +65,12 @@ let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string 
 </html>`
 }
 
-// Serve the HTML shell as a Response
 let serve = (config: MiddlewareConfig.t, ~enableReactScan=false): WebAPI.FetchAPI.response => {
   let html = generateHTML(config, ~enableReactScan)
   let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "text/html")]))
   WebAPI.Response.fromString(html, ~init={headers: headers})
 }
 
-// Serve with a dynamic entrypoint URL override for suffix-based routing.
 let serveWithEntrypoint = (
   ~config: MiddlewareConfig.t,
   ~entrypointUrl: option<string>,

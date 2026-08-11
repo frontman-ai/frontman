@@ -1,14 +1,7 @@
 ---
-// Install Steps Section
-// ------------
-// Description: A section displaying the 3-step installation process for Frontman
-// Uses a vertical timeline layout with horizontal step rows
 
-// Components
-// - Decorative
 import FloatingBlobs from '../../ui/decorative/FloatingBlobs.astro'
 
-// Assets
 import nextjsLogo from '../../../assets/frameworks/nextjs.svg'
 import astroLogo from '../../../assets/frameworks/astro.svg'
 import viteLogo from '../../../assets/frameworks/vite.svg'
@@ -105,7 +98,7 @@ const frameworks = [
 					data-step3-description={fw.step3Description}
 					data-show-plugin-link={fw.showPluginLink}
 				>
-						<img src={fw.logo.src} alt="" width="24" height="24" loading="lazy" aria-hidden="true" />
+						<img src={fw.logo.src} alt={`${fw.name} logo`} width="24" height="24" loading="lazy" aria-hidden="true" />
 						{fw.name}
 					</button>
 				))}
@@ -113,7 +106,6 @@ const frameworks = [
 		</div>
 
 		<div class="steps-timeline">
-			<!-- Step 1 -->
 			<div class="step">
 				<div class="step-indicator">
 					<div class="step-number step-number--yellow">1</div>
@@ -143,7 +135,6 @@ const frameworks = [
 				</div>
 			</div>
 
-			<!-- Step 2 -->
 			<div class="step">
 				<div class="step-indicator">
 					<div class="step-number step-number--pink">2</div>
@@ -176,7 +167,6 @@ const frameworks = [
 				</div>
 			</div>
 
-			<!-- Step 3 -->
 			<div class="step step--last">
 				<div class="step-indicator">
 					<div class="step-number step-number--peach">3</div>
@@ -206,7 +196,6 @@ const frameworks = [
 		@apply relative z-[100] mx-auto max-w-3xl px-6;
 	}
 
-	/* Header */
 	.install-header {
 		@apply text-center mb-10 lg:mb-20;
 	}
@@ -220,7 +209,6 @@ const frameworks = [
 		color: #334155;
 	}
 
-	/* Framework tabs */
 	.framework-tabs {
 		@apply mt-8 flex flex-wrap items-center justify-center gap-3;
 	}
@@ -249,7 +237,6 @@ const frameworks = [
 		object-fit: contain;
 	}
 
-	/* Timeline */
 	.steps-timeline {
 		@apply flex flex-col;
 	}
@@ -259,7 +246,6 @@ const frameworks = [
 		min-width: 0;
 	}
 
-	/* Step indicator */
 	.step-indicator {
 		@apply hidden lg:flex flex-col items-center flex-shrink-0;
 	}
@@ -287,7 +273,6 @@ const frameworks = [
 		min-height: 24px;
 	}
 
-	/* Step cards */
 	.step-card {
 		@apply flex-1 rounded-2xl p-4 lg:p-6 mb-6;
 		border-left: 4px solid transparent;
@@ -320,7 +305,6 @@ const frameworks = [
 		color: #334155;
 	}
 
-	/* Terminal code block */
 	.terminal {
 		@apply mt-5;
 		background: #0f0f1a;
@@ -384,7 +368,6 @@ const frameworks = [
 		@apply mt-4 inline-flex text-sm font-semibold text-primary-600 underline underline-offset-4 hover:text-primary-700;
 	}
 
-	/* AI badges */
 	.ai-badges {
 		@apply mt-5 flex flex-wrap gap-2;
 	}
@@ -411,7 +394,6 @@ const frameworks = [
 		const step3Description = stepsTimeline?.querySelector('[data-step3-description]')
 		const pluginDirectoryLink = document.querySelector('[data-plugin-directory-link]')
 
-		// Framework tab switching
 		tabs.forEach((tab) => {
 			tab.addEventListener('click', () => {
 				tabs.forEach((t) => t.classList.remove('active'))
@@ -450,7 +432,6 @@ const frameworks = [
 			})
 		})
 
-		// Copy to clipboard (handles all copy buttons)
 		document.querySelectorAll('.copy-button').forEach((btn) => {
 			btn.addEventListener('click', async () => {
 				const code = btn.closest('.terminal-body')?.querySelector('code')?.textContent

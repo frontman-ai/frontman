@@ -1,6 +1,6 @@
 # Frontman
 
-> Frontman is a vertically integrated AI agent that lives inside your framework's dev server, not your editor. It hooks into your framework (Next.js, Astro, Vite), sees the live DOM, component tree, computed styles, routes, and server-side state, and turns plain-English instructions into real source code changes — verified instantly via hot-reload. Open-source core with a bootstrapped SaaS tier and BYOK pricing.
+> Frontman is a vertically integrated AI agent that lives inside your framework's dev server, not your editor. It hooks into your framework (Next.js, Astro, Vite), sees the live DOM, component tree, computed styles, routes, and server-side state, and turns plain-English instructions into real source code changes — verified instantly via hot-reload. Open-source core with BYOK model support.
 
 ## What problem does Frontman solve?
 
@@ -33,7 +33,18 @@ It runs exclusively in development (`NODE_ENV=development`). In production build
 ## Docs
 
 - [Homepage](https://frontman.sh/): Product overview, feature highlights, and installation instructions
+- [Markdown homepage](https://frontman.sh/index.md): Canonical markdown summary for agents
 - [FAQ](https://frontman.sh/faq/): Answers to common questions about features, frameworks, safety, and technical details
+- [Developer docs](https://frontman.sh/docs/): Installation, authentication, integrations, usage, and reference guides
+- [API keys and providers](https://frontman.sh/docs/api-keys/): Bring-your-own-key authentication docs for Claude, ChatGPT, and OpenRouter
+- [API catalog](https://frontman.sh/.well-known/api-catalog): Linkset for API, docs, and agent discovery resources
+- [Agent card](https://frontman.sh/.well-known/agent-card.json): A2A-style Frontman agent capabilities
+- [MCP discovery](https://frontman.sh/.well-known/mcp): Frontman MCP discovery endpoint
+- [MCP server card](https://frontman.sh/.well-known/mcp/server-card.json): Frontman agent integration metadata
+- [Agent skills index](https://frontman.sh/.well-known/agent-skills/index.json): Official Frontman skill-md artifacts
+- [Docs llms.txt](https://frontman.sh/docs/llms.txt): Scoped docs context
+- [API llms.txt](https://frontman.sh/api/llms.txt): Scoped API context
+- [Developers llms.txt](https://frontman.sh/developers/llms.txt): Scoped developer context
 - [Changelog](https://frontman.sh/changelog/): Release notes and version history
 - [GitHub](https://github.com/frontman-ai/frontman): Source code, contributing guide, and issue tracker
 

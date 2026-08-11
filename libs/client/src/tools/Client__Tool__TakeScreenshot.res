@@ -1,12 +1,11 @@
-// Client tool that takes a screenshot of the web preview using Snapdom
-// Captures the document body from the previewFrame
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.takeScreenshot
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
-let description = "Take a screenshot of the current web preview page. By default captures only the visible viewport. Set fullPage to true to capture the entire scrollable page. Returns a base64-encoded JPEG image data URL."
+let description = "Take a screenshot of the current web preview page. By default captures only the visible viewport. Set fullPage to true to capture the entire scrollable page."
+let outputJsonSchema = None
 
 @schema
 type input = {
@@ -18,24 +17,6 @@ type input = {
   fullPage: option<bool>,
 }
 
-@schema
-type output = {
-  @s.describe("Base64-encoded JPEG image data URL (data:image/jpeg;base64,...)") @live
-  screenshot: option<string>,
-  @s.describe("Error message if the screenshot could not be taken") @live
-  error: option<string>,
-}
-
-// Image limits and scale computation are shared via Client__ImageLimits
-// to ensure all image capture paths use the same constraints.
-
-// Crop a canvas to viewport dimensions at the current scroll position.
-// Returns a JPEG data URL of just the visible viewport area.
-//
-// All coordinates are in CSS pixels. The `scale` param accounts for
-// snapdom's scale factor (from _computeScale) which may shrink the canvas
-// relative to CSS dimensions to stay within provider pixel limits.
-// snapdom's toCanvas defaults to dpr=1, so canvas pixels = CSS pixels × scale.
 let _cropCanvasToViewport = (
   sourceCanvas: WebAPI.DOMAPI.htmlCanvasElement,
   ~scrollX: float,
@@ -49,13 +30,11 @@ let _cropCanvasToViewport = (
 
   let qualityJson = JSON.Encode.float(quality)
 
-  // Convert CSS-pixel coordinates to canvas-pixel coordinates
   let sx = Math.round(scrollX *. scale)
   let sy = Math.round(scrollY *. scale)
   let sw = Math.round(viewportW->Int.toFloat *. scale)
   let sh = Math.round(viewportH->Int.toFloat *. scale)
 
-  // Clamp to source canvas bounds
   let sx = Math.max(sx, 0.0)
   let sy = Math.max(sy, 0.0)
   let sw = Math.min(sw, sourceCanvas.width->Int.toFloat -. sx)
@@ -64,7 +43,6 @@ let _cropCanvasToViewport = (
   if sw <= 0.0 || sh <= 0.0 {
     sourceCanvas->HTMLCanvasElement.toDataURL(~type_="image/jpeg", ~quality=qualityJson)
   } else {
-    // Create cropped canvas
     let crop = Global.document->Document.createCanvasElement
     crop.width = sw->Float.toInt
     crop.height = sh->Float.toInt
@@ -114,7 +92,6 @@ let execute = async (
     ~onUnavailable=async () =>
       Tool.MCP.CallToolResult.makeError("Preview frame document not available"),
     async ({doc, win}) => {
-      // Get the element to screenshot
       let elementResult = switch input.selector {
       | Some(selector) =>
         doc
@@ -125,12 +102,19 @@ let execute = async (
         doc
         ->WebAPI.Document.body
         ->Null.toOption
-        ->Option.mapOr(Error("Document body not available"), el => Ok(el))
+        ->Option.mapOr(Error("Document body not available"), el => Ok(
+          el->WebAPI.HTMLElement.asElement,
+        ))
       }
 
-      // For viewport-only capture (no selector, not fullPage), gather scroll + dimensions
       let viewportCrop = switch (fullPage, input.selector) {
-      | (false, None) => Some((win.innerWidth, win.innerHeight, win.scrollX, win.scrollY))
+      | (false, None) =>
+        Some((
+          win->WebAPI.Window.innerWidth,
+          win->WebAPI.Window.innerHeight,
+          win->WebAPI.Window.scrollX,
+          win->WebAPI.Window.scrollY,
+        ))
       | _ => None
       }
 
@@ -144,22 +128,14 @@ let execute = async (
           )
         } else {
           try {
-            let state = StateStore.getState(Client__State__Store.store)
-            let provider =
-              state.selectedModelValue
-              ->Option.flatMap(
-                FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId,
-              )
-              ->Option.map(FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.provider)
-            let limits = Client__ImageLimits.forProvider(provider)
+            let limits = Client__ImageLimits.conservative
             let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
 
             let captureResult = await FrontmanBindings.Bindings__Snapdom.snapdom(element)
 
             switch viewportCrop {
             | Some((viewportW, viewportH, scrollX, scrollY)) =>
-              // Viewport mode: render full page to canvas, then crop to visible area
-              let canvas = await captureResult.toCanvas({scale: scale})
+              let canvas = await captureResult.toCanvas({scale, dpr: 1.0})
               let dataUrl = _cropCanvasToViewport(
                 canvas,
                 ~scrollX,
@@ -171,7 +147,6 @@ let execute = async (
               )
               imageResultFromDataUrl(dataUrl)
             | None =>
-              // Full page / selector mode: export directly as JPEG
               let jpgImage = await captureResult.toJpg({scale, quality: limits.quality})
               imageResultFromDataUrl(jpgImage.src)
             }

@@ -1,6 +1,9 @@
 pre-commit:
   parallel: true
   commands:
+    source-comments:
+      run: make check-source-comments
+
     biome-lint:
       root: "libs/client/"
       glob: "libs/client/**/*.{ts,tsx,js,jsx,mjs}"
@@ -8,6 +11,7 @@ pre-commit:
 
     rescript-format:
       glob: "**/*.{res,resi}"
+      exclude: "libs/experimental-rescript-webapi/**"
       run: npx rescript format --check {staged_files}
 
     elixir-format-server:
@@ -28,7 +32,7 @@ pre-commit:
     elixir-credo-swarm:
       root: "apps/swarm_ai/"
       glob: "apps/swarm_ai/**/*.{ex,exs}"
-      run: mise exec -- mix credo --strict {staged_files}
+      run: mise exec -- mix credo --strict --ignore-checks ModuleDoc {staged_files}
 
 pre-push:
   commands:

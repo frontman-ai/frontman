@@ -4,6 +4,29 @@ defmodule SwarmAi.LLM.ResponseTest do
   alias ReqLLM.StreamChunk
   alias SwarmAi.LLM.Response
 
+  describe "from_stream/1 usage" do
+    test "preserves full usage metadata" do
+      usage = %{
+        input_tokens: 100,
+        output_tokens: 50,
+        total_tokens: 175,
+        cache_creation_tokens: 10,
+        tool_usage: %{"web_search" => 2},
+        image_usage: %{"input_images" => 1}
+      }
+
+      stream = [
+        StreamChunk.text("hello"),
+        StreamChunk.meta(%{usage: usage}),
+        StreamChunk.meta(%{finish_reason: :stop})
+      ]
+
+      response = Response.from_stream(stream)
+
+      assert response.usage == usage
+    end
+  end
+
   describe "from_stream/1 finish_reason" do
     test "preserves :length finish_reason when followed by :stop done chunk" do
       stream = [

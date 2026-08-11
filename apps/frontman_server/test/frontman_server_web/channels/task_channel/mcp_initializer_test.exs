@@ -99,7 +99,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       state = rules_state(request_id)
 
       result = %{
-        "content" => [%{"text" => "Path escapes source root: .", "type" => "text"}],
+        "content" => [%{"text" => "private-project-rules-marker", "type" => "text"}],
         "isError" => true
       }
 
@@ -116,6 +116,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
         end)
 
       assert log =~ "Tool error loading project_rules"
+      refute log =~ "private-project-rules-marker"
 
       assert [] = Sentry.Test.pop_sentry_reports()
     end
@@ -125,7 +126,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       state = structure_state(request_id)
 
       result = %{
-        "content" => [%{"text" => "Something went wrong", "type" => "text"}],
+        "content" => [%{"text" => "private-project-structure-marker", "type" => "text"}],
         "isError" => true
       }
 
@@ -142,6 +143,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
         end)
 
       assert log =~ "Tool error loading project_structure"
+      refute log =~ "private-project-structure-marker"
 
       assert [] = Sentry.Test.pop_sentry_reports()
     end

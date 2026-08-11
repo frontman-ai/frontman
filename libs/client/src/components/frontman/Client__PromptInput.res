@@ -1,247 +1,21 @@
 /**
  * Client__PromptInput - Main chat input component
- * 
- * Features:
- * - Text input with auto-resize
- * - File/image attachments with drag-drop, paste, file picker
- * - Long paste collapse as inline chips
- * - Chips inserted at cursor position (opencode-style inline UX)
- * - Inline thumbnail previews with lightbox
- * - 10MB file size limit
- * - Model selector
- * - Submit button with status
+ *
+ * Prompt composer shell. Tiptap owns editor content, pills, paste/drop, and file picker.
+ * This component keeps app-level controls around it: model selector, selected-element
+ * button, submit/stop button, provider CTA, error toast, and image preview.
  */
 module Icons = Client__ToolIcons
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-// ============================================================================
-// Types
-// ============================================================================
+type inputItem = FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
 
-// Accepted file types
-let acceptedImageTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"]
-let acceptedFileTypes = Array.concat(acceptedImageTypes, ["application/pdf"])
-let acceptedTypesString = acceptedFileTypes->Array.join(",")
-let maxFileSizeBytes = 10 * 1024 * 1024 // 10MB
-
-// Unified input item type
-type inputItem =
-  | FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
-  | PastedText({id: string, text: string})
-
-let getItemId = (item: inputItem): string =>
-  switch item {
-  | FileAttachment({id}) | PastedText({id}) => id
-  }
-
-// Generate unique ID
-let generateId: unit => string = %raw(`
-  function() {
-    return 'att_' + Math.random().toString(36).substr(2, 9);
-  }
-`)
-
-// Read a File as a dataURL (base64), resolves the promise with the dataURL string
-let readFileAsDataURL: WebAPI.FileAPI.file => promise<string> = %raw(`
-  function(file) {
-    return new Promise(function(resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function() { resolve(reader.result); };
-      reader.onerror = function() { reject(new Error('Failed to read file')); };
-      reader.readAsDataURL(file);
-    });
-  }
-`)
-
-// Get files from a DataTransfer (drop event)
-let getDataTransferFiles: {..} => array<WebAPI.FileAPI.file> = %raw(`
-  function(dataTransfer) {
-    return Array.from(dataTransfer.files || []);
-  }
-`)
-
-// Get clipboard items as files
-let getClipboardFiles: {..} => array<WebAPI.FileAPI.file> = %raw(`
-  function(clipboardData) {
-    var files = [];
-    var items = clipboardData.items;
-    if (!items) return files;
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].kind === 'file') {
-        var file = items[i].getAsFile();
-        if (file) files.push(file);
-      }
-    }
-    return files;
-  }
-`)
-
-// Get clipboard plain text
-let getClipboardText: {..} => string = %raw(`
-  function(clipboardData) {
-    return clipboardData.getData('text/plain') || '';
-  }
-`)
-
-// ============================================================================
-// ContentEditable helpers (raw JS for DOM manipulation)
-// ============================================================================
-
-// Insert a DOM node at the current cursor position in a contentEditable
-let insertNodeAtCursor: WebAPI.DOMAPI.node => unit = %raw(`
-  function(node) {
-    var sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    var range = sel.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(node);
-    // Move cursor after the inserted node
-    range.setStartAfter(node);
-    range.setEndAfter(node);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-`)
-
-let imageChipIconPath = "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-
-// Create an inline chip DOM element for file attachments.
-let createChipElement: (string, string, string, string) => WebAPI.DOMAPI.node = %raw(`
-  function(id, chipType, labelText, iconPath) {
-    var chip = document.createElement('span');
-    chip.setAttribute('contenteditable', 'false');
-    chip.setAttribute('data-chip-id', id);
-    chip.setAttribute('data-chip-type', chipType);
-    chip.className = 'inline-flex items-center gap-1 mx-0.5 px-2 py-0.5 rounded-md bg-violet-900/60 border border-violet-600/50 text-violet-200 text-xs align-middle cursor-default select-none';
-    
-    if (iconPath) {
-      var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      icon.setAttribute('width', '12');
-      icon.setAttribute('height', '12');
-      icon.setAttribute('viewBox', '0 0 24 24');
-      icon.setAttribute('fill', 'none');
-      icon.setAttribute('stroke', 'currentColor');
-      icon.setAttribute('stroke-width', '2');
-      icon.setAttribute('class', 'flex-shrink-0');
-      var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', iconPath);
-      icon.appendChild(path);
-      chip.appendChild(icon);
-    }
-    
-    var label = document.createElement('span');
-    label.textContent = labelText;
-    chip.appendChild(label);
-    
-    // Remove button (x)
-    var removeBtn = document.createElement('span');
-    removeBtn.className = 'ml-0.5 cursor-pointer hover:text-red-300 text-violet-400';
-    removeBtn.textContent = '×';
-    removeBtn.setAttribute('data-remove-chip', id);
-    chip.appendChild(removeBtn);
-    
-    return chip;
-  }
-`)
-
-let _truncateChipLabel = label =>
-  switch String.length(label) > 20 {
-  | true => label->String.slice(~start=0, ~end=17) ++ "..."
-  | false => label
-  }
-
-let createFileChipElement = (id: string, name: string, isImage: bool): WebAPI.DOMAPI.node => {
-  createChipElement(id, "file", _truncateChipLabel(name), isImage ? imageChipIconPath : "")
-}
-
-let createPastedTextChipElement = (id: string, text: string): WebAPI.DOMAPI.node => {
-  let lineCount = text->String.split("\n")->Array.length
-  createChipElement(id, "paste", `Pasted ~${Int.toString(lineCount)} lines`, "")
-}
-
-// Extract text from contentEditable while expanding paste chips and skipping file chips.
-let getExpandedTextFromEditable: (Dom.element, Map.t<string, string>) => string = %raw(`
-  function getExpandedTextFromEditable(el, pastedTextById) {
-    var text = '';
-    var nodes = el.childNodes;
-    for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      if (node.nodeType === 3) {
-        text += node.textContent;
-      } else if (node.nodeType === 1) {
-        var chipId = node.getAttribute && node.getAttribute('data-chip-id');
-        if (chipId) {
-          if (node.getAttribute('data-chip-type') === 'paste' && pastedTextById.has(chipId)) {
-            text += pastedTextById.get(chipId);
-          }
-          // file chips are skipped — handled separately as fileParts
-        } else if (node.tagName === 'BR') {
-          text += '\n';
-        } else {
-          if (i > 0 && (node.tagName === 'DIV' || node.tagName === 'P')) {
-            text += '\n';
-          }
-          text += getExpandedTextFromEditable(node, pastedTextById);
-        }
-      }
-    }
-    return text;
-  }
-`)
-
-let getTextFromEditable = el => getExpandedTextFromEditable(el, Map.make())
-
-// Get all chip IDs from contentEditable
-let getChipIdsFromEditable: Dom.element => array<string> = %raw(`
-  function(el) {
-    var chips = el.querySelectorAll('[data-chip-id]');
-    return Array.from(chips).map(function(c) { return c.getAttribute('data-chip-id'); });
-  }
-`)
-
-// Clear contentEditable content
-let clearEditable: Dom.element => unit = %raw(`
-  function(el) {
-    el.innerHTML = '';
-  }
-`)
-
-// Check if contentEditable is visually empty (no text, no chips)
-let isEditableEmpty: Dom.element => bool = %raw(`
-  function(el) {
-    // Check if there are any chip elements
-    if (el.querySelector('[data-chip-id]')) return false;
-    // Check text content
-    var text = el.textContent || '';
-    return text.trim() === '';
-  }
-`)
-
-// Focus the contentEditable and place cursor at end
-let focusAtEnd: Dom.element => unit = %raw(`
-  function(el) {
-    el.focus();
-    var sel = window.getSelection();
-    if (sel) {
-      var range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-  }
-`)
-
-// ============================================================================
-// Sub-components
-// ============================================================================
-
-// Model selector dropdown - consumes ACP SessionConfigOption (type: "select")
-// Uses Radix UI Select for consistent dark theme styling across all platforms (including Linux)
 module ModelSelector = {
-  module Select = FrontmanBindings.Bindings__RadixUI__Select
+  module Select = Client__UI__Select
+  module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-  // Get the display name for the currently selected value from config option
+  let optionClassName = "text-xs text-zinc-200 focus:bg-zinc-700 focus:text-white data-highlighted:bg-zinc-700 data-highlighted:text-white"
+
   let _getSelectedDisplay = (configOption: ACP.sessionConfigOption, selectedValue: string): option<
     string,
   > => {
@@ -279,78 +53,117 @@ module ModelSelector = {
       (configOption, selectedValue),
     )
 
-    <Select.Root value={selectedValue} onValueChange={value => onModelChange(value)}>
+    <Select value={selectedValue} onValueChange={(value, _) => onModelChange(value)}>
       <Select.Trigger
-        className="inline-flex items-center gap-1 h-8 pl-2 pr-1.5 text-xs rounded-md
+        id="frontman-model-selector"
+        ariaLabel="Model"
+        className="inline-flex w-full min-w-0 items-center gap-1 h-9 pl-2 pr-1.5 text-xs rounded-md
                    bg-transparent text-zinc-400 border-none cursor-pointer
                    hover:text-zinc-200 hover:bg-white/6
                    focus:outline-none focus:ring-0
-                   data-[placeholder]:text-zinc-500"
+                   data-[placeholder]:text-zinc-500 [&_svg]:size-3 [&_svg]:text-zinc-400"
       >
-        <span className="truncate max-w-[120px]">
+        <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
+        <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+        <span className="min-w-0 truncate text-zinc-300">
           {React.string(selectedDisplay->Option.getOr("Select model..."))}
         </span>
-        <Select.Icon className="text-zinc-400 flex-shrink-0">
-          <Icons.ChevronDownIcon size=12 />
-        </Select.Icon>
       </Select.Trigger>
-      <Select.Portal>
-        <Select.Content
-          position=#popper
-          sideOffset=4
-          className="z-50 min-w-[180px] max-h-[300px] overflow-hidden
-                     bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
-                     animate-in fade-in-0 zoom-in-95"
-        >
-          <Select.Viewport className="p-1">
-            {switch configOption {
-            | ACP.SelectConfigOption({options}) =>
-              switch options {
-              | ACP.Grouped(groups) =>
-                groups
-                ->Array.map(group => {
-                  <Select.Group key={group.group}>
-                    <Select.Label className="px-2 py-1.5 text-xs font-medium text-zinc-400">
-                      {React.string(group.name)}
-                    </Select.Label>
-                    {group.options
-                    ->Array.map(opt => {
-                      <Select.Item
-                        key={opt.value}
-                        value={opt.value}
-                        className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
-                                   cursor-pointer select-none outline-none
-                                   data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
-                                   data-[disabled]:opacity-50 data-[disabled]:pointer-events-none"
-                      >
-                        <Select.ItemText> {React.string(opt.name)} </Select.ItemText>
-                      </Select.Item>
-                    })
-                    ->React.array}
-                  </Select.Group>
-                })
-                ->React.array
-              | ACP.Ungrouped(opts) =>
-                opts
+      <Select.Content
+        sideOffset=4.
+        className="z-50 min-w-[180px] max-h-[300px] overflow-hidden
+                   bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
+                   animate-in fade-in-0 zoom-in-95"
+      >
+        {switch configOption {
+        | ACP.SelectConfigOption({options}) =>
+          switch options {
+          | ACP.Grouped(groups) =>
+            groups
+            ->Array.map(group => {
+              <Select.Group key={group.group}>
+                <Select.Label className="px-2 py-1.5 text-xs font-medium text-zinc-400">
+                  {React.string(group.name)}
+                </Select.Label>
+                {group.options
                 ->Array.map(opt => {
-                  <Select.Item
-                    key={opt.value}
-                    value={opt.value}
-                    className="relative flex items-center px-2 py-1.5 text-xs text-zinc-200 rounded
-                               cursor-pointer select-none outline-none
-                               data-[highlighted]:bg-zinc-700 data-[highlighted]:text-white
-                               data-[disabled]:opacity-50 data-[disabled]:pointer-events-none"
-                  >
-                    <Select.ItemText> {React.string(opt.name)} </Select.ItemText>
+                  <Select.Item key={opt.value} value={opt.value} className=optionClassName>
+                    {React.string(opt.name)}
                   </Select.Item>
                 })
-                ->React.array
-              }
-            }}
-          </Select.Viewport>
-        </Select.Content>
-      </Select.Portal>
-    </Select.Root>
+                ->React.array}
+              </Select.Group>
+            })
+            ->React.array
+          | ACP.Ungrouped(opts) =>
+            <Select.Group>
+              {opts
+              ->Array.map(opt => {
+                <Select.Item key={opt.value} value={opt.value} className=optionClassName>
+                  {React.string(opt.name)}
+                </Select.Item>
+              })
+              ->React.array}
+            </Select.Group>
+          }
+        }}
+      </Select.Content>
+    </Select>
+  }
+}
+
+module AgentSelector = {
+  module Select = Client__UI__Select
+
+  @react.component
+  let make = (
+    ~agents: array<ACP.agentCatalogEntry>,
+    ~selectedAgentId: string,
+    ~onAgentChange: string => unit,
+  ) => {
+    let selectedAgent = Client__Agent.findOrThrow(Some(agents), selectedAgentId)
+
+    <Select value={selectedAgentId} onValueChange={(value, _) => onAgentChange(value)}>
+      <Select.Trigger
+        id="frontman-agent-selector"
+        ariaLabel="Agent"
+        className="h-9 w-full min-w-0 border-none bg-transparent px-1.5 text-xs text-zinc-300
+                   hover:bg-white/6 focus:ring-0 cursor-pointer [&_svg]:size-3"
+      >
+        <span className="shrink-0 text-zinc-500"> {React.string("Agent")} </span>
+        <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+        <span
+          className="size-1.5 shrink-0 rounded-full opacity-70"
+          style={{backgroundColor: selectedAgent.color}}
+        />
+        <span className="min-w-0 truncate"> {React.string(selectedAgent.displayName)} </span>
+      </Select.Trigger>
+      <Select.Content
+        side=BaseUi.Types.Side.Top
+        align=BaseUi.Types.Align.Start
+        sideOffset=4.
+        className="z-50 min-w-[190px] max-w-[min(280px,calc(100vw-16px))] bg-zinc-800 border border-zinc-700"
+      >
+        <Select.Group>
+          {agents
+          ->Array.map(agent =>
+            <Select.Item
+              key={agent.id}
+              value={agent.id}
+              label={agent.displayName}
+              className="text-xs text-zinc-200 focus:bg-zinc-700 focus:text-white"
+            >
+              <span
+                className="size-2 shrink-0 self-center rounded-full"
+                style={{backgroundColor: agent.color}}
+              />
+              <span className="min-w-0 truncate"> {React.string(agent.displayName)} </span>
+            </Select.Item>
+          )
+          ->React.array}
+        </Select.Group>
+      </Select.Content>
+    </Select>
   }
 }
 
@@ -362,10 +175,6 @@ let modelConfigOptionHasModels = (configOption: ACP.sessionConfigOption) => {
   }
 }
 
-// Select element button — three visual states:
-// resting: zinc, label visible
-// selecting: violet pulse dot, shows "Selecting…"
-// has-annotations (isSelecting=false but hasAnnotations=true): zinc-200 with active dot
 module SelectElementButton = {
   @react.component
   let make = (
@@ -437,7 +246,28 @@ module PenToolButton = {
   }
 }
 
-// Stop icon - square for cancel button
+module AttachButton = {
+  @react.component
+  let make = (~onClick: unit => unit, ~disabled: bool, ~showLabel: bool) => {
+    <button
+      type_="button"
+      disabled
+      onClick={_ => onClick()}
+      className={`inline-flex items-center gap-1.5 h-8 ${showLabel
+          ? "px-2.5"
+          : "px-2"} rounded-md text-xs font-medium
+                 transition-colors cursor-pointer text-zinc-400 hover:text-zinc-200 hover:bg-white/6
+                 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-400`}
+      title="Attach files (images or PDFs up to 10MB)"
+    >
+      <Icons.PlusIcon size=13 className="text-zinc-400" />
+      {showLabel
+        ? <span className="whitespace-nowrap"> {React.string("Attach")} </span>
+        : React.null}
+    </button>
+  }
+}
+
 module StopIcon = {
   @react.component
   let make = (~size: int=16) => {
@@ -453,17 +283,15 @@ module StopIcon = {
   }
 }
 
-// Submit/Stop button — Send is the sole purple element at rest; Stop becomes a pill with label
 module SubmitButton = {
   @react.component
   let make = (
     ~disabled: bool,
-    ~isAgentRunning: bool,
+    ~showStop: bool,
     ~onClick: unit => unit,
     ~onCancel: unit => unit,
   ) => {
-    if isAgentRunning {
-      // Stop — pill with text label, feels different from compose mode
+    if showStop {
       <button
         type_="button"
         onClick={e => {
@@ -479,7 +307,6 @@ module SubmitButton = {
         <span> {React.string("Stop")} </span>
       </button>
     } else {
-      // Send — circle, the only purple element in the composition surface
       <button
         type_="submit"
         disabled
@@ -499,9 +326,6 @@ module SubmitButton = {
   }
 }
 
-// ============================================================================
-// Main component
-// ============================================================================
 @react.component
 let make = (
   ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => unit,
@@ -510,6 +334,9 @@ let make = (
   ~isModelsConfigLoading: bool,
   ~selectedModelValue: option<ACP.sessionConfigValueId>,
   ~onModelChange: string => unit,
+  ~agentCatalog: option<array<ACP.agentCatalogEntry>>,
+  ~selectedAgentId: option<string>,
+  ~onAgentChange: string => unit,
   ~onConfigureProvider: unit => unit,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
@@ -524,79 +351,47 @@ let make = (
   ~isEnrichingAnnotations: bool=false,
 ) => {
   let (hasContent, setHasContent) = React.useState(() => false)
-  let (inputItems, setInputItems) = React.useState((): array<inputItem> => [])
-  let (isDragging, setIsDragging) = React.useState(() => false)
+  let (submitSignal, setSubmitSignal) = React.useState(() => 0)
+  let (attachSignal, setAttachSignal) = React.useState(() => 0)
+  let (dropFilesSignal, setDropFilesSignal) = React.useState(() => 0)
+  let (droppedFiles, setDroppedFiles) = React.useState((): array<
+    Client__PromptEditor.browserFile,
+  > => [])
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
   let (fileSizeError, setFileSizeError) = React.useState((): option<string> => None)
-  // showSelectLabel: true when toolbar is wide enough to show the "Select" text label
-  let (showSelectLabel, setShowSelectLabel) = React.useState(() => true)
-  let fileInputRef = React.useRef(Nullable.null)
-  let editableRef = React.useRef(Nullable.null)
+  let (showToolbarLabels, setShowToolbarLabels) = React.useState(() => true)
   let formRef = React.useRef(Nullable.null)
-  // Ref to hold the latest inputItems so callbacks always see current value
-  let itemsRef: React.ref<array<inputItem>> = React.useRef([])
   let noModelsConfigured =
     !isModelsConfigLoading &&
     switch modelConfigOption {
     | Some(configOption) => !modelConfigOptionHasModels(configOption)
     | None => false
     }
-
-  // Keep itemsRef in sync
-  React.useEffect1(() => {
-    itemsRef.current = inputItems
-    None
-  }, [inputItems])
-
-  // Update hasContent when inputItems or text changes
-  let syncHasContent = () => {
-    editableRef.current
-    ->Nullable.toOption
-    ->Option.forEach(el => {
-      let empty = isEditableEmpty(el)
-      setHasContent(_ => !empty)
-    })
+  let hasAgentSelector = switch (agentCatalog, selectedAgentId) {
+  | (Some(agents), Some(_)) => agents->Array.length > 0
+  | _ => false
+  }
+  let composerBorderColor = switch selectedAgentId {
+  | Some(agentId) =>
+    agentCatalog
+    ->Option.flatMap(agents => agents->Array.find(agent => agent.id == agentId))
+    ->Option.map(agent => `color-mix(in srgb, ${agent.color} 40%, transparent)`)
+    ->Option.getOr("rgb(255 255 255 / 0.1)")
+  | None => "rgb(255 255 255 / 0.1)"
   }
 
-  let insertChipAtCursor = (~focus=false, chipEl) => {
-    editableRef.current
-    ->Nullable.toOption
-    ->Option.forEach(el => {
-      if focus {
-        focusAtEnd(el)
-      }
-      insertNodeAtCursor(chipEl)
-      syncHasContent()
-    })
-  }
-
-  // Debounced version for the hot input path — avoids triggering a React
-  // re-render on every single keystroke just to toggle placeholder/submit state.
-  let syncHasContentTimerRef = React.useRef(None)
-  let syncHasContentDebounced = () => {
-    switch syncHasContentTimerRef.current {
-    | Some(id) => clearTimeout(id)
-    | None => ()
+  let getDroppedFiles: ReactEvent.Mouse.t => array<Client__PromptEditor.browserFile> = %raw(`
+    function(event) {
+      var files = event.dataTransfer && event.dataTransfer.files;
+      return files ? Array.from(files) : [];
     }
-    syncHasContentTimerRef.current = Some(setTimeout(() => {
-        syncHasContentTimerRef.current = None
-        syncHasContent()
-      }, 100))
+  `)
+
+  let preventDefaultDropNavigation = (event: ReactEvent.Mouse.t) => {
+    ReactEvent.Mouse.preventDefault(event)
+    ReactEvent.Mouse.stopPropagation(event)
   }
 
-  // Cleanup debounce timer on unmount
-  React.useEffect0(() => {
-    Some(
-      () => {
-        switch syncHasContentTimerRef.current {
-        | Some(id) => clearTimeout(id)
-        | None => ()
-        }
-      },
-    )
-  })
-
-  // ResizeObserver: hide "Select" label when toolbar is too narrow
   let _setupResizeObserver: (Dom.element, bool => unit) => unit => unit = %raw(`
     function(el, setShowLabel) {
       var LABEL_THRESHOLD = 300;
@@ -612,10 +407,9 @@ let make = (
   React.useEffect0(() => {
     formRef.current
     ->Nullable.toOption
-    ->Option.map(el => _setupResizeObserver(el, v => setShowSelectLabel(_ => v)))
+    ->Option.map(el => _setupResizeObserver(el, v => setShowToolbarLabels(_ => v)))
   })
 
-  // Clear file size error after 3 seconds
   React.useEffect1(() => {
     switch fileSizeError {
     | Some(_) =>
@@ -625,280 +419,52 @@ let make = (
     }
   }, [fileSizeError])
 
-  // Handle adding files (validates type + size, reads as dataURL)
-  let addFiles = (files: array<WebAPI.FileAPI.file>) => {
-    files->Array.forEach(file => {
-      let isAccepted = acceptedFileTypes->Array.some(t => t == file.type_)
-      if !isAccepted {
-        () // silently ignore unsupported file types
-      } else if file.size > maxFileSizeBytes {
-        setFileSizeError(_ => Some(`${file.name} exceeds 10MB limit`))
-      } else {
-        let _ = readFileAsDataURL(file)->Promise.then(dataUrl => {
-          let id = generateId()
-          let isImage = acceptedImageTypes->Array.some(t => t == file.type_)
-          let newItem = FileAttachment({
-            id,
-            name: file.name,
-            mediaType: file.type_,
-            dataUrl,
-          })
-          setInputItems(prev => Array.concat(prev, [newItem]))
-
-          let chipEl = createFileChipElement(id, file.name, isImage)
-          insertChipAtCursor(~focus=true, chipEl)
-
-          Promise.resolve()
-        })
-      }
-    })
-  }
-
-  // Remove a chip from DOM and from inputItems state
-  let removeChip = (id: string) => {
-    setInputItems(prev => prev->Array.filter(item => getItemId(item) != id))
-    // Remove chip element from DOM
-    editableRef.current
-    ->Nullable.toOption
-    ->Option.forEach(el => {
-      let removeChipFromDom: (Dom.element, string) => unit = %raw(`
-        function(el, id) {
-          var chip = el.querySelector('[data-chip-id="' + id + '"]');
-          if (chip) chip.remove();
-        }
-      `)
-      removeChipFromDom(el, id)
-      syncHasContent()
-    })
-  }
-
-  // Handle clicks inside the editable (for chip remove buttons and image preview)
-  let _getRemoveChipId: ({..}, 'a) => Nullable.t<string> = %raw(`
-    function(target, _e) {
-      return target.getAttribute ? target.getAttribute('data-remove-chip') : null;
-    }
-  `)
-
-  let _findChipElement: ({..}, ReactEvent.Mouse.t) => Nullable.t<{..}> = %raw(`
-    function(target, e) {
-      var el = target;
-      while (el && el !== e.currentTarget) {
-        if (el.getAttribute && el.getAttribute('data-chip-id') && el.getAttribute('data-chip-type') === 'file') {
-          return el;
-        }
-        el = el.parentElement;
-      }
-      return null;
-    }
-  `)
-
-  let handleEditableClick = (e: ReactEvent.Mouse.t) => {
-    let target: {..} = ReactEvent.Mouse.target(e)->Obj.magic
-    // Check for remove button clicks (target may be a text node without getAttribute)
-    let removeId: option<string> = _getRemoveChipId(target, e)->Nullable.toOption
-    switch removeId {
-    | Some(id) =>
-      ReactEvent.Mouse.preventDefault(e)
-      ReactEvent.Mouse.stopPropagation(e)
-      removeChip(id)
-    | None =>
-      // Check for image chip clicks (for lightbox preview)
-      let chipEl: option<{..}> = _findChipElement(target, e)->Nullable.toOption
-      chipEl->Option.forEach(chip => {
-        let chipId: string = chip["getAttribute"]("data-chip-id")
-        // Find the item in inputItems to get the dataUrl
-        itemsRef.current->Array.forEach(item => {
-          switch item {
-          | FileAttachment({id, dataUrl, mediaType}) =>
-            if id == chipId && acceptedImageTypes->Array.some(t => t == mediaType) {
-              setPreviewSrc(_ => Some(dataUrl))
-            }
-          | PastedText(_) => ()
-          }
-        })
-      })
+  let doSubmit = () => setSubmitSignal(prev => prev + 1)
+  let openAttachPicker = () => setAttachSignal(prev => prev + 1)
+  let handleDrop = (event: ReactEvent.Mouse.t) => {
+    preventDefaultDropNavigation(event)
+    let files = getDroppedFiles(event)
+    switch files->Array.length {
+    | 0 => ()
+    | _ =>
+      setDroppedFiles(_ => files)
+      setDropFilesSignal(prev => prev + 1)
     }
   }
 
-  // Handle file input change
-  let _getFilesAsArray: {..} => option<array<WebAPI.FileAPI.file>> = %raw(`
-    function(target) {
-      var fl = target.files;
-      return fl ? Array.from(fl) : undefined;
-    }
-  `)
-  let _resetFileInput: {..} => unit = %raw(`function(target) { target.value = ''; }`)
-
-  let handleFileInputChange = (e: ReactEvent.Form.t) => {
-    let target = ReactEvent.Form.target(e)
-    _getFilesAsArray(target)->Option.forEach(f => addFiles(f))
-    _resetFileInput(target)
+  let handleEditorSubmit = (
+    text,
+    fileAttachments: array<Client__PromptEditor.editorFileAttachment>,
+  ) => {
+    let inputItems = fileAttachments->Array.map(file => FileAttachment({
+      id: file.id,
+      name: file.name,
+      mediaType: file.mediaType,
+      dataUrl: file.dataUrl,
+    }))
+    onSubmit(~text, ~inputItems)
+    setHasContent(_ => false)
   }
 
-  // Drag event handlers
-  let handleDragOver = (e: ReactEvent.Mouse.t) => {
-    ReactEvent.Mouse.preventDefault(e)
-    setIsDragging(_ => true)
-  }
+  let hasSubmittableContent = hasContent || hasAnnotations
+  let isInputDisabled = !hasActiveACPSession || disabled || noModelsConfigured
+  let isSubmitDisabled = isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
+  let showStopButton = isAgentRunning && !hasSubmittableContent
 
-  let handleDragLeave = (e: ReactEvent.Mouse.t) => {
-    ReactEvent.Mouse.preventDefault(e)
-    let relatedTarget: option<{..}> = (e->Obj.magic)["relatedTarget"]
-    switch relatedTarget {
-    | None => setIsDragging(_ => false)
-    | Some(target) =>
-      formRef.current
-      ->Nullable.toOption
-      ->Option.forEach(formEl => {
-        let contains: (
-          Dom.element,
-          {..},
-        ) => bool = %raw(`function(el, target) { return el.contains(target); }`)
-        if !contains(formEl, target) {
-          setIsDragging(_ => false)
-        }
-      })
-    }
-  }
-
-  let handleDrop = (e: ReactEvent.Mouse.t) => {
-    ReactEvent.Mouse.preventDefault(e)
-    setIsDragging(_ => false)
-    let dataTransfer: {..} = (e->Obj.magic)["dataTransfer"]
-    let files = getDataTransferFiles(dataTransfer)
-    addFiles(files)
-  }
-
-  // Paste handler - handles image/PDF paste and collapses long text paste into chips.
-  let handlePaste = (e: ReactEvent.Clipboard.t) => {
-    let clipboardData: {..} = (e->Obj.magic)["clipboardData"]
-
-    // Check for file items first (images/PDFs)
-    let files = getClipboardFiles(clipboardData)
-    let acceptedFiles =
-      files->Array.filter(file => acceptedFileTypes->Array.some(t => t == file.type_))
-    let text = getClipboardText(clipboardData)
-    let isLongTextPaste = text->String.split("\n")->Array.length >= 3 || String.length(text) > 150
-
-    switch (Array.length(acceptedFiles) > 0, text, isLongTextPaste) {
-    | (true, _, _) =>
-      ReactEvent.Clipboard.preventDefault(e)
-      addFiles(acceptedFiles)
-    | (false, "", _) => ()
-    | (false, _, true) =>
-      ReactEvent.Clipboard.preventDefault(e)
-      let id = generateId()
-      setInputItems(prev => Array.concat(prev, [PastedText({id, text})]))
-      insertChipAtCursor(createPastedTextChipElement(id, text))
-    | (false, _, false) =>
-      ReactEvent.Clipboard.preventDefault(e)
-      insertNodeAtCursor(
-        WebAPI.Global.document->WebAPI.Document.createTextNode(text)->WebAPI.Text.asNode,
-      )
-      syncHasContent()
-    }
-  }
-
-  // Handle input events (contenteditable fires 'input' on text changes)
-  let handleInput = (_e: ReactEvent.Form.t) => {
-    syncHasContentDebounced()
-    // Sync inputItems with DOM - remove items whose chips no longer exist
-    editableRef.current
-    ->Nullable.toOption
-    ->Option.forEach(el => {
-      let domChipIds = getChipIdsFromEditable(el)
-      setInputItems(prev => {
-        let filtered =
-          prev->Array.filter(item => domChipIds->Array.some(id => id == getItemId(item)))
-        if Array.length(filtered) != Array.length(prev) {
-          filtered
-        } else {
-          prev
-        }
-      })
-    })
-  }
-
-  // Submit logic
-  let doSubmit = () => {
-    editableRef.current
-    ->Nullable.toOption
-    ->Option.forEach(el => {
-      let items = itemsRef.current
-      let pastedTextById = Map.make()
-      items->Array.forEach(item =>
-        switch item {
-        | PastedText({id, text}) => pastedTextById->Map.set(id, text)
-        | FileAttachment(_) => ()
-        }
-      )
-      let text = getExpandedTextFromEditable(el, pastedTextById)
-      if String.trim(text) != "" || Array.length(items) > 0 || hasAnnotations {
-        onSubmit(~text=String.trim(text), ~inputItems=items)
-        clearEditable(el)
-        setInputItems(_ => [])
-        setHasContent(_ => false)
-      }
-    })
-  }
-
-  let isInputDisabled = !hasActiveACPSession || isAgentRunning || disabled || noModelsConfigured
-  let isSubmitDisabled = isInputDisabled || !hasContent && !hasAnnotations || isEnrichingAnnotations
-
-  // Handle keydown in contentEditable.
-  // Gates on isInputDisabled and isEnrichingAnnotations but NOT on hasContent —
-  // hasContent is updated via a 100ms debounce and may be stale when Enter fires
-  // immediately after typing. doSubmit() reads the DOM directly to decide whether
-  // there's content to send, so the content check is handled there.
-  let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
-    let key = e->ReactEvent.Keyboard.key
-    let shiftKey = e->ReactEvent.Keyboard.shiftKey
-    if key == "Enter" && !shiftKey {
-      ReactEvent.Keyboard.preventDefault(e)
-      if !isInputDisabled && !isEnrichingAnnotations {
-        doSubmit()
-      }
-    }
-  }
-
-  // Determine placeholder text based on state
   let currentPlaceholder = if noModelsConfigured {
     "Connect an AI provider to start chatting."
   } else if disabled {
     disabledPlaceholder->Option.getOr("Input disabled")
-  } else if isAgentRunning {
-    "Waiting for response..."
   } else {
     placeholder
   }
 
   <div
     ref={ReactDOM.Ref.domRef(formRef)}
-    className={`bg-[#130d20] relative shrink-0 ${isDragging
-        ? "ring-2 ring-white/20 ring-inset"
-        : ""}`}
-    onDragOver={handleDragOver}
-    onDragLeave={handleDragLeave}
+    className="bg-[#130d20] relative shrink-0"
+    onDragOver={preventDefaultDropNavigation}
     onDrop={handleDrop}
   >
-    // Drag overlay
-    {isDragging
-      ? <div
-          className="absolute inset-0 z-20 flex items-center justify-center
-                     bg-[#130d20]/90 border-2 border-dashed border-violet-500/60 rounded-lg
-                     pointer-events-none"
-        >
-          <div className="flex flex-col items-center gap-2 text-violet-300">
-            <Icons.UploadIcon size=32 />
-            <span className="text-sm font-medium"> {React.string("Drop files here")} </span>
-            <span className="text-xs text-violet-400">
-              {React.string("Images and PDFs up to 10MB")}
-            </span>
-          </div>
-        </div>
-      : React.null}
-
-    // File size error toast
     {switch fileSizeError {
     | Some(error) =>
       <div className="px-3 pt-2">
@@ -911,130 +477,102 @@ let make = (
     | None => React.null
     }}
 
-    // ContentEditable input area with inline chips
-    <div className="px-3 py-2">
-      <div className="relative">
-        <div
-          ref={ReactDOM.Ref.domRef(editableRef)}
-          contentEditable={!isInputDisabled}
-          suppressContentEditableWarning=true
-          role="textbox"
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onInput={handleInput}
-          onClick={handleEditableClick}
-          className={[
-            "w-full min-h-[48px] max-h-[200px] px-4 py-3",
-            "border-b border-white/10",
-            "text-sm text-zinc-100",
-            "overflow-y-auto",
-            "focus:outline-none",
-            "whitespace-pre-wrap break-words",
-            if isInputDisabled {
-              "opacity-60 cursor-not-allowed"
-            } else {
-              ""
-            },
-          ]
-          ->Array.filter(c => c != "")
-          ->Array.join(" ")}
-        />
-        // Placeholder overlay (shown when contentEditable is empty)
-        {!hasContent
-          ? <div
-              className="absolute top-0 left-0 px-4 py-3 text-sm text-zinc-500 pointer-events-none select-none"
-            >
-              {React.string(currentPlaceholder)}
-            </div>
-          : React.null}
-      </div>
-    </div>
-
-    // Footer with tools and submit — toolbar anchored at bottom, always stable position
-    <div className="flex items-center justify-between px-3 pb-2 pt-1">
-      <div
-        className={`flex items-center gap-1 min-w-0 transition-opacity ${isAgentRunning
-            ? "opacity-40 pointer-events-none"
-            : ""}`}
-      >
-        // Select element button (optional)
-        {switch onSelectElement {
-        | Some(handler) =>
-          <SelectElementButton
-            onClick={handler}
-            isSelecting={isSelecting}
-            hasAnnotations={hasAnnotations}
-            showLabel={showSelectLabel}
+    <div
+      className="mx-3 mb-2 overflow-hidden rounded-xl border bg-white/[0.025] transition-colors
+                 focus-within:ring-1 focus-within:ring-white/20"
+      style={{borderColor: composerBorderColor}}
+    >
+      <div className="flex items-center px-2 py-1">
+        <div className="flex flex-1 items-center gap-1 min-w-0 overflow-hidden transition-opacity">
+          <AttachButton
+            onClick={openAttachPicker}
+            disabled={isInputDisabled || isEnrichingAnnotations}
+            showLabel={showToolbarLabels}
           />
-        | None => React.null
-        }}
 
-        {switch onDrawShape {
-        | Some(handler) =>
-          <PenToolButton onClick={handler} isDrawing={isDrawing} showLabel={showSelectLabel} />
-        | None => React.null
-        }}
-
-        // Attach button — icon only
-        <button
-          type_="button"
-          onClick={_ => {
-            fileInputRef.current
-            ->Nullable.toOption
-            ->Option.forEach(input => {
-              let clickElement: Dom.element => unit = %raw(`function(el) { el.click(); }`)
-              clickElement(input->Obj.magic)
-            })
-          }}
-          className="inline-flex items-center justify-center w-8 h-8 rounded-md flex-shrink-0
-                     text-zinc-400 hover:text-zinc-200 hover:bg-white/6
-                     transition-colors cursor-pointer"
-          title="Attach files (images, PDFs)"
-        >
-          <Icons.PlusIcon size=15 />
-        </button>
-        <input
-          ref={ReactDOM.Ref.domRef(fileInputRef)}
-          type_="file"
-          multiple=true
-          accept={acceptedTypesString}
-          onChange={handleFileInputChange}
-          className="hidden"
-        />
-
-        // Model selector — shown inline, shrinks when space is tight
-        {switch (isModelsConfigLoading, modelConfigOption) {
-        | (true, _) =>
-          <div
-            className="inline-flex items-center gap-1 h-8 px-2 text-xs text-zinc-500 shrink min-w-0"
-          >
-            <span className="truncate"> {React.string("Loading...")} </span>
-          </div>
-        | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
-          <button
-            type_="button"
-            onClick={_ => onConfigureProvider()}
-            className="inline-flex items-center gap-1 h-8 px-2 text-xs rounded-md
-                       text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
-                       transition-colors cursor-pointer shrink-0"
-          >
-            {React.string("Configure provider")}
-          </button>
-        | (false, Some(configOption)) =>
-          <div className="shrink min-w-0 max-w-[160px]">
-            <ModelSelector
-              configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
+          {switch onSelectElement {
+          | Some(handler) =>
+            <SelectElementButton
+              onClick={handler}
+              isSelecting={isSelecting}
+              hasAnnotations={hasAnnotations}
+              showLabel={showToolbarLabels}
             />
-          </div>
-        | (false, None) => React.null
-        }}
+          | None => React.null
+          }}
+
+          {switch onDrawShape {
+          | Some(handler) =>
+            <PenToolButton onClick={handler} isDrawing={isDrawing} showLabel={showToolbarLabels} />
+          | None => React.null
+          }}
+        </div>
       </div>
 
-      // Submit / Stop
-      <SubmitButton disabled={isSubmitDisabled} isAgentRunning onClick={doSubmit} onCancel />
+      <div className="border-t border-white/8">
+        <Client__PromptEditor
+          disabled={isInputDisabled}
+          placeholder={currentPlaceholder}
+          isEnrichingAnnotations
+          hasAnnotations
+          submitSignal
+          attachSignal
+          dropFilesSignal
+          droppedFiles
+          onHasContentChange={value => setHasContent(_ => value)}
+          onSubmit={handleEditorSubmit}
+          onPreviewImage={src => setPreviewSrc(_ => Some(src))}
+          onFileSizeError={message => setFileSizeError(_ => Some(message))}
+        />
+      </div>
+
+      <div className="flex min-w-0 items-center gap-2 border-t border-white/8 px-2 py-1">
+        <div
+          className={`grid min-w-0 flex-1 ${hasAgentSelector
+              ? "grid-cols-2"
+              : "grid-cols-1"} gap-2`}
+        >
+          {switch (agentCatalog, selectedAgentId) {
+          | (Some(agents), Some(agentId)) if agents->Array.length > 0 =>
+            <AgentSelector agents selectedAgentId={agentId} onAgentChange />
+          | _ => React.null
+          }}
+
+          {switch (isModelsConfigLoading, modelConfigOption) {
+          | (true, _) =>
+            <div className="inline-flex h-9 min-w-0 items-center gap-1 px-2 text-xs">
+              <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
+              <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+              <span className="truncate text-zinc-500"> {React.string("Loading...")} </span>
+            </div>
+          | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
+            <button
+              type_="button"
+              onClick={_ => onConfigureProvider()}
+              className="inline-flex h-9 min-w-0 items-center gap-1 rounded-md px-2 text-xs
+                         text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
+                         transition-colors cursor-pointer"
+            >
+              <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
+              <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+              <span className="truncate"> {React.string("Configure provider")} </span>
+            </button>
+          | (false, Some(configOption)) =>
+            <div className="min-w-0 overflow-hidden">
+              <ModelSelector
+                configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
+              />
+            </div>
+          | (false, None) => React.null
+          }}
+        </div>
+
+        <SubmitButton
+          disabled={isSubmitDisabled} showStop={showStopButton} onClick={doSubmit} onCancel
+        />
+      </div>
     </div>
 
-    // Image lightbox preview
     {switch previewSrc {
     | Some(src) => <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
     | None => React.null

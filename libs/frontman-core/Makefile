@@ -1,26 +1,36 @@
 .DEFAULT_GOAL := help
 .PHONY: help build test test-watch test-coverage lint format clean
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help build test test-watch test-coverage lint format clean
+HELP_help := Display this help message
+HELP_build := Build ReScript
+HELP_test := Run tests
+HELP_test-watch := Run tests in watch mode
+HELP_test-coverage := Run tests with coverage
+HELP_lint := Check formatting
+HELP_format := Format code
+HELP_clean := Clean build artifacts
 
-build: ## Build ReScript
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+build:
 	yarn rescript build
 
-test: build ## Run tests
+test: build
 	yarn vitest run
 
-test-watch: ## Run tests in watch mode
+test-watch:
 	yarn vitest
 
-test-coverage: build ## Run tests with coverage
+test-coverage: build
 	yarn vitest run --coverage
 
-lint: ## Check formatting
+lint:
 	yarn rescript format --check
 
-format: ## Format code
+format:
 	yarn rescript format
 
-clean: ## Clean build artifacts
+clean:
 	yarn rescript clean

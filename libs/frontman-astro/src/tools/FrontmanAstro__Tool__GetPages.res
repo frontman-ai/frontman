@@ -1,6 +1,3 @@
-// Get client pages tool - lists Astro pages from the filesystem
-// Excludes API routes (src/pages/api/) - use a separate tool for those
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -8,7 +5,7 @@ module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext
 module PathStringUtils = FrontmanAiFrontmanCore.FrontmanCore__PathStringUtils
 
 let name = "get_client_pages"
-let visibleToAgent = true
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 
 let description = `Lists Astro client pages from the pages directory.
 
@@ -17,13 +14,12 @@ Parameters: None
 Returns array of page paths based on file-system routing conventions.
 Excludes API routes (src/pages/api/) - focuses on renderable pages only.`
 
-// Dynamic route types in Astro
 @schema
 type dynamicType =
-  | @as("static") Static // no brackets
-  | @as("single") SingleParam // [slug]
-  | @as("rest") RestParam // [...slug]
-  | @as("optional") OptionalParam // [[slug]]
+  | @as("static") Static
+  | @as("single") SingleParam
+  | @as("rest") RestParam
+  | @as("optional") OptionalParam
 
 @schema
 type input = {
@@ -46,7 +42,8 @@ type page = {
 @schema
 type output = array<page>
 
-// Analyze a segment for dynamic route type
+let (visibleToAgent, outputJsonSchema) = (true, None)
+
 let analyzeDynamicSegment = (segment: string): dynamicType => {
   if segment->String.startsWith("[[") && segment->String.endsWith("]]") {
     OptionalParam
@@ -59,13 +56,10 @@ let analyzeDynamicSegment = (segment: string): dynamicType => {
   }
 }
 
-// Check if segment is any kind of dynamic
 let isDynamicSegment = (segment: string): bool => {
   analyzeDynamicSegment(segment) != Static
 }
 
-// Convert file path to route path
-// Normalizes separators first since Path.join uses \ on Windows but routes need /
 let fileToRoute = (filePath: string): string => {
   filePath
   ->PathStringUtils.toForwardSlashes
@@ -74,8 +68,6 @@ let fileToRoute = (filePath: string): string => {
   ->(p => p == "" ? "/" : p)
 }
 
-// Get the most significant dynamic type from all segments
-// Priority: rest > optional > single > static
 let getMostSignificantDynamicType = (segments: array<string>): dynamicType => {
   segments->Array.reduce(Static, (acc, segment) => {
     let segType = analyzeDynamicSegment(segment)
@@ -91,8 +83,6 @@ let getMostSignificantDynamicType = (segments: array<string>): dynamicType => {
   })
 }
 
-// Recursively find page files
-// Returns file paths relative to sourceRoot so they work with other tools (read_file, grep, etc.)
 let rec findPages = async (
   baseDir: string,
   currentPath: string,
@@ -109,11 +99,9 @@ let rec findPages = async (
       let entryPath = Path.join([fullPath, entry])
       let stats = await Fs.Promises.lstat(entryPath)
 
-      // Skip symlinks to avoid following links outside the project
       if Fs.isSymbolicLink(stats) {
         []
       } else if Fs.isDirectory(stats) {
-        // Skip special directories
         if entry->String.startsWith("_") || entry == "api" || entry == "components" {
           []
         } else {
@@ -128,15 +116,12 @@ let rec findPages = async (
         let filePath = Path.join([currentPath, entry])
         let routePath = fileToRoute(filePath)
         let filePathNoExt = filePath->String.replaceRegExp(/\.(astro|md|mdx|html)$/, "")
-        // Normalize separators for cross-platform segment splitting
         let segments =
           filePathNoExt
           ->PathStringUtils.toForwardSlashes
           ->String.split("/")
         let hasDynamic = segments->Array.some(isDynamicSegment)
         let dynType = getMostSignificantDynamicType(segments)
-        // Make path relative to sourceRoot so the agent can pass it
-        // directly to read_file, grep, etc.
         let relativeToSourceRoot = PathContext.toRelativePath(~sourceRoot, ~absolutePath=entryPath)
         [
           {
@@ -155,7 +140,6 @@ let rec findPages = async (
     pagesArrays->Array.flat
   } catch {
   | exn =>
-    // Only swallow "directory not found" (ENOENT) — let other errors propagate
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("")
     if msg->String.includes("ENOENT") {
       []
@@ -170,7 +154,6 @@ let execute = async (
   _input: input,
 ): Tool.MCP.CallToolResult.t => {
   try {
-    // Try src/pages directory first
     let srcPages = await findPages(
       "src/pages",
       "",
@@ -178,7 +161,6 @@ let execute = async (
       ~sourceRoot=ctx.sourceRoot,
     )
 
-    // Try pages directory (legacy)
     let rootPages = await findPages(
       "pages",
       "",
@@ -188,7 +170,7 @@ let execute = async (
 
     let allPages = Array.concat(srcPages, rootPages)
 
-    Tool.jsonResult(allPages, outputSchema)
+    Tool.unstructuredResult(allPages, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")

@@ -12,13 +12,13 @@ The hosted Frontman service is offered exclusively to entrepreneurs, freelancers
 
 Consumers within the meaning of Section 13 of the German Civil Code (BGB) are not permitted to register for, purchase, or use paid hosted Frontman subscriptions. By creating an account, starting a trial, or purchasing a subscription, you confirm that you are acting exclusively for business, commercial, freelance, or professional purposes and not as a consumer.
 
-## Hosted Service and Open Source Software
+## Hosted Service and Source-Available Software
 
-Frontman includes hosted services operated by us and open-source software that can be self-hosted.
+Frontman includes hosted services operated by us and source-available software that can be self-hosted.
 
-These Terms govern the hosted Frontman service, including hosted account access, hosted history, hosted orchestration, billing, and related support. Open-source code remains governed by its applicable open-source license. The client libraries and framework integrations are licensed under the Apache License 2.0, and the Frontman server is licensed under the GNU Affero General Public License v3.0, unless a different license is stated in the relevant repository file.
+These Terms govern the hosted Frontman service, including hosted account access, hosted history, hosted orchestration, billing, and related support. The browser client and JavaScript framework integrations are licensed under the Apache License 2.0. The WordPress plugin is licensed under GPL-2.0-or-later. Frontman Server is licensed under the GNU Affero General Public License v3.0 only and is also subject to the AI Supplementary Terms, which restrict AI training and AI-assisted competitive reproduction.
 
-If these Terms conflict with an applicable open-source license for open-source code, the open-source license controls for that code. Hosted service access, hosted account functionality, billing, and support remain governed by these Terms.
+If these Terms conflict with the applicable repository terms for software code, those repository terms control for that code. Hosted service access, hosted account functionality, billing, and support remain governed by these Terms.
 
 ## Accounts
 
@@ -121,7 +121,7 @@ After termination, your right to access the hosted service ends. You remain resp
 
 ## Intellectual Property
 
-We and our licensors retain all rights in Frontman, the hosted service, software, trademarks, logos, website content, documentation, and other materials, except for Customer Content and open-source software rights granted under applicable open-source licenses.
+We and our licensors retain all rights in Frontman, the hosted service, software, trademarks, logos, website content, documentation, and other materials, except for Customer Content and software rights granted under applicable repository terms.
 
 Subject to these Terms, we grant you a limited, non-exclusive, non-transferable, revocable right to access and use the hosted service for your internal business purposes during your subscription period.
 

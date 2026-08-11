@@ -1,6 +1,9 @@
 open Vitest
 
 module ToolCallBlock = Client__ToolCallBlock
+module Provider = Client__FrontmanProvider
+module Message = Client__State__Types.Message
+module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 describe("cleanToolName", _t => {
   test("lowercases without stripping any prefix", t => {
@@ -32,19 +35,6 @@ describe("isInlineTool", _t => {
   })
 })
 
-describe("isFileTool", _t => {
-  test("returns true for file tools only", t => {
-    t->expect(ToolCallBlock.isFileTool("read_file"))->Expect.toBe(true)
-    t->expect(ToolCallBlock.isFileTool("write_file"))->Expect.toBe(true)
-    t->expect(ToolCallBlock.isFileTool("list_files"))->Expect.toBe(true)
-    t->expect(ToolCallBlock.isFileTool("list_dir"))->Expect.toBe(true)
-  })
-
-  test("returns false for execute_js", t => {
-    t->expect(ToolCallBlock.isFileTool("execute_js"))->Expect.toBe(false)
-  })
-})
-
 describe("getTarget", _t => {
   test("returns file path from tool input", t => {
     let input = Some(JSON.parseOrThrow(`{"target_file": "src/app.tsx"}`))
@@ -68,4 +58,34 @@ describe("getTarget", _t => {
   test("returns None for execute_js without input", t => {
     t->expect(ToolCallBlock.getTarget("execute_js", None))->Expect.toEqual(None)
   })
+})
+
+test("initial tool-call state follows ACP status", t => {
+  t
+  ->expect(Provider.toolCallState(~status=Some(ACP.Completed), ~rawInput=None))
+  ->Expect.toBe(Message.OutputAvailable)
+  t
+  ->expect(Provider.toolCallState(~status=Some(ACP.Failed), ~rawInput=None))
+  ->Expect.toBe(Message.OutputError)
+  t
+  ->expect(Provider.toolCallState(~status=Some(ACP.Pending), ~rawInput=None))
+  ->Expect.toBe(Message.InputStreaming)
+})
+
+test("initial tool call retains output without overriding status", t => {
+  let rawOutput = JSON.Encode.object(Dict.make())
+  let call = Provider.makeToolCall(
+    ~id="call-1",
+    ~title="tool",
+    ~status=Some(ACP.Pending),
+    ~content=None,
+    ~rawInput=None,
+    ~rawOutput=Some(rawOutput),
+    ~parentAgentId=None,
+    ~spawningToolName=None,
+  )
+  t->expect(call.state)->Expect.toBe(Message.InputStreaming)
+  t
+  ->expect(call.result->Option.flatMap(result => result.rawOutput))
+  ->Expect.toEqual(Some(rawOutput))
 })

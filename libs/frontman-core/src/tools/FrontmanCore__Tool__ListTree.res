@@ -1,8 +1,3 @@
-// ListTree tool - project directory tree with monorepo workspace detection
-//
-// Dual-purpose: called implicitly during MCP init for project overview,
-// and available to the agent for on-demand deeper exploration.
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module ChildProcess = FrontmanCore__ChildProcess
@@ -13,7 +8,7 @@ module PathRecovery = FrontmanCore__PathRecovery
 module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.listTree
-let visibleToAgent = true
+let access = Tool.Read
 let description = `Returns a **recursive directory tree** of the project structure, with monorepo workspace detection.
 
 Use list_tree to get oriented in a codebase, understand the layout, or explore a subtree. Prefer this over chaining multiple list_files calls. For a flat listing of one directory, use list_files instead.
@@ -44,14 +39,14 @@ type output = {
   monorepoType: option<string>,
 }
 
-// Sury schemas for parsing package.json fields
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
+
 @schema
 type packageJsonName = {name?: string}
 
 @schema
 type packageJsonWorkspacesObj = {packages?: array<string>}
 
-// Directories to always skip in the tree output
 let noiseDirs = [
   "node_modules",
   ".git",
@@ -73,7 +68,6 @@ let noiseDirs = [
 
 let isNoiseDir = (name: string): bool => noiseDirs->Array.includes(name)
 
-// Max entries at any level before truncation
 let maxEntriesPerLevel = 15
 let showEntriesBeforeTruncation = 10
 
@@ -139,7 +133,6 @@ let getSortedChildren = (node: trieNode): array<sortedEntry> => {
     })
     ->Array.filter(e => !isNoiseDir(e.entryName))
 
-  // Sort: directories first, then files, alphabetical within each group
   entries->Array.toSorted((a, b) => {
     switch (a.isDir, b.isDir) {
     | (true, false) => -1.0
@@ -191,13 +184,11 @@ let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string
         | false => ""
         }
 
-        // Build the full relative path for this entry to match against workspace paths
         let entryRelPath = switch parentPath {
         | None => entry.entryName
         | Some(p) => p ++ "/" ++ entry.entryName
         }
 
-        // Check if this directory is a workspace root
         let workspaceAnnotation = switch entry.isDir {
         | true =>
           switch workspacePaths->Dict.get(entryRelPath) {
@@ -236,7 +227,6 @@ let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string
   lines->Array.join("\n")
 }
 
-// Build a mapping from full relative workspace path => workspace name for annotation.
 let buildWorkspacePathLookup = (workspaces: array<workspace>): Dict.t<string> => {
   let lookup = Dict.make()
   workspaces->Array.forEach(ws => {
@@ -256,7 +246,6 @@ let readJsonFile = async (path: string): result<JSON.t, string> => {
   }
 }
 
-// Read the "name" field from a package.json using Sury schema
 let readPackageName = async (dirPath: string): option<string> => {
   let pkgPath = Path.join([dirPath, "package.json"])
   switch await readJsonFile(pkgPath) {
@@ -271,20 +260,16 @@ let readPackageName = async (dirPath: string): option<string> => {
   }
 }
 
-// Extract workspace globs from a parsed package.json JSON value.
-// workspaces can be either an array of strings or an object with a "packages" key.
 let extractWorkspaceGlobs = (json: JSON.t): option<array<string>> => {
   switch json->JSON.Decode.object {
   | Some(obj) =>
     switch obj->Dict.get("workspaces") {
     | Some(wsJson) =>
-      // Try as array<string> first
       try {
         let globs = S.parseOrThrow(wsJson, ~to=S.array(S.string))
         Some(globs)
       } catch {
       | _ =>
-        // Try as {packages: array<string>}
         try {
           let wsObj = S.parseOrThrow(wsJson, ~to=packageJsonWorkspacesObjSchema)
           wsObj.packages
@@ -298,7 +283,6 @@ let extractWorkspaceGlobs = (json: JSON.t): option<array<string>> => {
   }
 }
 
-// Resolve workspace glob patterns (e.g. "apps/*") against actual directories
 let resolveWorkspaceGlobs = async (rootPath: string, globs: array<string>): array<string> => {
   let results: array<string> = []
 
@@ -306,7 +290,6 @@ let resolveWorkspaceGlobs = async (rootPath: string, globs: array<string>): arra
   ->Array.map(async glob => {
     switch glob->String.endsWith("/*") {
     | true =>
-      // Directory glob: "apps/*" -> list entries in "apps/"
       let parentDir = glob->String.slice(~start=0, ~end=String.length(glob) - 2)
       let fullParent = Path.join([rootPath, parentDir])
       try {
@@ -328,7 +311,6 @@ let resolveWorkspaceGlobs = async (rootPath: string, globs: array<string>): arra
         Console.warn(`ListTree: failed to resolve workspace glob "${glob}": ${msg}`)
       }
     | false =>
-      // Exact path
       let fullPath = Path.join([rootPath, glob])
       switch await FsUtils.pathExists(fullPath) {
       | true => results->Array.push(glob)
@@ -347,7 +329,6 @@ type monorepoInfo = {
 }
 
 let detectMonorepo = async (rootPath: string): monorepoInfo => {
-  // Check for package.json workspaces
   let pkgJsonResult = await readJsonFile(Path.join([rootPath, "package.json"]))
 
   let workspaceGlobs = switch pkgJsonResult {
@@ -355,12 +336,10 @@ let detectMonorepo = async (rootPath: string): monorepoInfo => {
   | Error(_) => None
   }
 
-  // Detect monorepo type indicators
   let hasTurbo = await FsUtils.pathExists(Path.join([rootPath, "turbo.json"]))
   let hasNx = await FsUtils.pathExists(Path.join([rootPath, "nx.json"]))
   let hasPnpmWorkspace = await FsUtils.pathExists(Path.join([rootPath, "pnpm-workspace.yaml"]))
 
-  // Determine monorepo type
   let monorepoType = switch (workspaceGlobs, hasTurbo, hasNx, hasPnpmWorkspace) {
   | (_, true, _, _) => Some("turborepo")
   | (_, _, true, _) => Some("nx")
@@ -369,7 +348,6 @@ let detectMonorepo = async (rootPath: string): monorepoInfo => {
   | _ => None
   }
 
-  // Resolve workspaces
   let workspaces = switch workspaceGlobs {
   | Some(globs) =>
     let resolvedPaths = await resolveWorkspaceGlobs(rootPath, globs)
@@ -388,9 +366,6 @@ let detectMonorepo = async (rootPath: string): monorepoInfo => {
   | None => []
   }
 
-  // If no npm/yarn workspaces but pnpm-workspace.yaml exists, try to read it
-  // For now we don't parse YAML -- just mark as pnpm-workspaces. The workspace
-  // globs from package.json are typically authoritative when they exist.
   {monorepoType, workspaces}
 }
 
@@ -417,8 +392,6 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
   | Error(err) => Error(PathContext.formatError(err))
   | Ok(result) =>
     try {
-      // If the agent passed a file path, use its parent directory instead.
-      // ListTree is directory-centric — a file path means "show the tree near this file".
       let initialPath = try {
         let stats = await Fs.Promises.stat(result.resolvedPath)
         switch Fs.isFile(stats) {
@@ -429,8 +402,6 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
       | _ => result.resolvedPath
       }
 
-      // Path-climb recovery: when the requested directory does not exist,
-      // climb to the nearest existing parent and continue discovery there.
       let nearestDir = await PathRecovery.nearestExistingDir(
         ~sourceRoot=ctx.sourceRoot,
         ~startPath=initialPath,
@@ -445,30 +416,22 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
           ~absolutePath=fullPath,
         )
 
-        // Get tracked files
         let filesResult = await getTrackedFiles(~cwd=fullPath)
 
         let files = switch filesResult {
         | Ok(f) => f
         | Error(errMsg) =>
-          // Fallback: single-level readdir if not a git repo.
-          // Known limitation: produces a flat list (depth 1) regardless of the
-          // depth parameter because readdir returns filenames, not nested paths.
           Console.warn(`ListTree: ${errMsg}, falling back to readdir`)
           let entries = await Fs.Promises.readdir(fullPath)
           entries
         }
 
-        // Build trie
         let trie = buildTrie(files)
 
-        // Detect monorepo (only at the resolved root)
         let monoInfo = await detectMonorepo(fullPath)
 
-        // Build workspace path lookup for annotations
         let workspacePaths = buildWorkspacePathLookup(monoInfo.workspaces)
 
-        // Render
         let renderedTree = renderTree(trie, ~maxDepth, ~workspacePaths)
 
         let tree = switch requestedRecovered {
@@ -497,7 +460,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch await executeOutput(ctx, input) {
-  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Ok(output) => Tool.structuredResult(output, outputSchema)
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

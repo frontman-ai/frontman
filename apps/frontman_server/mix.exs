@@ -41,9 +41,6 @@ defmodule FrontmanServer.MixProject do
     ]
   end
 
-  # Configuration for the OTP application.
-  #
-  # Type `mix help compile.app` for more information.
   def application do
     [
       mod: {FrontmanServer.Application, []},
@@ -51,13 +48,9 @@ defmodule FrontmanServer.MixProject do
     ]
   end
 
-  # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Specifies your project dependencies.
-  #
-  # Type `mix help deps` for examples and options.
   defp deps do
     [
       {:swarm_ai, path: "../swarm_ai"},
@@ -67,9 +60,10 @@ defmodule FrontmanServer.MixProject do
       {:phoenix, "~> 1.8.1"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
+      {:polymorphic_embed, "~> 5.0"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.1"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:req_llm, github: "agentjido/req_llm", branch: "main", override: true},
       {:heroicons,
@@ -92,11 +86,8 @@ defmodule FrontmanServer.MixProject do
       {:bandit, "~> 1.5"},
       {:zoi, "~> 0.14"},
       {:dotenvy, "~> 1.1"},
-      # Sentry error tracking
       {:sentry, "~> 13.0"},
-      # WorkOS for OAuth (GitHub, Google)
-      {:workos, "~> 1.1"},
-      # ==================DEV/Test=========================
+      {:workos, "~> 2.0"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
@@ -104,10 +95,8 @@ defmodule FrontmanServer.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_json_schema, "~> 0.10", only: :test},
       {:bypass, "~> 2.1", only: :test},
       {:mox, "~> 1.2", only: :test},
-      # Override transitive dep to pick up charlist deprecation fix (not yet released to Hex)
       {:toml, github: "bitwalker/toml-elixir", branch: "main", override: true}
     ]
   end

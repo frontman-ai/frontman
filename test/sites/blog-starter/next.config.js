@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // No special configuration needed for API routes
+	transpilePackages: ["@frontman-ai/nextjs"],
+	turbopack: {
+		root: require("path").resolve(__dirname, "../../.."),
+	},
 };
 
 module.exports = nextConfig;

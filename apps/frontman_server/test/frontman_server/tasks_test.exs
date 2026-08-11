@@ -5,7 +5,15 @@ defmodule FrontmanServer.TasksTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Migration.Runner
-  alias FrontmanServer.Repo.Migrations.{BackfillInteractionTurnNumbers, BackfillUserMessageModels}
+
+  alias FrontmanServer.Repo.Migrations.{
+    BackfillInteractionTurnNumbers,
+    BackfillToolResultPayloads,
+    BackfillTurnStartedForUserMessages,
+    BackfillUserMessageModels,
+    ScrubToolResultMetadata
+  }
+
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -45,10 +53,8 @@ defmodule FrontmanServer.TasksTest do
     test "returns not_found when accessing task owned by different user", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      # Create a different user/scope
       other_scope = user_scope_fixture()
 
-      # Returns :not_found to prevent task enumeration attacks
       assert {:error, :not_found} = Tasks.get_task(other_scope, task_id)
     end
   end
@@ -59,7 +65,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
 
-      insert_interaction_row(task_id, Interaction.UserMessage, 1)
+      insert_started_user_message_row(task_id, 1)
       insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
 
       assert {:ok, 1, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
@@ -70,19 +76,18 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, 1, []} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
     end
 
-    test "returns an error for turn-scoped rows missing turn numbers", %{scope: scope} do
-      task_id = task_fixture(scope).id
+    test "accepted user messages without turns do not create an active run", %{scope: scope} do
+      task = task_fixture(scope)
 
-      insert_interaction_row(task_id, Interaction.UserMessage, nil)
+      insert_accepted_user_message!(task, "queued")
 
-      assert {:error, {:missing_turn_number, :user_message}} =
-               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task.id)
     end
 
     test "returns an error for task-scoped rows with turn numbers", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      insert_interaction_row(task_id, Interaction.DiscoveredProjectRule, 1)
+      insert_legacy_interaction_row(task_id, Interaction.DiscoveredProjectRule, 1, %{})
 
       assert {:error, {:unknown_interaction_type, :discovered_project_rule}} =
                Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
@@ -90,21 +95,95 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "submit_user_message/2" do
-    test "returns an error instead of raising when existing rows have invalid turn state", %{
-      scope: scope
-    } do
-      task_id = task_fixture(scope).id
+    test "persists an accepted user message without starting a turn", %{scope: scope} do
+      task = task_fixture(scope)
 
-      insert_interaction_row(task_id, Interaction.UserMessage, nil)
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message: user_content("hello"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
 
-      assert {:error, {:missing_turn_number, :user_message}} =
-               Tasks.submit_user_message(
+      assert [row] = db_rows(task.id)
+      assert row.type == :user_message
+      assert row.turn_number == nil
+      assert row.data.agent_id == "test-frontman"
+    end
+
+    test "requires agent id", %{scope: scope} do
+      task = task_fixture(scope)
+
+      assert Tasks.submit_user_message(scope, %{
+               task_id: task.id,
+               message: user_content("hello"),
+               model: "openrouter:openai/gpt-5.5"
+             }) == {:error, :missing_agent}
+    end
+
+    test "accepts another user message while a turn is running", %{scope: scope} do
+      task = task_fixture(scope)
+      start_turn_fixture(scope, task.id, user_content("first"))
+
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message: user_content("second"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert [:user_message, :turn_started, :user_message] =
+               task.id
+               |> db_rows()
+               |> Enum.map(& &1.type)
+    end
+  end
+
+  describe "run_next_turn/3 agent identity" do
+    test "persists configured agent identity", %{scope: scope} do
+      task = task_fixture(scope)
+
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message: user_content("hello"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert :ok =
+               Tasks.run_next_turn(
                  scope,
-                 Map.merge(execution_request_fixture(), %{
-                   task_id: task_id,
-                   message: user_content("hello")
-                 })
+                 task.id,
+                 execution_request_fixture(model: "missing:test")
                )
+
+      assert {:ok, loaded_task} = Tasks.get_task(scope, task.id)
+
+      assert %Interaction.TurnStarted{agent_id: "test-frontman"} =
+               Enum.find(
+                 Tasks.interactions(loaded_task),
+                 &match?(%Interaction.TurnStarted{}, &1)
+               )
+    end
+
+    test "rejects unknown agents before persisting TurnStarted", %{scope: scope} do
+      task = task_fixture(scope)
+
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message: user_content("hello"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "unknown-agent"
+               })
+
+      assert {:error, :unknown_agent} =
+               Tasks.run_next_turn(scope, task.id, execution_request_fixture())
+
+      refute Enum.any?(db_rows(task.id), &(&1.type == :turn_started))
     end
   end
 
@@ -132,7 +211,7 @@ defmodule FrontmanServer.TasksTest do
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      refute Enum.any?(task.interactions, &match?(%Interaction.AgentError{}, &1))
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert [
                %Interaction.ToolResult{
@@ -140,9 +219,13 @@ defmodule FrontmanServer.TasksTest do
                  result: result,
                  is_error: true
                }
-             ] = Enum.filter(task.interactions, &match?(%Interaction.ToolResult{}, &1))
+             ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 
-      assert result == MCP.tool_result_error("Interrupted by restart")
+      assert result == %{
+               "content" => [%{"type" => "text", "text" => "Interrupted by restart"}],
+               "isError" => true,
+               "_meta" => %{}
+             }
 
       assert {:ok, ^turn_number, [%Interaction.ToolCall{tool_call_id: "question_1"}]} =
                Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
@@ -150,16 +233,83 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "swarm event persistence" do
+    test "persists mixed-key provider usage with known fields only", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+
+      usage = %{
+        "cost" => 0.21366,
+        "cost_details" => %{"upstream_inference_cost" => 0.21366},
+        "cache_creation_tokens" => 10,
+        input_tokens: 100,
+        output_tokens: 50,
+        reasoning_tokens: 15,
+        cached_tokens: 25,
+        total_tokens: 175,
+        provider_exact_field: "preserved",
+        nested_provider_data: %{"anything" => [1, 2, 3]}
+      }
+
+      response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
+
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, response_event(response))
+
+      assert [
+               %Interaction.AgentResponse{
+                 metadata: %{},
+                 timestamp: ~U[2026-07-14 12:30:01.000000Z],
+                 usage: %Interaction.AgentResponse.Usage{} = stored_usage
+               }
+             ] = agent_responses(task_id)
+
+      usage_attrs = Map.from_struct(stored_usage)
+
+      assert usage_attrs == %{
+               input_tokens: 100,
+               output_tokens: 50,
+               reasoning_tokens: 15,
+               cached_tokens: 25,
+               total_tokens: 175,
+               cache_creation_tokens: 10
+             }
+    end
+
+    test "omits response usage when usage is absent", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+      response = %SwarmAi.LLM.Response{content: "hello", usage: nil}
+
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, response_event(response))
+
+      assert [%Interaction.AgentResponse{usage: nil}] = agent_responses(task_id)
+    end
+
     test "rejects invalid response metadata", %{scope: scope} do
       task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       response = %SwarmAi.LLM.Response{content: "hello", metadata: %{response_id: 123}}
 
-      assert {:error, changeset} =
-               Tasks.handle_swarm_event(scope, task_id, turn_number, {:response, response})
+      assert_raise Ecto.InvalidChangesetError, ~r/response_id/, fn ->
+        Tasks.handle_swarm_event(scope, task_id, turn_number, response_event(response))
+      end
+    end
 
-      assert %{data: ["metadata.response_id must be a string"]} = errors_on(changeset)
+    test "rejects invalid response usage", %{scope: scope} do
+      for usage <- [
+            "not a map",
+            ["not", "a", "map"],
+            %{input_tokens: -1},
+            %{output_tokens: "five"}
+          ] do
+        task_id = task_fixture(scope).id
+        turn_number = start_turn_fixture(scope, task_id)
+        response = %SwarmAi.LLM.Response{content: "hello", usage: usage}
+
+        assert_raise Ecto.InvalidChangesetError, ~r/usage/, fn ->
+          Tasks.handle_swarm_event(scope, task_id, turn_number, response_event(response))
+        end
+      end
     end
   end
 
@@ -177,7 +327,7 @@ defmodule FrontmanServer.TasksTest do
             {Interaction.ToolCall, %{"tool_call_id" => "call_2"}},
             {Interaction.ToolResult, %{"tool_call_id" => "call_2"}}
           ] do
-        insert_interaction_row(task_id, type, nil, data)
+        insert_legacy_interaction_row(task_id, type, nil, data)
       end
 
       run_backfill_migration()
@@ -199,28 +349,194 @@ defmodule FrontmanServer.TasksTest do
     test "sets the legacy default model on old user messages", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      insert_interaction_row(task_id, Interaction.UserMessage, 1, %{"messages" => ["hello"]})
+      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
+        "messages" => ["hello"]
+      })
+
       run_user_message_model_backfill_migration()
 
-      assert [%{data: %{"model" => "openrouter:google/gemini-3-flash-preview"}}] =
+      assert [
+               %{
+                 data: %Interaction.UserMessage{model: "openrouter:google/gemini-3-flash-preview"}
+               }
+             ] =
                InteractionSchema.for_task(task_id)
-               |> InteractionSchema.of_type(Interaction.UserMessage)
+               |> InteractionSchema.of_type(:user_message)
                |> Repo.all()
     end
 
     test "leaves explicit models untouched", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      insert_interaction_row(task_id, Interaction.UserMessage, 1, %{
+      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
         "model" => "anthropic:claude-sonnet-4-6"
       })
 
       run_user_message_model_backfill_migration()
 
-      assert [%{data: %{"model" => "anthropic:claude-sonnet-4-6"}}] =
+      assert [%{data: %Interaction.UserMessage{model: "anthropic:claude-sonnet-4-6"}}] =
                InteractionSchema.for_task(task_id)
-               |> InteractionSchema.of_type(Interaction.UserMessage)
+               |> InteractionSchema.of_type(:user_message)
                |> Repo.all()
+    end
+  end
+
+  describe "turn-started backfill migration" do
+    test "converts legacy turn-numbered user messages into accepted messages plus TurnStarted", %{
+      scope: scope
+    } do
+      task_id = task_fixture(scope).id
+
+      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
+        "messages" => ["legacy hello"],
+        "model" => "openrouter:openai/gpt-5.5"
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.AgentResponse, 1, %{"content" => "hello"})
+
+      insert_legacy_interaction_row(task_id, Interaction.AgentCompleted, 1, %{})
+
+      run_turn_started_backfill_migration()
+
+      rows = db_rows(task_id)
+      user_message = Enum.find(rows, &(&1.type == :user_message))
+
+      assert %InteractionSchema{turn_number: nil} = user_message
+
+      assert %InteractionSchema{
+               type: :turn_started,
+               turn_number: 1,
+               data: %Interaction.TurnStarted{
+                 agent_id: nil,
+                 user_message_ids: [user_message_id]
+               }
+             } = Enum.find(rows, &(&1.type == :turn_started))
+
+      assert user_message_id == user_message.id
+    end
+  end
+
+  describe "tool-result payload backfill migration" do
+    test "wraps legacy strings as MCP text results and preserves existing MCP maps", %{
+      scope: scope
+    } do
+      task_id = task_fixture(scope).id
+      existing_mcp_result = MCP.tool_result_text("already canonical")
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 1, %{
+        "tool_call_id" => "legacy-call",
+        "result" => "[{\"name\":\"README.md\"}]",
+        "is_error" => true
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 2, %{
+        "tool_call_id" => "canonical-call",
+        "result" => existing_mcp_result,
+        "is_error" => false
+      })
+
+      run_tool_result_payload_backfill_migration()
+
+      assert [legacy, existing] =
+               InteractionSchema.for_task(task_id)
+               |> InteractionSchema.of_type(:tool_result)
+               |> InteractionSchema.ordered()
+               |> Repo.all()
+
+      assert legacy.data.result == %{
+               "content" => [
+                 %{"type" => "text", "text" => "[{\"name\":\"README.md\"}]"}
+               ],
+               "isError" => true
+             }
+
+      assert existing.data.result == existing_mcp_result
+    end
+  end
+
+  describe "tool-result metadata scrub migration" do
+    test "scrubs historical result metadata without changing tool-owned payloads", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      image_data = Base.encode64(<<0, 1, 2, 254, 255>>)
+      structured_content = %{"items" => [%{"name" => "README.md"}], "count" => 1}
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 1, %{
+        "tool_call_id" => "legacy-call",
+        "result" => %{
+          "content" => [
+            %{"type" => "image", "data" => image_data, "mimeType" => "image/png"}
+          ],
+          "structuredContent" => structured_content,
+          "isError" => false,
+          "_meta" => %{
+            "envApiKey" => "sk-fake-migration-secret",
+            "model" => "fake-provider:fake-model",
+            "unapproved" => %{"nested" => true}
+          },
+          "unknown" => "drop me"
+        },
+        "is_error" => true
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 2, %{
+        "tool_call_id" => "null-structured-content",
+        "result" => %{
+          "content" => [%{"type" => "text", "text" => "null structured content"}],
+          "structuredContent" => nil
+        },
+        "is_error" => false
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 3, %{
+        "tool_call_id" => "absent-structured-content",
+        "result" => %{
+          "content" => [%{"type" => "text", "text" => "absent structured content"}]
+        },
+        "is_error" => false
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.AgentCompleted, 1, %{
+        "result" => %{"unknown" => "leave me"}
+      })
+
+      run_tool_result_metadata_scrub_migration(:up)
+
+      assert [tool_result, null_structured_content, absent_structured_content] =
+               tool_results =
+               task_id
+               |> raw_interaction_data("tool_result")
+               |> Enum.map(& &1["result"])
+
+      assert tool_result == %{
+               "content" => [
+                 %{"type" => "image", "data" => image_data, "mimeType" => "image/png"}
+               ],
+               "structuredContent" => structured_content,
+               "isError" => false,
+               "unknown" => "drop me",
+               "_meta" => %{}
+             }
+
+      assert null_structured_content == %{
+               "content" => [%{"type" => "text", "text" => "null structured content"}],
+               "structuredContent" => nil,
+               "_meta" => %{}
+             }
+
+      assert absent_structured_content == %{
+               "content" => [%{"type" => "text", "text" => "absent structured content"}],
+               "_meta" => %{}
+             }
+
+      assert [%{"result" => %{"unknown" => "leave me"}}] =
+               raw_interaction_data(task_id, "agent_completed")
+
+      run_tool_result_metadata_scrub_migration(:down)
+
+      assert tool_results ==
+               task_id
+               |> raw_interaction_data("tool_result")
+               |> Enum.map(& &1["result"])
     end
   end
 
@@ -229,9 +545,50 @@ defmodule FrontmanServer.TasksTest do
       task_id = task_fixture(scope).id
       {:ok, user_message} = user_message_fixture(scope, task_id, user_content("not an error"))
 
-      assert_raise MatchError, fn ->
-        Tasks.retry_execution(scope, task_id, user_message.id, execution_request_fixture())
-      end
+      assert {:error, :not_found} =
+               Tasks.retry_execution(scope, task_id, user_message.id, execution_request_fixture())
+    end
+
+    test "rejects an older error after later interactions in the same turn", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      insert_started_user_message_row(task_id, 1)
+      insert_interaction_row(task_id, Interaction.AgentError, 1, %{"id" => "error-1"})
+
+      insert_interaction_row(task_id, Interaction.AgentRetry, 1, %{
+        "retried_error_id" => "error-1"
+      })
+
+      insert_interaction_row(task_id, Interaction.AgentCompleted, 1)
+
+      assert {:error, :stale_turn} =
+               Tasks.retry_execution(scope, task_id, "error-1", execution_request_fixture())
+    end
+
+    test "fills missing model from started turn user messages", %{scope: scope} do
+      task = task_fixture(scope)
+      start_turn_fixture(scope, task.id, user_content("failed"), "missing:test")
+
+      {:ok, error} = Tasks.record_agent_run_result(scope, task.id, 1, {:failed, "boom"})
+
+      assert :ok =
+               Tasks.retry_execution(scope, task.id, error.id, %{
+                 mcp_tools: [],
+                 project_traits: []
+               })
+
+      assert [_retry] =
+               task.id
+               |> db_rows()
+               |> Enum.filter(&(&1.type == :agent_retry))
+    end
+  end
+
+  describe "handle_swarm_event/4" do
+    test "returns persistence errors instead of crashing", %{scope: scope} do
+      missing_task_id = Ecto.UUID.generate()
+
+      assert {:error, :not_found} =
+               Tasks.handle_swarm_event(scope, missing_task_id, 1, :completed)
     end
   end
 
@@ -242,10 +599,17 @@ defmodule FrontmanServer.TasksTest do
       assert {:error, :not_running} =
                Tasks.resume_execution(scope, task_id, execution_request_fixture())
     end
+
+    test "fills missing model from started turn user messages", %{scope: scope} do
+      task = task_fixture(scope)
+      start_turn_fixture(scope, task.id, user_content("running"), "missing:test")
+
+      assert :ok = Tasks.resume_execution(scope, task.id, %{mcp_tools: [], project_traits: []})
+    end
   end
 
-  describe "Swarm message conversion" do
-    test "full tool_call + tool_result round-trip produces valid Swarm messages", %{scope: scope} do
+  describe "tool result persistence and Swarm message conversion" do
+    test "scrubs tool result metadata through its full round-trip", %{scope: scope} do
       task_id = task_fixture(scope).id
 
       tool_call_id = "toolu_integration_#{System.unique_integer([:positive])}"
@@ -277,26 +641,49 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, tc)
 
-      {:ok, _, _} =
+      untrusted_result = %{
+        "content" => [
+          %{"type" => "text", "text" => "4", "audience" => ["assistant"]}
+        ],
+        "structuredContent" => %{"answer" => 4},
+        "_meta" => %{
+          "envApiKey" => "sk-fake-env-key",
+          "model" => %{"provider" => "openrouter", "value" => "fake/model"},
+          "unapproved" => true
+        },
+        "unknownTopLevel" => "drop me"
+      }
+
+      sanitized_result = %{
+        "content" => [%{"type" => "text", "text" => "4", "audience" => ["assistant"]}],
+        "structuredContent" => %{"answer" => 4},
+        "isError" => false,
+        "_meta" => %{}
+      }
+
+      {:ok, persisted_result, _} =
         resolve_tool(
           scope,
           task_id,
           %{id: tool_call_id, name: "calculator"},
-          MCP.tool_result_text("4"),
-          false,
+          untrusted_result,
           turn_number
         )
+
+      assert persisted_result.result == sanitized_result
+      assert persisted_result.is_error == false
 
       {:ok, _} = Tasks.agent_replied(scope, task_id, turn_number, "The answer is 4.")
 
       sequences = db_sequences(task_id)
 
-      assert length(sequences) == 5
+      assert length(sequences) == 6
       assert sequences == Enum.sort(sequences), "sequences should be strictly increasing"
       assert sequences == Enum.uniq(sequences), "sequences should be unique"
 
       assert [
-               {Interaction.UserMessage, ^turn_number},
+               {Interaction.UserMessage, nil},
+               {Interaction.TurnStarted, ^turn_number},
                {Interaction.AgentResponse, ^turn_number},
                {Interaction.ToolCall, ^turn_number},
                {Interaction.ToolResult, ^turn_number},
@@ -304,7 +691,7 @@ defmodule FrontmanServer.TasksTest do
              ] = db_type_turns(task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_swarm_messages(task.interactions)
+      messages = Tasks.Interaction.to_swarm_messages(Tasks.interactions(task))
 
       assert length(messages) == 4,
              "expected 4 Swarm messages, got #{length(messages)}: #{inspect(Enum.map(messages, &SwarmAi.Message.role/1))}"
@@ -397,40 +784,6 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "resolve_tool_request/5" do
-    test "rejects duplicate tool result for the same tool_call_id", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-
-      tool_call_data = %{id: "call_dedup", name: "some_tool"}
-
-      {:ok, _first, _status} =
-        resolve_tool(
-          scope,
-          task_id,
-          tool_call_data,
-          MCP.tool_result_text("result1"),
-          false,
-          turn_number
-        )
-
-      assert {:error, %Ecto.Changeset{}} =
-               resolve_tool(
-                 scope,
-                 task_id,
-                 tool_call_data,
-                 MCP.tool_result_text("result2"),
-                 false,
-                 turn_number
-               )
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      tool_results = Enum.filter(task.interactions, &match?(%Tasks.Interaction.ToolResult{}, &1))
-      assert [%Tasks.Interaction.ToolResult{result: result}] = tool_results
-      assert result == MCP.tool_result_text("result1")
-    end
-  end
-
   describe "interaction persistence ordering" do
     test "mixed interaction writes persist strictly ordered unique positive sequences", %{
       scope: scope
@@ -452,13 +805,12 @@ defmodule FrontmanServer.TasksTest do
           task_id,
           tool_call_data,
           MCP.tool_result_text("result"),
-          false,
           turn_number
         )
 
       sequences = db_sequences(task_id)
 
-      assert length(sequences) == 3
+      assert length(sequences) == 4
       assert sequences == Enum.sort(sequences)
       assert sequences == Enum.uniq(sequences)
       assert Enum.all?(sequences, &(&1 > 0))
@@ -480,28 +832,9 @@ defmodule FrontmanServer.TasksTest do
 
       results = db_sequences(task_id)
 
-      assert length(results) == 21
+      assert length(results) == 22
       assert results == Enum.uniq(results), "sequences must be unique, got duplicates"
       assert results == Enum.sort(results), "DB ordering must be sorted"
-    end
-
-    test "preserves chronological history when legacy rows have nil sequence", %{scope: scope} do
-      task_id = task_fixture(scope).id
-
-      {:ok, legacy_message} = user_message_fixture(scope, task_id, user_content("legacy hello"))
-      turn_number = latest_turn_number(task_id)
-
-      from(i in InteractionSchema, where: i.id == ^legacy_message.id)
-      |> Repo.update_all(set: [sequence: nil])
-
-      {:ok, _new_response} = Tasks.agent_replied(scope, task_id, turn_number, "new response")
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      assert [
-               %Interaction.UserMessage{messages: ["legacy hello"]},
-               %Interaction.AgentResponse{content: "new response"}
-             ] = task.interactions
     end
   end
 
@@ -514,7 +847,7 @@ defmodule FrontmanServer.TasksTest do
   defp db_type_turns(task_id) do
     task_id
     |> db_rows()
-    |> Enum.map(&{Interaction.module_for(&1.type), &1.turn_number})
+    |> Enum.map(&{&1.data.__struct__, &1.turn_number})
   end
 
   defp db_rows(task_id) do
@@ -524,22 +857,137 @@ defmodule FrontmanServer.TasksTest do
     |> Repo.all()
   end
 
-  defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
-    defaults = %{
-      "id" => Ecto.UUID.generate(),
-      "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601(),
-      "tool_name" => "question",
-      "arguments" => %{},
-      "result" => "ok"
-    }
+  defp agent_responses(task_id) do
+    task_id
+    |> db_rows()
+    |> Enum.map(& &1.data)
+    |> Enum.filter(&match?(%Interaction.AgentResponse{}, &1))
+  end
 
-    Repo.insert!(%InteractionSchema{
-      task_id: task_id,
-      type: Interaction.type_for(type),
-      turn_number: turn_number,
-      sequence: System.unique_integer([:monotonic, :positive]),
-      data: Map.merge(defaults, data)
-    })
+  defp response_event(response) do
+    {:response, %{timestamp: ~U[2026-07-14 12:30:01.000000Z]}, response}
+  end
+
+  defp interaction_type(module),
+    do: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, module)
+
+  defp insert_started_user_message_row(task_id, turn_number) do
+    {:ok, attrs} =
+      Interaction.UserMessage.attrs(user_content("test turn"), "openrouter:openai/gpt-5.5")
+
+    row =
+      InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
+      |> Repo.insert!()
+
+    InteractionSchema.create_changeset(
+      task_id,
+      :turn_started,
+      %{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        agent_id: "test-frontman",
+        user_message_ids: [row.id]
+      },
+      turn_number
+    )
+    |> Repo.insert!()
+  end
+
+  defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
+    {interaction_type, attrs} = test_interaction_attrs(type, data)
+
+    InteractionSchema.create_changeset(task_id, interaction_type, attrs, turn_number)
+    |> Repo.insert!()
+  end
+
+  defp test_interaction_attrs(Interaction.DiscoveredProjectRule, _data),
+    do:
+      {:discovered_project_rule,
+       %{path: "/project/AGENTS.md", content: "rules", timestamp: Interaction.now()}}
+
+  defp test_interaction_attrs(Interaction.ToolCall, data) do
+    {:ok, attrs} =
+      Interaction.ToolCall.attrs(%SwarmAi.ToolCall{
+        id: Map.get(data, "tool_call_id", Ecto.UUID.generate()),
+        name: Map.get(data, "tool_name", "question"),
+        arguments: Jason.encode!(Map.get(data, "arguments", %{}))
+      })
+
+    {:tool_call, attrs}
+  end
+
+  defp test_interaction_attrs(Interaction.ToolResult, data) do
+    {:tool_result,
+     Interaction.ToolResult.attrs(
+       %{id: Map.get(data, "tool_call_id", Ecto.UUID.generate()), name: "question"},
+       MCP.tool_result_text("ok")
+     )}
+  end
+
+  defp test_interaction_attrs(Interaction.AgentError, data),
+    do:
+      {:agent_error,
+       %{
+         id: Map.fetch!(data, "id"),
+         timestamp: Interaction.now(),
+         error: "error",
+         kind: "failed",
+         retryable: false,
+         category: "unknown"
+       }}
+
+  defp test_interaction_attrs(Interaction.AgentRetry, data),
+    do:
+      {:agent_retry,
+       %{
+         id: Ecto.UUID.generate(),
+         timestamp: Interaction.now(),
+         retried_error_id: Map.fetch!(data, "retried_error_id")
+       }}
+
+  defp test_interaction_attrs(Interaction.AgentCompleted, _data),
+    do: {:agent_completed, %{id: Ecto.UUID.generate(), timestamp: Interaction.now(), result: nil}}
+
+  defp insert_legacy_interaction_row(task_id, type, turn_number, data) do
+    now = DateTime.utc_now(:second)
+
+    data =
+      %{
+        "__type__" => interaction_type(type) |> Atom.to_string(),
+        "id" => Ecto.UUID.generate(),
+        "timestamp" => DateTime.to_iso8601(now),
+        "tool_name" => "question",
+        "arguments" => %{},
+        "result" => %{}
+      }
+      |> Map.merge(data)
+
+    Repo.query!(
+      """
+      INSERT INTO interactions (id, task_id, type, data, turn_number, sequence, inserted_at)
+      VALUES ($1, $2, $3, $4::text::jsonb, $5, $6, $7)
+      """,
+      [
+        Ecto.UUID.dump!(Ecto.UUID.generate()),
+        Ecto.UUID.dump!(task_id),
+        interaction_type(type) |> Atom.to_string(),
+        Jason.encode!(data),
+        turn_number,
+        System.unique_integer([:monotonic, :positive]),
+        now
+      ]
+    )
+  end
+
+  defp insert_accepted_user_message!(
+         %TaskSchema{} = task,
+         text,
+         model \\ "openrouter:openai/gpt-5.5"
+       ) do
+    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
+
+    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+    |> Repo.insert!()
   end
 
   defp run_backfill_migration do
@@ -574,6 +1022,66 @@ defmodule FrontmanServer.TasksTest do
              )
   end
 
+  defp run_turn_started_backfill_migration do
+    Code.require_file(
+      "priv/repo/migrations/20260630000000_backfill_turn_started_for_user_messages.exs"
+    )
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               BackfillTurnStartedForUserMessages,
+               :forward,
+               :up,
+               :up,
+               log: false
+             )
+  end
+
+  defp run_tool_result_payload_backfill_migration do
+    Code.require_file("priv/repo/migrations/20260717000000_backfill_tool_result_payloads.exs")
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               BackfillToolResultPayloads,
+               :forward,
+               :up,
+               :up,
+               log: false
+             )
+  end
+
+  defp run_tool_result_metadata_scrub_migration(direction) do
+    Code.require_file("priv/repo/migrations/20260721000000_scrub_tool_result_metadata.exs")
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               ScrubToolResultMetadata,
+               :forward,
+               direction,
+               direction,
+               log: false
+             )
+  end
+
+  defp raw_interaction_data(task_id, type) do
+    %{rows: rows} =
+      Repo.query!(
+        "SELECT data FROM interactions WHERE task_id = $1 AND type = $2 ORDER BY sequence",
+        [Ecto.UUID.dump!(task_id), type]
+      )
+
+    Enum.map(rows, fn [data] -> data end)
+  end
+
   defp named_swarm_tool_call(id, name, args \\ %{}) do
     %SwarmAi.ToolCall{id: id, name: name, arguments: Jason.encode!(args)}
   end
@@ -590,7 +1098,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert Repo.get_by!(InteractionSchema,
                task_id: task_id,
-               type: Interaction.type_for(Interaction.DiscoveredProjectRule)
+               type: :discovered_project_rule
              ).turn_number ==
                nil
     end
@@ -607,7 +1115,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       rules =
-        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+        Enum.filter(
+          Tasks.interactions(task),
+          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
+        )
 
       assert length(rules) == 1
       assert hd(rules).content == "# Rules v1"
@@ -636,7 +1147,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       [db_rule] =
-        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+        Enum.filter(
+          Tasks.interactions(task),
+          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
+        )
 
       assert db_rule.path == "/project/AGENTS.md"
       refute String.contains?(db_rule.content, <<0>>)
@@ -654,7 +1168,10 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       [db_rule] =
-        Enum.filter(task.interactions, &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1))
+        Enum.filter(
+          Tasks.interactions(task),
+          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
+        )
 
       refute String.contains?(db_rule.path, <<0>>)
       assert db_rule.path == "/project/AGENTS.md"
@@ -675,7 +1192,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert Repo.get_by!(InteractionSchema,
                task_id: task_id,
-               type: Interaction.type_for(Interaction.DiscoveredProjectStructure)
+               type: :discovered_project_structure
              ).turn_number == nil
     end
 
@@ -730,8 +1247,7 @@ defmodule FrontmanServer.TasksTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(write_result),
-        false,
+        %{"content" => [], "structuredContent" => write_result},
         turn_number
       )
 
@@ -766,8 +1282,7 @@ defmodule FrontmanServer.TasksTest do
         scope,
         task_a,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(write_result),
-        false,
+        %{"content" => [], "structuredContent" => write_result},
         turn_number
       )
 
@@ -795,7 +1310,7 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
-      paused = Enum.find(task.interactions, &match?(%Interaction.AgentPaused{}, &1))
+      paused = Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentPaused{}, &1))
       assert paused != nil
       assert paused.tool_name == "question"
       assert paused.timeout_ms == 120_000
@@ -820,16 +1335,14 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
-      messages = Interaction.to_swarm_messages(task.interactions)
+      messages = Interaction.to_swarm_messages(Tasks.interactions(task))
 
       assert length(messages) == 1
       assert SwarmAi.Message.role(hd(messages)) == :user
     end
   end
 
-  defp resolve_tool(scope, task_id, tool_call_data, result, is_error, turn_number) do
-    Tasks.resolve_tool_request(scope, task_id, tool_call_data, result, is_error,
-      turn_number: turn_number
-    )
+  defp resolve_tool(scope, task_id, tool_call_data, result, turn_number) do
+    Tasks.resolve_tool_request(scope, task_id, tool_call_data, result, turn_number: turn_number)
   end
 end

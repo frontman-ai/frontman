@@ -10,14 +10,11 @@ defmodule FrontmanServer.Repo.Migrations.NormalizeFrameworks do
   use Ecto.Migration
 
   def up do
-    # Normalize known display labels to IDs
     execute("UPDATE tasks SET framework = 'nextjs'    WHERE framework = 'Next.js'")
     execute("UPDATE tasks SET framework = 'vite'      WHERE framework = 'Vite'")
     execute("UPDATE tasks SET framework = 'astro'     WHERE framework = 'Astro'")
     execute("UPDATE tasks SET framework = 'wordpress' WHERE framework = 'wordpress'")
 
-    # Verify no unknown frameworks remain — crash the migration if so.
-    # If this fails, investigate what unexpected values exist before proceeding.
     execute("""
     DO $$
     BEGIN

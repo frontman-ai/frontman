@@ -3,7 +3,7 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"version": "1.0.0",
+	"version": "2.0.0",
 	"description": "Browser-side client for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -33,8 +33,8 @@
 	},
 	"dependencies": {
 		"@frontman/logs": "workspace:*",
-		"@sentry/browser": "^10.53.1",
-		"phoenix": "^1.8.5"
+		"@sentry/browser": "^10.63.0",
+		"phoenix": "^1.8.9"
 	},
 	"devDependencies": {
 		"@rescript/webapi": "*",

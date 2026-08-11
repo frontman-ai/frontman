@@ -12,8 +12,6 @@ defmodule SwarmAi.Executor do
         turn_number: loop.turn_number
       },
       fn ->
-        # QUESTION(Danni) - why do we need both loop.execute which does almost
-        # nothing compared to make, then we've run_effects
         {loop, effects} = Loop.execute(loop)
         final_loop = run_effects(loop, effects, task_supervisor)
 
@@ -110,6 +108,7 @@ defmodule SwarmAi.Executor do
   defp execute_llm_call(loop, llm, messages) do
     loop_id = loop.id
     current_step = loop.current_step
+    response_event_metadata = %{ordinal: current_step - 1, timestamp: DateTime.utc_now()}
 
     Telemetry.step_start(loop_id, current_step)
 
@@ -125,10 +124,12 @@ defmodule SwarmAi.Executor do
           {:ok, stream} ->
             try do
               stream_with_events =
-                Stream.each(stream, fn chunk -> loop.dispatch_event.({:chunk, chunk}) end)
+                Stream.each(stream, fn chunk ->
+                  loop.dispatch_event.({:chunk, response_event_metadata, chunk})
+                end)
 
               response = Response.from_stream(stream_with_events)
-              :ok = loop.dispatch_event.({:response, response})
+              :ok = loop.dispatch_event.({:response, response_event_metadata, response})
 
               {loop, new_effects} = Loop.handle_response(loop, response)
               usage = response.usage || %{}

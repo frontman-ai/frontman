@@ -3,7 +3,7 @@
  */
 
 import { spawn, execSync, type ChildProcess } from "node:child_process";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -46,7 +46,6 @@ export interface FrameworkServer {
 
 /** Kill any process listening on the given port (works on macOS and Linux). */
 function killPort(port: number): void {
-  // Try lsof first (macOS + Linux with lsof installed)
   try {
     const pids = execSync(`lsof -ti:${port}`, { stdio: "pipe" })
       .toString()
@@ -57,14 +56,11 @@ function killPort(port: number): void {
       return;
     }
   } catch {
-    // lsof not available or no process — try fuser
   }
-  // Fallback: fuser (common on Linux)
   try {
     execSync(`fuser -k ${port}/tcp`, { stdio: "pipe" });
     console.log(`  [e2e] Killed existing process(es) on port ${port} (fuser)`);
   } catch {
-    // No process on that port — good
   }
 }
 
@@ -78,7 +74,6 @@ async function waitForReady(
   label: string,
   timeoutMs = 90_000,
 ): Promise<void> {
-  // Track early exit
   let exitError: string | undefined;
   proc.on("exit", (code, signal) => {
     if (signal) {
@@ -93,17 +88,14 @@ async function waitForReady(
     if (exitError) throw new Error(`[e2e] ${exitError}`);
     try {
       const res = await fetch(url).catch(() => null);
-      // Any HTTP response means the server is up (even 500 from a render error)
       if (res) {
         console.log(`  [e2e] ${label} ready at ${url} (status ${res.status})`);
         return;
       }
     } catch {
-      /* not ready */
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  // Timed out — kill the process so it doesn't leak
   proc.kill("SIGTERM");
   throw new Error(
     `[e2e] ${label} at ${url} did not become ready within ${timeoutMs}ms`,
@@ -128,7 +120,6 @@ function logOutput(
   });
 }
 
-// ── Next.js ──────────────────────────────────────────────────────────────────
 
 export async function startNextjs(port: number): Promise<FrameworkServer> {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/nextjs");
@@ -171,26 +162,25 @@ export async function startNextjs(port: number): Promise<FrameworkServer> {
   };
 }
 
-// ── Astro ────────────────────────────────────────────────────────────────────
 
 export async function startAstro(port: number): Promise<FrameworkServer> {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/astro");
   killPort(port);
 
   const astroBin = resolveBin(fixtureDir, "astro");
+  const astroEnv = { ...process.env, ASTRO_DEV_BACKGROUND: "0" };
+  delete astroEnv.VITEST;
   const proc = spawn(
     process.execPath,
     [astroBin, "dev", "--host", "127.0.0.1", "--port", String(port)],
     {
       cwd: fixtureDir,
-      env: { ...process.env } as NodeJS.ProcessEnv,
+      env: astroEnv,
       stdio: "pipe",
     },
   );
 
   logOutput(proc, "astro");
-  // Use 127.0.0.1 explicitly — Astro only binds to IPv4 and Node.js fetch
-  // may resolve "localhost" to ::1 (IPv6) on Linux CI, causing connection failure.
   await waitForReady(proc, `http://127.0.0.1:${port}`, "Astro");
 
   return {
@@ -201,7 +191,6 @@ export async function startAstro(port: number): Promise<FrameworkServer> {
   };
 }
 
-// ── Vite ─────────────────────────────────────────────────────────────────────
 
 export async function startVite(port: number): Promise<FrameworkServer> {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vite");
@@ -219,8 +208,6 @@ export async function startVite(port: number): Promise<FrameworkServer> {
   );
 
   logOutput(proc, "vite");
-  // Use 127.0.0.1 explicitly — Vite only binds to IPv4 and Node.js fetch
-  // may resolve "localhost" to ::1 (IPv6) on Linux CI, causing connection failure.
   await waitForReady(proc, `http://127.0.0.1:${port}`, "Vite");
 
   return {
@@ -231,7 +218,6 @@ export async function startVite(port: number): Promise<FrameworkServer> {
   };
 }
 
-// ── Vue + Vite ──────────────────────────────────────────────────────────────
 
 export async function startVueVite(port: number): Promise<FrameworkServer> {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vue-vite");
@@ -249,8 +235,6 @@ export async function startVueVite(port: number): Promise<FrameworkServer> {
   );
 
   logOutput(proc, "vue-vite");
-  // Use 127.0.0.1 explicitly — Vite only binds to IPv4 and Node.js fetch
-  // may resolve "localhost" to ::1 (IPv6) on Linux CI, causing connection failure.
   await waitForReady(proc, `http://127.0.0.1:${port}`, "Vue + Vite");
 
   return {
@@ -261,7 +245,6 @@ export async function startVueVite(port: number): Promise<FrameworkServer> {
   };
 }
 
-// ── Utilities ────────────────────────────────────────────────────────────────
 
 /** Kill the dev server and restore any modified fixture files. */
 export async function stopFramework(
@@ -270,25 +253,22 @@ export async function stopFramework(
   if (!server) return;
 
   server.proc.kill("SIGTERM");
+  const fixturePath = relative(ROOT, server.fixtureDir);
 
-  // Restore modified tracked files (AI edits + installer-modified configs)
   try {
-    execSync(`git checkout -- "${server.fixtureDir}"`, {
+    execSync(`git checkout -- "${fixturePath}"`, {
       cwd: ROOT,
       stdio: "pipe",
     });
   } catch {
-    // Ignore errors if no files were modified
   }
 
-  // Remove untracked files created by the installer (middleware.ts, instrumentation.ts)
   try {
-    execSync(`git clean -fd -- "${server.fixtureDir}"`, {
+    execSync(`git clean -fd -- "${fixturePath}"`, {
       cwd: ROOT,
       stdio: "pipe",
     });
   } catch {
-    // Ignore errors
   }
 }
 

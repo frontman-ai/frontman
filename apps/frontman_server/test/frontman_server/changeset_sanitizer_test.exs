@@ -79,7 +79,6 @@ defmodule FrontmanServer.ChangesetSanitizerTest do
     end
 
     test "fails for a map containing raw binary data" do
-      # PNG header bytes — not valid UTF-8
       cs =
         changeset(%{data: %{"content" => <<137, 80, 78, 71, 13, 10, 26, 10>>}})
         |> validate_json_encodable(:data)

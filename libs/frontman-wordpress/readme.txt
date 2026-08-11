@@ -1,117 +1,189 @@
-=== Frontman - Agentic AI Editor ===
+=== Frontman - AI Website Editor ===
 Contributors: frontmanai
-Tags: ai, agent, editing, elementor, woocommerce
+Tags: ai editor, website editor, elementor, woocommerce, ai
 Requires at least: 6.0
-Tested up to: 6.9
+Tested up to: 7.0.2
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 3.0.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI agent that edits posts, blocks, Elementor pages, WooCommerce data, menus, templates, and site options beside a live preview.
+Update an existing WordPress site with AI beside a live preview. Select a page element, describe the change, and review the result.
 
 == Description ==
 
-Watch Frontman in action:
+**Frontman is an AI editor for an existing WordPress site.** Open `/frontman`, keep the page visible, and describe the result that you want. Frontman can inspect supported WordPress structures, make the change, and refresh the preview for your review.
 
-https://www.youtube.com/watch?v=-4GD1GYwH8Y
+Use Frontman for focused site updates without hunting through page builders, theme screens, menus, widgets, and settings.
 
-Learn more on the [Frontman Website](https://frontman.sh).
+== One Task, From Request to Review ==
 
-Frontman puts an AI agent beside a live view of your site. Open `/frontman`, describe the change you want, and the agent takes action with built-in tools while you review the result in context.
+The screenshots show one complete task:
 
-Frontman is closer to an editor than a chatbot or content generator. It is built for real editing tasks: updating content, changing blocks, adjusting Elementor pages, managing menus, inspecting templates, changing safe site options, and working with WooCommerce data when WooCommerce is active.
+1. Open the page beside Frontman.
+2. Select the FAQ title that needs an update.
+3. Describe the new title in plain language.
+4. Frontman inspects the WordPress content and applies the supported change.
+5. Review the refreshed page before you continue.
 
-No code editor. No terminal. Just an AI agent workflow alongside a live page preview.
+For headers and footers, Frontman can inspect candidate templates, template parts, menus, widgets, and Elementor content. The structure that controls the rendered page depends on the site.
 
-**What the agent can do:**
+[Learn how to identify and edit a WordPress header or footer](https://frontman.sh/blog/how-to-edit-wordpress-header-footer/?utm_source=wordpress.org&utm_medium=plugin-readme&utm_campaign=frontman-wordpress&utm_content=task-proof).
 
-* Create, edit, and delete posts and pages
-* Insert, update, and rearrange Gutenberg blocks
-* Edit Elementor pages with Elementor-aware tools and versioning
-* Manage WooCommerce products, orders, customers, coupons, shipping, taxes, reports, settings, and store data when WooCommerce is active
-* Update navigation menus and menu items
-* Read and change safe site options such as title, tagline, permalinks, and homepage settings
-* Inspect and update Additional CSS for the active theme
-* Browse block templates, template parts, widgets, and theme settings
+== Before You Install ==
 
-The important part is the feedback loop. The AI agent can change the site, then you can see the result in the same workflow instead of jumping between admin screens and browser tabs.
+Frontman requires:
 
-**Who it's for:**
+* WordPress administrator access
+* A Frontman account with GitHub or Google sign-in
+* A supported AI provider connected with OAuth or an API key
+* A staging site and a current backup for initial use
 
-Developers who want faster iteration. Designers and content editors who want to make changes without opening an IDE. Store owners and site managers who would rather describe the task than dig through admin screens.
+Frontman does not include a model credential. Your provider can apply its own usage limits and charges.
 
-**Open source:**
+== Common Tasks ==
 
-The Frontman plugin is open source under GPLv2 or later. The code is available on [GitHub](https://github.com/frontman-ai/frontman).
+Use Frontman to:
 
-**Early release - help us improve it:**
+* Update page copy, headlines, buttons, and calls to action
+* Edit posts, pages, and Gutenberg blocks
+* Adjust supported Elementor content with Elementor-aware tools
+* Update WooCommerce products and other supported store data
+* Change navigation menus, templates, template parts, and supported widgets
+* Update Additional CSS and allowlisted site settings
+* Inspect a page and explain which supported WordPress structure can control it
 
-This is an experimental release. It works, but it hasn't been tested across every theme, page builder, and hosting setup. We're looking for users to try it and share feedback. [Open an issue](https://github.com/frontman-ai/frontman/issues) or join the conversation on GitHub.
+== How Frontman Works ==
+
+Frontman puts an AI editor beside a live view of your site. Select mode adds context from the visible element to your request.
+
+Frontman then uses WordPress, Elementor, or WooCommerce tools that match the request. The preview refreshes after a supported change, so you can review the page in the same workspace.
+
+Frontman works with WordPress content and structures that its current tools support. Custom themes, custom plugins, hosting controls, and unsupported page builders can require a different workflow.
+
+== Safety, Limits, and Data ==
+
+Only WordPress administrators with the `manage_options` capability can access Frontman. The plugin uses WordPress nonces, sanitizes inputs, and restricts option changes to an allowlist.
+
+Frontman is early-access software. It has not been tested across every theme, page builder, plugin stack, and hosting setup.
+
+Start on a staging site. Keep a current backup. Review each change before you use it on a production site.
+
+When you submit a request, relevant site content can pass through Frontman AI to your configured model provider. The Third-Party Services section summarizes this data flow.
+
+== Open Source and Support ==
+
+The Frontman plugin is open source under GPLv2 or later. [Browse the code on GitHub](https://github.com/frontman-ai/frontman?utm_source=wordpress.org&utm_medium=plugin-readme&utm_campaign=frontman-wordpress&utm_content=open-source-section).
+
+For product details, visit [Frontman for WordPress](https://frontman.sh/wordpress/?utm_source=wordpress.org&utm_medium=plugin-readme&utm_campaign=frontman-wordpress&utm_content=product-details). To report a problem, [open a GitHub issue](https://github.com/frontman-ai/frontman/issues?utm_source=wordpress.org&utm_medium=plugin-readme&utm_campaign=frontman-wordpress&utm_content=open-issue).
 
 == Installation ==
 
 1. Download the Frontman plugin release ZIP or upload the `frontman-agentic-ai-editor` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu
 3. Navigate to `/frontman` on your site (you must be logged in as an admin)
-4. Use Frontman - WordPress tools, Elementor editing, and WooCommerce tools now run directly inside the plugin
+4. Sign in to Frontman at `api.frontman.sh` with GitHub or Google when prompted
+5. Return to `/frontman` on your site if Frontman does not redirect you back automatically
+6. Connect an AI provider with OAuth or add an API key
+7. Start describing WordPress edits beside the live preview
 
 == Frequently Asked Questions ==
 
+= What do I need before my first task? =
 
-= Do I need another server? =
+You need administrator access, a Frontman account, and a supported AI provider connected with OAuth or an API key. Frontman does not include model access. You do not need another server.
 
-No. Frontman now runs the WordPress tools, Elementor editing tools, and WooCommerce tools directly in PHP inside the plugin.
+= What can Frontman change? =
 
-= Is it safe? =
+Current tools support posts, pages, Gutenberg blocks, menus, templates, template parts, widgets, allowlisted settings, Additional CSS, Elementor content, and WooCommerce data.
 
-Only WordPress administrators (`manage_options` capability) can access Frontman. All inputs are sanitized. Options are restricted to a safe allowlist.
+= Does Frontman work with every theme? =
 
-= Can I use this in production? =
+No. Support depends on the structure that controls the rendered page. Custom themes, plugins, hosting controls, and unsupported builders can require another workflow.
 
-Technically, yes. Unlike the JavaScript framework integrations, this plugin can run on a live site. But this is experimental software. We recommend starting on a staging site, keeping backups, and reviewing changes carefully.
+= Can I use Frontman in production? =
 
-= Which themes work? =
+Frontman can run on production, but it is early-access software. Start on staging, keep a current backup, and review each change.
 
-Frontman's content, menu, widget, option, Elementor, and WooCommerce tools work across WordPress themes.
+= What data is sent to Frontman AI? =
+
+The hosted service processes your prompts, relevant site or store content, tool results, and task history. It sends request context to your selected AI provider. See Third-Party Services and the Privacy Policy below.
 
 == Third-Party Services ==
 
-This plugin connects to external services provided by Frontman AI:
+This plugin and the hosted Frontman service connect to these external services:
 
-**Frontman Client (app.frontman.sh)**
-The chat interface is loaded from `https://app.frontman.sh`. This serves the JavaScript and CSS that power the in-browser UI.
+**Frontman Client and API**
+The plugin loads its interface from `app.frontman.sh` and connects to `api.frontman.sh`. Frontman processes prompts, relevant site or store content, tool results, and stored task history to run the agent. Stored provider credentials use server-side encryption.
 
-* Service URL: [https://app.frontman.sh](https://app.frontman.sh)
+* Services: [Client](https://app.frontman.sh), [API](https://api.frontman.sh)
 * Provider: Frontman AI
-* Privacy Policy: [https://frontman.sh/terms](https://frontman.sh/terms)
-
-**Frontman API (api.frontman.sh)**
-The plugin connects via WebSocket to `wss://api.frontman.sh` for AI agent communication, sending tool results and receiving agent responses. Your site content and, when you use WooCommerce tools, store data such as products, orders, customers, coupons, reports, and settings are sent to this service when the agent processes requests.
-
-* Service URL: [https://api.frontman.sh](https://api.frontman.sh)
-* Provider: Frontman AI
-* Privacy Policy: [https://frontman.sh/terms](https://frontman.sh/terms)
+* Policies: [Terms](https://frontman.sh/terms/), [Privacy](https://frontman.sh/privacy/)
 
 **AI Model Providers**
-The Frontman API routes requests to third-party AI model providers (such as Anthropic and OpenAI) to generate responses. Content from your site may be included in prompts sent to these providers.
+Frontman sends the context needed for your request to your selected AI provider. That provider processes data under its terms and privacy policy.
+
+**WorkOS, GitHub, and Google Sign-In**
+WorkOS AuthKit provides GitHub and Google sign-in. WorkOS and your selected provider process account and authentication data.
+
+* WorkOS: [Service](https://workos.com), [Terms](https://workos.com/terms), [Privacy](https://workos.com/privacy)
+* GitHub: [Service](https://github.com), [Terms](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service), [Privacy](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement)
+* Google: [Service](https://accounts.google.com), [Terms](https://policies.google.com/terms), [Privacy](https://policies.google.com/privacy)
+
+**Analytics and Diagnostics**
+Heap measures product use and onboarding. Sentry records errors and performance diagnostics. These services can process interaction, session, device, browser, identifier, and diagnostic data. Frontman uses Heap based on consent where required.
+
+* Heap: [Service](https://heap.io), [Privacy](https://www.heap.io/privacy)
+* Sentry: [Service](https://sentry.io), [Privacy](https://sentry.io/privacy/)
 
 Loading the Frontman UI requests hosted client assets. Your site content is not sent to the Frontman API or model providers until you actively use the chat interface and submit a message.
 
 == Screenshots ==
 
-1. Frontman understands the requested content change and prepares the edit from chat.
-2. Frontman runs beside a live WordPress page preview while you describe changes.
-3. Frontman highlights the selected product card directly on the site.
-4. Select mode lets you click page elements to target edits visually.
+1. Open the FAQ page beside Frontman and identify the title that needs an update.
+2. Select the title and describe the requested change in plain language.
+3. Frontman inspects the WordPress content while the page remains visible.
+4. Review the updated title in the refreshed page preview.
 
 == Changelog ==
 
-= 1.0.0 =
-* Major release for the OpenAI provider rename and cross-package breaking changes
+= 3.0.0 =
+* Sync the Frontman plugin release with Frontman v3.0.0
 * See the GitHub release notes for the full cross-product changelog
-* Add WordPress Additional CSS and theme mod source-inspection tools with safer CSS update validation
-* Strengthen WordPress source-of-truth guidance and annotation context for Elementor/theme edits
+
+= 2.0.0 =
+* Sync the Frontman plugin release with Frontman v2.0.0
+* See the GitHub release notes for the full cross-product changelog
+
+= 1.4.0 =
+* Sync the Frontman plugin release with Frontman v1.4.0
+* See the GitHub release notes for the full cross-product changelog
+
+= 1.3.0 =
+* Keep the WordPress plugin aligned with the Frontman v1.3.0 release train.
+* Refresh WordPress.org listing metadata, including the tested WordPress version, to keep the plugin page current for new installers.
+* Improve plugin-directory search copy around AI WordPress editing, live preview editing, Elementor editing, and WooCommerce store management.
+* Add clearer FAQ entries for AI page editing, Elementor support, WooCommerce tools, and the live preview workflow.
+* Improve screenshot captions so users can understand the AI editor, live preview, visual selection, and WooCommerce editing workflow before installing.
+
+= 1.2.0 =
+* Improve WordPress.org listing copy for non-developer WordPress teams.
+* Position Frontman more clearly as an AI website editor for marketers, content teams, support teams, store operators, and agencies.
+* Highlight practical editing workflows for pages, posts, Gutenberg blocks, Elementor pages, WooCommerce data, menus, templates, widgets, settings, and Additional CSS.
+* Clarify the live preview workflow so users know they can review site changes beside the AI editor.
+* Expand safety and third-party service details so administrators understand access controls, data flow, and recommended staging-site use before using AI editing on important sites.
+
+= 1.1.0 =
+* Update WordPress.org listing copy for non-developer WordPress teams
+* Position Frontman as an AI website editor for marketers, content teams, support teams, store operators, and agencies
+* Highlight live preview editing, visual selection, Elementor support, WooCommerce tools, safety controls, and third-party data handling
+
+= 1.0.0 =
+* Launch Frontman for WordPress as a self-contained AI editing plugin
+* Add native tools for posts, pages, blocks, Elementor, WooCommerce, menus, templates, widgets, safe options, and Additional CSS
+* Run WordPress, Elementor, and WooCommerce tools directly inside the PHP plugin
+* Improve safety with admin-only access, nonces, sanitized inputs, allowlisted options, and safer CSS validation
+* Strengthen WordPress source-of-truth guidance for Elementor and theme edits
 * Fix WordPress admin menu icon alignment
 
 = 0.18.2 =
@@ -127,42 +199,41 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 * Improve Elementor editing tool guidance and recovery errors for non-empty settings diffs and full-tree updates
 
 = 0.17.1 =
-* Sync the Frontman plugin release with Frontman v0.17.1
+* Align plugin metadata and release packaging for the next WordPress.org build
 
 = 0.17.0 =
-* Sync the Frontman plugin release with Frontman v0.17.0
-* See the GitHub release notes for the full cross-product changelog
-
-= 0.16.0 =
-* Sync the Frontman plugin release with Frontman v0.16.0
-* See the GitHub release notes for the full cross-product changelog
-
-= 0.17.0 =
-* Remove direct filesystem tools from the WordPress plugin while keeping WordPress API-based content editing tools
+* Align plugin dependencies with the Frontman v0.17.0 maintenance release
+* Keep WordPress package metadata current with the shared client and framework packages
 
 = 0.16.1 =
 * Fix image attachment uploads for WordPress media replacement workflows
 * Strengthen Elementor rollback safety for precise widget and HTML-fragment edits
 
 = 0.16.0 =
-* Sync the Frontman plugin release with Frontman v0.16.0
-* See the GitHub release notes for the full cross-product changelog
+* Add Elementor selected-element context so Frontman can inspect and edit Elementor-backed selections more directly
+* Add a WordPress media upload workflow that resolves user-provided images into Media Library attachments for posts and Elementor elements
+* Preserve previous Elementor data as private rollback snapshots when updating, removing, or replacing Elementor content
+* Fix WordPress page duplication so Elementor page metadata and post-backed navigation item metadata are preserved
+* Run WordPress Elementor edits serially and route target metadata deterministically between settings edits and HTML-fragment edits
 
 = 0.15.0 =
-* Sync the Frontman plugin release with Frontman v0.15.0
-* See the GitHub release notes for the full cross-product changelog
+* Fix WordPress Playground relay requests so scoped tool calls and source-location POSTs keep the leading `/scope:...` path prefix
+* Improve transient error handling in the shared Frontman UI with categorized errors, automatic retry, retry countdowns, and a manual retry button
+* Keep WordPress editing sessions more reliable when network or relay requests fail temporarily
 
 = 0.14.0 =
-* Sync the Frontman plugin release with Frontman v0.14.0
-* See the GitHub release notes for the full cross-product changelog
+* Bump package versions for a maintenance release across the Frontman workspace
 
 = 0.13.0 =
-* Sync the Frontman plugin release with Frontman v0.13.0
-* See the GitHub release notes for the full cross-product changelog
+* Bump package versions for a maintenance release across the Frontman workspace
 
 = 0.12.0 =
-* Sync the Frontman plugin release with Frontman v0.12.0
-* See the GitHub release notes for the full cross-product changelog
+* Add production-ready WordPress support with PHP-native filesystem tools and plugin ZIP release packaging
+* Add safer mutation history snapshots for WordPress editing tools
+* Add richer WordPress editing tools for menus, blocks, templates, and cache workflows
+* Require confirmation before destructive delete tools run
+* Preserve freeform HTML during block mutations and limit widget mutations to supported safe widget types
+* Remove the old standalone package and release flow from normal WordPress plugin operation
 
 = 0.3.3 =
 * Send the WordPress runtime nonce on plugin tool POST requests from the shared client

@@ -55,13 +55,8 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
     )
   end
 
-  # Max time to wait for the feeder process ready handshake.
   @feeder_ready_timeout_ms 5_000
 
-  # Spawns a linked feeder process that consumes the inner stream and
-  # forwards chunks to the caller via messages.
-  #
-  # Uses a ready handshake to guarantee the feeder is set up before we return.
   defp start_feeder(stream) do
     caller = self()
 
@@ -107,7 +102,7 @@ defmodule FrontmanServer.Tasks.StreamStallTimeout do
         :erlang.raise(kind, reason, stacktrace)
     after
       stall_timeout_ms ->
-        Logger.error(
+        Logger.warning(
           "StreamStallTimeout: no chunk received for #{stall_timeout_ms}ms, aborting stream"
         )
 

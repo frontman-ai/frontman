@@ -1,99 +1,128 @@
 ---
 title: 'Fix Design Drift With Multi-Select'
 pubDate: 2026-02-27T12:00:00Z
-description: 'Spot inconsistencies across teams? Shift-click every off-brand element, describe what it should look like, and Frontman fixes them all in one pass — real code changes, no tickets filed.'
+description: 'Use Frontman annotations to select multiple UI elements, attach element-specific instructions, submit one prompt, and review the resulting source changes as a batch.'
 author: 'Danni Friedland'
 image: '/blog/multi-select-cover.png'
+imageAlt: 'Frontman multi-select for fixing design drift'
+articleSection: 'Product Announcement'
 tags: ['announcement', 'design-systems', 'ai']
-updatedDate: 2026-03-10T00:00:00Z
+updatedDate: 2026-07-30T00:00:00Z
 video:
   name: 'Frontman Multi-Select Demo'
-  description: 'See how Frontman multi-select lets you Shift-click multiple UI elements in your running app, add instructions to each, and fix them all in one shot with real source code edits and hot reload.'
+  description: 'See how Frontman annotations let you select multiple UI elements in a running app, add instructions, and send their visual and source context in one prompt.'
   youtubeId: 'J3_OQzzEJPY'
   thumbnailUrl: '/blog/multi-select-cover.png'
 faq:
   - question: 'What is multi-select in Frontman?'
-    answer: 'Multi-select lets you hold Shift and click multiple UI elements in your running app, add separate instructions to each one, and have Frontman fix all of them in a single pass. Instead of filing separate tickets for every design inconsistency, you batch all your visual fixes into one operation that produces real code changes.'
+    answer: 'Frontman annotation mode lets you select multiple elements before sending a prompt. Use repeated clicks, or Meta+Shift and drag to annotate meaningful elements inside a rectangle. Each annotation is enriched with available visual, DOM, and source context.'
   - question: 'Can designers and PMs use multi-select without writing code?'
-    answer: 'Yes. You describe fixes in plain language — "match this to our primary button style," "fix the spacing to 16px," "update this copy." Frontman translates your instructions into real source code edits. No IDE, no pull request workflow, no waiting for a developer to pick up the ticket.'
+    answer: 'They can select rendered elements and add plain-language comments without locating source files manually. The output is still source code and should be reviewed, tested, and approved through the team repository workflow.'
   - question: 'Which frameworks support Frontman multi-select?'
-    answer: 'Multi-select is available in all Frontman integrations: Next.js, Astro, and Vite (React, Vue, Svelte). Install with npx @frontman-ai/nextjs install, npx @frontman-ai/vite install, or astro add @frontman-ai/astro.'
+    answer: 'Frontman documents annotation source detection for React, Vue 3, and Astro projects. Source location can be unavailable when framework metadata or source detection fails, but the annotation can still include screenshot, selector, and other captured context.'
   - question: 'How does multi-select help maintain a design system?'
-    answer: 'When multiple teams ship features against the same design system, inconsistencies are inevitable. Multi-select lets you open any page, Shift-click every element that drifts from the system — wrong spacing, off-brand colors, incorrect component variants — and fix them all at once. It turns design QA from a reporting step into a fixing step.'
+    answer: 'It packages several visible inconsistencies into one prompt with ordered annotations and optional element-specific comments. The agent may process them as independent tasks or one coordinated change; reviewers must still inspect actual diff scope and shared-component impact.'
 ---
 
-You're doing a design QA pass. The dashboard a feature team shipped last week has a button using the wrong variant. The spacing on the metric cards doesn't match your system. A header still says placeholder copy. The empty state uses an icon you deprecated two months ago.
+Design QA often finds several related issues on one screen: a stale label, inconsistent card spacing, and a button using wrong existing variant. Treating each observation as a separate prompt loses shared page context. Treating all of them as one vague instruction makes review harder.
 
-You know exactly what each fix should be. But you can't make them. You open a ticket for the button. Another for the spacing. Another for the copy. Another for the icon. Four tickets, four handoffs, four items competing for engineering bandwidth against actual feature work. Maybe they get fixed this sprint. Maybe next.
+Frontman annotations provide a concrete middle path: select each rendered element, attach its requirement, and send selected context together.
 
-This is the bottleneck nobody talks about in design systems at scale. The system is defined. The violations are obvious. But the people who spot them — designers, PMs, design system leads — can't fix them. The feedback loop between "seeing the problem" and "shipping the fix" runs through a ticket queue.
+> **TL;DR:** enter annotation mode, select multiple elements with clicks or rectangle selection, add optional comments, and submit one prompt. Frontman sends ordered annotation context to agent. Agent decides whether work is independent or coordinated. Review resulting source diff; multi-selection does not guarantee one file, conflict-free edits, or correct design-system usage.
 
-> **TL;DR:** Frontman multi-select lets you Shift-click multiple UI elements in the running app, describe the fix for each in plain language, and apply all changes in one shot. No tickets, no handoffs. It produces real code changes that match your design system — not a mockup that still needs implementation.
+## Exact Selection Workflow
 
-## How Multi-Select Works
-
-Open your running app. Hold Shift and click every element that doesn't match your design system. Describe the fix for each one in plain language. Hit go. Frontman makes real code changes for all of them at once.
-
-The workflow:
-
-1. **Click elements in the running app** — hold Shift to select multiple
-2. **Describe the fix for each** — "use the outline button variant", "match the system spacing (16px)", "update copy to 'Team Dashboard'"
-3. **Frontman fixes all of them** — real code changes, live preview, one pass
-
-No tickets filed. No developer context-switching away from feature work. You saw the problem, you described the fix, it's done.
+1. Open Frontman workspace and load relevant page in web preview.
+2. Click cursor icon to enter annotation mode. Cursor becomes crosshair and hovered elements highlight.
+3. Click elements one at a time. Each receives numbered badge and optional comment popup.
+4. For rectangle selection, hold **Meta+Shift** and drag over a group. Current client implementation checks browser `metaKey` and `shiftKey` values.
+5. Add element-specific comments when requirements differ.
+6. Wait until annotation enrichment finishes. Send is disabled while annotation remains in progress.
+7. Submit annotations with shared chat instruction, or submit annotated comments without extra text.
+8. Inspect rendered result and source diff before keeping change.
 
 <iframe width="100%" height="400" src="https://www.youtube-nocookie.com/embed/J3_OQzzEJPY" title="Frontman Multi-Select Demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="border-radius: 8px; margin: 2rem 0;"></iframe>
 
-## Why the Ticket Queue Was the Real Bottleneck
+## What Each Selection Contains
 
-The problem was never that fixes are hard. A wrong button variant is a one-line change. Wrong spacing is a one-line change. But when the person who spots these issues can't make the change directly, every one-line fix becomes a ticket, a handoff, a prioritization decision, and a review cycle.
+Frontman attempts to enrich each annotation with:
 
-Multiply that across teams. Your design system serves three, four, five feature teams. Each team ships UI that mostly follows the system — but "mostly" means dozens of small violations per sprint. The design system team becomes a QA function that files tickets they can't resolve themselves.
+- Element screenshot
+- CSS selector, tag, classes, nearby text, and bounding box
+- Framework-derived component name and source location when available
+- Bounded component context where integration supports it
+- Comment entered by user
 
-Multi-select changes the economics. Instead of reporting violations, you fix them. Frontman resolves each clicked element to its actual source file, understands the component tree and design system context, and generates coordinated edits across all your selections. If three issues map to the same component, it handles them in one edit.
+Annotations are sent as structured resources alongside prompt. Agent receives ordered annotated-element context and screenshots. This reduces ambiguity about which rendered nodes user means; it does not prove which source change is correct.
 
-## What This Looks Like in Practice
+## Concrete Batch Example
 
-Your growth team just shipped a new onboarding flow. You're doing a QA pass and spot five issues:
+This example is illustrative, not a customer incident or benchmark.
 
-- The page title still says "Page Title" — placeholder copy that slipped through review
-- Card spacing is 8px instead of 16px — doesn't match the design system
-- The "Get Started" button uses the solid variant — should be outline per your system's CTA rules
-- A table header is misaligned with the rest of the page
-- The empty state message has a typo
+Suppose onboarding page has three independent observations:
 
-Before multi-select, this is five tickets. Five handoffs to a developer who has to context-switch away from feature work. Five items in a backlog competing with actual product priorities. Some of these might not get fixed for weeks.
+| Annotation       | Comment                                            | Constraint              |
+| ---------------- | -------------------------------------------------- | ----------------------- |
+| Page heading     | `Replace placeholder with "Create your workspace"` | Copy only               |
+| Card row         | `Use existing spacing-4 token between cards`       | No new token            |
+| Secondary action | `Use existing outline variant`                     | Preserve click behavior |
 
-With multi-select, you Shift-click all five elements, type a short instruction for each, and submit once. Frontman maps each element back to its source file through the live [DOM-to-source mapping](/blog/runtime-context-gap/) that comes from running inside the framework. All five fixes land at once. You see the corrected page immediately. If one fix isn't quite right, you adjust that one — the other four are done.
+Submit shared instruction:
 
-Total time from spotting the issues to shipping the fixes: under a minute.
-
-## Design System Consistency at Scale
-
-The real value isn't saving time on any single fix. It's closing the loop between the people who define the system and the code that implements it.
-
-When your design system serves multiple teams, drift is inevitable. Team A interprets the button guidelines one way, Team B another. Spacing gets approximated. Copy doesn't match the content spec. The design system team catches these in QA — but until now, catching them and fixing them were two completely separate steps with a ticket queue in between.
-
-Multi-select makes QA and fixing the same step. Browse the app, Shift-click everything that's off, describe each fix, submit. It works the way you already work in Figma — select multiple layers, adjust properties, done. Except these are real code changes in the actual codebase, not design file edits that still need to be implemented.
-
-This changes the dynamics between design and engineering. Instead of being the team that files polish tickets nobody prioritizes, the design system team becomes the team that [keeps the product consistent — directly](/blog/team-collaboration/).
-
-## How It Works Under the Hood
-
-Frontman runs as middleware inside your dev server - it's part of the app, not a browser extension or screenshot tool. This is how [browser-aware AI tools understand your design system](/blog/what-are-browser-aware-ai-coding-tools/) at the source level. When you click an element, it resolves the click to the actual source file and line number using the framework's source map. It sees the live DOM, the component tree, computed styles, and your [design system context](/blog/runtime-context-gap/).
-
-Multi-select collects all your selections and batches them into a single coordinated edit. Each selection carries its own instruction and source mapping. Frontman reasons about all of them together — if two fixes target the same component, both changes land in one clean edit without conflicts.
-
-## Try It
-
-Multi-select is available now in all Frontman integrations — [Next.js](https://frontman.sh), [Astro](https://frontman.sh), and [Vite](https://frontman.sh) (React, Vue, Svelte). Your engineering team adds one line to the dev server config:
-
-```bash
-npx @frontman-ai/nextjs install
-npx @frontman-ai/vite install
-astro add @frontman-ai/astro
+```text
+Apply comments to these annotations. Keep changes on this page,
+reuse existing tokens and variants, and do not change routing,
+event handlers, state, or shared defaults.
 ```
 
-Then anyone on the team — designer, PM, design system lead — can open the running app, hold Shift, click everything that drifts from the system, and fix it. [Getting started](/blog/getting-started/) takes five minutes.
+Good result is not "three fixes happened at once." Good result is reviewable evidence:
 
-Star it on [GitHub](https://github.com/frontman-ai/frontman) if you've ever wished you could fix design inconsistencies yourself instead of filing tickets.
+- Diff touches only files required by requested changes
+- Existing token and variant APIs are reused
+- Event handlers and behavior remain unchanged
+- Browser result matches comments at relevant viewports
+- Automated checks pass
+
+## Selection Constraints
+
+### Rectangle selection is geometric
+
+Drag operation finds visible, meaningful elements whose bounding rectangles overlap selection rectangle, then favors more specific descendants over matching ancestors. It does not understand design intent. Review numbered annotations and remove accidental selections before sending.
+
+### Source detection can fail
+
+Framework metadata, source maps, cross-origin behavior, or timeout can prevent source location resolution. Annotation remains usable with available screenshot and DOM context, but agent may need to search. Do not claim every selected element maps directly to exact file and line.
+
+### Multiple selections are not atomic edits
+
+Agent decides whether to create independent tasks or coordinated change. Selected elements may resolve to one file, several files, shared component, or generated output. There is no guarantee of one edit, no conflicts, or unchanged unrelated usages.
+
+### Shared components expand blast radius
+
+Several selected instances can point to same component. Changing shared implementation may affect unselected pages. Prefer instance-level props when intent is local; require code-owner review when shared default changes.
+
+### Navigation clears live annotations
+
+Annotations refer to current DOM elements. Navigating or reloading destroys those references and clears active annotations. Batch one stable page state at a time.
+
+## Expected Diff and Review Behavior
+
+Before accepting output, inspect:
+
+1. **File scope:** Did only relevant source files change?
+2. **Selection coverage:** Does each requested annotation have corresponding change, and no extra change?
+3. **Shared impact:** Did agent alter reusable component or token definition rather than intended instance?
+4. **Instruction conflicts:** If comments conflict, did agent expose or silently choose between them?
+5. **Code quality:** Are existing components, tokens, utilities, and conventions preserved?
+6. **Behavior:** Did event handlers, accessibility semantics, responsive states, and data flow remain intact?
+7. **Verification:** Does browser result match request, and do project checks pass?
+
+Keep batch small enough that reviewer can map each annotation to diff hunk. Split unrelated pages or risk classes into separate prompts and pull requests. No universal selection count is safe; diff comprehensibility is governing limit.
+
+## When to Use Multi-Selection
+
+Use it for related, visible corrections sharing one page or review context. Avoid batching unrelated redesign, logic changes, dependency work, and shared-system migrations merely because elements can be selected together.
+
+For complete annotation behavior and fallback rules, read [Annotations](/docs/using/annotations/) and [Web Preview](/docs/using/web-preview/). For ownership of resulting changes, read [Design System Collaboration Without Tickets](/blog/team-collaboration/).
+
+Start with [Frontman installation](/docs/installation/), then test multi-selection on a branch with normal review controls.

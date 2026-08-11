@@ -3,10 +3,6 @@ defmodule SwarmAi.ParallelExecutorTest do
 
   alias SwarmAi.{Message.ContentPart, ParallelExecutor, ToolCall, ToolExecution, ToolResult}
 
-  # --- Test MFA callbacks ---
-
-  # All functions called by PE via MFA must be public.
-
   def run_instant(content, tool_call) do
     ToolResult.make(tool_call.id, content, false)
   end
@@ -41,8 +37,6 @@ defmodule SwarmAi.ParallelExecutorTest do
 
     :ok
   end
-
-  # --- Helpers ---
 
   defp make_tc(id, name), do: %ToolCall{id: id, name: name, arguments: "{}"}
 
@@ -80,8 +74,6 @@ defmodule SwarmAi.ParallelExecutorTest do
   end
 
   defp content_text(%ToolResult{content: content}), do: ContentPart.extract_text(content)
-
-  # --- Tests ---
 
   describe "run/2 — Sync normal completion" do
     test "returns {:ok, results} for a single Sync tool" do
@@ -172,7 +164,6 @@ defmodule SwarmAi.ParallelExecutorTest do
         tool_call: tc,
         timeout_ms: 10,
         on_timeout_policy: :error,
-        # Never sends a result back
         start: {__MODULE__, :start_await_never, []},
         on_timeout: {__MODULE__, :noop_timeout, []}
       }
@@ -328,14 +319,11 @@ defmodule SwarmAi.ParallelExecutorTest do
           {id, reason}
         end
 
-      # id1 ("interactive") triggers the pause — :triggered; id2 ("normal") is cancelled — :cancelled
       assert {:triggered, :cancelled} ==
                {calls |> Enum.find_value(fn {id, r} -> id == "id1" && r end),
                 calls |> Enum.find_value(fn {id, r} -> id == "id2" && r end)}
     end
   end
-
-  # --- Additional MFA helpers needed by tests above ---
 
   def start_await_error(pe_pid, tool_call) do
     spawn(fn -> send(pe_pid, {:tool_result, tool_call.id, "mcp error", true}) end)

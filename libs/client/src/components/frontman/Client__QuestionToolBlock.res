@@ -1,6 +1,3 @@
-// Display-only types for parsing the tool result JSON.
-// The server sends this format in tool_call_update completed notifications.
-
 /**
  * QuestionToolBlock - Compact summary card for question tool calls
  *
@@ -9,6 +6,8 @@
  * - Answered: per-question summary with check/skip icons
  * - Cancelled/error: red-tinted card
  */
+module Icons = Client__UI__Icons
+
 @schema
 type questionAnswerDisplay = {
   question: string,
@@ -53,17 +52,15 @@ module HeaderRow = {
     | Red => ("size-3.5 text-red-400", "text-[13px] text-red-400")
     }
     <div className="flex items-center gap-2">
-      <FrontmanBindings.Bindings__RadixUI__Icons.ChatBubbleIcon className={iconClass} />
+      <Icons.ChatBubbleIcon className={iconClass} />
       <span className={textClass}> {React.string(text)} </span>
     </div>
   }
 }
 
-// Schema for parsing tool input (the questions the agent is asking)
 @schema
 type toolInputDisplay = {questions: array<Client__Question__Types.questionItem>}
 
-// Render question headers from tool input (for pending/unanswered states)
 module QuestionList = {
   @react.component
   let make = (~input: option<JSON.t>) => {
@@ -83,9 +80,7 @@ module QuestionList = {
         ->Array.mapWithIndex((q, i) =>
           <div key={Int.toString(i)} className="flex items-start gap-1.5 ml-5">
             <span className="text-zinc-500 mt-px shrink-0">
-              <FrontmanBindings.Bindings__RadixUI__Icons.QuestionMarkCircledIcon
-                className="size-3"
-              />
+              <Icons.QuestionMarkCircledIcon className="size-3" />
             </span>
             <span className="text-[12px] leading-snug text-zinc-400">
               {React.string(q.header)}
@@ -103,29 +98,24 @@ module QuestionList = {
 let make = (
   ~state: Client__State__Types.Message.toolCallState,
   ~input: option<JSON.t>,
-  ~result: option<JSON.t>,
+  ~result: option<Client__State__Types.Message.toolResult>,
   ~errorText: option<string>,
-  ~compact: bool=false,
 ) => {
   switch (state, result) {
   | (InputStreaming, _) | (InputAvailable, _) =>
-    <Card compact>
+    <Card compact=true>
       <HeaderRow color=Purple text="Asking a question..." />
       <QuestionList input />
     </Card>
 
-  | (OutputAvailable, Some(resultJson)) => {
-      let parsed = try {
-        Some(S.parseOrThrow(resultJson, ~to=toolOutputDisplaySchema))
-      } catch {
-      | _ => None
-      }
+  | (OutputAvailable, Some({rawOutput: Some(resultJson)})) => {
+      let parsed = Some(S.parseOrThrow(resultJson, ~to=toolOutputDisplaySchema))
       let (cancelled, skippedAll) = switch parsed {
       | Some(output) => (output.cancelled, output.skippedAll)
       | None => (false, false)
       }
 
-      <Card compact variant={cancelled ? Error : Normal}>
+      <Card compact=true variant={cancelled ? Error : Normal}>
         <HeaderRow
           color={cancelled ? Red : Purple}
           text={switch (cancelled, skippedAll) {
@@ -154,11 +144,11 @@ let make = (
                 {switch isAnswered {
                 | true =>
                   <span className="text-teal-400 mt-px shrink-0">
-                    <FrontmanBindings.Bindings__RadixUI__Icons.CheckIcon className="size-3" />
+                    <Icons.CheckIcon className="size-3" />
                   </span>
                 | false =>
                   <span className="text-zinc-500 mt-px shrink-0">
-                    <FrontmanBindings.Bindings__RadixUI__Icons.Cross2Icon className="size-3" />
+                    <Icons.Cross2Icon className="size-3" />
                   </span>
                 }}
                 <div className="flex items-baseline gap-1 min-w-0">
@@ -189,13 +179,12 @@ let make = (
     }
 
   | (OutputError, _) =>
-    <Card compact variant=Error>
+    <Card compact=true variant=Error>
       <HeaderRow color=Red text={errorText->Option.getOr("Question failed")} />
     </Card>
 
-  | (OutputAvailable, None) =>
-    // Defensive: shouldn't happen but handle gracefully
-    <Card compact>
+  | (OutputAvailable, None | Some({rawOutput: None})) =>
+    <Card compact=true>
       <HeaderRow color=Purple text="Question completed" />
     </Card>
   }

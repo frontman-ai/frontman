@@ -13,8 +13,8 @@ import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
 
 ## Requirements
 
-- Node.js 18 or later
-- Astro 5.x or 6.x
+- Node.js 22.19 or later
+- Astro 5.x, 6.x, or 7.x
 
 ## Installation
 
@@ -33,6 +33,12 @@ npm install --save-dev @frontman-ai/astro
 Then register it in your config:
 
 <CodeFromFile snippet="astro/astro.config.ts.txt" />
+
+:::note[Sign-in and AI provider required]
+The default setup connects to Frontman's hosted server at `api.frontman.sh`. When you first open `/frontman`, your browser redirects there so you can sign in to Frontman with a GitHub or Google account, then attempts to return to your project. Standard `localhost` and `127.0.0.1` URLs return automatically; if you use another local hostname and remain on the hosted page, reopen `/frontman` after signing in. Before your first prompt, connect a supported AI provider with OAuth or add an API key. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
+
+If you configure `host` or `FRONTMAN_HOST`, sign-in happens on that Frontman server instead. Self-hosted production servers still require GitHub or Google OAuth through WorkOS; see [Self-Hosting](/docs/reference/self-hosting/).
+:::
 
 ## Configuration
 
@@ -77,13 +83,15 @@ Start your dev server (`astro dev`) and open `http://localhost:4321/frontman`. T
 
 ### Astro lifecycle hooks
 
-The integration registers handlers at three Astro lifecycle points:
+The integration registers handlers at four Astro lifecycle points:
 
 **`astro:config:setup`** — Registers the Vite plugin chain (described below), injects the element annotation capture script into every page, and registers a Dev Toolbar app that provides element-to-source-file mapping.
 
-**`astro:server:setup`** — Initializes the log capture buffer, registers the Frontman request handler on the Vite Connect server, and rewrites bare `/frontman` requests (no trailing slash) to `/frontman/`.
+**`astro:config:done`** — Captures the final `trailingSlash` policy so Frontman routes follow `always`, `never`, and `ignore` consistently.
 
-**`astro:routes:resolved`** *(Astro 5+ only)* — Captures the complete resolved route manifest from Astro's internal routing system. This catches content collection routes, config-level redirects, API endpoints, and routes injected by other integrations. On Astro 4, routes are discovered by scanning the `src/pages/` filesystem instead.
+**`astro:server:setup`** — Initializes the log capture buffer, registers the Frontman request handler on the Vite Connect server, and canonicalizes Frontman routes according to the final trailing-slash policy.
+
+**`astro:routes:resolved`** — Captures the complete resolved route manifest from Astro's routing system. This catches content collection routes, config-level redirects, API endpoints, and routes injected by other integrations.
 
 ### Vite plugin chain
 
@@ -91,9 +99,11 @@ Three Vite plugins run inside the Astro Vite instance:
 
 **`frontman-middleware`** — Installs a Connect middleware that intercepts all `/{basePath}/*` requests. Serves the Frontman UI, handles tool call requests (`POST /frontman/tools/call`), manages SSE streams for streaming responses (`GET /frontman/tools`), and resolves source locations. CORS is enabled for all `/frontman/*` routes.
 
-**`frontman-props-injection`** — During HTML transformation, injects component props as HTML comments. The Frontman client reads these comments to give the AI component props without requiring a React/Vue runtime on the page.
+**`frontman-source-annotations`** *(Astro 7)* — Adds dev-only `data-frontman-source-*` attributes before Astro's Rust compiler runs. Production output remains unchanged.
 
-**`rehype-content-file`** — Enriches rendered content with source file metadata, mapping DOM elements back to their originating content collection or Markdown files.
+**`frontman-props-injection`** — During server rendering, injects bounded, secret-redacted component props as HTML comments. The Frontman client reads these comments to give the AI component props without requiring a client framework runtime.
+
+Markdown source metadata is composed into the active processor: Sätteri `hastPlugins` on Astro 7, unified `rehypePlugins` when configured, and the legacy rehype config path on Astro 5/6.
 
 ### Log capture
 
@@ -109,11 +119,13 @@ The AI queries this buffer with the `get_logs` tool. Queries support: `pattern` 
 
 Frontman identifies the source file and line number for a clicked DOM element using two mechanisms:
 
-**Dev Toolbar attributes** *(default)* — Astro's dev toolbar injects `data-astro-source-file` and `data-astro-source-loc` attributes onto elements during development. Frontman reads these for exact file and line information.
+**Astro 5/6 Dev Toolbar attributes** — Astro injects `data-astro-source-file` and `data-astro-source-loc` attributes onto elements during development. Frontman reads these for exact file and line information.
+
+**Astro 7 Frontman attributes** — Frontman adds `data-frontman-source-file` and `data-frontman-source-loc` before compilation because Astro 7's Rust compiler no longer emits the legacy source attributes.
 
 **CSS selector fallback** — When `devToolbar.enabled` is `false` in your Astro config, Frontman falls back to matching DOM elements by CSS selector against the parsed AST. This is less precise.
 
-Keep `devToolbar.enabled: true` (the Astro default) for accurate source detection.
+Keep `devToolbar.enabled: true` (the Astro default) for accurate source detection on Astro 5 and 6. Astro 7 source detection does not depend on this setting.
 
 ## Available Tools
 
@@ -121,7 +133,7 @@ Keep `devToolbar.enabled: true` (the Astro default) for accurate source detectio
 
 | Tool | Description |
 |------|-------------|
-| `get_client_pages` | Returns all Astro pages with their file paths and URL route patterns. On Astro 5+, uses the resolved route manifest (includes content collection routes and integration-injected routes). On Astro 4, scans `src/pages/`. |
+| `get_client_pages` | Returns all Astro pages with their file paths and URL route patterns from the resolved route manifest, including content collection and integration-injected routes. |
 | `get_logs` | Queries the dev server log buffer. Parameters: `pattern` (regex string), `level` (`log`/`warn`/`error`/`info`/`debug`), `since` (ISO 8601 timestamp), `tail` (integer). |
 
 ### File system
@@ -161,11 +173,11 @@ The middleware is not registered. Verify the integration appears in `integration
 
 **Clicked element shows the wrong source file**
 
-Ensure `devToolbar.enabled` is not set to `false` in your Astro config. Without dev toolbar attributes, Frontman falls back to CSS selector-based detection, which is less precise for deeply nested elements or generated markup.
+On Astro 5 or 6, ensure `devToolbar.enabled` is not set to `false`. Astro 7 uses Frontman-owned annotations and does not require Dev Toolbar source attributes.
 
 **`get_client_pages` returns no routes**
 
-On Astro 4, routes are discovered by scanning `src/pages/`. If your pages live in a custom `srcDir`, the scanner will not find them. Upgrade to Astro 5+ to use the hook-based route manifest, which is `srcDir`-agnostic.
+Verify pages appear in Astro's resolved route manifest and restart the dev server after route configuration changes.
 
 **The log buffer is empty**
 

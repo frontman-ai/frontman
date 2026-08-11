@@ -1,6 +1,3 @@
-// Runtime config injected by the framework middleware (e.g., Next.js)
-// Reads from window.__frontmanRuntime
-
 type frameworkId = Nextjs | Vite | Astro | Wordpress
 
 type updateTarget =
@@ -24,9 +21,6 @@ let frameworkIdToString = (id: frameworkId): string =>
   | Wordpress => "wordpress"
   }
 
-// Map a framework ID to a human-readable display name.
-// The wire format uses normalized IDs ("nextjs", "vite", "astro") but the
-// UI should display user-friendly names ("Next.js", "Vite", "Astro").
 let frameworkDisplayName = (id: frameworkId): string =>
   switch id {
   | Nextjs => "Next.js"
@@ -38,16 +32,9 @@ let frameworkDisplayName = (id: frameworkId): string =>
 @schema
 type parsed = {
   framework: string,
-  // UIShell always sets this, but tests and non-standard embeddings may omit it.
   basePath: option<string>,
-  // WordPress injects a nonce for authenticated same-origin POSTs to /frontman/*.
   wpNonce: option<string>,
-  openrouterKeyValue: option<string>,
-  anthropicKeyValue: option<string>,
-  fireworksKeyValue: option<string>,
-  nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
-  sourceRoot: option<string>,
   traits: option<array<string>>,
 }
 
@@ -56,20 +43,9 @@ type t = {
   framework: frameworkId,
   basePath: string,
   wpNonce: option<string>,
-  openrouterKeyValue: option<string>,
-  anthropicKeyValue: option<string>,
-  fireworksKeyValue: option<string>,
-  nvidiaKeyValue: option<string>,
   projectRoot: option<string>,
-  sourceRoot: option<string>,
   traits: option<array<string>>,
 }
-
-let normalizeOptionalString = value =>
-  switch value {
-  | Some("") | None => None
-  | Some(text) => Some(text)
-  }
 
 let read = (): t => {
   let getRuntime: unit => Nullable.t<JSON.t> = %raw(`
@@ -87,35 +63,11 @@ let read = (): t => {
     | Some(bp) => bp
     },
     wpNonce: config.wpNonce,
-    openrouterKeyValue: normalizeOptionalString(config.openrouterKeyValue),
-    anthropicKeyValue: normalizeOptionalString(config.anthropicKeyValue),
-    fireworksKeyValue: normalizeOptionalString(config.fireworksKeyValue),
-    nvidiaKeyValue: normalizeOptionalString(config.nvidiaKeyValue),
     projectRoot: config.projectRoot,
-    sourceRoot: config.sourceRoot,
     traits: config.traits,
   }
 }
 
-let toEnvApiKeyDict = (config: t): Dict.t<string> => {
-  let envApiKey = Dict.make()
-  [
-    ("openrouterKeyValue", config.openrouterKeyValue),
-    ("anthropicKeyValue", config.anthropicKeyValue),
-    ("fireworksKeyValue", config.fireworksKeyValue),
-    ("nvidiaKeyValue", config.nvidiaKeyValue),
-  ]->Array.forEach(((keyName, maybeKey)) =>
-    maybeKey->Option.forEach(key => envApiKey->Dict.set(keyName, key))
-  )
-  envApiKey
-}
-
-let hasAnyProviderKey = (config: t): bool => {
-  toEnvApiKeyDict(config)->Dict.valuesToArray->Array.length > 0
-}
-
-// Model update checks explicitly so WordPress doesn't silently pretend to have
-// an npm package.
 let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
   switch id {
   | Nextjs => NpmPackage("@frontman-ai/nextjs")
@@ -124,17 +76,10 @@ let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
   | Wordpress => WordPressPlugin
   }
 
-// Convert runtime config to _meta JSON for ACP requests
-// Includes framework and forwarded provider keys so the server knows
-// which framework the client is running in and can use the project's env keys
 let toMeta = (config: t): JSON.t => {
   let configObj = Dict.fromArray([
     ("framework", JSON.Encode.string(frameworkIdToString(config.framework))),
-    ("basePath", JSON.Encode.string(config.basePath)),
   ])
-  toEnvApiKeyDict(config)->Dict.forEachWithKey((keyValue, keyName) => {
-    configObj->Dict.set(keyName, JSON.Encode.string(keyValue))
-  })
   config.traits->Option.forEach(traits => {
     configObj->Dict.set("traits", traits->Array.map(JSON.Encode.string)->JSON.Encode.array)
   })

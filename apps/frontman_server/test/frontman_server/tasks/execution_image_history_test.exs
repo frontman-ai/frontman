@@ -3,7 +3,9 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   import Mox
 
-  import FrontmanServer.InteractionCase.Helpers, only: [text_block: 1]
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [assert_receive_interaction: 2, text_block: 1]
+
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
@@ -43,7 +45,28 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     tool_defs = screenshot_tool_defs()
     parent = self()
 
-    client_result = client_mcp_image_result(screenshot)
+    client_result =
+      screenshot
+      |> client_mcp_image_result()
+      |> Map.put("unknownTopLevel", "drop me")
+      |> Map.put("_meta", %{
+        "envApiKey" => "sk-fake-image-key",
+        "model" => %{"provider" => "openrouter", "value" => "fake/model"}
+      })
+      |> update_in(["content", Access.at(0)], &Map.put(&1, "unknown", "drop me"))
+
+    canonical_result = %{
+      "content" => [
+        %{
+          "type" => "image",
+          "data" => Base.encode64(screenshot),
+          "mimeType" => "image/png",
+          "unknown" => "drop me"
+        }
+      ],
+      "isError" => false,
+      "_meta" => %{}
+    }
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
       send(parent, {:provider_messages, :turn1_before_screenshot, messages})
@@ -61,20 +84,17 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     {:ok, _interaction, 1} =
       submit_anthropic_message(scope, task_id, "look at the page", mcp_tools: tool_defs)
 
-    assert_receive {:interaction, %Interaction.ToolCall{tool_call_id: ^screenshot_tool_call_id},
-                    1},
-                   5_000
+    assert_receive_interaction(%Interaction.ToolCall{tool_call_id: ^screenshot_tool_call_id}, 1)
 
     {:ok, _interaction, _status} =
       Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: screenshot_tool_call_id, name: "take_screenshot"},
-        client_result,
-        false
+        client_result
       )
 
-    assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+    assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     assert_receive {:provider_messages, :turn1_after_screenshot, turn1_after_messages}, 1_000
 
     turn1_tool_message = tool_message!(turn1_after_messages, screenshot_tool_call_id)
@@ -82,8 +102,8 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     refute content_text([turn1_tool_message]) =~ "data:image"
 
     {:ok, task} = Tasks.get_task(scope, task_id)
-    persisted = tool_result!(task.interactions, screenshot_tool_call_id)
-    assert persisted.result == client_result
+    persisted = tool_result!(Tasks.interactions(task), screenshot_tool_call_id)
+    assert persisted.result == canonical_result
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
       send(parent, {:provider_messages, :turn2_before_get_tool_result, messages})
@@ -105,7 +125,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
     {:ok, _interaction, 2} = submit_anthropic_message(scope, task_id, "show old screenshot")
 
-    assert_receive {:interaction, %Interaction.AgentCompleted{}, 2}, 5_000
+    assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
     assert_receive {:provider_messages, :turn2_before_get_tool_result, before_messages}, 1_000
     assert_receive {:provider_messages, :turn2_after_get_tool_result, after_messages}, 1_000
 
@@ -121,7 +141,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     refute content_text([tool_message]) =~ "data:image"
   end
 
-  test "current turn screenshot reaches next LLM call as image and stays raw in DB", %{
+  test "current turn screenshot reaches next LLM call as image and stays lossless in DB", %{
     scope: scope,
     task_id: task_id
   } do
@@ -144,19 +164,17 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     {:ok, _interaction, 1} =
       submit_anthropic_message(scope, task_id, "look at the page", mcp_tools: tool_defs)
 
-    assert_receive {:interaction, %Interaction.ToolCall{tool_call_id: ^tool_call_id}, 1},
-                   5_000
+    assert_receive_interaction(%Interaction.ToolCall{tool_call_id: ^tool_call_id}, 1)
 
     {:ok, _interaction, _status} =
       Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: tool_call_id, name: "take_screenshot"},
-        mcp_image_result(screenshot),
-        false
+        mcp_image_result(screenshot)
       )
 
-    assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+    assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     assert_receive {:provider_messages, :live_screenshot, messages}, 1_000
 
     tool_message = tool_message!(messages, tool_call_id)
@@ -165,9 +183,19 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     refute content_text([tool_message]) =~ "data:image"
 
     {:ok, task} = Tasks.get_task(scope, task_id)
-    persisted = tool_result!(task.interactions, tool_call_id)
+    persisted = tool_result!(Tasks.interactions(task), tool_call_id)
 
-    assert persisted.result == mcp_image_result(screenshot)
+    assert persisted.result == %{
+             "content" => [
+               %{
+                 "type" => "image",
+                 "data" => Base.encode64(screenshot),
+                 "mimeType" => "image/png"
+               }
+             ],
+             "isError" => false,
+             "_meta" => %{}
+           }
   end
 
   test "Anthropic many-image requests do not include live images over 2000px", %{
@@ -187,22 +215,35 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
     {:ok, _interaction, 1} = submit_anthropic_message(scope, task_id, prompt)
 
-    assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+    assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     assert_receive {:provider_messages, :many_live_images, messages}, 1_000
 
     refute Enum.any?(image_parts(messages), &over_dimension?(&1, 2000))
   end
 
   defp submit_anthropic_message(scope, task_id, content, overrides \\ []) do
-    Tasks.submit_user_message(
-      scope,
-      Map.merge(
-        execution_request_fixture(
-          Keyword.merge([model: "anthropic:claude-sonnet-4-5"], overrides)
-        ),
-        %{task_id: task_id, message: prompt_content(content)}
-      )
-    )
+    execution_request =
+      execution_request_fixture(Keyword.merge([model: "anthropic:claude-sonnet-4-5"], overrides))
+
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution_request, %{task_id: task_id, message: prompt_content(content)})
+         ) do
+      {:ok, interaction} ->
+        case Tasks.run_next_turn(scope, task_id, execution_request) do
+          :ok ->
+            {:ok, interaction, latest_turn_number(task_id)}
+
+          result when result in [:already_running, :no_accepted_messages] ->
+            {:error, result}
+
+          result ->
+            result
+        end
+
+      result ->
+        result
+    end
   end
 
   defp prompt_content(content) when is_binary(content), do: user_content(content)
@@ -236,13 +277,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   defp user_image_block(binary, mime \\ "image/png") do
     %{
       "type" => "resource",
+      "_meta" => %{"user_image" => true, "filename" => "image.png"},
       "resource" => %{
-        "_meta" => %{"user_image" => true, "filename" => "image.png"},
-        "resource" => %{
-          "uri" => "attachment://#{System.unique_integer([:positive])}/image.png",
-          "mimeType" => mime,
-          "blob" => Base.encode64(binary)
-        }
+        "uri" => "attachment://#{System.unique_integer([:positive])}/image.png",
+        "mimeType" => mime,
+        "blob" => Base.encode64(binary)
       }
     }
   end

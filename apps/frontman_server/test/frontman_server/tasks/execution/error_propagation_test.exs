@@ -12,6 +12,9 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
   use FrontmanServer.ExecutionCase
 
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [assert_receive_interaction: 2]
+
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
@@ -36,28 +39,15 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       task_id: task_id,
       scope: scope
     } do
-      # The provider returns {:ok, stream} where the stream raises when
-      # consumed — matching the real LLMClient behavior when ReqLLM emits an
-      # error chunk (e.g., HTTP 400 for oversized images). The try/rescue in
-      # execute_llm_call catches the raise and routes it through
-      # Loop.handle_error → {:failed, ...} instead of crashing the process.
       expect_llm_responses([
         {:stream_raise, "LLM API error: image exceeds the maximum allowed size"}
       ])
 
       {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
-      {:ok, _, _} =
-        Tasks.submit_user_message(
-          scope,
-          Map.merge(execution_request_fixture(), %{
-            task_id: task_id,
-            message: user_content("Take a screenshot")
-          })
-        )
+      {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Take a screenshot"))
 
-      # Stream errors are now caught and surfaced as graceful failures.
-      assert_receive {:interaction, %Interaction.AgentError{error: reason}, _turn_number}, 5_000
+      assert_receive_interaction(%Interaction.AgentError{error: reason}, _turn_number)
 
       assert reason =~ "image exceeds the maximum allowed size"
     end
@@ -71,17 +61,33 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
       {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
-      {:ok, _, _} =
-        Tasks.submit_user_message(
-          scope,
-          Map.merge(execution_request_fixture(), %{
-            task_id: task_id,
-            message: user_content("Hello")
-          })
-        )
+      {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Hello"))
 
-      # Should receive a failed interaction broadcast.
-      assert_receive {:interaction, %Interaction.AgentError{kind: "failed"}, _turn_number}, 5_000
+      assert_receive_interaction(%Interaction.AgentError{kind: "failed"}, _turn_number)
+    end
+  end
+
+  defp submit_user_message_and_run(scope, task_id, message, overrides \\ []) do
+    execution_request = execution_request_fixture(overrides)
+
+    case Tasks.submit_user_message(
+           scope,
+           Map.merge(execution_request, %{task_id: task_id, message: message})
+         ) do
+      {:ok, interaction} ->
+        case Tasks.run_next_turn(scope, task_id, execution_request) do
+          :ok ->
+            {:ok, interaction, latest_turn_number(task_id)}
+
+          result when result in [:already_running, :no_accepted_messages] ->
+            {:error, result}
+
+          result ->
+            result
+        end
+
+      result ->
+        result
     end
   end
 end

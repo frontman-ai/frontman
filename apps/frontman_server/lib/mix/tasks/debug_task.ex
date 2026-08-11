@@ -54,15 +54,14 @@ defmodule Mix.Tasks.DebugTask do
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
 
-  @tool_call_type Interaction.type_for(Interaction.ToolCall)
-  @tool_result_type Interaction.type_for(Interaction.ToolResult)
-  @agent_response_type Interaction.type_for(Interaction.AgentResponse)
-  @user_message_type Interaction.type_for(Interaction.UserMessage)
-  @agent_completed_type Interaction.type_for(Interaction.AgentCompleted)
-  @discovered_project_rule_type Interaction.type_for(Interaction.DiscoveredProjectRule)
-  @discovered_project_structure_type Interaction.type_for(Interaction.DiscoveredProjectStructure)
+  @tool_call_type :tool_call
+  @tool_result_type :tool_result
+  @agent_response_type :agent_response
+  @user_message_type :user_message
+  @agent_completed_type :agent_completed
+  @discovered_project_rule_type :discovered_project_rule
+  @discovered_project_structure_type :discovered_project_structure
 
-  # ANSI helpers
   defp cyan(text), do: IO.ANSI.cyan() <> text <> IO.ANSI.reset()
   defp red(text), do: IO.ANSI.red() <> text <> IO.ANSI.reset()
   defp bold(text), do: IO.ANSI.bright() <> text <> IO.ANSI.reset()
@@ -103,8 +102,6 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  # ── list ──────────────────────────────────────────────────────
-
   defp cmd_list(opts) do
     limit = Keyword.get(opts, :limit, 10)
 
@@ -135,8 +132,6 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  # ── show ──────────────────────────────────────────────────────
-
   defp cmd_show(positional, opts) do
     task = resolve_task_from_args(positional)
 
@@ -154,8 +149,6 @@ defmodule Mix.Tasks.DebugTask do
       show_list(task.id, opts)
     end
   end
-
-  # ── show_list ─────────────────────────────────────────────────
 
   defp show_list(task_id, opts) do
     limit = Keyword.get(opts, :limit, 100)
@@ -177,8 +170,6 @@ defmodule Mix.Tasks.DebugTask do
     Mix.shell().info("\n#{dim("  Tip: --seq NUMBER for full detail on any interaction")}")
   end
 
-  # ── show_detail ───────────────────────────────────────────────
-
   defp show_detail(task_id, seq) do
     interaction =
       InteractionSchema.for_task(task_id)
@@ -190,23 +181,22 @@ defmodule Mix.Tasks.DebugTask do
         Mix.shell().error("No interaction found with sequence #{seq}")
 
       i ->
-        is_error = get_in(i.data, ["is_error"]) == true
+        data = data_map(i.data)
+        is_error = get_in(data, ["is_error"]) == true
         error_label = if is_error, do: "\n  #{red("is_error: true")}", else: ""
 
         Mix.shell().info(
           "  #{bold(type_name(i.type))}  seq=#{i.sequence}  id=#{i.id}\n  timestamp: #{i.inserted_at}#{error_label}\n"
         )
 
-        Mix.shell().info(format_json(i.data))
+        Mix.shell().info(format_json(data))
 
-        # For error tool_results, show the originating tool_call
         if i.type == @tool_result_type and is_error do
-          show_originating_call(task_id, i.data["tool_call_id"])
+          show_originating_call(task_id, data["tool_call_id"])
         end
 
-        # For tool_results, always show the originating call if not an error too
-        if i.type == @tool_result_type and not is_error and i.data["tool_call_id"] do
-          show_originating_call(task_id, i.data["tool_call_id"])
+        if i.type == @tool_result_type and not is_error and data["tool_call_id"] do
+          show_originating_call(task_id, data["tool_call_id"])
         end
     end
   end
@@ -219,7 +209,7 @@ defmodule Mix.Tasks.DebugTask do
     case find_originating_tool_call(task_id, tool_call_id) do
       {:tool_call, call} ->
         Mix.shell().info("\n#{bold("  Originating tool_call (seq #{call.sequence})")}\n")
-        Mix.shell().info(format_json(call.data))
+        Mix.shell().info(format_json(data_map(call.data)))
 
       {:agent_response, response, call} ->
         Mix.shell().info(
@@ -254,7 +244,7 @@ defmodule Mix.Tasks.DebugTask do
       |> Repo.all()
 
     Enum.find_value(responses, fn response ->
-      tool_calls = get_in(response.data, ["metadata", "tool_calls"]) || []
+      tool_calls = get_in(data_map(response.data), ["metadata", "tool_calls"]) || []
 
       case Enum.find(tool_calls, &(&1["id"] == tool_call_id)) do
         nil -> nil
@@ -290,8 +280,6 @@ defmodule Mix.Tasks.DebugTask do
 
   defp decode_embedded_tool_arguments(arguments), do: arguments
 
-  # ── query filters ─────────────────────────────────────────────
-
   defp apply_filters(query, opts) do
     query
     |> maybe_filter_errors(opts[:errors])
@@ -320,10 +308,7 @@ defmodule Mix.Tasks.DebugTask do
     where(query, [i], fragment("?->>'tool_name' = ?", i.data, ^tool))
   end
 
-  # ── task resolution ───────────────────────────────────────────
-
   defp resolve_task_from_args([]) do
-    # No task specified — use the most recent
     task =
       TaskSchema
       |> TaskSchema.ordered_by_updated()
@@ -339,7 +324,6 @@ defmodule Mix.Tasks.DebugTask do
 
   defp resolve_task(id) do
     cond do
-      # Full UUID
       String.match?(id, ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ->
         TaskSchema
         |> TaskSchema.by_id(id)
@@ -349,7 +333,6 @@ defmodule Mix.Tasks.DebugTask do
           task -> task
         end
 
-      # Prefix (at least 8 hex chars)
       String.match?(id, ~r/^[0-9a-f]{8,}$/i) ->
         like_pattern = "#{String.downcase(id)}%"
 
@@ -381,12 +364,11 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  # ── formatting helpers ────────────────────────────────────────
-
   defp print_interaction_line(i) do
     seq_str = String.pad_leading(to_string(i.sequence || 0), 6)
-    is_error = get_in(i.data, ["is_error"]) == true
-    tool_name = i.data["tool_name"]
+    data = data_map(i.data)
+    is_error = get_in(data, ["is_error"]) == true
+    tool_name = data["tool_name"]
     error_tag = if is_error, do: " #{red("ERROR")}", else: ""
 
     type_str = format_type(i.type)
@@ -407,7 +389,17 @@ defmodule Mix.Tasks.DebugTask do
   defp format_type(@discovered_project_structure_type), do: dim("project_struct ")
   defp format_type(other), do: other |> type_name() |> String.pad_trailing(15) |> dim()
 
-  defp interaction_summary(%{type: @tool_call_type, data: data}) do
+  defp data_map(%_{} = data) do
+    data
+    |> Interaction.to_json_map()
+    |> Jason.encode!()
+    |> Jason.decode!()
+  end
+
+  defp data_map(data), do: data
+
+  defp interaction_summary(%{type: @tool_call_type, data: raw_data}) do
+    data = data_map(raw_data)
     args = data["arguments"] || %{}
 
     arg_keys =
@@ -418,7 +410,8 @@ defmodule Mix.Tasks.DebugTask do
     if arg_keys == "", do: "()", else: "(#{arg_keys})"
   end
 
-  defp interaction_summary(%{type: @tool_result_type, data: data}) do
+  defp interaction_summary(%{type: @tool_result_type, data: raw_data}) do
+    data = data_map(raw_data)
     is_error = data["is_error"] == true
     result = data["result"]
 
@@ -441,11 +434,13 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  defp interaction_summary(%{type: @agent_response_type, data: data}) do
+  defp interaction_summary(%{type: @agent_response_type, data: raw_data}) do
+    data = data_map(raw_data)
     truncate(data["content"] || "", 80)
   end
 
-  defp interaction_summary(%{type: @user_message_type, data: data}) do
+  defp interaction_summary(%{type: @user_message_type, data: raw_data}) do
+    data = data_map(raw_data)
     messages = data["messages"] || []
 
     case messages do
@@ -460,20 +455,23 @@ defmodule Mix.Tasks.DebugTask do
     end
   end
 
-  defp interaction_summary(%{type: @discovered_project_rule_type, data: data}) do
+  defp interaction_summary(%{type: @discovered_project_rule_type, data: raw_data}) do
+    data = data_map(raw_data)
     data["path"] || ""
   end
 
-  defp interaction_summary(%{type: @discovered_project_structure_type, data: data}) do
+  defp interaction_summary(%{type: @discovered_project_structure_type, data: raw_data}) do
+    data = data_map(raw_data)
     truncate(data["summary"] || "", 80)
   end
 
-  defp interaction_summary(%{type: @agent_completed_type, data: data}) do
+  defp interaction_summary(%{type: @agent_completed_type, data: raw_data}) do
+    data = data_map(raw_data)
     truncate(data["result"] || "", 80)
   end
 
-  defp interaction_summary(%{data: data}) do
-    truncate(inspect(data), 60)
+  defp interaction_summary(%{data: raw_data}) do
+    truncate(inspect(data_map(raw_data)), 60)
   end
 
   defp summarize_annotation_comments(data) do
@@ -543,8 +541,6 @@ defmodule Mix.Tasks.DebugTask do
     id |> String.split("-") |> hd()
   end
 
-  # Start only the Repo (and its dependencies) instead of the full app.
-  # This avoids needing Vault/CLOAK_KEY, WorkOS, Phoenix, etc.
   defp ensure_repo_started do
     {:ok, _} = Application.ensure_all_started(:postgrex)
     {:ok, _} = Application.ensure_all_started(:ecto_sql)
@@ -568,7 +564,7 @@ defmodule Mix.Tasks.DebugTask do
   end
 
   defp parse_interaction_type(type_name) do
-    Enum.find(Interaction.type_values(), &(Atom.to_string(&1) == type_name)) ||
+    Enum.find(Ecto.Enum.values(InteractionSchema, :type), &(Atom.to_string(&1) == type_name)) ||
       Mix.raise("Unknown interaction type: #{type_name}")
   end
 

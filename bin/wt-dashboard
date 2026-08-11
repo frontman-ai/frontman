@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# Unified worktree dashboard — shows all worktrees, pod status, and URLs at a glance.
-# Called by: make wt
 
 set -euo pipefail
 
-# ── Colors ──────────────────────────────────────────────
 CYAN='\033[36m'
 GREEN='\033[32m'
 YELLOW='\033[33m'
@@ -13,7 +10,6 @@ DIM='\033[2m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# Symbols (plain ASCII fallback when TERM is dumb)
 if [[ "${TERM:-dumb}" != "dumb" ]]; then
   SYM_OK="✓"
   SYM_WARN="✗"
@@ -30,11 +26,9 @@ else
   LINE="--------------------------------------------------------------"
 fi
 
-# ── Resolve main repo root (works from any worktree) ────
 MAIN_REPO=$(git worktree list --porcelain | head -1 | sed 's/^worktree //')
 WORKTREES_DIR="${MAIN_REPO}/.worktrees"
 
-# ── Portable MD5 (same logic as Makefile) ───────────────
 md5_short() {
   if command -v md5sum >/dev/null 2>&1; then
     echo -n "$1" | md5sum | cut -c1-4
@@ -43,18 +37,15 @@ md5_short() {
   fi
 }
 
-# ── Infrastructure status (one line) ───────────────────
 infra_line() {
   local parts=()
 
-  # Dev image
   if podman image inspect frontman-dev:latest &>/dev/null; then
     parts+=("Image ${GREEN}${SYM_OK}${RESET}")
   else
     parts+=("Image ${RED}${SYM_WARN}${RESET}")
   fi
 
-  # Caddy
   local caddy_state
   caddy_state=$(podman container inspect frontman-caddy --format '{{.State.Status}}' 2>/dev/null || echo "missing")
   if [[ "$caddy_state" == "running" ]]; then
@@ -65,7 +56,6 @@ infra_line() {
     parts+=("Caddy ${YELLOW}${caddy_state}${RESET}")
   fi
 
-  # dnsmasq
   if [[ -f /etc/dnsmasq.d/frontman.conf ]]; then
     parts+=("dnsmasq ${GREEN}${SYM_OK}${RESET}")
   else
@@ -80,9 +70,8 @@ infra_line() {
   printf "  Infrastructure:  %b\n" "$joined"
 }
 
-# ── Collect pod info into associative arrays ────────────
-declare -A POD_STATUS     # hash -> "Running" | "Degraded" | "Exited" | ...
-declare -A POD_CONTAINERS # hash -> "3/3" (running/total)
+declare -A POD_STATUS
+declare -A POD_CONTAINERS
 
 collect_pods() {
   local line name status hash
@@ -93,7 +82,6 @@ collect_pods() {
     hash="${name#worktree-}"
     POD_STATUS["$hash"]="$status"
 
-    # Count running containers in the pod
     local total running
     total=$(podman pod inspect "$name" --format '{{len .Containers}}' 2>/dev/null || echo "?")
     running=$(podman pod inspect "$name" --format '{{range .Containers}}{{.State}} {{end}}' 2>/dev/null \
@@ -102,25 +90,21 @@ collect_pods() {
   done < <(podman pod ls --format '{{.Name}} {{.Status}}' 2>/dev/null | grep '^worktree-' || true)
 }
 
-# ── Collect all worktree branches ───────────────────────
 collect_worktrees() {
-  local -n _branches=$1  # nameref to caller's array
+  local -n _branches=$1
   if [[ ! -d "$WORKTREES_DIR" ]]; then
     return
   fi
 
-  # Single-level: .worktrees/my-branch
   for wt in "$WORKTREES_DIR"/*; do
     [[ -d "$wt" ]] || continue
     local name
     name=$(basename "$wt")
-    # Skip if it's a nested dir (has subdirectories that are worktrees)
     if [[ -f "$wt/.git" ]] || [[ -d "$wt/.git" ]]; then
       _branches+=("$name")
     fi
   done
 
-  # Nested: .worktrees/feature/my-branch
   for wt in "$WORKTREES_DIR"/*/*; do
     [[ -d "$wt" ]] || continue
     if [[ -f "$wt/.git" ]] || [[ -d "$wt/.git" ]]; then
@@ -131,13 +115,11 @@ collect_worktrees() {
   done
 }
 
-# ── Derive port range from hash (must match wt-pod-create) ──
 hash_base_port() {
   local hash="$1"
   echo $(( 16#${hash} % 5000 + 10000 ))
 }
 
-# ── Print a single worktree entry ──────────────────────
 print_worktree() {
   local branch="$1"
   local hash
@@ -146,7 +128,6 @@ print_worktree() {
   local pod_status="${POD_STATUS[$hash]:-}"
   local pod_containers="${POD_CONTAINERS[$hash]:-}"
 
-  # Determine lifecycle state
   local state_label state_color
   if [[ -n "$pod_status" ]]; then
     case "$pod_status" in
@@ -168,13 +149,11 @@ print_worktree() {
     state_color="$DIM"
   fi
 
-  # Header: branch name + status (right-aligned)
   local branch_display="${BOLD}${branch}${RESET}"
   local status_display="${state_color}${state_label}${RESET}"
   printf "\n  %b %b\n" "$branch_display" "$status_display"
 
   if [[ -n "$pod_status" ]]; then
-    # Has a pod
     printf "  ${DIM}%-12s${RESET} worktree-%-6s  ${DIM}hash${RESET} %s\n" "Pod:" "$hash" "$hash"
 
     if [[ "$pod_status" == Running* ]]; then
@@ -197,11 +176,9 @@ print_worktree() {
       printf "               make wt-rm BRANCH=%s\n" "$branch"
     fi
   else
-    # Plain worktree, no pod
     printf "  ${DIM}%-12s${RESET} .worktrees/%s\n" "Path:" "$branch"
     printf "  ${DIM}%-12s${RESET} Plain worktree (no container)\n" "Status:"
 
-    # Show git status summary
     local wt_dir="${WORKTREES_DIR}/$branch"
     local git_status
     git_status=$(git -C "$wt_dir" status -s 2>/dev/null | wc -l | tr -d ' ')
@@ -217,11 +194,9 @@ print_worktree() {
   fi
 }
 
-# ── Check for orphan pods (pod exists but worktree is gone) ──
 print_orphan_pods() {
   local found_orphan=false
   for hash in "${!POD_STATUS[@]}"; do
-    # Check if any worktree maps to this hash
     local matched=false
     if [[ -d "$WORKTREES_DIR" ]]; then
       for wt in "$WORKTREES_DIR"/* "$WORKTREES_DIR"/*/*; do
@@ -248,7 +223,6 @@ print_orphan_pods() {
   done
 }
 
-# ── Quick reference footer ─────────────────────────────
 print_footer() {
   echo ""
   printf "  %b\n" "$LINE"
@@ -264,7 +238,6 @@ print_footer() {
   echo ""
 }
 
-# ── Main ────────────────────────────────────────────────
 main() {
   echo ""
   printf "  ${BOLD}Frontman Worktrees${RESET}\n"
@@ -274,7 +247,6 @@ main() {
   echo ""
   printf "  %b\n" "$LINE"
 
-  # Collect data
   collect_pods
 
   local branches=()
@@ -289,12 +261,10 @@ main() {
     return
   fi
 
-  # Print each worktree
   for branch in "${branches[@]}"; do
     print_worktree "$branch"
   done
 
-  # Check for orphan pods
   print_orphan_pods
 
   print_footer

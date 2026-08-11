@@ -48,6 +48,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   def execution_request_fixture(overrides \\ []) do
     %{
       model: @default_test_model,
+      agent_id: "test-frontman",
       project_traits: [],
       mcp_tools: []
     }
@@ -55,8 +56,13 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   end
 
   @doc "Persist a user message and return its turn number."
-  def start_turn_fixture(scope, task_id, content_blocks \\ user_content("test turn")) do
-    {:ok, _message} = user_message_fixture(scope, task_id, content_blocks)
+  def start_turn_fixture(
+        scope,
+        task_id,
+        content_blocks \\ user_content("test turn"),
+        model \\ @default_test_model
+      ) do
+    {:ok, _message} = user_message_fixture(scope, task_id, content_blocks, model)
     latest_turn_number(task_id)
   end
 
@@ -74,14 +80,27 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   @doc """
   Persist a user message for tests without invoking the production execution API.
   """
-  def user_message_fixture(scope, task_id, content_blocks) do
+  def user_message_fixture(scope, task_id, content_blocks, model \\ @default_test_model) do
     task = task_schema!(scope, task_id)
-    interaction = Interaction.UserMessage.new(content_blocks, @default_test_model)
+    {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
 
-    case InteractionSchema.create_changeset(task, interaction, next_turn_number(task_id))
-         |> Repo.insert() do
-      {:ok, _schema} -> {:ok, interaction}
-      error -> error
+    with {:ok, row} <-
+           InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+           |> Repo.insert(),
+         {:ok, _turn_started} <-
+           InteractionSchema.create_changeset(
+             task.id,
+             :turn_started,
+             %{
+               id: Ecto.UUID.generate(),
+               timestamp: Interaction.now(),
+               agent_id: "test-frontman",
+               user_message_ids: [row.id]
+             },
+             next_turn_number(task_id)
+           )
+           |> Repo.insert() do
+      {:ok, row.data}
     end
   end
 

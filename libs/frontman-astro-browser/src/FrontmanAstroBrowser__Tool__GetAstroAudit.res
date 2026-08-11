@@ -1,18 +1,7 @@
-// Browser tool that reads Astro's dev toolbar audit results.
-//
-// The Astro dev toolbar runs ~26 accessibility and performance checks.
-// This tool traverses the toolbar's shadow DOM to extract those results
-// and make them available to the agent.
-//
-// Uses factory pattern: make(~getPreviewDoc) => module(BrowserTool).
-// The BrowserTool interface only passes (input, ~taskId, ~toolCallId) to
-// execute, so there's no way to thread the preview doc accessor through
-// the standard interface. The factory closes over getPreviewDoc at
-// construction time.
-
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 
 let name = Tool.ToolNames.getAstroAudit
+let access = Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 
@@ -68,13 +57,8 @@ type output = {
 }
 
 let emptyResult = (~message): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult({audits: [], message: Some(message)}, outputSchema)
+  Tool.structuredResult({audits: [], message: Some(message)}, outputSchema)
 
-// Typed externals for Astro dev toolbar custom element APIs.
-// The audit data lives behind two shadow DOM layers, all mode: "open".
-
-// Resolve a rule field that can be string | (Element) => string.
-// Uses runtime typeof to call function-valued rule fields.
 let resolveRuleField = (field: 'a, element: WebAPI.DOMAPI.element): string => {
   switch typeof(field) {
   | #function =>
@@ -84,8 +68,6 @@ let resolveRuleField = (field: 'a, element: WebAPI.DOMAPI.element): string => {
   }
 }
 
-// Get .audits property from the audit window custom element.
-// Returns array of {auditedElement, rule} objects.
 type auditRule = {
   code: string,
   title: unknown,
@@ -145,12 +127,10 @@ let convertAudit = (raw: rawAudit): auditEntry => {
 }
 
 let extractAudits = (doc: WebAPI.DOMAPI.document): Tool.MCP.CallToolResult.t => {
-  // Layer 1: find astro-dev-toolbar
   let toolbar = doc->WebAPI.Document.querySelector("astro-dev-toolbar")->Null.toOption
   switch toolbar {
   | None => emptyResult(~message="Astro dev toolbar not found. Is this an Astro dev page?")
   | Some(toolbar) =>
-    // Layer 2: toolbar's shadow root → audit app canvas
     let toolbarShadow = toolbar.shadowRoot->Null.toOption
     switch toolbarShadow {
     | None => emptyResult(~message="Astro dev toolbar shadow root not accessible")
@@ -162,7 +142,6 @@ let extractAudits = (doc: WebAPI.DOMAPI.document): Tool.MCP.CallToolResult.t => 
       switch auditCanvas {
       | None => emptyResult(~message="Astro audit app not found in dev toolbar")
       | Some(canvas) =>
-        // Layer 3: audit canvas shadow root → audit window
         let canvasShadow = canvas.shadowRoot->Null.toOption
         switch canvasShadow {
         | None => emptyResult(~message="Astro audit canvas shadow root not accessible")
@@ -178,7 +157,7 @@ let extractAudits = (doc: WebAPI.DOMAPI.document): Tool.MCP.CallToolResult.t => 
             switch rawAudits->Array.length {
             | 0 => emptyResult(~message="No audit results found. The audit may not have run yet.")
             | _ =>
-              Tool.jsonResult(
+              Tool.structuredResult(
                 {audits: rawAudits->Array.map(convertAudit), message: None},
                 outputSchema,
               )
@@ -194,13 +173,13 @@ let make = (~getPreviewDoc: unit => option<Tool.previewContext>): module(Tool.Br
   module(
     {
       let name = name
+      let access = access
       let visibleToAgent = visibleToAgent
       let executionMode = executionMode
       let description = description
       type input = input
-      type output = output
       let inputSchema = inputSchema
-      let outputSchema = outputSchema
+      let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
       let execute = async (_input, ~taskId as _, ~toolCallId as _) =>
         switch getPreviewDoc() {
         | None => emptyResult(~message="Preview iframe is not available")

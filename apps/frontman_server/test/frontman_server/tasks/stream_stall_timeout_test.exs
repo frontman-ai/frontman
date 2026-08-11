@@ -76,37 +76,28 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
     test "feeder process is cleaned up after normal consumption" do
       stream = Stream.map(1..3, & &1)
 
-      # Consume the stream
       stream
       |> StreamStallTimeout.wrap_stream(stall_timeout_ms: 1_000)
       |> Enum.to_list()
 
-      # Give a moment for cleanup
       Process.sleep(10)
 
-      # No linked processes should remain (just verifying no crash)
       assert Process.alive?(self())
     end
 
     test "keepalive chunks reset the stall timer and prevent false timeouts" do
-      # Simulates the ping keepalive scenario from issue #731:
-      # content chunk → long gap with keepalives → content chunk.
-      # Without keepalives resetting the timer, this would stall-timeout.
       keepalive_stream =
         Stream.resource(
           fn -> 0 end,
           fn
             0 ->
-              # Content chunk
               {[:content_chunk], 1}
 
             n when n in 1..3 ->
-              # Simulate delay between keepalives (shorter than stall timeout)
               Process.sleep(30)
               {[:keepalive], n + 1}
 
             4 ->
-              # Final content chunk arrives after keepalives kept us alive
               {[:final_chunk], 5}
 
             5 ->
@@ -115,8 +106,6 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
           fn _ -> :ok end
         )
 
-      # Stall timeout is 80ms. Without keepalives at 30ms intervals,
-      # the 90ms+ gap between content chunks would trigger a timeout.
       result =
         keepalive_stream
         |> StreamStallTimeout.wrap_stream(stall_timeout_ms: 80)
@@ -126,7 +115,6 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
     end
 
     test "stalls when no keepalives arrive between content chunks" do
-      # Same shape as above but WITHOUT keepalives — proves the timeout fires.
       no_keepalive_stream =
         Stream.resource(
           fn -> 0 end,
@@ -135,7 +123,6 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
               {[:content_chunk], 1}
 
             1 ->
-              # Long gap with no keepalives — exceeds stall timeout
               Process.sleep(:infinity)
               {:halt, nil}
           end,
@@ -166,10 +153,8 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
         |> Enum.to_list()
       end
 
-      # Give a moment for cleanup
       Process.sleep(10)
 
-      # The test process should still be alive (feeder was killed, not us)
       assert Process.alive?(self())
     end
   end
