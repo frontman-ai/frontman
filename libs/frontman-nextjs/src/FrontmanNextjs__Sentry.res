@@ -4,15 +4,14 @@ module SentryFilter = FrontmanBindings.Sentry__Filter
 
 let initialized = ref(false)
 
-let initialize = (~dsn: option<string>=?, ~transport: option<Bindings.transport>=?) => {
-  switch !initialized.contents &&
-  (Option.isSome(transport) || (Option.isSome(dsn) && !SentryConfig.isInternalDev())) {
+let initialize = (~dsn: string, ~transport: option<Bindings.transport>=?) => {
+  switch !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
   | true =>
     let scope: Bindings.scopeContext = {
       tags: Dict.fromArray([("frontman.library", "frontman-nextjs")]),
     }
     Bindings.init({
-      ?dsn,
+      dsn,
       environment: %raw(`process.env.NODE_ENV || "development"`),
       release: %raw(`process.env.npm_package_version || "unknown"`),
       sampleRate: 1.0,
