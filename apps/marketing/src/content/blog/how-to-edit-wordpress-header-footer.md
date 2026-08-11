@@ -3,10 +3,10 @@ title: 'How to Edit the Header and Footer in WordPress'
 seoTitle: 'How to Edit the Header and Footer in WordPress'
 pubDate: 2026-08-11T00:00:00Z
 description: 'Find and edit your WordPress header or footer in a block theme, classic theme, widget area, or Elementor without changing the wrong page.'
-author: 'Itay Adler'
+author: 'Danni Friedland'
 articleSection: 'Tutorial'
 image: '/blog/how-to-edit-wordpress-header-footer-cover.png'
-imageAlt: 'Dark cover reading Edit the right layer with Header, Footer, Template, and Builder labels'
+imageAlt: 'Frontman cover for How to Edit the Header and Footer in WordPress'
 tags: ['wordpress', 'tutorial', 'elementor']
 faq:
   - question: 'How do I edit the header and footer in WordPress?'

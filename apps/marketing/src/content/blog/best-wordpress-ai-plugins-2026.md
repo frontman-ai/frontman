@@ -92,8 +92,11 @@ If that table feels too broad, good. That is the point. The search result pages 
     <p class="!mt-3 !mb-0 !text-base !leading-[1.65] !text-zinc-300">Example: on a staging copy, select the homepage call to action and ask, “Change this button to Book a consultation.” Frontman keeps the page beside the conversation so you can inspect the result where visitors will see it.</p>
   </div>
   <figure class="!mt-6 !mb-0 bg-zinc-950">
-    <img class="block h-auto w-full" src="https://ps.w.org/frontman-agentic-ai-editor/assets/screenshot-2.gif?rev=3532460" alt="Frontman editing workspace showing AI conversation beside a live WordPress page preview" width="520" height="350" loading="lazy" decoding="async" />
-    <figcaption class="!m-0 border-t border-zinc-800 px-6 py-2.5 text-xs leading-6 text-zinc-400">Live preview stays in the review loop. The animation is served from Frontman’s WordPress.org plugin listing.</figcaption>
+    <video class="block h-auto w-full" controls preload="metadata" poster="/blog/frontman-wordpress-editor-demo-poster.webp" width="520" height="350" aria-label="Frontman editing workspace showing AI conversation beside a live WordPress page preview">
+      <source src="/blog/frontman-wordpress-editor-demo.mp4" type="video/mp4" />
+      <a href="/blog/frontman-wordpress-editor-demo.mp4">Watch the Frontman WordPress editing demo.</a>
+    </video>
+    <figcaption class="!m-0 border-t border-zinc-800 px-6 py-2.5 text-xs leading-6 text-zinc-400">Live preview stays in the review loop. Demo captured from Frontman’s WordPress.org plugin listing.</figcaption>
   </figure>
   <ol class="!my-6 mx-6 grid list-none grid-cols-1 gap-3 !p-0 md:grid-cols-3">
     <li class="!m-0 grid gap-1.5 rounded-[10px] border border-zinc-700 bg-zinc-950 p-4"><strong class="text-sm !text-zinc-100">Select</strong><span class="text-[13px] leading-5 text-zinc-400">Open <code>/frontman</code> on the staging page and identify the visible element.</span></li>
