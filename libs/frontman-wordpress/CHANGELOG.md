@@ -1,5 +1,17 @@
 # @frontman-ai/frontman-wordpress
 
+## 2.0.1
+
+### Patch Changes
+
+- [#1398](https://github.com/frontman-ai/frontman/pull/1398) [`aec9778`](https://github.com/frontman-ai/frontman/commit/aec97788c63359fadd67c31e144bb99cd7984fd1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add theme-scoped WordPress Additional CSS revision listing, inspection, and confirmed restoration with current-state conflict detection and observed before/after fingerprints.
+
+- [#1395](https://github.com/frontman-ai/frontman/pull/1395) [`beef1d6`](https://github.com/frontman-ai/frontman/commit/beef1d6f3b93f7941eb297e059e04ce1c80c359f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Rework the WordPress.org listing around one visible task, disclose setup requirements before installation, clarify compatibility limits, and use one complete task demonstration instead of disconnected feature screenshots.
+
+- [#1311](https://github.com/frontman-ai/frontman/pull/1311) [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported provider-key injection from framework runtime HTML, client settings, ACP metadata, and MCP tool-result metadata. Tool-result persistence now strips result metadata, while account-saved BYOK and provider OAuth remain unchanged.
+
+  Make MCP tool-result `_meta` optional and generic, align WordPress results with that contract, and stop exposing the unused absolute source root to browser runtime configuration.
+
 ## 2.0.0
 
 ### Minor Changes
