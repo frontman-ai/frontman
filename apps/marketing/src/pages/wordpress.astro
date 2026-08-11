@@ -6,6 +6,7 @@ import gridNetBackground from '../assets/grid-net-background.svg'
 import videoPlaceholder from '../assets/video-placeholder.png'
 
 const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
+const taskDemoUrl = '/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo'
 const youtubeVideoId = '-4GD1GYwH8Y'
 
 const SEO = {
@@ -150,6 +151,7 @@ const pageJsonLd = {
 				<div class="wp-step"><span>2</span><h3>Open the live workspace</h3><p>Visit https://yoursite.com/frontman, or append /frontman to a specific page URL.</p></div>
 				<div class="wp-step"><span>3</span><h3>Review what changed</h3><p>Ask for the update, watch the preview, and decide whether the result is ready.</p></div>
 			</div>
+			<a href={taskDemoUrl} class="wp-demo-link">Watch one complete staging-safe WordPress task <span aria-hidden="true">→</span></a>
 		</div>
 	</section>
 
@@ -262,6 +264,7 @@ const pageJsonLd = {
 	.wp-step span { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 999px; background: #7c3aed; color: white; font-weight: 800; margin-bottom: 18px; }
 	.wp-step h3 { @apply mb-2 text-xl font-bold text-slate-950; }
 	.wp-step p { @apply text-base leading-7 text-slate-600; opacity: 1; }
+	.wp-demo-link { @apply mt-8 inline-flex items-center gap-2 font-semibold text-violet-700 underline decoration-2 underline-offset-4 hover:text-violet-900; }
 	.wp-capabilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 	.wp-capability { border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 18px; background: rgba(255,255,255,0.04); color: #e4e4e7; }
 	.wp-split { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 56px; align-items: start; }
