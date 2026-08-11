@@ -5,147 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [3.0.0] - 2026-08-11
 
+### Added
 
-#### @frontman-ai/client
+- Structured tool results now stay intact from MCP calls through ACP, live UI updates, and restored session history.
+- Frontman can display typed tool content, including text, images, audio, links, and resources.
+- Review and restore WordPress Additional CSS revisions with theme-aware history, conflict checks, and clear before-and-after details.
+- New TypeScript declarations improve autocomplete and type safety for Next.js package exports.
 
+### Changed
 
-### Patch Changes
+- Output schemas now appear only for tools that return structured data, keeping tool contracts accurate.
+- Next.js setup now installs middleware and proxy files correctly for both root and `src/` project layouts.
+- The WordPress.org listing now explains setup requirements, compatibility, and a complete editing workflow before installation.
+- **Breaking:** `@frontman-ai/frontman-protocol` and `@frontman-ai/frontman-client` now use structured tool-result contracts. Integrations that import `jsonResult` must migrate to `structuredResult` or `unstructuredResult`.
 
-- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
+### Security
 
-- [#1318](https://github.com/frontman-ai/frontman/pull/1318) [`45139a1`](https://github.com/frontman-ai/frontman/commit/45139a10873190798ada2af674f49ba4f837836f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Advertise output schemas only for browser tools that return structured content.
-
-- [#1393](https://github.com/frontman-ai/frontman/pull/1393) [`fe076d1`](https://github.com/frontman-ai/frontman/commit/fe076d146d405ac287fc226d11a9668bff3b1f0d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Instrument typed OAuth activation events without sending prompt or relay error details to analytics.
-
-- [#1311](https://github.com/frontman-ai/frontman/pull/1311) [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported provider-key injection from framework runtime HTML, client settings, ACP metadata, and MCP tool-result metadata. Tool-result persistence now strips result metadata, while account-saved BYOK and provider OAuth remain unchanged.
-
-  Make MCP tool-result `_meta` optional and generic, align WordPress results with that contract, and stop exposing the unused absolute source root to browser runtime configuration.
-
-- [#1314](https://github.com/frontman-ai/frontman/pull/1314) [`59604b7`](https://github.com/frontman-ai/frontman/commit/59604b75efebd4a11d93c9496b152ab26ab4ba83) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Share typed text, image, audio, link, and resource content across MCP and ACP.
-
-- [#1317](https://github.com/frontman-ai/frontman/pull/1317) [`5c25668`](https://github.com/frontman-ai/frontman/commit/5c25668ddf5f708b81ea19ab2dd7eb811c1f4b5a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve and generically render typed multipart MCP tool content through ACP.
-
-- [#1315](https://github.com/frontman-ai/frontman/pull/1315) [`41f323a`](https://github.com/frontman-ai/frontman/commit/41f323ae561dc0d6192aeb4bb56356efd24896d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured tool arguments through ACP `rawInput`.
-
-- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
-
-#### @frontman-ai/astro
-
-
-### Patch Changes
-
-- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
-
-- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
-
-- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
-
-#### @frontman-ai/frontman-client
-
-
-### Major Changes
-
-- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
-
-### Patch Changes
-
-- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
-
-- [#1318](https://github.com/frontman-ai/frontman/pull/1318) [`45139a1`](https://github.com/frontman-ai/frontman/commit/45139a10873190798ada2af674f49ba4f837836f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Advertise output schemas only for browser tools that return structured content.
-
-- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
-
-- [#1393](https://github.com/frontman-ai/frontman/pull/1393) [`fe076d1`](https://github.com/frontman-ai/frontman/commit/fe076d146d405ac287fc226d11a9668bff3b1f0d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Instrument typed OAuth activation events without sending prompt or relay error details to analytics.
-
-- [#1311](https://github.com/frontman-ai/frontman/pull/1311) [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported provider-key injection from framework runtime HTML, client settings, ACP metadata, and MCP tool-result metadata. Tool-result persistence now strips result metadata, while account-saved BYOK and provider OAuth remain unchanged.
-
-  Make MCP tool-result `_meta` optional and generic, align WordPress results with that contract, and stop exposing the unused absolute source root to browser runtime configuration.
-
-- [#1314](https://github.com/frontman-ai/frontman/pull/1314) [`59604b7`](https://github.com/frontman-ai/frontman/commit/59604b75efebd4a11d93c9496b152ab26ab4ba83) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Share typed text, image, audio, link, and resource content across MCP and ACP.
-
-- [#1317](https://github.com/frontman-ai/frontman/pull/1317) [`5c25668`](https://github.com/frontman-ai/frontman/commit/5c25668ddf5f708b81ea19ab2dd7eb811c1f4b5a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve and generically render typed multipart MCP tool content through ACP.
-
-- [#1315](https://github.com/frontman-ai/frontman/pull/1315) [`41f323a`](https://github.com/frontman-ai/frontman/commit/41f323ae561dc0d6192aeb4bb56356efd24896d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured tool arguments through ACP `rawInput`.
-
-#### @frontman-ai/frontman-core
-
-
-### Patch Changes
-
-- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
-
-- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
-
-- [#1311](https://github.com/frontman-ai/frontman/pull/1311) [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported provider-key injection from framework runtime HTML, client settings, ACP metadata, and MCP tool-result metadata. Tool-result persistence now strips result metadata, while account-saved BYOK and provider OAuth remain unchanged.
-
-  Make MCP tool-result `_meta` optional and generic, align WordPress results with that contract, and stop exposing the unused absolute source root to browser runtime configuration.
-
-- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
-
-- Updated dependencies [[`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a), [`45139a1`](https://github.com/frontman-ai/frontman/commit/45139a10873190798ada2af674f49ba4f837836f), [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f), [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4), [`59604b7`](https://github.com/frontman-ai/frontman/commit/59604b75efebd4a11d93c9496b152ab26ab4ba83), [`5c25668`](https://github.com/frontman-ai/frontman/commit/5c25668ddf5f708b81ea19ab2dd7eb811c1f4b5a), [`41f323a`](https://github.com/frontman-ai/frontman/commit/41f323ae561dc0d6192aeb4bb56356efd24896d2), [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85)]:
-  - @frontman-ai/frontman-protocol@2.0.0
-
-#### @frontman-ai/nextjs
-
-
-### Patch Changes
-
-- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
-
-- [#1313](https://github.com/frontman-ai/frontman/pull/1313) [`37515a4`](https://github.com/frontman-ai/frontman/commit/37515a483796a5faeed2ada29273ba371cfdc208) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix Next.js CLI entrypoint detection so projects with a root router and unrelated src directory keep middleware or proxy files at the repository root.
-
-- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
-
-- [#1313](https://github.com/frontman-ai/frontman/pull/1313) [`37515a4`](https://github.com/frontman-ai/frontman/commit/37515a483796a5faeed2ada29273ba371cfdc208) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add TypeScript declarations for the Next.js package exports and install Next.js middleware/proxy files under `src/` when the app uses a `src` directory.
-
-- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
-
-#### @frontman-ai/frontman-protocol
-
-
-### Major Changes
-
-- [#1318](https://github.com/frontman-ai/frontman/pull/1318) [`45139a1`](https://github.com/frontman-ai/frontman/commit/45139a10873190798ada2af674f49ba4f837836f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Advertise output schemas only for browser tools that return structured content.
-
-- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
-
-- [#1311](https://github.com/frontman-ai/frontman/pull/1311) [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported provider-key injection from framework runtime HTML, client settings, ACP metadata, and MCP tool-result metadata. Tool-result persistence now strips result metadata, while account-saved BYOK and provider OAuth remain unchanged.
-
-  Make MCP tool-result `_meta` optional and generic, align WordPress results with that contract, and stop exposing the unused absolute source root to browser runtime configuration.
-
-- [#1314](https://github.com/frontman-ai/frontman/pull/1314) [`59604b7`](https://github.com/frontman-ai/frontman/commit/59604b75efebd4a11d93c9496b152ab26ab4ba83) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Share typed text, image, audio, link, and resource content across MCP and ACP.
-
-- [#1317](https://github.com/frontman-ai/frontman/pull/1317) [`5c25668`](https://github.com/frontman-ai/frontman/commit/5c25668ddf5f708b81ea19ab2dd7eb811c1f4b5a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve and generically render typed multipart MCP tool content through ACP.
-
-- [#1315](https://github.com/frontman-ai/frontman/pull/1315) [`41f323a`](https://github.com/frontman-ai/frontman/commit/41f323ae561dc0d6192aeb4bb56356efd24896d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured tool arguments through ACP `rawInput`.
-
-- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
-
-### Patch Changes
-
-- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
-
-#### @frontman-ai/vite
-
-
-### Patch Changes
-
-- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
-
-- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
-
-#### @frontman-ai/frontman-wordpress
-
-
-### Patch Changes
-
-- [#1398](https://github.com/frontman-ai/frontman/pull/1398) [`aec9778`](https://github.com/frontman-ai/frontman/commit/aec97788c63359fadd67c31e144bb99cd7984fd1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add theme-scoped WordPress Additional CSS revision listing, inspection, and confirmed restoration with current-state conflict detection and observed before/after fingerprints.
-
-- [#1395](https://github.com/frontman-ai/frontman/pull/1395) [`beef1d6`](https://github.com/frontman-ai/frontman/commit/beef1d6f3b93f7941eb297e059e04ce1c80c359f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Rework the WordPress.org listing around one visible task, disclose setup requirements before installation, clarify compatibility limits, and use one complete task demonstration instead of disconnected feature screenshots.
-
-- [#1311](https://github.com/frontman-ai/frontman/pull/1311) [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported provider-key injection from framework runtime HTML, client settings, ACP metadata, and MCP tool-result metadata. Tool-result persistence now strips result metadata, while account-saved BYOK and provider OAuth remain unchanged.
-
-  Make MCP tool-result `_meta` optional and generic, align WordPress results with that contract, and stop exposing the unused absolute source root to browser runtime configuration.
+- Browser runtime configuration no longer includes unsupported provider keys or unused source paths. Stored tool results now strip metadata.
+- Server dependency updates address denial-of-service, cross-site scripting, and SQL injection vulnerabilities.
+- OAuth activation analytics exclude prompts and relay error details.
 
 ## [2.0.0] - 2026-07-20
 
