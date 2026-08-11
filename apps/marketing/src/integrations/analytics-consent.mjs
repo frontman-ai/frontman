@@ -56,10 +56,18 @@ const runAnalytics = measurementId => {
     document.body.addEventListener("click", event => {
       const target = event.target.closest?.("[data-ga-event]")
       if (!target) return
-      window.trackEvent(target.getAttribute("data-ga-event"), {
+      const eventParams = {
         event_category: target.getAttribute("data-ga-category") || "engagement",
         event_label: target.getAttribute("data-ga-label") || "",
-      })
+        page_path: window.location.pathname,
+      }
+      const placement = target.getAttribute("data-ga-placement")
+      const destination = target.getAttribute("data-ga-destination")
+      const taskFamily = target.getAttribute("data-ga-task-family")
+      if (placement) eventParams.placement = placement
+      if (destination) eventParams.destination = destination
+      if (taskFamily) eventParams.task_family = taskFamily
+      window.trackEvent(target.getAttribute("data-ga-event"), eventParams)
     })
   }
 
