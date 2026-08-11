@@ -155,6 +155,8 @@ After Frontman verifies a supported candidate structure, make one bounded reques
 
 Frontman is experimental. It does not support every theme, custom plugin, hard-coded template, or page-builder configuration. Keep a backup, start on staging, and review the changed site at desktop and mobile widths.
 
+[Watch one complete staging-safe WordPress task](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) from selection through reviewed result. The recording shows an FAQ-title update, not proof that Frontman supports every header or footer implementation.
+
 ## The Rule to Remember
 
 If you cannot edit a WordPress header or footer from the page editor, the content probably belongs to a different layer.

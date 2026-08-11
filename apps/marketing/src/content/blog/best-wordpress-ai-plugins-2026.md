@@ -88,11 +88,11 @@ If that table feels too broad, good. That is the point. The search result pages 
 <section id="frontman-workflow-demo" class="my-9 scroll-mt-24 overflow-hidden rounded-[18px] border border-zinc-500/50 bg-zinc-900 shadow-xl shadow-black/20" aria-labelledby="frontman-workflow-demo-title">
   <div class="mx-6 pt-6">
     <p class="!mt-0 !mb-2 text-xs font-extrabold tracking-[0.12em] !text-violet-300 uppercase">Frontman workflow</p>
-    <h2 id="frontman-workflow-demo-title" class="!m-0 !text-[clamp(22px,4vw,30px)] !leading-[1.15] !tracking-[-0.035em] !text-zinc-50">Update one visible part of an existing site.</h2>
-    <p class="!mt-3 !mb-0 !text-base !leading-[1.65] !text-zinc-300">Example: on a staging copy, select the homepage call to action and ask, “Change this button to Book a consultation.” Frontman keeps the page beside the conversation so you can inspect the result where visitors will see it.</p>
+    <h2 id="frontman-workflow-demo-title" class="!m-0 !text-[clamp(22px,4vw,30px)] !leading-[1.15] !tracking-[-0.035em] !text-zinc-50">Change one FAQ title, then review it on the page.</h2>
+    <p class="!mt-3 !mb-0 !text-base !leading-[1.65] !text-zinc-300">In this demo, select “What Is A Lightning Strike?” and request a more engaging title. Frontman changes it to “Lightning Strikes: The Secret Weapon That Forces Markets To Pay Attention” while keeping the page beside the conversation for review.</p>
   </div>
   <figure class="!mt-6 !mb-0 bg-zinc-950">
-    <video class="block h-auto w-full" controls preload="metadata" poster="/blog/frontman-wordpress-editor-demo-poster.webp" width="520" height="350" aria-label="Frontman editing workspace showing AI conversation beside a live WordPress page preview">
+    <video class="block h-auto w-full" controls preload="metadata" poster="/blog/frontman-wordpress-editor-demo-poster.webp" width="520" height="350" aria-label="Frontman changing a WordPress FAQ title beside the live page preview">
       <source src="/blog/frontman-wordpress-editor-demo.mp4" type="video/mp4" />
       <a href="/blog/frontman-wordpress-editor-demo.mp4">Watch the Frontman WordPress editing demo.</a>
     </video>
