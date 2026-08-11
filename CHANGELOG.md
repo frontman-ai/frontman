@@ -3,6 +3,28 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [3.0.0] - 2026-08-11
+
+### Added
+
+- Structured tool results now stay intact from MCP calls through ACP, live UI updates, and restored session history.
+- Frontman can display typed tool content, including text, images, audio, links, and resources.
+- Review and restore WordPress Additional CSS revisions with theme-aware history, conflict checks, and clear before-and-after details.
+- New TypeScript declarations improve autocomplete and type safety for Next.js package exports.
+
+### Changed
+
+- Output schemas now appear only for tools that return structured data, keeping tool contracts accurate.
+- Next.js setup now installs middleware and proxy files correctly for both root and `src/` project layouts.
+- The WordPress.org listing now explains setup requirements, compatibility, and a complete editing workflow before installation.
+- **Breaking:** `@frontman-ai/frontman-protocol` and `@frontman-ai/frontman-client` now use structured tool-result contracts. Integrations that import `jsonResult` must migrate to `structuredResult` or `unstructuredResult`.
+
+### Security
+
+- Browser runtime configuration no longer includes unsupported provider keys or unused source paths. Stored tool results now strip metadata.
+- Server dependency updates address denial-of-service, cross-site scripting, and SQL injection vulnerabilities.
+- OAuth activation analytics exclude prompts and relay error details.
+
 ## [2.0.0] - 2026-07-20
 
 
