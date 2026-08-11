@@ -4,6 +4,7 @@ const { frontmatter, body } = Astro.props
 import Layout from './Layout.astro'
 import { getAuthor } from '../content/authors'
 import { getWebPageId } from '../utils/structuredData.mjs'
+import { countArticleWords } from '../utils/wordCount.mjs'
 
 import BlogPostHero from '../components/blocks/blog/BlogPostHero.astro'
 
@@ -21,13 +22,7 @@ const updatedDateISO =
 const author = getAuthor(frontmatter.author)
 const absoluteAuthorUrl = new URL(author.url, Astro.site).href
 
-const wordCount = body
-	? body
-			.replace(/```[\s\S]*?```/g, '')
-			.replace(/[#*_\[\]()>|`~-]/g, '')
-			.split(/\s+/)
-			.filter(Boolean).length
-	: undefined
+const wordCount = body ? countArticleWords(body) : undefined
 
 const blogPostJsonLd = {
 	'@context': 'https://schema.org',
