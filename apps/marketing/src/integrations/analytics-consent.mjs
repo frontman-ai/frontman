@@ -51,40 +51,24 @@ const runAnalytics = measurementId => {
     window.gtag("event", eventName, params)
   }
 
-  const trackTarget = target => {
-    const eventParams = {
-      event_category: target.getAttribute("data-ga-category") || "engagement",
-      event_label: target.getAttribute("data-ga-label") || "",
-      page_path: window.location.pathname,
-    }
-    const placement = target.getAttribute("data-ga-placement")
-    const destination = target.getAttribute("data-ga-destination")
-    const taskFamily = target.getAttribute("data-ga-task-family")
-    if (placement) eventParams.placement = placement
-    if (destination) eventParams.destination = destination
-    if (taskFamily) eventParams.task_family = taskFamily
-    window.trackEvent(target.getAttribute("data-ga-event"), eventParams)
-  }
-
   const start = () => {
-    const trackedCompletions = new WeakSet()
     updateConsent()
     document.body.addEventListener("click", event => {
-      const target = event.target.closest?.("[data-ga-event]:not([data-ga-trigger])")
+      const target = event.target.closest?.("[data-ga-event]")
       if (!target) return
-      trackTarget(target)
+      const eventParams = {
+        event_category: target.getAttribute("data-ga-category") || "engagement",
+        event_label: target.getAttribute("data-ga-label") || "",
+        page_path: window.location.pathname,
+      }
+      const placement = target.getAttribute("data-ga-placement")
+      const destination = target.getAttribute("data-ga-destination")
+      const taskFamily = target.getAttribute("data-ga-task-family")
+      if (placement) eventParams.placement = placement
+      if (destination) eventParams.destination = destination
+      if (taskFamily) eventParams.task_family = taskFamily
+      window.trackEvent(target.getAttribute("data-ga-event"), eventParams)
     })
-    document.body.addEventListener("ended", event => {
-      const target = event.target.closest?.('video[data-ga-event][data-ga-trigger="ended"]')
-      if (
-        !target ||
-        trackedCompletions.has(target) ||
-        !analyticsLoaded ||
-        !analyticsAccepted(currentCategories())
-      ) return
-      trackedCompletions.add(target)
-      trackTarget(target)
-    }, true)
   }
 
   if (document.readyState === "loading") {

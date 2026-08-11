@@ -155,7 +155,7 @@ After Frontman verifies a supported candidate structure, make one bounded reques
 
 Frontman is experimental. It does not support every theme, custom plugin, hard-coded template, or page-builder configuration. Keep a backup, start on staging, and review the changed site at desktop and mobile widths.
 
-<a href="/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="header_footer_task_demo" data-ga-placement="product_route" data-ga-destination="on_site_demo" data-ga-task-family="header_footer">Watch one complete staging-safe WordPress task</a> from selection through reviewed result. The recording shows an FAQ-title update, not proof that Frontman supports every header or footer implementation.
+[Watch one complete staging-safe WordPress task](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) from selection through reviewed result. The recording shows an FAQ-title update, not proof that Frontman supports every header or footer implementation.
 
 ## The Rule to Remember
 
@@ -170,4 +170,4 @@ Find that layer before changing anything:
 - Elementor template: **Elementor > Theme Builder**.
 - Custom implementation: theme options, a child theme, or custom code.
 
-For supported sites, <a href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="header_footer_install" data-ga-placement="article_end" data-ga-destination="wordpress_org" data-ga-task-family="header_footer">install Frontman from the WordPress Plugin Directory</a> and let it inspect candidate structures beside the page preview. Start on staging and review every change.
+For supported sites, [install Frontman from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/) and let it inspect candidate structures beside the page preview. Start on staging and review every change.
