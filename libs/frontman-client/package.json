@@ -1,8 +1,6 @@
 {
 	"name": "@frontman-ai/frontman-client",
-	"publishConfig": {
-		"access": "public"
-	},
+	"private": true,
 	"version": "2.0.0",
 	"description": "Browser-side client for Frontman",
 	"license": "Apache-2.0",
@@ -28,8 +26,7 @@
 		"src"
 	],
 	"scripts": {
-		"build": "rescript build",
-		"prepublishOnly": "yarn build"
+		"build": "rescript build"
 	},
 	"dependencies": {
 		"@frontman/logs": "workspace:*",

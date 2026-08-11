@@ -1,8 +1,6 @@
 {
 	"name": "@frontman-ai/frontman-core",
-	"publishConfig": {
-		"access": "public"
-	},
+	"private": true,
 	"version": "1.0.3",
 	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
@@ -32,8 +30,7 @@
 		"src"
 	],
 	"scripts": {
-		"build": "rescript build",
-		"prepublishOnly": "yarn build"
+		"build": "rescript build"
 	},
 	"dependencies": {
 		"@frontman-ai/frontman-protocol": "2.0.0",
