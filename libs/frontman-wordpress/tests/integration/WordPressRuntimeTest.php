@@ -10,7 +10,9 @@ function frontman_runtime_assert( bool $condition, string $message ): void {
 	}
 }
 
-frontman_runtime_assert( '7.0.2' === get_bloginfo( 'version' ), 'Runtime must use WordPress 7.0.2.' );
+$expected_wordpress_version = getenv( 'EXPECTED_WORDPRESS_VERSION' );
+frontman_runtime_assert( false !== $expected_wordpress_version, 'Expected WordPress version was not provided.' );
+frontman_runtime_assert( $expected_wordpress_version === get_bloginfo( 'version' ), 'Runtime WordPress version does not match the requested version.' );
 frontman_runtime_assert( defined( 'FRONTMAN_VERSION' ), 'Frontman plugin was not activated.' );
 frontman_runtime_assert( null !== Frontman_Tools::instance()->get( 'wp_list_navigation_menus' ), 'Plugin bootstrap did not register navigation tools during init.' );
 
@@ -20,7 +22,7 @@ $post_id = wp_insert_post(
 	[
 		'post_type' => 'page',
 		'post_status' => 'publish',
-		'post_title' => 'Frontman WordPress 7 Runtime',
+		'post_title' => 'Frontman WordPress Runtime',
 		'post_content' => $content,
 	],
 	true
@@ -93,5 +95,3 @@ frontman_runtime_assert( 1 <= count( $menu_tool->list_navigation_menus( [] ) ), 
 $deleted = $menu_tool->delete_navigation_menu( [ 'id' => $created['id'], 'confirm' => true ] );
 frontman_runtime_assert( 'Updated Runtime Navigation' === $deleted['before']['title'], 'Navigation deletion did not preserve its snapshot.' );
 frontman_runtime_assert( null === get_post( $created['id'] ), 'Navigation tool did not permanently delete the post.' );
-
-fwrite( STDOUT, "OK (WordPress 7.0.2, PHP " . PHP_VERSION . ")\n" );
