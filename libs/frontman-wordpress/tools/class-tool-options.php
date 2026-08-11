@@ -363,7 +363,7 @@ class Frontman_Tool_Options {
 
 		[ $stylesheet, $post ] = $this->custom_css_post_from_expected_scope( $input, 'wp_list_custom_css_revisions' );
 		$revisions_enabled = wp_revisions_enabled( $post );
-		$revisions = $revisions_enabled ? wp_get_post_revisions( $post->ID ) : [];
+		$revisions = wp_get_post_revisions( $post->ID, [ 'check_enabled' => false ] );
 
 		return [
 			'stylesheet'        => $stylesheet,

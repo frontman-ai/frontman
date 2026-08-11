@@ -245,6 +245,8 @@ function frontman_test_custom_css_read_tools(): void {
 	add_filter( 'wp_revisions_to_keep', $disable_revisions, 10, 2 );
 	$disabled = $tool->list_custom_css_revisions( [ 'stylesheet' => $stylesheet, 'parent_post_id' => $post->ID ] );
 	frontman_runtime_assert( 'revisions_disabled' === $disabled['status'], 'Revision listing did not report disabled revisions.' );
+	$disabled_by_id = array_column( $disabled['revisions'], null, 'revision_id' );
+	frontman_runtime_assert( isset( $disabled_by_id[ $revision->ID ] ), 'Revision listing hid retained history after revision creation was disabled.' );
 	remove_filter( 'wp_revisions_to_keep', $disable_revisions, 10 );
 
 	foreach ( wp_get_post_revisions( $post->ID ) as $existing_revision ) {

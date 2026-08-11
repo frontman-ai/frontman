@@ -259,7 +259,7 @@ class Frontman_Tools {
 				return (float) $value;
 
 			case 'boolean':
-				if ( $preserve_input_strings && ! is_bool( $value ) ) {
+				if ( $preserve_input_strings && 'confirm' === $field_name && ! is_bool( $value ) ) {
 					return $value;
 				}
 

@@ -364,7 +364,7 @@ if ( ! function_exists( 'wp_revisions_enabled' ) ) {
 }
 
 if ( ! function_exists( 'wp_get_post_revisions' ) ) {
-	function wp_get_post_revisions( int $parent_id ): array {
+	function wp_get_post_revisions( int $parent_id, ?array $args = null ): array {
 		return array_values( array_filter( $GLOBALS['frontman_test_custom_css_revisions'], static function( WP_Post $revision ) use ( $parent_id ): bool {
 			return $parent_id === $revision->post_parent;
 		} ) );
@@ -1097,13 +1097,14 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( hash( 'sha256', '.old { color: blue; }' ), $revision['css_sha256'], 'wp_get_custom_css_revision fingerprints selected revision CSS' );
 		$custom_css_revision = $GLOBALS['frontman_test_custom_css_revisions'][9101];
 
-		$GLOBALS['frontman_test_custom_css_revisions'] = [];
-		$no_revisions = $tool->list_custom_css_revisions( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001 ] );
-		$this->assert_same( 'no_revisions', $no_revisions['status'], 'wp_list_custom_css_revisions distinguishes enabled empty history' );
 		$GLOBALS['frontman_test_revisions_enabled'][9001] = false;
 		$disabled_revisions = $tool->list_custom_css_revisions( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001 ] );
 		$this->assert_same( 'revisions_disabled', $disabled_revisions['status'], 'wp_list_custom_css_revisions distinguishes disabled revisions' );
+		$this->assert_same( 9101, $disabled_revisions['revisions'][0]['revision_id'], 'wp_list_custom_css_revisions includes retained history when revision creation is disabled' );
 		$GLOBALS['frontman_test_revisions_enabled'][9001] = true;
+		$GLOBALS['frontman_test_custom_css_revisions'] = [];
+		$no_revisions = $tool->list_custom_css_revisions( [ 'stylesheet' => 'frontman-theme', 'parent_post_id' => 9001 ] );
+		$this->assert_same( 'no_revisions', $no_revisions['status'], 'wp_list_custom_css_revisions distinguishes enabled empty history' );
 		$GLOBALS['frontman_test_custom_css_revisions'][9101] = $custom_css_revision;
 
 		$this->assert_error_contains(
