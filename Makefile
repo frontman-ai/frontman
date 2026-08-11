@@ -118,7 +118,7 @@ HELP_release := Create a release PR from pending changesets
 HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
 HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementations
-HELP_test-wordpress-runtime := Run plugin integration tests in WordPress 7.0.2 containers
+HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
 
 HELP_E2E_TITLE := E2E Tests
 HELP_E2E_TARGETS := e2e e2e-nextjs e2e-astro e2e-vite e2e-vue-vite

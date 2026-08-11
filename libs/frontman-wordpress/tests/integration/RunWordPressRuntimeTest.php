@@ -11,4 +11,7 @@ set_error_handler(
 
 require '/var/www/html/wp-load.php';
 require '/tmp/WordPressRuntimeTest.php';
+require '/tmp/CustomCssRuntimeTest.php';
 restore_error_handler();
+
+fwrite( STDOUT, 'OK (WordPress ' . get_bloginfo( 'version' ) . ', PHP ' . PHP_VERSION . ")\n" );
