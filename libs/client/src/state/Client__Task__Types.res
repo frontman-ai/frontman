@@ -522,13 +522,6 @@ let elementorTargetText = (context: Client__ElementorDetection.t): string =>
   | None => `element_id=${context.elementId}`
   }
 
-let viewportBoundingBoxToMeta = (Annotation.ViewportBoundingBox(bb)): boundingBoxMeta => {
-  x: bb.x,
-  y: bb.y,
-  width: bb.width,
-  height: bb.height,
-}
-
 let documentBoundingBoxToMeta = (Annotation.DocumentBoundingBox(bb)): boundingBoxMeta => {
   x: bb.x,
   y: bb.y,
