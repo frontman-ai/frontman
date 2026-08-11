@@ -49,7 +49,7 @@ This inventory reflects Frontman WordPress plugin 2.0.0 source, verified July 30
 - **Elementor, when active:** inspect page data and widgets; add, update, duplicate, move, remove, or generate elements; replace complete page data; flush generated CSS; list and restore Frontman rollback snapshots.
 - **Navigation, templates, and widgets:** manage classic menus, menu items, menu locations, block-theme navigation menus, block templates, template parts, widget areas, and supported widget types.
 - **Site settings:** read and update allowlisted core options such as title, tagline, front-page selection, permalink structure, and comment settings. Arbitrary option access is not available.
-- **Additional CSS:** read active-theme Additional CSS and replace its complete contents with `wp_update_custom_css`. This site-wide write requires explicit confirmation and returns before/after CSS.
+- **Additional CSS:** read and replace active-theme Additional CSS. Frontman can also list, inspect, and restore WordPress Custom CSS revisions for plain CSS.
 - **Theme settings:** list active-theme Customizer/theme mods or read one mod. Plugin 2.0.0 does not expose a generic theme-mod write tool.
 - **Media:** upload a user-attached image into Media Library with optional title, alt text, caption, description, and parent post. Maximum decoded upload size is 20 MB. Plugin does not expose general media browsing, editing, or deletion tools.
 - **WooCommerce, when active:** `wc_*` tools cover products, categories, tags, attributes and terms, variations, reviews, orders, notes, refunds, customers, shipping, taxes, coupons, payment gateways, reports, settings, system status, store data, and product/order/customer metadata.
@@ -57,11 +57,32 @@ This inventory reflects Frontman WordPress plugin 2.0.0 source, verified July 30
 
 ## Confirmation and Rollback
 
-- Frontman must ask for approval before calling plugin tools whose schema requires `confirm=true`. This includes WordPress delete tools, complete Elementor page replacement, Elementor element removal and rollback restoration, Additional CSS replacement, and WooCommerce `PUT`/`DELETE` mutations plus metadata updates/deletes.
+- Frontman must ask for approval before calling plugin tools whose schema requires `confirm=true`. This includes WordPress delete tools, Elementor restoration, Additional CSS writes, and WooCommerce mutations.
 - Post and page deletion moves content to trash by default; `force=true` permanently deletes it. Other delete tools do not promise trash or automatic restoration.
 - Many mutation results include before/after state for review, but those snapshots are not a general undo system.
 - Elementor content mutation tools save private rollback snapshots and return rollback IDs. `wp_elementor_list_rollbacks` finds them; `wp_elementor_restore_rollback` restores one after separate confirmation.
-- No plugin-wide one-click rollback exists for Gutenberg, menus, templates, widgets, options, Additional CSS, media, or WooCommerce. Use WordPress revisions/trash where applicable and maintain site backups.
+- No plugin-wide one-click rollback exists for Gutenberg, menus, templates, widgets, options, media, or WooCommerce. Use revisions or trash where applicable, and maintain site backups.
+
+### Restore an Additional CSS revision
+
+Frontman uses this sequence for Additional CSS recovery:
+
+1. Read current CSS with `wp_get_custom_css`.
+2. List revision metadata with `wp_list_custom_css_revisions`.
+3. Inspect one revision with `wp_get_custom_css_revision`.
+4. Ask for approval to restore that revision.
+5. Restore it with `wp_restore_custom_css_revision` and `confirm=true`.
+6. Read current CSS again and compare the observed fingerprint.
+
+The restore tool requires the active stylesheet, current parent post ID, selected revision ID, and current SHA-256 fingerprint. These values prevent known stale writes. The fingerprint check is not an atomic lock. Another writer can change CSS after the check.
+
+Restoration supports plain CSS only. Frontman rejects restoration when WordPress stores preprocessor source in `post_content_filtered`. WordPress revisions do not contain this source by default.
+
+WordPress settings control revision creation and retention. A restore can create a revision, but Frontman does not promise this result. WordPress save filters can also transform restored CSS. Frontman returns the content metadata that it observes after the write.
+
+Do not retry a restore after a lost response. Read current CSS, compare it with the known prior and target fingerprints, inspect content if necessary, and ask the user what to do.
+
+This recovery flow has runtime coverage on WordPress 6.0.9 with PHP 7.4, WordPress 7.0.2 with PHP 7.4, and WordPress 7.0.2 with PHP 8.4. This matrix does not claim coverage for every intermediate version.
 
 ## Security
 
