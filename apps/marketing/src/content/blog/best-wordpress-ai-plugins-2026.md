@@ -46,13 +46,13 @@ That is the trap.
 
 **Quick answer:** Frontman is the best WordPress AI agent in 2026 when the job is editing an existing WordPress site while you verify the result in a live preview. AI Engine is the best broad WordPress AI framework for chatbots, content, AI forms, embeddings, provider support, and MCP. Use Divi AI, Elementor AI, Hostinger, Liftoff AI, ZipWP, or SeedProd when the job is site or page generation. Use AIOSEO for SEO workflows. Use Uncanny Automator when automation is the center of gravity.
 
-<aside class="article-cta article-cta--compact" aria-labelledby="wordpress-editing-cta-title">
-  <p class="article-cta__eyebrow">Already have a WordPress site?</p>
-  <h2 id="wordpress-editing-cta-title" class="article-cta__title">See the existing-site editing loop before you install.</h2>
-  <p class="article-cta__copy">Frontman works beside the page you are changing. Start with a staging site, describe one bounded update, and review the visible result.</p>
-  <div class="article-cta__actions">
-    <a class="article-cta__button article-cta__button--primary cta-link" href="#frontman-workflow-demo" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="quick_answer_demo" data-ga-placement="quick_answer" data-ga-destination="on_page_demo" data-ga-task-family="update">See a staging-safe edit</a>
-    <a class="article-cta__button article-cta__button--secondary cta-link" href="/docs/integrations/wordpress/" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="quick_answer_setup" data-ga-placement="quick_answer" data-ga-destination="setup_guide" data-ga-task-family="update">Check setup requirements</a>
+<aside class="my-9 rounded-[18px] border border-zinc-500/50 border-l-[3px] border-l-violet-500 bg-zinc-900 p-5 shadow-xl shadow-black/20 md:p-6" aria-labelledby="wordpress-editing-cta-title">
+  <p class="!mt-0 !mb-2 text-xs font-extrabold tracking-[0.12em] !text-violet-300 uppercase">Already have a WordPress site?</p>
+  <h2 id="wordpress-editing-cta-title" class="!m-0 !text-[clamp(22px,4vw,30px)] !leading-[1.15] !tracking-[-0.035em] !text-zinc-50">See the existing-site editing loop before you install.</h2>
+  <p class="!mt-3 !mb-0 !text-base !leading-[1.65] !text-zinc-300">Frontman works beside the page you are changing. Start with a staging site, describe one bounded update, and review the visible result.</p>
+  <div class="mt-5 flex flex-col gap-3 md:flex-row md:flex-wrap">
+    <a class="cta-link inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-transparent bg-violet-600 px-4 py-2.5 text-center text-sm font-bold leading-[1.3] !text-white no-underline transition-colors hover:bg-violet-700 hover:!text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-violet-300 md:w-auto" href="#frontman-workflow-demo" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="quick_answer_demo" data-ga-placement="quick_answer" data-ga-destination="on_page_demo" data-ga-task-family="update">See a staging-safe edit</a>
+    <a class="cta-link inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-zinc-600 bg-zinc-800 px-4 py-2.5 text-center text-sm font-bold leading-[1.3] !text-zinc-100 no-underline transition-colors hover:border-zinc-500 hover:bg-zinc-700 hover:!text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-violet-300 md:w-auto" href="/docs/integrations/wordpress/" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="quick_answer_setup" data-ga-placement="quick_answer" data-ga-destination="setup_guide" data-ga-task-family="update">Check setup requirements</a>
   </div>
 </aside>
 
@@ -85,26 +85,26 @@ We then grouped tools by the job they actually do: agentic site editing, broad A
 
 If that table feels too broad, good. That is the point. The search result pages in the source data mix plugins, builders, agents, SEO tools, form tools, automation tools, and chatbot tools. The useful move is not picking the loudest tool. It is naming the job.
 
-<section id="frontman-workflow-demo" class="article-demo" aria-labelledby="frontman-workflow-demo-title">
-  <div class="article-demo__header">
-    <p class="article-demo__eyebrow">Frontman workflow</p>
-    <h2 id="frontman-workflow-demo-title" class="article-demo__title">Update one visible part of an existing site.</h2>
-    <p class="article-demo__intro">Example: on a staging copy, select the homepage call to action and ask, “Change this button to Book a consultation.” Frontman keeps the page beside the conversation so you can inspect the result where visitors will see it.</p>
+<section id="frontman-workflow-demo" class="my-9 scroll-mt-24 overflow-hidden rounded-[18px] border border-zinc-500/50 bg-zinc-900 shadow-xl shadow-black/20" aria-labelledby="frontman-workflow-demo-title">
+  <div class="mx-6 pt-6">
+    <p class="!mt-0 !mb-2 text-xs font-extrabold tracking-[0.12em] !text-violet-300 uppercase">Frontman workflow</p>
+    <h2 id="frontman-workflow-demo-title" class="!m-0 !text-[clamp(22px,4vw,30px)] !leading-[1.15] !tracking-[-0.035em] !text-zinc-50">Update one visible part of an existing site.</h2>
+    <p class="!mt-3 !mb-0 !text-base !leading-[1.65] !text-zinc-300">Example: on a staging copy, select the homepage call to action and ask, “Change this button to Book a consultation.” Frontman keeps the page beside the conversation so you can inspect the result where visitors will see it.</p>
   </div>
-  <figure class="article-demo__media">
-    <img src="https://ps.w.org/frontman-agentic-ai-editor/assets/screenshot-2.gif?rev=3532460" alt="Frontman editing workspace showing AI conversation beside a live WordPress page preview" width="520" height="350" loading="lazy" decoding="async" />
-    <figcaption>Live preview stays in the review loop. The animation is served from Frontman’s WordPress.org plugin listing.</figcaption>
+  <figure class="!mt-6 !mb-0 bg-zinc-950">
+    <img class="block h-auto w-full" src="https://ps.w.org/frontman-agentic-ai-editor/assets/screenshot-2.gif?rev=3532460" alt="Frontman editing workspace showing AI conversation beside a live WordPress page preview" width="520" height="350" loading="lazy" decoding="async" />
+    <figcaption class="!m-0 border-t border-zinc-800 px-6 py-2.5 text-xs leading-6 text-zinc-400">Live preview stays in the review loop. The animation is served from Frontman’s WordPress.org plugin listing.</figcaption>
   </figure>
-  <ol class="article-demo__steps">
-    <li><strong>Select</strong><span>Open <code>/frontman</code> on the staging page and identify the visible element.</span></li>
-    <li><strong>Describe</strong><span>Request one bounded copy or layout update in plain language.</span></li>
-    <li><strong>Review</strong><span>Inspect the page, iterate if needed, and deploy through your normal safe process.</span></li>
+  <ol class="!my-6 mx-6 grid list-none grid-cols-1 gap-3 !p-0 md:grid-cols-3">
+    <li class="!m-0 grid gap-1.5 rounded-[10px] border border-zinc-700 bg-zinc-950 p-4"><strong class="text-sm !text-zinc-100">Select</strong><span class="text-[13px] leading-5 text-zinc-400">Open <code>/frontman</code> on the staging page and identify the visible element.</span></li>
+    <li class="!m-0 grid gap-1.5 rounded-[10px] border border-zinc-700 bg-zinc-950 p-4"><strong class="text-sm !text-zinc-100">Describe</strong><span class="text-[13px] leading-5 text-zinc-400">Request one bounded copy or layout update in plain language.</span></li>
+    <li class="!m-0 grid gap-1.5 rounded-[10px] border border-zinc-700 bg-zinc-950 p-4"><strong class="text-sm !text-zinc-100">Review</strong><span class="text-[13px] leading-5 text-zinc-400">Inspect the page, iterate if needed, and deploy through your normal safe process.</span></li>
   </ol>
-  <div class="article-cta__actions">
-    <a class="article-cta__button article-cta__button--primary cta-link" href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="after_demo_install" data-ga-placement="after_demo" data-ga-destination="wordpress_org" data-ga-task-family="update">Install Frontman on a staging site</a>
-    <a class="article-cta__button article-cta__button--secondary cta-link" href="/docs/integrations/wordpress/" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="after_demo_setup" data-ga-placement="after_demo" data-ga-destination="setup_guide" data-ga-task-family="update">Read the setup guide</a>
+  <div class="mx-6 mt-5 flex flex-col gap-3 md:flex-row md:flex-wrap">
+    <a class="cta-link inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-transparent bg-violet-600 px-4 py-2.5 text-center text-sm font-bold leading-[1.3] !text-white no-underline transition-colors hover:bg-violet-700 hover:!text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-violet-300 md:w-auto" href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="after_demo_install" data-ga-placement="after_demo" data-ga-destination="wordpress_org" data-ga-task-family="update">Install Frontman on a staging site</a>
+    <a class="cta-link inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-zinc-600 bg-zinc-800 px-4 py-2.5 text-center text-sm font-bold leading-[1.3] !text-zinc-100 no-underline transition-colors hover:border-zinc-500 hover:bg-zinc-700 hover:!text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-violet-300 md:w-auto" href="/docs/integrations/wordpress/" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="after_demo_setup" data-ga-placement="after_demo" data-ga-destination="setup_guide" data-ga-task-family="update">Read the setup guide</a>
   </div>
-  <p class="article-demo__requirements">Requires WordPress 6.0+, PHP 7.4+, administrator access, a Frontman account, and an AI provider connection. Frontman is beta software: begin on staging, keep backups, and review changes carefully.</p>
+  <p class="!mx-6 !mt-[18px] !mb-6 !text-xs !leading-[1.55] !text-zinc-400">Requires WordPress 6.0+, PHP 7.4+, administrator access, a Frontman account, and an AI provider connection. Frontman is beta software: begin on staging, keep backups, and review changes carefully.</p>
 </section>
 
 ## What The 2026 Search Results Actually Reward

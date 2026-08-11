@@ -4,6 +4,7 @@
 @source not "../content/**/*.md";
 @source not "../content/**/*.mdx";
 @source not "../../dist/**/*";
+@source "../content/blog/best-wordpress-ai-plugins-2026.md";
 
 @custom-variant dark (&);
 @custom-variant dark-me (&);
