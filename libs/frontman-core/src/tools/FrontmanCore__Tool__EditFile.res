@@ -1,13 +1,3 @@
-// Edit file tool - find-and-replace with fuzzy matching
-//
-// Two distinct operations:
-// - Create: oldText is empty → write newText to a new file
-// - Edit: oldText is non-empty → find-and-replace in an existing file
-//
-// The edit path uses a multi-strategy matcher that gracefully handles common
-// LLM mistakes (wrong indentation, extra whitespace, escaped characters, etc.)
-// and requires the file to have been read first via read_file.
-
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
@@ -62,15 +52,12 @@ type output = {
 
 let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
-// ── Domain helpers ─────────────────────────────────────────────────────
-
 let toPathCtx = (r: PathContext.resolveResult): pathContext => {
   sourceRoot: r.sourceRoot,
   resolvedPath: r.resolvedPath,
   relativePath: r.relativePath,
 }
 
-// Create a new file (oldText is empty).
 let createFile = async (
   ~resolved: PathContext.resolveResult,
   ~content: string,
@@ -87,8 +74,6 @@ let createFile = async (
   }
 }
 
-// Find oldText in the file, replace it, and write back.
-// Includes a coverage warning when the edit target is outside previously-read ranges.
 let findAndReplace = async (
   ~resolved: PathContext.resolveResult,
   ~oldText: string,
@@ -128,8 +113,6 @@ let findAndReplace = async (
   }
 }
 
-// ── Execute ────────────────────────────────────────────────────────────
-
 let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
   output,
   string,
@@ -141,9 +124,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
     | Error(err) => Error(PathContext.formatError(err))
     | Ok(resolved) =>
       switch input.oldText {
-      // Explicit create: empty oldText means "write a new file"
       | "" => await createFile(~resolved, ~content=input.newText, ~displayPath=input.path)
-      // Edit: find-and-replace in an existing, previously-read file
       | oldText =>
         switch await FileTracker.assertEditSafe(resolved.resolvedPath) {
         | Error(msg) => Error(msg)

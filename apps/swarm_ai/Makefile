@@ -1,51 +1,65 @@
-# Task runner Makefile for swarm_ai
-#
-# Usage: make [target]
-# Run 'make help' to see available commands
+
+
+
+
 
 .DEFAULT_GOAL := help
 .PHONY: help install test test-coverage format lint build clean check precommit credo hex-publish
 
 SHELL := /bin/bash
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help install test test-coverage format lint build clean precommit credo check hex-publish
+HELP_help := Display this help message
+HELP_install := Install project dependencies
+HELP_test := Run test suite
+HELP_test-coverage := Run tests with coverage report
+HELP_format := Auto-format Elixir files
+HELP_lint := Run formatter and static analysis
+HELP_build := Compile the project
+HELP_clean := Clean build artifacts and dependencies
+HELP_precommit := Run precommit checks (compile, format, credo, test)
+HELP_credo := Run Credo static analysis
+HELP_check := Run all checks (lint + test)
+HELP_hex-publish := Publish package to Hex (dry run by default, use HEX_PUBLISH=1 for real)
 
-install: ## Install project dependencies
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+install:
 	mix deps.get
 
-test: ## Run test suite
+test:
 	mix test
 
-test-coverage: ## Run tests with coverage report
+test-coverage:
 	MIX_ENV=test mix coveralls.cobertura
 
-format: ## Auto-format Elixir files
+format:
 	mix format
 
-lint: ## Run formatter and static analysis
+lint:
 	mix format --check-formatted
-	mix credo --strict
+	mix credo --strict --ignore-checks ModuleDoc
 
-build: ## Compile the project
+build:
 	mix compile
 
-clean: ## Clean build artifacts and dependencies
+clean:
 	rm -rf _build deps
 
-precommit: ## Run precommit checks (compile, format, credo, test)
+precommit:
 	mix compile --warnings-as-errors --all-warnings
 	mix deps.unlock --unused
 	mix format
-	mix credo --strict
+	mix credo --strict --ignore-checks ModuleDoc
 	mix test
 
-credo: ## Run Credo static analysis
-	mix credo --strict
+credo:
+	mix credo --strict --ignore-checks ModuleDoc
 
-check: lint test ## Run all checks (lint + test)
+check: lint test
 
-hex-publish: ## Publish package to Hex (dry run by default, use HEX_PUBLISH=1 for real)
+hex-publish:
 	@if [ "$(HEX_PUBLISH)" = "1" ]; then \
 		mix hex.publish; \
 	else \

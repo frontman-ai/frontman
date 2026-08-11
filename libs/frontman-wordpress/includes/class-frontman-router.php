@@ -95,14 +95,12 @@ class Frontman_Router {
 
 		$this->require_auth( false );
 
-		// Canonical redirect: strip nested /frontman/frontman segments.
 		$canonical = $this->get_canonical_redirect( $suffix_prefix );
 		if ( $canonical !== null ) {
 			wp_safe_redirect( home_url( $canonical ), 302 );
 			exit;
 		}
 
-		// Build the preview path from the suffix prefix.
 		$preview_path = ( $suffix_prefix === '' ) ? '/' : '/' . $suffix_prefix;
 		$this->ui->render_page( $preview_path );
 		exit;
@@ -169,15 +167,12 @@ class Frontman_Router {
 	private function get_suffix_prefix( string $path ): ?string {
 		$base = 'frontman';
 
-		// Bare /frontman route.
 		if ( $path === '/' . $base ) {
 			return '';
 		}
 
-		// Suffix route: /anything/frontman.
 		$suffix = '/' . $base;
 		if ( substr( $path, -strlen( $suffix ) ) === $suffix ) {
-			// Strip leading slash and trailing /frontman.
 			$prefix = substr( $path, 1, strlen( $path ) - 1 - strlen( $suffix ) );
 			return $prefix;
 		}
@@ -198,18 +193,15 @@ class Frontman_Router {
 		$base   = 'frontman';
 		$suffix = '/' . $base;
 
-		// Exact: prefix IS "frontman" (from /frontman/frontman).
 		if ( $prefix_path === $base ) {
 			return '/' . $base;
 		}
 
-		// Trailing nested: prefix ends with /frontman.
 		if ( substr( $prefix_path, -strlen( $suffix ) ) === $suffix ) {
 			$stripped = substr( $prefix_path, 0, strlen( $prefix_path ) - strlen( $suffix ) );
 			return ( $stripped === '' ) ? '/' . $base : '/' . $stripped . '/' . $base;
 		}
 
-		// Leading nested: prefix starts with frontman/.
 		if ( strpos( $prefix_path, $base . '/' ) === 0 ) {
 			$rest = substr( $prefix_path, strlen( $base ) + 1 );
 			return ( $rest === '' ) ? '/' . $base : '/' . $rest . '/' . $base;
@@ -224,16 +216,13 @@ class Frontman_Router {
 	 * Handles WordPress installed in a subdirectory (e.g. /blog/frontman).
 	 */
 	private function get_request_path(): string {
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- REQUEST_URI is parsed as a URL path below; text sanitization would strip valid percent-encoded path bytes.
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
 
-		// Strip query string.
 		$path = strtok( $request_uri, '?' );
 		if ( false === $path ) {
 			$path = '/';
 		}
 
-		// Strip the site's home path prefix if WP is in a subdirectory.
 		$home_url_parts = wp_parse_url( home_url() );
 		$home_path      = is_array( $home_url_parts ) ? ( $home_url_parts['path'] ?? '' ) : '';
 		if ( $home_path !== '' && $home_path !== '/' ) {
@@ -243,10 +232,8 @@ class Frontman_Router {
 			}
 		}
 
-		// Strip trailing slash (WordPress adds one, but our routes don't expect it).
 		$path = rtrim( $path, '/' );
 
-		// Ensure leading slash.
 		if ( $path === '' || $path[0] !== '/' ) {
 			$path = '/' . $path;
 		}
@@ -282,7 +269,6 @@ class Frontman_Router {
 			);
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- php://input is the JSON request body stream.
 		$raw = file_get_contents( 'php://input' );
 		if ( ! is_string( $raw ) || '' === $raw ) {
 			return [];
@@ -347,10 +333,8 @@ class Frontman_Router {
 			return;
 		}
 
-		// WP tools — handle locally.
 		if ( $this->tools->is_wp_tool( $name ) ) {
 			try {
-				// call() returns MCP-compliant callToolResult with _meta.
 				$result = $this->tools->call( $name, $input );
 				$this->send_sse_tool_result( $result );
 			} catch ( \Throwable $e ) {
@@ -375,7 +359,6 @@ class Frontman_Router {
 			$payload = '{}';
 		}
 
-		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- SSE sends machine-readable JSON encoded by wp_json_encode().
 		echo "event: result\ndata: " . $payload . "\n\n";
 	}
 

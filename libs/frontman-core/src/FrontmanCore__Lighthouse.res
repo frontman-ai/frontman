@@ -1,11 +1,5 @@
-// Lighthouse runner built on top of FrontmanBindings.Lighthouse
-//
-// Provides lazy-loaded run function that avoids bundler static resolution issues.
-
 module B = FrontmanBindings.Lighthouse
 
-// Run lighthouse on a URL.
-// Loaded lazily at runtime to avoid bundler static resolution issues.
 let run: (string, B.flags) => promise<Nullable.t<B.runnerResult>> = %raw(`
   (url, flags) =>
     import("node:module")

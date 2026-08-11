@@ -41,7 +41,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Sending an invalid status triggers an {:error, reason} return
       tool_call =
         swarm_tool_call(
           "todo_write",
@@ -65,7 +64,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       assert %SwarmAi.ToolResult{is_error: true} = result
 
-      # Verify Sentry captured the tool error
       reports = Sentry.Test.pop_sentry_reports()
 
       tool_error_reports =
@@ -96,7 +94,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Intentionally malformed JSON
       tool_call = swarm_tool_call("todo_write", "{invalid json!!!}")
 
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
@@ -131,7 +128,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert metadata[:raw_arguments] == "{invalid json!!!}"
       assert is_binary(metadata[:decode_error])
 
-      # No duplicate "tool execution failed" report — parse_arguments handles its own reporting
       soft_error_reports =
         Enum.filter(reports, fn event ->
           event.tags[:error_type] == "tool_soft_error"
@@ -175,7 +171,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Create a long malformed string (> 500 chars) to verify truncation
       long_invalid_json = String.duplicate("x", 1000)
 
       tool_call = swarm_tool_call("todo_write", long_invalid_json)
@@ -202,15 +197,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       assert [report] = parse_error_reports
 
-      # Verify raw_arguments is truncated to 500 chars
       assert String.length(report.extra[:logger_metadata][:raw_arguments]) == 500
     end
   end
-
-  # MCP tool timeouts are now handled by SwarmAi.ParallelExecutor via per-tool
-  # deadlines (timeout_ms/on_timeout fields on ToolExecution.Await). When on_timeout is
-  # :pause_agent, the Runtime dispatches {:paused, {:timeout, ...}} which Tasks
-  # persists as an AgentPaused interaction — not a Sentry error.
 
   describe "handle_timeout/5 — :error policy Sentry reporting" do
     @tag :capture_log

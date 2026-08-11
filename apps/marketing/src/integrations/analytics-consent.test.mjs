@@ -61,4 +61,40 @@ describe("analytics consent", () => {
       .filter(args => args[0] === "consent" && args[1] === "update")
     expect(consentUpdates.at(-1)[2]).toEqual({analytics_storage: "denied"})
   })
+
+  test("tracks privacy-safe acquisition dimensions from CTA links", () => {
+    const {dom} = createPage({analytics: true})
+    pages.push(dom)
+
+    const link = dom.window.document.createElement("a")
+    link.href = "https://wordpress.org/plugins/frontman-agentic-ai-editor/"
+    link.dataset.gaEvent = "wordpress_article_cta_clicked"
+    link.dataset.gaCategory = "conversion"
+    link.dataset.gaLabel = "after_demo"
+    link.dataset.gaPlacement = "after_demo"
+    link.dataset.gaDestination = "wordpress_org"
+    link.dataset.gaTaskFamily = "update"
+    link.innerHTML = "<span>Install Frontman</span>"
+    dom.window.document.body.appendChild(link)
+
+    link.querySelector("span").dispatchEvent(
+      new dom.window.MouseEvent("click", {bubbles: true}),
+    )
+
+    const events = dom.window.dataLayer
+      .map(args => Array.from(args))
+      .filter(args => args[0] === "event")
+    expect(events.at(-1)).toEqual([
+      "event",
+      "wordpress_article_cta_clicked",
+      {
+        event_category: "conversion",
+        event_label: "after_demo",
+        page_path: "/",
+        placement: "after_demo",
+        destination: "wordpress_org",
+        task_family: "update",
+      },
+    ])
+  })
 })

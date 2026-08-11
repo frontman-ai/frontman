@@ -4,7 +4,6 @@ module MCP = FrontmanClient__MCP
 module Types = FrontmanClient__MCP__Types
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 
-// Mock channel that captures push calls
 module MockChannel = {
   type pushCall = {payload: JSON.t}
 
@@ -19,13 +18,11 @@ module MockChannel = {
       off: function() {},
       _calls: []
     }`)
-    // Wire the ref to the raw JS array
     calls := %raw(`channel._calls`)
     (channel, calls)
   }
 }
 
-// Build a tools/call JSON-RPC request payload
 let buildToolsCallPayloadWithJsonId = (~id: JSON.t, ~name: string, ~callId: string) => {
   let params = Dict.make()
   params->Dict.set("name", JSON.Encode.string(name))
@@ -42,7 +39,6 @@ let buildToolsCallPayloadWithJsonId = (~id: JSON.t, ~name: string, ~callId: stri
 let buildToolsCallPayload = (~id: int, ~name: string, ~callId: string) =>
   buildToolsCallPayloadWithJsonId(~id=JSON.Encode.int(id), ~name, ~callId)
 
-// Build a mock serverInterface that returns a Completed result
 let makeCompletedServerInterface = (result: Types.CallToolResult.t) => {
   let server = ()
   let si: Types.serverInterface<unit> = {
@@ -63,7 +59,6 @@ let makeCompletedServerInterface = (result: Types.CallToolResult.t) => {
   si
 }
 
-// Build a mock serverInterface where executeTool throws a non-S.Error exception
 let makeThrowingServerInterface = (errorMsg: string) => {
   let server = ()
   let si: Types.serverInterface<unit> = {
@@ -84,7 +79,6 @@ let makeThrowingServerInterface = (errorMsg: string) => {
   si
 }
 
-// Build a JSON-RPC initialize request payload
 let buildInitializePayload = (~id: int) => {
   let params = Dict.make()
   params->Dict.set("protocolVersion", JSON.Encode.string("DRAFT-2025-v3"))
@@ -102,7 +96,6 @@ let buildInitializePayload = (~id: int) => {
   JSON.Encode.object(msg)
 }
 
-// Build a JSON-RPC tools/list request payload
 let buildToolsListPayload = (~id: int) => {
   let msg = Dict.make()
   msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
@@ -111,7 +104,6 @@ let buildToolsListPayload = (~id: int) => {
   JSON.Encode.object(msg)
 }
 
-// Helper: find a pushed response by JSON-RPC id
 let _findResponseById = (calls: ref<array<MockChannel.pushCall>>, id: int) => {
   calls.contents->Array.find(p => {
     switch p.payload->JSON.Decode.object {
@@ -125,7 +117,6 @@ let _findResponseById = (calls: ref<array<MockChannel.pushCall>>, id: int) => {
   })
 }
 
-// Helper: check if a pushed response has an "error" field
 let _hasErrorField = (push: MockChannel.pushCall) => {
   switch push.payload->JSON.Decode.object {
   | Some(obj) => obj->Dict.get("error")->Option.isSome
@@ -133,7 +124,6 @@ let _hasErrorField = (push: MockChannel.pushCall) => {
   }
 }
 
-// Helper: extract the error code from a pushed error response
 let _getErrorCode = (push: MockChannel.pushCall) => {
   switch push.payload->JSON.Decode.object {
   | Some(obj) =>
@@ -153,7 +143,6 @@ let _getErrorCode = (push: MockChannel.pushCall) => {
   }
 }
 
-// Build an unknown method request payload
 let _buildUnknownMethodPayload = (~id: int, ~method: string) => {
   let msg = Dict.make()
   msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
@@ -211,11 +200,9 @@ describe("handleToolsCall", () => {
 
     await MCP.handleMessage(handler, payload)
 
-    // Should have pushed one mcp:message response
     let pushes = calls.contents
     t->expect(pushes->Array.length >= 1)->Expect.toBe(true)
 
-    // Find the response push
     let responsePush = pushes->Array.find(
       p => {
         switch p.payload->JSON.Decode.object {
@@ -231,12 +218,10 @@ describe("handleToolsCall", () => {
     | Some({payload}) =>
       switch payload->JSON.Decode.object {
       | Some(obj) =>
-        // Verify it's a success response with the correct id
         switch obj->Dict.get("id") {
         | Some(id) => t->expect(id)->Expect.toEqual(JSON.Encode.int(42))
         | None => t->expect("id")->Expect.toBe("present")
         }
-        // Verify it has a result (not an error)
         t->expect(obj->Dict.get("result")->Option.isSome)->Expect.toBe(true)
 
         let meta =
@@ -285,7 +270,6 @@ describe("handleToolsCall", () => {
   testAsync("sends MCP error response when tool throws S.Error", async t => {
     let (channel, calls) = MockChannel.make()
 
-    // executeTool will receive invalid params that cause S.Error during schema parse
     let handler: MCP.mcpHandler<unit> = {
       serverInterface: makeCompletedServerInterface(Types.CallToolResult.makeText("ok")),
       channel,
@@ -293,20 +277,18 @@ describe("handleToolsCall", () => {
       onMessage: None,
     }
 
-    // Send a payload with missing required fields (no "name") to trigger S.Error
     let badPayload = {
       let msg = Dict.make()
       msg->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
       msg->Dict.set("id", JSON.Encode.int(99))
       msg->Dict.set("method", JSON.Encode.string("tools/call"))
-      msg->Dict.set("params", JSON.Encode.object(Dict.make())) // missing name, callId
+      msg->Dict.set("params", JSON.Encode.object(Dict.make()))
       JSON.Encode.object(msg)
     }
 
     await MCP.handleMessage(handler, badPayload)
 
     let pushes = calls.contents
-    // Should have pushed an error response
     let errorPush = pushes->Array.find(
       p => {
         switch p.payload->JSON.Decode.object {
@@ -320,11 +302,6 @@ describe("handleToolsCall", () => {
   })
 
   testAsync("sends error response when executeTool throws non-S.Error exception", async t => {
-    // When executeTool throws a non-S.Error (e.g., failwith from the reducer),
-    // handleMessage must catch it and send back a JSON-RPC error response.
-    // Before the fix, the exception escaped as an unhandled promise rejection
-    // and no response was ever sent — causing the agent to hang.
-
     let (channel, calls) = MockChannel.make()
 
     let handler: MCP.mcpHandler<unit> = {
@@ -338,7 +315,6 @@ describe("handleToolsCall", () => {
 
     let payload = buildToolsCallPayload(~id=77, ~name="question", ~callId="call_q1")
 
-    // handleMessage should never reject — the top-level catch guarantees this
     await MCP.handleMessage(handler, payload)
 
     let responsePush = _findResponseById(calls, 77)
@@ -378,10 +354,8 @@ describe("handleMessage error safety", () => {
 
     let payload = buildInitializePayload(~id=10)
 
-    // Must resolve without rejecting — the exception is caught internally
     await MCP.handleMessage(handler, payload)
 
-    // handleInitialize catches the error and sends a JSON-RPC error response
     let responsePush = _findResponseById(calls, 10)
     t->expect(responsePush->Option.isSome)->Expect.toBe(true)
 
@@ -417,10 +391,8 @@ describe("handleMessage error safety", () => {
 
     let payload = buildToolsListPayload(~id=20)
 
-    // Must resolve without rejecting
     await MCP.handleMessage(handler, payload)
 
-    // handleToolsList catches the error and sends a JSON-RPC error response
     let responsePush = _findResponseById(calls, 20)
     t->expect(responsePush->Option.isSome)->Expect.toBe(true)
 
@@ -442,10 +414,8 @@ describe("handleMessage error safety", () => {
 
     let payload = buildToolsCallPayload(~id=30, ~name="test", ~callId="call_1")
 
-    // Must resolve without rejecting
     await MCP.handleMessage(handler, payload)
 
-    // onMessage threw before any processing happened, so no response pushed
     t->expect(true)->Expect.toBe(true)
   })
 })

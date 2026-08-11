@@ -13,7 +13,6 @@ describe("Astro E2E", () => {
   let server: FrameworkServer;
 
   beforeAll(async () => {
-    // Configure Frontman integration in astro.config.mjs
     installAstro();
 
     browser = await chromium.launch({ headless: true });
@@ -43,14 +42,12 @@ describe("Astro E2E", () => {
     });
     expect(res.status).toBe(200);
 
-    // Parse SSE response to extract the tool result
     const body = await res.text();
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "));
     expect(dataLine).toBeDefined();
     const envelope = JSON.parse(dataLine!.slice(6));
     const routes = JSON.parse(envelope.content[0].text);
 
-    // Verify v5 resolved route fields are present on each route
     for (const route of routes) {
       expect(route).toHaveProperty("origin");
       expect(route).toHaveProperty("isPrerendered");
@@ -58,7 +55,6 @@ describe("Astro E2E", () => {
       expect(route).toHaveProperty("params");
     }
 
-    // The fixture's index.astro should appear as a project page
     const indexRoute = routes.find((r: { path: string }) => r.path === "/");
     expect(indexRoute).toBeDefined();
     expect(indexRoute.origin).toBe("project");
@@ -85,13 +81,10 @@ describe("Astro E2E", () => {
   it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
-    // Navigate to the Frontman UI (handles login redirect)
     await openFrontmanUI(page, PORT);
 
-    // Send a prompt to change the heading text
     await sendPrompt(page, 'Change the h1 heading text in src/pages/index.astro to say "Hello Frontman"');
 
-    // Verify the source file was actually modified
     expect(headingFileContains(server, "Hello Frontman")).toBe(true);
   });
 });

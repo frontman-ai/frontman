@@ -4,7 +4,6 @@ defmodule FrontmanServer.Tools.BackendTest do
   alias FrontmanServer.Tools.Backend
 
   setup_all do
-    # Prevent test_helper.exs from trying to setup Ecto.Adapters.SQL.Sandbox
     :ok
   end
 

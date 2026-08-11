@@ -1,7 +1,3 @@
-// Canonical hosts and URLs for the Frontman platform.
-// All integration packages (Astro, Vite, Next.js) should reference these
-// instead of hardcoding domain strings.
-
 /** The production API server host (without protocol). */
 let apiHost = "api.frontman.sh"
 

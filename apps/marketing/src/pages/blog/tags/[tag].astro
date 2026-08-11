@@ -1,20 +1,14 @@
 ---
-// Blog Tag Page
-// ------------
-// Description: The blog tag page.
 
-// Components
-// - Layout
 import Layout from '../../../layouts/Layout.astro'
-// - UI
 import Hero from '../../../components/blocks/hero/PageHeader.astro'
 import BlogPosts from '../../../components/blocks/blog/BlogPosts.astro'
 import Section from '../../../components/ui/Section.astro'
 import Row from '../../../components/ui/Row.astro'
 import Col from '../../../components/ui/Col.astro'
 
-// Data
 import { getCollection } from 'astro:content'
+import { isIndexableTagCount } from '../../../utils/tagIndexability.mjs'
 export async function getStaticPaths() {
 	const allPosts = await getCollection('blog')
 	const uniqueTags = [...new Set(allPosts.map((post) => post.data.tags).flat())]
@@ -29,6 +23,7 @@ export async function getStaticPaths() {
 }
 const { tag } = Astro.params
 const { posts } = Astro.props
+const shouldIndex = isIndexableTagCount(posts.length)
 
 const tagDisplayNames: Record<string, string> = {
 	ai: 'AI',
@@ -44,54 +39,72 @@ const tagDisplayNames: Record<string, string> = {
 	wordpress: 'WordPress'
 }
 
-const displayTag = tagDisplayNames[tag ?? ''] ?? (tag ?? '')
-	.split('-')
-	.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-	.join(' ')
+const displayTag =
+	tagDisplayNames[tag ?? ''] ??
+	(tag ?? '')
+		.split('-')
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(' ')
 
 const tagDescriptions: Record<string, string> = {
-	announcement: 'Product launches, feature releases, and important updates from the Frontman team. Stay up to date with what we are shipping and where the project is headed.',
-	collaboration: 'How Frontman enables designers, PMs, and developers to work together on frontend code — directly inside the running application, without context switching.',
-	security: 'How Frontman keeps your code and data safe. Learn about our security model, local-first architecture, and the principles behind our approach to trust and access control.',
-	tutorial: 'Step-by-step guides and walkthroughs for getting the most out of Frontman. From first setup to advanced workflows, these posts help you hit the ground running.',
-	comparison: 'Side-by-side comparisons of Frontman with other AI coding tools like Cursor, Copilot, v0, and Stagewise. Understand the tradeoffs and find the right tool for your workflow.',
-	ai: 'How artificial intelligence powers Frontman and the broader landscape of AI-assisted frontend development. From prompt-driven editing to runtime-aware code generation, explore the AI techniques behind modern developer tooling.',
-	'developer-tools': 'Posts about the developer tools ecosystem and how Frontman fits alongside your existing workflow. Browser DevTools, build systems, and the tools that make frontend development faster.',
-	'getting-started': 'Everything you need to get up and running with Frontman. Installation guides, first steps, and tips for making the most of Frontman from day one.',
-	workflow: 'Practical advice on integrating Frontman into your daily development workflow. Learn how browser-based AI editing can streamline code reviews, design handoffs, and rapid prototyping.',
-	'open-source': 'Frontman is source-available. Its browser client and JavaScript framework integrations are open source under Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. Read about transparency, community contributions, and building in the open.',
-	performance: 'How Frontman helps you build faster websites. From built-in Lighthouse audits to runtime performance insights, learn how to catch and fix performance issues without leaving your browser.',
+	announcement:
+		'Product launches, feature releases, and important updates from the Frontman team. Stay up to date with what we are shipping and where the project is headed.',
+	'ai-agents':
+		'Technical analysis of coding-agent loops, tool access, protocol boundaries, and verification. Use this collection to understand how agents gather context and where human review still matters.',
+	collaboration:
+		'Governance patterns for designers, PMs, and developers making reviewable frontend changes together, with less browser-to-source translation and explicit engineering escalation paths.',
+	'design-systems':
+		'Practical guidance for maintaining tokens, reusable components, responsive rules, and review standards while AI tools edit frontend source in development environments.',
+	frontend:
+		'Analysis of browser context, responsive UI work, component structure, and the verification practices that help teams review agent-generated frontend changes.',
+	security:
+		'Due-diligence guidance for Frontman deployments, including browser, filesystem, server, provider, credential, and WordPress mutation boundaries.',
+	tutorial:
+		'Step-by-step guides and walkthroughs for getting the most out of Frontman. From first setup to advanced workflows, these posts help you hit the ground running.',
+	comparison:
+		'Side-by-side comparisons of Frontman with other AI coding tools like Cursor, Copilot, v0, and Stagewise. Understand the tradeoffs and find the right tool for your workflow.',
+	ai: 'Analysis of AI-assisted frontend workflows, coding-agent limitations, model choices, and the evidence teams need when evaluating browser-aware development tools.',
+	'developer-tools':
+		'Posts about the developer tools ecosystem and how Frontman fits alongside your existing workflow. Browser DevTools, build systems, and the tools that make frontend development faster.',
+	'getting-started':
+		'Everything you need to get up and running with Frontman. Installation guides, first steps, and tips for making the most of Frontman from day one.',
+	workflow:
+		'Practical advice on integrating Frontman into your daily development workflow. Learn how browser-based AI editing can streamline code reviews, design handoffs, and rapid prototyping.',
+	wordpress:
+		'Frontman WordPress plugin setup, release notes, compatibility analysis, and practical editing workflows for teams evaluating AI-assisted WordPress maintenance.',
+	'open-source':
+		'Frontman is source-available. Its browser client and JavaScript framework integrations are open source under Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. Read about transparency, community contributions, and building in the open.',
+	performance:
+		'Guides to Frontman’s Lighthouse summary, framework logs, and reproducible browser checks for investigating frontend performance issues.'
 }
 
-const tagDescription = tagDescriptions[tag ?? ''] ??
+const tagDescription =
+	tagDescriptions[tag ?? ''] ??
 	`Articles and insights about ${displayTag} in the context of AI-powered frontend development. Explore how Frontman and browser-based tooling are changing the way teams build and iterate on user interfaces.`
 
-// Content
-// - SEO
 const SEO = {
 	title: `${displayTag} | Frontman Blog`,
-	description: `Browse all Frontman blog posts tagged as "${displayTag}". Read articles about ${displayTag} covering AI coding tools, browser-based development, and frontend workflows.`
+	description: tagDescription
 }
 
-// - Page Header
 const header = {
 	title: `Frontman posts about <br><strong>` + displayTag + `</strong>`,
 	text: `Stay informed, stay productive with all the latest from Frontman.`
 }
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
+<Layout title={SEO.title} description={SEO.description} noindex={!shouldIndex}>
 	<Hero title={header.title} text={header.text} />
 	<Section id="tag-intro">
 		<Row>
 			<Col span="8" align="center">
 				<p class="tag-intro__text">{tagDescription}</p>
 				<p class="tag-intro__count">
-					{posts.length === 1
-						? `There is currently 1 article tagged "${displayTag}".`
-						: `There are currently ${posts.length} articles tagged "${displayTag}".`
+					{
+						posts.length === 1
+							? `There is currently 1 article tagged "${displayTag}".`
+							: `There are currently ${posts.length} articles tagged "${displayTag}".`
 					}
-					Check back regularly — we publish new content every week.
 				</p>
 			</Col>
 		</Row>
@@ -102,7 +115,7 @@ const header = {
 <style>
 	@reference "../../../styles/global.css";
 	.tag-intro__text {
-		@apply text-lg leading-relaxed text-neutral-600 dark:text-neutral-300 mb-4;
+		@apply mb-4 text-lg leading-relaxed text-neutral-600 dark:text-neutral-300;
 	}
 	.tag-intro__count {
 		@apply text-base text-neutral-500 dark:text-neutral-400;

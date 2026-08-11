@@ -1,23 +1,32 @@
 .DEFAULT_GOAL := help
 .PHONY: help install dev build preview type-check clean
 
-help: ## Display available commands
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help install dev build preview type-check clean
+HELP_help := Display available commands
+HELP_install := Install dependencies
+HELP_dev := Start development server
+HELP_build := Build for production (runs vue-tsc first)
+HELP_preview := Preview production build
+HELP_type-check := Run vue-tsc type checking
+HELP_clean := Clean build artifacts
 
-install: ## Install dependencies
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+install:
 	yarn install
 
-dev: ## Start development server
+dev:
 	yarn dev
 
-build: ## Build for production (runs vue-tsc first)
+build:
 	yarn build
 
-preview: ## Preview production build
+preview:
 	yarn preview
 
-type-check: ## Run vue-tsc type checking
+type-check:
 	yarn type-check
 
-clean: ## Clean build artifacts
+clean:
 	rm -rf dist node_modules/.vite

@@ -1,6 +1,3 @@
-// Client tool that evaluates arbitrary JavaScript in the preview iframe.
-// Returns serialized results with captured console output.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.executeJs
@@ -47,14 +44,6 @@ type output = {
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
-// ---------------------------------------------------------------------------
-// Raw JS helper — console capture + eval must stay in raw JS because it
-// monkey-patches the iframe's window.console and uses `new win.Function`.
-// ---------------------------------------------------------------------------
-
-// Execute JS in the given window context, capturing console output.
-// Returns {success, result, error, logs}.
-// Accepts a serializer function to avoid coupling to smartSerialize at the JS level.
 let executeInWindow: (
   ('a, int) => string,
   WebAPI.DOMAPI.window,
@@ -95,7 +84,6 @@ let executeInWindow: (
 
     var result;
     try {
-      // Separate construction from execution so only SyntaxErrors trigger the fallback
       var fn;
       try {
         fn = new win.Function('return (' + expression + ')');
@@ -113,7 +101,6 @@ let executeInWindow: (
       });
     }
 
-    // If result is a thenable, race against timeout
     if (result && typeof result.then === 'function') {
       var timer;
       var timeoutPromise = new Promise(function(_, reject) {
@@ -143,9 +130,6 @@ let executeInWindow: (
   }
 `)
 
-// Tool result convention: Ok means the tool executed and produced a response for the
-// AI agent. Error means the tool framework itself failed. The `success` field inside
-// the output distinguishes execution success from JS-level errors.
 let execute = async (
   input: input,
   ~taskId as _: string,

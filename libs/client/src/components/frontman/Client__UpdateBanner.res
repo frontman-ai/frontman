@@ -21,8 +21,6 @@ let make = () => {
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let {relay, session, createSession} = Client__FrontmanProvider.useFrontman()
 
-  // Trigger the version check once relay is connected AND ACP session is active.
-  // The reducer guards against duplicate dispatches via updateCheckStatus.
   React.useEffect3(() => {
     switch (updateCheckStatus, relay, hasActiveACPSession) {
     | (UpdateNotChecked, Some(relayInstance), true) =>
@@ -87,7 +85,6 @@ let make = () => {
     <div
       className="flex items-center gap-3 mx-4 mt-3 px-4 py-3 bg-amber-950/40 border border-amber-700/40 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200"
     >
-      // Update icon
       <div className="flex-shrink-0">
         <svg
           className="w-4 h-4 text-amber-400"
@@ -103,7 +100,6 @@ let make = () => {
           />
         </svg>
       </div>
-      // Banner content
       <div className="flex-1 min-w-0">
         <p className="text-xs text-amber-300/90">
           {React.string(`${npmPackage} ${installedVersion} `)}
@@ -111,7 +107,6 @@ let make = () => {
           {React.string(` ${latestVersion}`)}
         </p>
       </div>
-      // Update button
       <button
         type_="button"
         onClick={_ => handleUpdateClick()}
@@ -119,7 +114,6 @@ let make = () => {
       >
         {React.string("Update")}
       </button>
-      // Dismiss button
       <button
         type_="button"
         onClick={_ => handleDismiss()}

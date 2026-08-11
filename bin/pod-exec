@@ -1,14 +1,4 @@
 #!/bin/bash
-# pod-exec — Execute commands inside the containerized worktree dev container.
-#
-# Detects the current git branch, resolves the matching pod hash, and execs
-# the command inside the correct container.
-#
-# Usage:
-#   ./bin/pod-exec mix test
-#   ./bin/pod-exec yarn vitest run
-#   ./bin/pod-exec mix format --check-formatted
-#   ./bin/pod-exec make rescript-build
 
 set -euo pipefail
 

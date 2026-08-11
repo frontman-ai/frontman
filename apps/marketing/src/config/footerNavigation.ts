@@ -1,6 +1,3 @@
-// Footer Navigation
-// ------------
-// Description: The footer navigation data for the website.
 import { legalInfo } from '../data/legalInfo'
 
 export interface Logo {
@@ -159,6 +156,10 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'AI Releases',
 					subCategoryLink: '/open-source-ai-releases/'
+				},
+				{
+					subCategory: 'Blog Topics',
+					subCategoryLink: '/blog/tags/'
 				}
 			]
 		},

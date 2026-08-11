@@ -1,21 +1,12 @@
 ---
-// Home page CTA Section
-// ------------
-// Description: A centered hero section with clear positioning, social proof, and a demo video.
 
-// Components
-// - UI
 import { Image } from 'astro:assets'
 import Button from '../../ui/Button.astro'
 import UsedInWild from '../socialproof/UsedInWild.astro'
 
-// Content
-// - Background Pattern
 import gridNetBackground from '../../../assets/grid-net-background.svg'
-// - Video Placeholder (product screenshot used as video thumbnail)
 import videoPlaceholder from '../../../assets/video-placeholder.png'
 
-// YouTube video
 const youtubeVideoId = '-4GD1GYwH8Y'
 
 const webMcpScript = `
@@ -126,7 +117,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 				Changes happen in seconds
 			</span>
 		</div>
-		<!-- SEO-targeted detail text, visually de-emphasized -->
 		<UsedInWild />
 		<p class="hero-section__geo-lead">Frontman is a source-available AI website editor for existing WordPress, Next.js, Astro, and Vite sites. Browser tools inspect the live page, local integrations handle CMS or filesystem operations, and a hosted or self-hosted server orchestrates the agent and persists task history. Relevant context is sent to your selected LLM provider to produce reviewable site updates.</p>
 	</div>
@@ -166,7 +156,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		}
 	}
 
-	/* -- Top block: badge + headline + subtitle + CTAs (centered) -- */
 	.hero-section__top {
 		text-align: center;
 		max-width: 780px;
@@ -215,7 +204,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		}
 	}
 
-	/* -- CTAs row -- */
 	.hero-section__cta {
 		display: flex;
 		flex-direction: column;
@@ -244,7 +232,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		position: relative;
 		overflow: hidden;
 	}
-	/* Subtle shimmer — white light sweep, barely visible, just enough to catch the eye */
 	.hero-section__primary-cta::after {
 		content: '';
 		position: absolute;
@@ -279,7 +266,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		100% { left: 125%; }
 	}
 	.hero-section__primary-cta:hover {
-		/* Let the Button.astro :hover handle it */
 	}
 	.hero-section__secondary-links {
 		display: flex;
@@ -362,7 +348,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		user-select: none;
 	}
 
-	/* -- Video (full width below text, hero centerpiece) -- */
 	.hero-section__video-wrapper {
 		width: 100%;
 		max-width: 960px;
@@ -426,7 +411,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		border: none;
 	}
 
-	/* -- Badge -- */
 	.hero-section__badge {
 		display: inline-block;
 		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
@@ -441,7 +425,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		}
 	}
 
-	/* -- Proof strip (benefit-driven, not tech-driven) -- */
 	.hero-section__proof {
 		display: flex;
 		flex-direction: column;
@@ -526,7 +509,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		}
 	}
 
-	/* -- Geo-lead SEO text (visually de-emphasized) -- */
 	.hero-section__geo-lead {
 		font-size: 12px;
 		line-height: 17px;

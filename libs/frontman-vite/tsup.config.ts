@@ -48,7 +48,6 @@ const internalDeps = [
 ];
 
 export default defineConfig([
-  // Main entry point
   {
     entry: { 'index': './src/FrontmanVite.res.mjs' },
     format: ['esm'],
@@ -62,7 +61,6 @@ export default defineConfig([
     treeshake: true,
     define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
   },
-  // CLI entry point
   {
     entry: { 'cli': './src/cli/cli.mjs' },
     format: ['esm'],

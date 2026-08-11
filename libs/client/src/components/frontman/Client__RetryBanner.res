@@ -1,6 +1,3 @@
-// RetryBanner - shown during server-side auto-retry countdown.
-// Displays the error that triggered the retry and a live countdown to the next attempt.
-
 @react.component
 let make = (~retryStatus: Client__Task__Types.Task.retryStatus) => {
   let (secondsLeft, setSecondsLeft) = React.useState(() => {

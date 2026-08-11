@@ -1,9 +1,7 @@
 ---
-// Structured Data (JSON-LD)
-// ------------
-// Description: Injects Organization and BreadcrumbList schema markup for SEO.
 
 import { legalInfo } from '../../../../data/legalInfo'
+import { createWebPageSchema } from '../../../../utils/structuredData.mjs'
 
 type BreadcrumbItem = {
 	name: string
@@ -11,14 +9,18 @@ type BreadcrumbItem = {
 }
 
 type Props = {
+	title: string
+	description: string
 	noindex?: boolean
 	breadcrumbs?: BreadcrumbItem[]
 }
 
-const { noindex = false, breadcrumbs } = Astro.props
+const { title, description, noindex = false, breadcrumbs } = Astro.props
 
-// Generate breadcrumb structured data from the current URL
 const url = new URL(Astro.request.url)
+url.search = ''
+url.hash = ''
+const pageUrl = url.href
 const pathname = url.pathname
 const segments = pathname.split('/').filter(Boolean)
 
@@ -40,89 +42,75 @@ const breadcrumbItems = (breadcrumbs ?? defaultBreadcrumbItems)
 const shouldEmitBreadcrumbs = !noindex && breadcrumbItems.length > 1
 
 const breadcrumbJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "BreadcrumbList",
-	"itemListElement": breadcrumbItems.map((item, index) => ({
-		"@type": "ListItem",
-		"position": index + 1,
-		"name": item.name,
-		"item": {
-			"@type": "WebPage",
-			"@id": item.url,
-			"name": item.name
+	'@context': 'https://schema.org',
+	'@type': 'BreadcrumbList',
+	itemListElement: breadcrumbItems.map((item, index) => ({
+		'@type': 'ListItem',
+		position: index + 1,
+		name: item.name,
+		item: {
+			'@type': 'WebPage',
+			'@id': item.url,
+			name: item.name
 		}
 	}))
 }
 ---
 
-<script is:inline type="application/ld+json" set:html={JSON.stringify({
-	"@context": "https://schema.org",
-	"@graph": [
-		{
-			"@type": "Organization",
-			"@id": "https://frontman.sh/#organization",
-			"name": "Frontman",
-			"url": "https://frontman.sh/",
-			"description": "Frontman is an AI website editor for existing WordPress, Next.js, Astro, and Vite sites. It lets site owners, marketers, and designers click the live page and request reviewable updates.",
-			"foundingDate": "2025",
-			"logo": "https://frontman.sh/logo.svg",
-			"contactPoint": {
-				"@type": "ContactPoint",
-				"email": legalInfo.supportEmail,
-				"contactType": "customer support",
-				"url": "https://frontman.sh/contact/"
+<script
+	is:inline
+	type="application/ld+json"
+	set:html={JSON.stringify({
+		'@context': 'https://schema.org',
+		'@graph': [
+			{
+				'@type': 'Organization',
+				'@id': 'https://frontman.sh/#organization',
+				name: 'Frontman',
+				url: 'https://frontman.sh/',
+				description:
+					'Frontman is an AI website editor for existing WordPress, Next.js, Astro, and Vite sites. It lets site owners, marketers, and designers click the live page and request reviewable updates.',
+				foundingDate: '2025',
+				logo: 'https://frontman.sh/logo.svg',
+				contactPoint: {
+					'@type': 'ContactPoint',
+					email: legalInfo.supportEmail,
+					contactType: 'customer support',
+					url: 'https://frontman.sh/contact/'
+				},
+				address: {
+					'@type': 'PostalAddress',
+					streetAddress: legalInfo.streetAddress,
+					postalCode: legalInfo.postalCode,
+					addressLocality: legalInfo.city,
+					addressCountry: legalInfo.country
+				},
+				sameAs: [
+					'https://github.com/frontman-ai/frontman',
+					'https://twitter.com/frontman_agent',
+					'https://bsky.app/profile/frontman.sh',
+					'https://medium.com/@frontmanai',
+					'https://www.reddit.com/r/frontman_ai/',
+					'https://www.linkedin.com/company/111717783',
+					'http://www.wikidata.org/entity/Q138753470'
+				]
 			},
-			"address": {
-				"@type": "PostalAddress",
-				"streetAddress": legalInfo.streetAddress,
-				"postalCode": legalInfo.postalCode,
-				"addressLocality": legalInfo.city,
-				"addressCountry": legalInfo.country
+			{
+				'@type': 'Service',
+				'@id': 'https://frontman.sh/#service',
+				name: 'Frontman Pro',
+				serviceType: 'AI website editor',
+				provider: { '@id': 'https://frontman.sh/#organization' },
+				areaServed: 'Worldwide',
+				url: 'https://frontman.sh/'
 			},
-			"sameAs": [
-				"https://github.com/frontman-ai/frontman",
-				"https://twitter.com/frontman_agent",
-				"https://bsky.app/profile/frontman.sh",
-				"https://medium.com/@frontmanai",
-				"https://www.reddit.com/r/frontman_ai/",
-				"https://www.linkedin.com/company/111717783",
-				"http://www.wikidata.org/entity/Q138753470"
-			]
-		},
-		{
-			"@type": "SoftwareApplication",
-			"@id": "https://frontman.sh/#software",
-			"name": "Frontman",
-			"url": "https://frontman.sh/",
-			"description": "AI website editor for visual updates in WordPress, Next.js, Astro, Vite, React, Vue, Svelte, and SvelteKit sites.",
-			"applicationCategory": "BusinessApplication",
-			"operatingSystem": "Web, macOS, Windows, Linux",
-			"softwareRequirements": "Node.js or WordPress development environment",
-			"publisher": { "@id": "https://frontman.sh/#organization" }
-		},
-		{
-			"@type": "Service",
-			"@id": "https://frontman.sh/#service",
-			"name": "Frontman Pro",
-			"serviceType": "AI website editor",
-			"provider": { "@id": "https://frontman.sh/#organization" },
-			"areaServed": "Worldwide",
-			"url": "https://frontman.sh/"
-		},
-		{
-			"@type": "WebPage",
-			"@id": "https://frontman.sh/#webpage",
-			"url": "https://frontman.sh/",
-			"name": "Frontman: AI Website Editor for Existing Sites",
-			"speakable": {
-				"@type": "SpeakableSpecification",
-				"cssSelector": ["#intro .hero-section__subtitle", "#intro .hero-section__geo-lead"]
-			}
-		}
-	]
-})} />
+			createWebPageSchema({ url: pageUrl, title, description })
+		]
+	})}
+/>
 
-{/* BreadcrumbList - helps Google show breadcrumb trails in search results */}
-{shouldEmitBreadcrumbs && (
-	<script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)} />
-)}
+{
+	shouldEmitBreadcrumbs && (
+		<script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)} />
+	)
+}

@@ -126,7 +126,6 @@ defmodule FrontmanServerWeb.OpenAIOAuthController do
         json(conn, %{status: "ok"})
 
       {:error, :not_found} ->
-        # Token didn't exist, but that's fine - user is disconnected either way
         json(conn, %{status: "ok"})
     end
   end

@@ -1,6 +1,6 @@
 /**
  * useThinkingState - Hook for determining when to show thinking indicator
- * 
+ *
  * Encapsulates the logic for showing/hiding the thinking indicator
  * based on message state, streaming state, and connection status.
  */
@@ -20,11 +20,11 @@ let getThinkingContext = (lastMessage: option<Message.t>): option<string> => {
   | Some(Message.ToolCall({state: OutputAvailable, _})) => Some("Processing result...")
   | Some(Message.ToolCall({state: OutputError, _})) => Some("Handling error...")
   | Some(Message.ToolCall({state: InputAvailable, _})) => Some("Executing tool...")
-  | Some(Message.ToolCall({state: InputStreaming, _})) => None // Don't show during streaming
-  | Some(Message.Assistant(Streaming(_))) => None // Don't show during streaming
-  | Some(Message.Assistant(Completed(_))) => None // Turn ended
+  | Some(Message.ToolCall({state: InputStreaming, _})) => None
+  | Some(Message.Assistant(Streaming(_))) => None
+  | Some(Message.Assistant(Completed(_))) => None
   | Some(Message.Error(_)) => None
-  | None => None // No messages
+  | None => None
   }
 }
 
@@ -56,7 +56,6 @@ let isAwaitingResponse = (lastMessage: option<Message.t>): bool => {
   switch lastMessage {
   | Some(Message.User(_)) => true
   | Some(Message.ToolCall({state: OutputAvailable, _})) => true
-  // Don't show thinking after error - agent will respond with error handling
   | Some(Message.ToolCall({state: OutputError, _})) => false
   | _ => false
   }
@@ -72,23 +71,15 @@ let use = (
   ~hasActiveACPSession: bool,
   ~sessionInitialized: bool,
 ): thinkingState => {
-  // Get the last message
   let lastMessage = messages->Array.get(Array.length(messages) - 1)
 
-  // Calculate thinking state
   let showThinking =
-    // Must have active ACP session and be initialized
     hasActiveACPSession &&
     sessionInitialized &&
-    // Agent must be actively running
     isAgentRunning &&
-    // Not currently streaming (AI is responding)
     !isStreaming &&
-    // Turn hasn't ended
     !isTurnEnded(lastMessage) &&
-    // Last message isn't streaming
     !isLastMessageStreaming(lastMessage) &&
-    // We're in a state that expects a response
     isAwaitingResponse(lastMessage)
 
   let thinkingContext = if showThinking {
@@ -118,7 +109,6 @@ let useWithMessageId = (
     ~sessionInitialized,
   )
 
-  // Generate a stable ID based on last message
   let messageId = switch messages->Array.get(Array.length(messages) - 1) {
   | Some(msg) => Message.getId(msg) ++ "-thinking"
   | None => "initial-thinking"

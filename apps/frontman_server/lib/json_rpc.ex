@@ -32,14 +32,12 @@ defmodule JsonRpc do
 
   @jsonrpc_version "2.0"
 
-  # Standard JSON-RPC 2.0 error codes
   @error_parse -32_700
   @error_invalid_request -32_600
   @error_method_not_found -32_601
   @error_invalid_params -32_602
   @error_internal -32_603
 
-  # ACP elicitation: URL mode elicitation required before request can proceed
   @error_url_elicitation_required -32_042
 
   def error_parse, do: @error_parse
@@ -108,7 +106,6 @@ defmodule JsonRpc do
   defp extract_id(_), do: {:error, :invalid_message}
 
   defp extract_response_type(%{"result" => _result, "error" => _error}) do
-    # JSON-RPC 2.0 spec: MUST NOT have both result and error
     {:error, :invalid_message}
   end
 
@@ -120,7 +117,6 @@ defmodule JsonRpc do
   defp extract_response_type(%{"error" => error} = message) do
     id = Map.fetch!(message, "id")
 
-    # Validate error object structure per JSON-RPC 2.0 spec
     case error do
       %{"code" => code, "message" => message} when is_integer(code) and is_binary(message) ->
         {:ok, {:error, id, error}}

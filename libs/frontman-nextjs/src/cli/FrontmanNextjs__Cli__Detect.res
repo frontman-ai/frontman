@@ -1,4 +1,3 @@
-// Detection module for Next.js project analysis
 module Bindings = FrontmanBindings
 module Fs = Bindings.Fs
 module Path = Bindings.Path
@@ -8,8 +7,6 @@ module ExnUtils = FrontmanAiFrontmanCore.FrontmanCore__ExnUtils
 module Semver = FrontmanAiFrontmanCore.FrontmanCore__Semver
 module PackageManager = FrontmanAiFrontmanCore.FrontmanCore__Cli__PackageManager
 
-// Node.js module resolution — handles monorepo hoisting, pnpm virtual store,
-// Yarn PnP, and all standard node_modules layouts.
 type nodeRequire = {resolve: string => string}
 @module("node:module")
 external createRequire: string => nodeRequire = "createRequire"
@@ -41,7 +38,6 @@ type projectInfo = {
   packageManager: packageManager,
 }
 
-// Read file content safely
 let readFile = async (path: string): option<string> => {
   try {
     let content = await Fs.Promises.readFile(path)
@@ -51,10 +47,6 @@ let readFile = async (path: string): option<string> => {
   }
 }
 
-// Resolve a module from a given directory using Node.js module resolution.
-// Handles monorepo hoisting (Yarn/npm/pnpm workspaces), symlinks, and
-// non-standard layouts like pnpm's virtual store.
-// Returns Error with the specific exception message on failure.
 let resolveFrom = (dir: string, moduleId: string): result<string, string> => {
   try {
     let req = createRequire(Path.join([dir, "package.json"]))
@@ -64,20 +56,15 @@ let resolveFrom = (dir: string, moduleId: string): result<string, string> => {
   }
 }
 
-// Partial package.json schema — only the fields we need to check for next.
 @schema
 type packageJsonDeps = {
   dependencies: option<Dict.t<string>>,
   devDependencies: option<Dict.t<string>>,
 }
 
-// Sury schema for reading the version field from next/package.json.
 @schema
 type nextPackageJson = {version: string}
 
-// Check if this project declares next as a direct dependency.
-// Prevents false detection in monorepo sibling workspaces where next
-// is resolvable via hoisted node_modules but belongs to a different workspace.
 let hasNextDependency = async (projectDir: string): bool => {
   let pkgPath = Path.join([projectDir, "package.json"])
   switch await readFile(pkgPath) {
@@ -98,12 +85,6 @@ let hasNextDependency = async (projectDir: string): bool => {
   }
 }
 
-// Detect Next.js version using Node.js module resolution.
-// First verifies that next is declared in this project's package.json,
-// then uses createRequire to resolve the actual installed version.
-// This correctly finds Next.js when dependencies are hoisted to a parent
-// directory (monorepo workspaces) while avoiding false positives from
-// sibling workspaces.
 let detectNextVersion = async (projectDir: string): result<nextVersion, string> => {
   let hasNext = await hasNextDependency(projectDir)
   switch hasNext {
@@ -131,27 +112,21 @@ let detectNextVersion = async (projectDir: string): result<nextVersion, string> 
 
 let detectPackageManager = PackageManager.detect
 
-// Pattern to detect @frontman-ai/nextjs import
 let frontmanImportPattern = /@frontman-ai\/nextjs/
 
-// Pattern to extract host from createMiddleware config
 let hostPattern = /host:\s*['\"]([^'\"]+)['\"]/
 
-// Analyze an existing file for Frontman configuration
 let analyzeFile = async (filePath: string): existingFile => {
   switch await readFile(filePath) {
   | None => NotFound
   | Some(content) =>
-    // Check if it imports @frontman-ai/nextjs
     if frontmanImportPattern->RegExp.test(content) {
-      // Try to extract the host
-      // Note: RegExp.Result.matches does .slice(1), so capture groups start at index 0
       switch hostPattern->RegExp.exec(content) {
       | Some(result) =>
         let maybeHost =
           result
           ->RegExp.Result.matches
-          ->Array.get(0) // First capture group after slice(1)
+          ->Array.get(0)
           ->Option.flatMap(x => x)
         switch maybeHost {
         | Some(host) => HasFrontman({host: host})
@@ -165,7 +140,6 @@ let analyzeFile = async (filePath: string): existingFile => {
   }
 }
 
-// Detect if the Next.js router lives under src/.
 let detectSrcDir = async (projectDir: string): bool => {
   let hasSrcApp = await FsUtils.dirExists(Path.join([projectDir, "src", "app"]))
   switch hasSrcApp {
@@ -174,14 +148,11 @@ let detectSrcDir = async (projectDir: string): bool => {
   }
 }
 
-// Check if package.json exists (validates this is a project root)
 let hasPackageJson = async (projectDir: string): bool => {
   await FsUtils.pathExists(Path.join([projectDir, "package.json"]))
 }
 
-// Main detection function
 let detect = async (projectDir: string): result<projectInfo, string> => {
-  // First verify this is a project directory
   let hasPackage = await hasPackageJson(projectDir)
   switch hasPackage {
   | false => Error("No package.json found. Please run from your Next.js project root.")
@@ -189,7 +160,6 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
     switch await detectNextVersion(projectDir) {
     | Error(msg) => Error(msg)
     | Ok(nextVersion) =>
-      // Next loads middleware/proxy from the same level as app/ or pages/.
       let hasSrcDir = await detectSrcDir(projectDir)
       let entrypointDir = switch hasSrcDir {
       | true => Path.join([projectDir, "src"])
@@ -198,7 +168,6 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
       let middlewarePath = Path.join([entrypointDir, "middleware.ts"])
       let proxyPath = Path.join([entrypointDir, "proxy.ts"])
 
-      // Check for instrumentation in both root and src/
       let instrumentationPath = switch hasSrcDir {
       | true => Path.join([projectDir, "src", "instrumentation.ts"])
       | false => Path.join([projectDir, "instrumentation.ts"])
@@ -208,7 +177,6 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
       let proxy = await analyzeFile(proxyPath)
       let instrumentation = await analyzeFile(instrumentationPath)
 
-      // Detect package manager
       let packageManager = await detectPackageManager(projectDir)
 
       Ok({
@@ -223,7 +191,6 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
   }
 }
 
-// Helper to check if this is Next.js 16+
 let isNextJs16Plus = (info: projectInfo): bool => {
   info.nextVersion.major >= 16
 }

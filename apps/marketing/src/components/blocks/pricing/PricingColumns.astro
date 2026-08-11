@@ -1,24 +1,15 @@
 ---
-// Pricing plabs Section
-// ------------
-// Description: A section with a list of 3 pricing plans with toggle to switch between monthly and annual pricing.
 
-// Components
-// - Layout
 import Section from '../../ui/Section.astro'
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
-// - UI
 import PricingTable from '../../ui/pricing-tables/PricingTable.astro'
 import Toggle from '../../ui/forms/form-elements/Toggle.astro'
 
-// Content
 import pricingTablesData from '../../../data/json-files/pricingTablesdata.json'
 
-// Script
 import PricingChange from '../../scripts/PricingPlanChange.astro'
 
-// Props
 type PricingTableData = {
 	header: {
 		title: string

@@ -13,7 +13,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Templates {
 	/**
@@ -157,13 +156,11 @@ class Frontman_Tool_Templates {
 	public function get_site_info( array $input ): array {
 		$theme = wp_get_theme();
 
-		// Get plugin names from WordPress' validated active plugin paths.
 		$plugin_info = [];
 		foreach ( $this->get_active_plugin_paths() as $plugin_path ) {
 			$plugin_info[] = $this->get_active_plugin_info( $plugin_path );
 		}
 
-		// Get post types.
 		$post_types = get_post_types( [ 'public' => true ], 'objects' );
 		$pt_list    = [];
 		foreach ( $post_types as $pt ) {
@@ -174,7 +171,6 @@ class Frontman_Tool_Templates {
 			];
 		}
 
-		// Get taxonomies.
 		$taxonomies = get_taxonomies( [ 'public' => true ], 'objects' );
 		$tax_list   = [];
 		foreach ( $taxonomies as $tax ) {
@@ -299,5 +295,3 @@ class Frontman_Tool_Templates {
 		];
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

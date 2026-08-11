@@ -1,12 +1,8 @@
-// Tests for the Lighthouse tool
-
 open Vitest
 
 module Lighthouse = FrontmanCore__Tool__Lighthouse
 module LighthouseBindings = FrontmanBindings.Lighthouse
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
-
-// --- Test helpers ---
 
 module Mock = {
   let makeCategory = (
@@ -54,11 +50,6 @@ module Mock = {
   }
 }
 
-// --- Tests ---
-
-// Preset validation is now enforced at the type level (variant type),
-// so invalid presets are caught at compile time rather than runtime.
-
 describe("Lighthouse Tool - processLhr", _t => {
   test("should extract category scores correctly", t => {
     let mockLhr = Mock.makeLhr(
@@ -102,7 +93,6 @@ describe("Lighthouse Tool - processLhr", _t => {
 
     let result = Lighthouse.processLhr(mockLhr)
 
-    // (80 + 100) / 2 = 90
     t->expect(result.overallScore)->Expect.toBe(90)
   })
 })
@@ -144,7 +134,6 @@ describe("Lighthouse Tool - getTopIssues", _t => {
 
     let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
 
-    // audit-4 excluded (score === 1.0), remaining 3 sorted by score asc
     t->expect(topIssues->Array.length)->Expect.toBe(3)
 
     switch topIssues->Array.get(0) {
@@ -400,9 +389,7 @@ describe("Lighthouse Tool - getTopIssues", _t => {
     let topIssues = Lighthouse.getTopIssues(~category, ~audits, ~maxIssues=3)
 
     switch topIssues->Array.get(0) {
-    | Some(issue) =>
-      // Should be capped at 3 despite 5 items
-      t->expect(issue.elements->Array.length)->Expect.toBe(3)
+    | Some(issue) => t->expect(issue.elements->Array.length)->Expect.toBe(3)
     | None => failwith("Expected issue")
     }
   })

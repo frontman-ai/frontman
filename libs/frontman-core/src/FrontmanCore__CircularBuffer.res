@@ -1,6 +1,3 @@
-// Generic circular buffer for fixed-size FIFO storage
-// Used by LogCapture and potentially other modules that need bounded collections
-
 type t<'a> = {
   data: array<option<'a>>,
   writeIndex: int,

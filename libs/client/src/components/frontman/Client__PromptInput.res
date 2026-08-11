@@ -1,6 +1,6 @@
 /**
  * Client__PromptInput - Main chat input component
- * 
+ *
  * Prompt composer shell. Tiptap owns editor content, pills, paste/drop, and file picker.
  * This component keeps app-level controls around it: model selector, selected-element
  * button, submit/stop button, provider CTA, error toast, and image preview.
@@ -8,26 +8,14 @@
 module Icons = Client__ToolIcons
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-// ============================================================================
-// Types
-// ============================================================================
-
-// Tiptap expands pasted-text pills into `text`; ReScript only receives file items.
 type inputItem = FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
 
-// ============================================================================
-// Sub-components
-// ============================================================================
-
-// Model selector dropdown - consumes ACP SessionConfigOption (type: "select")
-// Uses Base UI Select for consistent dark theme styling across all platforms (including Linux)
 module ModelSelector = {
   module Select = Client__UI__Select
   module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
   let optionClassName = "text-xs text-zinc-200 focus:bg-zinc-700 focus:text-white data-highlighted:bg-zinc-700 data-highlighted:text-white"
 
-  // Get the display name for the currently selected value from config option
   let _getSelectedDisplay = (configOption: ACP.sessionConfigOption, selectedValue: string): option<
     string,
   > => {
@@ -187,10 +175,6 @@ let modelConfigOptionHasModels = (configOption: ACP.sessionConfigOption) => {
   }
 }
 
-// Select element button — three visual states:
-// resting: zinc, label visible
-// selecting: violet pulse dot, shows "Selecting…"
-// has-annotations (isSelecting=false but hasAnnotations=true): zinc-200 with active dot
 module SelectElementButton = {
   @react.component
   let make = (
@@ -255,7 +239,6 @@ module AttachButton = {
   }
 }
 
-// Stop icon - square for cancel button
 module StopIcon = {
   @react.component
   let make = (~size: int=16) => {
@@ -271,7 +254,6 @@ module StopIcon = {
   }
 }
 
-// Submit/Stop button — Send stays primary when content exists; Stop covers empty-input running state.
 module SubmitButton = {
   @react.component
   let make = (
@@ -315,9 +297,6 @@ module SubmitButton = {
   }
 }
 
-// ============================================================================
-// Main component
-// ============================================================================
 @react.component
 let make = (
   ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => unit,
@@ -349,7 +328,6 @@ let make = (
   > => [])
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
   let (fileSizeError, setFileSizeError) = React.useState((): option<string> => None)
-  // showToolbarLabels: true when toolbar is wide enough to show compact button labels
   let (showToolbarLabels, setShowToolbarLabels) = React.useState(() => true)
   let formRef = React.useRef(Nullable.null)
   let noModelsConfigured =
@@ -383,7 +361,6 @@ let make = (
     ReactEvent.Mouse.stopPropagation(event)
   }
 
-  // ResizeObserver: hide "Select" label when toolbar is too narrow
   let _setupResizeObserver: (Dom.element, bool => unit) => unit => unit = %raw(`
     function(el, setShowLabel) {
       var LABEL_THRESHOLD = 300;
@@ -402,7 +379,6 @@ let make = (
     ->Option.map(el => _setupResizeObserver(el, v => setShowToolbarLabels(_ => v)))
   })
 
-  // Clear file size error after 3 seconds
   React.useEffect1(() => {
     switch fileSizeError {
     | Some(_) =>
@@ -412,7 +388,6 @@ let make = (
     }
   }, [fileSizeError])
 
-  // Submit button asks the editor to serialize and clear itself.
   let doSubmit = () => setSubmitSignal(prev => prev + 1)
   let openAttachPicker = () => setAttachSignal(prev => prev + 1)
   let handleDrop = (event: ReactEvent.Mouse.t) => {
@@ -445,7 +420,6 @@ let make = (
   let isSubmitDisabled = isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
   let showStopButton = isAgentRunning && !hasSubmittableContent
 
-  // Determine placeholder text based on state
   let currentPlaceholder = if noModelsConfigured {
     "Connect an AI provider to start chatting."
   } else if disabled {
@@ -460,7 +434,6 @@ let make = (
     onDragOver={preventDefaultDropNavigation}
     onDrop={handleDrop}
   >
-    // File size error toast
     {switch fileSizeError {
     | Some(error) =>
       <div className="px-3 pt-2">
@@ -486,7 +459,6 @@ let make = (
             showLabel={showToolbarLabels}
           />
 
-          // Select element button (optional)
           {switch onSelectElement {
           | Some(handler) =>
             <SelectElementButton
@@ -500,7 +472,6 @@ let make = (
         </div>
       </div>
 
-      // Tiptap input area with inline pills
       <div className="border-t border-white/8">
         <Client__PromptEditor
           disabled={isInputDisabled}
@@ -565,7 +536,6 @@ let make = (
       </div>
     </div>
 
-    // Image lightbox preview
     {switch previewSrc {
     | Some(src) => <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
     | None => React.null

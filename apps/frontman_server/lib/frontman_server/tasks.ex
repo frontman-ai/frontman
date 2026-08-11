@@ -63,8 +63,6 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Workers.GenerateTitle
   require Logger
 
-  # --- Authorization Helpers ---
-
   defp get_task_by_id(scope, task_id) do
     case task_id
          |> TaskSchema.by_id_for_user(Accounts.scope_user_id(scope))
@@ -80,8 +78,6 @@ defmodule FrontmanServer.Tasks do
     |> TaskSchema.locked_for_update()
     |> Repo.one()
   end
-
-  # --- Task Management ---
 
   @doc """
   Lists all tasks for a user (lightweight, no interactions loaded).
@@ -164,8 +160,6 @@ defmodule FrontmanServer.Tasks do
     |> Repo.all()
   end
 
-  # --- Project Discovery ---
-
   @doc """
   Adds a discovered project rule to the task.
 
@@ -220,8 +214,6 @@ defmodule FrontmanServer.Tasks do
       _ -> false
     end)
   end
-
-  # --- Interaction Persistence Helpers ---
 
   defp record_interaction(%TaskSchema{} = task_schema, type, attrs, turn_number) do
     with {:ok, row} <- record_interaction_row(task_schema, type, attrs, turn_number) do
@@ -279,8 +271,6 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  # Scope may be nil for recovered processes after a monitor restart.
-  # In that case we can only broadcast, not persist.
   defp persist_swarm_event(nil, _task_id, _turn_number, _event), do: :ok
 
   defp persist_swarm_event(
@@ -438,8 +428,6 @@ defmodule FrontmanServer.Tasks do
 
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{tool_name: "question"}), do: true
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{}), do: false
-
-  # --- Conversation Lifecycle ---
 
   @doc """
   Accepts a user prompt into session history.
@@ -662,8 +650,6 @@ defmodule FrontmanServer.Tasks do
      }}
   end
 
-  # --- Tool Requests ---
-
   @doc "Records a client-handled tool request in the given turn."
   def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
       when is_integer(turn_number) and turn_number > 0 do
@@ -779,8 +765,6 @@ defmodule FrontmanServer.Tasks do
       end
     end
   end
-
-  # --- Execution Management ---
 
   @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
@@ -993,8 +977,6 @@ defmodule FrontmanServer.Tasks do
       {:error, reason} -> {:error, reason}
     end
   end
-
-  # --- Todos ---
 
   @doc """
   Lists all todos for a task.

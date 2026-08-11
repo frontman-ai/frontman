@@ -1,6 +1,3 @@
-// Task reducer - self-contained domain logic for Task aggregate
-// All actions operate on a single Task (no taskId needed)
-
 module Log = FrontmanLogs.Logs.Make({
   let component = #TaskReducer
 })
@@ -12,10 +9,6 @@ module UserContentPart = Types.UserContentPart
 module AssistantContentPart = Types.AssistantContentPart
 module Annotation = Types.Annotation
 module ACPTypes = Types.ACPTypes
-
-// ============================================================================
-// Lens Module - Composable state update functions for Task
-// ============================================================================
 
 module MessageStore = Client__MessageStore
 
@@ -47,9 +40,6 @@ let mergeUserMessage = (message, ~id, ~content, ~annotations, ~agentId) =>
   }
 
 module Lens = {
-  // ---- Generic helpers to eliminate repetitive 4-way switches ----
-
-  // Update the previewFrame on New/Loading/Loaded (crashes on Unloaded)
   let updatePreviewFrame = (task: Task.t, fn: Task.previewFrame => Task.previewFrame): Task.t =>
     switch task {
     | Task.New(data) => Task.New({...data, previewFrame: fn(data.previewFrame)})
@@ -59,7 +49,6 @@ module Lens = {
       failwith("[Lens.updatePreviewFrame] Cannot update preview frame on Unloaded task")
     }
 
-  // Update messages within a task (crashes if New or Unloaded - they have no messages)
   let updateMessages = (task: Task.t, fn: MessageStore.t => MessageStore.t): Task.t => {
     switch task {
     | Task.New(_) | Task.Unloaded(_) =>
@@ -69,12 +58,10 @@ module Lens = {
     }
   }
 
-  // Update a specific message by ID - O(1) lookup via index
   let updateMessage = (task: Task.t, msgId: string, fn: Message.t => Message.t): Task.t => {
     updateMessages(task, store => MessageStore.update(store, msgId, fn))
   }
 
-  // Insert a message at the end
   let insertMessage = (task: Task.t, message: Message.t): Task.t => {
     updateMessages(task, store => MessageStore.insert(store, message))
   }
@@ -111,7 +98,6 @@ module Lens = {
     | _ => task
     }
 
-  // Get latest streaming message for UI state.
   let getStreamingMessage = (task: Task.t): option<Message.assistantMessage> => {
     let messages = Task.getMessages(task)
     let streaming = messages->Array.filterMap(msg => {
@@ -124,14 +110,11 @@ module Lens = {
     streaming->Array.get(Array.length(streaming) - 1)
   }
 
-  // Complete any streaming message (convert Streaming to Completed)
-  // Per ACP spec: message boundaries are signaled by prompt response or next user message
   let completeStreamingMessage = (task: Task.t): Task.t => {
     updateMessages(task, store =>
       MessageStore.map(store, msg =>
         switch msg {
         | Message.Assistant(Streaming({id, textBuffer, agentId})) =>
-          // Empty buffer = empty content array (not a Text part with empty string)
           let content = if String.length(textBuffer) > 0 {
             [AssistantContentPart.Text({text: textBuffer})]
           } else {
@@ -143,8 +126,6 @@ module Lens = {
       )
     )
   }
-
-  // ---- PreviewFrame lenses (delegate to updatePreviewFrame) ----
 
   let setPreviewUrl = (task: Task.t, url: string): Task.t =>
     updatePreviewFrame(task, pf => {...pf, url})
@@ -161,9 +142,6 @@ module Lens = {
   let setOrientation = (task: Task.t, orientation: Client__DeviceMode.orientation): Task.t =>
     updatePreviewFrame(task, pf => {...pf, orientation})
 
-  // ---- Annotation / UI lenses ----
-
-  // Like Task.updateLoadedData but crashes on Unloaded (crash-early contract)
   let updateTaskData = (task: Task.t, fn: Task.loadedData => Task.loadedData): Task.t =>
     switch task {
     | Task.Unloaded(_) => failwith("[Lens.updateTaskData] Cannot update Unloaded task")
@@ -186,13 +164,7 @@ module Lens = {
     updateTaskData(task, d => {...d, activePopupAnnotationId: id})
 }
 
-// ============================================================================
-// Selectors Module - Query functions for Task state
-// ============================================================================
-
 module Selectors = {
-  // Get messages from a task
-  // None = Unloaded (we don't know), Some([]) = New/loaded but empty
   let messages = (task: Task.t): option<array<Message.t>> => {
     switch task {
     | Task.Unloaded(_) => None
@@ -201,8 +173,6 @@ module Selectors = {
     }
   }
 
-  // Check if task is streaming
-  // None = Unloaded (we don't know)
   let isStreaming = (task: Task.t): option<bool> => {
     messages(task)->Option.map(msgs =>
       msgs->Array.some(msg => {
@@ -215,8 +185,6 @@ module Selectors = {
     )
   }
 
-  // Get annotations
-  // None = Unloaded (we don't know)
   let annotations = (task: Task.t): option<array<Annotation.t>> => {
     switch task {
     | Task.Unloaded(_) => None
@@ -227,7 +195,6 @@ module Selectors = {
     }
   }
 
-  // Derive webPreviewIsSelecting from annotationMode
   let webPreviewIsSelecting = (task: Task.t): option<bool> => {
     switch task {
     | Task.Unloaded(_) => None
@@ -235,14 +202,12 @@ module Selectors = {
     }
   }
 
-  // Check if any annotation is still enriching (async details not yet resolved)
   let hasEnrichingAnnotations = (task: Task.t): option<bool> => {
     annotations(task)->Option.map(anns =>
       anns->Array.some(a => a.enrichmentStatus == Annotation.Enriching)
     )
   }
 
-  // Get active popup annotation ID
   let activePopupAnnotationId = (task: Task.t): option<option<string>> => {
     switch task {
     | Task.Unloaded(_) => None
@@ -250,8 +215,6 @@ module Selectors = {
     }
   }
 
-  // Check if agent is running
-  // None = Unloaded, New, or Loading (not applicable)
   let isAgentRunning = (task: Task.t): option<bool> => {
     switch task {
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
@@ -266,8 +229,6 @@ module Selectors = {
     }
   }
 
-  // Get plan entries
-  // None = Unloaded, New, or Loading (not applicable)
   let planEntries = (task: Task.t): option<array<ACPTypes.planEntry>> => {
     switch task {
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
@@ -275,7 +236,6 @@ module Selectors = {
     }
   }
 
-  // Get device mode
   let deviceMode = (task: Task.t): Client__DeviceMode.deviceMode => {
     switch task {
     | Task.Unloaded(_) => Client__DeviceMode.defaultDeviceMode
@@ -284,7 +244,6 @@ module Selectors = {
     }
   }
 
-  // Get orientation
   let orientation = (task: Task.t): Client__DeviceMode.orientation => {
     switch task {
     | Task.Unloaded(_) => Client__DeviceMode.defaultOrientation
@@ -293,8 +252,6 @@ module Selectors = {
     }
   }
 
-  // Get turn error
-  // None = Unloaded, New, or Loading (not applicable), or no error
   let turnError = (task: Task.t): option<Task.turnErrorInfo> => {
     switch task {
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
@@ -302,12 +259,10 @@ module Selectors = {
     }
   }
 
-  // Get the streaming message from a task (at most one per task)
   let streamingMessage = (task: Task.t): option<Message.assistantMessage> => {
     Lens.getStreamingMessage(task)
   }
 
-  // Get the pending question (only available on Loaded tasks)
   let pendingQuestion = (task: Task.t): option<Client__Question__Types.pendingQuestion> => {
     switch task {
     | Task.Loaded({pendingQuestion}) => pendingQuestion
@@ -315,7 +270,6 @@ module Selectors = {
     }
   }
 
-  // Get the retry status (only available on Loaded tasks)
   let retryStatus = (task: Task.t): option<Types.Task.retryStatus> =>
     switch task {
     | Task.Loaded({retryStatus}) => retryStatus
@@ -323,20 +277,13 @@ module Selectors = {
     }
 }
 
-// ============================================================================
-// Task Actions - operate on a single Task (no taskId needed)
-// ============================================================================
-
-// Element data for batch annotation (drag selection)
 type annotationElement = {
   element: WebAPI.DOMAPI.element,
   tagName: string,
 }
 
 type action =
-  // Streaming actions
   | TextDeltaReceived({messageId: string, text: string, agentId: string})
-  // Tool call actions
   | ToolInputReceived({id: string, input: JSON.t})
   | ToolResultReceived({
       id: string,
@@ -346,14 +293,12 @@ type action =
     })
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
-  // Content actions
   | AddUserMessage({
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
-  // Annotation actions — unified selection mode
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
   | ToggleAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
@@ -379,33 +324,27 @@ type action =
       contentDocument: option<WebAPI.DOMAPI.document>,
       contentWindow: option<WebAPI.DOMAPI.window>,
     })
-  // Device mode actions
   | SetDeviceMode({deviceMode: Client__DeviceMode.deviceMode})
   | SetOrientation({orientation: Client__DeviceMode.orientation})
   | ToggleDeviceMode
-  // Plan/Turn actions
   | PlanReceived({entries: array<ACPTypes.planEntry>})
   | ExecutionStateRunning
   | ExecutionStateIdle
   | ExecutionStateRequiresAction
   | CancelTurn
-  // Error actions
   | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
-  // Load state actions
   | LoadStarted({previewUrl: string})
   | LoadComplete
   | LoadError({error: string})
-  // Hydration actions
   | UserMessageReceived({
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
-  // Question tool actions
   | QuestionReceived({
       questions: array<Client__Question__Types.questionItem>,
       toolCallId: string,
@@ -419,10 +358,6 @@ type action =
   | QuestionSubmitted
   | QuestionAllSkipped
   | QuestionCancelled
-
-// ============================================================================
-// Effects - side effects that the task reducer requests
-// ============================================================================
 
 type effect =
   | FetchAnnotationDetails({
@@ -439,12 +374,9 @@ type effect =
     })
   | CancelPrompt
   | RetryTurnEffect({retriedErrorId: string})
-  // Resolve the question tool's blocking promise with the user's answer
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
-  // Reject the question tool's blocking promise (cancellation)
   | RejectQuestionToolEffect({resolveError: string => unit, message: string})
 
-// Delegated effects - things the task needs from its parent
 type delegated =
   | NeedSendMessage({
       text: string,
@@ -501,7 +433,6 @@ let actionToString = (action: action): string =>
   | QuestionCancelled => "QuestionCancelled"
   }
 
-// Normalize URL by removing trailing slash for comparison
 let normalizeUrl = (url: string): string => {
   switch url->String.endsWith("/") && String.length(url) > 1 {
   | true => url->String.slice(~start=0, ~end=String.length(url) - 1)
@@ -509,7 +440,6 @@ let normalizeUrl = (url: string): string => {
   }
 }
 
-// Helper to extract text content from user message parts
 let extractTextFromUserContent = (content: array<UserContentPart.t>): string => {
   content
   ->Array.filterMap(part => {
@@ -522,7 +452,6 @@ let extractTextFromUserContent = (content: array<UserContentPart.t>): string => 
   ->Array.join(" ")
 }
 
-// Helper to extract image/file attachments from user message parts
 let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): array<
   Message.fileAttachmentData,
 > => {
@@ -547,14 +476,8 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
   })
 }
 
-// Helper to get task ID for error messages
 let getTaskIdForError = (task: Task.t): string => Task.getId(task)->Option.getOr("(no id)")
 
-// ============================================================================
-// Question helpers - shared logic for question tool state mutations
-// ============================================================================
-
-// Update pendingQuestion on a Loaded task (no-op if no pending question)
 let updatePendingQuestion = (
   task: Task.t,
   fn: Client__Question__Types.pendingQuestion => Client__Question__Types.pendingQuestion,
@@ -567,8 +490,6 @@ let updatePendingQuestion = (
   | _ => (task, [])
   }
 
-// Build question tool output JSON from pending question state.
-// Format matches Client__Tool__Question.output schema.
 let buildQuestionToolOutput = (
   pq: Client__Question__Types.pendingQuestion,
   ~skippedAll: bool,
@@ -599,9 +520,6 @@ let buildQuestionToolOutput = (
   JSON.Encode.object(obj)
 }
 
-// Resolve the question tool: clear pendingQuestion and emit resolve effect.
-// Resolves the MCP tool promise directly — the MCP response flow handles
-// both live and reconnect cases (server re-sends tools/call on reconnect).
 let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
   Task.t,
   array<effect>,
@@ -616,7 +534,6 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
     | false =>
       let answerJson = buildQuestionToolOutput(pq, ~skippedAll, ~cancelled)
       (
-        // Resolving the tool promise resumes the agent until state_update catches up.
         Task.Loaded({...data, pendingQuestion: None, isAgentRunning: true}),
         [ResolveQuestionToolEffect({resolveOk: pq.resolveOk, answerJson})],
       )
@@ -626,16 +543,12 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
 
 let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
-  // ============================================================================
-  // UI State Actions - work on New, Loading, or Loaded (via Lens)
-  // ============================================================================
   | (Task.Unloaded(_), SetPreviewUrl(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
     let currentUrl = Task.getPreviewFrame(task, ~defaultUrl="").url
     let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
     let updated = Lens.setPreviewUrl(task, url)
 
-    // Clear annotations and popup on actual navigation, not initial iframe mount
     switch urlChanged {
     | true =>
       let updated = Lens.setAnnotations(updated, [])
@@ -650,7 +563,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       SetPreviewFrame({contentDocument, contentWindow}),
     ) => (Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow), [])
 
-  // Device mode actions
   | (Task.Unloaded(_), SetDeviceMode(_) | SetOrientation(_) | ToggleDeviceMode) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetDeviceMode({deviceMode})) =>
     let updated = Lens.setDeviceMode(task, deviceMode)
@@ -662,17 +574,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let currentDeviceMode = Selectors.deviceMode(task)
     let newDeviceMode = switch currentDeviceMode {
     | Client__DeviceMode.Responsive =>
-      // When toggling on, default to iPhone 15 Pro (index 1 in presets)
       Client__DeviceMode.DevicePreset(Client__DeviceMode.presets->Array.get(1)->Option.getOrThrow)
     | _ => Client__DeviceMode.Responsive
     }
     (Lens.setDeviceMode(task, newDeviceMode), [])
 
-  // Annotation actions — unified selection mode
   | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
       let updated = Lens.setAnnotationMode(task, mode)
-      // Close popup when switching to Off
       let updated = switch mode {
       | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
       | _ => updated
@@ -685,7 +594,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | _ => Annotation.Off
       }
       let updated = Lens.setAnnotationMode(task, newMode)
-      // Close popup when toggling off
       let updated = switch newMode {
       | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
       | _ => updated
@@ -693,19 +601,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (updated, [])
     }
 
-  // Toggle annotation: click already-annotated element removes it, click new element adds it
   | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({element, tagName})) => {
       let existing = Annotation.findByElement(Task.getAnnotations(task), element)
       switch existing {
       | Some(ann) =>
-        // Element already annotated — deselect it and close popup
         let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != ann.id)
         let updated = Lens.setAnnotations(task, annotations)
         let updated = Lens.setActivePopupAnnotationId(updated, None)
         (updated, [])
       | None =>
-        // New element — add annotation immediately, open popup, fetch details
         let annotation = Annotation.make(~element, ~tagName)
         let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
         let effects = [
@@ -723,7 +628,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  // AddAnnotation: always adds without toggle semantics (used for tree navigation)
   | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
       let annotation = Annotation.make(~element, ~tagName)
@@ -742,7 +646,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (updated, effects)
     }
 
-  // Async annotation fetch completed after task transitioned to Unloaded — discard silently
   | (Task.Unloaded(_), AnnotationDetailsResolved(_)) => (task, [])
 
   | (
@@ -773,7 +676,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  // Add multiple annotations at once (for drag selection)
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let newAnnotations =
@@ -792,7 +694,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), RemoveAnnotation({id})) => {
       let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != id)
       let updated = Lens.setAnnotations(task, annotations)
-      // Close popup if it was for the removed annotation
       let updated = switch Task.getActivePopupAnnotationId(task) {
       | Some(activeId) if activeId == id => Lens.setActivePopupAnnotationId(updated, None)
       | _ => updated
@@ -805,14 +706,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       let updated = Lens.setActivePopupAnnotationId(updated, None)
       (updated, [])
     }
-  // Set active popup annotation ID (for opening/closing the comment popup)
   | (Task.Unloaded(_), SetActivePopupAnnotationId(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetActivePopupAnnotationId({id})) => (
       Lens.setActivePopupAnnotationId(task, id),
       [],
     )
 
-  // Update comment on an existing annotation
   | (Task.Unloaded(_), UpdateAnnotationComment(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), UpdateAnnotationComment({id, comment})) => {
       let trimmed = comment->String.trim
@@ -822,10 +721,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
       (Lens.updateAnnotation(task, id, a => {...a, comment: commentValue}), [])
     }
-
-  // ============================================================================
-  // Message Actions - work on Loading or Loaded (via Lens)
-  // ============================================================================
 
   | (Task.Loading(_) | Task.Loaded(_), TextDeltaReceived({messageId, text, agentId})) =>
     switch Task.getMessages(task)->Array.find(message => Message.getId(message) == messageId) {
@@ -848,8 +743,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Loading(_) | Task.Loaded(_), ToolCallReceived({toolCall})) =>
-    // Complete any streaming message before inserting tool call
-    // This ensures text after tool calls creates a new message
     let taskWithCompletedMsg = Lens.completeStreamingMessage(task)
     let messages = Task.getMessages(taskWithCompletedMsg)
     switch messages->Array.find(msg => Message.getId(msg) == toolCall.id) {
@@ -921,8 +814,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  // Accepted user messages from server history replay.
-  // Per ACP spec: a new history user message signals the end of the previous agent message.
   | (Task.Loading(_), UserMessageReceived({id, content, annotations, agentId})) =>
     switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
     | Some(message) =>
@@ -963,14 +854,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  // ============================================================================
-  // Loaded-only Actions - require isAgentRunning or planEntries
-  // ============================================================================
   | (Task.Loaded(data), AddUserMessage({id: _, content, annotations, agentId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
 
-    // Accumulate image attachments keyed by URI for write_file image_ref resolution
     let updatedImageAttachments = data.imageAttachments->Dict.copy
     attachments->Array.forEach(att => {
       let uri = `attachment://${att.id}/${att.filename}`
@@ -980,10 +867,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (
       Task.Loaded({
         ...data,
-        turnError: None, // Clear any previous error when sending a new message
+        turnError: None,
         retryStatus: None,
         imageAttachments: updatedImageAttachments,
-        // Clear annotations from task state — they now live on the message
         annotations: [],
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
@@ -1022,15 +908,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  // Cancel the current turn: complete any partial response, stop agent, dismiss pending question
   | (Task.Loaded(data), CancelTurn) =>
     if !data.isAgentRunning {
       (task, [])
     } else {
-      // Complete any streaming message (keeps partial text as a truncated response)
-      // and mark in-progress tool calls as cancelled
       let completed = Lens.completeStreamingMessage(task)
-      // Cancel any in-progress tool calls (InputStreaming or InputAvailable)
       let withCancelledTools = Lens.updateMessages(completed, store =>
         MessageStore.map(store, msg =>
           switch msg {
@@ -1041,7 +923,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           }
         )
       )
-      // Also dismiss any pending question — reject the tool promise
       let questionEffects = switch data.pendingQuestion {
       | Some(pq) => [
           RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"}),
@@ -1108,9 +989,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [RetryTurnEffect({retriedErrorId: retriedErrorId})],
     )
 
-  // ============================================================================
-  // Load State Transitions
-  // ============================================================================
   | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted({previewUrl})) => (
       Task.Loading({
         id,
@@ -1134,8 +1012,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
 
   | (Task.Loading(_), LoadComplete) =>
-    // Per ACP spec: session/load response signals end of history replay
-    // Complete any remaining streaming message, then transition to Loaded
     switch task->Lens.completeStreamingMessage {
     | Task.Loading({
         id,
@@ -1177,10 +1053,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) =>
     Log.error(~ctx={"error": error}, "Task load failed")
     (Task.Unloaded({id, title, createdAt, updatedAt}), [])
-
-  // ============================================================================
-  // Question Tool Actions
-  // ============================================================================
 
   | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
       Task.Loaded({
@@ -1254,8 +1126,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
       {...pq, answers, currentStep: nextStep}
     })
-    // Auto-submit when the last question is skipped — the UI can't submit
-    // because the Submit button requires hasAnswer which excludes Skipped.
     switch task {
     | Task.Loaded({pendingQuestion: Some(pq)})
       if questionIndex >= Array.length(pq.questions) - 1 => {
@@ -1272,17 +1142,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     resolveQuestion(task, ~skippedAll=true, ~cancelled=false)
 
   | (Task.Loaded(_), QuestionCancelled) =>
-    // "Cancel (stop agent)" — reject the question AND stop the agent turn.
-    // resolveQuestion handles the question dismissal + late tool result submission.
-    // CancelPrompt tells the server to cancel the running prompt/agent loop.
     let (task, questionEffects) = resolveQuestion(task, ~skippedAll=false, ~cancelled=true)
     (task, Array.concat(questionEffects, [CancelPrompt]))
 
-  // ============================================================================
-  // Invalid state/action combinations — explicit so the compiler catches gaps
-  // ============================================================================
-
-  // Streaming/message actions require Loading or Loaded (with agent running)
   | (
       Task.New(_) | Task.Unloaded(_),
       TextDeltaReceived(_)
@@ -1297,7 +1159,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         )} task ${getTaskIdForError(task)}`,
     )
 
-  // UserMessageReceived requires a server-backed task.
   | (Task.New(_) | Task.Unloaded(_), UserMessageReceived(_)) =>
     failwith(
       `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
@@ -1305,7 +1166,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         )} task ${getTaskIdForError(task)}`,
     )
 
-  // Loaded-only actions: require an active session
   | (
       Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
@@ -1332,7 +1192,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         )} task ${getTaskIdForError(task)}`,
     )
 
-  // AgentError requires Loading or Loaded
   | (Task.New(_) | Task.Unloaded(_), AgentError(_)) =>
     failwith(
       `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
@@ -1340,7 +1199,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         )} task ${getTaskIdForError(task)}`,
     )
 
-  // Load state machine: each transition has exactly one valid source state
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), LoadStarted(_)) =>
     failwith(
       `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
@@ -1354,7 +1212,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         )} task ${getTaskIdForError(task)}`,
     )
 
-  // AddAnnotations requires New, Loading, or Loaded
   | (Task.Unloaded(_), AddAnnotations(_)) =>
     failwith(
       `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
@@ -1371,16 +1228,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   }
 }
 
-// ============================================================================
-// Effect Handler - processes task effects, delegates to parent when needed
-// ============================================================================
-
-// Extract error message from a caught JS exception
 let formatError = (exn: exn): string =>
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
 
-// Fetch selector, screenshot, and source location for an annotation element,
-// then dispatch AnnotationDetailsResolved with all results.
 let fetchAnnotationDetails = (
   ~id: string,
   ~element: WebAPI.DOMAPI.element,
@@ -1437,8 +1287,6 @@ let fetchAnnotationDetails = (
     })
   }
 
-  // Fetch source location (cascading: React fiber first, then Astro annotations)
-  // Race against a timeout to prevent hanging when source map resolution stalls (e.g., CORS on RSC URLs)
   let sourceLocationPromise = {
     let detectionPromise = switch contentWindow {
     | Some(window) =>
@@ -1456,17 +1304,11 @@ let fetchAnnotationDetails = (
     | None => Promise.resolve(Ok(None))
     }
     let timeoutPromise = Promise.make((resolve, _) => {
-      // 5s cap: source map resolution can stall indefinitely on CORS-blocked
-      // RSC URLs or unresponsive source map servers. Long enough for any
-      // reasonable local/CDN lookup, short enough to avoid blocking the UI.
       let _ = setTimeout(() => resolve(Ok(None)), 5000)
     })
     Promise.race([detectionPromise, timeoutPromise])
   }
 
-  // Extract enrichment data synchronously from the DOM element
-  // Use getAttribute("class") instead of element.className because SVG elements
-  // return an SVGAnimatedString object for className, not a plain string
   let cssClasses =
     element
     ->WebAPI.Element.getAttribute("class")
@@ -1487,7 +1329,6 @@ let fetchAnnotationDetails = (
       ->Null.toOption
       ->Option.getOr("")
       ->String.trim
-    // Truncate to 200 chars to keep payload reasonable
     let truncated = switch own->String.length > 200 {
     | true => own->String.slice(~start=0, ~end=200) ++ "..."
     | false => own
@@ -1511,11 +1352,9 @@ let fetchAnnotationDetails = (
       Client__ElementorDetection.getElementorContext(~element, ~document=doc)
     )
 
-  // Wait for all promises and update state once
   let _ =
     Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
     ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
-      // Strip query strings from source location file paths
       let sourceLocationWithTagName = sourceLocation->Result.map(opt =>
         opt->Option.map(
           sourceLoc => {
@@ -1530,7 +1369,6 @@ let fetchAnnotationDetails = (
         )
       )
 
-      // Resolve source location via server to get relative file paths
       let resolvedSourceLocationPromise = switch sourceLocationWithTagName {
       | Ok(Some(sourceLoc)) =>
         Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
@@ -1545,10 +1383,8 @@ let fetchAnnotationDetails = (
       | Error(_) as err => Promise.resolve(err)
       }
 
-      // Extract screenshot src from the result
       let screenshot = screenshotResult->Result.map(opt => opt->Option.map(s => s.src))
 
-      // Dispatch only after resolution completes (or fails with fallback)
       resolvedSourceLocationPromise->Promise.then(finalSourceLocation => {
         dispatch(
           AnnotationDetailsResolved({
@@ -1567,7 +1403,6 @@ let fetchAnnotationDetails = (
       })
     })
     ->Promise.catch(err => {
-      // Outer chain failure — total enrichment failure
       let errorMsg = formatError(err)
       Log.error(
         ~ctx={"annotationId": id},
@@ -1599,8 +1434,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
     delegate(NeedSendMessage({text, attachments, annotations, agentId}))
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
-  // Question tool resolution — call the resolve/reject callback directly.
-  // No delegation needed since the callback is self-contained (captured in the pending question).
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
   | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
   }

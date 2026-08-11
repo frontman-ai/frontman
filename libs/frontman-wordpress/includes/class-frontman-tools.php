@@ -179,7 +179,6 @@ class Frontman_Tools {
 
 			throw new \RuntimeException(
 				sprintf(
-					/* translators: %s: tool name */
 					esc_html__( 'Unknown tool: %s', 'frontman-agentic-ai-editor' ),
 					esc_html( $tool_name ),
 				)

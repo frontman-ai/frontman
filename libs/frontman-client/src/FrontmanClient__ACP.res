@@ -1,6 +1,3 @@
-// Main ACP Client entry point
-// Thin orchestrator - delegates to Protocol for messaging, uses Constants for topics
-
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Client = FrontmanClient__ACP__Client
@@ -109,7 +106,6 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
     Channel.join(channel).receive(~status="ok", ~callback=_ =>
       resolve(Ok())
     ).receive(~status="error", ~callback=err => {
-      // Parse error to check for auth failure
       let parsed = err->JSON.Decode.object
       let reason =
         parsed->Option.flatMap(o => o->Dict.get("reason")->Option.flatMap(JSON.Decode.string))
@@ -124,7 +120,6 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
   })
 }
 
-// Helper to check abort status
 let checkAborted = (signal: option<WebAPI.EventAPI.abortSignal>): result<unit, string> => {
   switch signal {
   | Some(s) if s.aborted => Error("Connection aborted")
@@ -141,7 +136,6 @@ type tokenError =
   | NotAuthenticated
   | InvalidResponse
 
-// Fetch socket auth token from the server (for cross-origin auth)
 let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
   try {
     let response = await WebAPI.Global.fetch(tokenUrl, ~init={credentials: Include})
@@ -231,7 +225,6 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
     | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
     | (Error(e), _) => Error(e)
     | (Ok(), Ok()) =>
-      // Listen for config option updates (pushed after key saves/OAuth)
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>
         channel->Channel.on(~event=#config_options_updated, ~callback=payload => {
@@ -268,13 +261,11 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
   }
 }
 
-// Get current connection state
 @@live
 let getState = (conn: connection): Client.acpState => {
   Client.getACPState(conn.state.contents)
 }
 
-// Check if initialized
 @@live
 let isInitialized = (conn: connection): bool => {
   Client.isInitialized(conn.state.contents)
@@ -299,7 +290,6 @@ let validatedUpdateHandler = (conn, sessionId, onUpdate) => {
     }
 }
 
-// Attach handlers before joining to avoid racing the server's MCP initialization.
 let joinSession = async (
   conn: connection,
   sessionId: string,
@@ -322,7 +312,6 @@ let joinSession = async (
     }
   }
 
-  // Attach ACP handler before joining
   Protocol.attachMessageHandler(
     ~channel=sessionChannel,
     ~state=conn.state,
@@ -331,7 +320,6 @@ let joinSession = async (
     ~onParseError=Some(handleParseError),
   )
 
-  // Attach MCP handler before joining - server sends mcp:message immediately on join
   mcpServerInterface->Option.forEach(serverInterface => {
     let handler: MCP.mcpHandler<'server> = {
       serverInterface,
@@ -344,7 +332,6 @@ let joinSession = async (
     })
   })
 
-  // Listen for title updates on the session channel
   sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
     switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
     | Ok({sessionId, title}) => onTitleUpdated(sessionId, title)
@@ -375,7 +362,6 @@ let joinSession = async (
   })
 }
 
-// Create a client-identified ACP session and join its channel.
 @@live
 let createSession = async (
   conn: connection,
@@ -420,7 +406,6 @@ let createSession = async (
   }
 }
 
-// Send a prompt to the session with additional content blocks
 @@live
 let sendPrompt = async (
   session: session,
@@ -433,7 +418,6 @@ let sendPrompt = async (
   | false => []
   }
 
-  // Serialize through S.unknown to avoid strict JSON checks on option fields inside union arms.
   let allBlocks =
     Array.concat(baseBlocks, additionalBlocks)->Array.map(block =>
       block->S.decodeOrThrow(~from=ContentBlock.schema, ~to=S.json->S.noValidation(true))
@@ -449,8 +433,6 @@ let sendPrompt = async (
   )
 }
 
-// Cancel an in-flight prompt
-// ACP spec: session/cancel is a notification (fire-and-forget).
 let cancelPrompt = (session: session): unit => {
   Protocol.sendCancel(
     ~channel=session.channel,
@@ -459,8 +441,6 @@ let cancelPrompt = (session: session): unit => {
   )
 }
 
-// Retry a failed turn
-// Frontman extension: session/retry_turn is a notification (fire-and-forget).
 let retryTurn = (session: session, ~retriedErrorId: string): unit => {
   Protocol.sendRetryTurn(
     ~channel=session.channel,
@@ -470,7 +450,6 @@ let retryTurn = (session: session, ~retriedErrorId: string): unit => {
   )
 }
 
-// List user's sessions (non-ACP channel message)
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
   Promise.make((resolve, _) => {
     let pushRef =
@@ -486,7 +465,6 @@ let listSessions = (conn: connection): promise<result<array<Types.sessionSummary
   })
 }
 
-// Delete a session (non-ACP channel event)
 let deleteSession = (conn: connection, sessionId: string): promise<result<unit, string>> => {
   Promise.make((resolve, _) => {
     let params: Types.deleteSessionParams = {sessionId: sessionId}
@@ -503,7 +481,6 @@ let deleteSession = (conn: connection, sessionId: string): promise<result<unit, 
   })
 }
 
-// Load an existing session while preserving ACP history-before-response wire ordering.
 @@live
 let loadSession = async (
   conn: connection,

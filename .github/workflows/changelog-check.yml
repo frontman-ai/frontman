@@ -14,7 +14,7 @@ jobs:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
 
@@ -27,7 +27,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -45,24 +45,18 @@ jobs:
 
           CHANGED=$(git diff --name-only origin/main...HEAD)
 
-          # ── Collect changeset-ignored packages from .changeset/config.json ──
           IGNORED_PKGS=$(jq -r '.ignore // [] | .[]' .changeset/config.json)
 
-          # ── Build workspace map: directory -> package name ──
-          # Skip private packages, the root workspace, and changeset-ignored packages
           declare -A DIR_TO_PKG
           while IFS= read -r line; do
             loc=$(echo "$line" | jq -r '.location')
             name=$(echo "$line" | jq -r '.name')
 
-            # Skip root workspace
             if [ "$loc" = "." ]; then continue; fi
 
-            # Skip private packages
             is_private=$(jq -r '.private // false' "$loc/package.json" 2>/dev/null)
             if [ "$is_private" = "true" ]; then continue; fi
 
-            # Skip changeset-ignored packages
             skip=false
             for ignored in $IGNORED_PKGS; do
               if [ "$name" = "$ignored" ]; then skip=true; break; fi
@@ -72,7 +66,6 @@ jobs:
             DIR_TO_PKG["$loc"]="$name"
           done < <(yarn workspaces list --json 2>/dev/null)
 
-          # ── Determine which publishable packages have file changes ──
           declare -A CHANGED_PKGS
           while IFS= read -r file; do
             for dir in "${!DIR_TO_PKG[@]}"; do
@@ -84,7 +77,6 @@ jobs:
             done
           done <<< "$CHANGED"
 
-          # If no publishable packages changed, nothing to check
           if [ ${#CHANGED_PKGS[@]} -eq 0 ]; then
             echo "No publishable packages changed — skipping changelog check"
             exit 0
@@ -95,15 +87,12 @@ jobs:
             echo "  - $pkg"
           done
 
-          # ── Parse changeset files to find which packages are covered ──
           declare -A COVERED_PKGS
 
-          # Check for new changeset .md files (not config.json, not README.md)
           CHANGESET_FILES=$(echo "$CHANGED" | grep '^\.changeset/.*\.md$' | grep -v 'README.md' || true)
 
           for cs_file in $CHANGESET_FILES; do
             if [ ! -f "$cs_file" ]; then continue; fi
-            # Extract package names from YAML frontmatter (lines between --- delimiters)
             in_frontmatter=false
             while IFS= read -r line; do
               if [ "$line" = "---" ]; then
@@ -112,7 +101,6 @@ jobs:
                 continue
               fi
               if [ "$in_frontmatter" = "true" ]; then
-                # Lines look like: "@frontman-ai/nextjs": patch
                 pkg_name=$(echo "$line" | sed -n 's/^[[:space:]]*"\?\([^"]*\)"\?[[:space:]]*:.*/\1/p')
                 if [ -n "$pkg_name" ]; then
                   COVERED_PKGS["$pkg_name"]=1
@@ -121,9 +109,6 @@ jobs:
             done < "$cs_file"
           done
 
-          # Also accept per-package CHANGELOG.md edits as coverage
-          # (Root CHANGELOG.md is not counted — it is updated by the release
-          # process and does not imply individual packages were reviewed.)
           while IFS= read -r file; do
             if [[ "$file" == *CHANGELOG.md ]]; then
               dir=$(dirname "$file")
@@ -134,7 +119,6 @@ jobs:
             fi
           done <<< "$CHANGED"
 
-          # ── Compare: fail if any changed package is not covered ──
           MISSING=()
           for pkg in "${!CHANGED_PKGS[@]}"; do
             if [ -z "${COVERED_PKGS[$pkg]+x}" ]; then

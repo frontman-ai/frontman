@@ -1,6 +1,3 @@
-// FrontmanProvider - React context provider for FrontmanClient ACP connection
-// Uses ConnectionReducer for centralized state management
-
 module Log = FrontmanLogs.Logs.Make({
   let component = #FrontmanProvider
 })
@@ -74,7 +71,6 @@ let agentErrorId = meta => {
   S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
 }
 
-// Coalesce protocol message chunks before dispatching complete logical updates.
 let textDeltaBuffer = Client__TextDeltaBuffer.make(
   ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
     Client__State.Actions.textDeltaReceived(~taskId, ~messageId, ~text, ~agentId),
@@ -91,10 +87,8 @@ let textDeltaBuffer = Client__TextDeltaBuffer.make(
 )
 let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
-// Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
 
-// Context value type
 @@live
 type contextValue = {
   connectionState: connectionState,
@@ -115,7 +109,6 @@ type contextValue = {
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
 
-// Default context value
 let defaultContextValue: contextValue = {
   connectionState: Disconnected,
   session: None,
@@ -130,18 +123,14 @@ let defaultContextValue: contextValue = {
   deleteSession: (_, ~onComplete as _) => (),
 }
 
-// Create the React context
 let context = React.createContext(defaultContextValue)
 
-// Make the context provider component
 module ContextProvider = {
   let make = React.Context.provider(context)
 }
 
-// Custom hook to use the Frontman context
 let useFrontman = () => React.useContext(context)
 
-// Provider component
 module Provider = {
   @react.component
   let make = (
@@ -152,7 +141,6 @@ module Provider = {
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    // Log message handlers
     let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
       let arrow = direction == Send ? `→` : `←`
       Log.debug(~ctx={"payload": payload}, `ACP ${arrow}`)
@@ -163,7 +151,6 @@ module Provider = {
       Log.debug(~ctx={"payload": payload}, `MCP ${arrow}`)
     })
 
-    // Use StateReducer - effects are executed in useEffect, not during dispatch
     let initialConnectionState = {
       ...Reducer.initialState,
       initialAuthBehavior: Client__FtueState.getAuthBehavior(),
@@ -176,11 +163,9 @@ module Provider = {
       None
     }, [state])
 
-    // Single initialization effect
     React.useEffect0(() => {
       let baseUrl = Client__RelayBaseUrl.current()
 
-      // Read runtime config from window.__frontmanRuntime (injected by framework middleware)
       let runtimeConfig = RuntimeConfig.read()
       let _meta = RuntimeConfig.toMeta(runtimeConfig)
       let relayHeaders = Dict.make()
@@ -191,7 +176,6 @@ module Provider = {
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
 
-      // Wire up image ref resolver so write_file can save user-attached images.
       MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
         let state = StateStore.getState(Client__State__Store.store)
         Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)->Option.map(
@@ -247,9 +231,6 @@ module Provider = {
       let taskId = sessionId
       switch update {
       | AgentMessageChunk({messageId, content, _meta: {agentId}}) =>
-        // Per ACP spec: first agent_message_chunk implicitly signals message start.
-        // Buffer text deltas and flush once per animation frame to avoid
-        // dozens of full state rebuilds per second during fast streaming.
         getContentBlockText(content)->Option.forEach(text => {
           textDeltaBuffer.add(~taskId, ~messageId, ~text, ~agentId)
         })
@@ -326,7 +307,7 @@ module Provider = {
             ~id=toolCallId,
             ~error=text()->Option.getOr("Unknown error"),
           )
-        | Some(InProgress) => () // Normal transitional status for MCP tools
+        | Some(InProgress) => ()
         | None => ()
         }
       | Plan({entries}) =>

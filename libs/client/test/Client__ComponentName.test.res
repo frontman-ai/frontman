@@ -1,13 +1,9 @@
 open Vitest
 
-// ── Test fixtures ─────────────────────────────────────────────────────
-
-// Create a plain DOM element (no React/Vue/Astro internals)
 let makePlainElement: string => WebAPI.DOMAPI.element = %raw(`
   function(tag) { return { tagName: tag, parentElement: null } }
 `)
 
-// Create a DOM element with a React fiber attached
 let makeReactElement: (string, string) => WebAPI.DOMAPI.element = %raw(`
   function(tag, componentName) {
     var el = { tagName: tag, parentElement: null };
@@ -20,7 +16,6 @@ let makeReactElement: (string, string) => WebAPI.DOMAPI.element = %raw(`
   }
 `)
 
-// Create a DOM element with Vue's __vueParentComponent attached
 let makeVueElement: (string, string) => WebAPI.DOMAPI.element = %raw(`
   function(tag, componentName) {
     var el = { tagName: tag, parentElement: null };
@@ -32,8 +27,6 @@ let makeVueElement: (string, string) => WebAPI.DOMAPI.element = %raw(`
     return el;
   }
 `)
-
-// ── Tests ──────────────────────────────────────────────────────────────
 
 describe("Client__ComponentName.getForElement", () => {
   test("returns None for a plain DOM element", t => {
@@ -96,7 +89,6 @@ describe("Client__ComponentName.getForElement", () => {
       (function() {
         var el = { tagName: "div", parentElement: null };
         var fn = function() {};
-        // displayName takes priority over function.name in the fiber walker
         fn.displayName = "_InternalComponent";
         el["__reactFiber$test123"] = {
           type: fn,

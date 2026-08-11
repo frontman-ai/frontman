@@ -1,8 +1,3 @@
-// Vite configuration for Frontman
-
-// Injected at build time by tsup define — crash if missing so we catch broken builds immediately.
-// Must use %raw with typeof guard: @val external won't work because __PACKAGE_VERSION__ is a
-// build-time constant replaced by tsup, not a runtime global.
 let packageVersion: string = %raw(`typeof __PACKAGE_VERSION__ !== "undefined" ? __PACKAGE_VERSION__ : undefined`)
 let () = if typeof(packageVersion) == #undefined {
   JsError.throwWithMessage("__PACKAGE_VERSION__ is not defined — tsup build is misconfigured")
@@ -11,18 +6,11 @@ let () = if typeof(packageVersion) == #undefined {
 module Bindings = FrontmanBindings
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 
-// Default host can be overridden via FRONTMAN_HOST env var for development
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | Some(host) => host
 | None => Hosts.apiHost
 }
 
-// Normalize host values so users can pass either bare hosts or full URLs.
-// Examples:
-// - api.frontman.sh -> api.frontman.sh
-// - https://api.frontman.sh -> api.frontman.sh
-// - https://api.frontman.sh:443 -> api.frontman.sh
-// - http://frontman.local:4000 -> frontman.local:4000
 let normalizeHost = (host: string): string => {
   let trimmed = host->String.trim
   let candidate = switch trimmed->String.includes("://") {
@@ -47,8 +35,6 @@ type t = {
   @live
   isDev: bool,
   projectRoot: string,
-  // sourceRoot: root for resolving file paths
-  // In a monorepo, this is typically the monorepo root. Defaults to projectRoot.
   sourceRoot: string,
   basePath: string,
   serverName: string,
@@ -60,7 +46,6 @@ type t = {
   entrypointUrl: option<string>,
 }
 
-// JS-friendly type for config input (all optional)
 type jsConfigInput = {
   isDev?: bool,
   projectRoot?: string,
@@ -74,8 +59,6 @@ type jsConfigInput = {
   entrypointUrl?: string,
 }
 
-// JS-friendly function that accepts a config object
-// Use this from JavaScript/TypeScript: makeConfig({ isDev: true, ... })
 let makeFromObject = (config: jsConfigInput): t => {
   let host = config.host->Option.getOr(defaultHost)->normalizeHost
 

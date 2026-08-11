@@ -1,8 +1,4 @@
 ---
-// ComparisonLayout
-// ----------------
-// Shared layout for /vs/ comparison pages.
-// Composes all comparison components and accepts named slots for per-page prose.
 
 import Layout from './Layout.astro'
 import ComparisonHero from '../components/blocks/comparison/ComparisonHero.astro'
@@ -130,43 +126,35 @@ const comparisonBreadcrumbs = [
     </ol>
   </nav>
 
-  <!-- Hero -->
   <ComparisonHero title={heroTitle} subtitle={heroSubtitle}>
     <slot name="hero-summary" />
     <ComparisonDisclosure competitor={competitor.name} checkedAt={review.checkedAt} sources={review.sources} />
   </ComparisonHero>
 
-  <!-- Architecture Diagram -->
   {shouldShowArchitectureDiagram && (
     <ComparisonArchitectureDiagram competitorName={competitor.name}>
       <slot name="architecture-diagram" />
     </ComparisonArchitectureDiagram>
   )}
 
-  <!-- Feature Comparison Table -->
   <ComparisonFeatureTable competitorName={competitor.name} features={features} />
 
-  <!-- What [Competitor] Does Well -->
   <ComparisonContentSection title={`What ${competitor.name} Does Well`} variant="light">
     <slot name="competitor-strengths" />
   </ComparisonContentSection>
 
-  <!-- Where Frontman Is Different -->
   <ComparisonContentSection title="Where Frontman Is Different">
     <slot name="frontman-differentiators" />
   </ComparisonContentSection>
 
-  <!-- Who Should Use [Competitor] -->
   <ComparisonContentSection title={`Who Should Use ${competitor.name}`} variant="light">
     <slot name="who-should-use-competitor" />
   </ComparisonContentSection>
 
-  <!-- Who Should Use Frontman -->
   <ComparisonContentSection title="Who Should Use Frontman">
     <slot name="who-should-use-frontman" />
   </ComparisonContentSection>
 
-  <!-- Pricing -->
   <ComparisonPricing
     competitorName={competitor.name}
     competitorCost={competitor.pricing.cost}
@@ -177,17 +165,13 @@ const comparisonBreadcrumbs = [
     frontmanFeatures={frontmanPricing?.features}
   />
 
-  <!-- Alternatives -->
   {shouldShowAlternatives && (
     <ComparisonAlternatives competitorName={competitor.name} alternatives={alternatives} />
   )}
 
-  <!-- FAQ -->
   <ComparisonFAQ faqs={faqs} />
 
-  <!-- Optional post-FAQ section -->
   {Astro.slots.has('post-faq') && <slot name="post-faq" />}
 
-  <!-- CTA -->
   {Astro.slots.has('cta') ? <slot name="cta" /> : <ComparisonCTA />}
 </Layout>

@@ -38,7 +38,6 @@ describe("FrontmanClient Sentry", () => {
         | None => 0
         }
 
-        Sentry.initialize()
         Sentry.initialize(~dsn)
 
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
@@ -77,7 +76,6 @@ describe("FrontmanClient Sentry", () => {
                 t->expect(report.message)->Expect.toBe(Some("Socket connection failed"))
                 t->expect(report.level)->Expect.toBe(Some("error"))
 
-                // Verify tags are attached via withScope
                 switch report.tags {
                 | Some(tags) => {
                     t
@@ -115,7 +113,6 @@ describe("FrontmanClient Sentry", () => {
                 t->expect(report.message)->Expect.toBe(Some("Initialize failed"))
                 t->expect(report.level)->Expect.toBe(Some("error"))
 
-                // Verify protocol-specific tags
                 switch report.tags {
                 | Some(tags) => {
                     t
@@ -171,7 +168,6 @@ describe("FrontmanClient Sentry", () => {
     test(
       "captures exception with operation tag",
       t => {
-        // Create and capture an exception
         try {
           JsError.throwWithMessage("Test error")
         } catch {
@@ -211,7 +207,6 @@ describe("FrontmanClient Sentry", () => {
       t => {
         Sentry.addBreadcrumb(~category=#connection, ~message="Socket connected")
 
-        // Breadcrumbs are attached to subsequent events
         Sentry.captureConnectionError("Later error", ~endpoint="wss://example.com")
 
         switch testkit.contents {
@@ -224,7 +219,7 @@ describe("FrontmanClient Sentry", () => {
               switch report.breadcrumbs {
               | Some(breadcrumbs) =>
                 t->expect(breadcrumbs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
-              | None => () // Breadcrumbs may not be present in all report formats
+              | None => ()
               }
             | None => ()
             }
@@ -242,7 +237,6 @@ describe("FrontmanClient Sentry", () => {
         Sentry.addBreadcrumb(~category=#mcp, ~message="mcp event")
         Sentry.addBreadcrumb(~category=#session, ~message="session event")
 
-        // If we get here without errors, all categories work
         t->expect(true)->Expect.toBe(true)
       },
     )

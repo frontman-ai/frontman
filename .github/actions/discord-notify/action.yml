@@ -51,7 +51,6 @@ runs:
         short_sha="${GITHUB_SHA::7}"
         run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-        # Build JSON payload using jq to handle escaping
         payload=$(jq -n \
           --arg emoji "$emoji" \
           --arg component "$COMPONENT" \

@@ -15,8 +15,6 @@ defmodule FrontmanServerWeb.UserSessionController do
     email = get_in(conn.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
     form = Phoenix.Component.to_form(%{"email" => email}, as: "user")
 
-    # Store return_to from query param (for cross-origin redirects like /frontman).
-    # Validated by redirect_to_return_path/2 in UserAuth before any redirect happens.
     conn =
       conn
       |> maybe_put_user_return_to(params["return_to"])
@@ -25,7 +23,6 @@ defmodule FrontmanServerWeb.UserSessionController do
     render(conn, :new, form: form)
   end
 
-  # magic link login
   def create(conn, %{"user" => %{"token" => token} = user_params} = params) do
     info =
       case params do
@@ -46,7 +43,6 @@ defmodule FrontmanServerWeb.UserSessionController do
     end
   end
 
-  # email + password login
   def create(conn, %{"user" => %{"email" => email, "password" => password} = user_params}) do
     if user = Accounts.get_user_by_email_and_password(email, password) do
       conn
@@ -55,14 +51,12 @@ defmodule FrontmanServerWeb.UserSessionController do
     else
       form = Phoenix.Component.to_form(user_params, as: "user")
 
-      # In order to prevent user enumeration attacks, don't disclose whether the email is registered.
       conn
       |> put_flash(:error, "Invalid email or password")
       |> render(:new, form: form)
     end
   end
 
-  # magic link request
   def create(conn, %{"user" => %{"email" => email}}) do
     if user = Accounts.get_user_by_email(email) do
       Accounts.deliver_login_instructions(

@@ -18,7 +18,6 @@ ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5
 
-# Security hardening
 NoNewPrivileges=yes
 ProtectHome=yes
 ProtectSystem=strict

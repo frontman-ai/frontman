@@ -3,8 +3,7 @@
  *
  * Renders the iframe viewport. Nav controls have moved to Client__TopBar.
  */
-let // Hook to measure the available space in the viewport container
-useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
+let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
   let (size, setSize) = React.useState(() => (0, 0))
 
   React.useEffect(() => {

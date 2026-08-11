@@ -1,7 +1,3 @@
-// Client tool that interacts with elements in the web preview.
-// Supports click, hover, and focus actions.
-// Elements can be targeted by CSS selector, role+name, or text content.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.interactWithElement
@@ -67,7 +63,6 @@ type output = {
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
-// Dispatch hover events (mouseenter + mouseover) on an element
 let dispatchHoverEvents = (el: WebAPI.DOMAPI.element): unit => {
   let enterEvt = WebAPI.MouseEvent.make(
     ~type_="mouseenter",
@@ -82,15 +77,11 @@ let dispatchHoverEvents = (el: WebAPI.DOMAPI.element): unit => {
   target->WebAPI.EventTarget.dispatchEvent(overEvt->WebAPI.MouseEvent.asEvent)->ignore
 }
 
-// Click an element (using HTMLElement.click() for proper event dispatch).
-// Cast to htmlElement since click() lives on HTMLElement, not Element.
 let clickElement = (el: WebAPI.DOMAPI.element): unit => {
   let htmlEl: WebAPI.DOMAPI.htmlElement = el->Obj.magic
   htmlEl->WebAPI.HTMLElement.click
 }
 
-// Focus an element.
-// Cast to htmlElement since focus() lives on HTMLElement, not Element.
 let focusElement = (el: WebAPI.DOMAPI.element): unit => {
   let htmlEl: WebAPI.DOMAPI.htmlElement = el->Obj.magic
   htmlEl->WebAPI.HTMLElement.focus
@@ -110,13 +101,10 @@ let performAction = (el: WebAPI.DOMAPI.element, action: [#click | #hover | #focu
   | #focus => focusElement(el)
   }
 
-// Result of element resolution: either an error string, or a resolved element + match count.
 type resolution =
   | Error(string)
   | Resolved({element: option<WebAPI.DOMAPI.element>, matchCount: int})
 
-// Resolve the target element using the first applicable strategy:
-// 1. CSS selector / XPath  2. role + name  3. text content
 let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): resolution =>
   switch input.selector {
   | Some(selector) =>

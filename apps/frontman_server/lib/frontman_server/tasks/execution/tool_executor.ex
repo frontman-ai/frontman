@@ -135,8 +135,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
-    # Register BEFORE publishing to prevent a race where the client responds
-    # before PE is listening. self() here = PE's pid.
     register_mcp_tool(tool_call)
     publish_mcp_tool_call(scope, task_id, turn_number, tool_call)
     :ok
@@ -164,8 +162,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :cancelled)
       when is_integer(turn_number) and turn_number > 0 do
-    # Sibling tool triggered :pause_agent, so cancel_remaining cancelled this one.
-    # No Sentry report — this is expected cascade behaviour, not a timeout.
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
     Logger.info("ToolExecutor: #{cancel_msg}")
 
@@ -175,15 +171,11 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   def handle_timeout(_scope, _task_id, turn_number, :pause_agent, _tool_call, :triggered)
       when is_integer(turn_number) and turn_number > 0 do
-    # Tasks persists the ToolResult for the triggered tool via the
-    # {:paused, {:timeout, ...}} event. Nothing to do here.
     :ok
   end
 
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :pause_agent, tool_call, :cancelled)
       when is_integer(turn_number) and turn_number > 0 do
-    # Sibling cancelled by cancel_remaining -- no Swarm event is emitted for this tool,
-    # so we must persist here to satisfy the ToolCall→ToolResult DB invariant.
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
 
     persist_error_tool_result(scope, task_id, turn_number, tool_call, cancel_msg)

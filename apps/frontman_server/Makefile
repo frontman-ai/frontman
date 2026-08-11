@@ -1,102 +1,127 @@
-# Task runner Makefile with auto-generated help
-#
-# Usage: make [target]
-# Run 'make help' to see available commands
+
+
+
+
 
 .DEFAULT_GOAL := help
 .PHONY: help install test test-record test-coverage format lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit credo debug-task
 
 SHELL := /bin/bash
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help install setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy test test-record test-coverage format lint dev dev-container build clean precommit credo check debug-task
+HELP_help := Display this help message
+HELP_install := Install project dependencies
+HELP_setup := Complete project setup (deps, database, assets)
+HELP_db-setup := Setup database (create, migrate, seed)
+HELP_db-reset := Drop and recreate database
+HELP_db-migrate := Run database migrations
+HELP_db-seed := Seed database with data
+HELP_assets-setup := Install asset build tools (tailwind, esbuild)
+HELP_assets-build := Build assets for development
+HELP_assets-deploy := Build and minify assets for production
+HELP_test := Run test suite
+HELP_test-record := Record new LLM fixtures (makes real API calls)
+HELP_test-coverage := Run tests with coverage report
+HELP_format := Auto-format Elixir files
+HELP_lint := Run formatter and static analysis
+HELP_dev := Start development server (resolves 1Password secrets via op run)
+HELP_dev-container := Start dev server inside container (secrets via env vars)
+HELP_build := Build the project for production
+HELP_clean := Clean build artifacts and dependencies
+HELP_precommit := Run precommit checks (compile, format, credo, test)
+HELP_credo := Run Credo static analysis
+HELP_check := Run all checks (lint + test)
+HELP_debug-task := Debug task interactions (use ARGS="list" or ARGS="show ...")
 
-install: ## Install project dependencies
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+install:
 	mix deps.get
 
-setup: ## Complete project setup (deps, database, assets)
+setup:
 	mix deps.get
 	$(MAKE) db-setup
 	$(MAKE) assets-setup
 	$(MAKE) assets-build
 
-db-setup: ## Setup database (create, migrate, seed)
+db-setup:
 	mix ecto.create
 	mix ecto.migrate
 	mix run priv/repo/seeds.exs
 
-db-reset: ## Drop and recreate database
+db-reset:
 	mix ecto.drop
 	$(MAKE) db-setup
 
-db-migrate: ## Run database migrations
+db-migrate:
 	mix ecto.migrate
 
-db-seed: ## Seed database with data
+db-seed:
 	mix run priv/repo/seeds.exs
 
-assets-setup: ## Install asset build tools (tailwind, esbuild)
+assets-setup:
 	mix tailwind.install --if-missing
 	mix esbuild.install --if-missing
 
-assets-build: ## Build assets for development
+assets-build:
 	mix compile
 	mix tailwind frontman_server
 	mix esbuild frontman_server
 	mix esbuild browser_test
 
-assets-deploy: ## Build and minify assets for production
+assets-deploy:
 	mix tailwind frontman_server --minify
 	mix esbuild frontman_server --minify
 	mix esbuild browser_test --minify
 	mix phx.digest
 
-test: ## Run test suite
+test:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	mix test
 
-test-record: ## Record new LLM fixtures (makes real API calls)
+test-record:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	REQ_LLM_FIXTURES_MODE=record mix test
 
-test-coverage: ## Run tests with coverage report
+test-coverage:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
 	MIX_ENV=test mix coveralls.cobertura
 
-format: ## Auto-format Elixir files
+format:
 	mix format
 
-lint: ## Run formatter and static analysis
+lint:
 	mix format --check-formatted
 	mix credo --strict
 
-dev: ## Start development server (resolves 1Password secrets via op run)
+dev:
 	op run --env-file=envs/.dev.secrets.env -- mix phx.server
 
-dev-container: ## Start dev server inside container (secrets via env vars)
+dev-container:
 	mix phx.server
 
-build: ## Build the project for production
+build:
 	MIX_ENV=prod mix sentry.package_source_code
 	MIX_ENV=prod mix compile --warnings-as-errors --all-warnings
 
-clean: ## Clean build artifacts and dependencies
+clean:
 	rm -rf _build deps
 
-precommit: ## Run precommit checks (compile, format, credo, test)
+precommit:
 	mix compile --warnings-as-errors --all-warnings
 	mix deps.unlock --unused
 	mix format
 	mix credo --strict
 	mix test
 
-credo: ## Run Credo static analysis
+credo:
 	mix credo --strict
 
-check: lint test ## Run all checks (lint + test)
+check: lint test
 
-debug-task: ## Debug task interactions (use ARGS="list" or ARGS="show ...")
+debug-task:
 	op run --env-file=envs/.dev.secrets.env -- mix debug_task $(ARGS)

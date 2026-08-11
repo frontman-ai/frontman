@@ -1,9 +1,3 @@
-// Connection state reducer for FrontmanProvider
-// Manages ACP, Relay, and Session connection lifecycle
-//
-// Key insight: MCP handler attachment happens DURING session creation (before channel join),
-// not as a separate post-hoc step. The reducer tracks whether prerequisites are met.
-
 module Log = FrontmanLogs.Logs.Make({
   let component = #ConnectionReducer
 })
@@ -14,7 +8,6 @@ module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 
-// Configuration for initialization
 type initConfig = {
   endpoint: string,
   tokenUrl: string,
@@ -22,13 +15,10 @@ type initConfig = {
   clientName: string,
   clientVersion: string,
   onACPMessage: (ACP.messageDirection, JSON.t) => unit,
-  // _meta to pass in ACP clientInfo (framework and project traits)
   _meta: JSON.t,
-  // Called when the server pushes a title update for a task
   onTitleUpdated: option<(string, string) => unit>,
 }
 
-// Connection states
 type authRequiredPayload = {loginUrl: string}
 
 type acpState =
@@ -55,11 +45,8 @@ type state = {
   relay: relayState,
   session: sessionState,
   initialAuthBehavior: Client__FtueState.authBehavior,
-  // Relay instance exists before connection completes - needed for MCPServer
   relayInstance: option<Relay.t>,
-  // MCPServer created once relay instance exists
   mcpServer: option<MCPServer.t>,
-  // AbortController for cancelling in-flight connections on cleanup
   abortController: option<WebAPI.EventAPI.abortController>,
 }
 
@@ -71,7 +58,6 @@ type clientInfoMeta = {framework: option<string>}
 let frameworkFromClientInfoMeta = (meta: JSON.t): option<string> =>
   S.parseOrThrow(meta, ~to=clientInfoMetaSchema).framework
 
-// Initialization payload - includes pre-created instances
 type initPayload = {
   config: initConfig,
   relay: Relay.t,
@@ -95,7 +81,6 @@ type createSessionRequest = {
   onComplete: result<string, string> => unit,
 }
 
-// Actions
 type action =
   | Initialize(initPayload)
   | ACPConnectSuccess(ACP.connection)
@@ -119,10 +104,10 @@ type action =
   | DeleteSession({taskId: string, onComplete: result<unit, string> => unit})
   | ClearSession
 
-// Effects - side effects the reducer wants to trigger
 type effect =
   | LogError(string)
   | LogInfo(string)
+  | TrackRelay(Client__Heap.relayOutcome)
   | ConnectACP({
       config: ACP.config,
       signal: WebAPI.EventAPI.abortSignal,
@@ -163,6 +148,14 @@ let initialState: state = {
   abortController: None,
 }
 
+let relayFailureReason = message =>
+  switch message {
+  | message if message->String.startsWith("HTTP ") => Client__Heap.HttpError
+  | message if message->String.startsWith("Invalid tools response: ") =>
+    Client__Heap.InvalidResponse
+  | _ => Client__Heap.NetworkError
+  }
+
 module Selectors = {
   let getSession = (state: state): option<ACP.session> => {
     switch state.session {
@@ -171,7 +164,6 @@ module Selectors = {
     }
   }
 
-  // Derive user-facing connection state
   type connectionStatus =
     | Disconnected
     | Connecting
@@ -181,25 +173,18 @@ module Selectors = {
 
   let getConnectionStatus = (state: state): connectionStatus => {
     switch (state.acp, state.relay, state.session) {
-    // Session states take priority
     | (_, _, SessionActive(sess)) => SessionActive(sess.sessionId)
     | (_, _, SessionError(msg)) => Error(msg)
-    // Errors
     | (ACPError(msg), _, _) => Error(msg)
     | (_, RelayError(msg), _) => Error(msg)
-    // Connected only when both ACP and relay are connected
     | (ACPConnected(_), RelayConnected, _) => Connected
-    // Still connecting if either is in progress
     | (ACPConnecting, _, _) => Connecting
     | (ACPConnected(_), RelayConnecting | RelayDisconnected, _) => Connecting
-    // Auth required — surface as Disconnected so UI can check authRedirectUrl
     | (ACPAuthRequired(_), _, _) => Disconnected
-    // Disconnected
     | (ACPDisconnected, _, _) => Disconnected
     }
   }
 
-  // Returns the auth redirect URL when ACP connection requires authentication
   let getAuthRedirectUrl = (state: state): option<string> => {
     switch state.acp {
     | ACPAuthRequired({loginUrl}) => Some(loginUrl)
@@ -210,7 +195,6 @@ module Selectors = {
 
 let reduce = (state: state, action: action): (state, array<effect>) => {
   switch (state, action) {
-  // === Initialize - single entry point for connection setup ===
   | ({acp: ACPDisconnected, relay: RelayDisconnected}, Initialize({config, relay, mcpServer})) =>
     let acpConfig = ACP.makeConfig(
       ~endpoint=config.endpoint,
@@ -225,7 +209,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
       },
     )
-    // Create AbortController to cancel connections on cleanup
     let abortController = WebAPI.AbortController.make()
     (
       {
@@ -244,19 +227,17 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
           initialAuthBehavior: state.initialAuthBehavior,
         }),
         ConnectRelay(relay, abortController.signal),
-        LogInfo("Initializing connections..."),
       ],
     )
 
-  // === ACP connection flow ===
   | ({acp: ACPConnecting}, ACPConnectSuccess(conn)) => (
       {...state, acp: ACPConnected(conn)},
-      [LogInfo("ACP connected"), FetchSessionsEffect(conn)],
+      [FetchSessionsEffect(conn)],
     )
 
   | ({acp: ACPConnecting}, ACPAuthRequiredReceived({loginUrl})) => (
       {...state, acp: ACPAuthRequired({loginUrl: loginUrl})},
-      [LogInfo("ACP auth required")],
+      [],
     )
 
   | ({acp: ACPConnecting}, ACPConnectError(msg)) => (
@@ -264,19 +245,16 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [LogError(`ACP connect failed: ${msg}`)],
     )
 
-  // === Relay lifecycle ===
   | ({relay: RelayConnecting}, RelayConnectSuccess) => (
       {...state, relay: RelayConnected},
-      [LogInfo("Relay connected")],
+      [TrackRelay(Success)],
     )
 
-  // Relay error is non-fatal - MCP still works with client-only tools
-  | ({relay: RelayConnecting}, RelayConnectError(msg)) => (
-      {...state, relay: RelayError(msg)},
-      [LogInfo(`Relay failed (non-fatal): ${msg}`)],
+  | ({relay: RelayConnecting}, RelayConnectError(message)) => (
+      {...state, relay: RelayError(message)},
+      [TrackRelay(Failure(relayFailureReason(message)))],
     )
 
-  // === Session lifecycle ===
   | ({session: SessionCreating(expectedSessionId)}, SessionCreateSuccess(sess))
     if expectedSessionId == sess.sessionId => (
       {...state, session: SessionActive(sess)},
@@ -339,7 +317,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [LogError("Cannot send prompt: no active session")],
     )
 
-  // Load a persisted task (calls ACP.loadSession or joinSession based on needsHistory)
   | (
       {acp: ACPConnected(conn), mcpServer: Some(mcpServer), session: SessionActive({sessionId})},
       LoadTask(request),
@@ -366,7 +343,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (_, LoadTask(_)) => (state, [LogError("Cannot load task: not connected")])
 
-  // Delete a persisted session (calls ACP.deleteSession)
   | ({acp: ACPConnected(conn)}, DeleteSession({taskId, onComplete})) => (
       state,
       [DeleteSessionEffect({connection: conn, taskId, onComplete})],
@@ -380,7 +356,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ],
     )
 
-  // === Clear Session (for starting new task) ===
   | ({session: SessionActive(oldSession)}, ClearSession) => (
       {...state, session: NoSession},
       [CleanupSessionEffect({session: oldSession})],
@@ -389,7 +364,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (_, CreateSession(_)) => (state, [LogError("Cannot create session: not ready")])
 
-  // === Invalid transitions ===
   | (_, Initialize(_)) => (state, [LogInfo("Initialize ignored: already initialized")])
 
   | (_, ACPConnectSuccess(_) | ACPAuthRequiredReceived(_) | ACPConnectError(_)) => (
@@ -411,20 +385,15 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   }
 }
 
-// StateReducer.Interface implementation
 let name = "ConnectionReducer"
 
-// Alias for StateReducer compatibility
 let next = reduce
 
-// Helper to clean up a session's channel handlers
 let cleanupSession = (session: ACP.session): unit => {
   ACP.cleanupSessionChannel(session)
   Log.debug(~ctx={"sessionId": session.sessionId}, "Cleaned up session channel")
 }
 
-// Effect handler - executed in useEffect, not during dispatch
-// This receives current state and dispatch, so async callbacks can safely dispatch
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   let dispatchConfigOptions = (configOptions: option<array<_>>) =>
     configOptions->Option.forEach(opts =>
@@ -436,6 +405,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   switch effect {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
+  | TrackRelay(outcome) => Client__Heap.trackRelayConnection(outcome)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | ConnectACP({config, signal, initialAuthBehavior}) =>
     let connect = async () => {
@@ -484,24 +454,13 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | ConnectRelay(relay, signal) =>
     let connect = async () => {
       let result = await Relay.connect(relay, ~signal)
-      switch result {
-      | Ok() =>
-        dispatch(RelayConnectSuccess)
-        switch Relay.getState(relay) {
-        | Connected({tools, serverInfo}) =>
-          Log.info(
-            ~ctx={"tools": tools->Array.map(t => t.name)},
-            `${serverInfo.name} v${serverInfo.version} - ${tools
-              ->Array.length
-              ->Int.toString} relay tools available`,
-          )
-        | Disconnected | Error(_) => ()
-        }
-      | Error(err) =>
-        switch signal.aborted {
-        | true => Log.info("Relay connection aborted (cleanup)")
-        | false => dispatch(RelayConnectError(err))
-        }
+      switch (signal.aborted, result) {
+      | (true, Ok()) =>
+        Relay.disconnect(relay)
+        Log.info("Relay connection aborted after connect (cleanup)")
+      | (true, Error(_)) => Log.info("Relay connection aborted (cleanup)")
+      | (false, Ok()) => dispatch(RelayConnectSuccess)
+      | (false, Error(message)) => dispatch(RelayConnectError(message))
       }
     }
     connect()->ignore
@@ -555,14 +514,9 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       }
     }
     send()->ignore
-  | CancelPromptEffect({session}) =>
-    // ACP spec: session/cancel is a notification (fire-and-forget).
-    ACP.cancelPrompt(session)
+  | CancelPromptEffect({session}) => ACP.cancelPrompt(session)
 
-  | RetryTurnEffect({session, retriedErrorId}) =>
-    // Frontman extension: session/retry_turn is a notification (fire-and-forget).
-    // Signals the server to retry the failed agent turn.
-    ACP.retryTurn(session, ~retriedErrorId)
+  | RetryTurnEffect({session, retriedErrorId}) => ACP.retryTurn(session, ~retriedErrorId)
 
   | FetchSessionsEffect(conn) =>
     Client__State.Actions.sessionsLoadStarted()

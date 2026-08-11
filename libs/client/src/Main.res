@@ -48,8 +48,6 @@ let getConfig = (): clientConfig => {
 
 WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoaded"), _event => {
   let rootElement = WebAPI.Global.document->WebAPI.Document.querySelector("#root")
-  // Task is now created when session is established (in Connect action handler)
-  // to ensure task ID matches sessionId for proper update routing
 
   switch rootElement->Null.toOption {
   | Some(rootElement) =>
@@ -58,6 +56,7 @@ WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoade
     config.sentryDsn->Option.forEach(dsn =>
       FrontmanAiFrontmanClient.FrontmanClient__Sentry.initialize(~dsn)
     )
+    Client__State.Actions.fetchUserProfile(~apiBaseUrl=config.apiBaseUrl)
     root->ReactDOM.Client.Root.render(
       <React.StrictMode>
         <Client__FrontmanProvider.Provider

@@ -92,7 +92,6 @@ defmodule FrontmanServerWeb.UserAuthTest do
 
       for url <- blocked_urls do
         conn = conn |> put_session(:user_return_to, url) |> UserAuth.log_in_user(user)
-        # Should fall back to signed_in_path, NOT redirect to the malicious URL
         assert redirected_to(conn) == ~p"/"
       end
     end
@@ -119,9 +118,6 @@ defmodule FrontmanServerWeb.UserAuthTest do
         |> fetch_cookies()
         |> init_test_session(%{user_remember_me: true})
 
-      # the conn is already logged in and has the remember_me cookie set,
-      # now we log in again and even without explicitly setting remember_me,
-      # the cookie should be set again
       conn = conn |> UserAuth.log_in_user(user, %{})
       assert %{value: signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
       assert signed_token != get_session(conn, :user_token)

@@ -1,6 +1,3 @@
-// Client tool that sets the device emulation mode in the web preview
-// Allows the agent to simulate mobile/tablet/desktop viewports
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.setDeviceMode
@@ -62,13 +59,11 @@ type output = {
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
-// Find a preset by name (case-insensitive exact match)
 let findPresetByName = (name: string): option<Client__DeviceMode.devicePreset> => {
   let lowerName = name->String.toLowerCase
   Client__DeviceMode.presets->Array.find(preset => preset.name->String.toLowerCase == lowerName)
 }
 
-// Build output with current state info
 let makeOutput = (
   ~success: bool,
   ~error: option<string>,

@@ -4,16 +4,25 @@ import { getCollection, render } from 'astro:content'
 
 export async function getStaticPaths() {
 	const entries = await getCollection('releases')
-	return entries.map((entry) => ({
+	const sortedEntries = [...entries].sort(
+		(a, b) => new Date(b.data.pubDate).getTime() - new Date(a.data.pubDate).getTime()
+	)
+
+	return sortedEntries.map((entry, index) => ({
 		params: { id: decodeURI(entry.id) },
-		props: { entry }
+		props: {
+			entry,
+			relatedReleases: [sortedEntries[index - 1], sortedEntries[index + 1]]
+				.filter((relatedEntry) => relatedEntry !== undefined)
+				.map((relatedEntry) => ({ id: relatedEntry.id, title: relatedEntry.data.title }))
+		}
 	}))
 }
 
-const { entry } = Astro.props
+const { entry, relatedReleases } = Astro.props
 const { Content } = await render(entry)
 ---
 
-<Layout frontmatter={entry.data} body={entry.body}>
+<Layout frontmatter={entry.data} body={entry.body} relatedReleases={relatedReleases}>
 	<Content />
 </Layout>

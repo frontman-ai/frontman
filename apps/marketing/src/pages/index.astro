@@ -10,11 +10,8 @@ import InstallSteps from '../components/blocks/install/InstallSteps.astro'
 import HomeFAQ from '../components/blocks/FAQ/HomeFAQ.astro'
 import FinalCTA from '../components/blocks/CTA/FinalCTA.astro'
 
-// Data
 import faqData from '../data/json-files/faqData.json'
 
-// Content
-// - SEO
 const SEO = {
 	title: 'Frontman: AI Website Editor for Existing Sites',
 	description:
@@ -67,7 +64,6 @@ if (Astro.url.searchParams.get('mode') === 'agent') {
 	})
 }
 
-// FAQPage JSON-LD
 const faqJsonLd = {
 	"@context": "https://schema.org",
 	"@type": "FAQPage",
@@ -85,7 +81,6 @@ const faqJsonLd = {
 
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
-	<!-- Act 1: The Insight — hook them, then show why we're different -->
 	<Hero />
 	<section id="site-type" class="bg-neutral-950 px-6 py-14 text-neutral-100">
 		<div class="mx-auto max-w-5xl">
@@ -122,11 +117,9 @@ const faqJsonLd = {
 	</section>
 	<FullContextSection />
 
-	<!-- Act 2: The Product — show what it does, prove it fits -->
 	<FeatureHighlights />
 	<FrameworkSupport />
 
-	<!-- Act 3: The Proof — rational validation -->
 	<ComparisonTable />
 	<section class="bg-neutral-950 px-6 py-10 text-center text-neutral-300">
 		<p class="mx-auto max-w-3xl text-base leading-relaxed">
@@ -134,7 +127,6 @@ const faqJsonLd = {
 		</p>
 	</section>
 
-	<!-- Act 4: The Close — make it easy, handle objections, seal the deal -->
 	<InstallSteps />
 	<HomeFAQ />
 	<FinalCTA />

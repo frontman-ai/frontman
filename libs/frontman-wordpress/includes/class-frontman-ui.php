@@ -54,12 +54,11 @@ class Frontman_UI {
 			__( 'Frontman', 'frontman-agentic-ai-editor' ),
 			'manage_options',
 			'frontman',
-			'__return_null', // Callback unused — we redirect below.
+			'__return_null',
 			$menu_icon_url,
 			81,
 		);
 
-		// Redirect the wp-admin menu click to /frontman.
 		add_action( 'load-toplevel_page_frontman', function (): void {
 			wp_safe_redirect( home_url( '/frontman' ) );
 			exit;
@@ -95,8 +94,6 @@ class Frontman_UI {
 		$base_js_url = 'https://app.frontman.sh/frontman.es.js';
 		$client_css  = 'https://app.frontman.sh/frontman.css';
 
-		// The client reads host + clientName from import.meta.url query params.
-		// This is how all Frontman adapters pass the Frontman server host to the client bundle.
 		$client_url = add_query_arg(
 			[
 				'host'       => $host,
@@ -109,19 +106,12 @@ class Frontman_UI {
 			$client_url = add_query_arg( 'sentryDsn', $sentry_dsn, $client_url );
 		}
 
-		// Runtime config — same shape as FrontmanCore__UIShell produces
-		// for Frontman browser clients. The page script reads this into window.__frontmanRuntime.
-		// basePath is used by Client__BrowserUrl.syncBrowserUrl() to keep the
-		// browser URL in sync as the user navigates within the preview iframe.
 		$runtime = [
 			'framework' => 'wordpress',
 			'basePath'  => 'frontman',
 			'wpNonce'   => Frontman_Auth::create_nonce(),
 		];
 
-		// Build the entrypoint URL for the web preview iframe.
-		// When suffix routing is used (e.g. /about/frontman), this points the
-		// preview at /about. The client reads this from the DOM via getInitialUrl().
 		$entrypoint_url = null;
 		if ( $preview_path !== null && $preview_path !== '/' ) {
 			$entrypoint_url = home_url( $preview_path );

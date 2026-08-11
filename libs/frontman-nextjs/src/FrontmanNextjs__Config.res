@@ -1,6 +1,3 @@
-// Injected at build time by tsup define — crash if missing so we catch broken builds immediately.
-// Must use %raw with typeof guard: @val external won't work because __PACKAGE_VERSION__ is a
-// build-time constant replaced by tsup, not a runtime global.
 let packageVersion: string = %raw(`typeof __PACKAGE_VERSION__ !== "undefined" ? __PACKAGE_VERSION__ : undefined`)
 let () = if typeof(packageVersion) == #undefined {
   JsError.throwWithMessage("__PACKAGE_VERSION__ is not defined — tsup build is misconfigured")
@@ -9,21 +6,11 @@ let () = if typeof(packageVersion) == #undefined {
 module Bindings = FrontmanBindings
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 
-// Default host can be overridden via env vars for development.
-// Priority:
-// 1) FRONTMAN_HOST (explicit Frontman server host)
-// 2) api.frontman.sh (production default)
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | Some(host) if host != "" => host
 | _ => Hosts.apiHost
 }
 
-// Normalize host values so users can pass either bare hosts or full URLs.
-// Examples:
-// - api.frontman.sh -> api.frontman.sh
-// - https://api.frontman.sh -> api.frontman.sh
-// - https://api.frontman.sh:443 -> api.frontman.sh
-// - http://frontman.local:4000 -> frontman.local:4000
 let normalizeHost = (host: string): string => {
   let trimmed = host->String.trim
   let candidate = switch trimmed->String.includes("://") {
@@ -54,12 +41,9 @@ type t = {
   clientCssUrl: option<string>,
   entrypointUrl: option<string>,
   projectRoot: string,
-  // sourceRoot: root for file paths (monorepo root in monorepo setups)
-  // Defaults to projectRoot if not specified
   sourceRoot: string,
 }
 
-// Internal make function with labeled parameters (for ReScript callers)
 @@live
 let make = (
   ~isDev=None,
@@ -120,7 +104,6 @@ let make = (
   }
 }
 
-// JS-friendly type for config input (used by makeConfigFromObject)
 type jsConfigInput = {
   isDev?: bool,
   basePath?: string,
@@ -134,7 +117,6 @@ type jsConfigInput = {
   sourceRoot?: string,
 }
 
-// JS-friendly function that accepts a config object - delegates to make
 let makeFromObject = (config: jsConfigInput): t =>
   make(
     ~isDev=config.isDev,

@@ -1,8 +1,3 @@
-// Client tool that inspects DOM structure in the web preview.
-// Supports CSS selectors and XPath expressions for targeting subtrees.
-// Enforces size limits and guides the agent toward progressive disclosure:
-// start narrow, drill down, never dump the full page.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.getDom
@@ -77,25 +72,19 @@ type output = {
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
-// ============================================================================
-// Constants
-// ============================================================================
-
-let maxOutputBytes = 30_000 // ~8-15k tokens — enough for a meaningful subtree
-let fullModeMaxBytes = 15_000 // Full mode is raw HTML, much denser — stricter cap
+let maxOutputBytes = 30_000
+let fullModeMaxBytes = 15_000
 let defaultMaxDepth = 5
 let defaultMaxNodes = 200
-let hardMaxNodes = 500 // Clamp even if agent passes higher
+let hardMaxNodes = 500
 let textTruncateLen = 80
 
-// Truncate a string to maxLen characters, appending "..." if truncated.
 let truncate = (text: string, ~maxLen: int): string =>
   switch text->String.length > maxLen {
   | true => text->String.slice(~start=0, ~end=maxLen) ++ "..."
   | false => text
   }
 
-// Attributes to keep in simplified mode
 let simplifiedAttributes = [
   "id",
   "class",
@@ -127,23 +116,14 @@ let simplifiedAttributes = [
 
 let simplifiedAttributeSet = simplifiedAttributes->Array.map(a => (a, true))->Dict.fromArray
 
-// Tags whose text content should be stripped entirely in simplified mode
 let contentStrippedTags = ["script", "style", "svg"]->Array.map(t => (t, true))->Dict.fromArray
 
-// ============================================================================
-// Pre-flight helpers
-// ============================================================================
-
-// Count descendant elements of a target element (quick pre-flight check).
 let countDescendants = (el: WebAPI.DOMAPI.element): int =>
   el
   ->WebAPI.Element.querySelectorAll("*")
   ->Client__Tool__ElementResolver.nodeListToElements
   ->Array.length
 
-// Build a "table of contents" of an element's direct children.
-// Returns something like: "<header>, <main id=\"content\">, <footer class=\"site-footer\">"
-// This gives the agent concrete selectors to drill into.
 let describeDirectChildren = (el: WebAPI.DOMAPI.element): string => {
   let children = el.children
   let descriptions: array<string> = []
@@ -175,7 +155,6 @@ let describeDirectChildren = (el: WebAPI.DOMAPI.element): string => {
   descriptions->Array.join(", ")
 }
 
-// Build a hint message for when a subtree is too large.
 let buildTooLargeHint = (
   ~el: WebAPI.DOMAPI.element,
   ~descendantCount: int,
@@ -193,10 +172,6 @@ let buildTooLargeHint = (
     )} direct children: ${childrenDesc}. ` ++ `Target a specific child instead.`
 }
 
-// ============================================================================
-// Simplified DOM walker
-// ============================================================================
-
 type walkState = {
   mutable output: string,
   mutable nodeCount: int,
@@ -205,7 +180,6 @@ type walkState = {
   window: option<WebAPI.DOMAPI.window>,
 }
 
-// Build the attribute string for an element in simplified mode.
 let buildSimplifiedAttrs = (el: WebAPI.DOMAPI.element): string => {
   let attrNames = el->WebAPI.Element.getAttributeNames
   let parts: array<string> = []
@@ -227,14 +201,12 @@ let buildSimplifiedAttrs = (el: WebAPI.DOMAPI.element): string => {
   parts->Array.join("")
 }
 
-// Get direct text content of an element (text nodes only, not children's text).
 let getDirectText = (el: WebAPI.DOMAPI.element): string => {
   let childNodes = (el :> WebAPI.DOMAPI.node).childNodes
   let text = ref("")
   for i in 0 to childNodes.length - 1 {
     let node = WebAPI.NodeListOf.item(childNodes, i)
 
-    // nodeType === 3 is TEXT_NODE
     if node.nodeType === 3 {
       let content = node.nodeValue->Null.toOption->Option.getOr("")->String.trim
       if content !== "" {
@@ -253,8 +225,6 @@ let indent = (depth: int): string => {
   spaces.contents
 }
 
-// Recursive DOM walker for simplified mode.
-// Respects both maxDepth and maxNodes. Stops cleanly at either limit.
 let rec walkSimplified = (
   ~el: WebAPI.DOMAPI.element,
   ~depth: int,
@@ -270,12 +240,10 @@ let rec walkSimplified = (
     let tag = el.tagName->String.toLowerCase
     let pad = indent(depth)
 
-    // For content-stripped tags, just show the tag without content
     switch contentStrippedTags->Dict.get(tag) {
     | Some(_) => state.output = state.output ++ pad ++ `<!-- ${tag} -->\n`
     | None =>
       let attrs = buildSimplifiedAttrs(el)
-      // Annotate with React/Vue/Astro component name when available (sync, cheap)
       let attrs = switch Client__ComponentName.getForElement(el, ~window=?state.window) {
       | Some(name) => attrs ++ ` component="${name}"`
       | None => attrs
@@ -286,18 +254,14 @@ let rec walkSimplified = (
       let hasShadow = pierceShadowDom && Client__Tool__ElementResolver.hasShadowRoot(el)
 
       switch (childCount, directText, hasShadow) {
-      // Leaf element with text — inline it
       | (0, text, false) if text !== "" =>
         let truncated = text->truncate(~maxLen=textTruncateLen)
         state.output = state.output ++ pad ++ `<${tag}${attrs}>"${truncated}"</${tag}>\n`
 
-      // Leaf element, no text
       | (0, _, false) => state.output = state.output ++ pad ++ `<${tag}${attrs} />\n`
 
-      // Element with children — recurse or summarize
       | _ =>
         if depth >= maxDepth {
-          // Beyond max depth: summarize
           let summary = switch childCount {
           | 0 => ""
           | n => `<!-- ...${Int.toString(n)} children -->`
@@ -334,10 +298,6 @@ let rec walkSimplified = (
   }
 }
 
-// ============================================================================
-// Result helpers
-// ============================================================================
-
 let errorResult = (
   ~error: string,
   ~hint: option<string>=?,
@@ -372,10 +332,6 @@ let successResult = (
     outputSchema,
   )
 
-// ============================================================================
-// Tool execution
-// ============================================================================
-
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
@@ -402,12 +358,10 @@ let execute = async (
             ->Math.Int.min(hardMaxNodes)
             ->Math.Int.max(1)
 
-          // Pre-flight: count descendants to decide if we should proceed
           let descendantCount = countDescendants(el)
 
           switch mode {
           | #full =>
-            // Pre-flight for full mode: check outerHTML size
             if descendantCount > maxNodes {
               errorResult(
                 ~error=`Subtree too large for full mode (${Int.toString(
@@ -420,7 +374,6 @@ let execute = async (
               let raw = el.outerHTML
               let byteSize = raw->String.length
               if byteSize > fullModeMaxBytes {
-                // HTML fits node count but is too large in bytes — reject, don't truncate
                 errorResult(
                   ~error=`HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
                       fullModeMaxBytes,
@@ -435,7 +388,6 @@ let execute = async (
 
           | #simplified =>
             if descendantCount > maxNodes {
-              // Too many elements — fail fast with a useful hint
               errorResult(
                 ~error=`Subtree too large: ${Int.toString(
                     descendantCount,
@@ -455,8 +407,6 @@ let execute = async (
 
               walkSimplified(~el, ~depth=0, ~maxDepth, ~pierceShadowDom, ~state)
 
-              // Byte size guard — shouldn't normally trigger given the node cap,
-              // but protects against elements with very long attribute values
               if state.output->String.length > maxOutputBytes {
                 errorResult(
                   ~error=`Output too large (${Int.toString(

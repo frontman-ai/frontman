@@ -1,11 +1,4 @@
 ---
-// IntegrationContentSection
-// -------------------------
-// Shared content section wrapper used for prose content on integration pages.
-// Props:
-// - title: Section heading
-// - variant: "dark" (dark bg, light text) or "light" (light bg, dark text). Default: "dark"
-// Slot: Prose HTML content (paragraphs, lists, links)
 
 type Props = {
 	title: string
@@ -52,7 +45,6 @@ const isLight = variant === 'light'
 		color: #09090b;
 	}
 
-	/* Prose content — uses :global because content is slotted */
 	.prose-content :global(p) {
 		font-size: 17px;
 		line-height: 1.7;

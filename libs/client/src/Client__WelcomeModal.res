@@ -1,6 +1,3 @@
-// Welcome modal shown to first-time unauthenticated users
-// Auto-redirects to the login page after a countdown
-
 module Dialog = Client__UI__Dialog
 module Button = Client__UI__Button
 
@@ -10,13 +7,11 @@ let redirectDelaySec = 4
 let make = (~loginUrl: string) => {
   let (countdown, setCountdown) = React.useState(() => redirectDelaySec)
 
-  // Mark FTUE welcome as shown on mount
   React.useEffect0(() => {
     Client__FtueState.setWelcomeShown()
     None
   })
 
-  // Countdown timer → redirect
   React.useEffect0(() => {
     let intervalId = ref(None)
 

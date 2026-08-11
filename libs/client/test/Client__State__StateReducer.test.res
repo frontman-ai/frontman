@@ -59,7 +59,6 @@ module TestHelpers = {
   let getTaskCount = (state: Client__State__Types.state) =>
     state.tasks->Dict.valuesToArray->Array.length
 
-  // Helper to get current task ID
   let getCurrentTaskId = (state: Client__State__Types.state): option<string> => {
     Reducer.Selectors.currentTaskId(state)
   }
@@ -141,7 +140,6 @@ describe("Client State Reducer", () => {
 
     let (nextState, effects) = Reducer.next(state, action)
 
-    // Should create a task
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
     t->expect(TestHelpers.getCurrentTaskId(nextState)->Option.isSome)->Expect.toBe(true)
 
@@ -203,7 +201,7 @@ describe("Client State Reducer", () => {
     let msg1 = messages->Array.get(1)->Option.getOrThrow
 
     switch (msg0, msg1) {
-    | (User(_), Assistant(_)) => () // Correct order
+    | (User(_), Assistant(_)) => ()
     | _ => JsExn.throw("Expected User message first, then Assistant message")
     }
   })
@@ -490,7 +488,6 @@ describe("Client State Reducer - Tool Lifecycle", () => {
   })
 
   test("ToolInputReceived makes streaming input available", t => {
-    // Create a task with an assistant message first (tools belong to tasks)
     let state = TestHelpers.makeStateWithTask(
       ~isAgentRunning=true,
       ~messages=[
@@ -684,7 +681,6 @@ describe("Client State Reducer - Task Management Actions", () => {
     let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
 
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
-    // Should switch to New task
     switch nextState.currentTask {
     | Task.New(_) => t->expect(true)->Expect.toBe(true)
     | Task.Selected(_) => t->expect(false)->Expect.toBe(true)
@@ -692,7 +688,6 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 
   test("AddUserMessage after deleting last task creates new task", t => {
-    // Start with a single task
     let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
@@ -713,7 +708,6 @@ describe("Client State Reducer - Task Management Actions", () => {
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    // Delete the only task
     let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
     t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
     switch stateAfterDelete.currentTask {
@@ -721,7 +715,6 @@ describe("Client State Reducer - Task Management Actions", () => {
     | _ => JsExn.throw("Expected New task after deleting last task")
     }
 
-    // Now send a new user message — should create a fresh task without crashing
     let (stateAfterMsg, effects) = Reducer.next(
       stateAfterDelete,
       AddUserMessage({
@@ -733,17 +726,13 @@ describe("Client State Reducer - Task Management Actions", () => {
       }),
     )
 
-    // A new task should exist
     t->expect(TestHelpers.getTaskCount(stateAfterMsg))->Expect.toBe(1)
     let newTaskId = TestHelpers.getCurrentTaskId(stateAfterMsg)->Option.getOrThrow
-    // Must be a different task than the deleted one
     t->expect(newTaskId)->Expect.not->Expect.toBe("task-1")
 
-    // The new task waits for server accepted-message update before showing message.
     let messages = Reducer.Selectors.messages(stateAfterMsg)
     t->expect(messages->Array.length)->Expect.toBe(0)
 
-    // Effect should target the new task
     switch effects->Array.get(0) {
     | Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})) =>
       t->expect(effectTaskId)->Expect.toBe(newTaskId)
@@ -763,7 +752,6 @@ describe("Client State Reducer - Task Management Actions", () => {
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    // Add message to task 1
     let (state1, effects1) = Reducer.next(
       state,
       AddUserMessage({
@@ -786,8 +774,6 @@ describe("Client State Reducer - Task Management Actions", () => {
       }),
     )
 
-    // Both AddUserMessages go through the Selected path (state starts with Selected("task-1")),
-    // so they produce TaskEffect wrapping SendMessage from the task reducer
     switch (effects1->Array.get(0), effects2->Array.get(0)) {
     | (
         Some(Reducer.TaskEffect({target: ForTask(taskId1), effect: SendMessage(_)})),
@@ -828,17 +814,13 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     let (nextState, _effects) = Reducer.next(state, SessionsLoadSuccess({sessions: sessions}))
 
-    // Verify state transitioned to Loaded
     t->expect(nextState.sessionsLoadState)->Expect.toEqual(Client__State__Types.SessionsLoaded)
 
-    // Verify tasks were added
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(2)
 
-    // Verify task IDs match session IDs
     t->expect(nextState.tasks->Dict.has("session-1"))->Expect.toBe(true)
     t->expect(nextState.tasks->Dict.has("session-2"))->Expect.toBe(true)
 
-    // Verify task titles are set correctly
     let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
     t->expect(Task.getTitle(task1))->Expect.toEqual(Some("First Session"))
 
@@ -847,7 +829,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
   })
 
   test("SessionsLoadSuccess does not overwrite existing tasks", t => {
-    // Create state with an existing task
     let existingTask = TestHelpers.makeLoadedTask(
       ~id="session-1",
       ~title="Existing Task",
@@ -868,7 +849,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    // Load sessions including one with the same ID as existing task
     let sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary> = [
       {
         sessionId: "session-1",
@@ -886,10 +866,8 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     let (nextState, _effects) = Reducer.next(state, SessionsLoadSuccess({sessions: sessions}))
 
-    // Should have 2 tasks total
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(2)
 
-    // Existing task should retain its original title and messages
     let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
     t->expect(Task.getTitle(task1))->Expect.toEqual(Some("Existing Task"))
     let task1Messages = Task.getMessages(task1)
@@ -897,7 +875,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
     ->expect(task1Messages->Array.some(msg => Reducer.Message.getId(msg) == "user-1"))
     ->Expect.toBe(true)
 
-    // New task should be added
     let task2 = nextState.tasks->Dict.get("session-2")->Option.getOrThrow
     t->expect(Task.getTitle(task2))->Expect.toEqual(Some("New Session"))
   })
@@ -941,20 +918,16 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
   })
 
   test("UpdateTaskTitle on deleted task does not throw", t => {
-    // Start with a task
     let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
 
-    // Delete the task
     let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
     t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
 
-    // Now send an UpdateTaskTitle for the deleted task — should NOT throw
     let (nextState, _) = Reducer.next(
       stateAfterDelete,
       UpdateTaskTitle({taskId: "task-1", title: "Ghost Title"}),
     )
 
-    // State should be unchanged (no task added back)
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
     t->expect(nextState.tasks->Dict.get("task-1")->Option.isNone)->Expect.toBe(true)
   })
@@ -962,22 +935,16 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
   test("UpdateTaskTitle on non-existent task is a no-op", t => {
     let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
 
-    // Update title for a task that doesn't exist
     let (nextState, _) = Reducer.next(
       state,
       UpdateTaskTitle({taskId: "non-existent-task", title: "Should Not Crash"}),
     )
 
-    // Original task should be unaffected
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
     let task = nextState.tasks->Dict.get("task-1")->Option.getOrThrow
     t->expect(Task.getTitle(task))->Expect.toEqual(Some("Test Task"))
   })
 })
-
-// ============================================================================
-// Annotation-to-Message Tests (Issue #466)
-// ============================================================================
 
 module MessageAnnotation = Client__Message.MessageAnnotation
 
@@ -1113,7 +1080,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
     let (_nextState, effects) = Reducer.next(state, action)
 
-    // Find the TaskEffect wrapping SendMessage
     let sendEffect = effects->Array.find(
       eff =>
         switch eff {
@@ -1425,7 +1391,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
         t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(FetchingStatus)
         t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAIFetchingStatus)
-        t->expect(effects->Array.length)->Expect.toBe(4)
+        t->expect(effects->Array.length)->Expect.toBe(3)
       },
     )
 

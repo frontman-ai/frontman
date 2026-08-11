@@ -1,7 +1,3 @@
-// Heap Analytics initialization
-// Dev env ID: 349428408
-// Prod env ID: 218974947
-
 @@live
 let envId = if Client__Env.isDev {
   "349428408"
@@ -33,18 +29,27 @@ let init = () => {
   `)
 }
 
-let identify: string => unit = %raw(`
-  function(userId) {
-    if (typeof window !== 'undefined' && window.heap && window.heap.identify) {
-      window.heap.identify(userId);
-    }
-  }
-`)
+type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
+@scope("window") @val external heap: heapApi = "heap"
 
-let addUserProperties: {..} => unit = %raw(`
-  function(properties) {
-    if (typeof window !== 'undefined' && window.heap && window.heap.addUserProperties) {
-      window.heap.addUserProperties(properties);
-    }
+type relayFailureReason = HttpError | InvalidResponse | NetworkError
+type relayOutcome = Success | Failure(relayFailureReason)
+
+let failureReasonToString = reason =>
+  switch reason {
+  | HttpError => "http_error"
+  | InvalidResponse => "invalid_response"
+  | NetworkError => "network_error"
   }
-`)
+
+let trackRelayConnection = outcome => {
+  let framework = Client__RuntimeConfig.read().framework->Client__RuntimeConfig.frameworkIdToString
+  let properties = Dict.fromArray([("framework", JSON.Encode.string(framework))])
+  switch outcome {
+  | Success => properties->Dict.set("outcome", JSON.Encode.string("success"))
+  | Failure(reason) =>
+    properties->Dict.set("outcome", JSON.Encode.string("failure"))
+    properties->Dict.set("reason_code", JSON.Encode.string(failureReasonToString(reason)))
+  }
+  heap.track("relay_connection_completed", JSON.Encode.object(properties))
+}

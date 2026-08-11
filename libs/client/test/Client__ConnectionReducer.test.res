@@ -4,7 +4,6 @@ module Reducer = Client__ConnectionReducer
 module FtueState = Client__FtueState
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
-// Helper to check if effect list contains a specific effect type
 let hasEffect = (effects, predicate) => effects->Array.some(predicate)
 let hasLogInfo = effects =>
   hasEffect(effects, e =>
@@ -32,6 +31,13 @@ let hasConnectRelay = effects =>
     switch e {
     | Reducer.ConnectRelay(_) => true
     | _ => false
+    }
+  )
+let trackedOutcomes = effects =>
+  effects->Array.filterMap(e =>
+    switch e {
+    | Reducer.TrackRelay(outcome) => Some(outcome)
+    | _ => None
     }
   )
 let getConnectACPInitialAuthBehavior = effects =>
@@ -127,22 +133,45 @@ describe("Connection Reducer", () => {
         let (nextState, effects) = Reducer.reduce(state, RelayConnectSuccess)
 
         t->expect(nextState.relay)->Expect.toBe(Reducer.RelayConnected)
-        t->expect(hasLogInfo(effects))->Expect.toBe(true)
+        t
+        ->expect(trackedOutcomes(effects))
+        ->Expect.toEqual([Client__Heap.Success])
       },
     )
 
     test(
       "RelayConnectError is non-fatal",
       t => {
-        let state = {...Reducer.initialState, relay: RelayConnecting}
-        let (nextState, effects) = Reducer.reduce(state, RelayConnectError("Connection refused"))
+        [
+          ("HTTP 500: Error", Client__Heap.HttpError),
+          ("Invalid tools response: bad data", Client__Heap.InvalidResponse),
+          ("Connection refused", Client__Heap.NetworkError),
+        ]->Array.forEach(
+          ((message, reason)) => {
+            let state = {...Reducer.initialState, relay: RelayConnecting}
+            let (nextState, effects) = Reducer.reduce(state, RelayConnectError(message))
 
-        switch nextState.relay {
-        | Reducer.RelayError(_) => t->expect(true)->Expect.toBe(true)
-        | _ => t->expect(false)->Expect.toBe(true)
-        }
-        // Non-fatal, so LogInfo not LogError
-        t->expect(hasLogInfo(effects))->Expect.toBe(true)
+            t->expect(nextState.relay)->Expect.toEqual(Reducer.RelayError(message))
+            t->expect(trackedOutcomes(effects))->Expect.toEqual([Client__Heap.Failure(reason)])
+          },
+        )
+      },
+    )
+
+    test(
+      "stale relay completions do not emit analytics",
+      t => {
+        let state = {...Reducer.initialState, relay: RelayConnected}
+        let actions: array<Reducer.action> = [
+          Reducer.RelayConnectSuccess,
+          Reducer.RelayConnectError("late failure"),
+        ]
+        actions->Array.forEach(
+          action => {
+            let (_, effects) = Reducer.reduce(state, action)
+            t->expect(trackedOutcomes(effects))->Expect.toEqual([])
+          },
+        )
       },
     )
   })
@@ -340,8 +369,6 @@ describe("Connection Reducer", () => {
   })
 
   describe("Connection Lifecycle - Session Creation Trigger", () => {
-    // This test documents the critical flow: App.res should create session when
-    // connectionStatus becomes Connected (not SessionActive)
     test(
       "CreateSession action works when connectionStatus is Connected",
       t => {
@@ -357,7 +384,6 @@ describe("Connection Reducer", () => {
 
         t->expect(Reducer.Selectors.getConnectionStatus(state))->Expect.toBe(Connected)
 
-        // CreateSession should work from this state
         let (nextState, effects) = Reducer.reduce(
           state,
           CreateSession({

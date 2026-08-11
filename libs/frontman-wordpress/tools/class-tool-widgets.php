@@ -14,7 +14,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Widgets {
 	private const SUPPORTED_MUTATION_WIDGET_BASES = [ 'text' ];
@@ -306,7 +305,6 @@ class Frontman_Tool_Widgets {
 		$widget_number = $parts['number'];
 		$this->assert_mutation_supported( $widget_base );
 
-		// Get current widget settings.
 		$all_settings = get_option( $this->core_widget_option_name( $widget_base ), [] );
 
 		if ( ! isset( $all_settings[ $widget_number ] ) ) {
@@ -315,7 +313,6 @@ class Frontman_Tool_Widgets {
 
 		$before = $all_settings[ $widget_number ];
 
-		// Merge new settings.
 		$all_settings[ $widget_number ] = array_merge( $all_settings[ $widget_number ], $settings );
 
 		update_option( $this->core_widget_option_name( $widget_base ), $all_settings );
@@ -408,5 +405,3 @@ class Frontman_Tool_Widgets {
 		];
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

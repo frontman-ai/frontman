@@ -17,7 +17,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 
   alias SwarmAi.SchemaTransformer
 
-  # Provider auth options are resolved at the domain layer.
   @enforce_keys [:model]
   defstruct model: nil,
             tools: [],
@@ -70,7 +69,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     reqllm_tools =
       Enum.map(client.tools, &LLMClient.to_reqllm_tool(&1, client.model, client.llm_opts))
 
-    # Provider auth must be provided via llm_opts (resolved at domain layer)
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)
@@ -88,10 +86,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
       max_image_dimension: Providers.max_image_dimension(provider)
     ]
 
-    # Run request preflight here (not just at task startup) so that tool results
-    # accumulated inside the swarm loop are also truncated. Without this, long
-    # tool-calling chains accumulate dozens of full-size tool results and the
-    # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
       |> LLMRequestPreflight.run(preflight_opts)
@@ -175,8 +169,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   end
 
   defp normalize_index(_index), do: 0
-
-  # --- SwarmAi.Message -> ReqLLM.Message conversion ---
 
   defp to_reqllm_message(%Message.System{} = msg) do
     %ReqLLM.Message{role: :system, content: Enum.map(msg.content, &to_reqllm_content_part/1)}

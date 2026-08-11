@@ -47,16 +47,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
 
-        # Start MCP initialization as a synchronous state machine.
-        # State is stored in socket assigns — no separate GenServer process.
-        # Each websocket connection needs its own MCP session because:
-        # 1. MCPInitializer performs a stateful handshake with the browser-side MCP client
-        # 2. Project rules loading depends on client-specific context
-        # Tools are stored in socket assigns for LLM availability and browser routing.
-        #
-        # Note: Phoenix channels prohibit push() during join/3, so we defer
-        # the initial MCP request push to handle_info(:start_mcp_init).
-        # All subsequent MCP responses are processed synchronously in handle_in.
         {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
 
         socket =
@@ -141,9 +131,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_info({:start_mcp_init, actions}, socket) do
-    # Deferred from join/3 because Phoenix channels prohibit push() during join.
-    # The init state and actions were already created in join — we just need
-    # to execute the deferred push actions now that the socket is fully joined.
     socket = execute_init_actions(actions, socket)
     {:noreply, socket}
   end
@@ -160,13 +147,9 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  # --- Execution events (live transport from Tasks via PubSub) ---
-
   def handle_info({:execution_chunk, turn_number, metadata, chunk}, socket) do
     {:noreply, handle_execution_chunk(socket, turn_number, metadata, chunk)}
   end
-
-  # --- Interaction events (from Tasks persistence layer via PubSub) ---
 
   def handle_info(
         {:interaction,
@@ -579,8 +562,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  # This is called after the client has joined the session channel, allowing
-  # history notifications to be received through the onUpdate callback.
   defp handle_session_load(id, %{"sessionId" => task_id}, socket)
        when task_id == socket.assigns.task_id do
     scope = socket.assigns.scope
@@ -592,7 +573,6 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
         Enum.each(replay.notifications, &push(socket, @acp_message, &1))
 
-        # Return ACP-compliant LoadSessionResponse with config options.
         push(
           socket,
           @acp_message,
@@ -846,9 +826,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  # Unified turn finalization — every code path that ends a turn goes through here.
-  # This guarantees the domain invariant: retry_state is always nil when a turn ends.
-
   defp finalize_turn(socket, outcome, turn_number) do
     task_id = socket.assigns.task_id
 
@@ -919,9 +896,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     }
   end
 
-  # Execute actions returned by the MCPInitializer state machine.
-  # Each action is processed synchronously within the current callback,
-  # eliminating async process hops that caused race conditions.
   defp execute_init_actions(actions, socket) do
     apply_init_actions(actions, socket)
   end

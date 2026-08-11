@@ -35,7 +35,6 @@ describe("FrontmanNextjs Sentry", () => {
       t => {
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
 
-        Sentry.initialize()
         Sentry.initialize(~dsn)
 
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
@@ -254,7 +253,7 @@ describe("FrontmanNextjs Sentry", () => {
               switch report.breadcrumbs {
               | Some(breadcrumbs) =>
                 t->expect(breadcrumbs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
-              | None => () // Breadcrumbs may not always be present
+              | None => ()
               }
             | None => ()
             }
@@ -270,7 +269,6 @@ describe("FrontmanNextjs Sentry", () => {
         let data = Dict.fromArray([("spanName", JSON.Encode.string("http.request"))])
         Sentry.addBreadcrumb(~category="trace", ~message="Span started", ~data)
 
-        // Should not throw
         t->expect(true)->Expect.toBe(true)
       },
     )

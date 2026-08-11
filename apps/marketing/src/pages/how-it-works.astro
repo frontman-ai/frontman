@@ -1,7 +1,4 @@
 ---
-// /how-it-works — Architecture Deep-Dive Pillar Page
-// Targets "how does frontman work", "browser-based AI coding architecture"
-// This is a topical authority page, not a comparison page.
 
 import Layout from '../layouts/Layout.astro'
 import Button from '../components/ui/Button.astro'
@@ -52,7 +49,6 @@ const faqJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Hero -->
 	<section class="hero-section">
 		<div class="hero-container">
 			<p class="hero-label">Architecture</p>
@@ -63,7 +59,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- The Problem -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">The Problem</h2>
@@ -76,7 +71,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Three-Part Architecture -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">Three-Part Architecture</h2>
@@ -141,7 +135,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Click-to-Edit Workflow -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">What Happens When You Click an Element</h2>
@@ -195,7 +188,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- What the AI Sees -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">What the AI Agent Sees</h2>
@@ -234,7 +226,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Why Middleware, Not a Browser Extension -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">Why Middleware, Not a Browser Extension</h2>
@@ -254,7 +245,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Multi-Select -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">Multi-Select: Batch Edits</h2>
@@ -265,7 +255,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- What Frontman Cannot Do -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">What Frontman Cannot Do</h2>
@@ -283,7 +272,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- FAQ -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">Frequently Asked Questions</h2>
@@ -303,7 +291,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- CTA -->
 	<section class="cta-section">
 		<div class="cta-container">
 			<h2 class="cta-title">Try It Yourself</h2>
@@ -333,7 +320,6 @@ const faqJsonLd = {
 
 <style>
 	@reference "../styles/global.css";
-	/* Hero */
 	.hero-section {
 		background: #09090b;
 		color: #fafafa;
@@ -364,7 +350,6 @@ const faqJsonLd = {
 		color: #a1a1aa;
 	}
 
-	/* Content sections */
 	.content-section {
 		background: #09090b;
 		color: #fafafa;
@@ -424,7 +409,6 @@ const faqJsonLd = {
 	.text-link { color: #A259FF; text-decoration: underline; text-underline-offset: 2px; }
 	.text-link:hover { color: #c084fc; }
 
-	/* Architecture cards */
 	.architecture-grid {
 		display: flex;
 		flex-direction: column;
@@ -499,7 +483,6 @@ const faqJsonLd = {
 		border-radius: 4px;
 	}
 
-	/* Steps */
 	.steps-list {
 		display: flex;
 		flex-direction: column;
@@ -546,7 +529,6 @@ const faqJsonLd = {
 		border-radius: 4px;
 	}
 
-	/* Context grid */
 	.context-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -580,7 +562,6 @@ const faqJsonLd = {
 		border-radius: 4px;
 	}
 
-	/* FAQ */
 	.faq-list { border-top: 1px solid #27272a; }
 	.faq-list--light { border-top: 1px solid #e4e4e7; }
 	.faq-item { border-bottom: 1px solid #27272a; cursor: pointer; }
@@ -630,7 +611,6 @@ const faqJsonLd = {
 	}
 	.faq-answer--light p { color: #52525b; }
 
-	/* CTA */
 	.cta-section {
 		background: #09090b;
 		border-top: 1px solid #27272a;
@@ -681,7 +661,6 @@ const faqJsonLd = {
 	}
 	.cta-discord:hover { color: #fafafa; }
 
-	/* Responsive */
 	@media (max-width: 768px) {
 		.hero-section { padding: 48px 20px 32px; }
 		.hero-title { font-size: 32px; }

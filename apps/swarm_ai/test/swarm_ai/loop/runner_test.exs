@@ -240,9 +240,7 @@ defmodule SwarmAi.Loop.RunnerTest do
 
     test "accumulates streaming tool call with argument fragments" do
       stream = [
-        # Tool call name arrives first (streaming)
         StreamChunk.tool_call("read_file", %{}, %{id: "call_123", index: 0}),
-        # Argument fragments arrive separately
         StreamChunk.meta(%{tool_call_args: %{index: 0, fragment: "{\"path\":"}}),
         StreamChunk.meta(%{tool_call_args: %{index: 0, fragment: "\"/home/user"}}),
         StreamChunk.meta(%{tool_call_args: %{index: 0, fragment: "/file.txt\"}"}}),
@@ -260,10 +258,8 @@ defmodule SwarmAi.Loop.RunnerTest do
 
     test "handles multiple parallel streaming tool calls" do
       stream = [
-        # Two tool calls starting
         StreamChunk.tool_call("read_file", %{}, %{id: "call_1", index: 0}),
         StreamChunk.tool_call("list_files", %{}, %{id: "call_2", index: 1}),
-        # Interleaved argument fragments
         StreamChunk.meta(%{tool_call_args: %{index: 0, fragment: ~s({"path":)}}),
         StreamChunk.meta(%{tool_call_args: %{index: 1, fragment: ~s({"dir":)}}),
         StreamChunk.meta(%{tool_call_args: %{index: 0, fragment: ~s("/foo"})}}),
@@ -303,7 +299,6 @@ defmodule SwarmAi.Loop.RunnerTest do
     test "handles streaming tool call with no argument fragments" do
       stream = [
         StreamChunk.tool_call("get_time", %{}, %{id: "call_789", index: 0}),
-        # No argument fragments - tool takes no parameters
         StreamChunk.meta(%{finish_reason: :tool_calls})
       ]
 
@@ -313,13 +308,11 @@ defmodule SwarmAi.Loop.RunnerTest do
       [tool_call] = response.tool_calls
       assert tool_call.id == "call_789"
       assert tool_call.name == "get_time"
-      # Preserve missing fragments so downstream parsing fails loudly.
       assert tool_call.arguments == ""
     end
 
     test "raises when argument fragments arrive before tool_call_start" do
       stream = [
-        # Arguments without a preceding tool_call_start - this is a bug
         StreamChunk.meta(%{tool_call_args: %{index: 0, fragment: ~s({"path":"/foo"})}}),
         StreamChunk.meta(%{finish_reason: :tool_calls})
       ]
@@ -345,7 +338,6 @@ defmodule SwarmAi.Loop.RunnerTest do
       [tool_call] = response.tool_calls
       assert tool_call.id == "call_trunc"
       assert tool_call.name == "read_file"
-      # Preserve truncated JSON for debugging - don't mask with "{}"
       assert tool_call.arguments == ~s[{"path": "app/admin/products/page.tsx"]
     end
 
@@ -364,17 +356,15 @@ defmodule SwarmAi.Loop.RunnerTest do
       response = LLM.Response.from_stream(stream)
 
       [tool_call] = response.tool_calls
-      # Preserve partial JSON for debugging - don't mask with "{}"
+
       assert tool_call.arguments ==
                ~s[{"path": "src/Button.tsx", "content": "export default function() {}"]
     end
 
     test "mixes streaming and non-streaming tool calls" do
       stream = [
-        # One streaming tool call
         StreamChunk.tool_call("streaming_tool", %{}, %{id: "call_streaming", index: 0}),
         StreamChunk.meta(%{tool_call_args: %{index: 0, fragment: ~s({"arg":"val"})}}),
-        # One complete tool call
         StreamChunk.tool_call("complete_tool", %{"key" => "value"}, %{
           id: "call_complete",
           index: 1

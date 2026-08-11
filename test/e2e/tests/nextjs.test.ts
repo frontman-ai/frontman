@@ -23,11 +23,9 @@ describe("Next.js E2E", () => {
 	let server: FrameworkServer;
 
 	beforeAll(async () => {
-		// Run the Frontman installer to generate middleware.ts + instrumentation.ts
 		installNextjs();
 
 		browser = await chromium.launch({ headless: true });
-		// Accept self-signed mkcert certificates
 		context = await browser.newContext({ ignoreHTTPSErrors: true });
 		server = await startNextjs(PORT);
 	});
@@ -116,16 +114,13 @@ describe("Next.js E2E", () => {
 	it("should make a text change via AI prompt", async () => {
 		page = await context.newPage();
 
-		// Navigate to the Frontman UI (handles login redirect)
 		await openFrontmanUI(page, PORT, { assertHealthy: server.assertHealthy });
 
-		// Send a prompt to change the heading text
 		await sendPrompt(
 			page,
 			'Change the h1 heading text in pages/index.tsx to say "Hello Frontman"',
 		);
 
-		// Verify the source file was actually modified
 		expect(headingFileContains(server, "Hello Frontman")).toBe(true);
 	});
 });

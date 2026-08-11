@@ -7,8 +7,6 @@ defmodule FrontmanServer.ProvidersFixtures do
     top_level?: true,
     check: [in: false, out: false]
 
-  # ── PNG fixtures ────────────────────────────────────────────────────
-
   @doc """
   Builds a minimal PNG binary with the given dimensions.
   Only enough structure for `Image.check_dimensions/2` to parse.
@@ -17,8 +15,6 @@ defmodule FrontmanServer.ProvidersFixtures do
     <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
       <<0::32>> <> "IHDR" <> <<width::32, height::32>> <> <<0::8>>
   end
-
-  # ── Channel prompt builder ──────────────────────────────────────────
 
   @doc """
   Builds a JSON-RPC `session/prompt` message for channel tests.
@@ -40,8 +36,6 @@ defmodule FrontmanServer.ProvidersFixtures do
 
     %{"jsonrpc" => "2.0", "id" => id, "method" => "session/prompt", "params" => params}
   end
-
-  # ── OAuth token helper ──────────────────────────────────────────────
 
   @doc """
   Inserts an OAuth token expiring in 1 hour for the given scope + provider.

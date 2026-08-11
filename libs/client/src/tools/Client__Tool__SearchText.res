@@ -1,7 +1,3 @@
-// Client tool that searches for visible text on the current page.
-// Like Ctrl+F — finds leaf elements containing the query string
-// and returns matches with surrounding context and CSS selectors.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.searchText
@@ -93,8 +89,6 @@ let successResult = (~matches, ~totalCount, ~truncated): Tool.MCP.CallToolResult
     outputSchema,
   )
 
-// Build a context snippet around the first occurrence of `query` in `text`.
-// Wraps the matched portion in >> << markers.
 let buildContextSnippet = (~text: string, ~query: string, ~contextChars: int): string => {
   let lowerText = text->String.toLowerCase
   let lowerQuery = query->String.toLowerCase

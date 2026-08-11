@@ -1,5 +1,3 @@
-// Tool module types for browser and server tools
-
 module MCP = FrontmanProtocol__MCP
 
 let textResult = MCP.CallToolResult.makeText
@@ -16,19 +14,11 @@ let unstructuredResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
 
 let imageResult = MCP.CallToolResult.makeImage
 
-// Execution context for server-side tools
 type serverExecutionContext = {
-  // projectRoot: where the app lives (for finding pages, routes, etc.)
   projectRoot: string,
-  // sourceRoot: root for resolving file paths from framework source annotations
-  // In a monorepo, this is typically the monorepo root. Defaults to projectRoot.
   sourceRoot: string,
 }
 
-// How a browser tool delivers its result back to the MCP caller.
-// - Synchronous: execute returns a resolved promise (normal flow).
-// - Interactive: execute returns a promise that blocks until user input is provided
-//   (e.g. question tool waits for user to answer before resolving).
 type executionMode = Synchronous | Interactive
 
 type access =
@@ -38,16 +28,12 @@ type access =
 
 let accessSchema = S.union([S.literal(Read), S.literal(Write), S.literal(ReadWrite)])
 
-// Context for browser tools that access the preview iframe
 type previewContext = {
   doc: WebAPI.DOMAPI.document,
   win: WebAPI.DOMAPI.window,
 }
 
-// Well-known tool names — used by both server (frontman-core) and client (frontman-client)
-// to avoid fragile string comparisons across packages.
 module ToolNames = {
-  // Server tools (frontman-core)
   let writeFile = "write_file"
   let readFile = "read_file"
   let listFiles = "list_files"
@@ -58,7 +44,6 @@ module ToolNames = {
   let lighthouse = "lighthouse"
   let listTree = "list_tree"
 
-  // Browser tools (client)
   let executeJs = "execute_js"
   let takeScreenshot = "take_screenshot"
   let setDeviceMode = "set_device_mode"
@@ -70,7 +55,6 @@ module ToolNames = {
   let getAstroAudit = "get_astro_audit"
 }
 
-// Browser tool - executes in browser, no context needed
 module type BrowserTool = {
   let name: string
   let description: string
@@ -79,12 +63,10 @@ module type BrowserTool = {
   let inputSchema: S.t<input>
   let outputJsonSchema: option<JSONSchema.t>
   let execute: (input, ~taskId: string, ~toolCallId: string) => promise<MCP.CallToolResult.t>
-  //some tools we want to execute manually, and never have the llm see them
   let visibleToAgent: bool
   let executionMode: executionMode
 }
 
-// Server tool - executes on server with context
 module type ServerTool = {
   let name: string
   let description: string
@@ -93,6 +75,5 @@ module type ServerTool = {
   let inputSchema: S.t<input>
   let outputJsonSchema: option<JSONSchema.t>
   let execute: (serverExecutionContext, input) => promise<MCP.CallToolResult.t>
-  //some tools we want to execute manually, and never have the llm see them
   let visibleToAgent: bool
 }

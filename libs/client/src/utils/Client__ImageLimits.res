@@ -1,5 +1,3 @@
-// Max 7680px per dimension (Anthropic hard-rejects >8000; server gate enforces 7680 for all providers).
-
 type limits = {
   maxDimension: int,
   quality: float,

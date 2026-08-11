@@ -26,7 +26,7 @@ describe("ToolRegistry", _t => {
     let registry = ToolRegistry.make()
     let extended = registry->ToolRegistry.addTools([module(FrontmanCore__Tool__ReadFile)])
 
-    t->expect(registry->ToolRegistry.count)->Expect.toBe(0) // original unchanged
+    t->expect(registry->ToolRegistry.count)->Expect.toBe(0)
     t->expect(extended->ToolRegistry.count)->Expect.toBe(1)
   })
 

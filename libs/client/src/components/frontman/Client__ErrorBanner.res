@@ -1,6 +1,3 @@
-// ErrorBanner - Displays LLM/agent errors.
-// Always shows a retry button. Permanent errors show category-specific guidance.
-
 @react.component
 let make = (
   ~error: string,

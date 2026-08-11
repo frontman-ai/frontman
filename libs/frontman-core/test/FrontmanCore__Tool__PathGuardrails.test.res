@@ -1,5 +1,3 @@
-// Regression coverage for tool-call path recovery guardrails (issue #887).
-
 open Vitest
 
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool

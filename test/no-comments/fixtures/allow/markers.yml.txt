@@ -1,0 +1,4 @@
+url: https://frontman.sh/path#fragment
+payload: |
+  # immutable payload
+  // protocol example

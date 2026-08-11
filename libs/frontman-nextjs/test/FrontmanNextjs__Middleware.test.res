@@ -4,7 +4,6 @@ module Middleware = FrontmanNextjs__Middleware
 module Config = FrontmanNextjs__Config
 
 module Helpers = {
-  // Create middleware with test config (bypass default host/URL resolution)
   let createTestMiddleware = () => {
     let configInput: Config.jsConfigInput = {
       projectRoot: "/test/project",
@@ -47,7 +46,6 @@ describe("FrontmanNextjs Middleware (adapter)", _t => {
       "returns a function",
       t => {
         let mw = Helpers.createTestMiddleware()
-        // Middleware is a function: request => promise<option<response>>
         t->expect(typeof(mw) == #function)->Expect.toBe(true)
       },
     )
@@ -133,7 +131,6 @@ describe("FrontmanNextjs Middleware (adapter)", _t => {
           let json = JSON.parseOrThrow(body)
           let obj = json->JSON.Decode.object->Option.getOrThrow
           t->expect(obj->Dict.get("tools")->Option.isSome)->Expect.toBe(true)
-          // Verify server name comes from adapter config
           let serverInfo =
             obj->Dict.get("serverInfo")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
           t

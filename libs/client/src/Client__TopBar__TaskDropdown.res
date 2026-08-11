@@ -198,7 +198,6 @@ let make = (~onNewTask: unit => unit) => {
         </DropdownMenu.Content>
       </DropdownMenu>
 
-      // "+ New" button
       <Tooltip>
         <Tooltip.Trigger
           render={<Button
@@ -214,7 +213,6 @@ let make = (~onNewTask: unit => unit) => {
       </Tooltip>
     </div>
 
-    // Delete confirmation dialog (outside the dropdown to avoid stacking context issues)
     <AlertDialog
       open_={deleteDialogOpen} onOpenChange={(open_, _) => setDeleteDialogOpen(_ => open_)}
     >

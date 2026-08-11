@@ -53,10 +53,8 @@ defmodule FrontmanServer.TasksTest do
     test "returns not_found when accessing task owned by different user", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      # Create a different user/scope
       other_scope = user_scope_fixture()
 
-      # Returns :not_found to prevent task enumeration attacks
       assert {:error, :not_found} = Tasks.get_task(other_scope, task_id)
     end
   end

@@ -1,6 +1,3 @@
-// Lighthouse tool - runs Google Lighthouse audits on URLs
-// Returns scores and top issues for performance, accessibility, best-practices, and SEO
-
 module ChromeLauncher = FrontmanCore__ChromeLauncher
 module ExnUtils = FrontmanCore__ExnUtils
 module Lighthouse = FrontmanBindings.Lighthouse
@@ -38,8 +35,6 @@ LIMITATIONS:
 - Results can vary between runs (±5 points is normal)
 - URL must be accessible from the machine running the audit`
 
-// --- Input/Output Types ---
-
 type preset =
   | @as("desktop") Desktop
   | @as("mobile") Mobile
@@ -60,8 +55,6 @@ type input = {
   preset?: preset,
 }
 
-// Element-level detail extracted from a Lighthouse audit's `details.items`.
-// Provides the LLM with actionable information to locate and fix specific issues.
 @schema
 type elementDetail = {
   selector: option<string>,
@@ -109,29 +102,17 @@ type output = {
 
 let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
-// --- Implementation ---
-
-// Categories to audit
 let categoryIds = ["performance", "accessibility", "best-practices", "seo"]
 
-// Max number of element details to include per audit issue
 let maxElementsPerIssue = 3
 
-// Manual JSON parsing below: Lighthouse `details` is typed as `option<JSON.t>` because the
-// upstream schema is polymorphic (table, opportunity, node, list, etc.) and impractical to
-// model as a single Sury schema. See the binding comment in Lighthouse.res:15-18.
 let getStr = (dict: Dict.t<JSON.t>, key: string): option<string> =>
   dict->Dict.get(key)->Option.flatMap(JSON.Decode.string)
 
-// Extract a node value (selector, snippet, nodeLabel, explanation) from a details item.
-// Lighthouse items can have a "node" sub-object (accessibility audits) or be
-// a node object directly.
 let extractNodeDetail = (itemDict: Dict.t<JSON.t>): option<elementDetail> => {
-  // Try nested "node" field first (e.g. accessibility table items)
   let nodeDict = switch itemDict->Dict.get("node")->Option.flatMap(JSON.Decode.object) {
   | Some(n) => Some(n)
   | None =>
-    // Item itself might be a node (type: "node")
     switch getStr(itemDict, "type") {
     | Some("node") => Some(itemDict)
     | _ => None
@@ -145,7 +126,6 @@ let extractNodeDetail = (itemDict: Dict.t<JSON.t>): option<elementDetail> => {
     let nodeLabel = getStr(nd, "nodeLabel")
     let explanation = getStr(nd, "explanation")
 
-    // Only include if we have at least one useful field
     switch (selector, snippet) {
     | (None, None) => None
     | _ =>
@@ -162,7 +142,6 @@ let extractNodeDetail = (itemDict: Dict.t<JSON.t>): option<elementDetail> => {
   }
 }
 
-// Extract a source location from a details item
 let extractSourceLocation = (itemDict: Dict.t<JSON.t>): option<string> => {
   switch itemDict->Dict.get("source")->Option.flatMap(JSON.Decode.object) {
   | Some(sourceDict) =>
@@ -186,7 +165,6 @@ let extractSourceLocation = (itemDict: Dict.t<JSON.t>): option<string> => {
   }
 }
 
-// Extract an opportunity/resource item (url, wastedBytes, wastedMs)
 let extractResourceDetail = (itemDict: Dict.t<JSON.t>): option<elementDetail> => {
   let url = getStr(itemDict, "url")
   let sourceLocation = extractSourceLocation(itemDict)
@@ -205,8 +183,6 @@ let extractResourceDetail = (itemDict: Dict.t<JSON.t>): option<elementDetail> =>
   }
 }
 
-// Extract actionable element details from a Lighthouse audit's details field.
-// Handles table, opportunity, and list detail types.
 let extractElements = (details: option<JSON.t>): array<elementDetail> => {
   switch details->Option.flatMap(JSON.Decode.object) {
   | None => []
@@ -221,7 +197,6 @@ let extractElements = (details: option<JSON.t>): array<elementDetail> => {
       switch JSON.Decode.object(item) {
       | None => None
       | Some(itemDict) =>
-        // Try node detail first (accessibility), then resource detail (performance)
         switch extractNodeDetail(itemDict) {
         | Some(_) as result => result
         | None => extractResourceDetail(itemDict)
@@ -232,7 +207,6 @@ let extractElements = (details: option<JSON.t>): array<elementDetail> => {
   }
 }
 
-// Extract top N failing audits from a category
 let getTopIssues = (
   ~category: Lighthouse.category,
   ~audits: Dict.t<Lighthouse.auditResult>,
@@ -247,7 +221,6 @@ let getTopIssues = (
     }
   })
   ->Array.toSorted((a, b) => {
-    // Safe: the filter above guarantees score is Some
     let scoreA = a.score->Nullable.toOption->Option.getOrThrow
     let scoreB = b.score->Nullable.toOption->Option.getOrThrow
     scoreA -. scoreB
@@ -263,14 +236,11 @@ let getTopIssues = (
   })
 }
 
-// Process LHR into our output format
 let processLhr = (lhr: Lighthouse.lhr): output => {
   let categories =
     categoryIds
     ->Array.filterMap(id => lhr.categories->Dict.get(id))
     ->Array.map(category => {
-      // Our requested categories (performance, accessibility, best-practices, seo) should
-      // always produce a score. A null here means something unexpected happened upstream.
       let score = Float.toInt(
         Math.round(category.score->Nullable.toOption->Option.getOrThrow *. 100.0),
       )
@@ -298,7 +268,6 @@ let processLhr = (lhr: Lighthouse.lhr): output => {
   }
 }
 
-// Run Lighthouse with a launched Chrome instance, ensuring Chrome is killed regardless of outcome.
 let runLighthouse = async (
   ~chrome: ChromeLauncher.launchedChrome,
   ~url: string,

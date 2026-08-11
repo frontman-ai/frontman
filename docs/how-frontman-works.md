@@ -386,7 +386,7 @@ The browser acts as a bridge — it receives the MCP tool call, forwards it to y
 
 ### Local Development
 
-Each developer feature branch can get its own **worktree** — an isolated copy of the repo with its own database, dev servers, and Claude Code context:
+Each developer feature branch can get its own **worktree** - an isolated copy of the repo with its own database and dev servers:
 
 - **Process management**: mprocs (7 concurrent processes)
 - **Containers**: Podman pods (PostgreSQL + dev container per worktree)
