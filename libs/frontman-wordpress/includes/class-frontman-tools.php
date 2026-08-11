@@ -249,12 +249,20 @@ class Frontman_Tools {
 				);
 
 			case 'integer':
+				if ( $preserve_input_strings && ! is_int( $value ) ) {
+					return $value;
+				}
+
 				return (int) $value;
 
 			case 'number':
 				return (float) $value;
 
 			case 'boolean':
+				if ( $preserve_input_strings && ! is_bool( $value ) ) {
+					return $value;
+				}
+
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':

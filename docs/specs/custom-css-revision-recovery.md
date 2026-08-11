@@ -4,8 +4,7 @@
 
 Expose safe, theme-scoped recovery for WordPress Additional CSS without claiming
 atomicity, byte identity, revision creation, or retry behavior that WordPress does
-not provide. Public tools are deferred until real WordPress evidence establishes
-the restoration contract.
+not provide. Real WordPress evidence defines the public restoration contract.
 
 ## Commands
 
@@ -58,7 +57,7 @@ post-save filters can transform content.
 
 ## Public Tool Contract
 
-Phase 2 will preserve current `wp_get_custom_css` fields and add parent ID, byte
+Public tools preserve current `wp_get_custom_css` fields and add parent ID, byte
 count, SHA-256 fingerprint, modified timestamp, and preprocessor-source presence.
 The fingerprint describes captured `post_content`; it is not a revision ID or lock.
 
@@ -96,9 +95,9 @@ and ask the user to decide. Never retry restoration automatically.
 
 - Real WordPress tests cover plain CSS, preprocessor filters, save transformations, revision availability, scope, stale state, and concurrent writes.
 - CI runs exactly WordPress 6.0.9/PHP 7.4, WordPress 7.0.2/PHP 7.4, and WordPress 7.0.2/PHP 8.4.
-- Phase 2 tools implement the contract above without changing existing Additional CSS response fields.
+- Public tools implement the contract above without changing existing Additional CSS response fields.
 - User documentation explains workflow, compatibility, concurrency limits, preprocessor rejection, conditional revision behavior, and lost-response recovery.
 
 ## Open Questions
 
-None for Phase 1. Public tools remain gated on review of this evidence and strategy.
+None. The evidence gate is complete, and the public tools implement this strategy.
