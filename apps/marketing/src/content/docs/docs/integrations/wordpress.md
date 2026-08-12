@@ -3,7 +3,7 @@ title: Install and Use Frontman for WordPress (Beta)
 description: Install the Frontman WordPress plugin, connect model access, verify the editor, and troubleshoot supported site changes.
 ---
 
-The Frontman WordPress plugin adds an AI agent directly to your WordPress site. Navigate to `/frontman`, describe what you want to change, and the agent handles the supported workflow inside the site preview — no code editor or terminal required for those supported changes.
+The Frontman WordPress plugin adds an AI agent directly to your WordPress site. Open **Frontman** from the WordPress admin menu, describe what you want to change, and the agent handles the supported workflow inside the site preview — no code editor or terminal required for those supported changes.
 
 This guide owns WordPress installation and use. For the cross-platform support matrix, see [Frontman Framework Compatibility](/docs/reference/compatibility/). For the product overview, see [Frontman for WordPress](/wordpress/).
 
@@ -31,15 +31,15 @@ Install Frontman from the [WordPress Plugin Directory](https://wordpress.org/plu
 ## Using Frontman
 
 1. Make sure you're logged in to WordPress as an admin.
-2. Navigate to `/frontman` on your site (e.g. `https://yoursite.com/frontman`).
+2. Select **Frontman** in the WordPress admin menu. The plugin chooses the correct URL for your permalink configuration.
 3. If prompted, sign in to Frontman at `api.frontman.sh` with GitHub or Google. This is separate from your WordPress admin login.
-4. Once signed in, return to `/frontman` on your site. Frontman redirects back automatically when the site URL is accepted.
+4. Once signed in, return through the **Frontman** admin menu. Frontman redirects back automatically when the site URL is accepted.
 5. Connect a supported AI provider with OAuth or add an API key by following [Configure Frontman API Keys & Providers](/docs/api-keys/).
 6. Describe what you want to change in the chat interface beside the live preview.
 
-Frontman attempts to return you to the same site URL after hosted sign-in. If the hosted page remains open instead, reopen `/frontman` on your site after signing in. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
+Frontman attempts to return you to the same site URL after hosted sign-in. If the hosted page remains open instead, reopen **Frontman** from the WordPress admin menu after signing in. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
 
-You can also open Frontman while browsing any page — just append `/frontman` to any URL on your site (e.g. `https://yoursite.com/about/frontman`) and the agent will preview that page.
+Sites with pretty permalinks can also open Frontman while browsing any page: append `/frontman` to the page URL (for example, `https://yoursite.com/about/frontman`) and the agent will preview that page. Sites using Plain permalinks use the admin menu entrypoint, which routes through `/index.php/frontman`.
 
 ## What the Agent Can Do
 
@@ -82,7 +82,7 @@ WordPress settings control revision creation and retention. A restore can create
 
 Do not retry a restore after a lost response. Read current CSS, compare it with the known prior and target fingerprints, inspect content if necessary, and ask the user what to do.
 
-This recovery flow has runtime coverage on WordPress 6.0.9 with PHP 7.4, WordPress 7.0.2 with PHP 7.4, and WordPress 7.0.2 with PHP 8.4. This matrix does not claim coverage for every intermediate version.
+This recovery flow has runtime coverage on WordPress 6.0.9 with PHP 7.4, WordPress 7.0.3 with PHP 7.4, and WordPress 7.0.3 with PHP 8.4. This matrix does not claim coverage for every intermediate version.
 
 ## Security
 

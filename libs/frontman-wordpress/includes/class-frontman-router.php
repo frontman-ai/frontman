@@ -232,6 +232,12 @@ class Frontman_Router {
 			}
 		}
 
+		if ( '/index.php' === $path ) {
+			$path = '/';
+		} elseif ( 0 === strpos( $path, '/index.php/' ) ) {
+			$path = substr( $path, strlen( '/index.php' ) );
+		}
+
 		$path = rtrim( $path, '/' );
 
 		if ( $path === '' || $path[0] !== '/' ) {

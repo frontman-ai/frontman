@@ -11,6 +11,7 @@ set_error_handler(
 
 require '/var/www/html/wp-load.php';
 require '/tmp/WordPressRuntimeTest.php';
+require '/tmp/HttpRoutingRuntimeTest.php';
 require '/tmp/CustomCssRuntimeTest.php';
 restore_error_handler();
 

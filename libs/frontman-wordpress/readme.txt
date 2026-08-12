@@ -2,7 +2,7 @@
 Contributors: frontmanai
 Tags: ai editor, website editor, elementor, woocommerce, ai
 Requires at least: 6.0
-Tested up to: 7.0.2
+Tested up to: 7.0.3
 Requires PHP: 7.4
 Stable tag: 3.0.0
 License: GPL-2.0-or-later
@@ -12,7 +12,7 @@ Update an existing WordPress site with AI beside a live preview. Select a page e
 
 == Description ==
 
-**Frontman is an AI editor for an existing WordPress site.** Open `/frontman`, keep the page visible, and describe the result that you want. Frontman can inspect supported WordPress structures, make the change, and refresh the preview for your review.
+**Frontman is an AI editor for an existing WordPress site.** Open **Frontman** from the WordPress admin menu, keep the page visible, and describe the result that you want. Frontman can inspect supported WordPress structures, make the change, and refresh the preview for your review.
 
 Use Frontman for focused site updates without hunting through page builders, theme screens, menus, widgets, and settings.
 
@@ -81,9 +81,9 @@ For product details, visit [Frontman for WordPress](https://frontman.sh/wordpres
 
 1. Download the Frontman plugin release ZIP or upload the `frontman-agentic-ai-editor` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** menu
-3. Navigate to `/frontman` on your site (you must be logged in as an admin)
+3. Open **Frontman** from the WordPress admin menu (you must be logged in as an admin)
 4. Sign in to Frontman at `api.frontman.sh` with GitHub or Google when prompted
-5. Return to `/frontman` on your site if Frontman does not redirect you back automatically
+5. Reopen **Frontman** from the WordPress admin menu if Frontman does not redirect you back automatically
 6. Connect an AI provider with OAuth or add an API key
 7. Start describing WordPress edits beside the live preview
 

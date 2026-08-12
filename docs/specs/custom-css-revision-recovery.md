@@ -10,8 +10,8 @@ not provide. Real WordPress evidence defines the public restoration contract.
 
 - Isolated tests: `make test-wordpress-core-tools`
 - Minimum runtime: `WORDPRESS_VERSION=6.0.9 PHP_VERSION=7.4 make test-wordpress-runtime`
-- Current runtime: `WORDPRESS_VERSION=7.0.2 PHP_VERSION=7.4 make test-wordpress-runtime`
-- Current PHP runtime: `WORDPRESS_VERSION=7.0.2 PHP_VERSION=8.4 make test-wordpress-runtime`
+- Current runtime: `WORDPRESS_VERSION=7.0.3 PHP_VERSION=7.4 make test-wordpress-runtime`
+- Current PHP runtime: `WORDPRESS_VERSION=7.0.3 PHP_VERSION=8.4 make test-wordpress-runtime`
 - Package: `make package-wordpress-plugin VERSION=2.0.0`
 
 ## Project Structure
@@ -25,7 +25,7 @@ not provide. Real WordPress evidence defines the public restoration contract.
 ## Evidence
 
 The runtime suite establishes these behaviors on WordPress 6.0.9 with PHP 7.4
-and WordPress 7.0.2 with PHP 7.4 and 8.4:
+and WordPress 7.0.3 with PHP 7.4 and 8.4:
 
 - Initial and changed Custom CSS saves create enumerable revisions when enabled.
 - Enabled-but-empty history and disabled revisions are distinguishable.
@@ -94,7 +94,7 @@ and ask the user to decide. Never retry restoration automatically.
 ## Success Criteria
 
 - Real WordPress tests cover plain CSS, preprocessor filters, save transformations, revision availability, scope, stale state, and concurrent writes.
-- CI runs exactly WordPress 6.0.9/PHP 7.4, WordPress 7.0.2/PHP 7.4, and WordPress 7.0.2/PHP 8.4.
+- CI runs exactly WordPress 6.0.9/PHP 7.4, WordPress 7.0.3/PHP 7.4, and WordPress 7.0.3/PHP 8.4.
 - Public tools implement the contract above without changing existing Additional CSS response fields.
 - User documentation explains workflow, compatibility, concurrency limits, preprocessor rejection, conditional revision behavior, and lost-response recovery.
 

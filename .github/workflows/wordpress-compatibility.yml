@@ -33,9 +33,9 @@ jobs:
         include:
           - wordpress: "6.0.9"
             php: "7.4"
-          - wordpress: "7.0.2"
+          - wordpress: "7.0.3"
             php: "7.4"
-          - wordpress: "7.0.2"
+          - wordpress: "7.0.3"
             php: "8.4"
     steps:
       - name: Checkout code

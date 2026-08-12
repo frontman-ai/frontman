@@ -23,6 +23,7 @@ describe("Client__RuntimeConfig", _t => {
 
     t->expect(config.framework)->Expect.toBe(Client__RuntimeConfig.Nextjs)
     t->expect(config.basePath)->Expect.toBe("frontman")
+    t->expect(config.routePrefix)->Expect.toBe("")
     t->expect(config.wpNonce)->Expect.toBe(None)
     t->expect(config.projectRoot)->Expect.toBe(Some("/test/project"))
     t->expect(config.traits)->Expect.toBe(None)
@@ -66,6 +67,7 @@ describe("Client__RuntimeConfig", _t => {
         Dict.fromArray([
           ("framework", JSON.Encode.string("wordpress")),
           ("basePath", JSON.Encode.string("frontman")),
+          ("routePrefix", JSON.Encode.string("/index.php")),
           ("wpNonce", JSON.Encode.string("nonce-123")),
         ]),
       ),
@@ -74,6 +76,7 @@ describe("Client__RuntimeConfig", _t => {
     let config = Client__RuntimeConfig.read()
 
     t->expect(config.framework)->Expect.toBe(Client__RuntimeConfig.Wordpress)
+    t->expect(config.routePrefix)->Expect.toBe("/index.php")
     t->expect(config.wpNonce)->Expect.toBe(Some("nonce-123"))
   })
 
@@ -81,6 +84,7 @@ describe("Client__RuntimeConfig", _t => {
     let meta = Client__RuntimeConfig.toMeta({
       framework: Client__RuntimeConfig.Wordpress,
       basePath: "frontman",
+      routePrefix: "/index.php",
       wpNonce: Some("nonce-123"),
       projectRoot: None,
       traits: None,
