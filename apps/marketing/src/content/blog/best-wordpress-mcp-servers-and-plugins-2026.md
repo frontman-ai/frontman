@@ -63,7 +63,7 @@ imageAlt: 'Best WordPress MCP Servers and Plugins in 2026 article cover.'
 
 There is no universal winner. Your decision turns on five things: the WordPress actions you need, how the server authenticates clients, whether writes require review, where the server runs, and how you recover from a bad tool call.
 
-Need Claude, ChatGPT, or Cursor to call WordPress tools? Choose an MCP server. Need a person to request a change and review the live page in one workflow? Evaluate [Frontman for WordPress](/wordpress/) instead.
+Need Claude, ChatGPT, or Cursor to call WordPress tools? Choose an MCP server. Need a person to request a change and review the live page in one workflow? Evaluate [Frontman for WordPress](/wordpress/) instead. You can [watch one complete request-to-review task](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) before deciding which workflow fits.
 
 If you cannot explain who approves a write and how you recover it, the server is not ready for production.
 

@@ -46,6 +46,8 @@ Before getting into the individual breaking changes, here's the scope. WordPress
 
 Each of these affects a different audience. If you maintain custom blocks, the iframed editor is your biggest concern. If you run WooCommerce, plugin compatibility matters more than any single API change. If you manage client sites on shared hosting, the real-time collaboration overhead is worth understanding before it surprises you.
 
+Once the compatibility audit passes, keep the first post-upgrade change bounded and visible. [Watch one complete WordPress edit from request through reviewed result](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo), or [open the disposable WordPress Playground](https://playground.wordpress.net/?networking=yes&blueprint-url=https%3A%2F%2Ffrontman.sh%2Fwordpress-playground%2Fblueprint.json) to inspect Frontman's live-preview workflow without touching your site. The Playground is a seeded test environment, not proof that your production theme and plugin stack are compatible.
+
 ## Breaking change #1: The iframed editor and Block API Version 3
 
 WordPress 7 [loads the post editor inside an iframe](https://make.wordpress.org/core/2026/02/24/iframed-editor-changes-in-wordpress-7-0/). This is the change that breaks the most plugins.
