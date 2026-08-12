@@ -7,6 +7,7 @@ import videoPlaceholder from '../assets/video-placeholder.png'
 
 const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
 const taskDemoUrl = '/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo'
+const playgroundUrl = 'https://playground.wordpress.net/?networking=yes&blueprint-url=https%3A%2F%2Ffrontman.sh%2Fwordpress-playground%2Fblueprint.json'
 const youtubeVideoId = '-4GD1GYwH8Y'
 
 const SEO = {
@@ -151,6 +152,13 @@ const pageJsonLd = {
 				<div class="wp-step"><span>2</span><h3>Open the live workspace</h3><p>Visit https://yoursite.com/frontman, or append /frontman to a specific page URL.</p></div>
 				<div class="wp-step"><span>3</span><h3>Review what changed</h3><p>Ask for the update, watch the preview, and decide whether the result is ready.</p></div>
 			</div>
+			<div class="wp-playground">
+				<div>
+					<h3>Try one real edit in disposable WordPress.</h3>
+					<p>The demo installs Frontman and opens a seeded page automatically. Frontman sign-in and your own supported AI provider are still required.</p>
+				</div>
+				<Button size="lg" link={playgroundUrl} target="_self">Open WordPress Playground <span aria-hidden="true">→</span></Button>
+			</div>
 			<a href={taskDemoUrl} class="wp-demo-link">Watch one complete staging-safe WordPress task <span aria-hidden="true">→</span></a>
 		</div>
 	</section>
@@ -258,6 +266,9 @@ const pageJsonLd = {
 	.wp-section--light { background: #fafafa; color: #09090b; }
 	.wp-section h2 { @apply mb-5 text-3xl font-bold tracking-[-0.03em] md:text-5xl; line-height: 1.08; color: inherit; opacity: 1; }
 	.wp-section p { @apply text-lg leading-8; color: inherit; opacity: 0.78; }
+	.wp-playground { @apply mt-12 flex flex-col items-start justify-between gap-6 rounded-2xl border border-violet-200 bg-violet-50 p-6 md:flex-row md:items-center md:p-8; }
+	.wp-playground h3 { @apply mb-2 text-2xl font-bold tracking-[-0.02em] text-zinc-950; }
+	.wp-playground p { @apply max-w-2xl text-base leading-7 text-zinc-700; opacity: 1; }
 	.wp-section-header { max-width: 760px; margin-bottom: 36px; }
 	.wp-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 	.wp-step { border: 2px solid #111827; border-radius: 20px; padding: 24px; background: white; box-shadow: 6px 6px 0 #111827; }

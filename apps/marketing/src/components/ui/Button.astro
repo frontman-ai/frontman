@@ -4,6 +4,7 @@ type Props = {
 	type?: 'link' | 'button' | 'submit' | 'reset'
 	size?: 'lg' | 'base' | 'sm'
 	link?: string
+	target?: '_blank' | '_self'
 	modal?: string
 	style?: 'primary' | 'secondary' | 'neutral' | 'white'
 	variation?: 'outline' | 'link'
@@ -17,6 +18,7 @@ const {
 	type = 'button',
 	size = 'base',
 	link,
+	target,
 	modal,
 	style = 'primary',
 	variation,
@@ -32,7 +34,7 @@ const {
 	type === 'link' || link ? (
 		<a
 			href={link}
-			target={link?.startsWith('http') ? '_blank' : '_self'}
+			target={target ?? (link?.startsWith('http') ? '_blank' : '_self')}
 			class:list={[
 				'button',
 				{ ['button--' + `${size}`]: size },
