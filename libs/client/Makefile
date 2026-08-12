@@ -70,8 +70,4 @@ serve:
 preview:
 	yarn vite preview
 
-publish:
-	$(MAKE) build-lib
-	npm publish
-
 check: lint
