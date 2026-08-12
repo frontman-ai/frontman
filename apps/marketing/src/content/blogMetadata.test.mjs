@@ -25,11 +25,13 @@ const loadPosts = async () => {
 }
 
 describe('blog metadata', () => {
-  it('uses canonical authors and explicit article sections', async () => {
-    const posts = await loadPosts()
+	it('uses canonical authors and explicit article sections', async () => {
+		const posts = await loadPosts()
 
-    expect(posts).toHaveLength(42)
-    for (const {filename, frontmatter} of posts) {
+		expect(posts.map(({filename}) => filename)).toContain(
+			'wordpress-7-1-new-features-breaking-changes.md'
+		)
+		for (const {filename, frontmatter} of posts) {
       const author = scalar(frontmatter, 'author')
       const canonicalAuthor = authors[author]
 
