@@ -15,6 +15,12 @@ frontman_runtime_assert( false !== $expected_wordpress_version, 'Expected WordPr
 frontman_runtime_assert( $expected_wordpress_version === get_bloginfo( 'version' ), 'Runtime WordPress version does not match the requested version.' );
 frontman_runtime_assert( defined( 'FRONTMAN_VERSION' ), 'Frontman plugin was not activated.' );
 frontman_runtime_assert( null !== Frontman_Tools::instance()->get( 'wp_list_navigation_menus' ), 'Plugin bootstrap did not register navigation tools during init.' );
+frontman_runtime_assert( home_url( '/index.php/frontman' ) === Frontman_UI::url( '/frontman' ), 'Plain permalink URL skipped the front controller.' );
+$http_context = stream_context_create( [ 'http' => [ 'ignore_errors' => true ] ] );
+file_get_contents( 'http://127.0.0.1/index.php/frontman/tools', false, $http_context );
+frontman_runtime_assert( false !== strpos( $http_response_header[0] ?? '', ' 401 ' ), 'Plain permalink API route did not reach Frontman.' );
+update_option( 'permalink_structure', '/index.php/%postname%/' );
+frontman_runtime_assert( home_url( '/index.php/frontman' ) === Frontman_UI::url( '/frontman' ), 'PATHINFO permalink URL skipped the front controller.' );
 
 $block_tool = new Frontman_Tool_Blocks();
 $content = '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Nested one</p><!-- /wp:paragraph --><!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Nested two</p><!-- /wp:paragraph --></div><!-- /wp:group --></div><!-- /wp:group --><!-- wp:paragraph --><p>Top level</p><!-- /wp:paragraph -->';

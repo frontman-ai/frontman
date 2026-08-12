@@ -20,6 +20,15 @@ let _getBasePath: unit => string = {
     }
 }
 
+let _getRoutePaths = () => {
+  try {
+    let routePrefix = WebAPI.URL.make(~url=Client__RelayBaseUrl.current()).pathname
+    (routePrefix, routePrefix->String.replace("/index.php", ""))
+  } catch {
+  | _ => ("", "")
+  }
+}
+
 let removeTrailingSlash = s =>
   switch s->String.endsWith("/") && String.length(s) > 1 {
   | true => s->String.slice(~start=0, ~end=String.length(s) - 1)
@@ -54,7 +63,9 @@ let stripSuffix = pathname => {
 let getInitialUrl = () => {
   let currentUrl =
     WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href->WebAPI.URL.make(~url=_)
-  let previewPath = WebAPI.Global.location.pathname->stripSuffix
+  let (routePrefix, sitePath) = _getRoutePaths()
+  let previewPath =
+    WebAPI.Global.location.pathname->stripSuffix->String.replace(routePrefix, sitePath)
   let default = `${currentUrl.protocol}//${currentUrl.host}${previewPath}`
 
   WebAPI.Global.document
@@ -98,11 +109,14 @@ let isSameOriginWithBase = (~baseUrl: string, ~targetUrl: string): bool => {
 }
 
 let syncBrowserUrl = (~previewUrl) => {
-  let basePath = _getBasePath()
-  let pathname = WebAPI.URL.make(~url=previewUrl).pathname->removeTrailingSlash
+  let (routePrefix, sitePath) = _getRoutePaths()
+  let pathname =
+    WebAPI.URL.make(~url=previewUrl).pathname
+    ->String.replace(sitePath, routePrefix)
+    ->removeTrailingSlash
   let newPath = switch pathname {
-  | "" | "/" => `/${basePath}/`
-  | p => `${p}/${basePath}/`
+  | "" | "/" => `/${_getBasePath()}/`
+  | path => `${path}/${_getBasePath()}/`
   }
   switch WebAPI.Global.location.pathname == newPath {
   | true => ()

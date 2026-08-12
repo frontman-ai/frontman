@@ -97,7 +97,7 @@ class Frontman_Router {
 
 		$canonical = $this->get_canonical_redirect( $suffix_prefix );
 		if ( $canonical !== null ) {
-			wp_safe_redirect( home_url( $canonical ), 302 );
+			wp_safe_redirect( Frontman_UI::url( $canonical ), 302 );
 			exit;
 		}
 
@@ -230,6 +230,12 @@ class Frontman_Router {
 			if ( strpos( $path, $home_path ) === 0 ) {
 				$path = substr( $path, strlen( $home_path ) );
 			}
+		}
+
+		if ( '/index.php' === $path ) {
+			$path = '/';
+		} elseif ( 0 === strpos( $path, '/index.php/' ) ) {
+			$path = substr( $path, strlen( '/index.php' ) );
 		}
 
 		$path = rtrim( $path, '/' );

@@ -58,6 +58,7 @@ class Frontman_Router_Test_Runner {
 		$this->test_prefix_api_routes_still_match();
 		$this->test_non_frontman_routes_are_ignored();
 		$this->test_request_path_preserves_percent_encoded_segments();
+		$this->test_request_path_strips_front_controller();
 		$this->test_tool_results_use_canonical_shape();
 		$this->test_sse_errors_use_result_event_format();
 
@@ -101,6 +102,18 @@ class Frontman_Router_Test_Runner {
 		try {
 			$path = $this->getRequestPath->invoke( $router );
 			$this->assert_same( '/caf%C3%A9/frontman', $path, 'request path should preserve percent-encoded URL bytes' );
+		} finally {
+			unset( $_SERVER['REQUEST_URI'] );
+		}
+	}
+
+	private function test_request_path_strips_front_controller(): void {
+		$router = ( new ReflectionClass( 'Frontman_Router' ) )->newInstanceWithoutConstructor();
+		$_SERVER['REQUEST_URI'] = '/blog/index.php/frontman/tools';
+
+		try {
+			$path = $this->getRequestPath->invoke( $router );
+			$this->assert_same( '/frontman/tools', $path, 'request path should strip the WordPress front controller' );
 		} finally {
 			unset( $_SERVER['REQUEST_URI'] );
 		}
