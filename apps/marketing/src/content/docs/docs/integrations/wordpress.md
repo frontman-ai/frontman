@@ -82,7 +82,7 @@ WordPress settings control revision creation and retention. A restore can create
 
 Do not retry a restore after a lost response. Read current CSS, compare it with the known prior and target fingerprints, inspect content if necessary, and ask the user what to do.
 
-This recovery flow has runtime coverage on WordPress 6.0.9 with PHP 7.4, WordPress 7.0.3 with PHP 7.4, and WordPress 7.0.3 with PHP 8.4. This matrix does not claim coverage for every intermediate version.
+This recovery flow has runtime coverage on WordPress 6.0.9 with PHP 7.4, WordPress 7.0.2 with PHP 7.4, and WordPress 7.0.2 with PHP 8.4. This matrix does not claim coverage for every intermediate version.
 
 ## Security
 

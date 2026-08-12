@@ -60,7 +60,7 @@ class Frontman_UI {
 		);
 
 		add_action( 'load-toplevel_page_frontman', function (): void {
-			wp_safe_redirect( $this->get_frontman_url() );
+			wp_safe_redirect( self::url( '/frontman' ) );
 			exit;
 		} );
 	}
@@ -102,12 +102,10 @@ class Frontman_UI {
 			$base_js_url
 		);
 
-		$frontman_url  = $this->get_frontman_url();
-		$frontman_path = wp_parse_url( $frontman_url, PHP_URL_PATH );
-		$runtime       = [
+		$runtime = [
 			'framework'    => 'wordpress',
-			'basePath'     => is_string( $frontman_path ) ? ltrim( $frontman_path, '/' ) : 'frontman',
-			'relayBaseUrl' => $this->get_relay_base_url(),
+			'basePath'     => 'frontman',
+			'relayBaseUrl' => self::url( '' ),
 			'wpNonce'      => Frontman_Auth::create_nonce(),
 		];
 
@@ -165,22 +163,12 @@ class Frontman_UI {
 	}
 
 	/**
-	 * Return the canonical base URL for Frontman relay requests.
+	 * Return a Frontman URL for the active permalink mode.
 	 */
-	private function get_relay_base_url(): string {
-		if ( '' === get_option( 'permalink_structure' ) ) {
-			return home_url( '/index.php' );
-		}
-
-		return home_url();
-	}
-
-	/**
-	 * Return the public Frontman entrypoint for the active permalink mode.
-	 */
-	private function get_frontman_url(): string {
-		$path = '' === get_option( 'permalink_structure' ) ? '/index.php/frontman' : '/frontman';
-		return home_url( $path );
+	public static function url( string $path ): string {
+		$permalink_structure = get_option( 'permalink_structure' );
+		$front_controller = '' === $permalink_structure || 0 === strpos( $permalink_structure, '/index.php' ) ? '/index.php' : '';
+		return home_url( $front_controller . $path );
 	}
 
 	/**

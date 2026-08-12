@@ -97,7 +97,7 @@ class Frontman_Router {
 
 		$canonical = $this->get_canonical_redirect( $suffix_prefix );
 		if ( $canonical !== null ) {
-			wp_safe_redirect( home_url( $canonical ), 302 );
+			wp_safe_redirect( Frontman_UI::url( $canonical ), 302 );
 			exit;
 		}
 

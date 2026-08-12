@@ -2,14 +2,14 @@
 
 ## Objective
 
-Verify Frontman against WordPress 7.0.3 and support WordPress 7 content models that
+Verify Frontman against WordPress 7.0.2 and support WordPress 7 content models that
 the current plugin misses: nested Gutenberg blocks and block-theme navigation.
 
 ## Commands
 
 - Unit tests: `make test-wordpress-core-tools`
 - WordPress runtime test: `bash scripts/test-wordpress-plugin-runtime.sh`
-- Package: `make package-wordpress-plugin VERSION=3.0.0`
+- Package: `make package-wordpress-plugin VERSION=1.4.0`
 
 ## Project Structure
 
@@ -30,7 +30,7 @@ indices continue to address visible top-level blocks; nested blocks use raw tree
 ## Testing Strategy
 
 - Unit tests prove recursive block addressing and navigation CRUD behavior.
-- Runtime tests activate packaged source in WordPress 7.0.3, exercise real block
+- Runtime tests activate packaged source in WordPress 7.0.2, exercise real block
   parsing/serialization and `wp_navigation` persistence, and fail on PHP notices.
 - CI runs runtime tests on PHP 7.4 and a current PHP 8 release.
 
@@ -46,7 +46,7 @@ indices continue to address visible top-level blocks; nested blocks use raw tree
 - Nested blocks are listed with paths and can be read, replaced, inserted, moved,
   and deleted without losing sibling/freeform content.
 - Block-theme navigation entities can be listed, read, created, updated, and deleted.
-- WordPress 7.0.3 runtime CI covers PHP 7.4 and PHP 8.x.
+- WordPress 7.0.2 runtime CI covers PHP 7.4 and PHP 8.x.
 - All PHP tests, runtime tests, packaging validation, and syntax checks pass.
 - WordPress.org metadata declares testing through WordPress 7.0.
 

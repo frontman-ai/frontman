@@ -164,8 +164,9 @@ module Provider = {
     }, [state])
 
     React.useEffect0(() => {
+      let baseUrl = Client__RelayBaseUrl.current()
+
       let runtimeConfig = RuntimeConfig.read()
-      let baseUrl = runtimeConfig.relayBaseUrl->Option.getOr(Client__RelayBaseUrl.current())
       let _meta = RuntimeConfig.toMeta(runtimeConfig)
       let relayHeaders = Dict.make()
       runtimeConfig.wpNonce->Option.forEach(nonce => relayHeaders->Dict.set("X-WP-Nonce", nonce))
