@@ -33,7 +33,7 @@ let frameworkDisplayName = (id: frameworkId): string =>
 type parsed = {
   framework: string,
   basePath: option<string>,
-  routePrefix: option<string>,
+  relayBaseUrl: option<string>,
   wpNonce: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
@@ -43,7 +43,7 @@ type parsed = {
 type t = {
   framework: frameworkId,
   basePath: string,
-  routePrefix: string,
+  relayBaseUrl: option<string>,
   wpNonce: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
@@ -64,7 +64,7 @@ let read = (): t => {
     | Some("") | None => "frontman"
     | Some(bp) => bp
     },
-    routePrefix: config.routePrefix->Option.getOr(""),
+    relayBaseUrl: config.relayBaseUrl,
     wpNonce: config.wpNonce,
     projectRoot: config.projectRoot,
     traits: config.traits,

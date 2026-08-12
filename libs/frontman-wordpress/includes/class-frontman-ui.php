@@ -102,12 +102,13 @@ class Frontman_UI {
 			$base_js_url
 		);
 
-		$route_prefix = $this->get_route_prefix();
-		$runtime      = [
-			'framework'   => 'wordpress',
-			'basePath'    => ltrim( $route_prefix . '/frontman', '/' ),
-			'routePrefix' => $route_prefix,
-			'wpNonce'     => Frontman_Auth::create_nonce(),
+		$frontman_url  = $this->get_frontman_url();
+		$frontman_path = wp_parse_url( $frontman_url, PHP_URL_PATH );
+		$runtime       = [
+			'framework'    => 'wordpress',
+			'basePath'     => is_string( $frontman_path ) ? ltrim( $frontman_path, '/' ) : 'frontman',
+			'relayBaseUrl' => $this->get_relay_base_url(),
+			'wpNonce'      => Frontman_Auth::create_nonce(),
 		];
 
 		$entrypoint_url = null;
@@ -135,7 +136,7 @@ class Frontman_UI {
 		hidden
 		data-framework="<?php echo esc_attr( $runtime['framework'] ); ?>"
 		data-base-path="<?php echo esc_attr( $runtime['basePath'] ); ?>"
-		data-route-prefix="<?php echo esc_attr( $runtime['routePrefix'] ); ?>"
+		data-relay-base-url="<?php echo esc_attr( $runtime['relayBaseUrl'] ); ?>"
 		data-wp-nonce="<?php echo esc_attr( $runtime['wpNonce'] ); ?>"
 	></div>
 	<?php if ( $entrypoint_url ) : ?>
@@ -164,17 +165,14 @@ class Frontman_UI {
 	}
 
 	/**
-	 * Return the path prefix needed to route requests through WordPress.
+	 * Return the canonical base URL for Frontman relay requests.
 	 */
-	private function get_route_prefix(): string {
-		$home_path = wp_parse_url( home_url(), PHP_URL_PATH );
-		$home_path = is_string( $home_path ) ? rtrim( $home_path, '/' ) : '';
-
+	private function get_relay_base_url(): string {
 		if ( '' === get_option( 'permalink_structure' ) ) {
-			return $home_path . '/index.php';
+			return home_url( '/index.php' );
 		}
 
-		return $home_path;
+		return home_url();
 	}
 
 	/**

@@ -11,30 +11,16 @@ let scopePrefixFromPathname = (pathname: string): option<string> => {
   }
 }
 
-let fromParts = (
-  ~protocol: string,
-  ~host: string,
-  ~pathname: string,
-  ~routePrefix: string="",
-): string => {
+let fromParts = (~protocol: string, ~host: string, ~pathname: string): string => {
   let origin = `${protocol}//${host}`
 
-  switch routePrefix {
-  | "" =>
-    switch scopePrefixFromPathname(pathname) {
-    | Some(prefix) => `${origin}${prefix}`
-    | None => origin
-    }
-  | prefix => `${origin}${prefix}`
+  switch scopePrefixFromPathname(pathname) {
+  | Some(prefix) => `${origin}${prefix}`
+  | None => origin
   }
 }
 
-let current = (~routePrefix: string=""): string => {
+let current = (): string => {
   let location = WebAPI.Global.location
-  fromParts(
-    ~protocol=location.protocol,
-    ~host=location.host,
-    ~pathname=location.pathname,
-    ~routePrefix,
-  )
+  fromParts(~protocol=location.protocol, ~host=location.host, ~pathname=location.pathname)
 }

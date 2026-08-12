@@ -81,7 +81,10 @@ frontman_runtime_assert(
 
 $plain_ui = frontman_runtime_http_request( '/index.php/frontman', $cookie );
 frontman_runtime_assert( 200 === $plain_ui['status'], 'Plain-permalink Frontman UI was not reachable.' );
-frontman_runtime_assert( false !== strpos( $plain_ui['body'], 'data-route-prefix="/index.php"' ), 'Plain-permalink UI did not expose its route prefix.' );
+frontman_runtime_assert(
+	false !== strpos( $plain_ui['body'], 'data-relay-base-url="' . esc_attr( home_url( '/index.php' ) ) . '"' ),
+	'Plain-permalink UI did not expose its relay base URL.'
+);
 preg_match( '/data-wp-nonce="([^"]+)"/', $plain_ui['body'], $nonce_matches );
 $nonce = $nonce_matches[1] ?? '';
 frontman_runtime_assert( '' !== $nonce, 'Plain-permalink UI did not expose a nonce.' );
@@ -149,7 +152,10 @@ frontman_runtime_assert(
 	200 === $pretty_ui['status'],
 	'Pretty-permalink Frontman UI regressed. Status: ' . $pretty_ui['status'] . ' Location: ' . frontman_runtime_location( $pretty_ui['headers'] )
 );
-frontman_runtime_assert( false !== strpos( $pretty_ui['body'], 'data-route-prefix=""' ), 'Pretty-permalink UI exposed an unexpected route prefix.' );
+frontman_runtime_assert(
+	false !== strpos( $pretty_ui['body'], 'data-relay-base-url="' . esc_attr( home_url() ) . '"' ),
+	'Pretty-permalink UI did not expose its relay base URL.'
+);
 
 $pretty_tools = frontman_runtime_http_request( '/frontman/tools', $cookie );
 frontman_runtime_assert( 200 === $pretty_tools['status'], 'Pretty-permalink tool discovery regressed.' );
