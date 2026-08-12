@@ -33,6 +33,8 @@ WordPress 7 is the largest core release since Gutenberg landed in WordPress 5.0.
 
 This post covers each breaking change, the fix for it, and what to do if the fix isn't feasible for your site right now.
 
+Looking for the next release? Read the separate [WordPress 7.1 new features, breaking changes, and upgrade checklist](/blog/wordpress-7-1-new-features-breaking-changes/). It tracks the August 19 release without replacing this WordPress 7 audit.
+
 ## What's actually changing in WordPress 7
 
 Before getting into the individual breaking changes, here's the scope. WordPress 7 touches:
