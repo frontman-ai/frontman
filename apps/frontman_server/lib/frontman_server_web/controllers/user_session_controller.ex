@@ -98,6 +98,10 @@ defmodule FrontmanServerWeb.UserSessionController do
     render(conn, :confirm_logout, return_to: params["return_to"])
   end
 
+  def popup_complete(conn, _params) do
+    render(conn, :popup_complete)
+  end
+
   def delete(conn, params) do
     conn
     |> put_flash(:info, "Logged out successfully.")

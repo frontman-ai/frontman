@@ -30,6 +30,10 @@ document.querySelectorAll("form[data-auto-submit]").forEach(form => {
   form.requestSubmit()
 })
 
+if (document.querySelector("[data-close-window]")) {
+  window.close()
+}
+
 window.liveSocket = liveSocket
 
 if (process.env.NODE_ENV === "development") {

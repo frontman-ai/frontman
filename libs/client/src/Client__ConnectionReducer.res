@@ -420,16 +420,19 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
 
           let frameworkParam = switch framework {
-          | Some(framework) =>
-            let separator = if String.includes(loginUrl, "?") {
-              "&"
-            } else {
-              "?"
-            }
-            `${separator}framework=${encodeURIComponent(framework)}`
+          | Some(framework) => `&framework=${encodeURIComponent(framework)}`
           | None => ""
           }
-          dispatch(ACPAuthRequiredReceived({loginUrl: `${loginUrl}${frameworkParam}`}))
+          let separator = if String.includes(loginUrl, "?") {
+            "&"
+          } else {
+            "?"
+          }
+          dispatch(
+            ACPAuthRequiredReceived({
+              loginUrl: `${loginUrl}${separator}return_to=/users/popup-complete${frameworkParam}`,
+            }),
+          )
         | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
         }
       }

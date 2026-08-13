@@ -92,6 +92,23 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
     end
   end
 
+  describe "GET /users/popup-complete" do
+    test "requires authentication", %{conn: conn} do
+      conn = get(conn, ~p"/users/popup-complete")
+      assert redirected_to(conn) == ~p"/users/log-in"
+    end
+
+    test "marks the authenticated login tab for closing and provides a fallback", %{
+      conn: conn,
+      user: user
+    } do
+      response = conn |> log_in_user(user) |> get(~p"/users/popup-complete") |> html_response(200)
+      assert response =~ "data-close-window"
+      assert response =~ "/assets/js/app.js"
+      assert response =~ "You may close this tab"
+    end
+  end
+
   describe "POST /users/log-in - email and password" do
     test "logs the user in", %{conn: conn, user: user} do
       user = set_password(user)
@@ -138,6 +155,19 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
     end
 
+    test "returns popup login to the completion page", %{conn: conn, user: user} do
+      user = set_password(user)
+
+      conn =
+        conn
+        |> get(~p"/users/log-in?return_to=/users/popup-complete")
+        |> post(~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
+    end
+
     test "emits error message with invalid credentials", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log-in?mode=password", %{
@@ -171,6 +201,17 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/"
+    end
+
+    test "returns popup magic-link login to the completion page", %{conn: conn, user: user} do
+      {token, _hashed_token} = generate_user_magic_link_token(user)
+
+      conn =
+        conn
+        |> init_test_session(user_return_to: "/users/popup-complete")
+        |> post(~p"/users/log-in", %{"user" => %{"token" => token}})
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
     end
 
     test "confirms unconfirmed user", %{conn: conn, unconfirmed_user: user} do
