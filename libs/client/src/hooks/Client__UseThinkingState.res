@@ -39,34 +39,10 @@ let isTurnEnded = (lastMessage: option<Message.t>): bool => {
 }
 
 /**
- * Check if the last message is currently streaming
- */
-let isLastMessageStreaming = (lastMessage: option<Message.t>): bool => {
-  switch lastMessage {
-  | Some(Message.Assistant(Streaming(_))) => true
-  | Some(Message.ToolCall({state: InputStreaming, _})) => true
-  | _ => false
-  }
-}
-
-/**
- * Check if the last message is a completed tool call that might need a response
- */
-let isAwaitingResponse = (lastMessage: option<Message.t>): bool => {
-  switch lastMessage {
-  | Some(Message.User(_)) => true
-  | Some(Message.ToolCall({state: OutputAvailable, _})) => true
-  | Some(Message.ToolCall({state: OutputError, _})) => false
-  | _ => false
-  }
-}
-
-/**
  * Main hook - determines thinking state based on all relevant factors
  */
 let use = (
   ~messages: array<Message.t>,
-  ~isStreaming as _: bool,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
   ~sessionInitialized: bool,
@@ -93,14 +69,12 @@ let use = (
  */
 let useWithMessageId = (
   ~messages: array<Message.t>,
-  ~isStreaming: bool,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
   ~sessionInitialized: bool,
 ): (thinkingState, string) => {
   let state = use(
     ~messages,
-    ~isStreaming,
     ~isAgentRunning,
     ~hasActiveACPSession,
     ~sessionInitialized,
