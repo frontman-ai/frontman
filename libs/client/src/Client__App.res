@@ -10,6 +10,7 @@ let make = (~apiBaseUrl: string) => {
     loadTask,
     deleteSession,
     authRedirectUrl,
+    beginAuthenticationRetry,
     _,
   } = Client__FrontmanProvider.useFrontman()
 
@@ -37,44 +38,16 @@ let make = (~apiBaseUrl: string) => {
   let (settingsOpen, setSettingsOpen) = React.useState(() => false)
   let (settingsInitialTab, setSettingsInitialTab) = React.useState(() => None)
 
-  let (ftueState, setFtueState) = React.useState(() => Client__FtueState.get())
-  let hasProviderConfigured = Client__State.useSelector(
-    Client__State.Selectors.hasAnyProviderConfigured,
+  let providerSetupRequired = Client__State.useSelector(
+    Client__State.Selectors.providerSetupRequired,
   )
-  let providerSettingsLoaded = Client__State.useSelector(
-    Client__State.Selectors.providerSettingsLoaded,
-  )
-  let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
-
-  React.useEffect(() => {
-    switch (connectionState, ftueState) {
-    | (Connected | SessionActive(_), Client__FtueState.WelcomeShown) =>
-      Client__FtueState.setCompleted()
-      setFtueState(_ => Client__FtueState.Completed)
-    | _ => ()
-    }
-    None
-  }, (connectionState, ftueState))
 
   let openSettingsProviders = () => {
     setSettingsInitialTab(_ => Some("providers"))
     setSettingsOpen(_ => true)
   }
 
-  let showNudge = switch (
-    ftueState,
-    sessionInitialized,
-    providerSettingsLoaded,
-    hasProviderConfigured,
-  ) {
-  | (Client__FtueState.Completed, true, true, false) => true
-  | _ => false
-  }
-  let showProviderSetupModal = showNudge && !settingsOpen
-
-  let handleProviderSetupCta = () => {
-    openSettingsProviders()
-  }
+  let showProviderSetupModal = providerSetupRequired && !settingsOpen
 
   let handleSettingsOpenChange = (value: bool) => {
     setSettingsOpen(_ => value)
@@ -89,11 +62,11 @@ let make = (~apiBaseUrl: string) => {
       open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
     />
     <Client__ProviderSetupModal
-      open_={showProviderSetupModal} onOpenSettings=handleProviderSetupCta
+      open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
     />
-    {switch (authRedirectUrl, ftueState) {
-    | (Some(loginUrl), Client__FtueState.New) => <Client__WelcomeModal loginUrl />
-    | _ => React.null
+    {switch authRedirectUrl {
+    | Some(loginUrl) => <Client__WelcomeModal loginUrl onSignIn=beginAuthenticationRetry />
+    | None => React.null
     }}
     <Client__TopBar
       chatboxWidth

@@ -112,22 +112,7 @@ export async function openFrontmanUI(
   const welcomeModal = page.locator('text=Welcome to Frontman!');
   const hasWelcome = await welcomeModal.isVisible().catch(() => false);
   if (hasWelcome) {
-    console.log("  [e2e] Welcome modal detected — clicking sign in");
-    const signInBtn = page.locator('button', { hasText: 'Sign in now' });
-    if (await signInBtn.isVisible().catch(() => false)) {
-      await signInBtn.click();
-    }
-    await page.waitForTimeout(5000);
-    if (page.url().includes("/users/log-in")) {
-      await login(page, { returnTo: frontmanUrl });
-      options.assertHealthy?.();
-      const welcomeResponse = await page.goto(frontmanUrl, {
-        waitUntil: "load",
-        timeout: 30_000,
-      });
-      options.assertHealthy?.();
-      await assertFrontmanRoute(page, welcomeResponse, frontmanUrl);
-    }
+    throw new Error("Frontman remained signed out after the E2E login setup");
   }
 
   if (page.url().includes("/users/log-in")) {

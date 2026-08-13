@@ -1359,6 +1359,26 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
 
     test(
+      "provider setup is required only for an initialized session with loaded empty settings",
+      t => {
+        let initializedState = {...Reducer.defaultState, sessionInitialized: true}
+        let loadingState = {
+          ...initializedState,
+          openrouterKeySettings: {source: Loading, saveStatus: Idle},
+        }
+        let configuredState = {
+          ...initializedState,
+          openrouterKeySettings: {source: UserOverride, saveStatus: Idle},
+        }
+
+        t->expect(Reducer.Selectors.providerSetupRequired(Reducer.defaultState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(loadingState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(configuredState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(initializedState))->Expect.toBe(true)
+      },
+    )
+
+    test(
       "updating an initialized ACP session preserves OAuth progress",
       t => {
         let authorizing: Client__State__Types.anthropicOAuthStatus = Authorizing({

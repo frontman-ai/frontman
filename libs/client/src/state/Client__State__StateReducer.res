@@ -446,6 +446,10 @@ module Selectors = {
 
     apiKeySettingsLoaded && oauthSettingsLoaded
   }
+
+  let providerSetupRequired = (state: state): bool => {
+    state.sessionInitialized && providerSettingsLoaded(state) && !hasAnyProviderConfigured(state)
+  }
 }
 
 let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
