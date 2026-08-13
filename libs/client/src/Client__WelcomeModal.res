@@ -2,7 +2,14 @@ module Dialog = Client__UI__Dialog
 module Button = Client__UI__Button
 
 @react.component
-let make = (~loginUrl: string) => {
+let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
+  let (waiting, setWaiting) = React.useState(() => false)
+
+  let handleSignIn = _ => {
+    setWaiting(_ => true)
+    onSignIn()
+  }
+
   <Dialog open_={true} onOpenChange={(_, _) => ()}>
     <Dialog.Content className="text-center" showCloseButton={false}>
       <Dialog.Header>
@@ -16,21 +23,26 @@ let make = (~loginUrl: string) => {
       </Dialog.Header>
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          {React.string("Sign in in a new tab, then return here.")}
+          {React.string(
+            switch waiting {
+            | true => "Waiting for sign-in to complete..."
+            | false => "Sign in in a new tab. Frontman will connect automatically."
+            },
+          )}
         </p>
         <a
           href={loginUrl}
           target="_blank"
           rel="noopener noreferrer"
           className={Button.buttonVariants(~variant=Button.Variant.Secondary)}
+          onClick=handleSignIn
         >
-          {React.string("Sign in")}
-        </a>
-        <a
-          href={WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href}
-          className={Button.buttonVariants(~variant=Button.Variant.Secondary)}
-        >
-          {React.string("I've signed in")}
+          {React.string(
+            switch waiting {
+            | true => "Open sign-in again"
+            | false => "Sign in"
+            },
+          )}
         </a>
       </div>
     </Dialog.Content>

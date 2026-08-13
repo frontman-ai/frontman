@@ -223,8 +223,14 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
     }
 
     switch (joinResult, checkAborted(signal)) {
-    | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
-    | (Error(e), _) => Error(e)
+    | (_, Error(_)) =>
+      cleanupChannel(channel)
+      Socket.disconnect(socket)
+      Error(ConnectionFailed("Connection aborted"))
+    | (Error(e), _) =>
+      cleanupChannel(channel)
+      Socket.disconnect(socket)
+      Error(e)
     | (Ok(), Ok()) =>
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>

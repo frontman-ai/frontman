@@ -42,6 +42,9 @@ type sessionState =
 
 type state = {
   acp: acpState,
+  acpConfig: option<ACP.config>,
+  authRetryActive: bool,
+  authRetryInFlight: bool,
   relay: relayState,
   session: sessionState,
   relayInstance: option<Relay.t>,
@@ -91,6 +94,8 @@ type createSessionRequest = {
 
 type action =
   | Initialize(initPayload)
+  | BeginAuthenticationRetry
+  | RetryAuthentication
   | ACPConnectSuccess(ACP.connection)
   | ACPAuthRequiredReceived(authRequiredPayload)
   | ACPConnectError(string)
@@ -117,6 +122,7 @@ type effect =
   | LogInfo(string)
   | TrackRelay(Client__Heap.relayOutcome)
   | ConnectACP({config: ACP.config, signal: WebAPI.EventAPI.abortSignal})
+  | ScheduleAuthRetry({signal: WebAPI.EventAPI.abortSignal})
   | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
   | CreateSessionEffect({
       connection: ACP.connection,
@@ -144,6 +150,9 @@ type effect =
 
 let initialState: state = {
   acp: ACPDisconnected,
+  acpConfig: None,
+  authRetryActive: false,
+  authRetryInFlight: false,
   relay: RelayDisconnected,
   session: NoSession,
   relayInstance: None,
@@ -216,6 +225,9 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     (
       {
         acp: ACPConnecting,
+        acpConfig: Some(acpConfig),
+        authRetryActive: false,
+        authRetryInFlight: false,
         relay: RelayConnecting,
         session: NoSession,
         relayInstance: Some(relay),
@@ -232,18 +244,73 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | ({acp: ACPConnecting}, ACPConnectSuccess(conn)) => (
-      {...state, acp: ACPConnected(conn)},
+      {
+        ...state,
+        acp: ACPConnected(conn),
+        authRetryActive: false,
+        authRetryInFlight: false,
+      },
       [FetchSessionsEffect(conn)],
     )
 
-  | ({acp: ACPConnecting}, ACPAuthRequiredReceived({loginUrl})) => (
-      {...state, acp: ACPAuthRequired({loginUrl: loginUrl})},
-      [],
+  | (
+      {acp: ACPAuthRequired(_), authRetryActive: true, authRetryInFlight: true},
+      ACPConnectSuccess(conn),
+    ) => (
+      {
+        ...state,
+        acp: ACPConnected(conn),
+        authRetryActive: false,
+        authRetryInFlight: false,
+      },
+      [FetchSessionsEffect(conn)],
     )
 
+  | (
+      {acp: ACPConnecting | ACPAuthRequired(_), authRetryActive},
+      ACPAuthRequiredReceived({loginUrl}),
+    ) => {
+      let effects = switch (authRetryActive, state.abortController) {
+      | (true, Some(signalController)) => [ScheduleAuthRetry({signal: signalController.signal})]
+      | _ => []
+      }
+      ({...state, acp: ACPAuthRequired({loginUrl: loginUrl}), authRetryInFlight: false}, effects)
+    }
+
+  | (
+      {
+        acp: ACPAuthRequired(_),
+        acpConfig: Some(config),
+        abortController: Some(signalController),
+        authRetryInFlight: false,
+      },
+      BeginAuthenticationRetry | RetryAuthentication,
+    ) => (
+      {...state, authRetryActive: true, authRetryInFlight: true},
+      [ConnectACP({config, signal: signalController.signal})],
+    )
+
+  | (_, BeginAuthenticationRetry | RetryAuthentication) => (state, [])
+
   | ({acp: ACPConnecting}, ACPConnectError(msg)) => (
-      {...state, acp: ACPError(msg)},
+      {...state, acp: ACPError(msg), authRetryActive: false, authRetryInFlight: false},
       [LogError(`ACP connect failed: ${msg}`)],
+    )
+
+  | (
+      {
+        acp: ACPAuthRequired(_),
+        authRetryActive: true,
+        authRetryInFlight: true,
+        abortController: Some(signalController),
+      },
+      ACPConnectError(msg),
+    ) => (
+      {...state, authRetryInFlight: false},
+      [
+        LogInfo(`ACP auth retry failed: ${msg}`),
+        ScheduleAuthRetry({signal: signalController.signal}),
+      ],
     )
 
   | ({relay: RelayConnecting}, RelayConnectSuccess) => (
@@ -439,6 +506,13 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       }
     }
     connect()->ignore
+  | ScheduleAuthRetry({signal}) =>
+    let _ = WebAPI.Global.setTimeout(~timeout=2000, ~handler=() => {
+      switch signal.aborted {
+      | true => ()
+      | false => dispatch(RetryAuthentication)
+      }
+    })
   | ConnectRelay(relay, signal) =>
     let connect = async () => {
       let result = await Relay.connect(relay, ~signal)

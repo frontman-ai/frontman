@@ -32,6 +32,13 @@ let hasConnectRelay = effects =>
     | _ => false
     }
   )
+let hasScheduleAuthRetry = effects =>
+  hasEffect(effects, e =>
+    switch e {
+    | Reducer.ScheduleAuthRetry(_) => true
+    | _ => false
+    }
+  )
 let trackedOutcomes = effects =>
   effects->Array.filterMap(e =>
     switch e {
@@ -141,6 +148,114 @@ describe("Connection Reducer", () => {
         )
 
         t->expect(hasLogInfo(effects))->Expect.toBe(true)
+      },
+    )
+  })
+
+  describe("Authentication Retry", () => {
+    test(
+      "auth required waits for the user to open sign-in",
+      t => {
+        let state = {...Reducer.initialState, acp: ACPConnecting}
+        let (nextState, effects) = Reducer.reduce(
+          state,
+          ACPAuthRequiredReceived({loginUrl: "https://app.frontman.sh/users/log-in"}),
+        )
+
+        t
+        ->expect(Reducer.Selectors.getAuthRedirectUrl(nextState))
+        ->Expect.toBe(Some("https://app.frontman.sh/users/log-in"))
+        t->expect(hasScheduleAuthRetry(effects))->Expect.toBe(false)
+      },
+    )
+
+    test(
+      "opening sign-in reconnects ACP without reconnecting relay",
+      t => {
+        let acpConfig = Obj.magic({"endpoint": "ws://test"})
+        let state = {
+          ...Reducer.initialState,
+          acp: ACPAuthRequired({loginUrl: "https://app.frontman.sh/users/log-in"}),
+          acpConfig: Some(acpConfig),
+          abortController: Some(WebAPI.AbortController.make()),
+          relay: RelayConnected,
+        }
+        let (nextState, effects) = Reducer.reduce(state, BeginAuthenticationRetry)
+
+        t->expect(nextState.acp)->Expect.toEqual(state.acp)
+        t->expect(nextState.authRetryActive)->Expect.toBe(true)
+        t->expect(nextState.authRetryInFlight)->Expect.toBe(true)
+        t->expect(nextState.relay)->Expect.toBe(RelayConnected)
+        t->expect(hasConnectACP(effects))->Expect.toBe(true)
+        t->expect(hasConnectRelay(effects))->Expect.toBe(false)
+      },
+    )
+
+    test(
+      "failed automatic authentication schedules another retry",
+      t => {
+        let state = {
+          ...Reducer.initialState,
+          acp: ACPConnecting,
+          authRetryActive: true,
+          authRetryInFlight: true,
+          abortController: Some(WebAPI.AbortController.make()),
+        }
+        let (nextState, effects) = Reducer.reduce(
+          state,
+          ACPAuthRequiredReceived({loginUrl: "https://app.frontman.sh/users/log-in"}),
+        )
+
+        t->expect(nextState.authRetryActive)->Expect.toBe(true)
+        t->expect(nextState.authRetryInFlight)->Expect.toBe(false)
+        t->expect(hasScheduleAuthRetry(effects))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "duplicate retry is ignored while authentication is in flight",
+      t => {
+        let state = {
+          ...Reducer.initialState,
+          acp: ACPAuthRequired({loginUrl: "https://app.frontman.sh/users/log-in"}),
+          acpConfig: Some(Obj.magic({"endpoint": "ws://test"})),
+          abortController: Some(WebAPI.AbortController.make()),
+          authRetryActive: true,
+          authRetryInFlight: true,
+        }
+        let (_, effects) = Reducer.reduce(state, RetryAuthentication)
+
+        t->expect(hasConnectACP(effects))->Expect.toBe(false)
+      },
+    )
+
+    test(
+      "transient connection failure keeps automatic authentication active",
+      t => {
+        let state = {
+          ...Reducer.initialState,
+          acp: ACPAuthRequired({loginUrl: "https://app.frontman.sh/users/log-in"}),
+          authRetryActive: true,
+          authRetryInFlight: true,
+          abortController: Some(WebAPI.AbortController.make()),
+        }
+        let (nextState, effects) = Reducer.reduce(state, ACPConnectError("Network unavailable"))
+
+        t->expect(nextState.acp)->Expect.toEqual(state.acp)
+        t->expect(nextState.authRetryActive)->Expect.toBe(true)
+        t->expect(nextState.authRetryInFlight)->Expect.toBe(false)
+        t->expect(hasScheduleAuthRetry(effects))->Expect.toBe(true)
+      },
+    )
+
+    test(
+      "stale automatic retry is ignored after authentication succeeds",
+      t => {
+        let state = {...Reducer.initialState, acp: ACPConnected(Obj.magic({"id": "connection"}))}
+        let (nextState, effects) = Reducer.reduce(state, RetryAuthentication)
+
+        t->expect(nextState.acp)->Expect.toBe(state.acp)
+        t->expect(hasConnectACP(effects))->Expect.toBe(false)
       },
     )
   })

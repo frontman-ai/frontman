@@ -95,6 +95,7 @@ type contextValue = {
   session: option<ACP.session>,
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
+  beginAuthenticationRetry: unit => unit,
   createSession: (~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
   sendPrompt: (
@@ -114,6 +115,7 @@ let defaultContextValue: contextValue = {
   session: None,
   relay: None,
   authRedirectUrl: None,
+  beginAuthenticationRetry: () => (),
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
@@ -387,12 +389,16 @@ module Provider = {
     }, [dispatch])
 
     let authRedirectUrl = Reducer.Selectors.getAuthRedirectUrl(state)
+    let beginAuthenticationRetry = React.useCallback1(() => {
+      dispatch(BeginAuthenticationRetry)
+    }, [dispatch])
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,
       authRedirectUrl,
+      beginAuthenticationRetry,
       createSession,
       clearSession,
       sendPrompt,

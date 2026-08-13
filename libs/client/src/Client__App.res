@@ -10,6 +10,7 @@ let make = (~apiBaseUrl: string) => {
     loadTask,
     deleteSession,
     authRedirectUrl,
+    beginAuthenticationRetry,
     _,
   } = Client__FrontmanProvider.useFrontman()
 
@@ -64,7 +65,7 @@ let make = (~apiBaseUrl: string) => {
       open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
     />
     {switch authRedirectUrl {
-    | Some(loginUrl) => <Client__WelcomeModal loginUrl />
+    | Some(loginUrl) => <Client__WelcomeModal loginUrl onSignIn=beginAuthenticationRetry />
     | None => React.null
     }}
     <Client__TopBar
