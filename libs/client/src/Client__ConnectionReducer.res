@@ -44,7 +44,6 @@ type state = {
   acp: acpState,
   relay: relayState,
   session: sessionState,
-  initialAuthBehavior: Client__FtueState.authBehavior,
   relayInstance: option<Relay.t>,
   mcpServer: option<MCPServer.t>,
   abortController: option<WebAPI.EventAPI.abortController>,
@@ -52,8 +51,6 @@ type state = {
 
 @schema
 type clientInfoMeta = {framework: option<string>}
-
-@val external encodeURIComponent: string => string = "encodeURIComponent"
 
 let frameworkFromClientInfoMeta = (meta: JSON.t): option<string> =>
   S.parseOrThrow(meta, ~to=clientInfoMetaSchema).framework
@@ -108,11 +105,7 @@ type effect =
   | LogError(string)
   | LogInfo(string)
   | TrackRelay(Client__Heap.relayOutcome)
-  | ConnectACP({
-      config: ACP.config,
-      signal: WebAPI.EventAPI.abortSignal,
-      initialAuthBehavior: Client__FtueState.authBehavior,
-    })
+  | ConnectACP({config: ACP.config, signal: WebAPI.EventAPI.abortSignal})
   | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
   | CreateSessionEffect({
       connection: ACP.connection,
@@ -142,7 +135,6 @@ let initialState: state = {
   acp: ACPDisconnected,
   relay: RelayDisconnected,
   session: NoSession,
-  initialAuthBehavior: Client__FtueState.RedirectToLogin,
   relayInstance: None,
   mcpServer: None,
   abortController: None,
@@ -215,7 +207,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         acp: ACPConnecting,
         relay: RelayConnecting,
         session: NoSession,
-        initialAuthBehavior: state.initialAuthBehavior,
         relayInstance: Some(relay),
         mcpServer: Some(mcpServer),
         abortController: Some(abortController),
@@ -224,7 +215,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         ConnectACP({
           config: acpConfig,
           signal: abortController.signal,
-          initialAuthBehavior: state.initialAuthBehavior,
         }),
         ConnectRelay(relay, abortController.signal),
       ],
@@ -407,7 +397,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LogInfo(msg) => Log.info(msg)
   | TrackRelay(outcome) => Client__Heap.trackRelayConnection(outcome)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
-  | ConnectACP({config, signal, initialAuthBehavior}) =>
+  | ConnectACP({config, signal}) =>
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
       switch (signal.aborted, result) {
@@ -427,32 +417,19 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | (false, Error(err)) =>
         switch err {
         | ACP.AuthRequired({loginUrl}) =>
-          let currentUrl = Client__HostNavigation.currentUrl()
-          let returnTo = encodeURIComponent(currentUrl)
           let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
 
           let frameworkParam = switch framework {
-          | Some(framework) => `&framework=${encodeURIComponent(framework)}`
+          | Some(framework) =>
+            let separator = if String.includes(loginUrl, "?") {
+              "&"
+            } else {
+              "?"
+            }
+            `${separator}framework=${encodeURIComponent(framework)}`
           | None => ""
           }
-
-          let separator = switch String.includes(loginUrl, "?") {
-          | true => "&"
-          | false => "?"
-          }
-          let fullUrl = `${loginUrl}${separator}return_to=${returnTo}${frameworkParam}`
-          switch initialAuthBehavior {
-          | Client__FtueState.ShowWelcomeModal =>
-            dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
-          | Client__FtueState.RedirectToLogin =>
-            switch Client__HostNavigation.useTopWindow(
-              ~currentWindow=WebAPI.Global.window,
-              ~topWindow=WebAPI.Global.top,
-            ) {
-            | true => dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
-            | false => Client__HostNavigation.assign(~url=fullUrl)
-            }
-          }
+          dispatch(ACPAuthRequiredReceived({loginUrl: `${loginUrl}${frameworkParam}`}))
         | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
         }
       }

@@ -48,7 +48,7 @@ let make = (~apiBaseUrl: string) => {
 
   React.useEffect(() => {
     switch (connectionState, ftueState) {
-    | (Connected | SessionActive(_), Client__FtueState.WelcomeShown) =>
+    | (Connected | SessionActive(_), Client__FtueState.New) =>
       Client__FtueState.setCompleted()
       setFtueState(_ => Client__FtueState.Completed)
     | _ => ()
@@ -92,8 +92,7 @@ let make = (~apiBaseUrl: string) => {
       open_={showProviderSetupModal} onOpenSettings=handleProviderSetupCta
     />
     {switch authRedirectUrl {
-    | Some(loginUrl) =>
-      <Client__WelcomeModal loginUrl markWelcomeShown={ftueState === Client__FtueState.New} />
+    | Some(loginUrl) => <Client__WelcomeModal loginUrl />
     | None => React.null
     }}
     <Client__TopBar

@@ -1,7 +1,6 @@
 open Vitest
 
 module Reducer = Client__ConnectionReducer
-module FtueState = Client__FtueState
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 let hasEffect = (effects, predicate) => effects->Array.some(predicate)
@@ -40,14 +39,6 @@ let trackedOutcomes = effects =>
     | _ => None
     }
   )
-let getConnectACPInitialAuthBehavior = effects =>
-  effects->Array.findMap(e =>
-    switch e {
-    | Reducer.ConnectACP({initialAuthBehavior}) => Some(initialAuthBehavior)
-    | _ => None
-    }
-  )
-
 describe("Connection Reducer", () => {
   describe("Initial State", () => {
     test(
@@ -82,7 +73,7 @@ describe("Connection Reducer", () => {
           _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
         }
         let (nextState, effects) = Reducer.reduce(
-          {...Reducer.initialState, initialAuthBehavior: FtueState.ShowWelcomeModal},
+          Reducer.initialState,
           Initialize({config: mockConfig, relay: mockRelay, mcpServer: mockServer}),
         )
 
@@ -92,9 +83,6 @@ describe("Connection Reducer", () => {
         t->expect(Option.isSome(nextState.relayInstance))->Expect.toBe(true)
         t->expect(Option.isSome(nextState.mcpServer))->Expect.toBe(true)
         t->expect(hasConnectACP(effects))->Expect.toBe(true)
-        t
-        ->expect(getConnectACPInitialAuthBehavior(effects))
-        ->Expect.toBe(Some(FtueState.ShowWelcomeModal))
         t->expect(hasConnectRelay(effects))->Expect.toBe(true)
       },
     )

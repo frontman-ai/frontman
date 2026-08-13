@@ -2,12 +2,7 @@ let storageKey = "frontman:ftue_state"
 
 type t =
   | New
-  | WelcomeShown
   | Completed
-
-type authBehavior =
-  | ShowWelcomeModal
-  | RedirectToLogin
 
 let hasExistingFrontmanData = (): bool => {
   try {
@@ -32,7 +27,7 @@ let hasExistingFrontmanData = (): bool => {
 let get = (): t => {
   try {
     switch FrontmanBindings.LocalStorage.getItem(storageKey)->Nullable.toOption {
-    | Some("welcome_shown") => WelcomeShown
+    | Some("welcome_shown") => New
     | Some("completed") => Completed
     | Some(_) | None =>
       switch hasExistingFrontmanData() {
@@ -45,17 +40,6 @@ let get = (): t => {
   } catch {
   | _ => New
   }
-}
-
-let getAuthBehavior = (): authBehavior => {
-  switch get() {
-  | New => ShowWelcomeModal
-  | WelcomeShown | Completed => RedirectToLogin
-  }
-}
-
-let setWelcomeShown = () => {
-  FrontmanBindings.LocalStorage.setItem(storageKey, "welcome_shown")
 }
 
 let setCompleted = () => {

@@ -124,9 +124,6 @@ external top: t => Null.t<t> = "top"
 @get
 external opener: t => JSON.t = "opener"
 
-@set
-external setOpener: (t, Nullable.t<t>) => unit = "opener"
-
 /**
     Refers to either the parent WindowProxy, or itself.
 
@@ -399,8 +396,7 @@ external focus: t => unit = "focus"
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Window/open)
 */
 @send
-external open_: (t, ~url: string=?, ~target: string=?, ~features: string=?) => Nullable.t<t> =
-  "open"
+external open_: (t, ~url: string=?, ~target: string=?, ~features: string=?) => t = "open"
 
 /**
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Window/alert)

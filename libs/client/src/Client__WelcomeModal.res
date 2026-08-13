@@ -1,49 +1,8 @@
 module Dialog = Client__UI__Dialog
 module Button = Client__UI__Button
 
-let redirectDelaySec = 4
-
 @react.component
-let make = (~loginUrl: string, ~markWelcomeShown: bool) => {
-  let embedded = Client__HostNavigation.useTopWindow(
-    ~currentWindow=WebAPI.Global.window,
-    ~topWindow=WebAPI.Global.top,
-  )
-  let (countdown, setCountdown) = React.useState(() => redirectDelaySec)
-  let (popupBlocked, setPopupBlocked) = React.useState(() => false)
-
-  React.useEffect0(() => {
-    switch markWelcomeShown {
-    | true => Client__FtueState.setWelcomeShown()
-    | false => ()
-    }
-    None
-  })
-
-  React.useEffect0(() =>
-    switch embedded {
-    | true => None
-    | false =>
-      let intervalId = ref(None)
-      let id = WebAPI.Global.setInterval2(~handler=() => {
-        setCountdown(
-          prev => {
-            let next = prev - 1
-            switch next <= 0 {
-            | true =>
-              intervalId.contents->Option.forEach(WebAPI.Global.clearInterval)
-              Client__HostNavigation.assign(~url=loginUrl)
-            | false => ()
-            }
-            next
-          },
-        )
-      }, ~timeout=1000)
-      intervalId := Some(id)
-      Some(() => WebAPI.Global.clearInterval(id))
-    }
-  )
-
+let make = (~loginUrl: string) => {
   <Dialog open_={true} onOpenChange={(_, _) => ()}>
     <Dialog.Content className="text-center" showCloseButton={false}>
       <Dialog.Header>
@@ -57,31 +16,21 @@ let make = (~loginUrl: string, ~markWelcomeShown: bool) => {
       </Dialog.Header>
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          {React.string(
-            switch embedded {
-            | true => "Sign in opens in a new tab. Continue there, then return to this page."
-            | false =>
-              `Redirecting to sign in in ${Int.toString(
-                  Int.fromFloat(Math.max(Int.toFloat(countdown), 0.0)),
-                )}s...`
-            },
-          )}
+          {React.string("Sign in in a new tab, then return here.")}
         </p>
-        {switch popupBlocked {
-        | true =>
-          <p className="text-xs text-destructive" role="alert">
-            {React.string("Your browser blocked the sign-in tab. Allow popups and try again.")}
-          </p>
-        | false => React.null
-        }}
+        <a
+          href={loginUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={Button.buttonVariants(~variant=Button.Variant.Secondary)}
+        >
+          {React.string("Sign in")}
+        </a>
         <Button
           variant=Button.Variant.Secondary
-          onClick={_ => {
-            let opened = Client__HostNavigation.openLogin(~url=loginUrl)
-            setPopupBlocked(_ => !opened)
-          }}
+          onClick={_ => WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.reload}
         >
-          {React.string("Sign in now")}
+          {React.string("I've signed in")}
         </Button>
       </div>
     </Dialog.Content>

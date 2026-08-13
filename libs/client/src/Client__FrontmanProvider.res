@@ -151,11 +151,7 @@ module Provider = {
       Log.debug(~ctx={"payload": payload}, `MCP ${arrow}`)
     })
 
-    let initialConnectionState = {
-      ...Reducer.initialState,
-      initialAuthBehavior: Client__FtueState.getAuthBehavior(),
-    }
-    let (state, dispatch) = StateReducer.useReducer(module(Reducer), initialConnectionState)
+    let (state, dispatch) = StateReducer.useReducer(module(Reducer), Reducer.initialState)
     let connectionStateRef = React.useRef(state)
 
     React.useEffect(() => {
