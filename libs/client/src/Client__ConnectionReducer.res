@@ -444,7 +444,14 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           switch initialAuthBehavior {
           | Client__FtueState.ShowWelcomeModal =>
             dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
-          | Client__FtueState.RedirectToLogin => Client__HostNavigation.assign(~url=fullUrl)
+          | Client__FtueState.RedirectToLogin =>
+            switch Client__HostNavigation.useTopWindow(
+              ~currentWindow=WebAPI.Global.window,
+              ~topWindow=WebAPI.Global.top,
+            ) {
+            | true => dispatch(ACPAuthRequiredReceived({loginUrl: fullUrl}))
+            | false => Client__HostNavigation.assign(~url=fullUrl)
+            }
           }
         | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
         }

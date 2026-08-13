@@ -91,9 +91,10 @@ let make = (~apiBaseUrl: string) => {
     <Client__ProviderSetupModal
       open_={showProviderSetupModal} onOpenSettings=handleProviderSetupCta
     />
-    {switch (authRedirectUrl, ftueState) {
-    | (Some(loginUrl), Client__FtueState.New) => <Client__WelcomeModal loginUrl />
-    | _ => React.null
+    {switch authRedirectUrl {
+    | Some(loginUrl) =>
+      <Client__WelcomeModal loginUrl markWelcomeShown={ftueState === Client__FtueState.New} />
+    | None => React.null
     }}
     <Client__TopBar
       chatboxWidth

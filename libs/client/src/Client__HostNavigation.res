@@ -1,6 +1,18 @@
 let useTopWindow = (~currentWindow: WebAPI.DOMAPI.window, ~topWindow: WebAPI.DOMAPI.window): bool =>
   currentWindow !== topWindow
 
+type loginNavigation =
+  | CurrentWindow
+  | NewWindow
+
+let loginNavigation = (~currentWindow: WebAPI.DOMAPI.window, ~topWindow: WebAPI.DOMAPI.window) =>
+  switch useTopWindow(~currentWindow, ~topWindow) {
+  | true => NewWindow
+  | false => CurrentWindow
+  }
+
+let popupOpened = popup => popup->Nullable.toOption->Option.isSome
+
 let returnUrl = (~currentUrl: string, ~topUrl: option<string>, ~useTopWindow: bool): string =>
   switch (useTopWindow, topUrl) {
   | (true, Some(url)) => url
@@ -40,5 +52,25 @@ let assign = (~url: string) => {
     | _ => currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
     }
   | false => currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
+  }
+}
+
+let openLogin = (~url: string): bool => {
+  let currentWindow = WebAPI.Global.window
+
+  switch loginNavigation(~currentWindow, ~topWindow=WebAPI.Global.top) {
+  | CurrentWindow =>
+    currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
+    true
+  | NewWindow =>
+    let popup =
+      currentWindow->WebAPI.Window.open_(~url="about:blank", ~target="_blank", ~features="")
+    switch popup->Nullable.toOption {
+    | Some(loginWindow) =>
+      loginWindow->WebAPI.Window.setOpener(Nullable.null)
+      loginWindow->WebAPI.Window.location->WebAPI.Location.replace(url)
+      true
+    | None => false
+    }
   }
 }
