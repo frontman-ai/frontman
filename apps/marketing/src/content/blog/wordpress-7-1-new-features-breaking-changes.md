@@ -92,6 +92,7 @@ Custom admin screens should be tested with keyboard navigation and visible focus
 | Client-side media processing | Media, CDN, optimization, watermark, and upload plugins | Formats, custom sizes, metadata hooks, CSP, fallback browsers |
 | Responsive block styles | Themes and builders with their own breakpoint systems | Desktop, tablet, mobile, Global Styles, per-block overrides |
 | Persistent toolbar | Plugins adding admin-bar nodes | Post Editor, Site Editor, Distraction Free mode |
+| Editor component removals and sizing | Plugins using `@wordpress/components` | Removed imports, form layouts, Emotion-based styling |
 | Abilities API changes | Plugins exposing or consuming WordPress abilities | Discovery, schemas, validation, permissions, auditing |
 
 ### Confirmed Change: The Post Editor Is Always Iframed
@@ -107,6 +108,12 @@ Most blocks already work. Treat this as a targeted compatibility test, not proof
 WordPress 7.1 updates jQuery UI from 1.13.3 to 1.14.2. WordPress enables the back-compat layer for the jQuery 1.11 API, but jQuery UI removed `$.fn._form`, `$.ui.ie`, `$.ui.safeActiveElement`, and `$.ui.safeBlur`.
 
 Core does not use those functions. Old plugins or custom admin code might. Search the codebase for those names and test interactive admin components. The [jQuery UI update note](https://make.wordpress.org/core/2026/07/29/jquery-ui-updated-to-1-14-2-in-wordpress-7-1/) identifies the removed APIs.
+
+### Confirmed Change: Editor Components Remove Deprecated APIs
+
+WordPress 7.1 removes the deprecated `Navigation` component and its subcomponents from `@wordpress/components`; use `Navigator` instead. It also removes `__experimentalApplyValueToSides`. Form controls covered by the component library now use a 40px default height unconditionally, and the old `__next40pxDefaultSize` opt-in no longer changes runtime behavior.
+
+Plugins using Emotion-specific styling need another targeted check. The `css` prop on `View` remains accepted for type compatibility but is now a no-op. Use `style` or `className`, and review source-order-dependent fragments passed separately through `cx()`. The official [editor components update](https://make.wordpress.org/core/2026/07/23/editor-components-updates-in-wordpress-7-1/) lists affected controls and primitives.
 
 ### Test Risk: Media Hooks and Security Headers
 
@@ -159,6 +166,8 @@ After the upgrade passes, keep the first production change small and reviewable.
 - Test custom image sizes, media metadata hooks, format conversion, and CSP.
 - Review responsive Global Styles and custom breakpoint behavior.
 - Test toolbar nodes in both Post and Site Editors.
+- Replace removed `@wordpress/components` `Navigation` imports with `Navigator`, remove `__experimentalApplyValueToSides`, and test layouts with 40px form controls.
+- Replace Emotion styling that relies on `View`'s now-inert `css` prop and review `cx()` composition.
 - Review Abilities API schemas, validation, permissions, and invocation logging.
 - Update the WordPress.org `Tested up to` value only after completing compatibility tests.
 
@@ -174,22 +183,23 @@ Frontman currently uses its own reviewed WordPress tool workflow. This article d
 
 ## Frontman's Pre-Test WordPress 7.1 Assessment
 
-Frontman 3.0.0 supports WordPress 6.0 or newer, requires PHP 7.4 or newer, and is tested through WordPress 7.0.2. It has not passed its runtime suite against WordPress 7.1. The table below is an architectural assessment, not a compatibility result.
+Frontman 3.0.0 supports WordPress 6.0 or newer and requires PHP 7.4 or newer. The WordPress.org directory lists it as tested through WordPress 7.0.4, while Frontman's automated runtime suite currently covers WordPress 7.0.2. It has not passed that suite against WordPress 7.1. The table below is an architectural assessment, not a compatibility result.
 
 | WordPress 7.1 area | Frontman relationship | Current boundary |
 |---|---|---|
 | Responsive block styles and custom viewports | Expected to preserve block attributes; 7.1 fixture test pending | Frontman has no dedicated Global Styles or `theme.json` breakpoint editor |
 | Pseudo states, gradients, minimum width, and text shadow | Expected to preserve block markup; 7.1 fixture test pending | Additional CSS is supported, but 7.1 style-state controls are not |
-| Client-side media processing | Separate server-side Media Library workflow | Does not use the new browser-side WASM pipeline |
+| Client-side media processing | Separate server-side attachment and metadata workflow | Bypasses the new browser-side WASM pipeline but still uses WordPress image generation, registered sizes, and metadata hooks |
 | Notes and @mentions | Not integrated | Frontman has its own conversation and review workflow |
 | Revisions | Direct support for Additional CSS revisions | No general post-revision browser |
-| Persistent toolbar and editor iframe | Low direct coupling; 7.1 runtime test pending | Frontman runs outside the Gutenberg canvas |
+| Persistent toolbar and editor iframe | No known direct integration; 7.1 runtime test pending | Frontman adds an admin sidebar entry that opens its standalone route outside the Gutenberg canvas; it does not add toolbar nodes |
+| Editor components | No direct dependency found | Does not import `@wordpress/components` or use its removed `Navigation` API |
 | Abilities API | Not integrated | Frontman uses its own permissioned tool registry |
 | jQuery UI 1.14.2 | No direct dependency; 7.1 runtime test pending | Other active plugins can still fail |
 
 Frontman's Gutenberg tools read complete block attributes and serialize supported changes through WordPress. Its preview can render fixed desktop, tablet, mobile, and custom widths. That makes it useful for checking responsive output, but it does not provide a `theme.json` or Global Styles editor.
 
-Frontman uploads supported attachments through WordPress PHP APIs, not the new browser-side media pipeline. It also has its own permissioned tool registry rather than the Abilities API. Notes, @mentions, DataViews, the SVG Icon API, and WordPress design tokens are not Frontman integrations.
+Frontman uploads supported attachments through WordPress PHP APIs, not the new browser-side media pipeline. Its upload path directly invokes WordPress attachment and metadata generation APIs, so server-side image editors, registered sizes, and metadata hooks still apply and need separate testing. It also has its own permissioned tool registry rather than the Abilities API. Notes, @mentions, DataViews, the SVG Icon API, and WordPress design tokens are not Frontman integrations. Frontman's static SVG admin-menu icon does not use the new SVG Icon API.
 
 Frontman has low direct coupling to several high-risk 7.1 changes because it does not inject into Gutenberg, depend on jQuery UI, or replace Media Library screens. Lower coupling reduces expected risk; it does not establish compatibility. Frontman should not claim WordPress 7.1 support until its runtime suite passes against the final release.
 
@@ -207,7 +217,7 @@ It can also capture representative pages before and after the upgrade at fixed v
 |---|---|---|
 | Responsive styles | Compare fixed desktop, tablet, mobile, and custom viewports; inspect computed styles and block markup | Cannot inspect `theme.json` files or edit Global Styles directly |
 | Always-iframed editor | Confirm Frontman's standalone route and frontend preview still load; inspect affected page output | Cannot validate every third-party Gutenberg editor extension from the frontend preview |
-| Client-side media processing | Upload a supported attachment through Frontman's separate Media Library path and verify rendered output | Does not exercise WordPress 7.1's editor-side WASM upload pipeline |
+| Client-side media processing | Upload a supported attachment through Frontman's server-side attachment path and verify generated sizes, metadata, and rendered output | Does not exercise WordPress 7.1's editor-side WASM upload pipeline; current Frontman chat attachments cannot test HEIC or AVIF |
 | Templates and navigation | Read templates, template parts, menus, navigation posts, and rendered header/footer | Custom theme PHP files remain inaccessible |
 | Additional CSS | Read current CSS, list revisions, compare hashes, and restore one confirmed revision if needed | Does not restore arbitrary theme or plugin files |
 | jQuery UI changes | Exercise visible frontend interactions in the preview | Cannot fully inspect wp-admin dialogs or plugin settings screens |
@@ -241,6 +251,8 @@ Primary sources checked on August 12, 2026:
 - [Iframed Editor Changes in WordPress 7.1](https://make.wordpress.org/core/2026/08/03/iframed-editor-changes-in-wordpress-7-1/)
 - [Responsive block styles and configurable viewports](https://make.wordpress.org/core/2026/08/05/responsive-block-styles-and-configurable-viewports-in-wordpress-7-1/)
 - [Client-Side Media Processing in WordPress 7.1](https://make.wordpress.org/core/2026/07/22/client-side-media-processing-in-wordpress-7-1/)
+- [Editor components updates in WordPress 7.1](https://make.wordpress.org/core/2026/07/23/editor-components-updates-in-wordpress-7-1/)
+- [Registering and rendering SVG icons in WordPress 7.1](https://make.wordpress.org/core/2026/07/24/registering-and-rendering-svg-icons-in-wordpress-7-1/)
 - [jQuery UI updated to 1.14.2](https://make.wordpress.org/core/2026/07/29/jquery-ui-updated-to-1-14-2-in-wordpress-7-1/)
 - [Abilities API improvements in WordPress 7.1](https://make.wordpress.org/core/2026/07/31/abilities-api-improvements-in-wordpress-7-1/)
 
