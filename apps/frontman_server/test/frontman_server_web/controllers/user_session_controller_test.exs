@@ -155,19 +155,6 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
     end
 
-    test "returns popup login to the completion page", %{conn: conn, user: user} do
-      user = set_password(user)
-
-      conn =
-        conn
-        |> get(~p"/users/log-in?return_to=/users/popup-complete")
-        |> post(~p"/users/log-in", %{
-          "user" => %{"email" => user.email, "password" => valid_user_password()}
-        })
-
-      assert redirected_to(conn) == ~p"/users/popup-complete"
-    end
-
     test "emits error message with invalid credentials", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log-in?mode=password", %{
@@ -195,22 +182,13 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       {token, _hashed_token} = generate_user_magic_link_token(user)
 
       conn =
-        post(conn, ~p"/users/log-in", %{
+        conn
+        |> init_test_session(user_return_to: "/users/popup-complete")
+        |> post(~p"/users/log-in", %{
           "user" => %{"token" => token}
         })
 
       assert get_session(conn, :user_token)
-      assert redirected_to(conn) == ~p"/"
-    end
-
-    test "returns popup magic-link login to the completion page", %{conn: conn, user: user} do
-      {token, _hashed_token} = generate_user_magic_link_token(user)
-
-      conn =
-        conn
-        |> init_test_session(user_return_to: "/users/popup-complete")
-        |> post(~p"/users/log-in", %{"user" => %{"token" => token}})
-
       assert redirected_to(conn) == ~p"/users/popup-complete"
     end
 

@@ -40,6 +40,38 @@ let trackedOutcomes = effects =>
     }
   )
 describe("Connection Reducer", () => {
+  describe("login URL", () => {
+    test(
+      "sets completion and framework parameters without losing URL structure",
+      t => {
+        let url = Reducer.enrichLoginUrl(
+          ~loginUrl="https://app.frontman.sh/users/log-in?source=acp&framework=old#password",
+          ~framework=Some("wordpress"),
+        )
+
+        t
+        ->expect(url)
+        ->Expect.toBe(
+          "https://app.frontman.sh/users/log-in?source=acp&framework=wordpress&return_to=%2Fusers%2Fpopup-complete#password",
+        )
+      },
+    )
+
+    test(
+      "omits framework when client metadata has none",
+      t => {
+        let url = Reducer.enrichLoginUrl(
+          ~loginUrl="https://app.frontman.sh/users/log-in?return_to=/old",
+          ~framework=None,
+        )
+
+        t
+        ->expect(url)
+        ->Expect.toBe("https://app.frontman.sh/users/log-in?return_to=%2Fusers%2Fpopup-complete")
+      },
+    )
+  })
+
   describe("Initial State", () => {
     test(
       "starts with all components disconnected",

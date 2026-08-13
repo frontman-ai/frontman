@@ -26,12 +26,12 @@ let make = (~loginUrl: string) => {
         >
           {React.string("Sign in")}
         </a>
-        <Button
-          variant=Button.Variant.Secondary
-          onClick={_ => WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.reload}
+        <a
+          href={WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href}
+          className={Button.buttonVariants(~variant=Button.Variant.Secondary)}
         >
           {React.string("I've signed in")}
-        </Button>
+        </a>
       </div>
     </Dialog.Content>
   </Dialog>

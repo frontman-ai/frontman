@@ -55,6 +55,17 @@ type clientInfoMeta = {framework: option<string>}
 let frameworkFromClientInfoMeta = (meta: JSON.t): option<string> =>
   S.parseOrThrow(meta, ~to=clientInfoMetaSchema).framework
 
+let enrichLoginUrl = (~loginUrl: string, ~framework: option<string>): string => {
+  let url = WebAPI.URL.make(~url=loginUrl)
+  url.searchParams->WebAPI.URLSearchParams.set(~name="return_to", ~value="/users/popup-complete")
+  switch framework {
+  | Some(framework) =>
+    url.searchParams->WebAPI.URLSearchParams.set(~name="framework", ~value=framework)
+  | None => ()
+  }
+  url.href
+}
+
 type initPayload = {
   config: initConfig,
   relay: Relay.t,
@@ -418,19 +429,9 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         switch err {
         | ACP.AuthRequired({loginUrl}) =>
           let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
-
-          let frameworkParam = switch framework {
-          | Some(framework) => `&framework=${encodeURIComponent(framework)}`
-          | None => ""
-          }
-          let separator = if String.includes(loginUrl, "?") {
-            "&"
-          } else {
-            "?"
-          }
           dispatch(
             ACPAuthRequiredReceived({
-              loginUrl: `${loginUrl}${separator}return_to=/users/popup-complete${frameworkParam}`,
+              loginUrl: enrichLoginUrl(~loginUrl, ~framework),
             }),
           )
         | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
