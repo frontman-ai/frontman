@@ -63,12 +63,10 @@ let openLogin = (~url: string): bool => {
     currentWindow->WebAPI.Window.location->WebAPI.Location.assign(url)
     true
   | NewWindow =>
-    let popup =
-      currentWindow->WebAPI.Window.open_(~url="about:blank", ~target="_blank", ~features="")
+    let popup = currentWindow->WebAPI.Window.open_(~url, ~target="_blank", ~features="")
     switch popup->Nullable.toOption {
     | Some(loginWindow) =>
       loginWindow->WebAPI.Window.setOpener(Nullable.null)
-      loginWindow->WebAPI.Window.location->WebAPI.Location.replace(url)
       true
     | None => false
     }
