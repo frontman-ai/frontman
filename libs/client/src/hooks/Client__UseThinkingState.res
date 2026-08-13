@@ -66,7 +66,7 @@ let isAwaitingResponse = (lastMessage: option<Message.t>): bool => {
  */
 let use = (
   ~messages: array<Message.t>,
-  ~isStreaming: bool,
+  ~isStreaming as _: bool,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
   ~sessionInitialized: bool,
@@ -77,10 +77,7 @@ let use = (
     hasActiveACPSession &&
     sessionInitialized &&
     isAgentRunning &&
-    !isStreaming &&
-    !isTurnEnded(lastMessage) &&
-    !isLastMessageStreaming(lastMessage) &&
-    isAwaitingResponse(lastMessage)
+    !isTurnEnded(lastMessage)
 
   let thinkingContext = if showThinking {
     getThinkingContext(lastMessage)
