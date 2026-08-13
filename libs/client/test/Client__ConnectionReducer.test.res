@@ -3,40 +3,24 @@ open Vitest
 module Reducer = Client__ConnectionReducer
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
-let hasEffect = (effects, predicate) => effects->Array.some(predicate)
-let hasLogInfo = effects =>
-  hasEffect(effects, e =>
-    switch e {
-    | Reducer.LogInfo(_) => true
-    | _ => false
-    }
-  )
-let hasLogError = effects =>
-  hasEffect(effects, e =>
-    switch e {
-    | Reducer.LogError(_) => true
-    | _ => false
-    }
-  )
-let hasConnectACP = effects =>
-  hasEffect(effects, e =>
-    switch e {
-    | Reducer.ConnectACP(_) => true
-    | _ => false
-    }
-  )
-let hasConnectRelay = effects =>
-  hasEffect(effects, e =>
-    switch e {
-    | Reducer.ConnectRelay(_) => true
-    | _ => false
-    }
-  )
-let hasScheduleAuthRetry = effects =>
-  hasEffect(effects, e =>
-    switch e {
-    | Reducer.ScheduleAuthRetry(_) => true
-    | _ => false
+let effectKinds = effects =>
+  effects->Array.map(effect =>
+    switch effect {
+    | Reducer.LogError(_) => #logError
+    | Reducer.LogInfo(_) => #logInfo
+    | Reducer.TrackRelay(_) => #trackRelay
+    | Reducer.ConnectACP(_) => #connectACP
+    | Reducer.ScheduleAuthRetry(_) => #scheduleAuthRetry
+    | Reducer.ConnectRelay(_) => #connectRelay
+    | Reducer.CreateSessionEffect(_) => #createSession
+    | Reducer.SendPromptEffect(_) => #sendPrompt
+    | Reducer.CancelPromptEffect(_) => #cancelPrompt
+    | Reducer.RetryTurnEffect(_) => #retryTurn
+    | Reducer.FetchSessionsEffect(_) => #fetchSessions
+    | Reducer.LoadTaskEffect(_) => #loadTask
+    | Reducer.DeleteSessionEffect(_) => #deleteSession
+    | Reducer.NotifyDeleteSessionRejected(_) => #deleteRejected
+    | Reducer.CleanupSessionEffect(_) => #cleanupSession
     }
   )
 let trackedOutcomes = effects =>
@@ -46,6 +30,33 @@ let trackedOutcomes = effects =>
     | _ => None
     }
   )
+
+let mock = value => Obj.magic(value)
+let loginUrl = "https://app.frontman.sh/users/log-in"
+let initConfig: Reducer.initConfig = {
+  endpoint: "ws://test",
+  tokenUrl: "http://test/api/socket-token",
+  loginUrl: "http://test/users/log-in",
+  clientName: "test",
+  clientVersion: "1.0.0",
+  onACPMessage: (_, _) => (),
+  onTitleUpdated: None,
+  _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
+}
+let initPayload = (): Reducer.initPayload => {
+  config: initConfig,
+  relay: mock({"id": "relay"}),
+  mcpServer: mock({"tools": []}),
+}
+let initialize = state => Reducer.reduce(state, Initialize(initPayload()))
+let loadTask = taskId => Reducer.LoadTask({
+  taskId,
+  needsHistory: true,
+  onUpdate: (_, _) => (),
+  onTitleUpdated: (_, _) => (),
+  onMcpMessage: (_, _) => (),
+  onComplete: _ => (),
+})
 describe("Connection Reducer", () => {
   describe("login URL", () => {
     test(
@@ -90,6 +101,10 @@ describe("Connection Reducer", () => {
         t->expect(state.session)->Expect.toBe(Reducer.NoSession)
         t->expect(state.relayInstance)->Expect.toBe(None)
         t->expect(state.mcpServer)->Expect.toBe(None)
+        t->expect(state.acpConfig)->Expect.toBe(None)
+        t->expect(state.authRetryActive)->Expect.toBe(false)
+        t->expect(state.authRetryInFlight)->Expect.toBe(false)
+        t->expect(state.abortController)->Expect.toBe(None)
         t->expect(Reducer.Selectors.getConnectionStatus(state))->Expect.toBe(Disconnected)
       },
     )
@@ -99,73 +114,43 @@ describe("Connection Reducer", () => {
     test(
       "Initialize sets up relay, mcpServer and emits connection effects",
       t => {
-        let mockRelay = Obj.magic({"id": "relay-1"})
-        let mockServer = Obj.magic({"tools": []})
-        let mockConfig: Reducer.initConfig = {
-          endpoint: "ws://test",
-          tokenUrl: "http://test/api/socket-token",
-          loginUrl: "http://test/users/log-in",
-          clientName: "test",
-          clientVersion: "1.0.0",
-          onACPMessage: (_, _) => (),
-          onTitleUpdated: None,
-          _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
-        }
-        let (nextState, effects) = Reducer.reduce(
-          Reducer.initialState,
-          Initialize({config: mockConfig, relay: mockRelay, mcpServer: mockServer}),
-        )
+        let (nextState, effects) = initialize(Reducer.initialState)
 
         t->expect(nextState.acp)->Expect.toBe(Reducer.ACPConnecting)
         t->expect(nextState.relay)->Expect.toBe(Reducer.RelayConnecting)
         t->expect(Reducer.Selectors.getConnectionStatus(nextState))->Expect.toBe(Connecting)
         t->expect(Option.isSome(nextState.relayInstance))->Expect.toBe(true)
         t->expect(Option.isSome(nextState.mcpServer))->Expect.toBe(true)
-        t->expect(hasConnectACP(effects))->Expect.toBe(true)
-        t->expect(hasConnectRelay(effects))->Expect.toBe(true)
+        t->expect(effectKinds(effects))->Expect.toEqual([#connectACP, #connectRelay])
       },
     )
 
     test(
-      "Initialize ignores when already initialized",
+      "ignores initialization after initialization has started",
       t => {
-        let mockRelay = Obj.magic({"id": "relay-1"})
-        let mockServer = Obj.magic({"tools": []})
-        let mockConfig: Reducer.initConfig = {
-          endpoint: "ws://test",
-          tokenUrl: "http://test/api/socket-token",
-          loginUrl: "http://test/users/log-in",
-          clientName: "test",
-          clientVersion: "1.0.0",
-          onACPMessage: (_, _) => (),
-          onTitleUpdated: None,
-          _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
-        }
-        let state = {...Reducer.initialState, acp: ACPConnecting}
-        let (_, effects) = Reducer.reduce(
-          state,
-          Initialize({config: mockConfig, relay: mockRelay, mcpServer: mockServer}),
-        )
+        let (state, _) = initialize(Reducer.initialState)
+        let (nextState, effects) = initialize(state)
 
-        t->expect(hasLogInfo(effects))->Expect.toBe(true)
+        t->expect(nextState)->Expect.toBe(state)
+        t->expect(effectKinds(effects))->Expect.toEqual([#logInfo])
       },
     )
   })
 
   describe("Authentication Retry", () => {
     test(
-      "auth required waits for the user to open sign-in",
+      "auth required exposes login URL without starting automatic retry",
       t => {
         let state = {...Reducer.initialState, acp: ACPConnecting}
         let (nextState, effects) = Reducer.reduce(
           state,
-          ACPAuthRequiredReceived({loginUrl: "https://app.frontman.sh/users/log-in"}),
+          ACPAuthRequiredReceived({loginUrl: loginUrl}),
         )
 
         t
         ->expect(Reducer.Selectors.getAuthRedirectUrl(nextState))
-        ->Expect.toBe(Some("https://app.frontman.sh/users/log-in"))
-        t->expect(hasScheduleAuthRetry(effects))->Expect.toBe(false)
+        ->Expect.toBe(Some(loginUrl))
+        t->expect(effectKinds(effects))->Expect.toEqual([])
       },
     )
 
@@ -175,7 +160,7 @@ describe("Connection Reducer", () => {
         let acpConfig = Obj.magic({"endpoint": "ws://test"})
         let state = {
           ...Reducer.initialState,
-          acp: ACPAuthRequired({loginUrl: "https://app.frontman.sh/users/log-in"}),
+          acp: ACPAuthRequired({loginUrl: loginUrl}),
           acpConfig: Some(acpConfig),
           abortController: Some(WebAPI.AbortController.make()),
           relay: RelayConnected,
@@ -186,8 +171,7 @@ describe("Connection Reducer", () => {
         t->expect(nextState.authRetryActive)->Expect.toBe(true)
         t->expect(nextState.authRetryInFlight)->Expect.toBe(true)
         t->expect(nextState.relay)->Expect.toBe(RelayConnected)
-        t->expect(hasConnectACP(effects))->Expect.toBe(true)
-        t->expect(hasConnectRelay(effects))->Expect.toBe(false)
+        t->expect(effectKinds(effects))->Expect.toEqual([#connectACP])
       },
     )
 
@@ -196,19 +180,20 @@ describe("Connection Reducer", () => {
       t => {
         let state = {
           ...Reducer.initialState,
-          acp: ACPConnecting,
+          acp: ACPAuthRequired({loginUrl: loginUrl}),
           authRetryActive: true,
           authRetryInFlight: true,
           abortController: Some(WebAPI.AbortController.make()),
         }
         let (nextState, effects) = Reducer.reduce(
           state,
-          ACPAuthRequiredReceived({loginUrl: "https://app.frontman.sh/users/log-in"}),
+          ACPAuthRequiredReceived({loginUrl: loginUrl}),
         )
 
         t->expect(nextState.authRetryActive)->Expect.toBe(true)
         t->expect(nextState.authRetryInFlight)->Expect.toBe(false)
-        t->expect(hasScheduleAuthRetry(effects))->Expect.toBe(true)
+        t->expect(nextState.acp)->Expect.toEqual(ACPAuthRequired({loginUrl: loginUrl}))
+        t->expect(effectKinds(effects))->Expect.toEqual([#scheduleAuthRetry])
       },
     )
 
@@ -217,15 +202,16 @@ describe("Connection Reducer", () => {
       t => {
         let state = {
           ...Reducer.initialState,
-          acp: ACPAuthRequired({loginUrl: "https://app.frontman.sh/users/log-in"}),
+          acp: ACPAuthRequired({loginUrl: loginUrl}),
           acpConfig: Some(Obj.magic({"endpoint": "ws://test"})),
           abortController: Some(WebAPI.AbortController.make()),
           authRetryActive: true,
           authRetryInFlight: true,
         }
-        let (_, effects) = Reducer.reduce(state, RetryAuthentication)
+        let (nextState, effects) = Reducer.reduce(state, RetryAuthentication)
 
-        t->expect(hasConnectACP(effects))->Expect.toBe(false)
+        t->expect(nextState)->Expect.toBe(state)
+        t->expect(effectKinds(effects))->Expect.toEqual([])
       },
     )
 
@@ -234,7 +220,7 @@ describe("Connection Reducer", () => {
       t => {
         let state = {
           ...Reducer.initialState,
-          acp: ACPAuthRequired({loginUrl: "https://app.frontman.sh/users/log-in"}),
+          acp: ACPAuthRequired({loginUrl: loginUrl}),
           authRetryActive: true,
           authRetryInFlight: true,
           abortController: Some(WebAPI.AbortController.make()),
@@ -244,7 +230,7 @@ describe("Connection Reducer", () => {
         t->expect(nextState.acp)->Expect.toEqual(state.acp)
         t->expect(nextState.authRetryActive)->Expect.toBe(true)
         t->expect(nextState.authRetryInFlight)->Expect.toBe(false)
-        t->expect(hasScheduleAuthRetry(effects))->Expect.toBe(true)
+        t->expect(effectKinds(effects))->Expect.toEqual([#logInfo, #scheduleAuthRetry])
       },
     )
 
@@ -254,8 +240,8 @@ describe("Connection Reducer", () => {
         let state = {...Reducer.initialState, acp: ACPConnected(Obj.magic({"id": "connection"}))}
         let (nextState, effects) = Reducer.reduce(state, RetryAuthentication)
 
-        t->expect(nextState.acp)->Expect.toBe(state.acp)
-        t->expect(hasConnectACP(effects))->Expect.toBe(false)
+        t->expect(nextState)->Expect.toBe(state)
+        t->expect(effectKinds(effects))->Expect.toEqual([])
       },
     )
   })
@@ -275,7 +261,7 @@ describe("Connection Reducer", () => {
     )
 
     test(
-      "RelayConnectError is non-fatal",
+      "RelayConnectError transitions to RelayError and classifies analytics",
       t => {
         [
           ("HTTP 500: Error", Client__Heap.HttpError),
@@ -320,13 +306,13 @@ describe("Connection Reducer", () => {
         let (nextState, effects) = Reducer.reduce(state, SessionCreateSuccess(mockSession))
 
         switch nextState.session {
-        | Reducer.SessionActive(_) => t->expect(true)->Expect.toBe(true)
-        | _ => t->expect(false)->Expect.toBe(true)
+        | Reducer.SessionActive(session) => t->expect(session)->Expect.toBe(mockSession)
+        | _ => t->expect("active session")->Expect.toBe("missing")
         }
         t
         ->expect(Reducer.Selectors.getConnectionStatus(nextState))
         ->Expect.toEqual(Reducer.Selectors.SessionActive("sess-1"))
-        t->expect(hasLogInfo(effects))->Expect.toBe(true)
+        t->expect(effectKinds(effects))->Expect.toEqual([#logInfo])
       },
     )
 
@@ -342,7 +328,7 @@ describe("Connection Reducer", () => {
             )
 
             t->expect(failed.session)->Expect.toEqual(SessionError("invalid attribution"))
-            t->expect(hasLogError(effects))->Expect.toBe(true)
+            t->expect(effectKinds(effects))->Expect.toEqual([#logError])
           },
         )
       },
@@ -360,7 +346,7 @@ describe("Connection Reducer", () => {
           action => {
             let (nextState, effects) = Reducer.reduce(state, action)
             t->expect(nextState.session)->Expect.toEqual(SessionActive(mockSession))
-            t->expect(hasLogInfo(effects))->Expect.toBe(true)
+            t->expect(effectKinds(effects))->Expect.toEqual([#logInfo])
           },
         )
       },
@@ -369,18 +355,10 @@ describe("Connection Reducer", () => {
     test(
       "stale load completion cannot replace the latest requested task",
       t => {
-        let loadTask = taskId => Reducer.LoadTask({
-          taskId,
-          needsHistory: true,
-          onUpdate: (_, _) => (),
-          onTitleUpdated: (_, _) => (),
-          onMcpMessage: (_, _) => (),
-          onComplete: _ => (),
-        })
         let initial = {
           ...Reducer.initialState,
-          acp: ACPConnected(Obj.magic(null)),
-          mcpServer: Some(Obj.magic(null)),
+          acp: ACPConnected(mock({"id": "connection"})),
+          mcpServer: Some(mock({"id": "mcp-server"})),
         }
         let (loadingFirst, _) = Reducer.reduce(initial, loadTask("sess-1"))
         let (loadingSecond, _) = Reducer.reduce(loadingFirst, loadTask("sess-2"))
@@ -394,17 +372,10 @@ describe("Connection Reducer", () => {
         | Reducer.SessionCreating("sess-2") => ()
         | _ => t->expect("latest load pending")->Expect.toBe("wrong state")
         }
-        t
-        ->expect(
-          effects->Array.some(
-            effect =>
-              switch effect {
-              | Reducer.CleanupSessionEffect({session: {sessionId: "sess-1"}}) => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
+        switch effects {
+        | [Reducer.CleanupSessionEffect({session: {sessionId: "sess-1"}}), Reducer.LogInfo(_)] => ()
+        | _ => t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession, #logInfo])
+        }
       },
     )
 
@@ -414,35 +385,19 @@ describe("Connection Reducer", () => {
         let oldSession = Obj.magic({"sessionId": "sess-1", "channel": null})
         let state = {
           ...Reducer.initialState,
-          acp: ACPConnected(Obj.magic(null)),
-          mcpServer: Some(Obj.magic(null)),
+          acp: ACPConnected(mock({"id": "connection"})),
+          mcpServer: Some(mock({"id": "mcp-server"})),
           session: SessionActive(oldSession),
         }
-        let (nextState, effects) = Reducer.reduce(
-          state,
-          LoadTask({
-            taskId: "sess-2",
-            needsHistory: true,
-            onUpdate: (_, _) => (),
-            onTitleUpdated: (_, _) => (),
-            onMcpMessage: (_, _) => (),
-            onComplete: _ => (),
-          }),
-        )
+        let (nextState, effects) = Reducer.reduce(state, loadTask("sess-2"))
 
         t->expect(nextState.session)->Expect.toEqual(SessionCreating("sess-2"))
-        t
-        ->expect(
-          effects->Array.map(
-            effect =>
-              switch effect {
-              | Reducer.CleanupSessionEffect(_) => #cleanup
-              | Reducer.LoadTaskEffect(_) => #load
-              | _ => #other
-              },
-          ),
-        )
-        ->Expect.toEqual([#cleanup, #load])
+        switch effects {
+        | [Reducer.CleanupSessionEffect({session: cleaned}), Reducer.LoadTaskEffect({request})] =>
+          t->expect(cleaned)->Expect.toBe(oldSession)
+          t->expect(request.taskId)->Expect.toBe("sess-2")
+        | _ => t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession, #loadTask])
+        }
       },
     )
   })
@@ -475,37 +430,23 @@ describe("Connection Reducer", () => {
           }),
         )
 
-        t
-        ->expect(
-          hasEffect(
-            firstEffects,
-            e =>
-              switch e {
-              | Reducer.SendPromptEffect(_) => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
-        t
-        ->expect(
-          hasEffect(
-            secondEffects,
-            e =>
-              switch e {
-              | Reducer.SendPromptEffect(_) => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
+        switch (firstEffects, secondEffects) {
+        | (
+            [Reducer.SendPromptEffect({text: "first"})],
+            [Reducer.SendPromptEffect({text: "second"})],
+          ) => ()
+        | _ =>
+          t
+          ->expect((effectKinds(firstEffects), effectKinds(secondEffects)))
+          ->Expect.toEqual(([#sendPrompt], [#sendPrompt]))
+        }
       },
     )
   })
 
   describe("Connection Lifecycle - Session Creation Trigger", () => {
     test(
-      "CreateSession action works when connectionStatus is Connected",
+      "CreateSession starts when transports and MCP server are ready with no session",
       t => {
         let mockConn = Obj.magic({"socket": null})
         let mockServer = Obj.magic({"tools": []})
@@ -531,18 +472,13 @@ describe("Connection Reducer", () => {
         )
 
         t->expect(nextState.session)->Expect.toEqual(Reducer.SessionCreating("sess-1"))
-        t
-        ->expect(
-          hasEffect(
-            effects,
-            e =>
-              switch e {
-              | Reducer.CreateSessionEffect(_) => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
+        switch effects {
+        | [Reducer.CreateSessionEffect({connection, mcpServer, request})] =>
+          t->expect(connection)->Expect.toBe(mockConn)
+          t->expect(mcpServer)->Expect.toBe(mockServer)
+          t->expect(request.sessionId)->Expect.toBe("sess-1")
+        | _ => t->expect(effectKinds(effects))->Expect.toEqual([#createSession])
+        }
       },
     )
   })
