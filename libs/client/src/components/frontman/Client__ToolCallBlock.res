@@ -109,7 +109,7 @@ let make = (
       [
         "group overflow-hidden",
         "animate-in fade-in duration-100",
-        compact ? "rounded-lg" : "rounded-xl",
+        compact ? "rounded-lg" : "my-1.5 rounded-xl",
         compact ? "bg-[#8051CD]/15" : "bg-[#8051CD]/20",
         compact ? "border border-[#8051CD]/30" : "border border-[#8051CD]/40",
         compact ? "px-3 py-2" : "px-4 py-3",
