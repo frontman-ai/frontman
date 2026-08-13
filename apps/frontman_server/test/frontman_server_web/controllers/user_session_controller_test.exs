@@ -98,13 +98,13 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/users/log-in"
     end
 
-    test "marks the authenticated login tab for closing and provides a fallback", %{
+    test "loads its close script and provides a fallback", %{
       conn: conn,
       user: user
     } do
       response = conn |> log_in_user(user) |> get(~p"/users/popup-complete") |> html_response(200)
-      assert response =~ "data-close-window"
-      assert response =~ "/assets/js/app.js"
+      assert response =~ "/assets/js/popup-complete.js"
+      refute response =~ "data-close-window"
       assert response =~ "You may close this tab"
     end
   end
