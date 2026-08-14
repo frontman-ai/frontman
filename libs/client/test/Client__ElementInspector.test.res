@@ -36,7 +36,6 @@ describe("Client__ElementInspector.inspect", () => {
       ~pierceShadowDom=false,
     )
 
-    t->expect(inspected.tagName)->Expect.toBe("section")
     t->expect(inspected.selector)->Expect.toEqual(Ok(Some("#selected")))
     t->expect(inspected.cssClasses)->Expect.toEqual(Some("card primary"))
     t

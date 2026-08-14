@@ -78,17 +78,8 @@ let defaultMaxDepth = 1
 let defaultMaxNodes = 200
 let hardMaxNodes = 500
 
-let truncate = (text: string, ~maxLen: int): string =>
-  switch text->String.length > maxLen {
-  | true => text->String.slice(~start=0, ~end=maxLen) ++ "..."
-  | false => text
-  }
-
 let countDescendants = (el: WebAPI.DOMAPI.element): int =>
-  el
-  ->WebAPI.Element.querySelectorAll("*")
-  ->Client__Tool__ElementResolver.nodeListToElements
-  ->Array.length
+  (el->WebAPI.Element.querySelectorAll("*")).length
 
 let describeDirectChildren = (el: WebAPI.DOMAPI.element): string => {
   let children = el.children
@@ -107,7 +98,7 @@ let describeDirectChildren = (el: WebAPI.DOMAPI.element): string => {
     | (Some(id), _, _) => `<${tag} id="${id}">`
     | (_, Some(r), _) => `<${tag} role="${r}">`
     | (_, _, Some(c)) =>
-      let shortClass = c->truncate(~maxLen=27)
+      let shortClass = c->Client__ElementInspector.truncate(~maxLen=27)
       `<${tag} class="${shortClass}">`
     | _ => `<${tag}>`
     }
@@ -157,14 +148,14 @@ let errorResult = (
 
 let successResult = (
   ~html: string,
-  ~nodeCount: option<int>,
+  ~nodeCount: int,
   ~hint: option<string>=?,
 ): Tool.MCP.CallToolResult.t =>
   Tool.structuredResult(
     {
       success: true,
       html: Some(html),
-      nodeCount,
+      nodeCount: Some(nodeCount),
       byteSize: Some(html->String.length),
       hint,
       error: None,
@@ -222,7 +213,7 @@ let execute = async (
                   ~nodeCount=descendantCount,
                 )
               } else {
-                successResult(~html=raw, ~nodeCount=Some(descendantCount))
+                successResult(~html=raw, ~nodeCount=descendantCount)
               }
             }
 
@@ -258,7 +249,7 @@ let execute = async (
                 )
               | false => None
               }
-              successResult(~html=inspection.html, ~nodeCount=Some(inspection.nodeCount), ~hint?)
+              successResult(~html=inspection.html, ~nodeCount=inspection.nodeCount, ~hint?)
             }
           }
         }

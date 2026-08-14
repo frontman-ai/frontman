@@ -7,7 +7,6 @@ type boundingBox = {
 
 type t = {
   selector: result<option<string>, string>,
-  tagName: string,
   cssClasses: option<string>,
   nearbyText: option<string>,
   boundingBox: boundingBox,
@@ -22,16 +21,6 @@ let simplifiedAttributes = [
   "id",
   "class",
   "role",
-  "aria-label",
-  "aria-labelledby",
-  "aria-describedby",
-  "aria-hidden",
-  "aria-expanded",
-  "aria-selected",
-  "aria-checked",
-  "aria-disabled",
-  "aria-live",
-  "aria-controls",
   "data-testid",
   "data-test-id",
   "href",
@@ -48,7 +37,6 @@ let simplifiedAttributes = [
 ]
 
 let simplifiedAttributeSet = simplifiedAttributes->Array.map(a => (a, true))->Dict.fromArray
-let contentStrippedTags = ["script", "style", "svg"]->Array.map(t => (t, true))->Dict.fromArray
 
 let childElements = (element: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): array<
   WebAPI.DOMAPI.element,
@@ -88,22 +76,20 @@ let errorMessage = (exn: exn): string =>
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
 
 let selectorFor = (~element: WebAPI.DOMAPI.element, ~document: WebAPI.DOMAPI.document): result<
-  option<string>,
+  string,
   string,
 > =>
   try {
     Ok(
-      Some(
-        FrontmanBindings.Bindings__Finder.finder(
-          ~element,
-          ~options={
-            root: document.documentElement->WebAPI.HTMLElement.asElement,
-            idName: (~name as _) => true,
-            className: (~name as _) => true,
-            tagName: (~name as _) => true,
-            attr: (~name as _, ~value as _) => false,
-          },
-        ),
+      FrontmanBindings.Bindings__Finder.finder(
+        ~element,
+        ~options={
+          root: document.documentElement->WebAPI.HTMLElement.asElement,
+          idName: (~name as _) => true,
+          className: (~name as _) => true,
+          tagName: (~name as _) => true,
+          attr: (~name as _, ~value as _) => false,
+        },
       ),
     )
   } catch {
@@ -166,8 +152,8 @@ let buildAttributes = (
   })
 
   switch selectorFor(~element, ~document) {
-  | Ok(Some(selector)) => parts->Array.push(` selector="${selector}"`)->ignore
-  | Ok(None) | Error(_) => ()
+  | Ok(selector) => parts->Array.push(` selector="${selector}"`)->ignore
+  | Error(_) => ()
   }
 
   switch Client__ComponentName.getForElement(
@@ -229,9 +215,9 @@ let rec walk = (
     let tag = element.tagName->String.toLowerCase
     let pad = indent(depth)
 
-    switch contentStrippedTags->Dict.get(tag) {
-    | Some(_) => state.output = state.output ++ pad ++ `<!-- ${tag} -->\n`
-    | None =>
+    switch tag {
+    | "script" | "style" | "svg" => state.output = state.output ++ pad ++ `<!-- ${tag} -->\n`
+    | _ =>
       let attributes = buildAttributes(element, ~document)
       let children = childElements(element, ~pierceShadowDom)
       let childCount = children->Array.length
@@ -298,20 +284,16 @@ let inspect = (
   ~pierceShadowDom: bool,
 ): t => {
   let selected = renderNode(~element, ~document, ~maxDepth, ~maxNodes, ~pierceShadowDom)
-  let parent =
-    element.parentElement
-    ->Null.toOption
-    ->Option.map(parent =>
-      renderNode(
-        ~element=parent->WebAPI.HTMLElement.asElement,
-        ~document,
-        ~maxDepth=0,
-        ~maxNodes=1,
-        ~pierceShadowDom=false,
-      )
+  let parentContext = switch element.parentElement->Null.toOption {
+  | Some(parent) =>
+    let rendered = renderNode(
+      ~element=parent->WebAPI.HTMLElement.asElement,
+      ~document,
+      ~maxDepth=0,
+      ~maxNodes=1,
+      ~pierceShadowDom=false,
     )
-  let parentContext = switch parent {
-  | Some(parent) => `Parent: ${parent.output->String.trim}\n`
+    `Parent: ${rendered.output->String.trim}\n`
   | None => "Parent: none\n"
   }
   let truncation = switch selected.truncated {
@@ -320,8 +302,7 @@ let inspect = (
   }
 
   {
-    selector: selectorFor(~element, ~document),
-    tagName: element.tagName->String.toLowerCase,
+    selector: selectorFor(~element, ~document)->Result.map(selector => Some(selector)),
     cssClasses: cssClasses(element),
     nearbyText: nearbyText(element),
     boundingBox: boundingBox(element),
