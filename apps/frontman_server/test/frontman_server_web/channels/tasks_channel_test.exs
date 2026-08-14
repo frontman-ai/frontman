@@ -6,17 +6,32 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   import ExUnit.CaptureLog
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Accounts
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServerWeb.UserSocket
 
-  setup %{scope: scope} do
+  setup %{scope: scope, user: user} do
+    session_token = Accounts.generate_user_session_token(user)
+    {^user, user_token_id} = Accounts.get_socket_session(session_token)
+
     {:ok, _, socket} =
       UserSocket
-      |> socket("user_id", %{scope: scope})
+      |> socket("user_id", %{scope: scope, user_token_id: user_token_id})
       |> subscribe_and_join("tasks", %{})
 
     {:ok, socket: socket, scope: scope}
+  end
+
+  test "rejects a session revoked after socket connection", %{scope: scope, user: user} do
+    session_token = Accounts.generate_user_session_token(user)
+    {^user, user_token_id} = Accounts.get_socket_session(session_token)
+    :ok = Accounts.delete_user_session_token(session_token)
+
+    assert {:error, %{reason: "unauthorized"}} =
+             UserSocket
+             |> socket("revoked-user", %{scope: scope, user_token_id: user_token_id})
+             |> subscribe_and_join("tasks", %{})
   end
 
   describe "ACP initialize" do

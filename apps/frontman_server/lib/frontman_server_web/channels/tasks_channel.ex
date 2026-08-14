@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   require Logger
 
   alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Accounts
   alias FrontmanServer.Agents
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Providers
@@ -32,22 +33,24 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   @impl true
   def join("tasks", _params, socket) do
-    if Map.has_key?(socket.assigns, :scope) do
-      SentryContext.set_scope_context(socket.assigns.scope)
+    case authenticated_scope(socket) do
+      nil ->
+        Logger.info("Client joining tasks channel (unauthenticated)")
+        {:error, %{reason: "unauthorized", login_url: url(~p"/users/log-in")}}
 
-      Logger.info("Client joining tasks channel (authenticated)")
+      scope ->
+        SentryContext.set_scope_context(scope)
 
-      user_id = socket.assigns.scope.user.id
+        Logger.info("Client joining tasks channel (authenticated)")
 
-      Phoenix.PubSub.subscribe(
-        FrontmanServer.PubSub,
-        Providers.config_pubsub_topic(user_id)
-      )
+        user_id = scope.user.id
 
-      {:ok, %{status: "connected"}, socket}
-    else
-      Logger.info("Client joining tasks channel (unauthenticated)")
-      {:error, %{reason: "unauthorized", login_url: url(~p"/users/log-in")}}
+        Phoenix.PubSub.subscribe(
+          FrontmanServer.PubSub,
+          Providers.config_pubsub_topic(user_id)
+        )
+
+        {:ok, %{status: "connected"}, socket}
     end
   end
 
@@ -220,4 +223,13 @@ defmodule FrontmanServerWeb.TasksChannel do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
     {:noreply, socket}
   end
+
+  defp authenticated_scope(%{assigns: %{scope: scope, user_token_id: user_token_id}}) do
+    case Accounts.get_user_by_socket_session(scope.user.id, user_token_id) do
+      nil -> nil
+      _user -> scope
+    end
+  end
+
+  defp authenticated_scope(_socket), do: nil
 end

@@ -11,6 +11,9 @@ let effectKinds = effects =>
     | Reducer.TrackRelay(_) => #trackRelay
     | Reducer.ConnectACP(_) => #connectACP
     | Reducer.ScheduleAuthRetry(_) => #scheduleAuthRetry
+    | Reducer.DisconnectForLogout(_) => #disconnectForLogout
+    | Reducer.CheckLogoutAuthentication(_) => #checkLogoutAuthentication
+    | Reducer.ScheduleLogoutCheck(_) => #scheduleLogoutCheck
     | Reducer.ConnectRelay(_) => #connectRelay
     | Reducer.CreateSessionEffect(_) => #createSession
     | Reducer.SendPromptEffect(_) => #sendPrompt
@@ -242,6 +245,147 @@ describe("Connection Reducer", () => {
 
         t->expect(nextState)->Expect.toBe(state)
         t->expect(effectKinds(effects))->Expect.toEqual([])
+      },
+    )
+  })
+
+  describe("Logout", () => {
+    test(
+      "builds a first-party popup URL from the login origin",
+      t => {
+        t
+        ->expect(Reducer.logoutUrl(~loginUrl="https://api.frontman.sh/users/log-in?source=acp"))
+        ->Expect.toBe("https://api.frontman.sh/users/log-out?mode=popup")
+      },
+    )
+
+    test(
+      "disconnects ACP and starts checking server authentication",
+      t => {
+        let (initialized, _) = initialize(Reducer.initialState)
+        let session = mock({"sessionId": "session-1"})
+        let state = {
+          ...initialized,
+          acp: ACPConnected(mock({"id": "connection"})),
+          session: SessionActive(session),
+        }
+
+        let (nextState, effects) = Reducer.reduce(state, BeginLogout)
+
+        t->expect(nextState.acp)->Expect.toBe(ACPDisconnected)
+        t->expect(nextState.session)->Expect.toBe(NoSession)
+        t
+        ->expect(nextState.logout)
+        ->Expect.toEqual(LogoutPending({attempt: 1, unauthenticatedChecks: 0}))
+        t
+        ->expect(effectKinds(effects))
+        ->Expect.toEqual([#disconnectForLogout, #checkLogoutAuthentication])
+      },
+    )
+
+    test(
+      "keeps checking while server session remains authenticated",
+      t => {
+        let state = {
+          ...Reducer.initialState,
+          logout: LogoutPending({attempt: 1, unauthenticatedChecks: 1}),
+          abortController: Some(WebAPI.AbortController.make()),
+        }
+
+        let (nextState, effects) = Reducer.reduce(state, LogoutAuthenticationChecked(true))
+
+        t
+        ->expect(nextState.logout)
+        ->Expect.toEqual(LogoutPending({attempt: 2, unauthenticatedChecks: 0}))
+        t->expect(effectKinds(effects))->Expect.toEqual([#scheduleLogoutCheck])
+      },
+    )
+
+    test(
+      "scheduled checks request authentication again only while pending",
+      t => {
+        let (initialized, _) = initialize(Reducer.initialState)
+        let state = {
+          ...initialized,
+          logout: LogoutPending({attempt: 2, unauthenticatedChecks: 0}),
+        }
+
+        let (_, effects) = Reducer.reduce(state, CheckLogoutAuthenticationAgain)
+        let (_, staleEffects) = Reducer.reduce(
+          {...state, logout: LogoutIdle},
+          CheckLogoutAuthenticationAgain,
+        )
+
+        t->expect(effectKinds(effects))->Expect.toEqual([#checkLogoutAuthentication])
+        t->expect(effectKinds(staleEffects))->Expect.toEqual([])
+      },
+    )
+
+    test(
+      "requires consecutive unauthenticated checks before confirming logout",
+      t => {
+        let (initialized, _) = initialize(Reducer.initialState)
+        let state = {
+          ...initialized,
+          acp: ACPDisconnected,
+          logout: LogoutPending({attempt: 2, unauthenticatedChecks: 0}),
+        }
+
+        let (firstState, firstEffects) = Reducer.reduce(state, LogoutAuthenticationChecked(false))
+        let (nextState, effects) = Reducer.reduce(firstState, LogoutAuthenticationChecked(false))
+
+        t
+        ->expect(firstState.logout)
+        ->Expect.toEqual(LogoutPending({attempt: 3, unauthenticatedChecks: 1}))
+        t->expect(effectKinds(firstEffects))->Expect.toEqual([#scheduleLogoutCheck])
+
+        t->expect(nextState.logout)->Expect.toBe(LogoutIdle)
+        t
+        ->expect(Reducer.Selectors.getAuthRedirectUrl(nextState))
+        ->Expect.toBe(
+          Some("http://test/users/log-in?return_to=%2Fusers%2Fpopup-complete&framework=test"),
+        )
+        t->expect(effectKinds(effects))->Expect.toEqual([])
+      },
+    )
+
+    test(
+      "stops checking after bounded attempts",
+      t => {
+        let state = {
+          ...Reducer.initialState,
+          logout: LogoutPending({
+            attempt: Reducer.maxLogoutChecks,
+            unauthenticatedChecks: 0,
+          }),
+        }
+
+        let (nextState, effects) = Reducer.reduce(state, LogoutAuthenticationChecked(true))
+
+        t
+        ->expect(nextState.logout)
+        ->Expect.toEqual(LogoutFailed("Sign-out was not confirmed. Try again."))
+        t->expect(effectKinds(effects))->Expect.toEqual([])
+      },
+    )
+
+    test(
+      "surfaces authentication check failures",
+      t => {
+        let state = {
+          ...Reducer.initialState,
+          logout: LogoutPending({attempt: 2, unauthenticatedChecks: 0}),
+        }
+
+        let (nextState, effects) = Reducer.reduce(
+          state,
+          LogoutAuthenticationCheckFailed("Request timed out"),
+        )
+
+        t
+        ->expect(nextState.logout)
+        ->Expect.toEqual(LogoutFailed("Could not confirm sign-out: Request timed out"))
+        t->expect(effectKinds(effects))->Expect.toEqual([#logError])
       },
     )
   })

@@ -136,9 +136,15 @@ type tokenError =
   | NotAuthenticated
   | InvalidResponse
 
-let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
+let fetchSocketToken = async (
+  tokenUrl: string,
+  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+): result<string, tokenError> => {
   try {
-    let response = await WebAPI.Global.fetch(tokenUrl, ~init={credentials: Include})
+    let response = await WebAPI.Global.fetch(
+      tokenUrl,
+      ~init={credentials: Include, signal: ?(signal->Option.map(Null.make))},
+    )
     if response.ok {
       let json = await response->WebAPI.Response.json
       switch json
@@ -163,6 +169,28 @@ let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
   }
 }
 
+let checkAuthentication = async (tokenUrl: string, ~signal: WebAPI.EventAPI.abortSignal): result<
+  bool,
+  string,
+> => {
+  let timeoutController = WebAPI.AbortController.make()
+  let timeout = WebAPI.Global.setTimeout(~timeout=5000, ~handler=() => {
+    WebAPI.AbortController.abort(timeoutController)
+  })
+  let result = switch signal.aborted {
+  | true => Error("Connection aborted")
+  | false =>
+    switch await fetchSocketToken(tokenUrl, ~signal=timeoutController.signal) {
+    | Ok(_) => Ok(true)
+    | Error(NotAuthenticated) => Ok(false)
+    | Error(FetchFailed(message)) => Error(message)
+    | Error(InvalidResponse) => Error("Invalid token response")
+    }
+  }
+  WebAPI.Global.clearTimeout(timeout)
+  result
+}
+
 @@live
 let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
   connection,
@@ -171,7 +199,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
 
-  let tokenResult = switch await fetchSocketToken(config.tokenUrl) {
+  let tokenResult = switch await fetchSocketToken(config.tokenUrl, ~signal?) {
   | Ok(token) => Ok(token)
   | Error(NotAuthenticated) => Error(AuthRequired({loginUrl: config.loginUrl}))
   | Error(FetchFailed(msg)) =>
