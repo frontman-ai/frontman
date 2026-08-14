@@ -51,7 +51,6 @@ WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoade
   | Some(rootElement) =>
     let root = ReactDOM.Client.createRoot(rootElement->WebAPI.Element.asRescriptElement)
     let config = getConfig()
-    Client__State.Actions.fetchUserProfile(~apiBaseUrl=config.apiBaseUrl)
     root->ReactDOM.Client.Root.render(
       <React.StrictMode>
         <Client__FrontmanProvider.Provider

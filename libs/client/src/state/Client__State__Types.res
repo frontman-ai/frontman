@@ -116,6 +116,7 @@ type state = {
   currentTask: Task.currentTask,
   acpSession: acpSession,
   sessionInitialized: bool,
+  accountGeneration: int,
   userProfile: option<userProfile>,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,

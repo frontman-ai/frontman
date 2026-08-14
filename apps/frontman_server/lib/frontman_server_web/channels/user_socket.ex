@@ -13,7 +13,7 @@ defmodule FrontmanServerWeb.UserSocket do
   channel "tasks", FrontmanServerWeb.TasksChannel
   channel "task:*", FrontmanServerWeb.TaskChannel
 
-  @max_age 5 * 60
+  @max_age 14 * 24 * 60 * 60
 
   @impl true
   def connect(params, socket, connect_info) do

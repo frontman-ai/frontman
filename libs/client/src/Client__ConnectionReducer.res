@@ -143,6 +143,7 @@ type effect =
   | DisconnectForLogout({connection: ACP.connection, session: option<ACP.session>})
   | CheckLogoutAuthentication({tokenUrl: string, signal: WebAPI.EventAPI.abortSignal})
   | ScheduleLogoutCheck({signal: WebAPI.EventAPI.abortSignal})
+  | ResetAccountStateForLogout
   | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
   | CreateSessionEffect({
       connection: ACP.connection,
@@ -343,6 +344,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
           session: NoSession,
         },
         [
+          ResetAccountStateForLogout,
           DisconnectForLogout({connection, session}),
           CheckLogoutAuthentication({tokenUrl: config.tokenUrl, signal: signalController.signal}),
         ],
@@ -358,7 +360,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       BeginLogout,
     ) => (
       {...state, logout: LogoutPending({attempt: 1, unauthenticatedChecks: 0})},
-      [CheckLogoutAuthentication({tokenUrl: config.tokenUrl, signal: signalController.signal})],
+      [
+        ResetAccountStateForLogout,
+        CheckLogoutAuthentication({tokenUrl: config.tokenUrl, signal: signalController.signal}),
+      ],
     )
 
   | (
@@ -642,6 +647,9 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       }
     })
   | DisconnectForLogout({connection, session}) => ACP.disconnect(connection, ~session?)
+  | ResetAccountStateForLogout =>
+    Client__Heap.heap.resetIdentity()
+    Client__State__Store.dispatch(ResetAccountState)
   | CheckLogoutAuthentication({tokenUrl, signal}) =>
     let check = async () => {
       let result = await ACP.checkAuthentication(tokenUrl, ~signal)

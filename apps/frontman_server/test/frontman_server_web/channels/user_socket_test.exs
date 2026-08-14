@@ -19,6 +19,40 @@ defmodule FrontmanServerWeb.UserSocketTest do
     assert UserSocket.id(socket) == "user_sessions:#{browser_session_id}"
   end
 
+  test "socket token remains valid for reconnects during the user session" do
+    user = FrontmanServer.Test.Fixtures.Accounts.user_fixture()
+    session_token = Accounts.generate_user_session_token(user)
+    {^user, user_token_id} = Accounts.get_socket_session(session_token)
+
+    socket_token =
+      Phoenix.Token.sign(
+        @endpoint,
+        "user socket",
+        {user.id, user_token_id, "browser-session"},
+        signed_at: System.system_time(:second) - 6 * 60
+      )
+
+    assert {:ok, socket} = connect(UserSocket, %{"token" => socket_token})
+    assert socket.assigns.scope.user.id == user.id
+  end
+
+  test "socket token expires after the user session lifetime" do
+    user = FrontmanServer.Test.Fixtures.Accounts.user_fixture()
+    session_token = Accounts.generate_user_session_token(user)
+    {^user, user_token_id} = Accounts.get_socket_session(session_token)
+
+    socket_token =
+      Phoenix.Token.sign(
+        @endpoint,
+        "user socket",
+        {user.id, user_token_id, "browser-session"},
+        signed_at: System.system_time(:second) - 15 * 24 * 60 * 60
+      )
+
+    assert {:ok, socket} = connect(UserSocket, %{"token" => socket_token})
+    refute Map.has_key?(socket.assigns, :scope)
+  end
+
   test "deleted browser session cannot authenticate a new socket" do
     user = FrontmanServer.Test.Fixtures.Accounts.user_fixture()
     session_token = Accounts.generate_user_session_token(user)

@@ -29,7 +29,11 @@ let init = () => {
   `)
 }
 
-type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
+type heapApi = {
+  identify: string => unit,
+  resetIdentity: unit => unit,
+  track: (string, JSON.t) => unit,
+}
 @scope("window") @val external heap: heapApi = "heap"
 
 type relayFailureReason = HttpError | InvalidResponse | NetworkError

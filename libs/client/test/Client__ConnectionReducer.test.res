@@ -14,6 +14,7 @@ let effectKinds = effects =>
     | Reducer.DisconnectForLogout(_) => #disconnectForLogout
     | Reducer.CheckLogoutAuthentication(_) => #checkLogoutAuthentication
     | Reducer.ScheduleLogoutCheck(_) => #scheduleLogoutCheck
+    | Reducer.ResetAccountStateForLogout => #resetAccountStateForLogout
     | Reducer.ConnectRelay(_) => #connectRelay
     | Reducer.CreateSessionEffect(_) => #createSession
     | Reducer.SendPromptEffect(_) => #sendPrompt
@@ -279,7 +280,11 @@ describe("Connection Reducer", () => {
         ->Expect.toEqual(LogoutPending({attempt: 1, unauthenticatedChecks: 0}))
         t
         ->expect(effectKinds(effects))
-        ->Expect.toEqual([#disconnectForLogout, #checkLogoutAuthentication])
+        ->Expect.toEqual([
+          #resetAccountStateForLogout,
+          #disconnectForLogout,
+          #checkLogoutAuthentication,
+        ])
       },
     )
 
@@ -298,6 +303,20 @@ describe("Connection Reducer", () => {
         ->expect(nextState.logout)
         ->Expect.toEqual(LogoutPending({attempt: 2, unauthenticatedChecks: 0}))
         t->expect(effectKinds(effects))->Expect.toEqual([#scheduleLogoutCheck])
+      },
+    )
+
+    test(
+      "resets account state when logout starts after a connection error",
+      t => {
+        let (initialized, _) = initialize(Reducer.initialState)
+        let state = {...initialized, acp: ACPError("Connection lost")}
+
+        let (_, effects) = Reducer.reduce(state, BeginLogout)
+
+        t
+        ->expect(effectKinds(effects))
+        ->Expect.toEqual([#resetAccountStateForLogout, #checkLogoutAuthentication])
       },
     )
 
