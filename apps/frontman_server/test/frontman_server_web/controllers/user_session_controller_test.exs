@@ -256,6 +256,13 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert redirected_to(conn) ==
                "/users/log-in?return_to=http%3A%2F%2Flocalhost%3A3000%2Ffrontman"
     end
+
+    test "redirects popup logout to its public completion page", %{conn: conn, user: user} do
+      conn = conn |> log_in_user(user) |> delete(~p"/users/log-out", %{"mode" => "popup"})
+
+      assert redirected_to(conn) == ~p"/users/logout-complete"
+      refute get_session(conn, :user_token)
+    end
   end
 
   describe "GET /users/log-out" do
@@ -272,6 +279,22 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
         |> get(~p"/users/log-out?#{%{"return_to" => "http://localhost:3000/frontman"}}")
 
       assert html_response(conn, 200) =~ "http://localhost:3000/frontman"
+    end
+
+    test "preserves popup mode in the CSRF-protected form", %{conn: conn, user: user} do
+      response =
+        conn |> log_in_user(user) |> get(~p"/users/log-out?mode=popup") |> html_response(200)
+
+      assert response =~ ~s(name="mode" value="popup")
+    end
+  end
+
+  describe "GET /users/logout-complete" do
+    test "is public after the session has been deleted", %{conn: conn} do
+      response = conn |> get(~p"/users/logout-complete") |> html_response(200)
+
+      assert response =~ "Sign-out complete"
+      assert response =~ "/assets/js/popup-complete.js"
     end
   end
 end

@@ -93,23 +93,28 @@ defmodule FrontmanServerWeb.UserAuth do
   so the user is redirected back after re-authenticating.
   """
   def log_out_user(conn, return_to \\ nil) do
+    log_out_user_to(conn, logout_redirect_path(return_to))
+  end
+
+  def log_out_user_to(conn, redirect_path) when is_binary(redirect_path) do
     user_token = get_session(conn, :user_token)
+
+    if user_token do
+      session_id = Accounts.user_session_id(user_token)
+      socket_id = FrontmanServerWeb.UserSocket.session_socket_id(session_id)
+      FrontmanServerWeb.Endpoint.broadcast(socket_id, "disconnect", %{})
+    end
+
     user_token && Accounts.delete_user_session_token(user_token)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
       FrontmanServerWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
     end
 
-    redirect_url =
-      case return_to do
-        nil -> ~p"/users/log-in"
-        url -> ~p"/users/log-in?#{%{"return_to" => url}}"
-      end
-
     conn
     |> renew_session(nil)
     |> delete_resp_cookie(@remember_me_cookie)
-    |> redirect(to: redirect_url)
+    |> redirect(to: redirect_path)
   end
 
   @doc """
@@ -361,4 +366,7 @@ defmodule FrontmanServerWeb.UserAuth do
   end
 
   defp maybe_store_return_to(conn), do: conn
+
+  defp logout_redirect_path(nil), do: ~p"/users/log-in"
+  defp logout_redirect_path(url), do: ~p"/users/log-in?#{%{"return_to" => url}}"
 end

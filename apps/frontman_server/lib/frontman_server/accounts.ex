@@ -209,6 +209,27 @@ defmodule FrontmanServer.Accounts do
     Repo.one(query)
   end
 
+  def user_session_id(token) when is_binary(token) do
+    token
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.url_encode64(padding: false)
+  end
+
+  def get_user_by_socket_session(user_id, session_id)
+      when is_binary(user_id) and is_binary(session_id) and byte_size(session_id) == 43 do
+    user_id
+    |> UserToken.valid_user_sessions_query()
+    |> Repo.all()
+    |> Enum.find_value(fn {token, user} ->
+      case Plug.Crypto.secure_compare(user_session_id(token), session_id) do
+        true -> user
+        false -> nil
+      end
+    end)
+  end
+
+  def get_user_by_socket_session(_user_id, _session_id), do: nil
+
   @doc """
   Gets the user with the given magic link token.
   """
