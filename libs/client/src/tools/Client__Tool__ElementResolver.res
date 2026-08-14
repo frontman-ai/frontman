@@ -71,35 +71,6 @@ let resolveRootOrBody = (~doc: WebAPI.DOMAPI.document, ~selector: option<string>
   | None => Ok(doc.body->WebAPI.HTMLElement.asElement)
   }
 
-let getChildElements = (el: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): array<
-  WebAPI.DOMAPI.element,
-> => {
-  let children = el.children
-  let result: array<WebAPI.DOMAPI.element> = []
-  for i in 0 to children.length - 1 {
-    result->Array.push(children->WebAPI.HTMLCollection.item(i))->ignore
-  }
-  switch pierceShadowDom {
-  | false => ()
-  | true =>
-    switch el.shadowRoot->Null.toOption {
-    | Some(shadowRoot) =>
-      let childNodes = shadowRoot.childNodes
-      for i in 0 to childNodes.length - 1 {
-        let node = WebAPI.NodeListOf.item(childNodes, i)
-        switch WebAPI.Node.nodeType(node) === 1 {
-        | true => result->Array.push(node->WebAPI.Node.asElement)->ignore
-        | false => ()
-        }
-      }
-    | None => ()
-    }
-  }
-  result
-}
-
-let hasShadowRoot = (el: WebAPI.DOMAPI.element): bool => el.shadowRoot->Null.toOption->Option.isSome
-
 let effectiveRole = (el: WebAPI.DOMAPI.element): string => {
   let rawRole =
     FrontmanBindings.Bindings__DomAccessibilityApi.getRole(el)->Null.toOption->Option.getOr("")
