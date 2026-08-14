@@ -5,6 +5,9 @@ import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installAstro } from "../helpers/installer.js";
 
 const PORT = 3011;
+const providerIt = it.skipIf(
+  !process.env.E2E_OPENAI_ACCESS_TOKEN || !process.env.E2E_OPENAI_REFRESH_TOKEN,
+);
 
 describe("Astro E2E", () => {
   let browser: Browser;
@@ -62,7 +65,7 @@ describe("Astro E2E", () => {
     expect(indexRoute.file).toContain("index.astro");
   });
 
-  it("should sync the preview URL after client-side navigation", async () => {
+  providerIt("should sync the preview URL after client-side navigation", async () => {
     page = await context.newPage();
     await openFrontmanUI(page, PORT);
 
@@ -78,7 +81,7 @@ describe("Astro E2E", () => {
     await page.close();
   });
 
-  it("should make a text change via AI prompt", async () => {
+  providerIt("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
     await openFrontmanUI(page, PORT);

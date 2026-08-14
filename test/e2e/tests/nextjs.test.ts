@@ -15,6 +15,10 @@ import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installNextjs } from "../helpers/installer.js";
 
 const PORT = 3010;
+const providerIt = it.skipIf(
+	!process.env.E2E_OPENAI_ACCESS_TOKEN ||
+		!process.env.E2E_OPENAI_REFRESH_TOKEN,
+);
 
 describe("Next.js E2E", () => {
 	let browser: Browser;
@@ -44,7 +48,7 @@ describe("Next.js E2E", () => {
 		expect(html).toContain("Hello World");
 	});
 
-	it("selects agents accessibly without overflowing chat widths", async () => {
+	providerIt("selects agents accessibly without overflowing chat widths", async () => {
 		const selectorPage = await context.newPage();
 		await openFrontmanUI(selectorPage, PORT, {
 			assertHealthy: server.assertHealthy,
@@ -111,7 +115,7 @@ describe("Next.js E2E", () => {
 		await selectorPage.close();
 	});
 
-	it("should make a text change via AI prompt", async () => {
+	providerIt("should make a text change via AI prompt", async () => {
 		page = await context.newPage();
 
 		await openFrontmanUI(page, PORT, { assertHealthy: server.assertHealthy });

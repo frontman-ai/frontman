@@ -5,6 +5,9 @@ import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installVite } from "../helpers/installer.js";
 
 const PORT = 3012;
+const providerIt = it.skipIf(
+  !process.env.E2E_OPENAI_ACCESS_TOKEN || !process.env.E2E_OPENAI_REFRESH_TOKEN,
+);
 
 describe("Vite E2E", () => {
   let browser: Browser;
@@ -39,7 +42,7 @@ describe("Vite E2E", () => {
       .waitFor({ state: "visible" });
   });
 
-  it("should make a text change via AI prompt", async () => {
+  providerIt("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
     await openFrontmanUI(page, PORT);
