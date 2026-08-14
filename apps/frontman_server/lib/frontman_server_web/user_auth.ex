@@ -96,16 +96,16 @@ defmodule FrontmanServerWeb.UserAuth do
     log_out_user_to(conn, logout_redirect_path(return_to))
   end
 
+  @spec log_out_user_to(Plug.Conn.t(), binary()) :: Plug.Conn.t()
   def log_out_user_to(conn, redirect_path) when is_binary(redirect_path) do
     user_token = get_session(conn, :user_token)
+    socket_session_id = get_session(conn, :socket_session_id)
+    user_token && Accounts.delete_user_session_token(user_token)
 
-    if user_token do
-      session_id = Accounts.user_session_id(user_token)
-      socket_id = FrontmanServerWeb.UserSocket.session_socket_id(session_id)
+    if socket_session_id do
+      socket_id = FrontmanServerWeb.UserSocket.session_socket_id(socket_session_id)
       FrontmanServerWeb.Endpoint.broadcast(socket_id, "disconnect", %{})
     end
-
-    user_token && Accounts.delete_user_session_token(user_token)
 
     if live_socket_id = get_session(conn, :live_socket_id) do
       FrontmanServerWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
@@ -250,7 +250,10 @@ defmodule FrontmanServerWeb.UserAuth do
     token_age = DateTime.diff(DateTime.utc_now(:second), token_inserted_at, :day)
 
     if token_age >= @session_reissue_age_in_days do
-      create_or_extend_session(conn, user, %{})
+      old_token = get_session(conn, :user_token)
+      conn = create_or_extend_session(conn, user, %{})
+      old_token && Accounts.delete_user_session_token(old_token)
+      conn
     else
       conn
     end
