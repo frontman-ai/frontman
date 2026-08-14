@@ -98,7 +98,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
-  let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
@@ -127,7 +126,6 @@ let make = (~onConfigureProvider: unit => unit) => {
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
-    ~isStreaming,
     ~isAgentRunning,
     ~hasActiveACPSession,
     ~sessionInitialized,
