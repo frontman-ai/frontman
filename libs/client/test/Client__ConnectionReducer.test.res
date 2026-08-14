@@ -11,7 +11,7 @@ let effectKinds = effects =>
     | Reducer.TrackRelay(_) => #trackRelay
     | Reducer.ConnectACP(_) => #connectACP
     | Reducer.ScheduleAuthRetry(_) => #scheduleAuthRetry
-    | Reducer.Logout(_, _, _, _) => #logout
+    | Reducer.LogoutEffect(_) => #logout
     | Reducer.ConnectRelay(_) => #connectRelay
     | Reducer.CreateSessionEffect(_) => #createSession
     | Reducer.SendPromptEffect(_) => #sendPrompt

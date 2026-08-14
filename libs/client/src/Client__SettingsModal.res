@@ -273,21 +273,18 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             {React.string("Signing out...")}
                           </Button>
                         | (_, Types.AcpSessionActive({apiBaseUrl})) =>
-                          <Button
-                            variant=Button.Variant.Outline
-                            size=Button.Size.Sm
-                            onClick={_ => {
-                              WebAPI.Window.open_(
-                                WebAPI.Global.window,
-                                ~url=`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`,
-                                ~target="_blank",
-                                ~features="noopener,noreferrer",
-                              )->ignore
-                              beginLogout()
-                            }}
+                          <a
+                            className={Button.buttonVariants(
+                              ~variant=Button.Variant.Outline,
+                              ~size=Button.Size.Sm,
+                            )}
+                            href={`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={_ => beginLogout()}
                           >
                             {React.string("Sign out")}
-                          </Button>
+                          </a>
                         | (_, Types.NoAcpSession) => React.null
                         }}
                       </div>
