@@ -94,11 +94,21 @@ defmodule FrontmanServerWeb.UserSessionController do
   the GET only returns HTML; the actual session destruction requires the DELETE with
   a valid CSRF token.
   """
-  def confirm_logout(conn, params) do
-    render(conn, :confirm_logout, return_to: params["return_to"])
-  end
+  def confirm_logout(conn, %{"mode" => "popup"}),
+    do: render(conn, :confirm_logout, return_to: nil, mode: "popup")
+
+  def confirm_logout(conn, params),
+    do: render(conn, :confirm_logout, return_to: params["return_to"], mode: nil)
 
   def popup_complete(conn, _params), do: render(conn, :popup_complete)
+
+  def logout_complete(conn, _params), do: render(conn, :logout_complete)
+
+  def delete(conn, %{"mode" => "popup"}) do
+    conn
+    |> put_flash(:info, "Logged out successfully.")
+    |> UserAuth.log_out_user_to(~p"/users/logout-complete")
+  end
 
   def delete(conn, params) do
     conn

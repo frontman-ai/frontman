@@ -39,6 +39,7 @@ defmodule FrontmanServerWeb.Router do
 
     delete("/users/log-out", UserSessionController, :delete)
     get("/users/log-out", UserSessionController, :confirm_logout)
+    get("/users/logout-complete", UserSessionController, :logout_complete)
   end
 
   scope "/health", FrontmanServerWeb do

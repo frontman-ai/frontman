@@ -75,6 +75,15 @@ defmodule FrontmanServer.Accounts.UserToken do
     {:ok, query}
   end
 
+  def valid_user_sessions_query(user_id) when is_binary(user_id) do
+    from token in UserToken,
+      join: user in assoc(token, :user),
+      where:
+        token.user_id == ^user_id and token.context == "session" and
+          token.inserted_at > ago(@session_validity_in_days, "day"),
+      select: {token.token, user}
+  end
+
   @doc """
   Builds a token and its hash to be delivered to the user's email.
 

@@ -17,6 +17,9 @@
       <%= if @return_to do %>
         <input type="hidden" name="return_to" value={@return_to} />
       <% end %>
+      <%= if @mode do %>
+        <input type="hidden" name="mode" value={@mode} />
+      <% end %>
       <noscript>
         <button type="submit" class="btn btn-error">
           Click here to sign out
