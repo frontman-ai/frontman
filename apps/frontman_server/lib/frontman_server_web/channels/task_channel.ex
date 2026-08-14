@@ -283,6 +283,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         _missing -> load_turn_context!(socket, turn_number)
       end
 
+    notification = ACP.build_state_update_notification(socket.assigns.task_id, "running")
+    push(socket, @acp_message, notification)
+
     {:noreply, assign(socket, :active_turn, context)}
   end
 
