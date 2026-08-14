@@ -40,13 +40,9 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
-  | ResetAccountState
+  | FetchUserProfile({apiBaseUrl: string})
   | FetchApiKeySettings
-  | ApiKeySettingsReceived({
-      provider: apiKeyProvider,
-      source: Client__State__Types.apiKeySource,
-      accountGeneration: int,
-    })
+  | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
   | SaveApiKey({provider: apiKeyProvider, key: string})
   | ApiKeySaveStarted({provider: apiKeyProvider})
   | ApiKeySaved({provider: apiKeyProvider})
@@ -59,12 +55,7 @@ type action =
   | AgentAttributionConfigured({agentCatalog: array<ACP.agentCatalogEntry>, defaultAgentId: string})
   | SetSelectedAgentId(string)
   | FetchAnthropicOAuthStatus
-  | AnthropicOAuthStatusReceived({
-      connected: bool,
-      expiresAt: option<string>,
-      accountGeneration: int,
-    })
-  | AnthropicOAuthStatusFetchFailed(int)
+  | AnthropicOAuthStatusReceived({connected: bool, expiresAt: option<string>})
   | InitiateAnthropicOAuth
   | AnthropicOAuthUrlReceived({authorizeUrl: string, verifier: string})
   | ExchangeAnthropicOAuthCode({code: string, verifier: string})
@@ -75,8 +66,7 @@ type action =
   | ResetAnthropicOAuthError
   | CancelAnthropicOAuth
   | FetchOpenAIOAuthStatus
-  | OpenAIOAuthStatusReceived({connected: bool, expiresAt: option<string>, accountGeneration: int})
-  | OpenAIOAuthStatusFetchFailed(int)
+  | OpenAIOAuthStatusReceived({connected: bool, expiresAt: option<string>})
   | InitiateOpenAIOAuth
   | OpenAIDeviceCodeReceived({deviceAuthId: string, userCode: string, verificationUrl: string})
   | OpenAIOAuthConnected({deviceAuthId: string, expiresAt: string})
@@ -84,7 +74,7 @@ type action =
   | DisconnectOpenAIOAuth
   | OpenAIOAuthDisconnected
   | ResetOpenAIOAuthError
-  | UserProfileReceived({userProfile: Client__State__Types.userProfile, accountGeneration: int})
+  | UserProfileReceived({userProfile: Client__State__Types.userProfile})
   | SessionsLoadStarted
   | SessionsLoadSuccess({
       sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
@@ -96,18 +86,17 @@ type action =
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
-  | FetchApiKeySettingsEffect({apiBaseUrl: string, accountGeneration: int})
+  | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
-  | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string, accountGeneration: int})
+  | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
   | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl: string, code: string, verifier: string})
   | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
-  | FetchOpenAIOAuthStatusEffect({apiBaseUrl: string, accountGeneration: int})
+  | FetchOpenAIOAuthStatusEffect({apiBaseUrl: string})
   | InitiateOpenAIDeviceAuthEffect({apiBaseUrl: string})
   | DisconnectOpenAIOAuthEffect({apiBaseUrl: string})
   | PollOpenAIDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
-  | FetchUserProfileEffect({apiBaseUrl: string, accountGeneration: int})
-  | IdentifyUserEffect(string)
+  | FetchUserProfileEffect({apiBaseUrl: string})
   | LoadTaskEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
 
@@ -209,7 +198,6 @@ let defaultState: state = {
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   acpSession: NoAcpSession,
   sessionInitialized: false,
-  accountGeneration: 0,
   userProfile: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
@@ -526,7 +514,7 @@ let sendMessageToAPIImpl = (
   }
 }
 
-let fetchUserProfileImpl = (dispatch, ~apiBaseUrl, ~accountGeneration) => {
+let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/me`
 
@@ -536,7 +524,8 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl, ~accountGeneration) => {
         let json = await response->WebAPI.Response.json
         let userProfile =
           json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
-        dispatch(UserProfileReceived({userProfile, accountGeneration}))
+        dispatch(UserProfileReceived({userProfile: userProfile}))
+        Client__Heap.heap.identify(userProfile.id)
       }
     } catch {
     | exn => Log.error(~error=JsExn.fromException(exn), "FetchUserProfile failed")
@@ -558,7 +547,7 @@ let encodeUserApiKeySaveRequest = (~provider, ~key) => {
 let jsonContentHeaders = () =>
   WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
 
-let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl, ~accountGeneration) => {
+let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/api-keys`
 
@@ -576,7 +565,7 @@ let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl, ~accountGeneration) => {
           | false => Client__State__Types.None
           }
 
-          dispatch(ApiKeySettingsReceived({provider, source, accountGeneration}))
+          dispatch(ApiKeySettingsReceived({provider, source}))
         })
       }
     } catch {
@@ -626,9 +615,7 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
 
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
-  | FetchUserProfileEffect({apiBaseUrl, accountGeneration}) =>
-    fetchUserProfileImpl(dispatch, ~apiBaseUrl, ~accountGeneration)
-  | IdentifyUserEffect(userId) => Client__Heap.heap.identify(userId)
+  | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       let taskDispatch = (taskAction: TaskReducer.action) => {
         dispatch(TaskAction({target, action: taskAction}))
@@ -670,11 +657,10 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
     }
-  | FetchApiKeySettingsEffect({apiBaseUrl, accountGeneration}) =>
-    fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl, ~accountGeneration)
+  | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
     saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
-  | FetchAnthropicOAuthStatusEffect({apiBaseUrl, accountGeneration}) =>
+  | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/status`
 
@@ -691,10 +677,10 @@ let handleEffect = (effect, state: state, dispatch) => {
             json
             ->JSON.Decode.object
             ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
-          dispatch(AnthropicOAuthStatusReceived({connected, expiresAt, accountGeneration}))
+          dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
-      | _ => dispatch(AnthropicOAuthStatusFetchFailed(accountGeneration))
+      | _ => dispatch(AnthropicOAuthError({error: "Failed to fetch OAuth status"}))
       }
     }
     fetch()->ignore
@@ -799,7 +785,7 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     disconnect()->ignore
 
-  | FetchOpenAIOAuthStatusEffect({apiBaseUrl, accountGeneration}) =>
+  | FetchOpenAIOAuthStatusEffect({apiBaseUrl}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/openai/status`
 
@@ -816,10 +802,13 @@ let handleEffect = (effect, state: state, dispatch) => {
             json
             ->JSON.Decode.object
             ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
-          dispatch(OpenAIOAuthStatusReceived({connected, expiresAt, accountGeneration}))
+          dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
-      | _ => dispatch(OpenAIOAuthStatusFetchFailed(accountGeneration))
+      | _ =>
+        dispatch(
+          OpenAIOAuthError({deviceAuthId: None, error: "Failed to fetch OpenAI OAuth status"}),
+        )
       }
     }
     fetch()->ignore
@@ -1171,16 +1160,9 @@ let next = (state: state, action) => {
       ->setAllApiKeySources(Client__State__Types.Loading)
       ->StateReducer.update(
         ~sideEffects=[
-          FetchUserProfileEffect({apiBaseUrl, accountGeneration: state.accountGeneration}),
-          FetchApiKeySettingsEffect({apiBaseUrl, accountGeneration: state.accountGeneration}),
-          FetchAnthropicOAuthStatusEffect({
-            apiBaseUrl,
-            accountGeneration: state.accountGeneration,
-          }),
-          FetchOpenAIOAuthStatusEffect({
-            apiBaseUrl,
-            accountGeneration: state.accountGeneration,
-          }),
+          FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
+          FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
+          FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
         ],
       )
     }
@@ -1203,52 +1185,24 @@ let next = (state: state, action) => {
       tasks: updatedTasks,
       acpSession: NoAcpSession,
       sessionInitialized: false,
-      accountGeneration: state.accountGeneration + 1,
     }->StateReducer.update
 
-  | ResetAccountState =>
-    {
-      ...state,
-      tasks: Dict.make(),
-      currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
-      acpSession: NoAcpSession,
-      sessionInitialized: false,
-      accountGeneration: state.accountGeneration + 1,
-      userProfile: None,
-      openrouterKeySettings: {source: Client__State__Types.None, saveStatus: Idle},
-      anthropicKeySettings: {source: Client__State__Types.None, saveStatus: Idle},
-      fireworksKeySettings: {source: Client__State__Types.None, saveStatus: Idle},
-      nvidiaKeySettings: {source: Client__State__Types.None, saveStatus: Idle},
-      anthropicOAuthStatus: NotConnected,
-      openaiOAuthStatus: OpenAINotConnected,
-      configOptions: None,
-      agentCatalog: None,
-      selectedAgentId: None,
-      pendingProviderAutoSelect: None,
-      sessionsLoadState: SessionsNotLoaded,
-    }->StateReducer.update
+  | FetchUserProfile({apiBaseUrl}) =>
+    state->StateReducer.update(~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})])
 
-  | UserProfileReceived({userProfile: {id, email, name}, accountGeneration})
-    if accountGeneration == state.accountGeneration =>
+  | UserProfileReceived({userProfile: {id, email, name}}) =>
     let userProfile: Client__State__Types.userProfile = {id, email, name}
-    {...state, userProfile: Some(userProfile)}->StateReducer.update(
-      ~sideEffects=[IdentifyUserEffect(id)],
-    )
+    {...state, userProfile: Some(userProfile)}->StateReducer.update
   | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       state
       ->setAllApiKeySources(Client__State__Types.Loading)
-      ->StateReducer.update(
-        ~sideEffects=[
-          FetchApiKeySettingsEffect({apiBaseUrl, accountGeneration: state.accountGeneration}),
-        ],
-      )
+      ->StateReducer.update(~sideEffects=[FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl})])
     | NoAcpSession => state->StateReducer.update
     }
 
-  | ApiKeySettingsReceived({provider, source, accountGeneration})
-    if accountGeneration == state.accountGeneration =>
+  | ApiKeySettingsReceived({provider, source}) =>
     state->setApiKeySource(provider, source)->StateReducer.update
 
   | SaveApiKey({provider, key}) =>
@@ -1345,15 +1299,12 @@ let next = (state: state, action) => {
         ...state,
         anthropicOAuthStatus: Client__State__Types.FetchingStatus,
       }->StateReducer.update(
-        ~sideEffects=[
-          FetchAnthropicOAuthStatusEffect({apiBaseUrl, accountGeneration: state.accountGeneration}),
-        ],
+        ~sideEffects=[FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
       )
     | NoAcpSession => state->StateReducer.update
     }
 
-  | AnthropicOAuthStatusReceived({connected, expiresAt, accountGeneration})
-    if accountGeneration == state.accountGeneration =>
+  | AnthropicOAuthStatusReceived({connected, expiresAt}) =>
     let status = if connected {
       switch expiresAt {
       | Some(expiresAtStr) =>
@@ -1365,13 +1316,6 @@ let next = (state: state, action) => {
       Client__State__Types.NotConnected
     }
     {...state, anthropicOAuthStatus: status}->StateReducer.update
-
-  | AnthropicOAuthStatusFetchFailed(accountGeneration)
-    if accountGeneration == state.accountGeneration =>
-    {
-      ...state,
-      anthropicOAuthStatus: Error("Failed to fetch OAuth status"),
-    }->StateReducer.update
 
   | InitiateAnthropicOAuth =>
     switch state.acpSession {
@@ -1452,16 +1396,11 @@ let next = (state: state, action) => {
       {
         ...state,
         openaiOAuthStatus: Client__State__Types.OpenAIFetchingStatus,
-      }->StateReducer.update(
-        ~sideEffects=[
-          FetchOpenAIOAuthStatusEffect({apiBaseUrl, accountGeneration: state.accountGeneration}),
-        ],
-      )
+      }->StateReducer.update(~sideEffects=[FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl})])
     | NoAcpSession => state->StateReducer.update
     }
 
-  | OpenAIOAuthStatusReceived({connected, expiresAt, accountGeneration})
-    if accountGeneration == state.accountGeneration =>
+  | OpenAIOAuthStatusReceived({connected, expiresAt}) =>
     let status = if connected {
       switch expiresAt {
       | Some(expiresAtStr) =>
@@ -1473,21 +1412,6 @@ let next = (state: state, action) => {
       Client__State__Types.OpenAINotConnected
     }
     {...state, openaiOAuthStatus: status}->StateReducer.update
-
-  | OpenAIOAuthStatusFetchFailed(accountGeneration)
-    if accountGeneration == state.accountGeneration =>
-    {
-      ...state,
-      openaiOAuthStatus: OpenAIError("Failed to fetch OpenAI OAuth status"),
-    }->StateReducer.update
-
-  | UserProfileReceived(_)
-  | ApiKeySettingsReceived(_)
-  | AnthropicOAuthStatusReceived(_)
-  | AnthropicOAuthStatusFetchFailed(_)
-  | OpenAIOAuthStatusReceived(_)
-  | OpenAIOAuthStatusFetchFailed(_) =>
-    state->StateReducer.update
 
   | InitiateOpenAIOAuth =>
     switch state.acpSession {

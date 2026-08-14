@@ -75,26 +75,6 @@ defmodule FrontmanServer.Accounts.UserToken do
     {:ok, query}
   end
 
-  @spec verify_socket_session_query(binary()) :: Ecto.Query.t()
-  def verify_socket_session_query(token) when is_binary(token) do
-    from token in UserToken,
-      join: user in assoc(token, :user),
-      where:
-        token.token == ^token and token.context == "session" and
-          token.inserted_at > ago(@session_validity_in_days, "day"),
-      select: {user, token.id}
-  end
-
-  @spec socket_session_query(binary(), binary()) :: Ecto.Query.t()
-  def socket_session_query(user_id, token_id) when is_binary(user_id) and is_binary(token_id) do
-    from token in UserToken,
-      join: user in assoc(token, :user),
-      where:
-        token.id == ^token_id and token.user_id == ^user_id and token.context == "session" and
-          token.inserted_at > ago(@session_validity_in_days, "day"),
-      select: user
-  end
-
   @doc """
   Builds a token and its hash to be delivered to the user's email.
 

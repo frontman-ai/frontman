@@ -6,8 +6,6 @@ module State = Client__State
 module Types = Client__State__Types
 module RuntimeConfig = Client__RuntimeConfig
 
-@get external mouseButton: ReactEvent.Mouse.t => int = "button"
-
 type badgeTone = Blue | Emerald | Amber | Red | Zinc
 
 let badgeClass = tone =>
@@ -135,16 +133,7 @@ module APIKeyCard = {
 
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
-  let {logoutUrl, logoutState, beginLogout, _} = Client__FrontmanProvider.useFrontman()
-  let handleLogout = _ => beginLogout()
-  let handleLogoutMouseUp = event => {
-    switch mouseButton(event) {
-    | 1 => {
-        let _ = WebAPI.Global.setTimeout(~timeout=0, ~handler=beginLogout)
-      }
-    | _ => ()
-    }
-  }
+  let {beginLogout, _} = Client__FrontmanProvider.useFrontman()
   let runtimeConfig = RuntimeConfig.read()
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
@@ -277,45 +266,24 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             </div>
                           </div>
                         </div>
-                        {switch (acpSession, logoutState) {
-                        | (Types.AcpSessionActive(_), LogoutIdle) =>
-                          <a
-                            href={logoutUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={Button.buttonVariants(
-                              ~variant=Button.Variant.Outline,
-                              ~size=Button.Size.Sm,
-                            )}
-                            onClick=handleLogout
-                            onMouseUp=handleLogoutMouseUp
+                        {switch acpSession {
+                        | Types.AcpSessionActive({apiBaseUrl}) =>
+                          <Button
+                            variant=Button.Variant.Outline
+                            size=Button.Size.Sm
+                            onClick={_ => {
+                              WebAPI.Window.open_(
+                                WebAPI.Global.window,
+                                ~url=`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`,
+                                ~target="_blank",
+                                ~features="noopener,noreferrer",
+                              )->ignore
+                              beginLogout()
+                            }}
                           >
                             {React.string("Sign out")}
-                          </a>
-                        | (_, LogoutPending(_)) =>
-                          <Button variant=Button.Variant.Outline size=Button.Size.Sm disabled=true>
-                            {React.string("Signing out...")}
                           </Button>
-                        | (_, LogoutFailed(message)) =>
-                          <div className="flex flex-col items-end gap-2">
-                            <a
-                              href={logoutUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={Button.buttonVariants(
-                                ~variant=Button.Variant.Outline,
-                                ~size=Button.Size.Sm,
-                              )}
-                              onClick=handleLogout
-                              onMouseUp=handleLogoutMouseUp
-                            >
-                              {React.string("Try sign out again")}
-                            </a>
-                            <p className="max-w-56 text-right text-xs text-red-400" role="alert">
-                              {React.string(message)}
-                            </p>
-                          </div>
-                        | (Types.NoAcpSession, LogoutIdle) => React.null
+                        | Types.NoAcpSession => React.null
                         }}
                       </div>
                     </div>

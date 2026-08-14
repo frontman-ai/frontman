@@ -39,7 +39,7 @@ defmodule FrontmanServerWeb.Router do
 
     delete("/users/log-out", UserSessionController, :delete)
     get("/users/log-out", UserSessionController, :confirm_logout)
-    get("/users/logout-complete", UserSessionController, :logout_complete)
+    get("/users/popup-complete", UserSessionController, :popup_complete)
   end
 
   scope "/health", FrontmanServerWeb do
@@ -80,7 +80,6 @@ defmodule FrontmanServerWeb.Router do
     pipe_through([:browser, :require_authenticated_user])
 
     get("/users/settings", UserSettingsController, :edit)
-    get("/users/popup-complete", UserSessionController, :popup_complete)
     put("/users/settings", UserSettingsController, :update)
     get("/users/settings/confirm-email/:token", UserSettingsController, :confirm_email)
   end

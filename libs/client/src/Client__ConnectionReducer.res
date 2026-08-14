@@ -40,19 +40,11 @@ type sessionState =
   | SessionActive(ACP.session)
   | SessionError(string)
 
-type logoutState =
-  | LogoutIdle
-  | LogoutPending({attempt: int, unauthenticatedChecks: int})
-  | LogoutFailed(string)
-
-let maxLogoutChecks = 15
-
 type state = {
   acp: acpState,
   acpConfig: option<ACP.config>,
   authRetryActive: bool,
   authRetryInFlight: bool,
-  logout: logoutState,
   relay: relayState,
   session: sessionState,
   relayInstance: option<Relay.t>,
@@ -75,11 +67,6 @@ let enrichLoginUrl = (~loginUrl: string, ~framework: option<string>): string => 
   | None => ()
   }
   url.href
-}
-
-let logoutUrl = (~loginUrl: string): string => {
-  let url = WebAPI.URL.make(~url=loginUrl)
-  `${url.origin}/users/log-out?mode=popup`
 }
 
 type initPayload = {
@@ -110,9 +97,6 @@ type action =
   | BeginAuthenticationRetry
   | RetryAuthentication
   | BeginLogout
-  | CheckLogoutAuthenticationAgain
-  | LogoutAuthenticationChecked(bool)
-  | LogoutAuthenticationCheckFailed(string)
   | ACPConnectSuccess(ACP.connection)
   | ACPAuthRequiredReceived(authRequiredPayload)
   | ACPConnectError(string)
@@ -140,10 +124,12 @@ type effect =
   | TrackRelay(Client__Heap.relayOutcome)
   | ConnectACP({config: ACP.config, signal: WebAPI.EventAPI.abortSignal})
   | ScheduleAuthRetry({signal: WebAPI.EventAPI.abortSignal})
-  | DisconnectForLogout({connection: ACP.connection, session: option<ACP.session>})
-  | CheckLogoutAuthentication({tokenUrl: string, signal: WebAPI.EventAPI.abortSignal})
-  | ScheduleLogoutCheck({signal: WebAPI.EventAPI.abortSignal})
-  | ResetAccountStateForLogout
+  | Logout({
+      connection: ACP.connection,
+      session: option<ACP.session>,
+      tokenUrl: string,
+      signal: WebAPI.EventAPI.abortSignal,
+    })
   | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
   | CreateSessionEffect({
       connection: ACP.connection,
@@ -174,7 +160,6 @@ let initialState: state = {
   acpConfig: None,
   authRetryActive: false,
   authRetryInFlight: false,
-  logout: LogoutIdle,
   relay: RelayDisconnected,
   session: NoSession,
   relayInstance: None,
@@ -225,13 +210,6 @@ module Selectors = {
     | ACPDisconnected | ACPConnecting | ACPConnected(_) | ACPError(_) => None
     }
   }
-
-  let getLogoutState = (state: state): logoutState => state.logout
-}
-
-let enrichedLoginUrlFromConfig = (config: ACP.config): string => {
-  let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
-  enrichLoginUrl(~loginUrl=config.loginUrl, ~framework)
 }
 
 let reduce = (state: state, action: action): (state, array<effect>) => {
@@ -257,7 +235,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         acpConfig: Some(acpConfig),
         authRetryActive: false,
         authRetryInFlight: false,
-        logout: LogoutIdle,
         relay: RelayConnecting,
         session: NoSession,
         relayInstance: Some(relay),
@@ -340,90 +317,20 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
           acp: ACPDisconnected,
           authRetryActive: false,
           authRetryInFlight: false,
-          logout: LogoutPending({attempt: 1, unauthenticatedChecks: 0}),
           session: NoSession,
         },
         [
-          ResetAccountStateForLogout,
-          DisconnectForLogout({connection, session}),
-          CheckLogoutAuthentication({tokenUrl: config.tokenUrl, signal: signalController.signal}),
+          Logout({
+            connection,
+            session,
+            tokenUrl: config.tokenUrl,
+            signal: signalController.signal,
+          }),
         ],
       )
     }
 
-  | (
-      {
-        acp: ACPDisconnected | ACPError(_),
-        acpConfig: Some(config),
-        abortController: Some(signalController),
-      },
-      BeginLogout,
-    ) => (
-      {...state, logout: LogoutPending({attempt: 1, unauthenticatedChecks: 0})},
-      [
-        ResetAccountStateForLogout,
-        CheckLogoutAuthentication({tokenUrl: config.tokenUrl, signal: signalController.signal}),
-      ],
-    )
-
-  | (
-      {logout: LogoutPending({attempt}), abortController: Some(signalController)},
-      LogoutAuthenticationChecked(true),
-    ) if attempt < maxLogoutChecks => (
-      {...state, logout: LogoutPending({attempt: attempt + 1, unauthenticatedChecks: 0})},
-      [ScheduleLogoutCheck({signal: signalController.signal})],
-    )
-
-  | (
-      {logout: LogoutPending(_), acpConfig: Some(config), abortController: Some(signalController)},
-      CheckLogoutAuthenticationAgain,
-    ) => (
-      state,
-      [CheckLogoutAuthentication({tokenUrl: config.tokenUrl, signal: signalController.signal})],
-    )
-
-  | ({logout: LogoutPending(_)}, LogoutAuthenticationChecked(true)) => (
-      {...state, logout: LogoutFailed("Sign-out was not confirmed. Try again.")},
-      [],
-    )
-
-  | (
-      {logout: LogoutPending({unauthenticatedChecks: 1}), acpConfig: Some(config)},
-      LogoutAuthenticationChecked(false),
-    ) => (
-      {
-        ...state,
-        acp: ACPAuthRequired({loginUrl: enrichedLoginUrlFromConfig(config)}),
-        logout: LogoutIdle,
-      },
-      [],
-    )
-
-  | (
-      {logout: LogoutPending({attempt}), abortController: Some(signalController)},
-      LogoutAuthenticationChecked(false),
-    ) if attempt < maxLogoutChecks => (
-      {...state, logout: LogoutPending({attempt: attempt + 1, unauthenticatedChecks: 1})},
-      [ScheduleLogoutCheck({signal: signalController.signal})],
-    )
-
-  | ({logout: LogoutPending(_)}, LogoutAuthenticationChecked(false)) => (
-      {...state, logout: LogoutFailed("Sign-out was not confirmed. Try again.")},
-      [],
-    )
-
-  | ({logout: LogoutPending(_)}, LogoutAuthenticationCheckFailed(message)) => (
-      {...state, logout: LogoutFailed(`Could not confirm sign-out: ${message}`)},
-      [LogError(`Logout authentication check failed: ${message}`)],
-    )
-
-  | (
-      _,
-      BeginLogout
-      | CheckLogoutAuthenticationAgain
-      | LogoutAuthenticationChecked(_)
-      | LogoutAuthenticationCheckFailed(_),
-    ) => (state, [])
+  | (_, BeginLogout) => (state, [])
 
   | ({acp: ACPConnecting}, ACPConnectError(msg)) => (
       {...state, acp: ACPError(msg), authRetryActive: false, authRetryInFlight: false},
@@ -646,27 +553,37 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | false => dispatch(RetryAuthentication)
       }
     })
-  | DisconnectForLogout({connection, session}) => ACP.disconnect(connection, ~session?)
-  | ResetAccountStateForLogout =>
-    Client__Heap.heap.resetIdentity()
-    Client__State__Store.dispatch(ResetAccountState)
-  | CheckLogoutAuthentication({tokenUrl, signal}) =>
-    let check = async () => {
-      let result = await ACP.checkAuthentication(tokenUrl, ~signal)
-      switch (signal.aborted, result) {
-      | (true, _) => ()
-      | (false, Ok(authenticated)) => dispatch(LogoutAuthenticationChecked(authenticated))
-      | (false, Error(message)) => dispatch(LogoutAuthenticationCheckFailed(message))
-      }
+  | Logout({connection, session, tokenUrl, signal}) =>
+    ACP.disconnect(connection, ~session?)
+    let rec check = attempt => {
+      let _ = WebAPI.Global.setTimeout(~timeout=1000, ~handler=() => {
+        let poll = async () => {
+          try {
+            let controller = WebAPI.AbortController.make()
+            let timeout = WebAPI.Global.setTimeout(~timeout=1000, ~handler=() =>
+              WebAPI.AbortController.abort(controller)
+            )
+            let response = await WebAPI.Global.fetch(
+              tokenUrl,
+              ~init={credentials: Include, signal: Null.make(controller.signal)},
+            )
+            WebAPI.Global.clearTimeout(timeout)
+            switch (signal.aborted, response.status) {
+            | (true, _) => ()
+            | (false, 401) => WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.reload
+            | (false, _) if attempt < 15 => check(attempt + 1)
+            | (false, _) => WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.reload
+            }
+          } catch {
+          | _ if signal.aborted => ()
+          | _ if attempt < 15 => check(attempt + 1)
+          | _ => WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.reload
+          }
+        }
+        poll()->ignore
+      })
     }
-    check()->ignore
-  | ScheduleLogoutCheck({signal}) =>
-    let _ = WebAPI.Global.setTimeout(~timeout=2000, ~handler=() => {
-      switch signal.aborted {
-      | true => ()
-      | false => dispatch(CheckLogoutAuthenticationAgain)
-      }
-    })
+    check(1)
   | ConnectRelay(relay, signal) =>
     let connect = async () => {
       let result = await Relay.connect(relay, ~signal)

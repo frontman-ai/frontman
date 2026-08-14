@@ -1290,11 +1290,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t => {
         let (nextState, _effects) = Reducer.next(
           Reducer.defaultState,
-          ApiKeySettingsReceived({
-            provider: Anthropic,
-            source: UserOverride,
-            accountGeneration: Reducer.defaultState.accountGeneration,
-          }),
+          ApiKeySettingsReceived({provider: Anthropic, source: UserOverride}),
         )
 
         t->expect(nextState.openrouterKeySettings.source)->Expect.toEqual(Client__State__Types.None)
@@ -1409,24 +1405,13 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
 
     test(
-      "initializing a new ACP session fetches account settings and profile",
+      "initializing a new ACP session fetches provider settings",
       t => {
         let (nextState, effects) = Reducer.next(Reducer.defaultState, _setAcpSessionAction())
 
         t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(FetchingStatus)
         t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAIFetchingStatus)
-        t->expect(effects->Array.length)->Expect.toBe(4)
-        t
-        ->expect(
-          effects->Array.some(
-            effect =>
-              switch effect {
-              | FetchUserProfileEffect(_) => true
-              | _ => false
-              },
-          ),
-        )
-        ->Expect.toBe(true)
+        t->expect(effects->Array.length)->Expect.toBe(3)
       },
     )
 
@@ -1437,64 +1422,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
         let (nextState, _effects) = Reducer.next(state, ClearAcpSession)
 
         t->expect(nextState.sessionInitialized)->Expect.toBe(false)
-      },
-    )
-
-    test(
-      "resetting account state removes data from the signed-out account",
-      t => {
-        let task = TestHelpers.makeLoadedTask(
-          ~id="task-1",
-          ~title="First account task",
-          ~previewUrl="http://localhost:3000",
-          ~createdAt=0.,
-        )
-        let state = {
-          ...Reducer.defaultState,
-          tasks: Dict.fromArray([("task-1", task)]),
-          currentTask: Task.Selected("task-1"),
-          sessionInitialized: true,
-          userProfile: Some({id: "user-1", email: "first@example.com", name: None}),
-          anthropicOAuthStatus: Connected({expiresAt: 1786752000000.}),
-          selectedAgentId: Some("agent-1"),
-          pendingProviderAutoSelect: Some("anthropic"),
-          sessionsLoadState: SessionsLoaded,
-          updateBannerDismissed: true,
-        }
-
-        let (nextState, effects) = Reducer.next(state, ResetAccountState)
-
-        t->expect(nextState.sessionInitialized)->Expect.toBe(false)
-        t->expect(nextState.tasks->Dict.size)->Expect.toBe(0)
-        t->expect(nextState.currentTask == Task.Selected("task-1"))->Expect.toBe(false)
-        t->expect(nextState.userProfile)->Expect.toBe(None)
-        t->expect(nextState.anthropicOAuthStatus)->Expect.toBe(NotConnected)
-        t->expect(nextState.selectedAgentId)->Expect.toBe(None)
-        t->expect(nextState.pendingProviderAutoSelect)->Expect.toBe(None)
-        t->expect(nextState.sessionsLoadState)->Expect.toBe(SessionsNotLoaded)
-        t->expect(nextState.updateBannerDismissed)->Expect.toBe(true)
-        t->expect(effects->Array.length)->Expect.toBe(0)
-      },
-    )
-
-    test(
-      "ignores account responses started before logout",
-      t => {
-        let (signedOutState, _) = Reducer.next(Reducer.defaultState, ResetAccountState)
-        let oldProfile: Client__State__Types.userProfile = {
-          id: "old-user",
-          email: "old@example.com",
-          name: None,
-        }
-
-        let (nextState, effects) = Reducer.next(
-          signedOutState,
-          UserProfileReceived({userProfile: oldProfile, accountGeneration: 0}),
-        )
-
-        t->expect(signedOutState.accountGeneration)->Expect.toBe(1)
-        t->expect(nextState.userProfile)->Expect.toBe(None)
-        t->expect(effects->Array.length)->Expect.toBe(0)
       },
     )
   })

@@ -150,23 +150,6 @@ defmodule FrontmanServerWeb.UserAuthTest do
       assert %{max_age: 0} = conn.resp_cookies[@remember_me_cookie]
       assert redirected_to(conn) == ~p"/users/log-in"
     end
-
-    test "revokes and disconnects only the current browser session", %{conn: conn, user: user} do
-      current_token = Accounts.generate_user_session_token(user)
-      other_token = Accounts.generate_user_session_token(user)
-      browser_session_id = "current-browser"
-      socket_id = FrontmanServerWeb.UserSocket.session_socket_id(browser_session_id)
-      FrontmanServerWeb.Endpoint.subscribe(socket_id)
-
-      conn
-      |> put_session(:user_token, current_token)
-      |> put_session(:socket_session_id, browser_session_id)
-      |> UserAuth.log_out_user()
-
-      assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: ^socket_id}
-      refute Accounts.get_user_by_session_token(current_token)
-      assert Accounts.get_user_by_session_token(other_token)
-    end
   end
 
   describe "fetch_current_scope_for_user/2" do
@@ -230,7 +213,6 @@ defmodule FrontmanServerWeb.UserAuthTest do
       assert %{value: new_signed_token, max_age: max_age} = conn.resp_cookies[@remember_me_cookie]
       assert new_signed_token != signed_token
       assert max_age == @remember_me_cookie_max_age
-      refute Accounts.get_user_by_session_token(token)
     end
 
     test "falls back to remember me cookie when session token is stale", %{conn: conn, user: user} do

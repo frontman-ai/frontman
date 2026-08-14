@@ -209,21 +209,6 @@ defmodule FrontmanServer.Accounts do
     Repo.one(query)
   end
 
-  @spec get_socket_session(binary()) :: {struct(), binary()} | nil
-  def get_socket_session(token) when is_binary(token) do
-    token
-    |> UserToken.verify_socket_session_query()
-    |> Repo.one()
-  end
-
-  @spec get_user_by_socket_session(binary(), binary()) :: struct() | nil
-  def get_user_by_socket_session(user_id, token_id)
-      when is_binary(user_id) and is_binary(token_id) do
-    user_id
-    |> UserToken.socket_session_query(token_id)
-    |> Repo.one()
-  end
-
   @doc """
   Gets the user with the given magic link token.
   """

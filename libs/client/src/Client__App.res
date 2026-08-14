@@ -38,14 +38,6 @@ let make = (~apiBaseUrl: string) => {
   let (settingsOpen, setSettingsOpen) = React.useState(() => false)
   let (settingsInitialTab, setSettingsInitialTab) = React.useState(() => None)
 
-  React.useEffect(() => {
-    switch authRedirectUrl {
-    | Some(_) => setSettingsOpen(_ => false)
-    | None => ()
-    }
-    None
-  }, [authRedirectUrl])
-
   let providerSetupRequired = Client__State.useSelector(
     Client__State.Selectors.providerSetupRequired,
   )
