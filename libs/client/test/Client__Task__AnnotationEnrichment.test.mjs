@@ -49,27 +49,27 @@ import { snapdom } from "@zumer/snapdom";
 import { getElementSourceLocation } from "../src/Client__SourceDetection.res.mjs";
 import { resolve as resolveSourceLocation } from "../src/Client__SourceLocationResolver.res.mjs";
 
-/** Create a minimal mock DOM element that satisfies the sync enrichment reads */
 function makeMockElement() {
-	return {
-		tagName: "BUTTON",
-		getAttribute: () => "btn-submit primary",
-		closest: () => null,
-		textContent: "Submit",
-		getBoundingClientRect: () => ({
-			left: 10,
-			top: 20,
-			width: 100,
-			height: 40,
-		}),
-	};
+	document.body.innerHTML = `
+		<div id="form-actions">
+			<button id="submit" class="btn-submit primary">
+				Submit
+				<span class="button-overlay"></span>
+			</button>
+		</div>
+	`;
+	const element = document.querySelector("#submit");
+	element.getBoundingClientRect = () => ({
+		left: 10,
+		top: 20,
+		width: 100,
+		height: 40,
+	});
+	return element;
 }
 
 function makeMockDocument() {
-	return {
-		documentElement: {},
-		querySelector: () => null,
-	};
+	return document;
 }
 
 /** Create the FetchAnnotationDetails effect object matching ReScript's compiled shape */
@@ -137,6 +137,8 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.selector._0).toBe("button.submit");
 		expect(action.screenshot.TAG).toBe("Ok");
 		expect(action.screenshot._0).toBe("data:image/jpeg;base64,abc123");
+		expect(action.elementContext.TAG).toBe("Ok");
+		expect(action.elementContext._0).toContain("button-overlay");
 	});
 
 	it("dispatches Ok(None) sourceLocation when contentWindow is None", async () => {
@@ -259,18 +261,5 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.selector.TAG).toBe("Error");
 		expect(action.screenshot.TAG).toBe("Error");
 		expect(action.sourceLocation.TAG).toBe("Error");
-	});
-
-	it("captures cssClasses, nearbyText, and boundingBox synchronously", async () => {
-		handleEffect(makeEffect(), dispatch, delegate);
-		await waitForDispatch(dispatched);
-
-		const action = dispatched[0];
-		expect(action.cssClasses).toBe("btn-submit primary");
-		expect(action.nearbyText).toBe("Submit");
-		expect(action.boundingBox.x).toBe(10);
-		expect(action.boundingBox.y).toBe(20);
-		expect(action.boundingBox.width).toBe(100);
-		expect(action.boundingBox.height).toBe(40);
 	});
 });

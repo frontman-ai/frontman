@@ -13,7 +13,7 @@ test("parses flat annotation, screenshot, and image resources", t => {
   let blocks = [
     ContentBlock.TextContent({text: "Look", _meta: None, annotations: None}),
     resource(
-      ~meta=`{"annotation":true,"annotation_index":0,"annotation_id":"annotation-1","tag_name":"button","selector":"#submit"}`,
+      ~meta=`{"annotation":true,"annotation_index":0,"annotation_id":"annotation-1","tag_name":"button","selector":"#submit","element_context":"Parent: <form>\\nSelected:\\n<button selector=\\\"#submit\\\" />"}`,
       ContentBlock.TextResourceContents({
         uri: "annotation://annotation-1",
         mimeType: None,
@@ -48,6 +48,9 @@ test("parses flat annotation, screenshot, and image resources", t => {
       t
       ->expect(annotation.screenshot)
       ->Expect.toEqual(Ok(Some("data:image/png;base64,c2NyZWVuc2hvdA==")))
+      t
+      ->expect(annotation.elementContext)
+      ->Expect.toEqual(Ok(Some("Parent: <form>\nSelected:\n<button selector=\"#submit\" />")))
     }
   | _ => t->expect("parsed message")->Expect.toBe("missing")
   }

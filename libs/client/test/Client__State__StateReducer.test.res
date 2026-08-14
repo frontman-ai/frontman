@@ -953,6 +953,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     {
       id: "ann-1",
       selector: Ok(Some(".btn-submit")),
+      elementContext: Ok(None),
       tagName: "button",
       cssClasses: Some("btn-submit primary"),
       comment: Some("This button is broken"),
@@ -965,6 +966,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     {
       id: "ann-2",
       selector: Ok(Some("div.header")),
+      elementContext: Ok(None),
       tagName: "div",
       cssClasses: Some("header"),
       comment: None,

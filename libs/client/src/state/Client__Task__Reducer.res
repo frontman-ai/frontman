@@ -306,6 +306,7 @@ type action =
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
+      elementContext: result<option<string>, string>,
       screenshot: result<option<string>, string>,
       sourceLocation: result<option<Client__Types.SourceLocation.t>, string>,
       cssClasses: option<string>,
@@ -653,6 +654,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       AnnotationDetailsResolved({
         id,
         selector,
+        elementContext,
         screenshot,
         sourceLocation,
         cssClasses,
@@ -665,6 +667,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       Lens.updateAnnotation(task, id, a => {
         ...a,
         selector,
+        elementContext,
         screenshot,
         sourceLocation,
         cssClasses,
@@ -1238,33 +1241,33 @@ let fetchAnnotationDetails = (
   ~contentWindow: option<WebAPI.DOMAPI.window>,
   ~dispatch: action => unit,
 ) => {
-  let selectorPromise = switch document {
-  | Some(doc) =>
-    Promise.resolve()
-    ->Promise.then(_ => {
-      let selector = FrontmanBindings.Bindings__Finder.finder(
-        ~element,
-        ~options={
-          root: doc.documentElement->WebAPI.HTMLElement.asElement,
-          idName: (~name as _) => true,
-          className: (~name as _) => true,
-          tagName: (~name as _) => true,
-          attr: (~name as _, ~value as _) => false,
-        },
+  let inspection = switch document {
+  | Some(document) =>
+    try {
+      Ok(
+        Client__ElementInspector.inspect(
+          ~element,
+          ~document,
+          ~maxDepth=1,
+          ~maxNodes=200,
+          ~pierceShadowDom=false,
+        ),
       )
-      Promise.resolve(Ok(Some(selector)))
-    })
-    ->Promise.catch(error => {
-      let msg = formatError(error)
+    } catch {
+    | exn =>
+      let message = formatError(exn)
       Log.error(
         ~ctx={"annotationId": id},
-        ~error=JsExn.fromException(error),
-        "Selector generation failed",
+        ~error=JsExn.fromException(exn),
+        "Element inspection failed",
       )
-      Promise.resolve(Error(msg))
-    })
-  | None => Promise.resolve(Error("Preview document not available"))
+      Error(message)
+    }
+  | None => Error("Preview document not available")
   }
+
+  let selectorPromise = Promise.resolve(inspection->Result.flatMap(result => result.selector))
+  let elementContext = inspection->Result.map(result => Some(result.html))
 
   let screenshotPromise = {
     let limits = Client__ImageLimits.conservative
@@ -1309,42 +1312,16 @@ let fetchAnnotationDetails = (
     Promise.race([detectionPromise, timeoutPromise])
   }
 
-  let cssClasses =
-    element
-    ->WebAPI.Element.getAttribute("class")
-    ->Null.toOption
-    ->Option.flatMap(cls => {
-      let trimmed = cls->String.trim
-      switch trimmed->String.length > 0 {
-      | true => Some(trimmed)
-      | false => None
-      }
-    })
-
-  let nearbyText = {
-    let own =
-      element
-      ->WebAPI.Element.asNode
-      ->WebAPI.Node.textContent
-      ->Null.toOption
-      ->Option.getOr("")
-      ->String.trim
-    let truncated = switch own->String.length > 200 {
-    | true => own->String.slice(~start=0, ~end=200) ++ "..."
-    | false => own
+  let (cssClasses, nearbyText, boundingBox) = switch inspection {
+  | Ok(result) =>
+    let box: Annotation.boundingBox = {
+      x: result.boundingBox.x,
+      y: result.boundingBox.y,
+      width: result.boundingBox.width,
+      height: result.boundingBox.height,
     }
-    switch truncated->String.length > 0 {
-    | true => Some(truncated)
-    | false => None
-    }
-  }
-
-  let rect = WebAPI.Element.getBoundingClientRect(element)
-  let boundingBox: Annotation.boundingBox = {
-    x: rect.left,
-    y: rect.top,
-    width: rect.width,
-    height: rect.height,
+    (result.cssClasses, result.nearbyText, Some(box))
+  | Error(_) => (None, None, None)
   }
 
   let elementorContext =
@@ -1390,11 +1367,12 @@ let fetchAnnotationDetails = (
           AnnotationDetailsResolved({
             id,
             selector,
+            elementContext,
             screenshot,
             sourceLocation: finalSourceLocation,
             cssClasses,
             nearbyText,
-            boundingBox: Some(boundingBox),
+            boundingBox,
             elementorContext,
             enrichmentStatus: Enriched,
           }),
@@ -1413,11 +1391,12 @@ let fetchAnnotationDetails = (
         AnnotationDetailsResolved({
           id,
           selector: Error(errorMsg),
+          elementContext: Error(errorMsg),
           screenshot: Error(errorMsg),
           sourceLocation: Error(errorMsg),
           cssClasses,
           nearbyText,
-          boundingBox: Some(boundingBox),
+          boundingBox,
           elementorContext,
           enrichmentStatus: Failed({error: errorMsg}),
         }),

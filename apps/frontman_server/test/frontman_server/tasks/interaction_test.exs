@@ -92,6 +92,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           text_block("Fix these"),
           annotation_block("ann-1", "div", "/src/A.tsx", 10, 1,
             component_name: "Header",
+            element_context:
+              "Parent: <main selector=\"#main\">\nSelected:\n<header selector=\"#header\" />",
             css_classes: "header main",
             nearby_text: "Welcome"
           ),
@@ -104,6 +106,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert [ann1, ann2] = msg.annotations
       assert ann1.annotation_index == 0
       assert ann1.component_name == "Header"
+      assert ann1.element_context =~ "Selected:"
+      assert ann1.element_context =~ "#header"
       assert ann1.css_classes == "header main"
       assert ann1.nearby_text == "Welcome"
       assert ann2.annotation_index == 1
@@ -325,7 +329,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         tag_name: "div",
         file: "/path/to/Component.tsx",
         line: 42,
-        column: 5
+        column: 5,
+        element_context:
+          "Parent: <main selector=\"#main\">\nSelected:\n<div selector=\"#target\"><span /></div>"
       }
 
       messages = Interaction.to_swarm_messages([user_msg("Change the text", [ann])])
@@ -335,6 +341,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert text =~ "[Annotated Elements]"
       assert text =~ "/path/to/Component.tsx"
       assert text =~ "Line: 42"
+      assert text =~ "Element Context:"
+      assert text =~ "selector=\"#target\""
     end
 
     test "includes bounding_box in annotation LLM message" do
@@ -592,6 +600,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           text_block("Fix this"),
           annotation_block("ann-full", "H1", "/src/Hero.tsx", 30, 5,
             component_name: "Hero",
+            element_context:
+              "Parent: <main selector=\"#main\">\nSelected:\n<h1 selector=\"#hero-title\" />",
             css_classes: "hero-title text-xl",
             nearby_text: "Welcome to our app",
             metadata: %{
@@ -612,6 +622,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert ann["annotation_id"] == "ann-full"
       assert ann["tag_name"] == "H1"
       assert ann["css_classes"] == "hero-title text-xl"
+      assert ann["element_context"] =~ "#hero-title"
       assert ann["nearby_text"] == "Welcome to our app"
 
       assert ann["custom_context"] == %{
