@@ -11,6 +11,7 @@ let effectKinds = effects =>
     | Reducer.TrackRelay(_) => #trackRelay
     | Reducer.ConnectACP(_) => #connectACP
     | Reducer.ScheduleAuthRetry(_) => #scheduleAuthRetry
+    | Reducer.LogoutEffect(_) => #logout
     | Reducer.ConnectRelay(_) => #connectRelay
     | Reducer.CreateSessionEffect(_) => #createSession
     | Reducer.SendPromptEffect(_) => #sendPrompt
@@ -244,6 +245,17 @@ describe("Connection Reducer", () => {
         t->expect(effectKinds(effects))->Expect.toEqual([])
       },
     )
+  })
+
+  test("logout disconnects ACP and starts confirmation", t => {
+    let (initialized, _) = initialize(Reducer.initialState)
+    let state = {...initialized, acp: ACPConnected(mock({"id": "connection"}))}
+    let (nextState, effects) = Reducer.reduce(state, BeginLogout)
+
+    t->expect(nextState.acp)->Expect.toBe(ACPLoggingOut)
+    t->expect(nextState.session)->Expect.toBe(NoSession)
+    t->expect(Reducer.Selectors.getConnectionStatus(nextState))->Expect.toBe(LoggingOut)
+    t->expect(effectKinds(effects))->Expect.toEqual([#logout])
   })
 
   describe("Relay Lifecycle", () => {

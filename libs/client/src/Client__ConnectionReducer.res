@@ -24,6 +24,7 @@ type authRequiredPayload = {loginUrl: string}
 type acpState =
   | ACPDisconnected
   | ACPConnecting
+  | ACPLoggingOut
   | ACPConnected(ACP.connection)
   | ACPAuthRequired(authRequiredPayload)
   | ACPError(string)
@@ -96,6 +97,7 @@ type action =
   | Initialize(initPayload)
   | BeginAuthenticationRetry
   | RetryAuthentication
+  | BeginLogout
   | ACPConnectSuccess(ACP.connection)
   | ACPAuthRequiredReceived(authRequiredPayload)
   | ACPConnectError(string)
@@ -123,6 +125,12 @@ type effect =
   | TrackRelay(Client__Heap.relayOutcome)
   | ConnectACP({config: ACP.config, signal: WebAPI.EventAPI.abortSignal})
   | ScheduleAuthRetry({signal: WebAPI.EventAPI.abortSignal})
+  | LogoutEffect({
+      connection: ACP.connection,
+      session: option<ACP.session>,
+      tokenUrl: string,
+      signal: WebAPI.EventAPI.abortSignal,
+    })
   | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
   | CreateSessionEffect({
       connection: ACP.connection,
@@ -179,6 +187,7 @@ module Selectors = {
   type connectionStatus =
     | Disconnected
     | Connecting
+    | LoggingOut
     | Connected
     | SessionActive(string)
     | Error(string)
@@ -191,6 +200,7 @@ module Selectors = {
     | (_, RelayError(msg), _) => Error(msg)
     | (ACPConnected(_), RelayConnected, _) => Connected
     | (ACPConnecting, _, _) => Connecting
+    | (ACPLoggingOut, _, _) => LoggingOut
     | (ACPConnected(_), RelayConnecting | RelayDisconnected, _) => Connecting
     | (ACPAuthRequired(_), _, _) => Disconnected
     | (ACPDisconnected, _, _) => Disconnected
@@ -200,7 +210,7 @@ module Selectors = {
   let getAuthRedirectUrl = (state: state): option<string> => {
     switch state.acp {
     | ACPAuthRequired({loginUrl}) => Some(loginUrl)
-    | ACPDisconnected | ACPConnecting | ACPConnected(_) | ACPError(_) => None
+    | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPConnected(_) | ACPError(_) => None
     }
   }
 }
@@ -291,6 +301,36 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (_, BeginAuthenticationRetry | RetryAuthentication) => (state, [])
+
+  | (
+      {
+        acp: ACPConnected(connection),
+        acpConfig: Some(config),
+        abortController: Some(signalController),
+      },
+      BeginLogout,
+    ) => {
+      let session = switch state.session {
+      | SessionActive(session) => Some(session)
+      | NoSession | SessionCreating(_) | SessionError(_) => None
+      }
+      {
+        ...state,
+        acp: ACPLoggingOut,
+        authRetryActive: false,
+        authRetryInFlight: false,
+        session: NoSession,
+      }->StateReducer.update(
+        ~sideEffect=LogoutEffect({
+          connection,
+          session,
+          tokenUrl: config.tokenUrl,
+          signal: signalController.signal,
+        }),
+      )
+    }
+
+  | (_, BeginLogout) => (state, [])
 
   | ({acp: ACPConnecting}, ACPConnectError(msg)) => (
       {...state, acp: ACPError(msg), authRetryActive: false, authRetryInFlight: false},
@@ -462,6 +502,54 @@ let cleanupSession = (session: ACP.session): unit => {
   Log.debug(~ctx={"sessionId": session.sessionId}, "Cleaned up session channel")
 }
 
+let wait = (timeout: int): promise<unit> =>
+  Promise.make((resolve, _) => {
+    let _ = WebAPI.Global.setTimeout(~timeout, ~handler=resolve)
+  })
+
+let fetchLogoutStatus = async (tokenUrl: string): option<int> => {
+  let controller = WebAPI.AbortController.make()
+  let timeout = WebAPI.Global.setTimeout(~timeout=1000, ~handler=() =>
+    WebAPI.AbortController.abort(controller)
+  )
+
+  try {
+    let response = await WebAPI.Global.fetch(
+      tokenUrl,
+      ~init={credentials: Include, signal: Null.make(controller.signal)},
+    )
+    WebAPI.Global.clearTimeout(timeout)
+    Some(response.status)
+  } catch {
+  | exn =>
+    WebAPI.Global.clearTimeout(timeout)
+    switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
+    | Some("AbortError") | Some("TypeError") => None
+    | _ => throw(exn)
+    }
+  }
+}
+
+let rec waitForLogout = async (
+  ~tokenUrl: string,
+  ~signal: WebAPI.EventAPI.abortSignal,
+  ~attempt: int,
+): unit => {
+  await wait(1000)
+
+  switch signal.aborted {
+  | true => ()
+  | false =>
+    let status = await fetchLogoutStatus(tokenUrl)
+    switch (signal.aborted, status, attempt < 15) {
+    | (true, _, _) => ()
+    | (false, Some(401), _) | (false, _, false) =>
+      WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.reload
+    | (false, _, true) => await waitForLogout(~tokenUrl, ~signal, ~attempt=attempt + 1)
+    }
+  }
+}
+
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   let dispatchConfigOptions = (configOptions: option<array<_>>) =>
     configOptions->Option.forEach(opts =>
@@ -513,6 +601,9 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | false => dispatch(RetryAuthentication)
       }
     })
+  | LogoutEffect({connection, session, tokenUrl, signal}) =>
+    ACP.disconnect(connection, ~session?)
+    waitForLogout(~tokenUrl, ~signal, ~attempt=1)->ignore
   | ConnectRelay(relay, signal) =>
     let connect = async () => {
       let result = await Relay.connect(relay, ~signal)

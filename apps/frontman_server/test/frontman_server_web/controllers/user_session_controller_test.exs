@@ -93,16 +93,8 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
   end
 
   describe "GET /users/popup-complete" do
-    test "requires authentication", %{conn: conn} do
-      conn = get(conn, ~p"/users/popup-complete")
-      assert redirected_to(conn) == ~p"/users/log-in"
-    end
-
-    test "loads its close script and provides a fallback", %{
-      conn: conn,
-      user: user
-    } do
-      response = conn |> log_in_user(user) |> get(~p"/users/popup-complete") |> html_response(200)
+    test "is public and loads its close script", %{conn: conn} do
+      response = conn |> get(~p"/users/popup-complete") |> html_response(200)
       assert response =~ "/assets/js/popup-complete.js"
       refute response =~ "data-close-window"
       assert response =~ "You may close this tab"
@@ -255,6 +247,16 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
       assert redirected_to(conn) ==
                "/users/log-in?return_to=http%3A%2F%2Flocalhost%3A3000%2Ffrontman"
+    end
+
+    test "redirects popup logout to its public completion page", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> delete(~p"/users/log-out", %{"return_to" => "/users/popup-complete"})
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
+      refute get_session(conn, :user_token)
     end
   end
 

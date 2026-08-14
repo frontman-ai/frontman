@@ -133,6 +133,7 @@ module APIKeyCard = {
 
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
+  let {connectionState, beginLogout, _} = Client__FrontmanProvider.useFrontman()
   let runtimeConfig = RuntimeConfig.read()
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
@@ -265,23 +266,26 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             </div>
                           </div>
                         </div>
-                        {switch acpSession {
-                        | Types.AcpSessionActive({apiBaseUrl}) =>
-                          <Button
-                            variant=Button.Variant.Outline
-                            size=Button.Size.Sm
-                            onClick={_ => {
-                              let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
-                              let currentUrl = Client__HostNavigation.currentUrl()
-                              let returnTo = encodeURIComponent(currentUrl)
-                              Client__HostNavigation.assign(
-                                ~url=`${apiBaseUrl}/users/log-out?return_to=${returnTo}`,
-                              )
-                            }}
+                        {switch (connectionState, acpSession) {
+                        | (LoggingOut, _) =>
+                          <Button variant=Button.Variant.Outline size=Button.Size.Sm disabled=true>
+                            <Client__UI__Spinner />
+                            {React.string("Signing out...")}
+                          </Button>
+                        | (_, Types.AcpSessionActive({apiBaseUrl})) =>
+                          <a
+                            className={Button.buttonVariants(
+                              ~variant=Button.Variant.Outline,
+                              ~size=Button.Size.Sm,
+                            )}
+                            href={`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={_ => beginLogout()}
                           >
                             {React.string("Sign out")}
-                          </Button>
-                        | _ => React.null
+                          </a>
+                        | (_, Types.NoAcpSession) => React.null
                         }}
                       </div>
                     </div>

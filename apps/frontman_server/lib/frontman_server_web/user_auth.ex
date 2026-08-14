@@ -102,6 +102,7 @@ defmodule FrontmanServerWeb.UserAuth do
 
     redirect_url =
       case return_to do
+        "/users/popup-complete" -> ~p"/users/popup-complete"
         nil -> ~p"/users/log-in"
         url -> ~p"/users/log-in?#{%{"return_to" => url}}"
       end

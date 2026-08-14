@@ -26,7 +26,7 @@ let make = (~apiBaseUrl: string) => {
         ~deleteSession,
         ~apiBaseUrl,
       )
-    | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
+    | LoggingOut | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
     }
     None
   }, (connectionState, sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl))

@@ -96,6 +96,7 @@ type contextValue = {
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
   beginAuthenticationRetry: unit => unit,
+  beginLogout: unit => unit,
   createSession: (~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
   sendPrompt: (
@@ -116,6 +117,7 @@ let defaultContextValue: contextValue = {
   relay: None,
   authRedirectUrl: None,
   beginAuthenticationRetry: () => (),
+  beginLogout: () => (),
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
@@ -212,7 +214,7 @@ module Provider = {
           }
           switch state.acp {
           | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
-          | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => ()
+          | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPAuthRequired(_) | ACPError(_) => ()
           }
         },
       )
@@ -392,6 +394,7 @@ module Provider = {
     let beginAuthenticationRetry = React.useCallback1(() => {
       dispatch(BeginAuthenticationRetry)
     }, [dispatch])
+    let beginLogout = React.useCallback1(() => dispatch(BeginLogout), [dispatch])
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
@@ -399,6 +402,7 @@ module Provider = {
       relay: state.relayInstance,
       authRedirectUrl,
       beginAuthenticationRetry,
+      beginLogout,
       createSession,
       clearSession,
       sendPrompt,
