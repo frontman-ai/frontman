@@ -11,7 +11,7 @@ let effectKinds = effects =>
     | Reducer.TrackRelay(_) => #trackRelay
     | Reducer.ConnectACP(_) => #connectACP
     | Reducer.ScheduleAuthRetry(_) => #scheduleAuthRetry
-    | Reducer.Logout(_) => #logout
+    | Reducer.Logout(_, _, _, _) => #logout
     | Reducer.ConnectRelay(_) => #connectRelay
     | Reducer.CreateSessionEffect(_) => #createSession
     | Reducer.SendPromptEffect(_) => #sendPrompt
@@ -252,8 +252,9 @@ describe("Connection Reducer", () => {
     let state = {...initialized, acp: ACPConnected(mock({"id": "connection"}))}
     let (nextState, effects) = Reducer.reduce(state, BeginLogout)
 
-    t->expect(nextState.acp)->Expect.toBe(ACPDisconnected)
+    t->expect(nextState.acp)->Expect.toBe(ACPLoggingOut)
     t->expect(nextState.session)->Expect.toBe(NoSession)
+    t->expect(Reducer.Selectors.getConnectionStatus(nextState))->Expect.toBe(LoggingOut)
     t->expect(effectKinds(effects))->Expect.toEqual([#logout])
   })
 

@@ -133,7 +133,7 @@ module APIKeyCard = {
 
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
-  let {beginLogout, _} = Client__FrontmanProvider.useFrontman()
+  let {connectionState, beginLogout, _} = Client__FrontmanProvider.useFrontman()
   let runtimeConfig = RuntimeConfig.read()
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
@@ -266,8 +266,13 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             </div>
                           </div>
                         </div>
-                        {switch acpSession {
-                        | Types.AcpSessionActive({apiBaseUrl}) =>
+                        {switch (connectionState, acpSession) {
+                        | (LoggingOut, _) =>
+                          <Button variant=Button.Variant.Outline size=Button.Size.Sm disabled=true>
+                            <Client__UI__Spinner />
+                            {React.string("Signing out...")}
+                          </Button>
+                        | (_, Types.AcpSessionActive({apiBaseUrl})) =>
                           <Button
                             variant=Button.Variant.Outline
                             size=Button.Size.Sm
@@ -283,7 +288,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           >
                             {React.string("Sign out")}
                           </Button>
-                        | Types.NoAcpSession => React.null
+                        | (_, Types.NoAcpSession) => React.null
                         }}
                       </div>
                     </div>

@@ -214,7 +214,7 @@ module Provider = {
           }
           switch state.acp {
           | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
-          | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => ()
+          | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPAuthRequired(_) | ACPError(_) => ()
           }
         },
       )
