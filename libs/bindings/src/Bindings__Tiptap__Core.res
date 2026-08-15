@@ -43,6 +43,7 @@ external mergeAttributes: (htmlAttributes, Dict.t<string>) => htmlAttributes = "
 @send external focus: chain => chain = "focus"
 @send external insertContentAtPos: (chain, int, nodeSpec) => chain = "insertContentAt"
 @send external insertContentAtRange: (chain, insertRange, nodeSpec) => chain = "insertContentAt"
+@send external insertTextAtRange: (chain, insertRange, string) => chain = "insertContentAt"
 @send external setTextSelection: (chain, int) => chain = "setTextSelection"
 @send external run: chain => bool = "run"
 
@@ -53,5 +54,6 @@ module Commands = {
 
   @get external commands: editor => t = "commands"
   @send external clearContent: t => unit = "clearContent"
+  @send external setTextSelection: (t, int) => bool = "setTextSelection"
   @send external splitBlock: t => bool = "splitBlock"
 }

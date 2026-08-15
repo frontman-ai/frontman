@@ -32,6 +32,7 @@ type rec jsonContentNode = {
 @send external clickElement: Dom.element => unit = "click"
 @get external inputFiles: Dom.element => Null.t<WebAPI.DomTypes.fileList> = "files"
 @set external setInputValue: (Dom.element, string) => unit = "value"
+@get external navigatorUserAgent: WebAPI.Global.navigator => string = "userAgent"
 module TiptapReact = FrontmanBindings.Bindings__Tiptap__React
 module TiptapCore = FrontmanBindings.Bindings__Tiptap__Core
 module TiptapExtensions = FrontmanBindings.Bindings__Tiptap__Extensions
@@ -39,6 +40,7 @@ module TiptapExtensions = FrontmanBindings.Bindings__Tiptap__Extensions
 type fileAttachmentNodeOptions = {onPreviewImage: string => unit}
 type fileAttachmentAttrs = editorFileAttachment
 type pastedTextAttrs = {id: string, text: string, label: string}
+type expandablePaste = {text: string, from: int, to_: int, expiresAt: float}
 type insertTarget =
   | Cursor(int)
   | Range(TiptapCore.insertRange)
@@ -92,6 +94,17 @@ let lineCount = text => text->String.split("\n")->Array.length
 let isLongPromptPasteText = text => text->lineCount >= 3 || text->String.length > 150
 
 let getPastedTextLabel = text => `Pasted ~${text->lineCount->Int.toString} lines`
+
+let getPasteExpandShortcut = userAgent => userAgent->String.includes("Mac") ? "Cmd+V" : "Ctrl+V"
+
+let isPasteShortcut = (event: WebAPI.UiEventsTypes.keyboardEvent) =>
+  event.key->String.toLowerCase == "v" && (event.metaKey || event.ctrlKey)
+
+let isModifierKey = key =>
+  switch key {
+  | "Meta" | "Control" | "Alt" | "Shift" => true
+  | _ => false
+  }
 
 let truncateChipLabel = label => {
   switch label->String.length > 20 {
@@ -186,7 +199,14 @@ module PastedTextView = {
     <TiptapReact.NodeViewWrapper
       as_="span" className="frontman-prompt-pill" dataChipId={attrs.id} dataChipType="paste"
     >
-      <span> {React.string(label)} </span>
+      <span className="frontman-prompt-paste-label">
+        <span> {React.string(label)} </span>
+        <span className="frontman-prompt-paste-hint">
+          {React.string(
+            `${WebAPI.Global.navigator->navigatorUserAgent->getPasteExpandShortcut} to expand`,
+          )}
+        </span>
+      </span>
       <button
         ariaLabel="Remove pasted text"
         className="frontman-prompt-pill-remove"
@@ -352,6 +372,10 @@ let insertFileAttachment = (editor, fileAttachment, insertTarget) => {
 
 let insertPastedText = (editor, text) => {
   let insertTarget = getSelectionInsertTarget(editor)
+  let insertedAtomStart = switch insertTarget {
+  | Cursor(position) => position
+  | Range({from}) => from
+  }
   let insertedAtomEnd = getInsertedAtomEnd(insertTarget)
   let attrs = stringAttrs([
     ("id", generateId()),
@@ -366,6 +390,18 @@ let insertPastedText = (editor, text) => {
   | Range(range) => chain->TiptapCore.insertContentAtRange(range, content)
   }
   ->TiptapCore.setTextSelection(insertedAtomEnd)
+  ->TiptapCore.run
+  ->ignore
+
+  {text, from: insertedAtomStart, to_: insertedAtomEnd, expiresAt: Date.now() +. 5000.0}
+}
+
+let expandPastedText = (editor, paste) => {
+  editor
+  ->TiptapCore.chain
+  ->TiptapCore.focus
+  ->TiptapCore.insertTextAtRange({from: paste.from, to_: paste.to_}, paste.text)
+  ->TiptapCore.setTextSelection(paste.from + paste.text->String.length)
   ->TiptapCore.run
   ->ignore
 }
@@ -448,6 +484,7 @@ let make = (
   let lastSubmitSignalRef = React.useRef(submitSignal)
   let lastAttachSignalRef = React.useRef(attachSignal)
   let lastDropFilesSignalRef = React.useRef(dropFilesSignal)
+  let expandablePasteRef: React.ref<option<expandablePaste>> = React.useRef(None)
 
   placeholderRef.current = placeholder
   disabledRef.current = disabled
@@ -459,6 +496,7 @@ let make = (
   onFileSizeErrorRef.current = onFileSizeError
 
   let isInputBlocked = () => disabledRef.current || isEnrichingAnnotationsRef.current
+  let cancelExpandablePaste = () => expandablePasteRef.current = None
 
   let submitEditor = editor => {
     let serialized = editor->TiptapCore.getJSON->Obj.magic->serializePromptEditorContent
@@ -522,6 +560,10 @@ let make = (
     editorProps: {
       attributes: Dict.fromArray([("aria-label", placeholder), ("role", "textbox")]),
       handleKeyDown: (_view, event) => {
+        switch event->isPasteShortcut || event.key->isModifierKey {
+        | true => ()
+        | false => cancelExpandablePaste()
+        }
         switch event.key {
         | "Enter" =>
           switch editorRef.current->Null.toOption {
@@ -544,21 +586,32 @@ let make = (
           event->WebAPI.ClipboardEvent.preventDefault
           true
         | Some(currentEditor) =>
-          let dataTransfer = event.clipboardData->Null.toOption
-          let acceptedFiles = dataTransfer->getClipboardFiles->Array.filter(isAcceptedPromptFile)
-          let text =
-            dataTransfer->Option.map(WebAPI.DataTransfer.getData(_, "text/plain"))->Option.getOr("")
+          switch expandablePasteRef.current {
+          | Some(paste) if Date.now() <= paste.expiresAt =>
+            event->WebAPI.ClipboardEvent.preventDefault
+            cancelExpandablePaste()
+            expandPastedText(currentEditor, paste)
+            true
+          | _ =>
+            cancelExpandablePaste()
+            let dataTransfer = event.clipboardData->Null.toOption
+            let acceptedFiles = dataTransfer->getClipboardFiles->Array.filter(isAcceptedPromptFile)
+            let text =
+              dataTransfer
+              ->Option.map(WebAPI.DataTransfer.getData(_, "text/plain"))
+              ->Option.getOr("")
 
-          switch (acceptedFiles->Array.length > 0, text == "" || !isLongPromptPasteText(text)) {
-          | (true, _) =>
-            event->WebAPI.ClipboardEvent.preventDefault
-            addFiles(currentEditor, acceptedFiles)->ignore
-            true
-          | (false, true) => false
-          | (false, false) =>
-            event->WebAPI.ClipboardEvent.preventDefault
-            insertPastedText(currentEditor, text)
-            true
+            switch (acceptedFiles->Array.length > 0, text == "" || !isLongPromptPasteText(text)) {
+            | (true, _) =>
+              event->WebAPI.ClipboardEvent.preventDefault
+              addFiles(currentEditor, acceptedFiles)->ignore
+              true
+            | (false, true) => false
+            | (false, false) =>
+              event->WebAPI.ClipboardEvent.preventDefault
+              expandablePasteRef.current = Some(insertPastedText(currentEditor, text))
+              true
+            }
           }
         }
       },
