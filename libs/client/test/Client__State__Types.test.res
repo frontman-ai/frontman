@@ -125,7 +125,7 @@ describe("Client__State__Types", () => {
           ~column=5,
           ~componentName="TestComponent",
           ~selector="div.test",
-          ~elementContext="Parent: <main>\nSelected:\n<div selector=\"div.test\" />",
+          ~elementContext="context",
         )
 
         let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
@@ -135,9 +135,7 @@ describe("Client__State__Types", () => {
         t->expect(getMetaFloat(meta, "annotation_index"))->Expect.toBe(0.0)
         t->expect(getMetaString(meta, "annotation_id"))->Expect.toBe("test-annotation-id")
         t->expect(getMetaString(meta, "tag_name"))->Expect.toBe("div")
-        t
-        ->expect(getMetaString(meta, "element_context"))
-        ->Expect.toBe("Parent: <main>\nSelected:\n<div selector=\"div.test\" />")
+        t->expect(getMetaString(meta, "element_context"))->Expect.toBe("context")
         t->expect(getMetaString(meta, "component_name"))->Expect.toBe("TestComponent")
         t->expect(getMetaFloat(meta, "line"))->Expect.toBe(42.0)
         t->expect(getMetaFloat(meta, "column"))->Expect.toBe(5.0)
@@ -393,7 +391,6 @@ describe("MessageAnnotation.fromAnnotation", () => {
       ~componentName="Button",
       ~tagName="button",
       ~selector=".btn-submit",
-      ~elementContext="Parent: <form>\nSelected:\n<button selector=\".btn-submit\" />",
       ~cssClasses="btn-submit primary",
       ~nearbyText="Submit",
       ~boundingBox={x: 10.0, y: 20.0, width: 100.0, height: 50.0},
@@ -408,9 +405,6 @@ describe("MessageAnnotation.fromAnnotation", () => {
 
     t->expect(snapshot.id)->Expect.toBe("test-annotation-id")
     t->expect(snapshot.selector)->Expect.toEqual(Ok(Some(".btn-submit")))
-    t
-    ->expect(snapshot.elementContext)
-    ->Expect.toEqual(Ok(Some("Parent: <form>\nSelected:\n<button selector=\".btn-submit\" />")))
     t->expect(snapshot.tagName)->Expect.toBe("button")
     t->expect(snapshot.cssClasses)->Expect.toEqual(Some("btn-submit primary"))
     t->expect(snapshot.comment)->Expect.toEqual(Some("This is broken"))

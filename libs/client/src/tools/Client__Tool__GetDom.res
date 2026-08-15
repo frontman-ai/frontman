@@ -14,7 +14,7 @@ Workflow:
 3. Use full mode only when you need exact markup for a small, specific component
 
 Modes:
-- **simplified** (default): The target's parent plus a pruned target subtree showing tag names, selectors, key attributes (id, class, role, aria-*, href, src, etc.), React/Vue/Astro component names (as \`component="..."\` attributes), and short text snippets. Script/style/SVG stripped. Capped at 200 nodes.
+- **simplified** (default): Line-oriented parent, selected, and child descriptors with selectors when resolvable, key attributes, accessibility role/name, component names, child counts, and escaped text. Script/style/SVG content stripped. Capped at 200 nodes.
 - **full**: Raw outerHTML. Capped at 15KB. Use only when you need exact markup for a specific component.
 
 Simplified mode stops at the node limit and returns selectors so you can continue with a narrower target. Full mode rejects oversized subtrees.
@@ -33,11 +33,11 @@ type input = {
   )
   selector: string,
   @s.describe(
-    "Output mode: 'simplified' (default) returns a pruned text representation, 'full' returns raw outerHTML (capped at 15KB, use only for small components)."
+    "Output mode: 'simplified' (default) returns line-oriented element descriptors, 'full' returns raw outerHTML (capped at 15KB, use only for small components)."
   )
   mode: option<[#full | #simplified]>,
   @s.describe(
-    "Maximum target subtree depth in simplified mode. Defaults to 1. Nodes beyond this depth are summarized as '...N children'. Call get_dom again with a returned selector to inspect another part of the tree."
+    "Maximum target subtree depth in simplified mode. Defaults to 1. Descriptors report child counts at the depth boundary. Call get_dom again with a returned selector to inspect another part of the tree."
   )
   maxDepth: option<int>,
   @s.describe(
@@ -53,7 +53,7 @@ type output = {
   @s.describe("Whether the DOM query succeeded") @live
   success: bool,
   @s.describe(
-    "The DOM content: pruned text in simplified mode, raw HTML in full mode. Absent when the subtree is too large."
+    "The DOM content: line-oriented element descriptors in simplified mode, raw HTML in full mode. Absent when the subtree is too large."
   )
   @live
   html: option<string>,
@@ -78,55 +78,24 @@ let defaultMaxDepth = 1
 let defaultMaxNodes = 200
 let hardMaxNodes = 500
 
-let countDescendants = (el: WebAPI.DOMAPI.element): int =>
-  (el->WebAPI.Element.querySelectorAll("*")).length
-
-let describeDirectChildren = (el: WebAPI.DOMAPI.element): string => {
-  let children = el.children
-  let descriptions: array<string> = []
-  let count = children.length
-  let maxToShow = 15
-
-  for i in 0 to Math.Int.min(count, maxToShow) - 1 {
-    let child = children->WebAPI.HTMLCollection.item(i)
-    let tag = child.tagName->String.toLowerCase
-    let id = child->WebAPI.Element.getAttribute("id")->Null.toOption
-    let cls = child->WebAPI.Element.getAttribute("class")->Null.toOption
-    let role = child->WebAPI.Element.getAttribute("role")->Null.toOption
-
-    let desc = switch (id, role, cls) {
-    | (Some(id), _, _) => `<${tag} id="${id}">`
-    | (_, Some(r), _) => `<${tag} role="${r}">`
-    | (_, _, Some(c)) =>
-      let shortClass = c->Client__ElementInspector.truncate(~maxLen=27)
-      `<${tag} class="${shortClass}">`
-    | _ => `<${tag}>`
-    }
-    descriptions->Array.push(desc)->ignore
-  }
-
-  if count > maxToShow {
-    descriptions->Array.push(`...and ${Int.toString(count - maxToShow)} more`)->ignore
-  }
-
-  descriptions->Array.join(", ")
-}
+let countElements = (el: WebAPI.DOMAPI.element): int =>
+  (el->WebAPI.Element.querySelectorAll("*")).length + 1
 
 let buildTooLargeHint = (
   ~el: WebAPI.DOMAPI.element,
-  ~descendantCount: int,
+  ~document: WebAPI.DOMAPI.document,
+  ~elementCount: int,
   ~maxNodes: int,
 ): string => {
-  let tag = el.tagName->String.toLowerCase
-  let childrenDesc = describeDirectChildren(el)
-  let childCount = el.children.length
-
-  `Subtree too large: <${tag}> has ${Int.toString(
-      descendantCount,
-    )} descendant elements (limit: ${Int.toString(maxNodes)}). ` ++
-  `It has ${Int.toString(
-      childCount,
-    )} direct children: ${childrenDesc}. ` ++ `Target a specific child instead.`
+  let overview = Client__ElementInspector.inspect(
+    ~element=el,
+    ~document,
+    ~maxDepth=1,
+    ~maxNodes=16,
+    ~pierceShadowDom=false,
+  )
+  `Subtree has ${elementCount->Int.toString} elements (limit: ${maxNodes->Int.toString}). ` ++
+  `Target a child selector from this overview instead:\n${overview.html}`
 }
 
 let errorResult = (
@@ -181,7 +150,6 @@ let execute = async (
         | None => errorResult(~error=`No element found for selector: ${input.selector}`)
 
         | Some(el) =>
-          let mode = input.mode->Option.getOr(#simplified)
           let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
           let maxNodes =
             input.maxNodes
@@ -189,17 +157,16 @@ let execute = async (
             ->Math.Int.min(hardMaxNodes)
             ->Math.Int.max(1)
 
-          let descendantCount = countDescendants(el)
-
-          switch mode {
+          switch input.mode->Option.getOr(#simplified) {
           | #full =>
-            if descendantCount > maxNodes {
+            let elementCount = countElements(el)
+            if elementCount > maxNodes {
               errorResult(
                 ~error=`Subtree too large for full mode (${Int.toString(
-                    descendantCount,
+                    elementCount,
                   )} elements, limit: ${Int.toString(maxNodes)}).`,
-                ~hint=buildTooLargeHint(~el, ~descendantCount, ~maxNodes),
-                ~nodeCount=descendantCount,
+                ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
+                ~nodeCount=elementCount,
               )
             } else {
               let raw = el.outerHTML
@@ -209,11 +176,11 @@ let execute = async (
                   ~error=`HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
                       fullModeMaxBytes,
                     )}). Use simplified mode for an overview, or target a smaller component.`,
-                  ~hint=buildTooLargeHint(~el, ~descendantCount, ~maxNodes),
-                  ~nodeCount=descendantCount,
+                  ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
+                  ~nodeCount=elementCount,
                 )
               } else {
-                successResult(~html=raw, ~nodeCount=descendantCount)
+                successResult(~html=raw, ~nodeCount=elementCount)
               }
             }
 
@@ -228,13 +195,14 @@ let execute = async (
             )
 
             if inspection.html->String.length > maxOutputBytes {
+              let elementCount = countElements(el)
               errorResult(
                 ~error=`Output too large (${Int.toString(
                     inspection.html->String.length,
                   )} bytes, limit: ${Int.toString(
                     maxOutputBytes,
                   )}). Reduce maxDepth or narrow your selector.`,
-                ~hint=buildTooLargeHint(~el, ~descendantCount, ~maxNodes),
+                ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
                 ~nodeCount=inspection.nodeCount,
               )
             } else {

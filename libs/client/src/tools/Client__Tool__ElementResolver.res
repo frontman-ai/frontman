@@ -339,27 +339,11 @@ let resolveByText = (~document: WebAPI.DOMAPI.document, ~text: string, ~index: i
 let generateSelector = (
   ~element: WebAPI.DOMAPI.element,
   ~document: option<WebAPI.DOMAPI.document>,
-): option<string> => {
-  try {
-    let root = switch document {
-    | Some(doc) => doc.documentElement->WebAPI.HTMLElement.asElement
-    | None => element
-    }
-    let selector = FrontmanBindings.Bindings__Finder.finder(
-      ~element,
-      ~options={
-        root,
-        idName: (~name as _) => true,
-        className: (~name as _) => true,
-        tagName: (~name as _) => true,
-        attr: (~name as _, ~value as _) => false,
-      },
-    )
-    Some(selector)
-  } catch {
-  | JsExn(_) => None
+): option<string> =>
+  switch Client__ElementInspector.findSelector(~element, ~document) {
+  | Ok(selector) => Some(selector)
+  | Error(_) => None
   }
-}
 
 let describeElement = (el: WebAPI.DOMAPI.element): string => {
   let label = effectiveRole(el)

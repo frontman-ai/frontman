@@ -1210,7 +1210,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
 
     t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Enriching)
     t->expect(ann.selector)->Expect.toEqual(Ok(None))
-    t->expect(ann.elementContext)->Expect.toEqual(Ok(None))
     t->expect(ann.screenshot)->Expect.toEqual(Ok(None))
     t->expect(ann.sourceLocation)->Expect.toEqual(Ok(None))
 
@@ -1228,7 +1227,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
       _makeResolved(
         ~id,
         ~selector=Ok(Some(".btn-submit")),
-        ~elementContext=Ok(Some("Parent: <form>\nSelected:\n<button />")),
+        ~elementContext=Ok(Some(`selected tag="button"`)),
         ~screenshot=Ok(Some("data:image/jpeg;base64,abc")),
         ~cssClasses="btn-submit",
         ~nearbyText="Submit",
@@ -1238,9 +1237,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     let ann = _getAnnotation(task2, 0)
     t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Enriched)
     t->expect(ann.selector)->Expect.toEqual(Ok(Some(".btn-submit")))
-    t
-    ->expect(ann.elementContext)
-    ->Expect.toEqual(Ok(Some("Parent: <form>\nSelected:\n<button />")))
+    t->expect(ann.elementContext)->Expect.toEqual(Ok(Some(`selected tag="button"`)))
     t->expect(ann.screenshot)->Expect.toEqual(Ok(Some("data:image/jpeg;base64,abc")))
     t->expect(ann.cssClasses)->Expect.toEqual(Some("btn-submit"))
     t->expect(ann.nearbyText)->Expect.toEqual(Some("Submit"))

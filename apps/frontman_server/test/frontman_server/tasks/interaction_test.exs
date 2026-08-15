@@ -92,8 +92,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           text_block("Fix these"),
           annotation_block("ann-1", "div", "/src/A.tsx", 10, 1,
             component_name: "Header",
-            element_context:
-              "Parent: <main selector=\"#main\">\nSelected:\n<header selector=\"#header\" />",
             css_classes: "header main",
             nearby_text: "Welcome"
           ),
@@ -106,8 +104,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert [ann1, ann2] = msg.annotations
       assert ann1.annotation_index == 0
       assert ann1.component_name == "Header"
-      assert ann1.element_context =~ "Selected:"
-      assert ann1.element_context =~ "#header"
       assert ann1.css_classes == "header main"
       assert ann1.nearby_text == "Welcome"
       assert ann2.annotation_index == 1
@@ -330,8 +326,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         file: "/path/to/Component.tsx",
         line: 42,
         column: 5,
-        element_context:
-          "Parent: <main selector=\"#main\">\nSelected:\n<div selector=\"#target\"><span /></div>"
+        element_context: ~s(selected tag="div" selector="#target" children=1)
       }
 
       messages = Interaction.to_swarm_messages([user_msg("Change the text", [ann])])
@@ -600,8 +595,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           text_block("Fix this"),
           annotation_block("ann-full", "H1", "/src/Hero.tsx", 30, 5,
             component_name: "Hero",
-            element_context:
-              "Parent: <main selector=\"#main\">\nSelected:\n<h1 selector=\"#hero-title\" />",
+            element_context: ~s(selected tag="h1" selector="#hero-title"),
             css_classes: "hero-title text-xl",
             nearby_text: "Welcome to our app",
             metadata: %{

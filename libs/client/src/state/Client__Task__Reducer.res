@@ -1313,14 +1313,7 @@ let fetchAnnotationDetails = (
   }
 
   let (cssClasses, nearbyText, boundingBox) = switch inspection {
-  | Ok(result) =>
-    let box: Annotation.boundingBox = {
-      x: result.boundingBox.x,
-      y: result.boundingBox.y,
-      width: result.boundingBox.width,
-      height: result.boundingBox.height,
-    }
-    (result.cssClasses, result.nearbyText, Some(box))
+  | Ok(result) => (result.cssClasses, result.nearbyText, Some(result.boundingBox))
   | Error(_) => (None, None, None)
   }
 

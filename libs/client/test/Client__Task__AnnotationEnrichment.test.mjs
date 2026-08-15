@@ -17,6 +17,7 @@
  * cover the same logic with full type safety.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { inspect } from "../src/Client__ElementInspector.res.mjs";
 import { handleEffect } from "../src/state/Client__Task__Reducer.res.mjs";
 
 vi.mock("@medv/finder", () => ({
@@ -53,7 +54,7 @@ function makeMockElement() {
 	document.body.innerHTML = `
 		<div id="form-actions">
 			<button id="submit" class="btn-submit primary">
-				Submit
+				Submit "now"
 				<span class="button-overlay"></span>
 			</button>
 		</div>
@@ -138,7 +139,22 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.screenshot.TAG).toBe("Ok");
 		expect(action.screenshot._0).toBe("data:image/jpeg;base64,abc123");
 		expect(action.elementContext.TAG).toBe("Ok");
-		expect(action.elementContext._0).toContain("button-overlay");
+		expect(action.elementContext._0).toContain(
+			'parent tag="div" id="form-actions"',
+		);
+		expect(action.elementContext._0).toContain(
+			'selected tag="button" id="submit"',
+		);
+		expect(action.elementContext._0).toContain('text="Submit \\"now\\""');
+		expect(action.elementContext._0).toContain(
+			'child tag="span" class="button-overlay"',
+		);
+		const capped = inspect(makeMockElement(), document, 2, 1, false);
+		expect(capped).toMatchObject({ nodeCount: 1, truncated: true });
+		expect(capped.html).toContain("truncated nodes=1");
+		expect(
+			inspect(makeMockElement(), document, 0, 20, false).html,
+		).not.toContain("child tag");
 	});
 
 	it("dispatches Ok(None) sourceLocation when contentWindow is None", async () => {
