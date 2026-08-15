@@ -6,19 +6,34 @@ type t = {
   html: string,
   nodeCount: int,
   truncated: bool,
+  byteTruncated: bool,
 }
+
+type textEncoder
 
 type walkState = {
   lines: array<string>,
   mutable nodeCount: int,
   mutable truncated: bool,
+  mutable byteTruncated: bool,
+  mutable byteSize: int,
   maxNodes: int,
+  maxBytes: int,
+  encoder: textEncoder,
 }
+
+let maxOutputBytes = 30_000
 
 let keyAttributes = ["id", "class", "data-testid", "href", "src", "type", "placeholder", "alt"]
 
 @scope("Array") @val
 external collectionToArray: 'collection => array<'item> = "from"
+
+@new external makeTextEncoder: unit => textEncoder = "TextEncoder"
+@send external encode: (textEncoder, string) => Uint8Array.t = "encode"
+@get external byteLength: Uint8Array.t => int = "byteLength"
+
+let utf8ByteSize = (text: string): int => makeTextEncoder()->encode(text)->byteLength
 
 let quote = value => JSON.stringifyAny(value)->Option.getOr(`""`)
 
@@ -56,25 +71,8 @@ let findSelector = (
   | exn => Error(errorMessage(exn))
   }
 
-let childElements = (element: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): array<
-  WebAPI.DOMAPI.element,
-> => {
-  let result: array<WebAPI.DOMAPI.element> = collectionToArray(element.children)
-  switch (pierceShadowDom, element.shadowRoot->Null.toOption) {
-  | (true, Some(shadowRoot)) =>
-    shadowRoot.childNodes
-    ->collectionToArray
-    ->Array.filterMap((node: WebAPI.DOMAPI.node) =>
-      switch node.nodeType === 1 {
-      | true => Some(node->WebAPI.Node.asElement)
-      | false => None
-      }
-    )
-    ->Array.forEach(element => result->Array.push(element)->ignore)
-  | _ => ()
-  }
-  result
-}
+let childElements = (element: WebAPI.DOMAPI.element): array<WebAPI.DOMAPI.element> =>
+  collectionToArray(element.children)
 
 let directText = (element: WebAPI.DOMAPI.element): string => {
   let node = element->WebAPI.Element.asNode
@@ -93,26 +91,93 @@ let directText = (element: WebAPI.DOMAPI.element): string => {
   ->Array.join(" ")
 }
 
+let contextText = (element: WebAPI.DOMAPI.element): string =>
+  switch element.tagName->String.toLowerCase {
+  | "input" | "script" | "style" | "svg" | "textarea" => ""
+  | _ => directText(element)
+  }
+
 let pushField = (fields: array<string>, name: string, value: string): unit =>
   fields->Array.push(`${name}=${value->truncate(~maxLen=80)->quote}`)->ignore
+
+let stripUrlSecrets = (value: string): string => {
+  let value = value->String.trim
+  try {
+    let protocolRelative = value->String.startsWith("//")
+    let url = switch protocolRelative {
+    | true => WebAPI.URL.make(~url=value, ~base="https://redaction.invalid")
+    | false => WebAPI.URL.make(~url=value)
+    }
+    switch url.protocol->String.toLowerCase {
+    | "blob:" | "data:" => "[redacted]"
+    | _ => {
+        url.username = ""
+        url.password = ""
+        url.search = ""
+        url.hash = ""
+        switch protocolRelative {
+        | true => `//${url.host}${url.pathname}`
+        | false => url.href
+        }
+      }
+    }
+  } catch {
+  | _ =>
+    value
+    ->String.split("?")
+    ->Array.get(0)
+    ->Option.getOrThrow
+    ->String.split("#")
+    ->Array.get(0)
+    ->Option.getOrThrow
+  }
+}
+
+let appendLine = (state: walkState, line: string): bool => {
+  let separatorBytes = switch state.lines->Array.length {
+  | 0 => 0
+  | _ => 1
+  }
+  let lineBytes = state.encoder->encode(line)->byteLength
+  switch state.byteSize + separatorBytes + lineBytes > state.maxBytes {
+  | true => {
+      state.truncated = true
+      state.byteTruncated = true
+      false
+    }
+  | false => {
+      state.lines->Array.push(line)->ignore
+      state.byteSize = state.byteSize + separatorBytes + lineBytes
+      true
+    }
+  }
+}
 
 let describe = (
   ~relation: string,
   ~element: WebAPI.DOMAPI.element,
   ~document: WebAPI.DOMAPI.document,
-  ~pierceShadowDom: bool,
+  ~selector: option<string>,
 ): (string, array<WebAPI.DOMAPI.element>) => {
   let fields = [relation]
   pushField(fields, "tag", element.tagName->String.toLowerCase)
   keyAttributes->Array.forEach(name =>
     switch element->WebAPI.Element.getAttribute(name)->Null.toOption {
-    | Some(value) => pushField(fields, name, value)
+    | Some(value) =>
+      pushField(
+        fields,
+        name,
+        switch name {
+        | "href" | "src" => stripUrlSecrets(value)
+        | _ => value
+        },
+      )
     | None => ()
     }
   )
-  switch findSelector(~element, ~document=Some(document)) {
-  | Ok(selector) => pushField(fields, "selector", selector)
-  | Error(_) => ()
+  switch selector {
+  | Some(selector) => fields->Array.push(`selector=${selector->quote}`)->ignore
+  | None => ()
   }
   switch Client__ComponentName.getForElement(
     element,
@@ -129,35 +194,26 @@ let describe = (
   | "" => ()
   | name => pushField(fields, "name", name)
   }
-  switch element.tagName->String.toLowerCase {
-  | "script" | "style" | "svg" => ()
-  | _ =>
-    switch directText(element) {
-    | "" => ()
-    | text => pushField(fields, "text", text)
-    }
+  switch contextText(element) {
+  | "" => ()
+  | text => pushField(fields, "text", text)
   }
-  let children = childElements(element, ~pierceShadowDom)
+  let children = childElements(element)
   fields->Array.push(`children=${children->Array.length->Int.toString}`)->ignore
-  switch pierceShadowDom && element.shadowRoot->Null.toOption->Option.isSome {
-  | true => fields->Array.push("shadow=true")->ignore
-  | false => ()
-  }
   (fields->Array.join(" "), children)
 }
 
 let rec walk = (
   ~element: WebAPI.DOMAPI.element,
   ~document: WebAPI.DOMAPI.document,
+  ~selector: option<string>,
   ~depth: int,
   ~maxDepth: int,
-  ~pierceShadowDom: bool,
   ~state: walkState,
 ): unit =>
-  switch state.nodeCount >= state.maxNodes {
+  switch state.truncated || state.nodeCount >= state.maxNodes {
   | true => state.truncated = true
   | false =>
-    state.nodeCount = state.nodeCount + 1
     let (description, children) = describe(
       ~relation=switch depth {
       | 0 => "selected"
@@ -165,14 +221,27 @@ let rec walk = (
       },
       ~element,
       ~document,
-      ~pierceShadowDom,
+      ~selector,
     )
-    state.lines->Array.push("  "->String.repeat(depth) ++ description)->ignore
-    switch depth < maxDepth {
+    let appended = appendLine(state, "  "->String.repeat(depth) ++ description)
+    switch appended {
+    | true => state.nodeCount = state.nodeCount + 1
+    | false => ()
+    }
+    switch appended && depth < maxDepth {
     | true =>
-      children->Array.forEach(child =>
-        walk(~element=child, ~document, ~depth=depth + 1, ~maxDepth, ~pierceShadowDom, ~state)
-      )
+      children->Array.forEachWithIndex((child, index) => {
+        let childSelector =
+          selector->Option.map(selector => `${selector} > :nth-child(${(index + 1)->Int.toString})`)
+        walk(
+          ~element=child,
+          ~document,
+          ~selector=childSelector,
+          ~depth=depth + 1,
+          ~maxDepth,
+          ~state,
+        )
+      })
     | false => ()
     }
   }
@@ -188,39 +257,51 @@ let inspect = (
   ~document: WebAPI.DOMAPI.document,
   ~maxDepth: int,
   ~maxNodes: int,
-  ~pierceShadowDom: bool,
 ): t => {
-  let state = {lines: [], nodeCount: 0, truncated: false, maxNodes}
-  walk(~element, ~document, ~depth=0, ~maxDepth, ~pierceShadowDom, ~state)
+  let selector = findSelector(~element, ~document=Some(document))
+  let selectedSelector = switch selector {
+  | Ok(selector) => Some(selector)
+  | Error(_) => None
+  }
   let parent = switch element.parentElement->Null.toOption {
   | Some(parent) =>
     let (description, _) = describe(
       ~relation="parent",
       ~element=parent->WebAPI.HTMLElement.asElement,
       ~document,
-      ~pierceShadowDom=false,
+      ~selector=None,
     )
     description
   | None => "parent none"
   }
+  let state = {
+    lines: [],
+    nodeCount: 0,
+    truncated: false,
+    byteTruncated: false,
+    byteSize: 0,
+    maxNodes,
+    maxBytes: maxOutputBytes,
+    encoder: makeTextEncoder(),
+  }
+  appendLine(state, parent)->ignore
+  walk(~element, ~document, ~selector=selectedSelector, ~depth=0, ~maxDepth, ~state)
   switch state.truncated {
-  | true => state.lines->Array.push(`truncated nodes=${state.nodeCount->Int.toString}`)->ignore
+  | true => appendLine(state, `truncated nodes=${state.nodeCount->Int.toString}`)->ignore
   | false => ()
   }
   let rect = element->WebAPI.Element.getBoundingClientRect
   {
-    selector: findSelector(~element, ~document=Some(document))->Result.map(selector => Some(
-      selector,
-    )),
+    selector: selector->Result.map(selector => Some(selector)),
     cssClasses: element->WebAPI.Element.getAttribute("class")->optionalTrimmed,
-    nearbyText: element
-    ->WebAPI.Element.asNode
-    ->WebAPI.Node.textContent
-    ->optionalTrimmed
-    ->Option.map(text => text->truncate(~maxLen=200)),
+    nearbyText: switch contextText(element) {
+    | "" => None
+    | text => Some(text->truncate(~maxLen=200))
+    },
     boundingBox: {x: rect.left, y: rect.top, width: rect.width, height: rect.height},
-    html: [parent, ...state.lines]->Array.join("\n"),
+    html: state.lines->Array.join("\n"),
     nodeCount: state.nodeCount,
     truncated: state.truncated,
+    byteTruncated: state.byteTruncated,
   }
 }

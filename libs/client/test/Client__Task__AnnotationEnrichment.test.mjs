@@ -17,7 +17,7 @@
  * cover the same logic with full type safety.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { inspect } from "../src/Client__ElementInspector.res.mjs";
+import { inspect, utf8ByteSize } from "../src/Client__ElementInspector.res.mjs";
 import { handleEffect } from "../src/state/Client__Task__Reducer.res.mjs";
 
 vi.mock("@medv/finder", () => ({
@@ -149,12 +149,107 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.elementContext._0).toContain(
 			'child tag="span" class="button-overlay"',
 		);
-		const capped = inspect(makeMockElement(), document, 2, 1, false);
+		const capped = inspect(makeMockElement(), document, 2, 1);
 		expect(capped).toMatchObject({ nodeCount: 1, truncated: true });
 		expect(capped.html).toContain("truncated nodes=1");
+		expect(inspect(makeMockElement(), document, 0, 20).html).not.toContain(
+			"child tag",
+		);
+	});
+
+	it("generates one selector and derives navigable child selectors", () => {
+		document.body.innerHTML = `
+			<div id="inspection-root">
+				<span>First</span>
+				<span>Second</span>
+			</div>
+		`;
+		finder.mockImplementation(() => "#inspection-root");
+		finder.mockClear();
+
+		const result = inspect(
+			document.querySelector("#inspection-root"),
+			document,
+			1,
+			200,
+		);
+
+		expect(finder).toHaveBeenCalledTimes(1);
+		expect(result.html).toContain(
+			'selector="#inspection-root > :nth-child(1)"',
+		);
 		expect(
-			inspect(makeMockElement(), document, 0, 20, false).html,
-		).not.toContain("child tag");
+			document.querySelector("#inspection-root > :nth-child(1)").textContent,
+		).toBe("First");
+	});
+
+	it("caps simplified context at 30 KB", () => {
+		const repeated = "é".repeat(100);
+		document.body.innerHTML = `<div id="large-context"></div>`;
+		const root = document.querySelector("#large-context");
+		for (let index = 0; index < 199; index += 1) {
+			const child = document.createElement("div");
+			for (const name of [
+				"class",
+				"data-testid",
+				"href",
+				"src",
+				"type",
+				"placeholder",
+				"alt",
+			]) {
+				child.setAttribute(name, `${name}-${repeated}`);
+			}
+			child.textContent = repeated;
+			root.appendChild(child);
+		}
+		finder.mockImplementation(() => "#large-context");
+
+		const result = inspect(root, document, 1, 200);
+
+		expect(
+			new TextEncoder().encode(result.html).byteLength,
+		).toBeLessThanOrEqual(30_000);
+		expect(result.truncated).toBe(true);
+		expect(result.byteTruncated).toBe(true);
+		expect(utf8ByteSize("é")).toBe(2);
+	});
+
+	it("omits control values and URL credentials", () => {
+		document.body.innerHTML = `
+			<form id="credentials">
+				<input type="password" value="password-secret">
+				<input type="hidden" value="hidden-token">
+				<textarea>textarea-secret</textarea>
+				<a href="/account?token=url-secret#private">Account</a>
+				<img src="/avatar?signature=image-secret" alt="Avatar">
+				<a href="https://user:user-password@example.com/private">Private</a>
+				<a href="//user:relative-password@example.com/private">Relative</a>
+				<a href=" //user:spaced-password@example.com/private">Spaced</a>
+				<img src="DATA:image/png;base64,image-data-secret" alt="Embedded">
+			</form>
+		`;
+		finder.mockImplementation(() => "#credentials");
+
+		const result = inspect(
+			document.querySelector("#credentials"),
+			document,
+			1,
+			200,
+		);
+
+		expect(result.html).not.toContain("password-secret");
+		expect(result.html).not.toContain("hidden-token");
+		expect(result.html).not.toContain("textarea-secret");
+		expect(result.html).not.toContain("url-secret");
+		expect(result.html).not.toContain("image-secret");
+		expect(result.html).not.toContain("user-password");
+		expect(result.html).not.toContain("relative-password");
+		expect(result.html).not.toContain("spaced-password");
+		expect(result.html).not.toContain("image-data-secret");
+		expect(result.nearbyText).toBeUndefined();
+		expect(result.html).toContain('href="/account"');
+		expect(result.html).toContain('src="/avatar"');
 	});
 
 	it("dispatches Ok(None) sourceLocation when contentWindow is None", async () => {

@@ -1244,15 +1244,7 @@ let fetchAnnotationDetails = (
   let inspection = switch document {
   | Some(document) =>
     try {
-      Ok(
-        Client__ElementInspector.inspect(
-          ~element,
-          ~document,
-          ~maxDepth=1,
-          ~maxNodes=200,
-          ~pierceShadowDom=false,
-        ),
-      )
+      Ok(Client__ElementInspector.inspect(~element, ~document, ~maxDepth=1, ~maxNodes=200))
     } catch {
     | exn =>
       let message = formatError(exn)
