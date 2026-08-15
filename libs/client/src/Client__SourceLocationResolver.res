@@ -1,4 +1,4 @@
-let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
+let rec resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
   Client__Types.SourceLocation.t,
   string,
 > => {
@@ -54,19 +54,27 @@ let resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
           ->Option.flatMap(JSON.Decode.float)
           ->Option.mapOr(sourceLocation.column, Float.toInt)
 
-        Ok(
-          (
-            {
-              componentName,
-              tagName: sourceLocation.tagName,
-              file,
-              line,
-              column,
-              parent: sourceLocation.parent,
-              componentProps: sourceLocation.componentProps,
-            }: Client__Types.SourceLocation.t
-          ),
-        )
+        let resolvedParent = switch sourceLocation.parent {
+        | Some(parent) => (await resolve(parent))->Result.map(value => Some(value))
+        | None => Ok(None)
+        }
+        switch resolvedParent {
+        | Error(_) as error => error
+        | Ok(parent) =>
+          Ok(
+            (
+              {
+                componentName,
+                tagName: sourceLocation.tagName,
+                file,
+                line,
+                column,
+                parent,
+                componentProps: sourceLocation.componentProps,
+              }: Client__Types.SourceLocation.t
+            ),
+          )
+        }
       | None => Error("Invalid response format")
       }
     }

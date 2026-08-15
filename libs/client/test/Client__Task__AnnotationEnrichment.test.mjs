@@ -284,6 +284,60 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.sourceLocation._0.line).toBe(42);
 	});
 
+	it("dispatches an error when a React Server location cannot be resolved", async () => {
+		const mockLoc = {
+			componentName: "ServerPost",
+			tagName: "article",
+			file: "about://React/Server/file:///app/.next/server/chunk.js",
+			line: 1,
+			column: 0,
+			parent: undefined,
+			componentProps: undefined,
+		};
+		getElementSourceLocation.mockImplementation(() => Promise.resolve(mockLoc));
+		resolveSourceLocation.mockImplementation(() =>
+			Promise.resolve({ TAG: "Error", _0: "HTTP 422: Unprocessable Entity" }),
+		);
+
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+		await waitForDispatch(dispatched);
+
+		const action = dispatched[0];
+		expect(action.sourceLocation.TAG).toBe("Error");
+		expect(action.sourceLocation._0).toBe("HTTP 422: Unprocessable Entity");
+	});
+
+	it("dispatches an error when a nested React Server location cannot be resolved", async () => {
+		const mockLoc = {
+			componentName: "Avatar",
+			tagName: "div",
+			file: "src/app/_components/avatar.tsx",
+			line: 10,
+			column: 7,
+			componentProps: undefined,
+			parent: {
+				componentName: "HeroPost",
+				tagName: "unknown",
+				file: "about://React/Server/file:///app/.next/server/hero-post.js",
+				line: 42,
+				column: 11,
+				componentProps: undefined,
+				parent: undefined,
+			},
+		};
+		getElementSourceLocation.mockImplementation(() => Promise.resolve(mockLoc));
+		resolveSourceLocation.mockImplementation(() =>
+			Promise.resolve({ TAG: "Error", _0: "HTTP 422: Unprocessable Entity" }),
+		);
+
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+		await waitForDispatch(dispatched);
+
+		const action = dispatched[0];
+		expect(action.sourceLocation.TAG).toBe("Error");
+		expect(action.sourceLocation._0).toBe("HTTP 422: Unprocessable Entity");
+	});
+
 	it("selector Error when finder throws", async () => {
 		finder.mockImplementation(() => {
 			throw new Error("No unique selector found");

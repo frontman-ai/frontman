@@ -101,6 +101,31 @@ describe("Client__ComponentName.getForElement", () => {
     t->expect(result)->Expect.toEqual(None)
   })
 
+  test("skips Next.js framework component names", t => {
+    let el = makeReactElement("div", "SegmentViewNode")
+    let result = Client__ComponentName.getForElement(el)
+    t->expect(result)->Expect.toEqual(None)
+  })
+
+  test("prefers React debug owner over framework fiber ancestors", t => {
+    let el: WebAPI.DOMAPI.element = %raw(`
+      (function() {
+        var el = { tagName: "div", parentElement: null };
+        el["__reactFiber$test123"] = {
+          type: "div",
+          _debugOwner: {name: "Avatar", owner: null},
+          return: {
+            type: function RedirectErrorBoundary() {},
+            return: null
+          }
+        };
+        return el;
+      })()
+    `)
+    let result = Client__ComponentName.getForElement(el)
+    t->expect(result)->Expect.toEqual(Some("Avatar"))
+  })
+
   test("walks up React fiber tree to find nearest function component", t => {
     let el: WebAPI.DOMAPI.element = %raw(`
       (function() {

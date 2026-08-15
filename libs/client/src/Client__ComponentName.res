@@ -1,17 +1,31 @@
 let _reactComponentName: WebAPI.DOMAPI.element => Nullable.t<string> = %raw(`
   function(element) {
+    var frameworkComponents = ["SegmentViewNode", "LayoutRouterContext", "InnerLayoutRouter"];
+    function componentName(node) {
+      if (!node) return null;
+      var type = node.type;
+      return node.name || (type && (type.displayName || type.name)) || null;
+    }
+    function isApplicationComponent(name) {
+      return name && name !== "Fragment" && name !== "Suspense" &&
+        !name.startsWith("_") && !frameworkComponents.includes(name);
+    }
     try {
       var keys = Object.keys(element);
       for (var i = 0; i < keys.length; i++) {
         if (keys[i].startsWith("__reactFiber$") || keys[i].startsWith("__reactInternalInstance$")) {
           var fiber = element[keys[i]];
+          var owner = fiber._debugOwner;
+          while (owner) {
+            var ownerName = componentName(owner);
+            if (isApplicationComponent(ownerName)) return ownerName;
+            owner = owner.owner || owner._debugOwner;
+          }
           var current = fiber;
           while (current) {
             if (current.type && typeof current.type === "function") {
-              var name = current.type.displayName || current.type.name;
-              if (name && name !== "Fragment" && name !== "Suspense" && !name.startsWith("_")) {
-                return name;
-              }
+              var name = componentName(current);
+              if (isApplicationComponent(name)) return name;
             }
             current = current.return;
           }

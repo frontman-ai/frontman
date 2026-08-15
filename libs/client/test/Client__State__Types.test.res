@@ -23,6 +23,7 @@ let makeTestAnnotation = (
   ~cssClasses: option<string>=?,
   ~nearbyText: option<string>=?,
   ~boundingBox: option<Annotation.boundingBox>=?,
+  ~parent: option<ClientTypes.SourceLocation.t>=?,
 ): Annotation.t => {
   id: "test-annotation-id",
   element: makeMockElement(),
@@ -37,7 +38,7 @@ let makeTestAnnotation = (
       file,
       line,
       column,
-      parent: None,
+      parent,
       componentProps: None,
     }),
   ),
@@ -113,6 +114,51 @@ describe("Client__State__Types", () => {
         let meta = getMeta(blocks->Array.getUnsafe(0))
 
         t->expect(getMetaString(meta, "file"))->Expect.toBe("/home/user/project/src/Component.tsx")
+      },
+    )
+
+    test(
+      "serializes annotated definition and invocation chain separately",
+      t => {
+        let annotation = makeTestAnnotation(
+          ~file="src/app/_components/avatar.tsx",
+          ~line=10,
+          ~column=7,
+          ~componentName="Avatar",
+          ~parent={
+            componentName: Some("HeroPost"),
+            tagName: "unknown",
+            file: "src/app/_components/hero-post.tsx",
+            line: 42,
+            column: 11,
+            componentProps: None,
+            parent: Some({
+              componentName: Some("Index"),
+              tagName: "unknown",
+              file: "src/app/page.tsx",
+              line: 18,
+              column: 5,
+              componentProps: None,
+              parent: None,
+            }),
+          },
+        )
+
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let meta = getMeta(blocks->Array.getUnsafe(0))
+        let parent = getMetaObject(meta, "parent")
+        let grandparent = getMetaObject(parent->JSON.Encode.object, "parent")
+
+        t->expect(getMetaString(meta, "file"))->Expect.toBe("src/app/_components/avatar.tsx")
+        t
+        ->expect(getMetaString(parent->JSON.Encode.object, "file"))
+        ->Expect.toBe("src/app/_components/hero-post.tsx")
+        t
+        ->expect(getMetaString(parent->JSON.Encode.object, "component_name"))
+        ->Expect.toBe("HeroPost")
+        t
+        ->expect(getMetaString(grandparent->JSON.Encode.object, "file"))
+        ->Expect.toBe("src/app/page.tsx")
       },
     )
 

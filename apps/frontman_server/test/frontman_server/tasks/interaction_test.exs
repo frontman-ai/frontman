@@ -110,6 +110,38 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert ann2.comment == "Make this red"
     end
 
+    test "extracts annotated definition and recursive invocation chain" do
+      parent = %{
+        "component_name" => "HeroPost",
+        "file" => "src/app/_components/hero-post.tsx",
+        "line" => 42,
+        "column" => 11,
+        "parent" => %{
+          "component_name" => "Index",
+          "file" => "src/app/page.tsx",
+          "line" => 18,
+          "column" => 5
+        }
+      }
+
+      msg =
+        build_user_message([
+          annotation_block("ann-avatar", "div", "src/app/_components/avatar.tsx", 10, 7,
+            component_name: "Avatar",
+            parent: parent
+          )
+        ])
+
+      assert [ann] = msg.annotations
+      assert ann.component_name == "Avatar"
+      assert ann.file == "src/app/_components/avatar.tsx"
+      assert ann.line == 10
+      assert ann.parent.component_name == "HeroPost"
+      assert ann.parent.file == "src/app/_components/hero-post.tsx"
+      assert ann.parent.parent.component_name == "Index"
+      assert ann.parent.parent.file == "src/app/page.tsx"
+    end
+
     test "extracts bounding_box when provided" do
       bb = %{"x" => 10.5, "y" => 20.0, "width" => 200.0, "height" => 50.0}
 
@@ -338,6 +370,41 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert text =~ "Line: 42"
       assert text =~ "Element Context:"
       assert text =~ "selector=\"#target\""
+    end
+
+    test "keeps annotated JSX definition separate from component invocation chain" do
+      ann = %Annotation{
+        annotation_id: "ann-avatar",
+        annotation_index: 0,
+        tag_name: "div",
+        component_name: "Avatar",
+        file: "src/app/_components/avatar.tsx",
+        line: 10,
+        column: 7,
+        parent: %Interaction.ParentLocation{
+          component_name: "HeroPost",
+          file: "src/app/_components/hero-post.tsx",
+          line: 42,
+          column: 11,
+          parent: %Interaction.ParentLocation{
+            component_name: "Index",
+            file: "src/app/page.tsx",
+            line: 18,
+            column: 5
+          }
+        }
+      }
+
+      messages = Interaction.to_swarm_messages([user_msg("Show the call tree", [ann])])
+      text = extract_text(hd(messages))
+
+      assert text =~ "Component: Avatar"
+      assert text =~ "File: src/app/_components/avatar.tsx\n  Line: 10\n  Column: 7"
+      assert text =~ "Parent: 1. src/app/_components/hero-post.tsx:42:11 (HeroPost)"
+      assert text =~ "2. src/app/page.tsx:18:5 (Index)"
+
+      assert :binary.match(text, "src/app/_components/avatar.tsx") <
+               :binary.match(text, "src/app/_components/hero-post.tsx")
     end
 
     test "includes bounding_box in annotation LLM message" do

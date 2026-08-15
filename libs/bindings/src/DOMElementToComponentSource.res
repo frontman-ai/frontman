@@ -7,6 +7,8 @@ type rec sourceLocation = {
   parent: option<sourceLocation>,
 }
 
-@module("dom-element-to-component-source/server")
-external resolveSourceLocationInServer: sourceLocation => promise<sourceLocation> =
-  "resolveSourceLocationInServer"
+@module("./DOMElementToComponentSourceRuntime.mjs")
+external resolveSourceLocationInServer: (
+  sourceLocation,
+  ~projectRoot: string,
+) => promise<sourceLocation> = "resolveSourceLocationInServer"

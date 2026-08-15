@@ -1234,6 +1234,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 let formatError = (exn: exn): string =>
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
 
+let rec hasReactSourceLocation = (sourceLocation: Client__Types.SourceLocation.t): bool => {
+  switch sourceLocation.file->String.startsWith("about://React/") {
+  | true => true
+  | false => sourceLocation.parent->Option.mapOr(false, hasReactSourceLocation)
+  }
+}
+
 let fetchAnnotationDetails = (
   ~id: string,
   ~element: WebAPI.DOMAPI.element,
@@ -1337,8 +1344,12 @@ let fetchAnnotationDetails = (
           switch result {
           | Ok(resolved) => Promise.resolve(Ok(Some(resolved)))
           | Error(err) =>
-            Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
-            Promise.resolve(Ok(Some(sourceLoc)))
+            switch hasReactSourceLocation(sourceLoc) {
+            | true => Promise.resolve(Error(err))
+            | false =>
+              Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
+              Promise.resolve(Ok(Some(sourceLoc)))
+            }
           }
         })
       | Ok(None) => Promise.resolve(Ok(None))

@@ -3,6 +3,7 @@ open Vitest
 module RequestHandlers = FrontmanCore__RequestHandlers
 module ToolRegistry = FrontmanCore__ToolRegistry
 module Relay = FrontmanAiFrontmanProtocol.FrontmanProtocol__Relay
+module Path = FrontmanBindings.Path
 
 module Helpers = {
   let handlerConfig: RequestHandlers.handlerConfig = {
@@ -27,6 +28,9 @@ module Helpers = {
       },
     )
   }
+
+  let resolveSourceLocationBody = (request: RequestHandlers.resolveSourceLocationRequest): JSON.t =>
+    request->S.decodeOrThrow(~from=RequestHandlers.resolveSourceLocationRequestSchema, ~to=S.json)
 }
 
 describe("RequestHandlers", _t => {
@@ -225,6 +229,171 @@ describe("RequestHandlers", _t => {
   })
 
   describe("handleResolveSourceLocation", _t => {
+    testAsync(
+      "resolves React Server Component chunks to original source",
+      async t => {
+        let sourceRoot = Path.join([
+          FrontmanBindings.Process.cwd(),
+          "test",
+          "fixtures",
+          "rsc-source",
+        ])
+        let generatedFile = Path.join([sourceRoot, ".next", "server", "rsc-chunk.js"])
+        let body = Helpers.resolveSourceLocationBody({
+          componentName: "ServerPost",
+          file: `about://React/Server/file://${generatedFile}`,
+          line: 2,
+          column: 2,
+        })
+        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+
+        let response = await RequestHandlers.handleResolveSourceLocation(~sourceRoot, req)
+
+        t->expect(response.status)->Expect.toBe(200)
+        let json = await response->WebAPI.Response.json
+        let result = json->S.parseOrThrow(~to=RequestHandlers.resolveSourceLocationResponseSchema)
+        t->expect(result.file)->Expect.toBe("src/ServerPost.tsx")
+        t->expect(result.line)->Expect.toBe(3)
+        t->expect(result.column)->Expect.toBe(4)
+      },
+    )
+
+    testAsync(
+      "resolves generated files from projectRoot into a narrower sourceRoot",
+      async t => {
+        let projectRoot = Path.join([
+          FrontmanBindings.Process.cwd(),
+          "test",
+          "fixtures",
+          "rsc-source",
+        ])
+        let sourceRoot = Path.join([projectRoot, "src"])
+        let generatedFile = Path.join([projectRoot, ".next", "server", "rsc-chunk.js"])
+        let body = Helpers.resolveSourceLocationBody({
+          componentName: "ServerPost",
+          file: `about://React/Server/file://${generatedFile}`,
+          line: 2,
+          column: 2,
+        })
+        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+
+        let response = await RequestHandlers.handleResolveSourceLocation(
+          ~projectRoot,
+          ~sourceRoot,
+          req,
+        )
+
+        t->expect(response.status)->Expect.toBe(200)
+        let json = await response->WebAPI.Response.json
+        let result = json->S.parseOrThrow(~to=RequestHandlers.resolveSourceLocationResponseSchema)
+        t->expect(result.file)->Expect.toBe("ServerPost.tsx")
+      },
+    )
+
+    testAsync(
+      "resolves Next webpack project sources",
+      async t => {
+        let projectRoot = Path.join([
+          FrontmanBindings.Process.cwd(),
+          "test",
+          "fixtures",
+          "rsc-source",
+        ])
+        let generatedFile = Path.join([projectRoot, ".next", "server", "webpack-chunk.js"])
+        let body = Helpers.resolveSourceLocationBody({
+          componentName: "ServerPost",
+          file: `about://React/Server/file://${generatedFile}`,
+          line: 2,
+          column: 2,
+        })
+        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+
+        let response = await RequestHandlers.handleResolveSourceLocation(
+          ~sourceRoot=projectRoot,
+          req,
+        )
+
+        t->expect(response.status)->Expect.toBe(200)
+        let json = await response->WebAPI.Response.json
+        let result = json->S.parseOrThrow(~to=RequestHandlers.resolveSourceLocationResponseSchema)
+        t->expect(result.file)->Expect.toBe("src/ServerPost.tsx")
+      },
+    )
+
+    testAsync(
+      "returns 422 when a React virtual source cannot be resolved",
+      async t => {
+        let body = Helpers.resolveSourceLocationBody({
+          componentName: "MissingPost",
+          file: "about://React/Server/file:///missing/.next/server/missing-chunk.js",
+          line: 1,
+          column: 0,
+        })
+        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+
+        let response = await RequestHandlers.handleResolveSourceLocation(
+          ~sourceRoot="/test/project",
+          req,
+        )
+
+        t->expect(response.status)->Expect.toBe(422)
+        let text = await response->WebAPI.Response.text
+        t
+        ->expect(text->String.includes("Could not resolve React source location"))
+        ->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "rejects React generated files outside sourceRoot before resolution",
+      async t => {
+        let fixtureRoot = Path.join([
+          FrontmanBindings.Process.cwd(),
+          "test",
+          "fixtures",
+          "rsc-source",
+        ])
+        let sourceRoot = Path.join([fixtureRoot, "src"])
+        let generatedFile = Path.join([fixtureRoot, ".next", "server", "rsc-chunk.js"])
+        let body = Helpers.resolveSourceLocationBody({
+          componentName: "ServerPost",
+          file: `about://React/Server/file://${generatedFile}`,
+          line: 2,
+          column: 2,
+        })
+        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+
+        let response = await RequestHandlers.handleResolveSourceLocation(~sourceRoot, req)
+
+        t->expect(response.status)->Expect.toBe(422)
+      },
+    )
+
+    testAsync(
+      "rejects resolved React sources outside sourceRoot",
+      async t => {
+        let fixtureRoot = Path.join([
+          FrontmanBindings.Process.cwd(),
+          "test",
+          "fixtures",
+          "rsc-source",
+        ])
+        let sourceRoot = Path.join([fixtureRoot, ".next"])
+        let generatedFile = Path.join([sourceRoot, "server", "rsc-chunk.js"])
+        let body = Helpers.resolveSourceLocationBody({
+          componentName: "ServerPost",
+          file: `about://React/Server/file://${generatedFile}`,
+          line: 2,
+          column: 2,
+        })
+        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+
+        let response = await RequestHandlers.handleResolveSourceLocation(~sourceRoot, req)
+
+        t->expect(response.status)->Expect.toBe(422)
+      },
+    )
+
     testAsync(
       "normalizes resolved files relative to configured sourceRoot",
       async t => {

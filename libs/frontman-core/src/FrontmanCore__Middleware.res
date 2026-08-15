@@ -138,7 +138,11 @@ let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t):
     | ("post", p) if p == resolveSourceLocationPath =>
       Some(
         (
-          await RequestHandlers.handleResolveSourceLocation(~sourceRoot=config.sourceRoot, req)
+          await RequestHandlers.handleResolveSourceLocation(
+            ~projectRoot=config.projectRoot,
+            ~sourceRoot=config.sourceRoot,
+            req,
+          )
         )->CORS.withCors,
       )
 

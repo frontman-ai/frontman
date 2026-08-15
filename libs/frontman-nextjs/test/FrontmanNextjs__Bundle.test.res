@@ -12,4 +12,8 @@ describe("server bundle runtime dependencies", _ => {
     t->expect(bundle->String.includes("import(ripgrepModule)"))->Expect.toBe(false)
     t->expect(bundle->String.includes("runtimeRequire(specifier)"))->Expect.toBe(false)
   })
+
+  test("does not bundle source-map WASM loading", t => {
+    t->expect(bundle->String.includes("mappings.wasm"))->Expect.toBe(false)
+  })
 })

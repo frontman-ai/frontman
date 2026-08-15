@@ -1,0 +1,1 @@
+{"version":3,"file":"webpack-chunk.js","sources":["webpack://_N_E/./src/ServerPost.tsx"],"sourcesContent":["export default function ServerPost() {\n  // Rendered on the server.\n    return <article>Server post</article>\n}\n"],"names":[],"mappings":"AAAA;EAEI"}

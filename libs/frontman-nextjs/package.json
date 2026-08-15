@@ -58,7 +58,11 @@
 	"dependencies": {
 		"@sentry/nextjs": "^10.66.0",
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.4.0"
+		"lighthouse": "^13.4.0",
+		"source-map": "^0.7.6"
+	},
+	"optionalDependencies": {
+		"@vscode/ripgrep": "^1.18.0"
 	},
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"
