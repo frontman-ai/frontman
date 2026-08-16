@@ -125,10 +125,10 @@ let resolvedReactSource = async (~sourceRoot: string, file: string): option<stri
   }
 }
 
-let unresolvedReactSourceResponse = (~details: option<string>=?): WebAPI.FetchAPI.response => {
+let unresolvedReactSourceResponse = (~details: string): WebAPI.FetchAPI.response => {
   let json = {
     error: "Could not resolve React source location",
-    details,
+    details: Some(details),
   }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json)
   WebAPI.Response.jsonR(~data=json, ~init={status: 422})
 }

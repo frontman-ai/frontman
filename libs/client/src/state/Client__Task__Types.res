@@ -467,6 +467,7 @@ type annotationMeta = {
   componentName: option<string>,
   componentProps: option<Dict.t<JSON.t>>,
   parent: option<JSON.t>,
+  @live
   sourceLocationError: option<string>,
   cssClasses: option<string>,
   nearbyText: option<string>,
