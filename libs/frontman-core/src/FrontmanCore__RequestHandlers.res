@@ -63,12 +63,12 @@ let pathInside = (~sourceRoot: string, path: string): bool => {
   SafePath.resolve(~sourceRoot, ~inputPath=path)->Result.isOk
 }
 
-let validateRequestSourceFile = async (~sourceRoot: string, file: string): result<bool, unit> => {
+let validateRequestSourceFile = async (~sourceRoot: string, file: string): result<bool, string> => {
   switch file->String.startsWith(reactSourcePrefix) {
   | false => Ok(false)
   | true =>
     switch file->String.startsWith(reactServerSourcePrefix) {
-    | false => Error()
+    | false => Error("Unsupported React source URL")
     | true =>
       try {
         let fileUrl =
@@ -78,7 +78,7 @@ let validateRequestSourceFile = async (~sourceRoot: string, file: string): resul
           )
         let generatedFile = fileURLToPath(fileUrl)
         switch generatedFile->String.endsWith(".js") {
-        | false => Error()
+        | false => Error("Generated React source must be a JavaScript file")
         | true =>
           let generatedPath = await canonicalPath(generatedFile)
           let adjacentMapPath = await canonicalPath(generatedFile ++ ".map")
@@ -96,11 +96,19 @@ let validateRequestSourceFile = async (~sourceRoot: string, file: string): resul
           | (Some(generatedPath), Some(mapPath))
             if pathInside(~sourceRoot, generatedPath) && pathInside(~sourceRoot, mapPath) =>
             Ok(true)
-          | _ => Error()
+          | (None, _) => Error("Generated React source file does not exist")
+          | (_, None) => Error("Generated React source map does not exist")
+          | _ => Error("Generated React source or source map is outside project root")
           }
         }
       } catch {
-      | _ => Error()
+      | exn =>
+        Error(
+          exn
+          ->JsExn.fromException
+          ->Option.flatMap(JsExn.message)
+          ->Option.getOr("Malformed React source URL"),
+        )
       }
     }
   }
@@ -117,10 +125,10 @@ let resolvedReactSource = async (~sourceRoot: string, file: string): option<stri
   }
 }
 
-let unresolvedReactSourceResponse = (): WebAPI.FetchAPI.response => {
+let unresolvedReactSourceResponse = (~details: option<string>=?): WebAPI.FetchAPI.response => {
   let json = {
     error: "Could not resolve React source location",
-    details: None,
+    details,
   }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json)
   WebAPI.Response.jsonR(~data=json, ~init={status: 422})
 }
@@ -241,7 +249,7 @@ let handleResolveSourceLocation = async (
 
   | Ok(request) =>
     switch await validateRequestSourceFile(~sourceRoot=canonicalProjectRoot, request.file) {
-    | Error() => unresolvedReactSourceResponse()
+    | Error(details) => unresolvedReactSourceResponse(~details)
     | Ok(reactServerSource) =>
       try {
         let sourceLocation: DOMElementToComponentSource.sourceLocation = {
@@ -262,7 +270,10 @@ let handleResolveSourceLocation = async (
         | false => Some(resolved.file)
         }
         switch responseFile {
-        | None => unresolvedReactSourceResponse()
+        | None =>
+          unresolvedReactSourceResponse(
+            ~details="Resolved source is virtual, missing, or outside source root",
+          )
         | Some(responseFile) =>
           let relativeRoot = switch reactServerSource {
           | true => canonicalSourceRoot

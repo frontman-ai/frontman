@@ -467,6 +467,7 @@ type annotationMeta = {
   componentName: option<string>,
   componentProps: option<Dict.t<JSON.t>>,
   parent: option<JSON.t>,
+  sourceLocationError: option<string>,
   cssClasses: option<string>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
@@ -487,6 +488,7 @@ let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
   componentName: s.field("component_name", S.option(S.string)),
   componentProps: s.field("component_props", S.option(S.dict(S.json))),
   parent: s.field("parent", S.option(S.json)),
+  sourceLocationError: s.field("source_location_error", S.option(S.string)),
   cssClasses: s.field("css_classes", S.option(S.string)),
   nearbyText: s.field("nearby_text", S.option(S.string)),
   elementorContext: s.field("elementor", S.option(Client__ElementorDetection.schema)),
@@ -545,6 +547,7 @@ type annotationBlockData = {
   elementContext: option<string>,
   screenshot: option<string>,
   sourceLocation: option<parentLocationMeta>,
+  sourceLocationError: option<string>,
   cssClasses: option<string>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
@@ -596,6 +599,7 @@ let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t 
     componentName,
     componentProps,
     parent,
+    sourceLocationError: annotation.sourceLocationError,
     cssClasses: annotation.cssClasses,
     nearbyText: nearbyTextWithElementorHint(
       ~nearbyText=annotation.nearbyText,
@@ -707,19 +711,25 @@ let messageAnnotationBoundingBoxMeta = (
 let messageAnnotationToBlockData = (
   annotation: Message.MessageAnnotation.t,
 ): annotationBlockData => {
-  id: annotation.id,
-  tagName: annotation.tagName,
-  comment: annotation.comment,
-  selector: annotation.selector->Result.getOr(None),
-  elementContext: annotation.elementContext->Result.getOr(None),
-  screenshot: annotation.screenshot->Result.getOr(None),
-  sourceLocation: annotation.sourceLocation
-  ->Result.getOr(None)
-  ->Option.map(sourceLocationFromMessageAnnotation),
-  cssClasses: annotation.cssClasses,
-  nearbyText: annotation.nearbyText,
-  elementorContext: annotation.elementorContext,
-  boundingBox: annotation.boundingBox->Option.map(messageAnnotationBoundingBoxMeta),
+  let (sourceLocation, sourceLocationError) = switch annotation.sourceLocation {
+  | Ok(sourceLocation) => (sourceLocation->Option.map(sourceLocationFromMessageAnnotation), None)
+  | Error(error) => (None, Some(error))
+  }
+
+  {
+    id: annotation.id,
+    tagName: annotation.tagName,
+    comment: annotation.comment,
+    selector: annotation.selector->Result.getOr(None),
+    elementContext: annotation.elementContext->Result.getOr(None),
+    screenshot: annotation.screenshot->Result.getOr(None),
+    sourceLocation,
+    sourceLocationError,
+    cssClasses: annotation.cssClasses,
+    nearbyText: annotation.nearbyText,
+    elementorContext: annotation.elementorContext,
+    boundingBox: annotation.boundingBox->Option.map(messageAnnotationBoundingBoxMeta),
+  }
 }
 
 let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<ContentBlock.t> => {

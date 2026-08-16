@@ -189,6 +189,28 @@ describe("Client__State__Types", () => {
     )
 
     test(
+      "preserves source location errors in annotation metadata",
+      t => {
+        let annotation = {
+          ...makeTestAnnotation(
+            ~file="src/Component.tsx",
+            ~line=42,
+            ~column=5,
+            ~selector="div.test",
+          ),
+          sourceLocation: Error("HTTP 422: Could not resolve React source location"),
+        }
+
+        let blocks = Types.annotationToContentBlocks(annotation, ~index=0)
+        let meta = getMeta(blocks->Array.getUnsafe(0))
+
+        t
+        ->expect(getMetaString(meta, "source_location_error"))
+        ->Expect.toBe("HTTP 422: Could not resolve React source location")
+      },
+    )
+
+    test(
       "handles Windows-style file:// URIs",
       t => {
         let annotation = makeTestAnnotation(

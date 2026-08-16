@@ -341,6 +341,35 @@ describe("RequestHandlers", _t => {
         t
         ->expect(text->String.includes("Could not resolve React source location"))
         ->Expect.toBe(true)
+        t
+        ->expect(text->String.includes("Generated React source file does not exist"))
+        ->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "reports source-map position failures",
+      async t => {
+        let sourceRoot = Path.join([
+          FrontmanBindings.Process.cwd(),
+          "test",
+          "fixtures",
+          "rsc-source",
+        ])
+        let generatedFile = Path.join([sourceRoot, ".next", "server", "rsc-chunk.js"])
+        let body = Helpers.resolveSourceLocationBody({
+          componentName: "ServerPost",
+          file: `about://React/Server/file://${generatedFile}`,
+          line: 999,
+          column: 0,
+        })
+        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+
+        let response = await RequestHandlers.handleResolveSourceLocation(~sourceRoot, req)
+
+        t->expect(response.status)->Expect.toBe(500)
+        let text = await response->WebAPI.Response.text
+        t->expect(text->String.includes("Source map has no original position"))->Expect.toBe(true)
       },
     )
 

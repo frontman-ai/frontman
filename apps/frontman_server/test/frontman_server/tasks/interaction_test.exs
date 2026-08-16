@@ -372,6 +372,24 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert text =~ "selector=\"#target\""
     end
 
+    test "includes source location errors in user message content" do
+      ann = %Annotation{
+        annotation_id: "ann-source-error",
+        annotation_index: 0,
+        tag_name: "div",
+        selector: ".target",
+        metadata: %{
+          "source_location_error" => "HTTP 422: Could not resolve React source location"
+        }
+      }
+
+      messages = Interaction.to_swarm_messages([user_msg("Inspect this", [ann])])
+      text = extract_text(hd(messages))
+
+      assert text =~
+               "Source Location Error: HTTP 422: Could not resolve React source location"
+    end
+
     test "keeps annotated JSX definition separate from component invocation chain" do
       ann = %Annotation{
         annotation_id: "ann-avatar",

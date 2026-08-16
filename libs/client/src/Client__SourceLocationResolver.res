@@ -1,3 +1,9 @@
+@schema
+type resolverErrorResponse = {
+  error: string,
+  details: option<string>,
+}
+
 let rec resolve = async (sourceLocation: Client__Types.SourceLocation.t): result<
   Client__Types.SourceLocation.t,
   string,
@@ -26,7 +32,13 @@ let rec resolve = async (sourceLocation: Client__Types.SourceLocation.t): result
     )
 
     if !response.ok {
-      Error(`HTTP ${response.status->Int.toString}: ${response.statusText}`)
+      let json = await response->WebAPI.Response.json
+      let errorResponse = json->S.parseOrThrow(~to=resolverErrorResponseSchema)
+      let details = switch errorResponse.details {
+      | Some(details) => `: ${details}`
+      | None => ""
+      }
+      Error(`HTTP ${response.status->Int.toString}: ${errorResponse.error}${details}`)
     } else {
       let json = await response->WebAPI.Response.json
       let resultObj = json->JSON.Decode.object

@@ -1266,6 +1266,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.nearby_text, "Nearby Text"),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
+      annotation_metadata_field(ann.metadata, "source_location_error", "Source Location Error"),
       annotation_parent_field(ann.parent)
     ]
     |> Enum.join()
@@ -1283,6 +1284,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     do: "\n  Props: #{Jason.encode!(props, pretty: false)}"
 
   defp annotation_props_field(_), do: ""
+
+  defp annotation_metadata_field(metadata, key, label) when is_map(metadata),
+    do: annotation_string_field(metadata[key], label)
+
+  defp annotation_metadata_field(_, _, _), do: ""
 
   defp annotation_parent_field(nil), do: ""
   defp annotation_parent_field(parent), do: "\n  Parent: #{format_parent_chain(parent, 1)}"

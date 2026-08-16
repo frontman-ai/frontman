@@ -87,7 +87,13 @@ it("rejects the chain when any React Server location cannot be resolved", async 
 	const fetch = vi.fn(async (_url, init) => {
 		const request = JSON.parse(init.body);
 		return request.componentName === "HeroPost"
-			? new Response("", { status: 422, statusText: "Unprocessable Content" })
+			? new Response(
+					JSON.stringify({
+						error: "Could not resolve React source location",
+						details: "Resolved source remained virtual",
+					}),
+					{ status: 422, statusText: "Unprocessable Content" },
+				)
 			: new Response(JSON.stringify(request), { status: 200 });
 	});
 	vi.stubGlobal("fetch", fetch);
@@ -112,6 +118,6 @@ it("rejects the chain when any React Server location cannot be resolved", async 
 
 	expect(result).toEqual({
 		TAG: "Error",
-		_0: "HTTP 422: Unprocessable Content",
+		_0: "HTTP 422: Could not resolve React source location: Resolved source remained virtual",
 	});
 });
