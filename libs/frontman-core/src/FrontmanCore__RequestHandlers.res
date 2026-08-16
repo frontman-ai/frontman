@@ -6,15 +6,11 @@ module CoreSSE = FrontmanCore__SSE
 module PathContext = FrontmanCore__PathContext
 module SafePath = FrontmanCore__SafePath
 module WebStreams = FrontmanBindings.WebStreams
-module DOMElementToComponentSource = FrontmanBindings.DOMElementToComponentSource
 
-@module("node:url")
-external fileURLToPath: string => string = "fileURLToPath"
 @module("node:fs/promises")
 external realpath: string => promise<string> = "realpath"
 
-let reactSourcePrefix = "about://React/"
-let reactServerSourcePrefix = "about://React/Server/"
+let maxSourceInvocations = 10
 
 type handlerConfig = {
   projectRoot: string,
@@ -24,24 +20,44 @@ type handlerConfig = {
 }
 
 @schema
-type resolveSourceLocationRequest = {
-  componentName: string,
+type sourceLocation = {
+  @live
+  componentName: option<string>,
+  @live
+  tagName: option<string>,
   file: string,
   line: int,
+  @live
   column: int,
+  componentProps: option<Dict.t<JSON.t>>,
 }
 
 @schema
-type resolveSourceLocationResponse = {
-  @live
-  componentName: string,
-  @live
-  file: string,
-  @live
-  line: int,
-  @live
-  column: int,
+type sourceContext = {
+  definition: option<sourceLocation>,
+  invocations: array<sourceLocation>,
 }
+
+type sourceResolutionError = {
+  code: string,
+  message: string,
+}
+
+type sourceResolutionResult = {
+  success: bool,
+  data: option<sourceContext>,
+  error: option<sourceResolutionError>,
+}
+
+type resolveSourceContextOptions = {projectRoot: string}
+
+type resolveSourceContext = (
+  sourceContext,
+  resolveSourceContextOptions,
+) => promise<sourceResolutionResult>
+
+@module("dom-element-to-component-source/server")
+external resolveElementSourceContext: resolveSourceContext = "resolveElementSourceContext"
 
 @schema
 type errorResponse = {
@@ -63,71 +79,73 @@ let pathInside = (~sourceRoot: string, path: string): bool => {
   SafePath.resolve(~sourceRoot, ~inputPath=path)->Result.isOk
 }
 
-let validateRequestSourceFile = async (~sourceRoot: string, file: string): result<bool, string> => {
-  switch file->String.startsWith(reactSourcePrefix) {
-  | false => Ok(false)
-  | true =>
-    switch file->String.startsWith(reactServerSourcePrefix) {
-    | false => Error("Unsupported React source URL")
-    | true =>
-      try {
-        let fileUrl =
-          file->String.slice(
-            ~start=reactServerSourcePrefix->String.length,
-            ~end=file->String.length,
-          )
-        let generatedFile = fileURLToPath(fileUrl)
-        switch generatedFile->String.endsWith(".js") {
-        | false => Error("Generated React source must be a JavaScript file")
-        | true =>
-          let generatedPath = await canonicalPath(generatedFile)
-          let adjacentMapPath = await canonicalPath(generatedFile ++ ".map")
-          let alternateMapPath = switch adjacentMapPath {
-          | Some(_) => None
-          | None =>
-            await canonicalPath(
-              generatedFile->String.slice(
-                ~start=0,
-                ~end=generatedFile->String.length - 3,
-              ) ++ ".map",
-            )
-          }
-          switch (generatedPath, adjacentMapPath->Option.orElse(alternateMapPath)) {
-          | (Some(generatedPath), Some(mapPath))
-            if pathInside(~sourceRoot, generatedPath) && pathInside(~sourceRoot, mapPath) =>
-            Ok(true)
-          | (None, _) => Error("Generated React source file does not exist")
-          | (_, None) => Error("Generated React source map does not exist")
-          | _ => Error("Generated React source or source map is outside project root")
-          }
-        }
-      } catch {
-      | exn =>
-        Error(
-          exn
-          ->JsExn.fromException
-          ->Option.flatMap(JsExn.message)
-          ->Option.getOr("Malformed React source URL"),
-        )
+let normalizeResolvedLocation = async (
+  ~canonicalSourceRoot: string,
+  location: sourceLocation,
+): result<sourceLocation, string> => {
+  switch location.file->String.startsWith("about://") {
+  | true => Error("Resolved source remained virtual")
+  | false =>
+    switch SafePath.resolve(~sourceRoot=canonicalSourceRoot, ~inputPath=location.file) {
+    | Error(_) => Error("Resolved source is outside source root")
+    | Ok(safePath) =>
+      switch await canonicalPath(SafePath.toString(safePath)) {
+      | None => Error("Resolved source does not exist")
+      | Some(path) if pathInside(~sourceRoot=canonicalSourceRoot, path) =>
+        Ok({
+          ...location,
+          file: PathContext.toRelativePath(~sourceRoot=canonicalSourceRoot, ~absolutePath=path),
+        })
+      | Some(_) => Error("Resolved source is outside source root")
       }
     }
   }
 }
 
-let resolvedReactSource = async (~sourceRoot: string, file: string): option<string> => {
-  switch file->String.startsWith(reactSourcePrefix) {
-  | true => None
-  | false =>
-    switch await canonicalPath(file) {
-    | Some(path) if pathInside(~sourceRoot, path) => Some(path)
-    | _ => None
+let rec normalizeResolvedInvocations = async (
+  ~canonicalSourceRoot: string,
+  invocations: array<sourceLocation>,
+  index: int,
+): result<array<sourceLocation>, string> => {
+  switch invocations->Array.get(index) {
+  | None => Ok([])
+  | Some(invocation) =>
+    switch await normalizeResolvedLocation(~canonicalSourceRoot, invocation) {
+    | Error(details) => Error(details)
+    | Ok(invocation) =>
+      switch await normalizeResolvedInvocations(~canonicalSourceRoot, invocations, index + 1) {
+      | Error(details) => Error(details)
+      | Ok(rest) => Ok(Array.concat([invocation], rest))
+      }
+    }
+  }
+}
+
+let normalizeResolvedContext = async (~canonicalSourceRoot: string, context: sourceContext): result<
+  sourceContext,
+  string,
+> => {
+  let definitionResult = switch context.definition {
+  | None => Ok(None)
+  | Some(definition) =>
+    switch await normalizeResolvedLocation(~canonicalSourceRoot, definition) {
+    | Error(details) => Error(details)
+    | Ok(definition) => Ok(Some(definition))
+    }
+  }
+  switch definitionResult {
+  | Error(details) => Error(details)
+  | Ok(definition) =>
+    switch await normalizeResolvedInvocations(~canonicalSourceRoot, context.invocations, 0) {
+    | Error(details) => Error(details)
+    | Ok(invocations) => Ok({definition, invocations})
     }
   }
 }
 
 let unresolvedReactSourceResponse = (~details: string): WebAPI.FetchAPI.response => {
   let json = {
-    error: "Could not resolve React source location",
+    error: "Could not resolve React source context",
     details: Some(details),
   }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json)
   WebAPI.Response.jsonR(~data=json, ~init={status: 422})
@@ -224,15 +242,16 @@ let handleToolCall = async (
 let handleResolveSourceLocation = async (
   ~projectRoot: option<string>=?,
   ~sourceRoot: string,
+  ~resolveSourceContext: resolveSourceContext=resolveElementSourceContext,
   req: WebAPI.FetchAPI.request,
 ): WebAPI.FetchAPI.response => {
   let projectRoot = projectRoot->Option.getOr(sourceRoot)
   let canonicalProjectRoot = (await canonicalPath(projectRoot))->Option.getOr(projectRoot)
   let canonicalSourceRoot = (await canonicalPath(sourceRoot))->Option.getOr(sourceRoot)
-  let body = await req->WebAPI.Request.json
 
   let request = try {
-    Ok(body->S.parseOrThrow(~to=resolveSourceLocationRequestSchema))
+    let body = await req->WebAPI.Request.json
+    Ok(body->S.parseOrThrow(~to=sourceContextSchema))
   } catch {
   | exn =>
     Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid request"))
@@ -248,60 +267,38 @@ let handleResolveSourceLocation = async (
     WebAPI.Response.jsonR(~data=json, ~init={status: 400})
 
   | Ok(request) =>
-    switch await validateRequestSourceFile(~sourceRoot=canonicalProjectRoot, request.file) {
-    | Error(details) => unresolvedReactSourceResponse(~details)
-    | Ok(reactServerSource) =>
+    switch request.invocations->Array.length > maxSourceInvocations {
+    | true =>
+      unresolvedReactSourceResponse(~details="Source context must contain at most 10 invocations")
+    | false =>
       try {
-        let sourceLocation: DOMElementToComponentSource.sourceLocation = {
-          componentName: request.componentName,
-          file: request.file,
-          line: request.line,
-          column: request.column,
-          componentProps: None,
-          parent: None,
-        }
-
-        let resolved = await DOMElementToComponentSource.resolveSourceLocationInServer(
-          sourceLocation,
-          ~projectRoot=canonicalProjectRoot,
-        )
-        let responseFile = switch reactServerSource {
-        | true => await resolvedReactSource(~sourceRoot=canonicalSourceRoot, resolved.file)
-        | false => Some(resolved.file)
-        }
-        switch responseFile {
-        | None =>
-          unresolvedReactSourceResponse(
-            ~details="Resolved source is virtual, missing, or outside source root",
-          )
-        | Some(responseFile) =>
-          let relativeRoot = switch reactServerSource {
-          | true => canonicalSourceRoot
-          | false => sourceRoot
+        let packageResult = await resolveSourceContext(request, {projectRoot: canonicalProjectRoot})
+        switch (packageResult.success, packageResult.data, packageResult.error) {
+        | (false, _, Some(error)) =>
+          unresolvedReactSourceResponse(~details=`${error.code}: ${error.message}`)
+        | (false, _, None) => JsError.throwWithMessage("Source resolver failed without an error")
+        | (true, None, _) => JsError.throwWithMessage("Source resolver succeeded without data")
+        | (true, Some(resolved), _) =>
+          switch await normalizeResolvedContext(~canonicalSourceRoot, resolved) {
+          | Error(details) => unresolvedReactSourceResponse(~details)
+          | Ok(responseContext) =>
+            let json =
+              responseContext->S.decodeOrThrow(
+                ~from=sourceContextSchema,
+                ~to=S.json->S.noValidation(true),
+              )
+            let headers = WebAPI.HeadersInit.fromDict(
+              Dict.fromArray([("Content-Type", "application/json")]),
+            )
+            WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
           }
-          let relativeFile = PathContext.toRelativePath(
-            ~sourceRoot=relativeRoot,
-            ~absolutePath=responseFile,
-          )
-          let responseJson: resolveSourceLocationResponse = {
-            componentName: resolved.componentName,
-            file: relativeFile,
-            line: resolved.line,
-            column: resolved.column,
-          }
-          let json =
-            responseJson->S.decodeOrThrow(~from=resolveSourceLocationResponseSchema, ~to=S.json)
-          let headers = WebAPI.HeadersInit.fromDict(
-            Dict.fromArray([("Content-Type", "application/json")]),
-          )
-          WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
         }
       } catch {
       | exn =>
         let msg =
           exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
         let json = {
-          error: "Failed to resolve source location",
+          error: "Failed to resolve source context",
           details: Some(msg),
         }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json->S.noValidation(true))
         WebAPI.Response.jsonR(~data=json, ~init={status: 500})

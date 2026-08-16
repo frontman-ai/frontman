@@ -18,6 +18,7 @@ const sharedExternal = [
   'astro/config',
   'lighthouse',
   'chrome-launcher',
+  'source-map',
   'node:module',
   'fs',
   'path',

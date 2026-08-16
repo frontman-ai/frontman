@@ -1234,13 +1234,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 let formatError = (exn: exn): string =>
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
 
-let rec hasReactSourceLocation = (sourceLocation: Client__Types.SourceLocation.t): bool => {
-  switch sourceLocation.file->String.startsWith("about://React/") {
-  | true => true
-  | false => sourceLocation.parent->Option.mapOr(false, hasReactSourceLocation)
-  }
-}
-
 let fetchAnnotationDetails = (
   ~id: string,
   ~element: WebAPI.DOMAPI.element,
@@ -1323,32 +1316,21 @@ let fetchAnnotationDetails = (
 
   let _ =
     Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
-    ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
-      let sourceLocationWithTagName = sourceLocation->Result.map(opt =>
-        opt->Option.map(
-          sourceLoc => {
-            {
-              ...sourceLoc,
-              file: sourceLoc.file
-              ->String.split("?")
-              ->Array.get(0)
-              ->Option.getOr(sourceLoc.file),
-            }
-          },
-        )
-      )
+    ->Promise.then(((selector, screenshotResult, sourceContext)) => {
+      let sourceContext =
+        sourceContext->Result.map(opt => opt->Option.map(Client__SourceContext.stripFileQueries))
 
-      let resolvedSourceLocationPromise = switch sourceLocationWithTagName {
-      | Ok(Some(sourceLoc)) =>
-        Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
+      let resolvedSourceLocationPromise = switch sourceContext {
+      | Ok(Some(context)) =>
+        Client__SourceLocationResolver.resolve(context)->Promise.then(result => {
           switch result {
           | Ok(resolved) => Promise.resolve(Ok(Some(resolved)))
           | Error(err) =>
-            switch hasReactSourceLocation(sourceLoc) {
+            switch Client__SourceContext.hasReactLocation(context) {
             | true => Promise.resolve(Error(err))
             | false =>
               Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
-              Promise.resolve(Ok(Some(sourceLoc)))
+              Promise.resolve(Ok(Client__SourceContext.toSourceLocation(context)))
             }
           }
         })

@@ -37,6 +37,7 @@
 		"@frontman/bindings": "0.3.1",
 		"@rescript/runtime": "12.3.0",
 		"chrome-launcher": "^1.1.2",
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#commit=f1eb78e0ad7708ffdc0d0a3f4e59075f58f2113f",
 		"lighthouse": "^13.4.0",
 		"sury": "11.0.0-alpha.10"
 	},

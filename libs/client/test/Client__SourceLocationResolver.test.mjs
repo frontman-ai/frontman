@@ -14,56 +14,69 @@ afterEach(() => {
 	delete window.__frontmanRuntime;
 });
 
-it("resolves every source location in the annotated component chain", async () => {
-	const mappedFiles = new Map([
-		["about://React/Server/file:///app/.next/avatar.js", "src/avatar.tsx"],
-		[
-			"about://React/Server/file:///app/.next/hero-post.js",
-			"src/hero-post.tsx",
-		],
-		["about://React/Server/file:///app/.next/page.js", "src/page.tsx"],
-	]);
-	const fetch = vi.fn(async (_url, init) => {
-		const request = JSON.parse(init.body);
-		return new Response(
-			JSON.stringify({
-				componentName: request.componentName,
-				file: mappedFiles.get(request.file),
-				line: request.line,
-				column: request.column,
-			}),
-			{ status: 200 },
-		);
-	});
+it("resolves a complete context in one request and builds the persistence chain", async () => {
+	const fetch = vi.fn(
+		async () =>
+			new Response(
+				JSON.stringify({
+					definition: {
+						componentName: "Avatar",
+						tagName: "DIV",
+						file: "src/avatar.tsx",
+						line: 10,
+						column: 7,
+						componentProps: { name: "JJ Kasper" },
+					},
+					invocations: [
+						{
+							componentName: "HeroPost",
+							tagName: "DIV",
+							file: "src/hero-post.tsx",
+							line: 42,
+							column: 11,
+						},
+						{
+							componentName: "Index",
+							tagName: "DIV",
+							file: "src/page.tsx",
+							line: 18,
+							column: 5,
+						},
+					],
+				}),
+				{ status: 200 },
+			),
+	);
 	vi.stubGlobal("fetch", fetch);
 
-	const sourceLocation = {
-		componentName: "Avatar",
-		tagName: "DIV",
-		file: "about://React/Server/file:///app/.next/avatar.js",
-		line: 10,
-		column: 7,
-		componentProps: { name: "JJ Kasper" },
-		parent: {
-			componentName: "HeroPost",
-			tagName: "unknown",
-			file: "about://React/Server/file:///app/.next/hero-post.js",
-			line: 42,
-			column: 11,
-			componentProps: undefined,
-			parent: {
+	const context = {
+		definition: {
+			componentName: "Avatar",
+			tagName: "DIV",
+			file: "src/avatar.tsx",
+			line: 10,
+			column: 7,
+			componentProps: { name: "JJ Kasper" },
+		},
+		invocations: [
+			{
+				componentName: "HeroPost",
+				tagName: "DIV",
+				file: "about://React/Server/file:///app/.next/hero-post.js",
+				line: 42,
+				column: 11,
+			},
+			{
 				componentName: "Index",
-				tagName: "unknown",
+				tagName: "DIV",
 				file: "about://React/Server/file:///app/.next/page.js",
 				line: 18,
 				column: 5,
-				componentProps: undefined,
-				parent: undefined,
 			},
-		},
+		],
 	};
 
-	const result = await resolve(sourceLocation);
+	const result = await resolve(context);
 
 	expect(result.TAG).toBe("Ok");
 	expect(result._0).toMatchObject({
@@ -80,44 +93,74 @@ it("resolves every source location in the annotated component chain", async () =
 			},
 		},
 	});
-	expect(fetch).toHaveBeenCalledTimes(3);
+	expect(fetch).toHaveBeenCalledOnce();
+	expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(context);
 });
 
-it("rejects the chain when any React Server location cannot be resolved", async () => {
-	const fetch = vi.fn(async (_url, init) => {
-		const request = JSON.parse(init.body);
-		return request.componentName === "HeroPost"
-			? new Response(
+it("uses the first invocation as head when definition is absent", async () => {
+	const context = {
+		definition: undefined,
+		invocations: [
+			{
+				componentName: "HeroPost",
+				tagName: "ARTICLE",
+				file: "src/hero-post.tsx",
+				line: 42,
+				column: 11,
+			},
+			{
+				componentName: "Index",
+				tagName: "ARTICLE",
+				file: "src/page.tsx",
+				line: 18,
+				column: 5,
+			},
+		],
+	};
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(async () => new Response(JSON.stringify(context), { status: 200 })),
+	);
+
+	const result = await resolve(context);
+
+	expect(result.TAG).toBe("Ok");
+	expect(result._0).toMatchObject({
+		componentName: "HeroPost",
+		parent: { componentName: "Index" },
+	});
+});
+
+it("rejects the context when any React Server location cannot be resolved", async () => {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(
+			async () =>
+				new Response(
 					JSON.stringify({
-						error: "Could not resolve React source location",
+						error: "Could not resolve React source context",
 						details: "Resolved source remained virtual",
 					}),
 					{ status: 422, statusText: "Unprocessable Content" },
-				)
-			: new Response(JSON.stringify(request), { status: 200 });
-	});
-	vi.stubGlobal("fetch", fetch);
+				),
+		),
+	);
 
 	const result = await resolve({
-		componentName: "Avatar",
-		tagName: "DIV",
-		file: "about://React/Server/file:///app/.next/avatar.js",
-		line: 10,
-		column: 7,
-		componentProps: undefined,
-		parent: {
-			componentName: "HeroPost",
-			tagName: "unknown",
-			file: "about://React/Server/file:///app/.next/hero-post.js",
-			line: 42,
-			column: 11,
-			componentProps: undefined,
-			parent: undefined,
-		},
+		definition: undefined,
+		invocations: [
+			{
+				componentName: "HeroPost",
+				tagName: "ARTICLE",
+				file: "about://React/Server/file:///app/.next/hero-post.js",
+				line: 42,
+				column: 11,
+			},
+		],
 	});
 
 	expect(result).toEqual({
 		TAG: "Error",
-		_0: "HTTP 422: Could not resolve React source location: Resolved source remained virtual",
+		_0: "HTTP 422: Could not resolve React source context: Resolved source remained virtual",
 	});
 });

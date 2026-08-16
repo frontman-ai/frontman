@@ -94,7 +94,7 @@
 		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "12.3.0",
 		"@rescript/webapi": "*",
-		"dom-element-to-component-source": "0.5.0",
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#commit=f1eb78e0ad7708ffdc0d0a3f4e59075f58f2113f",
 		"next": "^16.2.10",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7",

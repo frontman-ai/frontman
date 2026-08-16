@@ -16,7 +16,7 @@
  * a plain .mjs test file. The reducer unit tests in Client__Task.test.res
  * cover the same logic with full type safety.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { inspect, utf8ByteSize } from "../src/Client__ElementInspector.res.mjs";
 import { handleEffect } from "../src/state/Client__Task__Reducer.res.mjs";
 
@@ -124,6 +124,10 @@ describe("FetchAnnotationDetails effect handler", () => {
 		resolveSourceLocation.mockImplementation((loc) =>
 			Promise.resolve({ TAG: "Ok", _0: loc }),
 		);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	it("dispatches AnnotationDetailsResolved with Enriched when all promises succeed", async () => {
@@ -261,7 +265,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.sourceLocation._0).toBeUndefined();
 	});
 
-	it("dispatches Ok(Some(loc)) sourceLocation when detection succeeds", async () => {
+	it("dispatches Ok(Some(loc)) sourceLocation when context resolution succeeds", async () => {
 		const mockLoc = {
 			componentName: "Button",
 			tagName: "button",
@@ -271,7 +275,13 @@ describe("FetchAnnotationDetails effect handler", () => {
 			parent: undefined,
 			componentProps: undefined,
 		};
-		getElementSourceLocation.mockImplementation(() => Promise.resolve(mockLoc));
+		const mockContext = { definition: mockLoc, invocations: [] };
+		getElementSourceLocation.mockImplementation(() =>
+			Promise.resolve(mockContext),
+		);
+		resolveSourceLocation.mockImplementation(() =>
+			Promise.resolve({ TAG: "Ok", _0: mockLoc }),
+		);
 
 		const mockWindow = {};
 		handleEffect(makeEffect({ contentWindow: mockWindow }), dispatch, delegate);
@@ -285,16 +295,22 @@ describe("FetchAnnotationDetails effect handler", () => {
 	});
 
 	it("dispatches an error when a React Server location cannot be resolved", async () => {
-		const mockLoc = {
-			componentName: "ServerPost",
-			tagName: "article",
-			file: "about://React/Server/file:///app/.next/server/chunk.js",
-			line: 1,
-			column: 0,
-			parent: undefined,
-			componentProps: undefined,
+		const mockContext = {
+			definition: undefined,
+			invocations: [
+				{
+					componentName: "ServerPost",
+					tagName: "article",
+					file: "about://React/Server/file:///app/.next/server/chunk.js",
+					line: 1,
+					column: 0,
+					componentProps: undefined,
+				},
+			],
 		};
-		getElementSourceLocation.mockImplementation(() => Promise.resolve(mockLoc));
+		getElementSourceLocation.mockImplementation(() =>
+			Promise.resolve(mockContext),
+		);
 		resolveSourceLocation.mockImplementation(() =>
 			Promise.resolve({ TAG: "Error", _0: "HTTP 422: Unprocessable Entity" }),
 		);
@@ -307,25 +323,30 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.sourceLocation._0).toBe("HTTP 422: Unprocessable Entity");
 	});
 
-	it("dispatches an error when a nested React Server location cannot be resolved", async () => {
-		const mockLoc = {
-			componentName: "Avatar",
-			tagName: "div",
-			file: "src/app/_components/avatar.tsx",
-			line: 10,
-			column: 7,
-			componentProps: undefined,
-			parent: {
-				componentName: "HeroPost",
-				tagName: "unknown",
-				file: "about://React/Server/file:///app/.next/server/hero-post.js",
-				line: 42,
-				column: 11,
+	it("dispatches an error when any invocation is a failed React Server location", async () => {
+		const mockContext = {
+			definition: {
+				componentName: "Avatar",
+				tagName: "div",
+				file: "src/app/_components/avatar.tsx",
+				line: 10,
+				column: 7,
 				componentProps: undefined,
-				parent: undefined,
 			},
+			invocations: [
+				{
+					componentName: "HeroPost",
+					tagName: "unknown",
+					file: "about://React/Server/file:///app/.next/server/hero-post.js",
+					line: 42,
+					column: 11,
+					componentProps: undefined,
+				},
+			],
 		};
-		getElementSourceLocation.mockImplementation(() => Promise.resolve(mockLoc));
+		getElementSourceLocation.mockImplementation(() =>
+			Promise.resolve(mockContext),
+		);
 		resolveSourceLocation.mockImplementation(() =>
 			Promise.resolve({ TAG: "Error", _0: "HTTP 422: Unprocessable Entity" }),
 		);
@@ -336,6 +357,48 @@ describe("FetchAnnotationDetails effect handler", () => {
 		const action = dispatched[0];
 		expect(action.sourceLocation.TAG).toBe("Error");
 		expect(action.sourceLocation._0).toBe("HTTP 422: Unprocessable Entity");
+	});
+
+	it("uses original ordinary context when resolution fails", async () => {
+		const mockContext = {
+			definition: {
+				componentName: "Counter",
+				tagName: "button",
+				file: "src/Counter.vue",
+				line: 8,
+				column: 1,
+				componentProps: { initial: 1 },
+			},
+			invocations: [],
+		};
+		getElementSourceLocation.mockResolvedValue(mockContext);
+		resolveSourceLocation.mockResolvedValue({
+			TAG: "Error",
+			_0: "HTTP 404: Resolver unavailable",
+		});
+
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+		await waitForDispatch(dispatched);
+
+		expect(dispatched[0].sourceLocation).toMatchObject({
+			TAG: "Ok",
+			_0: {
+				componentName: "Counter",
+				file: "src/Counter.vue",
+				parent: undefined,
+			},
+		});
+	});
+
+	it("times out source detection after five seconds", async () => {
+		vi.useFakeTimers();
+		getElementSourceLocation.mockImplementation(() => new Promise(() => {}));
+
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+		await vi.advanceTimersByTimeAsync(5000);
+
+		expect(dispatched).toHaveLength(1);
+		expect(dispatched[0].sourceLocation).toEqual({ TAG: "Ok", _0: undefined });
 	});
 
 	it("selector Error when finder throws", async () => {
@@ -410,7 +473,9 @@ describe("FetchAnnotationDetails effect handler", () => {
 			parent: undefined,
 			componentProps: undefined,
 		};
-		getElementSourceLocation.mockImplementation(() => Promise.resolve(mockLoc));
+		getElementSourceLocation.mockImplementation(() =>
+			Promise.resolve({ definition: mockLoc, invocations: [] }),
+		);
 		resolveSourceLocation.mockImplementation(() => {
 			throw new Error("Resolver exploded");
 		});
