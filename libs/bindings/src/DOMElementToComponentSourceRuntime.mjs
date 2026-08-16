@@ -1,6 +1,7 @@
 import {existsSync, readFileSync} from "node:fs"
 import {dirname, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
+import {importRuntimeModule} from "./RuntimeImport.mjs"
 
 export async function resolveSourceLocationInServer(sourceLocation, projectRoot) {
   if (!sourceLocation.file.startsWith("about://React/Server/")) return sourceLocation
@@ -19,7 +20,7 @@ export async function resolveSourceLocationInServer(sourceLocation, projectRoot)
     if (!mapFile) return sourceLocation
 
     const sourceMapModule = "source-map"
-    const {SourceMapConsumer} = await import(sourceMapModule)
+    const {SourceMapConsumer} = await importRuntimeModule(sourceMapModule)
     const rawMap = JSON.parse(readFileSync(mapFile, "utf8"))
     const original = await SourceMapConsumer.with(rawMap, null, consumer =>
       consumer.originalPositionFor({line: sourceLocation.line, column: sourceLocation.column}),

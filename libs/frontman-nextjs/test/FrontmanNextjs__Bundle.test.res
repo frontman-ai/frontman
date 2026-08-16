@@ -15,5 +15,6 @@ describe("server bundle runtime dependencies", _ => {
 
   test("does not bundle source-map WASM loading", t => {
     t->expect(bundle->String.includes("mappings.wasm"))->Expect.toBe(false)
+    t->expect(bundle->String.includes("import(sourceMapModule)"))->Expect.toBe(false)
   })
 })
