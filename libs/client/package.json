@@ -76,7 +76,7 @@
 		"@floating-ui/dom": "^1.8.0",
 		"@tiptap/core": "^3.27.3",
 		"@tiptap/extension-document": "^3.27.3",
-		"@tiptap/extension-paragraph": "^3.27.3",
+		"@tiptap/extension-paragraph": "^3.28.0",
 		"@tiptap/extension-placeholder": "^3.27.3",
 		"@tiptap/extension-text": "^3.28.0",
 		"@tiptap/extensions": "^3.28.0",

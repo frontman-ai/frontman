@@ -2376,7 +2376,7 @@ __metadata:
     "@tailwindcss/vite": "npm:^4.3.2"
     "@tiptap/core": "npm:^3.27.3"
     "@tiptap/extension-document": "npm:^3.27.3"
-    "@tiptap/extension-paragraph": "npm:^3.27.3"
+    "@tiptap/extension-paragraph": "npm:^3.28.0"
     "@tiptap/extension-placeholder": "npm:^3.27.3"
     "@tiptap/extension-text": "npm:^3.28.0"
     "@tiptap/extensions": "npm:^3.28.0"
@@ -6307,12 +6307,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tiptap/extension-paragraph@npm:^3.27.3":
-  version: 3.27.3
-  resolution: "@tiptap/extension-paragraph@npm:3.27.3"
+"@tiptap/extension-paragraph@npm:^3.28.0":
+  version: 3.28.0
+  resolution: "@tiptap/extension-paragraph@npm:3.28.0"
   peerDependencies:
-    "@tiptap/core": 3.27.3
-  checksum: 10c0/05eb8f89537b225af1273b3211c2f8cb24a5803758ca25dd65d7b0a7a568870e770d22a57a82fe81c5712f1910c1f4c64daebff5ec59f3d0064637ff10b8e530
+    "@tiptap/core": 3.28.0
+  checksum: 10c0/a56f3dad58f2b2510dc951ccfbb6dfb9355470e866d849c3fc18a18bb3735a828876ba79ff525e68dd1b1a7c637217494db2586008bbaa658b4fd29f42c36c7b
   languageName: node
   linkType: hard
 
