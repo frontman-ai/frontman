@@ -79,7 +79,7 @@
 		"@tiptap/extension-paragraph": "^3.27.3",
 		"@tiptap/extension-placeholder": "^3.27.3",
 		"@tiptap/extension-text": "^3.28.0",
-		"@tiptap/extensions": "^3.27.3",
+		"@tiptap/extensions": "^3.28.0",
 		"@tiptap/pm": "^3.27.3",
 		"@tiptap/react": "^3.27.3"
 	},
