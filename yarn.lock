@@ -2389,7 +2389,7 @@ __metadata:
     babel-plugin-react-compiler: "npm:^1.0.0"
     dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "npm:^0.5.0"
-    lucide-react: "npm:^1.24.0"
+    lucide-react: "npm:^1.25.0"
     react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
     rescript: "catalog:"
@@ -12732,12 +12732,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^1.24.0":
-  version: 1.24.0
-  resolution: "lucide-react@npm:1.24.0"
+"lucide-react@npm:^1.25.0":
+  version: 1.25.0
+  resolution: "lucide-react@npm:1.25.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/8bc2a7c6cfa33bfc6df5533cec12454197f9182b98da0dcb79c6f167ca99710d9360e68b4ba7959953b4c501a48a100713e1b047a18c326c955920f72b9207ee
+  checksum: 10c0/66eb6f82926547ad7086a410c3ce912307e776c75a495c7ae9d68d96ab58abfb61124b6da5c398cdbf820539830ccc8dabfe9960a06b9e0d43670adba822d4b1
   languageName: node
   linkType: hard
 
