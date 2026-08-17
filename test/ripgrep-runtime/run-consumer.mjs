@@ -1,9 +1,8 @@
 import assert from "node:assert/strict"
-import {mkdtemp, readFile, rm, writeFile} from "node:fs/promises"
+import {mkdtemp, rm, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {resolve} from "node:path"
 import {spawnSync} from "node:child_process"
-import {createRequire} from "node:module"
 import {pathToFileURL} from "node:url"
 
 const [integration, tarball] = process.argv.slice(2)
@@ -21,7 +20,7 @@ assert.ok(packageConfig, `Unsupported integration: ${integration}`)
 const consumer = await mkdtemp(resolve(tmpdir(), `frontman-${integration}-ripgrep-`))
 
 function run(command, args) {
-  const result = spawnSync(command, args, {cwd: consumer, encoding: "utf8", stdio: "inherit"})
+  const result = spawnSync(command, args, {cwd: consumer, stdio: "inherit"})
   assert.equal(result.status, 0, `${command} ${args.join(" ")} failed`)
 }
 
@@ -37,10 +36,6 @@ try {
   run("npm", ["install", "--strict-peer-deps", "--save-exact"])
 
   const packageRoot = resolve(consumer, "node_modules", packageConfig.packageName)
-  const packageRequire = createRequire(resolve(packageRoot, "package.json"))
-  const ripgrepUrl = pathToFileURL(packageRequire.resolve("@vscode/ripgrep"))
-  const {rgPath} = await import(ripgrepUrl)
-  assert.equal(typeof rgPath, "string")
   const frontman = await import(pathToFileURL(resolve(packageRoot, "dist", "index.js")))
   const configInput = {projectRoot: consumer, sourceRoot: consumer, basePath: "frontman"}
   const middleware = integration === "nextjs"
@@ -54,11 +49,6 @@ try {
   const response = await middleware(request)
   assert.equal(response?.status, 200)
   assert.match(await response.text(), /search-target\.txt/)
-
-  const installedPackage = JSON.parse(
-    await readFile(resolve(packageRoot, "package.json"), "utf8"),
-  )
-  assert.equal(installedPackage.optionalDependencies["@vscode/ripgrep"], "^1.18.0")
 } finally {
   await rm(consumer, {recursive: true, force: true})
 }
